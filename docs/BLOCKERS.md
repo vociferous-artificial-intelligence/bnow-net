@@ -32,3 +32,7 @@ Dated log of missing credentials/capabilities. Each has a stub in place; nothing
    `ANALYSIS_PROVIDER=stub` (deterministic extractive) is now set in prod + local.
    **Action: add credits at platform.openai.com/billing OR provide ANTHROPIC_API_KEY and
    set ANALYSIS_PROVIDER unset/auto. LLM spend this weekend: ~$0.02.**
+10. **GDELT DOC API flaky/unreachable (2026-07-04).** 429'd then connection-refused from
+    build host AND returns empty from Vercel egress. Adapter is wired and degrades
+    gracefully; data resumes automatically when GDELT recovers. Alternate path if it
+    stays dead: data.gdeltproject.org raw 15-min export files (heavier parse, no API).
