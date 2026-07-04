@@ -55,13 +55,21 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
 
 ## Current state (update every commit batch)
 
-- **2026-07-04 ~14:00 — Stage 0 PASS.** Scaffold + schema + first deploy done.
-- Works: Neon `bnow` DB (PG17+pgvector), full schema spine migrated, traceability
-  constraint trigger live (smoke-tested), seed (11 countries, 3 plans), /health green.
-- Stubbed: everything else (Stages 1–6 pending).
-- Last deploy: **https://bnow-net.vercel.app** (project domain; deployment URLs are
-  SSO-walled — always use the project domain). Deploys via `npx vercel@latest deploy
-  --prod --yes` (CLI 46 is too old; machine session auth, token expired).
+- **2026-07-04 evening — Stages 0–5 PASS** (reviews in docs/reviews/). Stage 6 wrap-up.
+- Works (all live at https://bnow-net.vercel.app):
+  - Registry: 6,985 ISW-derived sources / 251K citations / 1,565 reports (97.65% parse).
+  - Ingestion: 8 RSS + 25 telegram channels (registry-selected), ~6.5K docs, crons
+    */15 + hourly registered and firing. GDELT wired but upstream-flaky (blocker #10).
+  - Digests: daily cron 21:30 UTC + 14-day backfill, claim→source click-through,
+    provider=stub (openai quota dead, blocker #9; LLM path verified in prod first).
+  - Validation: 28 backtested runs on /scoreboard, divergence drill-downs,
+    median info-lead +16.4h. Daily cron 07:00 UTC.
+  - Surface: landing / countries / pricing+intents / magic-link auth / email-outbox.
+- Stubbed: MTProto, X, ACLED (fixtures); Stripe flagged off; Resend → file outbox.
+- Deploys: `npx vercel@latest deploy --prod --yes` (CLI 46 too old; machine session
+  auth — env VERCEL_TOKEN expired). Deployment URLs SSO-walled; use project domain.
+- Local-host quirks: api.openai.com and api.gdeltproject.org TCP-unreachable from this
+  WSL2 box — LLM work must run via Vercel routes.
 
 ## Decision log (append-only, dated)
 
@@ -80,6 +88,20 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
   Crawler targets new structure; criticalthreats.org stays the fallback.
 - **2026-07-04** Per repo-root CLAUDE.md: no vendor branding in commits/files; no
   deletes/renames outside this repo; small, test-covered diffs.
+- **2026-07-04** TASS/RIA/Lenta RSS TCP-unreachable from host → their content enters
+  via their official telegram channels (tass_agency, rian_ru).
+- **2026-07-04** OpenAI quota died after one successful prod digest → stub provider
+  (deterministic extractive) as designed; ANALYSIS_PROVIDER=stub in prod env.
+- **2026-07-04** ISW "Key Takeaways" stored as keyword signatures only (toponyms +
+  action classes + char count) — no prose in DB, satisfying §8.6 while enabling matching.
+- **2026-07-04** Unhedged ISW declaratives stay hedging='unknown' (mid-trust 0.5) —
+  forcing them into the 4 classes would corrupt the reliability signal.
+- **2026-07-04** Matching is trilingual keyword-based (gazetteer + oblast→town
+  expansion), NOT LLM — deterministic, testable; LLM upgrade slots into same seam.
+- **2026-07-04** Vercel account supports frequent crons (*/15 registered fine) — no
+  local scheduler needed; everything steady-state runs serverless.
+- **2026-07-04** RU/UA digest corpora are strictly per-theater (rd.country_iso2 = X);
+  uk-language telegram posts auto-tag ua (registry lacks per-source country, debt).
 
 ## Conventions
 
@@ -113,9 +135,13 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
 
 ## Next steps / open questions
 
-1. Stage 0: Neon `bnow` DB, scaffold, schema, health page, deploy.
-2. Then Stages 1–6 per execution prompt (tasks #1–#7 in session task list).
-3. Open: original brief needs to replace the reconstruction (Gregory, Monday).
+1. **Monday (Gregory):** work docs/SETUP-NEXT-WEEK.md top-to-bottom — LLM credits/key
+   first (biggest quality unlock), then DNS, then MTProto/Resend/Stripe.
+2. Stage 7 candidates (any future session): anthropic provider impl; year-inference
+  for 37 unparsed ISW pages; per-source country column + UA channel curation;
+  scoreboard trend charts; per-source registry detail pages; GDELT raw-file fallback;
+  new-country playbook doc from Gulf configs (brief §8.4).
+3. Open: original brief still needs to replace docs/PRODUCT-BRIEF.md (reconstruction).
 
 ## Operating protocol
 

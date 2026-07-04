@@ -56,3 +56,9 @@
 - Stage 5: landing/theaters/pricing(intent capture)/auth(magic link)/email-outbox all deployed.
 - Self-review caught: RU/UA digest corpus pooling bug (operator precedence) — fixed; UA telegram channels mis-tagged ru — fixed + retro-tagged.
 - Waiting on: telegram 14-day backfill (~25 channels, then backtest run).
+
+## 2026-07-04 evening — Stage 6: hardening & handoff
+
+- 14-day backtest rerun x3 (matcher + stub improvements): 28 runs, nonzero-day coverage avg 24.1%, median info-lead +16.4h.
+- Reviews written for stages 3/4/5. README, SETUP-NEXT-WEEK, AGENTS.md finalized.
+- Remaining: full test+build pass, final deploy, definition-of-done audit.
