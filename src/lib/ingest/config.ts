@@ -31,4 +31,4 @@ export const TELEGRAM_CURATED: Array<{ channel: string; countryIso2: string }> =
 ];
 
 /** How many registry-derived telegram channels to add on top of the curated set. */
-export const REGISTRY_TELEGRAM_TOP_N = 15;
+export const REGISTRY_TELEGRAM_TOP_N = 30;
