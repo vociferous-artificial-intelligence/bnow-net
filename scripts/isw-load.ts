@@ -35,8 +35,8 @@ async function main() {
               title = EXCLUDED.title
         RETURNING id`;
       reportIdByUrl.set(r.url, rows[0].id as number);
-    } catch (e: any) {
-      if (String(e.message).includes("isw_reports_date_idx")) {
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("isw_reports_date_idx")) {
         dateSkipped++; // duplicate assessment date (reprint/update) — first one wins
       } else throw e;
     }
@@ -69,9 +69,12 @@ async function main() {
       params,
     );
   }
-  const srcRows = await sql`SELECT id, canonical_url FROM sources`;
+  const srcRows = (await sql`SELECT id, canonical_url FROM sources`) as Array<{
+    id: number;
+    canonical_url: string;
+  }>;
   const sourceIdByKey = new Map<string, number>(
-    srcRows.map((r: any) => [r.canonical_url, r.id]),
+    srcRows.map((r) => [r.canonical_url, r.id]),
   );
 
   // -- 3. citations in batches
