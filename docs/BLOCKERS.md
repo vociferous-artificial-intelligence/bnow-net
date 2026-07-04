@@ -26,3 +26,9 @@ Dated log of missing credentials/capabilities. Each has a stub in place; nothing
 8. **No Resend key.** Digest emails render to `data/outbox/` files. **Action: resend.com →
    `RESEND_API_KEY` (Postmark creds exist in scenefiend env but belong to scenefiend's
    sending domain — decided not to borrow them).**
+9. **OPENAI_API_KEY exhausted (2026-07-04 ~15:20).** The key connects fine (from Vercel;
+   local WSL2 egress to api.openai.com is blocked anyway) and generated one full UA digest
+   (digestId 1, 9 events/9 claims) before returning `insufficient_quota` on every call.
+   `ANALYSIS_PROVIDER=stub` (deterministic extractive) is now set in prod + local.
+   **Action: add credits at platform.openai.com/billing OR provide ANTHROPIC_API_KEY and
+   set ANALYSIS_PROVIDER unset/auto. LLM spend this weekend: ~$0.02.**
