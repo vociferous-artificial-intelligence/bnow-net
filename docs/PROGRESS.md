@@ -37,3 +37,13 @@
 - New-site layout uniform across whole archive (endnote accordion + [N] plain-text URL groups, ' dot ' obfuscation).
 - 17 fixture tests green. Registry explorer page written (/registry).
 - Next: full 1,578-page backfill in background (~60 min), load sample→DB, materialize registry, verify /registry live.
+
+## 2026-07-04 15:00 — Stage 2 substantially complete
+
+- SourceAdapter framework live: 8 RSS feeds + telegram_web (10 curated + 15 registry-top channels) + stubs (mtproto/x/acled, fixture-backed).
+- 556 live docs in raw_documents, hash-dedupe proven idempotent.
+- Vercel crons REGISTERED: */15 ingest fast, hourly telegram — account supports frequent crons, no local loop needed.
+- /admin/ingest live; cron route 401s without secret.
+- GDELT: DOC API connection-blocked our IP after 429s (adapter degrades gracefully; retry later; alternates: data.gdeltproject.org raw files).
+- ISW full backfill: ~700/1578 cached, 1 failure so far.
+- Next: verify first production cron fire, then Stage 3 (processing + digest).
