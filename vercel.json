@@ -2,6 +2,7 @@
   "crons": [
     { "path": "/api/cron/ingest?which=fast", "schedule": "*/15 * * * *" },
     { "path": "/api/cron/ingest?which=telegram", "schedule": "10 * * * *" },
-    { "path": "/api/cron/digest", "schedule": "30 21 * * *" }
+    { "path": "/api/cron/digest", "schedule": "30 21 * * *" },
+    { "path": "/api/cron/validate", "schedule": "0 7 * * *" }
   ]
 }

@@ -1,3 +1,4 @@
+import { extractSignature } from "../validation/keywords";
 import { findNearDuplicates } from "./minhash";
 import type {
   AnalysisInputDoc,
@@ -32,30 +33,43 @@ export class StubProvider implements AnalysisProvider {
     _date: string,
     docs: AnalysisInputDoc[],
   ): Promise<DigestAnalysis> {
-    const texts = docs.map((d) => `${d.title ?? ""} ${d.content}`.slice(0, 2000));
+    // war-relevance prefilter: theater toponym or military action keyword required
+    // (drops channel housekeeping, fundraising, off-topic reposts)
+    const relevant = docs.filter((d) => {
+      const sig = extractSignature(`${d.title ?? ""} ${d.content}`.slice(0, 1500));
+      return sig.toponyms.size > 0 || sig.actions.size > 0;
+    });
+    const pool = relevant.length >= 15 ? relevant : docs;
+
+    const texts = pool.map((d) => `${d.title ?? ""} ${d.content}`.slice(0, 2000));
     const { groups } = findNearDuplicates(texts, 0.5);
 
-    // rank clusters: corroboration count, then total reliability
+    // rank clusters: corroboration count, reliability, and topical specificity
     const ranked = [...groups.entries()]
-      .map(([canonical, members]) => ({
-        canonical,
-        members,
-        score:
-          members.length +
-          members.reduce((s, i) => s + (docs[i].reliability ?? 0.3), 0),
-      }))
+      .map(([canonical, members]) => {
+        const sig = extractSignature(texts[canonical]);
+        return {
+          canonical,
+          members,
+          score:
+            members.length +
+            members.reduce((s, i) => s + (pool[i].reliability ?? 0.3), 0) +
+            sig.toponyms.size * 1.5 +
+            sig.actions.size * 0.5,
+        };
+      })
       .sort((a, b) => b.score - a.score)
       .slice(0, 12);
 
     const events: ExtractedEvent[] = ranked.map(({ canonical, members }) => {
-      const rep = docs[canonical];
+      const rep = pool[canonical];
       const lead = (rep.title ?? rep.content).slice(0, 180).trim();
       const claim: ExtractedClaim = {
         text: lead,
         claimType: "factual",
         // extractive stub cannot judge hedging reliably -> claimed (attributed)
         hedging: "claimed",
-        docIds: members.map((i) => docs[i].id),
+        docIds: members.map((i) => pool[i].id),
       };
       return {
         title: lead.slice(0, 100),

@@ -1,4 +1,10 @@
-import { extractSignature, matchScore, MATCH_THRESHOLD, type Signature } from "./keywords";
+import {
+  expandToponyms,
+  extractSignature,
+  matchScore,
+  MATCH_THRESHOLD,
+  type Signature,
+} from "./keywords";
 import type { IswTakeaway } from "./isw-extract";
 
 // Scoring a digest against the same-day ISW assessment.
@@ -52,7 +58,7 @@ export function scoreDigest(
   const takeawaySigs = takeaways.map((t) => ({
     t,
     sig: {
-      toponyms: new Set(t.toponyms),
+      toponyms: expandToponyms(new Set(t.toponyms)),
       actions: new Set(t.actions),
     } as Signature,
   }));

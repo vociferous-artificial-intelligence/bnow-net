@@ -61,9 +61,30 @@ const ACTIONS: Record<string, string[]> = {
   casualties: ["casualt", "losses", "killed", "потер", "втрат", "загибл", "погиб"],
 };
 
+// Oblast-level names expand to their member towns for matching: ISW takeaways
+// summarize at oblast level while ground sources name towns.
+const OBLAST_TOWNS: Record<string, string[]> = {
+  donetsk: [
+    "pokrovsk", "toretsk", "chasiv_yar", "kostyantynivka", "lyman", "siversk",
+    "sloviansk", "kramatorsk", "velyka_novosilka", "novopavlivka",
+  ],
+  kharkiv: ["kupyansk", "vovchansk", "velykyi_burluk"],
+  zaporizhzhia: ["hulyaipole"],
+  luhansk: [],
+  kherson: [],
+  sumy: [],
+};
+
 export interface Signature {
   toponyms: Set<string>;
   actions: Set<string>;
+}
+
+/** Expand oblast-level toponyms to include member towns (for the ISW side). */
+export function expandToponyms(toponyms: Set<string>): Set<string> {
+  const out = new Set(toponyms);
+  for (const t of toponyms) for (const town of OBLAST_TOWNS[t] ?? []) out.add(town);
+  return out;
 }
 
 export function extractSignature(text: string): Signature {
