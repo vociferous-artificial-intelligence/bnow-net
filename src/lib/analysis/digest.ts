@@ -7,7 +7,9 @@ import { getProvider, type AnalysisInputDoc, type DigestAnalysis } from "./provi
 // Persistence runs in ONE transaction so the claim_must_have_source constraint
 // trigger (deferred) verifies traceability at COMMIT.
 
-const MAX_DOCS = 150;
+// Cyrillic tokenizes ~1 token/char in GPT models; 100 docs x 400 chars keeps a
+// full-RU batch under the entry-tier 60K TPM limit.
+const MAX_DOCS = 100;
 
 export interface DigestResult {
   digestId: number;

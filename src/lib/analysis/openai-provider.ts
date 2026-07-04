@@ -83,25 +83,37 @@ export class OpenAiProvider implements AnalysisProvider {
             (d.title ? d.title + ". " : "") + d.content
           )
             .replace(/\s+/g, " ")
-            .slice(0, 500)}`,
+            .slice(0, 400)}`,
       )
       .join("\n");
 
-    const completion = await this.client.chat.completions.create({
-      model: MODEL,
-      messages: [
-        { role: "system", content: SYSTEM },
-        {
-          role: "user",
-          content: `Theater: ${countryIso2.toUpperCase()} · Date: ${date}\n\nDocuments:\n${docLines}`,
+    const request = () =>
+      this.client.chat.completions.create({
+        model: MODEL,
+        messages: [
+          { role: "system", content: SYSTEM },
+          {
+            role: "user",
+            content: `Theater: ${countryIso2.toUpperCase()} · Date: ${date}\n\nDocuments:\n${docLines}`,
+          },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: { name: "digest", schema: RESPONSE_SCHEMA as never, strict: true },
         },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: { name: "digest", schema: RESPONSE_SCHEMA as never, strict: true },
-      },
-      temperature: 0.2,
-    });
+        temperature: 0.2,
+      });
+
+    let completion;
+    try {
+      completion = await request();
+    } catch (e) {
+      // TPM window 429: one retry after the minute resets
+      if ((e as { status?: number }).status === 429) {
+        await new Promise((r) => setTimeout(r, 65_000));
+        completion = await request();
+      } else throw e;
+    }
 
     const raw = completion.choices[0]?.message?.content ?? '{"events":[]}';
     let events: ExtractedEvent[] = [];
