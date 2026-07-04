@@ -1,0 +1,6 @@
+{
+  "crons": [
+    { "path": "/api/cron/ingest?which=fast", "schedule": "*/15 * * * *" },
+    { "path": "/api/cron/ingest?which=telegram", "schedule": "10 * * * *" }
+  ]
+}

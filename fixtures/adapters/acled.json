@@ -1,0 +1,14 @@
+[
+  {
+    "adapter": "acled",
+    "externalId": "stub-ACLED-UKR-20260703-001",
+    "url": null,
+    "title": "Battle: Armed clash near Kupiansk, Kharkiv Oblast",
+    "content": "[STUB FIXTURE] ACLED event: Battles / Armed clash. Kharkiv Oblast, Kupianskyi Raion. Fatalities: 0. Actors: Military Forces of Russia vs Military Forces of Ukraine.",
+    "lang": "en",
+    "countryIso2": "ua",
+    "publishedAt": "2026-07-03T00:00:00Z",
+    "sourceKey": null,
+    "meta": { "stub": true, "eventType": "Battles" }
+  }
+]

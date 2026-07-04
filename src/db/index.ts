@@ -7,4 +7,6 @@ if (!url) throw new Error("DATABASE_URL is not set");
 
 const sql = neon(url);
 export const db = drizzle({ client: sql, schema });
+/** raw neon client for parameterized bulk SQL (multi-row VALUES etc.) */
+export const rawSql = sql;
 export { schema };

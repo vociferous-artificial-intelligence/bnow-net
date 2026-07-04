@@ -1,0 +1,26 @@
+[
+  {
+    "adapter": "telegram_mtproto",
+    "externalId": "stub/rybar/999001",
+    "url": "https://t.me/rybar/999001",
+    "title": null,
+    "content": "[STUB FIXTURE] Обстановка на купянском направлении к исходу 3 июля 2026 года. Подразделения продолжают наступательные действия в районе н.п. Синьковка.",
+    "lang": "ru",
+    "countryIso2": "ru",
+    "publishedAt": "2026-07-03T18:00:00Z",
+    "sourceKey": "t.me/rybar",
+    "meta": { "stub": true }
+  },
+  {
+    "adapter": "telegram_mtproto",
+    "externalId": "stub/deepstateua/999002",
+    "url": "https://t.me/DeepStateUA/999002",
+    "title": null,
+    "content": "[STUB FIXTURE] Оновлення мапи станом на 22:00 03.07.2026. Ворог просунувся поблизу Торецька.",
+    "lang": "uk",
+    "countryIso2": "ua",
+    "publishedAt": "2026-07-03T19:00:00Z",
+    "sourceKey": "t.me/deepstateua",
+    "meta": { "stub": true }
+  }
+]

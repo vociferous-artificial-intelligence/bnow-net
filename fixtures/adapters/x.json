@@ -1,0 +1,14 @@
+[
+  {
+    "adapter": "x",
+    "externalId": "stub-1810000000000000001",
+    "url": "https://x.com/GeoConfirmed/status/1810000000000000001",
+    "title": null,
+    "content": "[STUB FIXTURE] GeoConfirmed UKR: Geolocated footage of a strike on a fuel depot near Kupiansk. 49.71, 37.62. Direction: NE.",
+    "lang": "en",
+    "countryIso2": "ua",
+    "publishedAt": "2026-07-03T15:30:00Z",
+    "sourceKey": "x.com/geoconfirmed",
+    "meta": { "stub": true }
+  }
+]
