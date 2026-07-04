@@ -41,7 +41,7 @@ export async function generateDigest(
               s.canonical_url AS source_key, s.reliability_score AS reliability
        FROM raw_documents rd
        LEFT JOIN sources s ON s.id = rd.source_id
-       WHERE (rd.country_iso2 = $1 OR $1 = ANY(ARRAY['ru','ua']) AND rd.country_iso2 IN ('ru','ua'))
+       WHERE rd.country_iso2 = $1
          AND COALESCE(rd.published_at, rd.fetched_at) >= $2::date
          AND COALESCE(rd.published_at, rd.fetched_at) < $2::date + interval '1 day'
          AND length(rd.content) >= 40
