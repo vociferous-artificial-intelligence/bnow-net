@@ -29,3 +29,11 @@
 2. Polite fetch layer: 2s/host spacing, disk cache (data/cache/), custom UA.
 3. Fetch ~120 stratified sample reports.
 4. Endnote parser + fixtures + tests.
+
+## 2026-07-04 14:35 — Stage 1 mid-block
+
+- 1,578 ROCA URLs discovered (Yoast sitemaps). Sample fetch ~120 pages nearly done (1 timeout).
+- Parser: 100% parse rate on 77-page stratified sample, 14.4K citations, hedged share 53-72% by year.
+- New-site layout uniform across whole archive (endnote accordion + [N] plain-text URL groups, ' dot ' obfuscation).
+- 17 fixture tests green. Registry explorer page written (/registry).
+- Next: full 1,578-page backfill in background (~60 min), load sample→DB, materialize registry, verify /registry live.
