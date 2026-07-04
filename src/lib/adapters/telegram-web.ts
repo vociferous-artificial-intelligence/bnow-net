@@ -46,6 +46,47 @@ export class TelegramWebAdapter implements SourceAdapter {
     private spacingMs = 1500,
   ) {}
 
+  /** Page back through t.me/s/<channel>?before=<id> until `until` date. */
+  async backfillChannel(
+    channel: string,
+    countryIso2: string,
+    until: Date,
+    maxPages = 40,
+  ): Promise<RawDoc[]> {
+    const docs: RawDoc[] = [];
+    let before: number | null = null;
+    for (let page = 0; page < maxPages; page++) {
+      const url =
+        `https://t.me/s/${encodeURIComponent(channel)}` + (before ? `?before=${before}` : "");
+      try {
+        const res = await fetch(url, {
+          headers: { "User-Agent": UA },
+          signal: AbortSignal.timeout(20_000),
+        });
+        if (!res.ok) break;
+        const batch = parseChannelPage(await res.text(), channel, countryIso2);
+        if (batch.length === 0) break;
+        docs.push(...batch);
+        const ids = batch
+          .map((d) => parseInt(d.externalId?.split("/")[1] ?? "", 10))
+          .filter((n) => !isNaN(n));
+        if (ids.length === 0) break;
+        const minId = Math.min(...ids);
+        if (before !== null && minId >= before) break; // no progress
+        before = minId;
+        const oldest = batch
+          .map((d) => d.publishedAt?.getTime() ?? Infinity)
+          .reduce((a, b) => Math.min(a, b), Infinity);
+        if (oldest !== Infinity && oldest < until.getTime()) break;
+      } catch (e) {
+        console.warn(`telegram_web backfill ${channel}: ${e instanceof Error ? e.message : e}`);
+        break;
+      }
+      await new Promise((r) => setTimeout(r, this.spacingMs));
+    }
+    return docs;
+  }
+
   async fetchLatest(): Promise<RawDoc[]> {
     const docs: RawDoc[] = [];
     for (const { channel, countryIso2 } of this.channels) {

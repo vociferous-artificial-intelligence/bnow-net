@@ -62,8 +62,12 @@ export async function politeFetch(url: string): Promise<FetchResult | null> {
       }
       if (!res.ok) return { url, html: "", fromCache: false, status: res.status };
       const html = await res.text();
-      mkdirSync(CACHE_DIR, { recursive: true });
-      writeFileSync(cachePath(url), html);
+      try {
+        mkdirSync(CACHE_DIR, { recursive: true });
+        writeFileSync(cachePath(url), html);
+      } catch {
+        // read-only FS (Vercel) — skip disk cache, still return the page
+      }
       return { url, html, fromCache: false, status: res.status };
     } catch {
       await sleep(3000 * (attempt + 1));
