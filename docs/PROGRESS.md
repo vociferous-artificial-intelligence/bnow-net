@@ -62,3 +62,10 @@
 - 14-day backtest rerun x3 (matcher + stub improvements): 28 runs, nonzero-day coverage avg 24.1%, median info-lead +16.4h.
 - Reviews written for stages 3/4/5. README, SETUP-NEXT-WEEK, AGENTS.md finalized.
 - Remaining: full test+build pass, final deploy, definition-of-done audit.
+
+## 2026-07-04 — DEFINITION OF DONE MET (Stage 6 closed)
+
+Final: 1,565 ISW reports · 6,985 sources · 251,112 citations · 6,930 raw docs ·
+30 digests · 349 claims (all source-linked, DB-enforced) · 28 validation runs.
+All 7 stages PASS with review gates. Live: https://bnow-net.vercel.app
+Continuing into Stage 7 (deepen) with remaining weekend time.
