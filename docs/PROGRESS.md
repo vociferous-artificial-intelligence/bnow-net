@@ -47,3 +47,12 @@
 - GDELT: DOC API connection-blocked our IP after 429s (adapter degrades gracefully; retry later; alternates: data.gdeltproject.org raw files).
 - ISW full backfill: ~700/1578 cached, 1 failure so far.
 - Next: verify first production cron fire, then Stage 3 (processing + digest).
+
+## 2026-07-04 16:30 — Stages 1 complete, 3/4/5 nearly complete
+
+- Stage 1 CLOSED: 6,985 sources (3.5x target), 97.65% parse rate, 251K citations, registry live. PHASE0-FEASIBILITY.md written.
+- Stage 3: digests generating (stub provider after OpenAI quota died; LLM path verified working first). Digest pages live with claim→source chips.
+- Stage 4: validation harness + scoreboard + drill-down built and deployed; backtest pending telegram history completion.
+- Stage 5: landing/theaters/pricing(intent capture)/auth(magic link)/email-outbox all deployed.
+- Self-review caught: RU/UA digest corpus pooling bug (operator precedence) — fixed; UA telegram channels mis-tagged ru — fixed + retro-tagged.
+- Waiting on: telegram 14-day backfill (~25 channels, then backtest run).
