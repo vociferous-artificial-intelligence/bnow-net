@@ -17,3 +17,15 @@
 3. Next.js 15 scaffold (TS strict, Tailwind, shadcn/ui), Drizzle wired.
 4. Initial schema migration (full data-model spine).
 5. Health page + first Vercel deploy with env vars.
+
+## 2026-07-04 14:05 — Stage 0 PASS
+
+- Deployed: https://bnow-net.vercel.app (green DB check, 11 countries).
+- Neon `bnow` created via API; schema spine + traceability trigger live and smoke-tested.
+- Gotchas: CLI 46 too old (use npx vercel@latest); deployment URLs SSO-walled (use project domain).
+
+### Plan: block 2 (≤2h) — Stage 1 start
+1. ISW archive discovery: enumerate report URLs from the new /research/russia-ukraine/ structure (sitemap or listing pages).
+2. Polite fetch layer: 2s/host spacing, disk cache (data/cache/), custom UA.
+3. Fetch ~120 stratified sample reports.
+4. Endnote parser + fixtures + tests.

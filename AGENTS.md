@@ -55,10 +55,13 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
 
 ## Current state (update every commit batch)
 
-- **2026-07-04 12:55**: Foundation docs written. Nothing built yet. No deploy yet.
-- Works: —
-- Stubbed: —
-- Last deploy: —
+- **2026-07-04 ~14:00 — Stage 0 PASS.** Scaffold + schema + first deploy done.
+- Works: Neon `bnow` DB (PG17+pgvector), full schema spine migrated, traceability
+  constraint trigger live (smoke-tested), seed (11 countries, 3 plans), /health green.
+- Stubbed: everything else (Stages 1–6 pending).
+- Last deploy: **https://bnow-net.vercel.app** (project domain; deployment URLs are
+  SSO-walled — always use the project domain). Deploys via `npx vercel@latest deploy
+  --prod --yes` (CLI 46 is too old; machine session auth, token expired).
 
 ## Decision log (append-only, dated)
 
