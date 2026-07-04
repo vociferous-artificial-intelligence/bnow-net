@@ -1,0 +1,11 @@
+node_modules/
+.next/
+.env*
+!.env.example
+.vercel
+*.log
+.cache/
+data/cache/
+data/raw/
+coverage/
+.DS_Store
