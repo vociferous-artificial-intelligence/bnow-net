@@ -60,10 +60,12 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
   - Registry: 6,985 ISW-derived sources / 251K citations / 1,565 reports (97.65% parse).
   - Ingestion: 8 RSS + 25 telegram channels (registry-selected), ~6.5K docs, crons
     */15 + hourly registered and firing. GDELT wired but upstream-flaky (blocker #10).
-  - Digests: daily cron 21:30 UTC + 14-day backfill, claim→source click-through,
-    provider=stub (openai quota dead, blocker #9; LLM path verified in prod first).
-  - Validation: 28 backtested runs on /scoreboard, divergence drill-downs,
-    median info-lead +16.4h. Daily cron 07:00 UTC.
+  - Digests: daily cron 21:30 UTC; all 30 backtest digests are LLM-generated
+    (gpt-4o-mini) — OpenAI recharged 2026-07-05, stub override removed.
+  - Validation: 30 runs, ALL scored with LLM semantic matching (keyword gazetteer
+    is the no-key fallback). Avg coverage 17.5%, nonzero-day avg 31%, best day 100%,
+    median info-lead +14.7h. ISW report auto-discovery by slug pattern proven live
+    (picked up the July 4 report the moment it published). Daily cron 07:00 UTC.
   - Surface: landing / countries / pricing+intents / magic-link auth / email-outbox.
 - Stubbed: MTProto, X, ACLED (fixtures); Stripe flagged off; Resend → file outbox.
 - Deploys: `npx vercel@latest deploy --prod --yes` (CLI 46 too old; machine session
@@ -102,6 +104,12 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
   local scheduler needed; everything steady-state runs serverless.
 - **2026-07-04** RU/UA digest corpora are strictly per-theater (rd.country_iso2 = X);
   uk-language telegram posts auto-tag ua (registry lacks per-source country, debt).
+- **2026-07-05** OpenAI recharged → stub override removed; 30 digests regenerated via
+  Vercel route (local OpenAI egress still blocked). LLM semantic matching added for
+  validation: ISW takeaway texts enter the prompt transiently, only verdicts persist
+  (§8.6 holds); keyword matcher remains as fallback; details.matcher records which ran.
+- **2026-07-05** Validate flow auto-discovers new ISW reports from the predictable
+  slug (…-assessment-<month>-<day>-<year>) — corpus updates no longer need local runs.
 
 ## Conventions
 

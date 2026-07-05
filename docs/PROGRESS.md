@@ -81,3 +81,10 @@ Continuing into Stage 7 (deepen) with remaining weekend time.
 - Diagnosis: LLM digests are high quality but keyword matcher missed village-level toponyms + cross-class actions → flat coverage.
 - Shipped scoreDigestWithMatches + llm-match (ISW texts transient in prompt only; verdicts persisted; details.matcher records llm|keyword; keyword stays as fallback).
 - Early result: Jun 22 RU 14.3%→42.9%. Full 15-day revalidation in flight via Vercel.
+
+## 2026-07-05 04:00 — LLM rollout complete
+
+- 30/30 digests LLM-generated; 30/30 validations rescored with semantic matcher.
+- Scoreboard: avg coverage 7.8%→17.5%, agreement days 9→17, best day 100% (Jun 21 RU), median lead +14.7h.
+- ISW auto-discovery proven in prod: July 4 report validated minutes after ISW published it.
+- LLM spend this session: ≈$0.15 (30 digests + 30 match calls, gpt-4o-mini). Total weekend: <$0.20 of $25 cap.
