@@ -14,17 +14,23 @@ export function contentHash(d: RawDoc): string {
     .digest("hex");
 }
 
-/** Top active telegram channels from the ISW-derived registry. */
+/** Top telegram channels by RECENT ISW citations (last 90 days of reports) —
+ *  all-time ranking over-weights decayed 2022 channels. */
 async function registryTelegramChannels(): Promise<Array<{ channel: string; countryIso2: string }>> {
   try {
     const rows = await db.execute(dsql`
-      SELECT name FROM sources
-      WHERE platform = 'telegram' AND decayed = false AND citation_count >= 5
-      ORDER BY citation_count DESC
+      SELECT s.name, count(*) AS recent_citations
+      FROM source_citations sc
+      JOIN sources s ON s.id = sc.source_id
+      JOIN isw_reports ir ON ir.id = sc.report_id
+      WHERE s.platform = 'telegram'
+        AND ir.report_date > (SELECT max(report_date) FROM isw_reports) - interval '90 days'
+      GROUP BY s.name
+      ORDER BY recent_citations DESC
       LIMIT ${REGISTRY_TELEGRAM_TOP_N}`);
     return (rows.rows as Array<{ name: string }>).map((r) => ({
       channel: r.name,
-      countryIso2: "ru", // theater tag; channel-level attribution is via sourceKey
+      countryIso2: "ru", // theater tag; uk-language posts re-tag ua at parse time
     }));
   } catch {
     return [];
