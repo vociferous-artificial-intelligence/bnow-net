@@ -36,3 +36,10 @@ Dated log of missing credentials/capabilities. Each has a stub in place; nothing
     build host AND returns empty from Vercel egress. Adapter is wired and degrades
     gracefully; data resumes automatically when GDELT recovers. Alternate path if it
     stays dead: data.gdeltproject.org raw 15-min export files (heavier parse, no API).
+
+## 2026-07-05
+
+- **Blocker #9 RESOLVED:** OpenAI account recharged. `ANALYSIS_PROVIDER=stub` override
+  removed from prod + local env; all 30 backtest digests regenerated with
+  `openai:gpt-4o-mini` via the Vercel digest route (local egress to OpenAI still
+  blocked — that part of #9 stands as an environment note). Validation rerun after.
