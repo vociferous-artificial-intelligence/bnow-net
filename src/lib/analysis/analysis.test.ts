@@ -77,3 +77,16 @@ describe("StubProvider", () => {
     expect(JSON.stringify(r1)).toBe(JSON.stringify(r2));
   });
 });
+
+describe("detectLang minority languages", () => {
+  it("tags Tatar, Bashkir, Chuvash, Chechen", () => {
+    expect(detectLang("Татарстанда яңа мәчет ачылды, җәмәгать җыелды")).toBe("tt");
+    expect(detectLang("Башҡортостанда ҡалала яңы мәктәп асылды, уҡыусылар килде")).toBe("ba");
+    expect(detectLang("Шупашкарта ҫӗнӗ шкул уҫӑлчӗ, ачасем савӑнчӗҫ")).toBe("cv");
+    expect(detectLang("Нохчийн республикехь керла школа схьайиллина, дуккха а бераш дӏахьаьжна")).toBe("ce");
+  });
+  it("still distinguishes ru/uk correctly", () => {
+    expect(detectLang("Обычный русский текст про экономику и рынок")).toBe("ru");
+    expect(detectLang("Звичайний український текст про економіку і ринок")).toBe("uk");
+  });
+});
