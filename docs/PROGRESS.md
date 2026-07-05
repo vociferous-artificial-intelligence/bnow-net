@@ -75,3 +75,9 @@ Continuing into Stage 7 (deepen) with remaining weekend time.
 - Gregory recharged OpenAI. Stub override removed (prod+local), redeployed.
 - All 30 backtest digests regenerating via Vercel route (gpt-4o-mini, TPM-paced), then full revalidation.
 - Shipped meanwhile: ISW report auto-discovery by slug pattern (daily validate cron now fully autonomous for new dates); /registry/[id] source detail page (hedging profile, citation timeline, recent docs).
+
+## 2026-07-05 03:45 — LLM semantic matching shipped
+
+- Diagnosis: LLM digests are high quality but keyword matcher missed village-level toponyms + cross-class actions → flat coverage.
+- Shipped scoreDigestWithMatches + llm-match (ISW texts transient in prompt only; verdicts persisted; details.matcher records llm|keyword; keyword stays as fallback).
+- Early result: Jun 22 RU 14.3%→42.9%. Full 15-day revalidation in flight via Vercel.
