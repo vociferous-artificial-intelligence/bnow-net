@@ -31,25 +31,32 @@ export default async function SourceDetailPage({
   if (srcRows.length === 0) notFound();
   const s = srcRows[0];
 
-  const [byYear, recentCites, recentDocs] = await Promise.all([
+  const [byYearRaw, recentCitesRaw, recentDocsRaw] = await Promise.all([
     rawSql.query(
       `SELECT extract(year FROM ir.report_date)::int AS y, count(*)::int AS n
        FROM source_citations sc JOIN isw_reports ir ON ir.id = sc.report_id
        WHERE sc.source_id = $1 GROUP BY 1 ORDER BY 1`,
       [id],
-    ) as Promise<Array<{ y: number; n: number }>>,
+    ),
     rawSql.query(
       `SELECT ir.report_date::text AS d, ir.url, sc.hedging, sc.hedging_cue
        FROM source_citations sc JOIN isw_reports ir ON ir.id = sc.report_id
        WHERE sc.source_id = $1 ORDER BY ir.report_date DESC LIMIT 15`,
       [id],
-    ) as Promise<Array<{ d: string; url: string; hedging: string; hedging_cue: string | null }>>,
+    ),
     rawSql.query(
       `SELECT id, url, title, fetched_at::text AS f FROM raw_documents
        WHERE source_id = $1 ORDER BY fetched_at DESC LIMIT 10`,
       [id],
-    ) as Promise<Array<{ id: number; url: string | null; title: string | null; f: string }>>,
+    ),
   ]);
+  const byYear = byYearRaw as Array<{ y: number; n: number }>;
+  const recentCites = recentCitesRaw as Array<{
+    d: string; url: string; hedging: string; hedging_cue: string | null;
+  }>;
+  const recentDocs = recentDocsRaw as Array<{
+    id: number; url: string | null; title: string | null; f: string;
+  }>;
 
   const totalH =
     s.hedging_confirmed + s.hedging_assessed + s.hedging_unknown +
