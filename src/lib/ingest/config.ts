@@ -23,10 +23,10 @@ export const RSS_FEEDS: RssFeedConfig[] = [
   // RFE/RL regional services carry mobilization burden, casualty, and republic-level
   // politics that federal outlets suppress; Azatliq is Tatar-LANGUAGE (minority-lang
   // coverage per 2026-07-05 direction). Verstka: mobilization/casualty investigations.
-  { url: "https://www.idelreal.org/rss", sourceKey: "idelreal.org", lang: "ru", countryIso2: "ru", name: "Idel.Realii (Volga republics)" },
-  { url: "https://www.azatliq.org/rss", sourceKey: "azatliq.org", lang: "tt", countryIso2: "ru", name: "Azatliq (Tatar)" },
-  { url: "https://www.kavkazr.com/rss", sourceKey: "kavkazr.com", lang: "ru", countryIso2: "ru", name: "Kavkaz.Realii (N. Caucasus)" },
-  { url: "https://www.sibreal.org/rss", sourceKey: "sibreal.org", lang: "ru", countryIso2: "ru", name: "Sibir.Realii (Siberia)" },
+  { url: "https://www.idelreal.org/api/zrqiteuuir", sourceKey: "idelreal.org", lang: "ru", countryIso2: "ru", name: "Idel.Realii (Volga republics)" },
+  { url: "https://www.azatliq.org/api/zrqiteuuir", sourceKey: "azatliq.org", lang: "tt", countryIso2: "ru", name: "Azatliq (Tatar)" },
+  { url: "https://www.kavkazr.com/api/zrqiteuuir", sourceKey: "kavkazr.com", lang: "ru", countryIso2: "ru", name: "Kavkaz.Realii (N. Caucasus)" },
+  { url: "https://www.sibreal.org/api/zrqiteuuir", sourceKey: "sibreal.org", lang: "ru", countryIso2: "ru", name: "Sibir.Realii (Siberia)" },
   { url: "https://verstka.media/feed", sourceKey: "verstka.media", lang: "ru", countryIso2: "ru", name: "Verstka" },
   // Gulf / Israel / Iran wave — public news first, social later (playbook step 4).
   // All verified reachable 2026-07-05.
@@ -63,12 +63,12 @@ export const TELEGRAM_CURATED: Array<{ channel: string; countryIso2: string }> =
   // regional / semi-official / ethnic-republic layer (2026-07-05):
   // ASTRA — strikes/sabotage/industrial incidents inside RU; Gladkov — Belgorod
   // governor (semi-official, heavily ISW-cited); Kadyrov — Chechen faction voice;
-  // NIYSO — Chechen opposition; Asians of Russia — minority mobilization/casualties.
+  // 1ADAT — Chechen opposition; Asians of Russia — minority mobilization/casualties.
   { channel: "astrapress", countryIso2: "ru" },
   { channel: "vvgladkov", countryIso2: "ru" },
   { channel: "RKadyrov_95", countryIso2: "ru" },
-  { channel: "NIYSO_Chechnya", countryIso2: "ru" },
-  { channel: "asiatsofrussia", countryIso2: "ru" },
+  { channel: "IADAT", countryIso2: "ru" },
+  { channel: "AsiansOfRussia", countryIso2: "ru" },
 ];
 
 /** How many registry-derived telegram channels to add on top of the curated set. */
