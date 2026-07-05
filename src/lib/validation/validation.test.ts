@@ -90,3 +90,27 @@ describe("iswUrlForDate", () => {
     expect(iswUrlForDate("2026-07-04")).toContain("july-4-2026");
   });
 });
+
+describe("scoreDigestWithMatches (llm matcher path)", () => {
+  it("scores from precomputed matches over all takeaways", async () => {
+    const { scoreDigestWithMatches } = await import("./score");
+    const takeaways = [
+      { index: 0, toponyms: ["donetsk"], actions: ["advance"], chars: 100 },
+      { index: 1, toponyms: [], actions: [], chars: 80 },
+    ];
+    const claims = [
+      { claimId: 5, text: "Russian forces liberated Malinovka", hedging: "claimed", docCount: 2, earliestDocAt: "2026-06-30T09:00:00Z" },
+      { claimId: 6, text: "Unrelated economic item", hedging: "claimed", docCount: 1, earliestDocAt: null },
+    ];
+    const s = scoreDigestWithMatches(takeaways, claims, new Date("2026-06-30T23:00:00Z"), [
+      { takeawayIndex: 0, claimId: 5, confidence: 0.85 },
+      { takeawayIndex: 1, claimId: null, confidence: 0 },
+    ]);
+    expect(s.coveragePct).toBe(50);
+    expect(s.timelinessHours).toBe(14);
+    expect(s.divergences.filter((d) => d.kind === "agreement")).toHaveLength(1);
+    expect(s.divergences.filter((d) => d.kind === "isw_only")).toHaveLength(1);
+    expect(s.divergences.filter((d) => d.kind === "ours_only")).toHaveLength(1);
+    expect(s.thinSourcedRate).toBe(0.5);
+  });
+});

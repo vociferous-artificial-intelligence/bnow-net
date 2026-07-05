@@ -49,6 +49,77 @@ export interface ValidationScore {
   };
 }
 
+import type { LlmMatch } from "./llm-match";
+
+/** Score using precomputed LLM semantic matches (preferred when available). */
+export function scoreDigestWithMatches(
+  takeaways: IswTakeaway[],
+  claims: ClaimForValidation[],
+  iswPublishedAt: Date | null,
+  matches: LlmMatch[],
+): ValidationScore {
+  const claimById = new Map(claims.map((c) => [c.claimId, c]));
+  const divergences: DivergenceEntry[] = [];
+  const matchedClaims = new Set<number>();
+  const leadHours: number[] = [];
+  let matched = 0;
+
+  for (const t of takeaways) {
+    const m = matches.find((x) => x.takeawayIndex === t.index);
+    const claim = m?.claimId != null ? claimById.get(m.claimId) : undefined;
+    if (claim) {
+      matched++;
+      matchedClaims.add(claim.claimId);
+      divergences.push({
+        kind: "agreement",
+        iswIndex: t.index,
+        iswToponyms: t.toponyms,
+        iswActions: t.actions,
+        claimId: claim.claimId,
+        claimText: claim.text.slice(0, 200),
+        score: +(m!.confidence).toFixed(2),
+      });
+      if (iswPublishedAt && claim.earliestDocAt) {
+        leadHours.push(
+          (iswPublishedAt.getTime() - new Date(claim.earliestDocAt).getTime()) / 3.6e6,
+        );
+      }
+    } else {
+      divergences.push({
+        kind: "isw_only",
+        iswIndex: t.index,
+        iswToponyms: t.toponyms,
+        iswActions: t.actions,
+      });
+    }
+  }
+  for (const c of claims) {
+    if (!matchedClaims.has(c.claimId))
+      divergences.push({ kind: "ours_only", claimId: c.claimId, claimText: c.text.slice(0, 200) });
+  }
+
+  const thin = claims.filter(
+    (c) => c.docCount < 2 && (c.hedging === "claimed" || c.hedging === "unverified"),
+  ).length;
+  leadHours.sort((a, b) => a - b);
+  const median = leadHours.length > 0 ? leadHours[Math.floor(leadHours.length / 2)] : null;
+
+  return {
+    coveragePct:
+      takeaways.length > 0 ? +((matched / takeaways.length) * 100).toFixed(1) : null,
+    thinSourcedRate: claims.length > 0 ? +(thin / claims.length).toFixed(4) : 0,
+    timelinessHours: median !== null ? +median.toFixed(1) : null,
+    divergences,
+    details: {
+      iswTakeaways: takeaways.length,
+      matchableTakeaways: takeaways.length,
+      ourClaims: claims.length,
+      matchedPairs: matched,
+      threshold: 0.6,
+    },
+  };
+}
+
 export function scoreDigest(
   takeaways: IswTakeaway[],
   claims: ClaimForValidation[],

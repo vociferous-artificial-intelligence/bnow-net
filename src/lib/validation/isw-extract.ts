@@ -13,6 +13,13 @@ export interface IswTakeaway {
   chars: number;
 }
 
+export interface TakeawayExtraction {
+  /** derived signatures — safe to persist */
+  takeaways: IswTakeaway[];
+  /** raw bullet texts — TRANSIENT ONLY: used in-memory for matching, never stored */
+  transientTexts: string[];
+}
+
 export function extractTakeaways(html: string): IswTakeaway[] {
   const $ = cheerio.load(html);
   let items: string[] = [];
@@ -54,4 +61,32 @@ export function extractTakeaways(html: string): IswTakeaway[] {
       chars: text.length,
     };
   });
+}
+
+/** Like extractTakeaways but also returns bullet texts for in-memory LLM matching. */
+export function extractTakeawaysWithText(html: string): TakeawayExtraction {
+  const takeaways = extractTakeaways(html);
+  // re-walk the DOM the same way to get the raw items (kept separate so the
+  // persisted path stays prose-free by construction)
+  const $ = cheerio.load(html);
+  let items: string[] = [];
+  const heading = $("h1,h2,h3,h4,strong,b")
+    .filter((_, el) => /key takeaways/i.test($(el).text()))
+    .first();
+  if (heading.length > 0) {
+    let node = heading.closest("p,h1,h2,h3,h4,div").first();
+    for (let hops = 0; hops < 6 && items.length === 0; hops++) {
+      node = node.next();
+      if (node.length === 0) break;
+      const lis = node.is("ul,ol") ? node.find("li") : node.find("ul li, ol li");
+      if (lis.length > 0)
+        items = lis.toArray().map((el) => $(el).text().trim()).filter(Boolean);
+    }
+  }
+  if (items.length === 0) {
+    const container = $('[aria-label*="Key Takeaways" i]').first();
+    if (container.length > 0)
+      items = container.find("li").toArray().map((el) => $(el).text().trim()).filter(Boolean);
+  }
+  return { takeaways, transientTexts: items };
 }

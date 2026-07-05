@@ -1,7 +1,8 @@
 import { Pool } from "@neondatabase/serverless";
 import { politeFetch } from "../fetch-cache";
-import { extractTakeaways } from "./isw-extract";
-import { scoreDigest, type ClaimForValidation } from "./score";
+import { extractTakeawaysWithText } from "./isw-extract";
+import { llmMatchTakeaways } from "./llm-match";
+import { scoreDigest, scoreDigestWithMatches, type ClaimForValidation } from "./score";
 
 const MONTH_NAMES = [
   "january", "february", "march", "april", "may", "june",
@@ -72,7 +73,7 @@ export async function validateDigest(
     if (!page || page.status !== 200 || page.html.length < 1000)
       return { error: `isw page fetch failed (${page?.status})` };
 
-    const takeaways = extractTakeaways(page.html);
+    const { takeaways, transientTexts } = extractTakeawaysWithText(page.html);
     if (takeaways.length === 0) return { error: "no takeaways parsed" };
 
     const publishedMatch = page.html.match(/"datePublished":"([^"]+)"/);
@@ -97,7 +98,13 @@ export async function validateDigest(
       earliestDocAt: r.earliest_doc_at ? new Date(r.earliest_doc_at).toISOString() : null,
     }));
 
-    const score = scoreDigest(takeaways, claims, iswPublishedAt);
+    // semantic matching when a key is live; keyword gazetteer otherwise.
+    // ISW texts are transient prompt inputs only — never persisted (§8.6).
+    const matches = await llmMatchTakeaways(transientTexts, claims);
+    const score = matches
+      ? scoreDigestWithMatches(takeaways, claims, iswPublishedAt, matches)
+      : scoreDigest(takeaways, claims, iswPublishedAt);
+    const matcher = matches ? "llm" : "keyword";
 
     // store derived signatures on the report (keywords only, no prose)
     await pool.query(`UPDATE isw_reports SET derived = $1 WHERE id = $2`, [
@@ -120,7 +127,7 @@ export async function validateDigest(
         score.thinSourcedRate,
         score.timelinessHours,
         JSON.stringify(score.divergences),
-        JSON.stringify(score.details),
+        JSON.stringify({ ...score.details, matcher }),
       ],
     );
 
