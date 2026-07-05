@@ -54,7 +54,9 @@ HARD RULES:
 export const TRACKS: Record<Track, TrackConfig> = {
   military: {
     track: "military",
-    countries: ["ru", "ua"],
+    // ru/ua are ISW-validated; Gulf wave runs the same security digest unvalidated
+    // (reference analysis per docs/NEW-COUNTRY-PLAYBOOK.md step 2)
+    countries: ["ru", "ua", "il", "ir", "sa", "ae", "qa", "om", "bh", "kw"],
     lexicon: null,
     systemPrompt: null,
     validated: true,
