@@ -3,6 +3,17 @@ import { politeFetch } from "../fetch-cache";
 import { extractTakeaways } from "./isw-extract";
 import { scoreDigest, type ClaimForValidation } from "./score";
 
+const MONTH_NAMES = [
+  "january", "february", "march", "april", "may", "june",
+  "july", "august", "september", "october", "november", "december",
+];
+
+/** Predictable ISW slug for a date: …/russian-offensive-campaign-assessment-june-30-2026/ */
+export function iswUrlForDate(date: string): string {
+  const [y, m, d] = date.split("-").map((n) => parseInt(n, 10));
+  return `https://understandingwar.org/research/russia-ukraine/russian-offensive-campaign-assessment-${MONTH_NAMES[m - 1]}-${d}-${y}/`;
+}
+
 // Validate a digest against the same-day ISW report. Idempotent upsert per
 // (digest, isw_report). Works locally (reads HTML cache) and on Vercel (fetches).
 
@@ -33,11 +44,28 @@ export async function validateDigest(
     if (digests.length === 0) return { error: `no digest for ${countryIso2} ${date}` };
     const digestId: number = digests[0].id;
 
-    const { rows: reports } = await pool.query(
+    let { rows: reports } = await pool.query(
       `SELECT id, url FROM isw_reports WHERE report_date = $1`,
       [date],
     );
-    if (reports.length === 0) return { error: `no isw report for ${date}` };
+    if (reports.length === 0) {
+      // steady-state: today's report isn't in the backfilled corpus yet —
+      // ISW's slug pattern is predictable (…-assessment-june-30-2026)
+      const url = iswUrlForDate(date);
+      const probe = await politeFetch(url);
+      if (probe && probe.status === 200 && probe.html.length > 10_000) {
+        const ins = await pool.query(
+          `INSERT INTO isw_reports (url, report_date, fetched_at, parse_status)
+           VALUES ($1, $2, now(), 'pending')
+           ON CONFLICT (url) DO UPDATE SET fetched_at = now()
+           RETURNING id, url`,
+          [url, date],
+        );
+        reports = ins.rows;
+      } else {
+        return { error: `no isw report for ${date} (probe ${probe?.status ?? "failed"})` };
+      }
+    }
     const report = reports[0];
 
     const page = await politeFetch(report.url);

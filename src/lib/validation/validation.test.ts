@@ -80,3 +80,13 @@ describe("scoreDigest", () => {
     expect(s.coveragePct).toBeNull();
   });
 });
+
+describe("iswUrlForDate", () => {
+  it("builds the predictable slug", async () => {
+    const { iswUrlForDate } = await import("./run");
+    expect(iswUrlForDate("2026-06-30")).toBe(
+      "https://understandingwar.org/research/russia-ukraine/russian-offensive-campaign-assessment-june-30-2026/",
+    );
+    expect(iswUrlForDate("2026-07-04")).toContain("july-4-2026");
+  });
+});
