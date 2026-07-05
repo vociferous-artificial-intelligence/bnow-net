@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { sql as dsql } from "drizzle-orm";
 import { db, rawSql } from "@/db";
+import { canonicalSource } from "../isw/urls";
 import { GdeltAdapter } from "../adapters/gdelt";
 import { RssAdapter } from "../adapters/rss";
 import { acledStub, telegramMtprotoStub, xStub } from "../adapters/stubs";
@@ -93,6 +94,21 @@ export async function insertDocs(docs: RawDoc[]): Promise<number> {
       [keys],
     )) as Array<{ id: number; canonical_url: string }>;
     for (const r of rows) idByKey.set(r.canonical_url, r.id);
+
+    // auto-create sources for configured feeds/channels the registry doesn't know
+    // yet (e.g. Gulf outlets never cited by ISW) so docs carry source attribution
+    const missing = keys.filter((k) => !idByKey.has(k));
+    for (const key of missing) {
+      const cs = canonicalSource(key.startsWith("t.me/") ? `https://${key}` : `https://${key}/`);
+      const created = (await rawSql.query(
+        `INSERT INTO sources (canonical_url, domain, platform, name)
+         VALUES ($1, $2, $3::platform, $4)
+         ON CONFLICT (canonical_url) DO UPDATE SET domain = EXCLUDED.domain
+         RETURNING id`,
+        [key, cs?.domain ?? key, cs?.platform ?? "other", cs?.name ?? key],
+      )) as Array<{ id: number }>;
+      idByKey.set(key, created[0].id);
+    }
   }
 
   let inserted = 0;
