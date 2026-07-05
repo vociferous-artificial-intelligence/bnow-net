@@ -12,6 +12,28 @@ export interface OutboundEmail {
 }
 
 export async function sendEmail(mail: OutboundEmail): Promise<{ delivered: boolean; via: string }> {
+  if (process.env.POSTMARK_SERVER_TOKEN) {
+    // borrowed scenefiend Postmark account/domain (authorized 2026-07-05) until
+    // bnow.net has its own sending identity
+    const res = await fetch("https://api.postmarkapp.com/email", {
+      method: "POST",
+      headers: {
+        "X-Postmark-Server-Token": process.env.POSTMARK_SERVER_TOKEN,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        From: process.env.EMAIL_FROM ?? "BNOW.NET <no-reply@scenefiend.app>",
+        To: mail.to,
+        Subject: mail.subject,
+        TextBody: mail.text,
+        HtmlBody: mail.html,
+        MessageStream: process.env.POSTMARK_MESSAGE_STREAM ?? "outbound",
+      }),
+    });
+    if (!res.ok) throw new Error(`postmark: ${res.status} ${(await res.text()).slice(0, 200)}`);
+    return { delivered: true, via: "postmark" };
+  }
   if (process.env.RESEND_API_KEY) {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
