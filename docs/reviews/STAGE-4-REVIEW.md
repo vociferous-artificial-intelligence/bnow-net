@@ -36,3 +36,24 @@ holds either way.
 - ISW publish time from JSON-LD `datePublished` (sometimes edit-date; lead may be
   slightly conservative/optimistic per day).
 - No trend charts yet (table + summary tiles only).
+
+## Addendum 2026-07-05 — LLM era (OpenAI recharged)
+
+All 30 runs regenerated (gpt-4o-mini digests) and rescored with LLM semantic matching
+(ISW texts transient in prompt; verdicts persisted; `details.matcher='llm'`):
+
+| Metric | Stub + keyword | LLM + semantic |
+|---|---|---|
+| avg coverage (denominator: ALL takeaways) | 7.8% | **17.5%** |
+| days with agreements | 9/28 | **17/30** |
+| nonzero-day avg | 24.1% | **31%** |
+| best day | 33% | **100%** (Jun 21 RU, 5/5) |
+| median information lead | +16.4h | **+14.7h** |
+
+Also proven live: ISW report auto-discovery — July 4's report published mid-session
+and validation picked it up with zero human action.
+
+Interpretation caveats (documented, not hidden): RU and UA digests both validate
+against the same whole-war ROCA report while each covers one theater's sources —
+0% UA days often mean ISW led with RU-domestic takeaways that day. Single-war
+digest union or per-theater takeaway filtering is the next matcher refinement.
