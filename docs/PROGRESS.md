@@ -88,3 +88,13 @@ Continuing into Stage 7 (deepen) with remaining weekend time.
 - Scoreboard: avg coverage 7.8%→17.5%, agreement days 9→17, best day 100% (Jun 21 RU), median lead +14.7h.
 - ISW auto-discovery proven in prod: July 4 report validated minutes after ISW published it.
 - LLM spend this session: ≈$0.15 (30 digests + 30 match calls, gpt-4o-mini). Total weekend: <$0.20 of $25 cap.
+
+## 2026-07-05 05:00 — Elite-politics (Kremlinology) track shipped
+
+- Per Gregory's request: prosecutions/oligarch/gang-case tracking as factional signals.
+- Schema: digests.track dim + entities/claim_entities graph (additive migration 0001).
+- Track config: courts/siloviki lexicon prefilter + dedicated analyst prompt (acting agency + network + signal; interpretations always 'assessed').
+- Sources added: Mediazona (50 docs), RBC (30 — works from Vercel though blocked locally), baza/sota/ostorozhno TG. Kommersant + vchkogpu unreachable/preview-off (degrade cleanly).
+- First 4 digests live (Jul 2-5): 21 events, 21 claims, all entity-tagged.
+- Surface: /entities pressure ranking + entity timelines; digest pages render both tracks.
+- Military validation pinned to its track; elite track is unvalidated by design (ISW doesn't cover it — future reference: R.Politik/Meduza analysis).

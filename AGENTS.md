@@ -110,6 +110,10 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
   (§8.6 holds); keyword matcher remains as fallback; details.matcher records which ran.
 - **2026-07-05** Validate flow auto-discovers new ISW reports from the predictable
   slug (…-assessment-<month>-<day>-<year>) — corpus updates no longer need local runs.
+- **2026-07-05** Elite-politics track added (Gregory's request): digests.track dimension,
+  entities/claim_entities graph, lexicon prefilter + Kremlinology prompt. Unvalidated by
+  design (ISW out of scope); factional interpretations always hedging='assessed'.
+  Kommersant RSS + t.me/vchkogpu unreachable (blocked / preview off) — degrade cleanly.
 
 ## Conventions
 
