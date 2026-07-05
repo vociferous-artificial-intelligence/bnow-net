@@ -89,3 +89,13 @@ of writing to `data/outbox/`.
 - Validation matcher is keyword-based; LLM matching upgrade rides on step 1B.
 - Local WSL2 box cannot reach api.openai.com / api.gdeltproject.org (TCP timeouts) —
   anything LLM runs through Vercel; keep it that way or fix WSL networking (MTU?).
+
+## 9. Signing in while Resend is absent (added 2026-07-05)
+
+Core content is now login-gated (FEATURE_AUTH_GATE=true). Until the Resend key exists,
+magic links are printed to the server log instead of emailed:
+1. https://bnow-net.vercel.app/signin → enter your email → "Email me a sign-in link".
+2. `npx vercel@latest logs bnow-net` (or Vercel dashboard → Logs) → copy the
+   `[auth] magic link for <you>: https://…` URL → open it. Session lasts 30 days.
+- Gate off temporarily: `vercel env rm FEATURE_AUTH_GATE production` + redeploy.
+- Admin allowlist: ADMIN_EMAILS (currently go@vociferous.nyc) guards /admin.

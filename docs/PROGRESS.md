@@ -98,3 +98,10 @@ Continuing into Stage 7 (deepen) with remaining weekend time.
 - First 4 digests live (Jul 2-5): 21 events, 21 claims, all entity-tagged.
 - Surface: /entities pressure ranking + entity timelines; digest pages render both tracks.
 - Military validation pinned to its track; elite track is unvalidated by design (ISW doesn't cover it — future reference: R.Politik/Meduza analysis).
+
+## 2026-07-05 06:00 — Freshness, Gulf wave, source parity, auth gate (Gregory's four asks)
+
+1. Freshness: digest cron now 6-hourly regenerating yesterday+today over all DB-active countries; yesterday finalizes before 07:00 validation. UA Jul 5 + RU Jul 5 full suite generated.
+2. Parity numbers: ISW cited 975 sources in last 90d; we ingest 65 of them = 51% citation-weighted. Fixes shipped: recent-90d channel ranking (was all-time), roster 30→50, source auto-creation. Remaining gap is mostly X accounts (166 recent, needs X API) + long tail.
+3. Gulf wave: 7 active theaters now (ru ua ir sa ae qa om) from 10 probed public feeds; first digests live for ae/om/qa. il/bh/kw reverted to scaffolded — feeds bot-walled from Vercel; alternates queued.
+4. Auth gate: FEATURE_AUTH_GATE=true in prod — /digests /registry /entities gated (Auth.js sessions in Neon), /admin allowlisted to go@vociferous.nyc; landing/pricing/scoreboard stay public.
