@@ -117,7 +117,9 @@ export default async function RegistryPage({
             return (
               <tr key={s.id} className="border-b border-gray-100 dark:border-gray-800">
                 <td className="max-w-[280px] truncate py-1.5 font-mono text-xs">
-                  {s.canonicalUrl}
+                  <Link href={`/registry/${s.id}`} className="hover:underline">
+                    {s.canonicalUrl}
+                  </Link>
                 </td>
                 <td className="text-xs">{s.platform.replace("_", " ")}</td>
                 <td className="text-right tabular-nums">{s.citationCount}</td>
