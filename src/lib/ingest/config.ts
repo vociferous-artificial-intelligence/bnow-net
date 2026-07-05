@@ -13,6 +13,12 @@ export const RSS_FEEDS: RssFeedConfig[] = [
   { url: "https://mil.in.ua/en/feed/", sourceKey: "mil.in.ua", lang: "en", countryIso2: "ua", name: "Militarnyi (EN)" },
   { url: "https://euromaidanpress.com/feed/", sourceKey: "euromaidanpress.com", lang: "en", countryIso2: "ua", name: "Euromaidan Press" },
   { url: "https://armyinform.com.ua/feed/", sourceKey: "armyinform.com.ua", lang: "uk", countryIso2: "ua", name: "ArmyInform (UA MoD)" },
+  // elite-politics track: courts / prosecutions / business-elite coverage
+  { url: "https://zona.media/rss", sourceKey: "zona.media", lang: "ru", countryIso2: "ru", name: "Mediazona" },
+  // kommersant/rbc are TCP-blocked from the build host but may resolve from
+  // Vercel egress — adapter warns and skips cleanly if not
+  { url: "https://www.kommersant.ru/RSS/news.xml", sourceKey: "kommersant.ru", lang: "ru", countryIso2: "ru", name: "Kommersant" },
+  { url: "https://rssexport.rbc.ru/rbcnews/news/30/full.rss", sourceKey: "rbc.ru", lang: "ru", countryIso2: "ru", name: "RBC" },
 ];
 
 // Curated must-watch Telegram channels (state + mil-blogger + OSINT mix).
@@ -28,6 +34,11 @@ export const TELEGRAM_CURATED: Array<{ channel: string; countryIso2: string }> =
   { channel: "GeneralStaffZSU", countryIso2: "ua" },
   { channel: "kpszsu", countryIso2: "ua" },
   { channel: "dsszzi_official", countryIso2: "ua" },
+  // elite-politics track: police blotter / siloviki-leak / court channels
+  { channel: "bazabazon", countryIso2: "ru" },
+  { channel: "vchkogpu", countryIso2: "ru" },
+  { channel: "sotaproject", countryIso2: "ru" },
+  { channel: "ostorozhno_novosti", countryIso2: "ru" },
 ];
 
 /** How many registry-derived telegram channels to add on top of the curated set. */

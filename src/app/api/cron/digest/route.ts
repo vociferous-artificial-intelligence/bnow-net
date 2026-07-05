@@ -12,14 +12,26 @@ export async function GET(req: NextRequest) {
   }
   const date = req.nextUrl.searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
   const country = req.nextUrl.searchParams.get("country");
+  const trackParam = req.nextUrl.searchParams.get("track");
   const countries = country ? [country] : ["ru", "ua"];
+  const tracks = (trackParam ? [trackParam] : ["military", "elite_politics"]) as Array<
+    "military" | "elite_politics"
+  >;
 
   const results = [];
   for (const c of countries) {
-    try {
-      results.push(await generateDigest(c, date));
-    } catch (e) {
-      results.push({ countryIso2: c, date, error: e instanceof Error ? e.message : String(e) });
+    for (const t of tracks) {
+      try {
+        const r = await generateDigest(c, date, t);
+        if (r) results.push(r); // null = track not configured for this country
+      } catch (e) {
+        results.push({
+          countryIso2: c,
+          date,
+          track: t,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
     }
   }
   return NextResponse.json({ ok: true, results });

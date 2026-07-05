@@ -40,8 +40,24 @@ const RESPONSE_SCHEMA = {
                   enum: ["confirmed", "claimed", "unverified", "assessed", "unknown"],
                 },
                 docIds: { type: "array", items: { type: "integer" } },
+                entities: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                      name: { type: "string" },
+                      kind: {
+                        type: "string",
+                        enum: ["person", "agency", "company", "faction", "org"],
+                      },
+                      role: { type: "string" },
+                    },
+                    required: ["name", "kind", "role"],
+                  },
+                },
               },
-              required: ["text", "claimType", "hedging", "docIds"],
+              required: ["text", "claimType", "hedging", "docIds", "entities"],
             },
           },
         },
@@ -75,6 +91,7 @@ export class OpenAiProvider implements AnalysisProvider {
     countryIso2: string,
     date: string,
     docs: AnalysisInputDoc[],
+    opts?: { systemPrompt?: string | null; track?: string },
   ): Promise<DigestAnalysis> {
     const docLines = docs
       .map(
@@ -91,7 +108,7 @@ export class OpenAiProvider implements AnalysisProvider {
       this.client.chat.completions.create({
         model: MODEL,
         messages: [
-          { role: "system", content: SYSTEM },
+          { role: "system", content: opts?.systemPrompt ?? SYSTEM },
           {
             role: "user",
             content: `Theater: ${countryIso2.toUpperCase()} · Date: ${date}\n\nDocuments:\n${docLines}`,

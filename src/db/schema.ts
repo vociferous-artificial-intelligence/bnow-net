@@ -196,6 +196,8 @@ export const digests = pgTable(
       .notNull()
       .references(() => countries.id),
     digestDate: date("digest_date").notNull(),
+    // intelligence track: 'military' (ISW-validated) | 'elite_politics' (Kremlinology)
+    track: text("track").notNull().default("military"),
     status: digestStatusEnum("status").notNull().default("pending"),
     // structured: { events: [...], assessments: [...], stats: {...} } — claim ids only, text joined at render
     structured: jsonb("structured").notNull().default({}),
@@ -203,7 +205,7 @@ export const digests = pgTable(
     provider: text("provider"), // openai|stub
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("digests_country_date_idx").on(t.countryId, t.digestDate)],
+  (t) => [uniqueIndex("digests_country_date_track_idx").on(t.countryId, t.digestDate, t.track)],
 );
 
 export const claims = pgTable(
@@ -267,6 +269,39 @@ export const validationRuns = pgTable(
     details: jsonb("details").notNull().default({}),
   },
   (t) => [uniqueIndex("validation_runs_digest_report_idx").on(t.digestId, t.iswReportId)],
+);
+
+// entity graph for elite-politics tracking: who is being prosecuted / promoted /
+// stripped of assets, and which network they belong to
+export const entities = pgTable(
+  "entities",
+  {
+    id: serial("id").primaryKey(),
+    kind: text("kind").notNull().default("person"), // person|agency|company|faction|org
+    name: text("name").notNull(), // canonical English name
+    aliases: jsonb("aliases").notNull().default([]), // ["Тимур Иванов", ...]
+    meta: jsonb("meta").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("entities_kind_name_idx").on(t.kind, t.name)],
+);
+
+export const claimEntities = pgTable(
+  "claim_entities",
+  {
+    claimId: integer("claim_id")
+      .notNull()
+      .references(() => claims.id, { onDelete: "cascade" }),
+    entityId: integer("entity_id")
+      .notNull()
+      .references(() => entities.id),
+    // defendant|prosecutor|target|beneficiary|appointee|dismissed|patron|other
+    role: text("role").notNull().default("other"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.claimId, t.entityId] }),
+    index("claim_entities_entity_idx").on(t.entityId),
+  ],
 );
 
 // ---------- auth (Auth.js drizzle adapter shape) ----------

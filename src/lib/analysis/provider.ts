@@ -13,11 +13,18 @@ export interface AnalysisInputDoc {
   publishedAt: string | null;
 }
 
+export interface ClaimEntity {
+  name: string; // canonical English
+  kind: "person" | "agency" | "company" | "faction" | "org";
+  role: string; // defendant|prosecutor|target|beneficiary|appointee|dismissed|patron|other
+}
+
 export interface ExtractedClaim {
   text: string; // English, concise, one assertion
   claimType: "factual" | "assessment";
   hedging: "confirmed" | "claimed" | "unverified" | "assessed" | "unknown";
   docIds: number[]; // MUST be non-empty, MUST reference input docs
+  entities?: ClaimEntity[]; // elite-politics track: involved actors
 }
 
 export interface ExtractedEvent {
@@ -32,9 +39,20 @@ export interface DigestAnalysis {
   provider: string;
 }
 
+export interface AnalyzeOptions {
+  /** override system prompt (elite-politics track); null/undefined = default military */
+  systemPrompt?: string | null;
+  track?: string;
+}
+
 export interface AnalysisProvider {
   readonly name: string;
-  analyze(countryIso2: string, date: string, docs: AnalysisInputDoc[]): Promise<DigestAnalysis>;
+  analyze(
+    countryIso2: string,
+    date: string,
+    docs: AnalysisInputDoc[],
+    opts?: AnalyzeOptions,
+  ): Promise<DigestAnalysis>;
 }
 
 export async function getProvider(): Promise<AnalysisProvider> {

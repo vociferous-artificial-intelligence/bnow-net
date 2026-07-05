@@ -1,5 +1,6 @@
 import { extractSignature } from "../validation/keywords";
 import { findNearDuplicates } from "./minhash";
+import { isEliteRelevant } from "./tracks";
 import type {
   AnalysisInputDoc,
   AnalysisProvider,
@@ -32,14 +33,21 @@ export class StubProvider implements AnalysisProvider {
     _country: string,
     _date: string,
     docs: AnalysisInputDoc[],
+    opts?: { systemPrompt?: string | null; track?: string },
   ): Promise<DigestAnalysis> {
-    // war-relevance prefilter: theater toponym or military action keyword required
-    // (drops channel housekeeping, fundraising, off-topic reposts)
-    const relevant = docs.filter((d) => {
-      const sig = extractSignature(`${d.title ?? ""} ${d.content}`.slice(0, 1500));
-      return sig.toponyms.size > 0 || sig.actions.size > 0;
-    });
-    const pool = relevant.length >= 15 ? relevant : docs;
+    // relevance prefilter — track-specific lexicon for elite politics, otherwise
+    // theater toponym / military action (drops housekeeping + off-topic reposts)
+    const relevant =
+      opts?.track === "elite_politics"
+        ? docs.filter((d) =>
+            isEliteRelevant(`${d.title ?? ""} ${d.content}`.slice(0, 1500)),
+          )
+        : docs.filter((d) => {
+            const sig = extractSignature(`${d.title ?? ""} ${d.content}`.slice(0, 1500));
+            return sig.toponyms.size > 0 || sig.actions.size > 0;
+          });
+    const pool = relevant.length >= 15 || opts?.track === "elite_politics" ? relevant : docs;
+    if (pool.length === 0) return { events: [], provider: this.name };
 
     const texts = pool.map((d) => `${d.title ?? ""} ${d.content}`.slice(0, 2000));
     const { groups } = findNearDuplicates(texts, 0.5);

@@ -39,7 +39,7 @@ export async function validateDigest(
     const { rows: digests } = await pool.query(
       `SELECT d.id, d.created_at FROM digests d
        JOIN countries c ON c.id = d.country_id
-       WHERE c.iso2 = $1 AND d.digest_date = $2`,
+       WHERE c.iso2 = $1 AND d.digest_date = $2 AND d.track = 'military'`,
       [countryIso2, date],
     );
     if (digests.length === 0) return { error: `no digest for ${countryIso2} ${date}` };

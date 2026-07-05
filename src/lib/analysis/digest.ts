@@ -2,6 +2,7 @@ import { Pool } from "@neondatabase/serverless";
 import { detectLang } from "./lang";
 import { findNearDuplicates } from "./minhash";
 import { getProvider, type AnalysisInputDoc, type DigestAnalysis } from "./provider";
+import { TRACKS, type Track } from "./tracks";
 
 // Daily digest generation: gather -> dedupe -> analyze -> validate -> persist.
 // Persistence runs in ONE transaction so the claim_must_have_source constraint
@@ -15,6 +16,7 @@ export interface DigestResult {
   digestId: number;
   countryIso2: string;
   date: string;
+  track: Track;
   events: number;
   claims: number;
   droppedClaims: number;
@@ -25,7 +27,10 @@ export interface DigestResult {
 export async function generateDigest(
   countryIso2: string,
   date: string, // yyyy-mm-dd (UTC day to cover)
+  track: Track = "military",
 ): Promise<DigestResult | null> {
+  const trackCfg = TRACKS[track];
+  if (!trackCfg.countries.includes(countryIso2)) return null;
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
     const { rows: countryRows } = await pool.query(
@@ -54,14 +59,25 @@ export async function generateDigest(
       return null;
     }
 
+    // 1b. track lexicon prefilter (elite politics: courts/siloviki/elite-churn terms)
+    const trackRows = trackCfg.lexicon
+      ? docRows.filter((d) =>
+          trackCfg.lexicon!.test(`${d.title ?? ""} ${d.content}`.slice(0, 1500)),
+        )
+      : docRows;
+    if (trackRows.length === 0) {
+      console.warn(`digest ${countryIso2} ${date} ${track}: no track-relevant documents`);
+      return null;
+    }
+
     // 2. near-dupe collapse, keep canonical docs up to MAX_DOCS
-    const texts = docRows.map((d) => `${d.title ?? ""} ${d.content}`.slice(0, 2000));
+    const texts = trackRows.map((d) => `${d.title ?? ""} ${d.content}`.slice(0, 2000));
     const { canonicalOf } = findNearDuplicates(texts, 0.7);
     const canonicalIdx = [...new Set(canonicalOf.values())];
     const selected = canonicalIdx.slice(0, MAX_DOCS);
 
     const docs: AnalysisInputDoc[] = selected.map((i) => {
-      const d = docRows[i];
+      const d = trackRows[i];
       return {
         id: d.id,
         title: d.title,
@@ -76,7 +92,10 @@ export async function generateDigest(
 
     // 3. analyze
     const provider = await getProvider();
-    const analysis = await provider.analyze(countryIso2, date, docs);
+    const analysis = await provider.analyze(countryIso2, date, docs, {
+      systemPrompt: trackCfg.systemPrompt,
+      track,
+    });
 
     // 4. validate claim docIds against the batch (anti-hallucination gate)
     const validIds = new Set(docs.map((d) => d.id));
@@ -98,14 +117,16 @@ export async function generateDigest(
     let claimCount = 0;
     try {
       await client.query("BEGIN");
-      const structured = { stats: { docsAnalyzed: docs.length, docsRaw: docRows.length } };
+      const structured = {
+        stats: { docsAnalyzed: docs.length, docsRaw: docRows.length, trackRows: trackRows.length },
+      };
       const dRes = await client.query(
-        `INSERT INTO digests (country_id, digest_date, status, structured, provider)
-         VALUES ($1, $2, 'generated', $3, $4)
-         ON CONFLICT (country_id, digest_date)
-         DO UPDATE SET status='generated', structured=$3, provider=$4, created_at=now()
+        `INSERT INTO digests (country_id, digest_date, track, status, structured, provider)
+         VALUES ($1, $2, $3, 'generated', $4, $5)
+         ON CONFLICT (country_id, digest_date, track)
+         DO UPDATE SET status='generated', structured=$4, provider=$5, created_at=now()
          RETURNING id`,
-        [countryId, date, JSON.stringify(structured), analysis.provider],
+        [countryId, date, track, JSON.stringify(structured), analysis.provider],
       );
       digestId = dRes.rows[0].id;
 
@@ -150,6 +171,22 @@ export async function generateDigest(
               [claimId, docId],
             );
           }
+          // entity graph (elite-politics track): get-or-create by (kind, name)
+          for (const ent of c.entities ?? []) {
+            const name = ent.name.trim().slice(0, 200);
+            if (!name) continue;
+            const eIns = await client.query(
+              `INSERT INTO entities (kind, name) VALUES ($1, $2)
+               ON CONFLICT (kind, name) DO UPDATE SET name = EXCLUDED.name
+               RETURNING id`,
+              [ent.kind, name],
+            );
+            await client.query(
+              `INSERT INTO claim_entities (claim_id, entity_id, role) VALUES ($1, $2, $3)
+               ON CONFLICT DO NOTHING`,
+              [claimId, eIns.rows[0].id, ent.role.slice(0, 40)],
+            );
+          }
           claimCount++;
         }
       }
@@ -166,7 +203,7 @@ export async function generateDigest(
         [digestId],
       );
 
-      const rendered = renderMarkdown(countryIso2, date, events);
+      const rendered = renderMarkdown(countryIso2, `${date} · ${track}`, events);
       await client.query(`UPDATE digests SET rendered_md = $1 WHERE id = $2`, [
         rendered,
         digestId,
@@ -184,6 +221,7 @@ export async function generateDigest(
       digestId,
       countryIso2,
       date,
+      track,
       events: events.length,
       claims: claimCount,
       droppedClaims: dropped,

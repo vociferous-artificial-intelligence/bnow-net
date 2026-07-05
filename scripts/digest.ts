@@ -7,11 +7,12 @@ import "./env";
 async function main() {
   const country = process.argv[2];
   const date = process.argv[3] ?? new Date().toISOString().slice(0, 10);
+  const track = (process.argv[4] ?? "military") as "military" | "elite_politics";
   const { generateDigest } = await import("../src/lib/analysis/digest");
 
   const countries = country ? [country] : ["ru", "ua"];
   for (const c of countries) {
-    const res = await generateDigest(c, date);
+    const res = await generateDigest(c, date, track);
     console.log(res ? JSON.stringify(res) : `no digest for ${c} ${date} (no docs)`);
   }
 }
