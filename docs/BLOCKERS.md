@@ -43,3 +43,12 @@ Dated log of missing credentials/capabilities. Each has a stub in place; nothing
   removed from prod + local env; all 30 backtest digests regenerated with
   `openai:gpt-4o-mini` via the Vercel digest route (local egress to OpenAI still
   blocked — that part of #9 stands as an environment note). Validation rerun after.
+
+- **Blocker #8 RESOLVED (2026-07-05):** Postmark account (scenefiend domain) authorized and
+  wired as primary email provider — magic links + digests now deliver for real.
+  `POSTMARK_SERVER_TOKEN/MESSAGE_STREAM/EMAIL_FROM` set in prod. Resend remains a
+  supported alternative when bnow.net gets its own sending domain.
+- **New (2026-07-05):** RFE/RL regional RSS APIs (idelreal/azatliq/kavkazr/sibreal
+  `/api/z*`) return empty item lists — content ingested via their telegram mirrors
+  instead. Kommersant RSS + Iran International (malformed XML) + News of Bahrain/Arab
+  Times (invalid XML) logged by the adapter; alternates queued.

@@ -105,3 +105,10 @@ Continuing into Stage 7 (deepen) with remaining weekend time.
 2. Parity numbers: ISW cited 975 sources in last 90d; we ingest 65 of them = 51% citation-weighted. Fixes shipped: recent-90d channel ranking (was all-time), roster 30→50, source auto-creation. Remaining gap is mostly X accounts (166 recent, needs X API) + long tail.
 3. Gulf wave: 7 active theaters now (ru ua ir sa ae qa om) from 10 probed public feeds; first digests live for ae/om/qa. il/bh/kw reverted to scaffolded — feeds bot-walled from Vercel; alternates queued.
 4. Auth gate: FEATURE_AUTH_GATE=true in prod — /digests /registry /entities gated (Auth.js sessions in Neon), /admin allowlisted to go@vociferous.nyc; landing/pricing/scoreboard stay public.
+
+## 2026-07-05 07:30 — Postmark live + Russia depth layer
+
+- Email real: Postmark (borrowed scenefiend domain, authorized) primary in the send seam; production magic-link flow verified (302→verify-request).
+- Russia depth added: ASTRA, Gladkov, Kadyrov, 1ADAT, AsiansOfRussia TG; Verstka RSS; RFE/RL regional services (Idel.Realii, Kavkaz.Realii, Sibir.Realii, Azatliq-Tatar, Radio Svoboda) via TG mirrors after their RSS APIs proved empty.
+- detectLang extended: tt/ba/cv/ce — 13 Tatar + 1 Bashkir docs tagged within the first sweep.
+- Roster now ~70 telegram channels/sweep (20 curated + 50 registry recent-ranked).
