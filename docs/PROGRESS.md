@@ -69,3 +69,9 @@ Final: 1,565 ISW reports · 6,985 sources · 251,112 citations · 6,930 raw docs
 30 digests · 349 claims (all source-linked, DB-enforced) · 28 validation runs.
 All 7 stages PASS with review gates. Live: https://bnow-net.vercel.app
 Continuing into Stage 7 (deepen) with remaining weekend time.
+
+## 2026-07-05 03:00-03:30 — OpenAI restored; LLM regeneration in flight
+
+- Gregory recharged OpenAI. Stub override removed (prod+local), redeployed.
+- All 30 backtest digests regenerating via Vercel route (gpt-4o-mini, TPM-paced), then full revalidation.
+- Shipped meanwhile: ISW report auto-discovery by slug pattern (daily validate cron now fully autonomous for new dates); /registry/[id] source detail page (hedging profile, citation timeline, recent docs).
