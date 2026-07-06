@@ -30,6 +30,7 @@ export default async function Home() {
           <Link href="/datadark" className="hover:underline">data-dark</Link>
           <Link href="/trade" className="hover:underline">trade-evasion</Link>
           <Link href="/signals" className="hover:underline">signals</Link>
+          <Link href="/critical-materials" className="hover:underline">critical materials</Link>
           <Link href="/pricing" className="hover:underline">pricing</Link>
           <Link href="/signin" className="hover:underline">sign in</Link>
         </div>

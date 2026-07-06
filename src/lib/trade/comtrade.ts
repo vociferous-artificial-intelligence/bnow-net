@@ -46,6 +46,27 @@ export function parseComtrade(json: unknown, reporterName: string): ComtradeRow[
   return out;
 }
 
+/** Parse all partner rows for a reporter (excludes the World aggregate, code 0). */
+export function parseComtradeBreakdown(json: unknown): ComtradeRow[] {
+  const data = (json as { data?: RawComtradeRecord[] })?.data ?? [];
+  const out: ComtradeRow[] = [];
+  for (const r of data) {
+    if (r.partnerCode === 0) continue; // skip World aggregate — we want the breakdown
+    if (typeof r.primaryValue !== "number" || r.primaryValue <= 0) continue;
+    out.push({
+      reporterCode: r.reporterCode,
+      reporterName: r.reporterDesc ?? String(r.reporterCode),
+      partnerCode: r.partnerCode,
+      flowCode: r.flowCode,
+      hsCode: r.cmdCode,
+      period: r.period,
+      valueUsd: r.primaryValue,
+      netWeightKg: typeof r.netWgt === "number" && r.netWgt > 0 ? r.netWgt : null,
+    });
+  }
+  return out;
+}
+
 function baseUrl(): string {
   return process.env.COMTRADE_API_KEY
     ? "https://comtradeapi.un.org/data/v1/get"
@@ -53,6 +74,42 @@ function baseUrl(): string {
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Fetch a reporter's per-partner import (or export) breakdown for one HS + year. */
+export async function fetchBreakdown(
+  reporterCode: number,
+  hsCode: string,
+  year: string,
+  flowCode: "M" | "X",
+): Promise<ComtradeRow[] | null> {
+  const params = new URLSearchParams({
+    reporterCode: String(reporterCode),
+    period: year, // keyless preview: one period per call
+    cmdCode: hsCode,
+    flowCode,
+    ...(process.env.COMTRADE_API_KEY ? { "subscription-key": process.env.COMTRADE_API_KEY } : {}),
+  });
+  const url = `${baseUrl()}/C/A/HS?${params.toString()}`;
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "BNOWBot/0.1 (+https://bnow.net/bot)",
+        ...(process.env.COMTRADE_API_KEY
+          ? { "Ocp-Apim-Subscription-Key": process.env.COMTRADE_API_KEY }
+          : {}),
+      },
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!res.ok) {
+      console.warn(`comtrade breakdown ${reporterCode}/${hsCode}/${year}: HTTP ${res.status}`);
+      return null;
+    }
+    return parseComtradeBreakdown(await res.json());
+  } catch (e) {
+    console.warn(`comtrade breakdown ${reporterCode}/${hsCode}/${year}: ${e instanceof Error ? e.message : e}`);
+    return null;
+  }
+}
 
 /** Fetch export flows reporter→Russia for one year (all HS codes in one call). */
 export async function fetchReporterYear(
