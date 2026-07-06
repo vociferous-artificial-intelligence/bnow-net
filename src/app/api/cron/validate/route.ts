@@ -17,7 +17,8 @@ export async function GET(req: NextRequest) {
   const country = req.nextUrl.searchParams.get("country");
 
   const results = [];
-  for (const c of country ? [country] : ["ru", "ua"]) {
+  // ru/ua validate vs ROCA; ir validates vs ISW Iran Update (referenceFor gates the rest)
+  for (const c of country ? [country] : ["ru", "ua", "ir"]) {
     try {
       results.push({ country: c, ...(await validateDigest(c, date)) });
     } catch (e) {

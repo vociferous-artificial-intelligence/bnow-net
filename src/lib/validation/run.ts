@@ -15,6 +15,22 @@ export function iswUrlForDate(date: string): string {
   return `https://understandingwar.org/research/russia-ukraine/russian-offensive-campaign-assessment-${MONTH_NAMES[m - 1]}-${d}-${y}/`;
 }
 
+/** ISW Iran Update slug: …/middle-east/iran-update-special-report-july-4-2026/ */
+export function iranUpdateUrlForDate(date: string): string {
+  const [y, m, d] = date.split("-").map((n) => parseInt(n, 10));
+  return `https://understandingwar.org/research/middle-east/iran-update-special-report-${MONTH_NAMES[m - 1]}-${d}-${y}/`;
+}
+
+// Map a country/theater to its ISW reference: theater key + url builder.
+// Only countries with a same-day expert benchmark are validatable.
+export function referenceFor(countryIso2: string): { theater: string; urlForDate: (d: string) => string } | null {
+  if (countryIso2 === "ru" || countryIso2 === "ua")
+    return { theater: "ru", urlForDate: iswUrlForDate };
+  if (countryIso2 === "ir")
+    return { theater: "ir", urlForDate: iranUpdateUrlForDate };
+  return null; // Gulf states have no daily reference yet
+}
+
 // Validate a digest against the same-day ISW report. Idempotent upsert per
 // (digest, isw_report). Works locally (reads HTML cache) and on Vercel (fetches).
 
@@ -34,6 +50,9 @@ export async function validateDigest(
   countryIso2: string,
   date: string,
 ): Promise<ValidationRunResult | { error: string }> {
+  const reference = referenceFor(countryIso2);
+  if (!reference) return { error: `no validation reference for ${countryIso2}` };
+
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
     const { rows: digests } = await pool.query(
@@ -46,25 +65,24 @@ export async function validateDigest(
     const digestId: number = digests[0].id;
 
     let { rows: reports } = await pool.query(
-      `SELECT id, url FROM isw_reports WHERE report_date = $1`,
-      [date],
+      `SELECT id, url FROM isw_reports WHERE theater = $1 AND report_date = $2`,
+      [reference.theater, date],
     );
     if (reports.length === 0) {
-      // steady-state: today's report isn't in the backfilled corpus yet —
-      // ISW's slug pattern is predictable (…-assessment-june-30-2026)
-      const url = iswUrlForDate(date);
+      // steady-state: report not yet in the corpus — ISW slugs are predictable
+      const url = reference.urlForDate(date);
       const probe = await politeFetch(url);
       if (probe && probe.status === 200 && probe.html.length > 10_000) {
         const ins = await pool.query(
-          `INSERT INTO isw_reports (url, report_date, fetched_at, parse_status)
-           VALUES ($1, $2, now(), 'pending')
+          `INSERT INTO isw_reports (url, theater, report_date, fetched_at, parse_status)
+           VALUES ($1, $2, $3, now(), 'pending')
            ON CONFLICT (url) DO UPDATE SET fetched_at = now()
            RETURNING id, url`,
-          [url, date],
+          [url, reference.theater, date],
         );
         reports = ins.rows;
       } else {
-        return { error: `no isw report for ${date} (probe ${probe?.status ?? "failed"})` };
+        return { error: `no reference report for ${countryIso2} ${date} (probe ${probe?.status ?? "failed"})` };
       }
     }
     const report = reports[0];

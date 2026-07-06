@@ -104,6 +104,8 @@ export const iswReports = pgTable(
   {
     id: serial("id").primaryKey(),
     url: text("url").notNull(),
+    // reference theater: 'ru' = ROCA (Russia/Ukraine), 'ir' = ISW Iran Update
+    theater: text("theater").notNull().default("ru"),
     reportDate: date("report_date").notNull(),
     title: text("title"),
     fetchedAt: timestamp("fetched_at", { withTimezone: true }),
@@ -115,7 +117,7 @@ export const iswReports = pgTable(
   },
   (t) => [
     uniqueIndex("isw_reports_url_idx").on(t.url),
-    uniqueIndex("isw_reports_date_idx").on(t.reportDate),
+    uniqueIndex("isw_reports_theater_date_idx").on(t.theater, t.reportDate),
   ],
 );
 

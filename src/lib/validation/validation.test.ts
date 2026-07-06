@@ -114,3 +114,16 @@ describe("scoreDigestWithMatches (llm matcher path)", () => {
     expect(s.thinSourcedRate).toBe(0.5);
   });
 });
+
+describe("referenceFor / iranUpdateUrlForDate", () => {
+  it("maps theaters to references", async () => {
+    const { referenceFor, iranUpdateUrlForDate } = await import("./run");
+    expect(referenceFor("ru")?.theater).toBe("ru");
+    expect(referenceFor("ua")?.theater).toBe("ru");
+    expect(referenceFor("ir")?.theater).toBe("ir");
+    expect(referenceFor("sa")).toBeNull();
+    expect(iranUpdateUrlForDate("2026-07-04")).toBe(
+      "https://understandingwar.org/research/middle-east/iran-update-special-report-july-4-2026/",
+    );
+  });
+});
