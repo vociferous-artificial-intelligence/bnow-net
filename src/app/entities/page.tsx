@@ -13,7 +13,9 @@ export default async function EntitiesPage() {
               WHERE ce.role IN ('defendant','target','dismissed')
             )::int AS pressure,
             max(cl.claim_date)::text AS last_seen,
-            array_agg(DISTINCT ce.role) AS roles
+            array_agg(DISTINCT ce.role) AS roles,
+            (e.meta->'opensanctions'->>'sanctioned')::boolean AS sanctioned,
+            (e.meta->'opensanctions'->'topics') AS os_topics
      FROM entities e
      JOIN claim_entities ce ON ce.entity_id = e.id
      JOIN claims cl ON cl.id = ce.claim_id
@@ -24,6 +26,7 @@ export default async function EntitiesPage() {
   )) as Array<{
     id: number; name: string; kind: string; claims: number;
     pressure: number; last_seen: string | null; roles: string[];
+    sanctioned: boolean | null; os_topics: string[] | null;
   }>;
 
   return (
@@ -56,6 +59,19 @@ export default async function EntitiesPage() {
                 <Link href={`/entities/${e.id}`} className="font-medium hover:underline">
                   {e.name}
                 </Link>
+                {e.sanctioned && (
+                  <span
+                    className="ml-2 rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white"
+                    title={`OpenSanctions: ${(e.os_topics ?? []).join(", ")}`}
+                  >
+                    sanctioned
+                  </span>
+                )}
+                {!e.sanctioned && (e.os_topics ?? []).includes("role.pep") && (
+                  <span className="ml-2 rounded bg-orange-500 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white">
+                    PEP
+                  </span>
+                )}
               </td>
               <td className="text-xs">{e.kind}</td>
               <td className="text-right tabular-nums">

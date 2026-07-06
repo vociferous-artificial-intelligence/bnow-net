@@ -1,0 +1,26 @@
+{
+  "timur ivanov": {
+    "sanctioned": true,
+    "topics": ["sanction", "role.pep", "crime"],
+    "datasets": ["us_ofac_sdn", "eu_fsf", "gb_hmt_sanctions"],
+    "osId": "NK-stub-timur-ivanov",
+    "score": 0.97,
+    "caption": "Timur Ivanov (former Deputy Defense Minister)"
+  },
+  "sergei ivanov": {
+    "sanctioned": true,
+    "topics": ["sanction", "role.pep"],
+    "datasets": ["us_ofac_sdn", "eu_fsf"],
+    "osId": "NK-stub-sergei-ivanov",
+    "score": 0.88,
+    "caption": "Sergei Ivanov"
+  },
+  "fsb": {
+    "sanctioned": true,
+    "topics": ["sanction", "gov.security"],
+    "datasets": ["us_ofac_sdn", "eu_fsf"],
+    "osId": "NK-stub-fsb",
+    "score": 0.95,
+    "caption": "Federal Security Service (FSB)"
+  }
+}
