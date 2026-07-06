@@ -52,19 +52,21 @@ function baseUrl(): string {
     : "https://comtradeapi.un.org/public/v1/preview";
 }
 
-/** Fetch annual export flows reporter→Russia for the given HS codes + years. */
-export async function fetchReporterFlows(
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Fetch export flows reporter→Russia for one year (all HS codes in one call). */
+export async function fetchReporterYear(
   reporterCode: number,
   reporterName: string,
   hsCodes: string[],
-  years: string[],
+  year: string,
   flowCode: "X" | "M" = "X",
 ): Promise<ComtradeRow[] | null> {
   const params = new URLSearchParams({
     reporterCode: String(reporterCode),
     partnerCode: String(RUSSIA_CODE),
-    period: years.join(","),
-    cmdCode: hsCodes.join(","),
+    period: year, // keyless preview: ONE period per call
+    cmdCode: hsCodes.join(","), // multiple commodities OK
     flowCode,
     ...(process.env.COMTRADE_API_KEY
       ? { "subscription-key": process.env.COMTRADE_API_KEY }
@@ -82,12 +84,33 @@ export async function fetchReporterFlows(
       signal: AbortSignal.timeout(30_000),
     });
     if (!res.ok) {
-      console.warn(`comtrade ${reporterName}: HTTP ${res.status}`);
+      console.warn(`comtrade ${reporterName} ${year}: HTTP ${res.status}`);
       return null;
     }
     return parseComtrade(await res.json(), reporterName);
   } catch (e) {
-    console.warn(`comtrade ${reporterName}: ${e instanceof Error ? e.message : e}`);
+    console.warn(`comtrade ${reporterName} ${year}: ${e instanceof Error ? e.message : e}`);
     return null;
   }
+}
+
+/** Fetch all watched years for a reporter (one call per year, polite spacing). */
+export async function fetchReporterFlows(
+  reporterCode: number,
+  reporterName: string,
+  hsCodes: string[],
+  years: string[],
+  flowCode: "X" | "M" = "X",
+): Promise<ComtradeRow[] | null> {
+  const all: ComtradeRow[] = [];
+  let anyOk = false;
+  for (const year of years) {
+    const rows = await fetchReporterYear(reporterCode, reporterName, hsCodes, year, flowCode);
+    if (rows !== null) {
+      anyOk = true;
+      all.push(...rows);
+    }
+    await sleep(2500); // keyless rate limit
+  }
+  return anyOk ? all : null;
 }
