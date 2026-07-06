@@ -174,3 +174,8 @@ Continuing into Stage 7 (deepen) with remaining weekend time.
 - Ask-the-data (1B): /ask gated, LLM answers strictly from retrieved claims/entities citing [cID], stub fallback; anti-hallucination (fabricated citations dropped). Stickiness play.
 - ISW Middle East registry (1A): scraped ISW Iran Update archive (1,097 reports), sample loaded theater='ir' — 1,423 ME sources / 14,019 citations, 98.7% parse. Captures NON-STATE ACTORS: Hamas Qassam Brigades, PIJ Saraya al-Quds, Al-Aqsa/Quds, Hezbollah-Lebanon, + IDF/Iranian-state/Western. Live per-theater aggregate query (no blend with RU registry). /middle-east page gated. Full 1,097 backfill running.
 - 99 tests green.
+
+## 2026-07-06 — i18n shipped; all 4 next-phase builds complete
+
+- i18n scaffolding: 9 locales declared, en+uk fully translated, per-key EN fallback, RTL flags (ar/he), cookie+Accept-Language resolution, /api/locale switcher, root layout lang+dir. Home localized; Ukrainian verified live. Content stays English-first; LLM content-translation is the documented next step.
+- ALL FOUR next-phase workstreams shipped: critical-materials tracker, ask-the-data, ISW Middle East registry, i18n. Plans in NEXT-PHASE-PLAN.md + CRITICAL-MATERIALS.md. 104 tests green. Iran Update full backfill (1,097) running for deeper ME registry.
