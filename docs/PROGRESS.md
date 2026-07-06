@@ -135,3 +135,8 @@ Continuing into Stage 7 (deepen) with remaining weekend time.
 - Real signal: UAE computers 12.9× ($38M→$491M), China vehicles $4.3B→$25.5B (6×), Kazakhstan machinery appeared $10K→$996M, China drones(HS88) 6.8×. 28 dual-use series flagged.
 - /trade page (public teaser), nav link. Caveats (lag, ~30% pairs mirror, estimates) on page.
 - COMTRADE_API_KEY optional (raises limits) — logged as soft blocker. 68 tests green.
+
+## 2026-07-06 — Build 2/5 shipped: buyer-profile re-weighting
+
+- profiles/config.ts (balanced/frontline/sanctioning/commodity/compliance) + rank.ts (pure, tested): track×type×platform×corroboration×confidence×recency.
+- Digest page: profile switcher; orders BOTH track sections and events within them. Verified live: frontline→military first, compliance→elite-politics first. No schema change (read-time transform). 76 tests.
