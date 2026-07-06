@@ -149,3 +149,9 @@ Continuing into Stage 7 (deepen) with remaining weekend time.
 - D: nuclear track (ir) — working: Isfahan enrichment event, IAEA/facility lexicon, nonprolif prompt.
 - E: elite_politics extended to ir — working: clerical/IRGC/Khamenei; entity graph populated (Isfahan facility, Khamenei).
 - Iran digest page renders 3 tracks. 81 tests. Note: Iran military prompt is theater-neutral but produced few events on quiet days — quality iteration item.
+
+## 2026-07-06 — Build 4/5 shipped: analyst signals layer
+
+- signals.ts (pure, 89 tests): detectPurge (clustered elite pressure→factional-purge flag), detectDataDark (classified/gone series), detectTradeDivergence (dual-use rerouting). rankSignals by severity.
+- /signals page live, firing all 3 on real data (purge on RU entity graph, 4 classified series, 28 dual-use trade flags). Each carries evidence claim-ids/refs — deterministic, no black box.
+- Deferred (backlog): per-digest LLM "what changed & what it means" assessment block — signals engine is the distinctive core; assessment block is polish.
