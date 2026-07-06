@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { rawSql } from "@/db";
-import { PROFILES } from "@/lib/profiles/config";
+import { getProfile, PROFILES } from "@/lib/profiles/config";
 import { rankEvents, type RankableEvent } from "@/lib/profiles/rank";
 
 export const dynamic = "force-dynamic";
@@ -154,6 +154,14 @@ export default async function DigestPage({
     rankedOrder.set(digestId, rankEvents(rankable, profileKey, nowMs).map((e) => e.eventId));
   }
 
+  // order the track SECTIONS by the profile's track weight (military default first)
+  const profile = getProfile(profileKey);
+  const orderedDigests = [...digestRows].sort(
+    (a, b) =>
+      (profile.trackWeights[b.track] ?? 1) - (profile.trackWeights[a.track] ?? 1) ||
+      (a.track === "military" ? -1 : 1),
+  );
+
   return (
     <main className="mx-auto max-w-3xl p-6">
       <p className="mb-1 text-sm text-gray-500">
@@ -181,7 +189,7 @@ export default async function DigestPage({
         })}
       </div>
 
-      {digestRows.map((digest) => {
+      {orderedDigests.map((digest) => {
         const events = byDigest.get(digest.id);
         const order = rankedOrder.get(digest.id) ?? [];
         const orderedEvents = events ? order.map((id) => events.get(id)!).filter(Boolean) : [];
