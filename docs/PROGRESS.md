@@ -161,3 +161,9 @@ Continuing into Stage 7 (deepen) with remaining weekend time.
 - entity_links (migration 0005); ownership.ts resolver (Companies House live-when-keyed, fixture stub otherwise); enrich cron ownership pass; connections UI on entity pages.
 - Verified: Arkady Rotenberg (entity #4) shows owns→Stroygazmontazh/SMP Bank, associate→Boris Rotenberg. 5 links from stub; flips to real Companies House officer/PSC data with a free key.
 - ALL FIVE recommended builds shipped: mirror-trade, buyer-profiles, iran/gulf depth, analyst-signals, ownership-graph. 92 tests green. New pages: /trade /signals + profile switcher + entity connections + Iran tracks/scoreboard.
+
+## 2026-07-06 — GTM strategy + business plan documents
+
+- docs/GTM-STRATEGY.md: positioning, 6 ranked ICPs (compliance+commodity beachhead), land/expand motion, channels (content-led + expert-led sales + consultancy resale), packaging, launch sequence, and a full data-stream gap list (P1-3 + structural G1-5) grounded in what's stubbed/blocked/missing.
+- docs/BUSINESS-PLAN.md: team (2 regional analysts + expert salesperson who verify AND sell — dual-purpose), bottom-up SAM ~$138M, ARR scenarios (Base ~$8M by Y3 / ~220 accts), content protection (structural moats > DRM; licensing + entitlements + per-subscriber canary marking; grounded in Bloomberg/Refinitiv/canary-trap practice), pricing recommendation (per-ORG site license not per-seat; hybrid base+usage on API only).
+- Research-grounded: OSINT market $8.7B→$46B, threat-intel $11.5B→$23B, incumbent pricing, canary/watermark/entitlement practice, per-seat-vs-usage market shift.
