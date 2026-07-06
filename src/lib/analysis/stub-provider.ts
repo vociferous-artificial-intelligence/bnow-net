@@ -1,6 +1,5 @@
 import { extractSignature } from "../validation/keywords";
 import { findNearDuplicates } from "./minhash";
-import { isEliteRelevant } from "./tracks";
 import type {
   AnalysisInputDoc,
   AnalysisProvider,
@@ -35,18 +34,17 @@ export class StubProvider implements AnalysisProvider {
     docs: AnalysisInputDoc[],
     opts?: { systemPrompt?: string | null; track?: string },
   ): Promise<DigestAnalysis> {
-    // relevance prefilter — track-specific lexicon for elite politics, otherwise
-    // theater toponym / military action (drops housekeeping + off-topic reposts)
-    const relevant =
-      opts?.track === "elite_politics"
-        ? docs.filter((d) =>
-            isEliteRelevant(`${d.title ?? ""} ${d.content}`.slice(0, 1500)),
-          )
-        : docs.filter((d) => {
-            const sig = extractSignature(`${d.title ?? ""} ${d.content}`.slice(0, 1500));
-            return sig.toponyms.size > 0 || sig.actions.size > 0;
-          });
-    const pool = relevant.length >= 15 || opts?.track === "elite_politics" ? relevant : docs;
+    // relevance prefilter. Non-military tracks are already lexicon-filtered upstream
+    // (digest.ts trackCfg.lexicon), so keep all their docs; military uses the theater
+    // toponym / action signal to drop housekeeping + off-topic reposts.
+    const nonMilitary = !!opts?.track && opts.track !== "military";
+    const relevant = nonMilitary
+      ? docs
+      : docs.filter((d) => {
+          const sig = extractSignature(`${d.title ?? ""} ${d.content}`.slice(0, 1500));
+          return sig.toponyms.size > 0 || sig.actions.size > 0;
+        });
+    const pool = relevant.length >= 15 || nonMilitary ? relevant : docs;
     if (pool.length === 0) return { events: [], provider: this.name };
 
     const texts = pool.map((d) => `${d.title ?? ""} ${d.content}`.slice(0, 2000));

@@ -35,6 +35,10 @@ export const RSS_FEEDS: RssFeedConfig[] = [
   { url: "https://timesofoman.com/feed", sourceKey: "timesofoman.com", lang: "en", countryIso2: "om", name: "Times of Oman" },
   { url: "https://www.newsofbahrain.com/rss.xml", sourceKey: "newsofbahrain.com", lang: "en", countryIso2: "bh", name: "News of Bahrain" },
   { url: "https://www.arabtimesonline.com/feed/", sourceKey: "arabtimesonline.com", lang: "en", countryIso2: "kw", name: "Arab Times (KW)" },
+  // Iran/Gulf depth (2026-07-06, verified reachable): regional + Iranian state.
+  { url: "https://www.middleeasteye.net/rss", sourceKey: "middleeasteye.net", lang: "en", countryIso2: "ir", name: "Middle East Eye" },
+  { url: "https://www.al-monitor.com/rss", sourceKey: "al-monitor.com", lang: "en", countryIso2: "ir", name: "Al-Monitor" },
+  { url: "https://www.presstv.ir/rss.xml", sourceKey: "presstv.ir", lang: "en", countryIso2: "ir", name: "Press TV (Iran state)" },
 ];
 
 // Curated must-watch Telegram channels (state + mil-blogger + OSINT mix).
@@ -70,6 +74,10 @@ export const TELEGRAM_CURATED: Array<{ channel: string; countryIso2: string }> =
   { channel: "sibrealii", countryIso2: "ru" },
   { channel: "azatliqradiosi", countryIso2: "ru" }, // Tatar-language
   { channel: "radiosvoboda", countryIso2: "ru" },
+  // Iran/Gulf conflict-OSINT aggregators (2026-07-06, verified reachable):
+  { channel: "OSINTdefender", countryIso2: "ir" },
+  { channel: "warmonitors", countryIso2: "ir" },
+  { channel: "AuroraIntel", countryIso2: "ir" },
 ];
 
 /** How many registry-derived telegram channels to add on top of the curated set. */

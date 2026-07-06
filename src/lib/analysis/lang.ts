@@ -1,14 +1,21 @@
 // Cheap deterministic language tagging for theater content.
-// ru/uk/en plus the RU minority languages we ingest (Tatar, Bashkir, Chuvash,
-// Chechen) — rough char-set heuristics; the LLM reads all of them regardless.
+// ru/uk/en + RU minority languages (Tatar, Bashkir, Chuvash, Chechen) + the
+// Iran/Gulf pair (Persian, Arabic) — rough char-set heuristics; the LLM reads
+// all of them regardless, so this is for routing/display only.
 
-export type Lang = "ru" | "uk" | "en" | "tt" | "ba" | "cv" | "ce";
+export type Lang = "ru" | "uk" | "en" | "tt" | "ba" | "cv" | "ce" | "fa" | "ar";
 
 export function detectLang(text: string): Lang | null {
   if (!text) return null;
   const cyrillic = (text.match(/[Ѐ-ӿ]/g) ?? []).length;
+  const arabic = (text.match(/[؀-ۿ]/g) ?? []).length;
   const latin = (text.match(/[a-zA-Z]/g) ?? []).length;
-  if (cyrillic < 5 && latin < 5) return null;
+  if (cyrillic < 5 && latin < 5 && arabic < 5) return null;
+  // Arabic script: Persian vs Arabic by Persian-only letters (پ چ ژ گ) and the
+  // Persian forms of keheh/yeh (U+06A9/U+06CC), distinct from Arabic kaf/yaa.
+  if (arabic >= 5 && arabic >= cyrillic && arabic >= latin) {
+    return /[پچژگکی]/.test(text) ? "fa" : "ar";
+  }
   if (cyrillic <= latin) return "en";
   // minority-language markers (checked before ru/uk split):
   if (/[ӑӗӳ]|ҫак|тата/i.test(text) && /[ҫ]/.test(text)) return "cv"; // Chuvash: ӑ ӗ ӳ ҫ

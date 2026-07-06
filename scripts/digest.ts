@@ -7,7 +7,7 @@ import "./env";
 async function main() {
   const country = process.argv[2];
   const date = process.argv[3] ?? new Date().toISOString().slice(0, 10);
-  const track = (process.argv[4] ?? "military") as "military" | "elite_politics";
+  const track = (process.argv[4] ?? "military") as "military" | "elite_politics" | "nuclear";
   const { generateDigest } = await import("../src/lib/analysis/digest");
 
   const countries = country ? [country] : ["ru", "ua"];

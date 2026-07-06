@@ -36,8 +36,8 @@ export async function GET(req: NextRequest) {
   }
 
   const trackParam = req.nextUrl.searchParams.get("track");
-  const tracks = (trackParam ? [trackParam] : ["military", "elite_politics"]) as Array<
-    "military" | "elite_politics"
+  const tracks = (trackParam ? [trackParam] : ["military", "elite_politics", "nuclear"]) as Array<
+    "military" | "elite_politics" | "nuclear"
   >;
 
   const results = [];

@@ -90,3 +90,14 @@ describe("detectLang minority languages", () => {
     expect(detectLang("Звичайний український текст про економіку і ринок")).toBe("uk");
   });
 });
+
+describe("detectLang Persian/Arabic", () => {
+  it("distinguishes Persian from Arabic", () => {
+    expect(detectLang("ایران امروز درباره برنامه هسته‌ای گفتگو کرد و پاسخ داد")).toBe("fa");
+    expect(detectLang("أعلنت الحكومة اليوم عن إجراءات جديدة بشأن الأمن والاقتصاد")).toBe("ar");
+  });
+  it("does not misfire on latin/cyrillic", () => {
+    expect(detectLang("Iran nuclear talks resumed in Geneva this week")).toBe("en");
+    expect(detectLang("Российские войска под Покровском продолжают наступление")).toBe("ru");
+  });
+});

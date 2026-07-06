@@ -2,7 +2,7 @@
 // 'military' is ISW-validated; 'elite_politics' (Kremlinology) tracks prosecutions,
 // asset seizures, appointments and gang cases as factional-realignment signals.
 
-export type Track = "military" | "elite_politics";
+export type Track = "military" | "elite_politics" | "nuclear";
 
 export interface TrackConfig {
   track: Track;
@@ -29,6 +29,9 @@ const ELITE_LEXICON = new RegExp(
     "prosecut", "embezzl", "briber", "corruption", "fraud", "asset seizure",
     "nationaliz", "oligarch", "billionaire", "governor", "dismissed", "resign",
     "foreign agent", "treason", "gang", "crime boss", "mafia",
+    // Iran/Gulf elite politics (English-language sources)
+    "cleric", "ayatollah", "IRGC", "Majlis", "Khamenei", "succession", "bonyad",
+    "crown prince", "\\bemir\\b", "royal decree", "reshuffle", "purge",
   ].join("|"),
   "i",
 );
@@ -51,6 +54,40 @@ HARD RULES:
 6. event type: prosecution|asset_seizure|appointment|dismissal|elite_death|gang_case|other.
 7. 4-10 events, most significant first.`;
 
+// --- Iran nuclear track ---
+const NUCLEAR_LEXICON = new RegExp(
+  [
+    "enrich", "enrichment", "centrifuge", "IAEA", "Fordow", "Fordo", "Natanz",
+    "Arak", "Bushehr", "Isfahan", "breakout", "\\bHEU\\b", "uranium", "reactor",
+    "inspector", "safeguards", "JCPOA", "\\bUF6\\b", "cascade", "heavy water",
+    "nuclear", "warhead", "weaponiz", "proliferat", "Grossi", "20 percent",
+    "60 percent", "weapons-grade",
+    // Farsi
+    "هسته", "غنی", "سانتریفیوژ", "نطنز", "فوردو", "آژانس", "اورانیوم", "بوشهر",
+  ].join("|"),
+  "i",
+);
+
+const NUCLEAR_PROMPT = `You are a nonproliferation analyst tracking IRAN'S NUCLEAR PROGRAM through open sources.
+Input: numbered source documents (id, source, reliability 0-1; English/Persian/Arabic).
+Output: significant nuclear-related developments as events with specific claims.
+
+FOCUS: enrichment level & stockpile changes, IAEA reporting/access/inspections, facility
+activity (Natanz, Fordow, Isfahan, Arak, Bushehr), centrifuge installation/type, sabotage
+or strikes on facilities, breakout-time implications, diplomatic status (JCPOA/talks),
+weaponization indicators.
+
+HARD RULES:
+1. Every claim MUST cite docIds from the input. Never invent ids.
+2. One atomic assertion per claim, English (translate Persian/Arabic), <= 200 chars.
+3. Technical facts get hedging per sourcing (confirmed if IAEA/geolocated; claimed if
+   single-party; unverified if uncorroborated). Analytic judgments (breakout estimates,
+   intent) are claimType='assessment', hedging='assessed'.
+4. For each claim list involved entities: {name, kind (person|agency|company|faction|org),
+   role (target|operator|inspector|official|other)} — e.g. IAEA, AEOI, IRGC, facilities.
+5. event type: enrichment|iaea|facility|sabotage|diplomacy|weaponization|other.
+6. Do not sensationalize; distinguish reported from assessed. 4-10 events.`;
+
 export const TRACKS: Record<Track, TrackConfig> = {
   military: {
     track: "military",
@@ -63,13 +100,25 @@ export const TRACKS: Record<Track, TrackConfig> = {
   },
   elite_politics: {
     track: "elite_politics",
-    countries: ["ru"],
+    // ru = Kremlinology; ir = clerical/IRGC/bonyad factions + succession
+    countries: ["ru", "ir"],
     lexicon: ELITE_LEXICON,
     systemPrompt: ELITE_POLITICS_PROMPT,
+    validated: false,
+  },
+  nuclear: {
+    track: "nuclear",
+    countries: ["ir"],
+    lexicon: NUCLEAR_LEXICON,
+    systemPrompt: NUCLEAR_PROMPT,
     validated: false,
   },
 };
 
 export function isEliteRelevant(text: string): boolean {
   return ELITE_LEXICON.test(text);
+}
+
+export function isNuclearRelevant(text: string): boolean {
+  return NUCLEAR_LEXICON.test(text);
 }
