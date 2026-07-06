@@ -11,5 +11,14 @@
   "rosneft": [
     { "toName": "Igor Sechin", "toKind": "person", "relation": "director", "source": "stub", "since": "2012" },
     { "toName": "Rosneftegaz", "toKind": "company", "relation": "psc", "source": "stub", "since": null }
+  ],
+  "arkady rotenberg": [
+    { "toName": "Stroygazmontazh", "toKind": "company", "relation": "owns", "source": "stub", "since": "2008" },
+    { "toName": "Boris Rotenberg", "toKind": "person", "relation": "associate", "source": "stub", "since": null },
+    { "toName": "SMP Bank", "toKind": "company", "relation": "owns", "source": "stub", "since": null }
+  ],
+  "rosnano": [
+    { "toName": "Anatoly Chubais", "toKind": "person", "relation": "director", "source": "stub", "since": "2011" },
+    { "toName": "Russian Federation", "toKind": "org", "relation": "psc", "source": "stub", "since": null }
   ]
 }
