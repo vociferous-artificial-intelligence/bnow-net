@@ -54,7 +54,10 @@ export function computeDivergence(
     const latest = byYear.get(latestYear)!;
     const baseline = byYear.get(baselineYear) ?? null;
     const baselineUsd = baseline?.valueUsd ?? 0;
-    const multiple = baselineUsd > 0 ? latest.valueUsd / baselineUsd : null;
+    // Only compute a multiple against a MATERIAL baseline. A near-zero baseline is
+    // usually a reporting gap (the hub didn't file that year), not real zero trade —
+    // dividing by it yields spurious 1000× ratios. Sub-material baselines read as "new".
+    const multiple = baselineUsd >= material ? latest.valueUsd / baselineUsd : null;
     const deltaUsd = latest.valueUsd - baselineUsd;
 
     // flag: material size AND (grew >= threshold, or appeared from ~nothing)

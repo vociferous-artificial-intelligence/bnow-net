@@ -127,3 +127,11 @@ Continuing into Stage 7 (deepen) with remaining weekend time.
 - Wrote docs/COMPETITIVE-AND-DEMAND.md (vendor landscape + gaps/edge, buyer-segment value incl. nation-state-by-conflict-degree, mirror-trade validated + buildable) and docs/IRAN-GULF-DEPTH.md.
 - Probed reachability from Vercel: UN Comtrade API ✓ (mirror-trade buildable), Middle East Eye/Al-Monitor/Press TV feeds ✓, OSINTdefender/warmonitors/AuroraIntel TG ✓.
 - Wrote 5 self-contained implementation prompts in docs/prompts/ (mirror-trade, buyer-profiles, iran-gulf-depth, analyst-layer, ownership-graph) + README with priority order. No code shipped this turn — research/strategy deliverable.
+
+## 2026-07-06 — Build 1/5 shipped: mirror-trade / evasion watch
+
+- UN Comtrade adapter (keyless preview, 1 period/call → per-year loop), 1,724 flow rows across 8 transit hubs, monthly cron.
+- divergence.ts: appeared-from-nothing + multiple-of-baseline flags; latest-material-year selection handles comtrade reporting lag; sub-material baselines read "new" (no spurious ratios).
+- Real signal: UAE computers 12.9× ($38M→$491M), China vehicles $4.3B→$25.5B (6×), Kazakhstan machinery appeared $10K→$996M, China drones(HS88) 6.8×. 28 dual-use series flagged.
+- /trade page (public teaser), nav link. Caveats (lag, ~30% pairs mirror, estimates) on page.
+- COMTRADE_API_KEY optional (raises limits) — logged as soft blocker. 68 tests green.

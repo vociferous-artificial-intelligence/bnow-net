@@ -72,3 +72,8 @@ Dated log of missing credentials/capabilities. Each has a stub in place; nothing
 - **rosstat.gov.ru / customs.gov.ru unreachable** from Vercel too → their series show as
   `classified`/`unreachable` in the data-dark tracker (which is itself the intended
   signal). MinFin + CBR are reachable and polled live.
+
+- **COMTRADE_API_KEY (optional)** raises UN Comtrade rate limits + unlocks the
+  authenticated endpoint (comtradeapi.un.org/data/v1). Keyless preview works now
+  (1 period/call, looped) and populated 1,724 rows. Register at comtradeplus.un.org
+  for higher volume / monthly-frequency pulls. Not blocking.
