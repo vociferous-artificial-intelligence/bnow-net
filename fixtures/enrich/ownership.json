@@ -1,0 +1,15 @@
+{
+  "gazprom": [
+    { "toName": "Gazprom Neft", "toKind": "company", "relation": "subsidiary", "source": "stub", "since": "1995" },
+    { "toName": "Alexei Miller", "toKind": "person", "relation": "director", "source": "stub", "since": "2001" },
+    { "toName": "Russian Federation", "toKind": "org", "relation": "psc", "source": "stub", "since": null }
+  ],
+  "timur ivanov": [
+    { "toName": "Oboronstroy", "toKind": "company", "relation": "associate", "source": "stub", "since": null },
+    { "toName": "Sergei Shoigu", "toKind": "person", "relation": "associate", "source": "stub", "since": null }
+  ],
+  "rosneft": [
+    { "toName": "Igor Sechin", "toKind": "person", "relation": "director", "source": "stub", "since": "2012" },
+    { "toName": "Rosneftegaz", "toKind": "company", "relation": "psc", "source": "stub", "since": null }
+  ]
+}

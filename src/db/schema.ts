@@ -288,6 +288,31 @@ export const entities = pgTable(
   (t) => [uniqueIndex("entities_kind_name_idx").on(t.kind, t.name)],
 );
 
+// Ownership / connection graph: directed edges between entities (owns, director,
+// PSC, subsidiary, associate). Narrows the Kharon/Sayari gap. Sourced + attributed.
+export const entityLinks = pgTable(
+  "entity_links",
+  {
+    id: serial("id").primaryKey(),
+    fromEntityId: integer("from_entity_id")
+      .notNull()
+      .references(() => entities.id, { onDelete: "cascade" }),
+    toEntityId: integer("to_entity_id")
+      .notNull()
+      .references(() => entities.id, { onDelete: "cascade" }),
+    relation: text("relation").notNull(), // owns|director|psc|subsidiary|associate|officer
+    source: text("source").notNull(), // opensanctions|companies_house|opencorporates|manual
+    since: text("since"), // free-text date/context as reported
+    meta: jsonb("meta").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("entity_links_key_idx").on(t.fromEntityId, t.toEntityId, t.relation, t.source),
+    index("entity_links_from_idx").on(t.fromEntityId),
+    index("entity_links_to_idx").on(t.toEntityId),
+  ],
+);
+
 export const claimEntities = pgTable(
   "claim_entities",
   {

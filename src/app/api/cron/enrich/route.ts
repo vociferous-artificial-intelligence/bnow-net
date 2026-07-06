@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { enrichEntities } from "@/lib/enrich/run";
+import { enrichOwnership } from "@/lib/enrich/ownership-run";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
-// OpenSanctions enrichment of the entity graph. ?refresh=1 re-checks all rows.
+// Entity-graph enrichment: OpenSanctions status + ownership links. ?refresh=1
+// re-checks all rows; ?only=sanctions|ownership narrows.
 export async function GET(req: NextRequest) {
   const auth = req.headers.get("authorization");
   if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -12,6 +14,14 @@ export async function GET(req: NextRequest) {
   }
   const refresh = req.nextUrl.searchParams.get("refresh") === "1";
   const limit = parseInt(req.nextUrl.searchParams.get("limit") ?? "200", 10);
-  const stats = await enrichEntities({ refresh, limit, nowIso: new Date().toISOString() });
-  return NextResponse.json({ ok: true, live: !!process.env.OPENSANCTIONS_API_KEY, stats });
+  const only = req.nextUrl.searchParams.get("only");
+
+  const out: Record<string, unknown> = { ok: true };
+  if (only !== "ownership") {
+    out.sanctions = await enrichEntities({ refresh, limit, nowIso: new Date().toISOString() });
+  }
+  if (only !== "sanctions") {
+    out.ownership = await enrichOwnership({ refresh, limit });
+  }
+  return NextResponse.json(out);
 }
