@@ -179,3 +179,8 @@ Continuing into Stage 7 (deepen) with remaining weekend time.
 
 - i18n scaffolding: 9 locales declared, en+uk fully translated, per-key EN fallback, RTL flags (ar/he), cookie+Accept-Language resolution, /api/locale switcher, root layout lang+dir. Home localized; Ukrainian verified live. Content stays English-first; LLM content-translation is the documented next step.
 - ALL FOUR next-phase workstreams shipped: critical-materials tracker, ask-the-data, ISW Middle East registry, i18n. Plans in NEXT-PHASE-PLAN.md + CRITICAL-MATERIALS.md. 104 tests green. Iran Update full backfill (1,097) running for deeper ME registry.
+
+## 2026-07-06 — Full Iran corpus loaded + debt review
+
+- Completed 1A: full ISW Iran Update corpus loaded (was sample-only) — 1,066 reports, 3,647 ME sources, 98,149 citations. ME registry now complete.
+- Debt review surfaced tasks worth addressing now (see docs/OPEN-TASKS.md): CI pipeline, /ask rate limit, entity canonicalization, integration tests, unmaterialized ME sources.
