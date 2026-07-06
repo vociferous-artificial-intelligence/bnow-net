@@ -149,11 +149,13 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
 
 1. **Monday (Gregory):** work docs/SETUP-NEXT-WEEK.md top-to-bottom — LLM credits/key
    first (biggest quality unlock), then DNS, then MTProto/Resend/Stripe.
-2. Stage 7 candidates (any future session): anthropic provider impl; year-inference
-  for 37 unparsed ISW pages; per-source country column + UA channel curation;
-  scoreboard trend charts; per-source registry detail pages; GDELT raw-file fallback;
-  new-country playbook doc from Gulf configs (brief §8.4).
-3. Open: original brief still needs to replace docs/PRODUCT-BRIEF.md (reconstruction).
+2. Russia depth build order: docs/RUSSIA-DATA-ROADMAP.md §5 — next up:
+  OpenSanctions→entity-graph link, zakupki.gov.ru procurement watcher, data-dark
+  tracker, kremlin.ru attendance matrix, decree-gap counter.
+3. Stage 7 candidates (any future session): anthropic provider impl; year-inference
+  for 37 unparsed ISW pages; per-source country column; scoreboard trend charts;
+  GDELT raw-file fallback.
+4. Open: original brief still needs to replace docs/PRODUCT-BRIEF.md (reconstruction).
 
 ## Operating protocol
 
