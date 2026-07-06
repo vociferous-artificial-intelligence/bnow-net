@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { rawSql } from "@/db";
+import { PROFILES } from "@/lib/profiles/config";
+import { rankEvents, type RankableEvent } from "@/lib/profiles/rank";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,8 @@ interface ClaimRow {
   adapter: string;
   source_key: string | null;
   reliability: number | null;
+  source_platform: string | null;
+  doc_at: string | null;
 }
 
 interface EntityRow {
@@ -45,10 +49,13 @@ const TRACK_LABELS: Record<string, string> = {
 
 export default async function DigestPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ country: string; date: string }>;
+  searchParams: Promise<{ profile?: string }>;
 }) {
   const { country, date } = await params;
+  const { profile: profileKey } = await searchParams;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^[a-z]{2}$/.test(country)) notFound();
 
   const digestRows = (await rawSql.query(
@@ -59,6 +66,7 @@ export default async function DigestPage({
     [country, date],
   )) as Array<{ id: number; track: string; status: string; provider: string; country_name: string }>;
   if (digestRows.length === 0) notFound();
+  const trackByDigest = new Map(digestRows.map((d) => [d.id, d.track]));
 
   const digestIds = digestRows.map((d) => d.id);
   const [rowsRaw, entityRowsRaw] = await Promise.all([
@@ -67,7 +75,9 @@ export default async function DigestPage({
               ev.type AS event_type, ev.summary AS event_summary,
               cl.text, cl.hedging, cl.confidence,
               rd.id AS doc_id, rd.url AS doc_url, rd.title AS doc_title, rd.adapter,
-              s.canonical_url AS source_key, s.reliability_score AS reliability
+              s.canonical_url AS source_key, s.reliability_score AS reliability,
+              s.platform AS source_platform,
+              COALESCE(rd.published_at, rd.fetched_at)::text AS doc_at
        FROM claims cl
        JOIN events ev ON ev.id = cl.event_id
        JOIN claim_sources cs ON cs.claim_id = cl.id
@@ -99,6 +109,8 @@ export default async function DigestPage({
       claims: Map<number, { text: string; hedging: string; confidence: number | null; docs: ClaimRow[] }>;
     }>
   >();
+  // accumulate rankable signal per event (platforms, latest doc time, confidences)
+  const evSignal = new Map<number, { platforms: Set<string>; latest: string | null; confs: Set<number>; conf: Map<number, number | null> }>();
   for (const r of rows) {
     if (!byDigest.has(r.digest_id)) byDigest.set(r.digest_id, new Map());
     const events = byDigest.get(r.digest_id)!;
@@ -112,6 +124,34 @@ export default async function DigestPage({
         text: r.text, hedging: r.hedging, confidence: r.confidence, docs: [],
       });
     ev.claims.get(r.claim_id)!.docs.push(r);
+
+    if (!evSignal.has(r.event_id))
+      evSignal.set(r.event_id, { platforms: new Set(), latest: null, confs: new Set(), conf: new Map() });
+    const sig = evSignal.get(r.event_id)!;
+    if (r.source_platform) sig.platforms.add(r.source_platform);
+    if (r.doc_at && (sig.latest === null || r.doc_at > sig.latest)) sig.latest = r.doc_at;
+    sig.conf.set(r.claim_id, r.confidence);
+  }
+
+  // build the profile-ranked event order per digest
+  const nowMs = Date.now();
+  const rankedOrder = new Map<number, number[]>(); // digestId -> ordered eventIds
+  for (const [digestId, events] of byDigest) {
+    const track = trackByDigest.get(digestId) ?? "military";
+    const rankable: RankableEvent[] = [...events.entries()].map(([eventId, ev]) => {
+      const sig = evSignal.get(eventId);
+      const confs = sig ? [...sig.conf.values()].filter((c): c is number => c !== null) : [];
+      return {
+        eventId,
+        track,
+        type: ev.type,
+        claimCount: ev.claims.size,
+        avgConfidence: confs.length ? confs.reduce((a, b) => a + b, 0) / confs.length : null,
+        platforms: sig ? [...sig.platforms] : [],
+        latestAt: sig?.latest ?? null,
+      };
+    });
+    rankedOrder.set(digestId, rankEvents(rankable, profileKey, nowMs).map((e) => e.eventId));
   }
 
   return (
@@ -119,12 +159,32 @@ export default async function DigestPage({
       <p className="mb-1 text-sm text-gray-500">
         <Link href="/" className="underline">BNOW.NET</Link> · daily digest
       </p>
-      <h1 className="mb-6 text-2xl font-bold">
+      <h1 className="mb-3 text-2xl font-bold">
         {digestRows[0].country_name} — {date}
       </h1>
 
+      <div className="mb-6 flex flex-wrap items-center gap-1.5 text-xs">
+        <span className="mr-1 text-gray-400">view for:</span>
+        {PROFILES.map((p) => {
+          const active = (profileKey ?? "balanced") === p.key;
+          const qs = p.key === "balanced" ? "" : `?profile=${p.key}`;
+          return (
+            <Link
+              key={p.key}
+              href={`/digests/${country}/${date}${qs}`}
+              title={p.description}
+              className={`rounded px-2 py-1 ${active ? "bg-blue-600 text-white" : "bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700"}`}
+            >
+              {p.label}
+            </Link>
+          );
+        })}
+      </div>
+
       {digestRows.map((digest) => {
         const events = byDigest.get(digest.id);
+        const order = rankedOrder.get(digest.id) ?? [];
+        const orderedEvents = events ? order.map((id) => events.get(id)!).filter(Boolean) : [];
         return (
           <div key={digest.id} className="mb-10">
             <h2 className="mb-3 border-b border-gray-200 pb-1 text-lg font-semibold dark:border-gray-800">
@@ -133,7 +193,7 @@ export default async function DigestPage({
             </h2>
             {!events && <p className="text-sm text-gray-400">No events extracted.</p>}
             {events &&
-              [...events.values()].map((ev, i) => (
+              orderedEvents.map((ev, i) => (
                 <section key={i} className="mb-5 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
                   <div className="mb-1 flex items-center gap-2">
                     <span className="rounded bg-gray-200 px-1.5 py-0.5 text-xs uppercase dark:bg-gray-700">
