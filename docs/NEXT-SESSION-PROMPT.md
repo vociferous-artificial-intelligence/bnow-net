@@ -12,7 +12,18 @@ is expired — unset it for CLI calls). LLM + several external hosts are TCP-blo
 this WSL2 box: anything needing OpenAI/blocked-host egress runs through Vercel routes
 (CRON_SECRET-gated, see .env.local).
 
-## Current mission: roadmap §5 items 1–3
+## STATUS: §5 items 1–3 DONE (2026-07-06). Next up: §5 items 4–6.
+
+Items 1–3 shipped (OpenSanctions enrichment, procurement watcher, data-dark tracker).
+Egress map established via /api/cron/probe: **reachable from Vercel** —
+kremlin.ru, government.ru, pravo.gov.ru, CBR, MinFin, api.opensanctions.org (needs key);
+**blocked** — zakupki, rosstat, customs. So the Kremlinology builds are UNBLOCKED:
+- §5.4 kremlin.ru schedule/attendance matrix + protocol-order extraction (reachable!)
+- §5.5 pravo.gov.ru decree-numbering-gap counter (reachable!)
+- §5.6 Fedresurs bankruptcy feed (check reachability first)
+Also open: add OPENSANCTIONS_API_KEY to flip enrichment live; find a zakupki proxy.
+
+## Original mission (done): roadmap §5 items 1–3
 
 1. **OpenSanctions → entity graph** (S): enrich `entities` rows with sanction status.
    Pattern: keyed adapter (OPENSANCTIONS_API_KEY) + deterministic fixture stub, like

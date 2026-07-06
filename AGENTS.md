@@ -67,7 +67,12 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
     median info-lead +14.7h. ISW report auto-discovery by slug pattern proven live
     (picked up the July 4 report the moment it published). Daily cron 07:00 UTC.
   - Surface: landing / countries / pricing+intents / magic-link auth / email-outbox.
-- Stubbed: MTProto, X, ACLED (fixtures); Stripe flagged off; Resend → file outbox.
+- Russia depth (2026-07-05/06): elite-politics track + entity graph (OpenSanctions-
+  badged), regional/ethnic-republic + semi-official sources, data-dark tracker
+  (/datadark), procurement watcher (wired, zakupki blocked). Postmark email LIVE;
+  auth gate ON (digests/registry/entities). Gulf wave: ru ua ir sa ae qa om active.
+- Stubbed: MTProto, X, ACLED (fixtures); Stripe flagged off; OpenSanctions + zakupki
+  need key/proxy (BLOCKERS 2026-07-06); Resend superseded by Postmark.
 - Deploys: `npx vercel@latest deploy --prod --yes` (CLI 46 too old; machine session
   auth — env VERCEL_TOKEN expired). Deployment URLs SSO-walled; use project domain.
 - Local-host quirks: api.openai.com and api.gdeltproject.org TCP-unreachable from this
