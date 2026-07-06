@@ -140,3 +140,12 @@ Continuing into Stage 7 (deepen) with remaining weekend time.
 
 - profiles/config.ts (balanced/frontline/sanctioning/commodity/compliance) + rank.ts (pure, tested): track×type×platform×corroboration×confidence×recency.
 - Digest page: profile switcher; orders BOTH track sections and events within them. Verified live: frontline→military first, compliance→elite-politics first. No schema change (read-time transform). 76 tests.
+
+## 2026-07-06 — Build 3/5 shipped: Iran & Gulf depth (A-E)
+
+- A: feeds (Middle East Eye, Al-Monitor, Press TV) + TG (OSINTdefender/warmonitors/AuroraIntel); 659 fresh Iran docs.
+- B: detectLang fa/ar (Persian-only letters distinguish from Arabic).
+- C: theater-keyed validation (isw_reports.theater, migration 0004); Iran validates vs ISW Iran Update special report (auto-discovered by slug). Iran now on /scoreboard (0% coverage first-cut, honest — Iran military digest thin, same as RU stub era).
+- D: nuclear track (ir) — working: Isfahan enrichment event, IAEA/facility lexicon, nonprolif prompt.
+- E: elite_politics extended to ir — working: clerical/IRGC/Khamenei; entity graph populated (Isfahan facility, Khamenei).
+- Iran digest page renders 3 tracks. 81 tests. Note: Iran military prompt is theater-neutral but produced few events on quiet days — quality iteration item.
