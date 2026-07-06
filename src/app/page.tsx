@@ -1,9 +1,15 @@
 import Link from "next/link";
 import { rawSql } from "@/db";
+import { getLocale } from "@/i18n/server";
+import { makeT, LOCALE_NAMES, type Locale } from "@/i18n/dictionaries";
 
 export const dynamic = "force-dynamic";
 
+const SHOWN_LOCALES: Locale[] = ["en", "uk"];
+
 export default async function Home() {
+  const locale = await getLocale();
+  const t = makeT(locale);
   let stats = { sources: 0, citations: 0, docs: 0, runs: 0 };
   try {
     const [r] = (await rawSql.query(
@@ -21,48 +27,54 @@ export default async function Home() {
 
   return (
     <main className="mx-auto max-w-5xl px-6">
-      <nav className="flex items-center justify-between py-6 text-sm">
+      <nav className="flex flex-wrap items-center justify-between gap-2 py-6 text-sm">
         <span className="font-bold tracking-tight">BNOW.NET</span>
-        <div className="flex gap-5">
-          <Link href="/countries" className="hover:underline">theaters</Link>
-          <Link href="/registry" className="hover:underline">RU registry</Link>
-          <Link href="/middle-east" className="hover:underline">ME registry</Link>
-          <Link href="/scoreboard" className="hover:underline">scoreboard</Link>
-          <Link href="/ask" className="hover:underline">ask</Link>
-          <Link href="/datadark" className="hover:underline">data-dark</Link>
-          <Link href="/trade" className="hover:underline">trade-evasion</Link>
-          <Link href="/signals" className="hover:underline">signals</Link>
-          <Link href="/critical-materials" className="hover:underline">critical materials</Link>
-          <Link href="/pricing" className="hover:underline">pricing</Link>
-          <Link href="/signin" className="hover:underline">sign in</Link>
+        <div className="flex flex-wrap items-center gap-4">
+          <Link href="/countries" className="hover:underline">{t("nav.theaters")}</Link>
+          <Link href="/registry" className="hover:underline">{t("nav.ru_registry")}</Link>
+          <Link href="/middle-east" className="hover:underline">{t("nav.me_registry")}</Link>
+          <Link href="/scoreboard" className="hover:underline">{t("nav.scoreboard")}</Link>
+          <Link href="/ask" className="hover:underline">{t("nav.ask")}</Link>
+          <Link href="/datadark" className="hover:underline">{t("nav.datadark")}</Link>
+          <Link href="/trade" className="hover:underline">{t("nav.trade")}</Link>
+          <Link href="/signals" className="hover:underline">{t("nav.signals")}</Link>
+          <Link href="/critical-materials" className="hover:underline">{t("nav.materials")}</Link>
+          <Link href="/pricing" className="hover:underline">{t("nav.pricing")}</Link>
+          <Link href="/signin" className="hover:underline">{t("nav.signin")}</Link>
+          <span className="flex gap-1 text-xs text-gray-400">
+            {SHOWN_LOCALES.map((l) => (
+              <a
+                key={l}
+                href={`/api/locale?set=${l}`}
+                className={l === locale ? "font-semibold text-blue-600" : "hover:underline"}
+              >
+                {LOCALE_NAMES[l]}
+              </a>
+            ))}
+          </span>
         </div>
       </nav>
 
       <section className="py-20 text-center">
         <h1 className="mx-auto max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl">
-          Transparent source reliability ratings for conflict-zone OSINT
+          {t("home.tagline")}
         </h1>
-        <p className="mx-auto mt-5 max-w-2xl text-lg text-gray-500">
-          Per-country intelligence feeds from open news, Telegram and social sources —
-          scored for reliability, fused into a daily digest, and{" "}
-          <strong>validated every day against expert human analysis</strong>. Every claim
-          links to its evidence.
-        </p>
+        <p className="mx-auto mt-5 max-w-2xl text-lg text-gray-500">{t("home.sub")}</p>
         <div className="mt-8 flex justify-center gap-4">
           <Link
             href="/pricing"
             className="rounded-lg bg-blue-600 px-5 py-2.5 font-semibold text-white hover:bg-blue-700"
           >
-            Become a founding subscriber
+            {t("home.cta.subscribe")}
           </Link>
           <Link
             href="/scoreboard"
             className="rounded-lg border border-gray-300 px-5 py-2.5 font-semibold hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-900"
           >
-            See the scoreboard
+            {t("home.cta.scoreboard")}
           </Link>
         </div>
-        <p className="mt-4 text-sm text-gray-400">Live now: Russia · Ukraine — next: Gulf theaters</p>
+        <p className="mt-4 text-sm text-gray-400">{t("home.live")}</p>
       </section>
 
       <section className="grid gap-6 py-10 sm:grid-cols-3">
