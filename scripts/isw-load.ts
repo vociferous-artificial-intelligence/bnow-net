@@ -12,12 +12,18 @@ import type { ParsedReport } from "../src/lib/isw/parse";
 const sql = neon(process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL!);
 
 async function main() {
-  const lines = readFileSync(join(process.cwd(), "data/derived/parsed-reports.jsonl"), "utf8")
+  // Usage: tsx scripts/isw-load.ts [--in <jsonl>] [--theater ru|ir]
+  const inIdx = process.argv.indexOf("--in");
+  const theaterIdx = process.argv.indexOf("--theater");
+  const inFile = inIdx !== -1 ? process.argv[inIdx + 1] : "data/derived/parsed-reports.jsonl";
+  const theater = theaterIdx !== -1 ? process.argv[theaterIdx + 1] : "ru";
+
+  const lines = readFileSync(join(process.cwd(), inFile), "utf8")
     .trim()
     .split("\n")
     .filter(Boolean);
   const reports: ParsedReport[] = lines.map((l) => JSON.parse(l));
-  console.log(`loading ${reports.length} parsed reports`);
+  console.log(`loading ${reports.length} parsed reports (theater=${theater})`);
 
   // -- 1. upsert reports, collect url->id
   const reportIdByUrl = new Map<string, number>();
@@ -26,8 +32,8 @@ async function main() {
     if (!r.reportDate) continue;
     try {
       const rows = await sql`
-        INSERT INTO isw_reports (url, report_date, title, fetched_at, parse_status, endnote_count, citation_count)
-        VALUES (${r.url}, ${r.reportDate}, ${r.title}, now(), ${r.parseOk ? "parsed" : "failed"}, ${r.endnoteCount}, ${r.citations.length})
+        INSERT INTO isw_reports (url, theater, report_date, title, fetched_at, parse_status, endnote_count, citation_count)
+        VALUES (${r.url}, ${theater}, ${r.reportDate}, ${r.title}, now(), ${r.parseOk ? "parsed" : "failed"}, ${r.endnoteCount}, ${r.citations.length})
         ON CONFLICT (url) DO UPDATE
           SET parse_status = EXCLUDED.parse_status,
               endnote_count = EXCLUDED.endnote_count,
@@ -36,8 +42,8 @@ async function main() {
         RETURNING id`;
       reportIdByUrl.set(r.url, rows[0].id as number);
     } catch (e) {
-      if (e instanceof Error && e.message.includes("isw_reports_date_idx")) {
-        dateSkipped++; // duplicate assessment date (reprint/update) — first one wins
+      if (e instanceof Error && e.message.includes("theater_date")) {
+        dateSkipped++; // duplicate (theater, date) — first one wins
       } else throw e;
     }
   }

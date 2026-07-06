@@ -25,7 +25,8 @@ export default async function Home() {
         <span className="font-bold tracking-tight">BNOW.NET</span>
         <div className="flex gap-5">
           <Link href="/countries" className="hover:underline">theaters</Link>
-          <Link href="/registry" className="hover:underline">source registry</Link>
+          <Link href="/registry" className="hover:underline">RU registry</Link>
+          <Link href="/middle-east" className="hover:underline">ME registry</Link>
           <Link href="/scoreboard" className="hover:underline">scoreboard</Link>
           <Link href="/ask" className="hover:underline">ask</Link>
           <Link href="/datadark" className="hover:underline">data-dark</Link>

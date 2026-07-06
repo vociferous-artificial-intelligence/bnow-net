@@ -3,13 +3,14 @@ import { readFileSync, appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { politeFetch, isCached } from "../src/lib/fetch-cache";
 
-// Fetch ISW ROCA reports into the disk cache. Resumable: cached URLs are skipped.
-// Usage: tsx scripts/isw-fetch.ts [--sample N]   (default: all URLs in roca-urls.txt)
+// Fetch ISW reports into the disk cache. Resumable: cached URLs are skipped.
+// Usage: tsx scripts/isw-fetch.ts [--sample N] [--urls <file>]
+//   default url file: data/cache/roca-urls.txt (Russia); pass --urls for other theaters.
 
 async function main() {
-  const urls = readFileSync(join(process.cwd(), "data/cache/roca-urls.txt"), "utf8")
-    .trim()
-    .split("\n");
+  const urlsIdx = process.argv.indexOf("--urls");
+  const urlFile = urlsIdx !== -1 ? process.argv[urlsIdx + 1] : "data/cache/roca-urls.txt";
+  const urls = readFileSync(join(process.cwd(), urlFile), "utf8").trim().split("\n");
 
   const sampleIdx = process.argv.indexOf("--sample");
   let targets = urls;

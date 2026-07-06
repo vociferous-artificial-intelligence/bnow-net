@@ -8,12 +8,15 @@ import { parseReport } from "../src/lib/isw/parse";
 // Idempotent: full rewrite each run (parse is cheap, ~seconds for all pages).
 
 async function main() {
-  const urls = readFileSync(join(process.cwd(), "data/cache/roca-urls.txt"), "utf8")
-    .trim()
-    .split("\n");
+  // Usage: tsx scripts/isw-parse.ts [--urls <file>] [--out <jsonl>]
+  const urlsIdx = process.argv.indexOf("--urls");
+  const outIdx = process.argv.indexOf("--out");
+  const urlFile = urlsIdx !== -1 ? process.argv[urlsIdx + 1] : "data/cache/roca-urls.txt";
+  const outFile = outIdx !== -1 ? process.argv[outIdx + 1] : "data/derived/parsed-reports.jsonl";
+  const urls = readFileSync(join(process.cwd(), urlFile), "utf8").trim().split("\n");
 
   mkdirSync("data/derived", { recursive: true });
-  const out = join(process.cwd(), "data/derived/parsed-reports.jsonl");
+  const out = join(process.cwd(), outFile);
   writeFileSync(out, "");
 
   let cached = 0,
