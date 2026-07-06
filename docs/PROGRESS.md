@@ -167,3 +167,10 @@ Continuing into Stage 7 (deepen) with remaining weekend time.
 - docs/GTM-STRATEGY.md: positioning, 6 ranked ICPs (compliance+commodity beachhead), land/expand motion, channels (content-led + expert-led sales + consultancy resale), packaging, launch sequence, and a full data-stream gap list (P1-3 + structural G1-5) grounded in what's stubbed/blocked/missing.
 - docs/BUSINESS-PLAN.md: team (2 regional analysts + expert salesperson who verify AND sell — dual-purpose), bottom-up SAM ~$138M, ARR scenarios (Base ~$8M by Y3 / ~220 accts), content protection (structural moats > DRM; licensing + entitlements + per-subscriber canary marking; grounded in Bloomberg/Refinitiv/canary-trap practice), pricing recommendation (per-ORG site license not per-seat; hybrid base+usage on API only).
 - Research-grounded: OSINT market $8.7B→$46B, threat-intel $11.5B→$23B, incumbent pricing, canary/watermark/entitlement practice, per-seat-vs-usage market shift.
+
+## 2026-07-06 — Builds shipped: critical-materials, ask, ME registry; plans written
+
+- Critical-materials tracker (item 3): /critical-materials, 11 US dependencies via Comtrade. Validates vs known figures — China 68% rare-earth compounds, Canada 59% crude, China 56% batteries, all flagged choke points. Reuses mirror-trade infra. Doc CRITICAL-MATERIALS.md (vendor gap: nobody fuses national dependency + conflict intel + provenance) + NEXT-PHASE-PLAN.md (1A/1B/2).
+- Ask-the-data (1B): /ask gated, LLM answers strictly from retrieved claims/entities citing [cID], stub fallback; anti-hallucination (fabricated citations dropped). Stickiness play.
+- ISW Middle East registry (1A): scraped ISW Iran Update archive (1,097 reports), sample loaded theater='ir' — 1,423 ME sources / 14,019 citations, 98.7% parse. Captures NON-STATE ACTORS: Hamas Qassam Brigades, PIJ Saraya al-Quds, Al-Aqsa/Quds, Hezbollah-Lebanon, + IDF/Iranian-state/Western. Live per-theater aggregate query (no blend with RU registry). /middle-east page gated. Full 1,097 backfill running.
+- 99 tests green.
