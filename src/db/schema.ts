@@ -304,6 +304,37 @@ export const claimEntities = pgTable(
   ],
 );
 
+// Mirror-trade: partner-country-reported bilateral trade with Russia, used to
+// reconstruct RU trade (customs dark since Jan 2022) and flag evasion/rerouting
+// through transit hubs. See docs/COMPETITIVE-AND-DEMAND.md §3.
+export const tradeFlows = pgTable(
+  "trade_flows",
+  {
+    id: serial("id").primaryKey(),
+    reporterCode: integer("reporter_code").notNull(), // UN M49, the reporting country
+    reporterName: text("reporter_name").notNull(),
+    partnerCode: integer("partner_code").notNull(), // 643 = Russia
+    flowCode: text("flow_code").notNull(), // X=export, M=import (reporter's perspective)
+    hsCode: text("hs_code").notNull(), // "TOTAL" or HS chapter/heading
+    period: text("period").notNull(), // "2023" (annual) or "202312" (monthly)
+    valueUsd: doublePrecision("value_usd").notNull(),
+    netWeightKg: doublePrecision("net_weight_kg"),
+    source: text("source").notNull().default("comtrade"),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("trade_flows_key_idx").on(
+      t.reporterCode,
+      t.partnerCode,
+      t.flowCode,
+      t.hsCode,
+      t.period,
+    ),
+    index("trade_flows_reporter_idx").on(t.reporterCode),
+    index("trade_flows_hs_idx").on(t.hsCode),
+  ],
+);
+
 // Data-dark tracker: watched Russian statistical publications. A series going
 // stale or vanishing is itself intelligence (Rosstat classified 400+ indicators
 // since early 2025) — see docs/RUSSIA-DATA-ROADMAP.md §1.
