@@ -80,11 +80,13 @@ export default async function TradePage() {
               </tr>
             </thead>
             <tbody>
-              {rows.filter((r) => r.hsCode === "TOTAL").map((r, i) => (
+              {rows.filter((r) => r.hsCode === "TOTAL").sort((a, b) => b.latestUsd - a.latestUsd).map((r, i) => (
                 <tr key={i} className="border-b border-gray-100 dark:border-gray-800">
                   <td className="py-1.5">{r.reporterName}</td>
                   <td className="text-right tabular-nums">${fmtM(r.baselineUsd)}</td>
-                  <td className="text-right tabular-nums">${fmtM(r.latestUsd)}</td>
+                  <td className="text-right tabular-nums">
+                    ${fmtM(r.latestUsd)} <span className="text-xs text-gray-400">({r.latestYear})</span>
+                  </td>
                   <td className="text-right tabular-nums">
                     {r.multiple !== null ? `${r.multiple}×` : "—"}
                   </td>

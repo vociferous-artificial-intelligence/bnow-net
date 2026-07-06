@@ -46,8 +46,11 @@ export function computeDivergence(
   for (const points of groups.values()) {
     const byYear = new Map(points.map((p) => [p.period, p]));
     const years = [...byYear.keys()].sort();
-    const latestYear = years[years.length - 1];
-    if (!latestYear) continue;
+    if (years.length === 0) continue;
+    // Prefer the latest year with MATERIAL data — mirror data lags 2-3 months, so
+    // the newest calendar year is often near-empty (reporter hasn't filed yet).
+    const materialYears = years.filter((y) => (byYear.get(y)?.valueUsd ?? 0) >= material);
+    const latestYear = materialYears[materialYears.length - 1] ?? years[years.length - 1];
     const latest = byYear.get(latestYear)!;
     const baseline = byYear.get(baselineYear) ?? null;
     const baselineUsd = baseline?.valueUsd ?? 0;
