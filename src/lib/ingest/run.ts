@@ -3,6 +3,7 @@ import { sql as dsql } from "drizzle-orm";
 import { db, rawSql } from "@/db";
 import { canonicalSource } from "../isw/urls";
 import { GdeltAdapter } from "../adapters/gdelt";
+import { ProcurementAdapter } from "../adapters/procurement";
 import { RssAdapter } from "../adapters/rss";
 import { acledStub, telegramMtprotoStub, xStub } from "../adapters/stubs";
 import { TelegramWebAdapter } from "../adapters/telegram-web";
@@ -51,6 +52,7 @@ export async function runIngest(which: "fast" | "telegram" | "all" = "all"): Pro
   const adapters = [];
   if (which === "fast" || which === "all") {
     adapters.push(new RssAdapter(RSS_FEEDS), new GdeltAdapter(["ru", "ua"]));
+    adapters.push(new ProcurementAdapter());
     adapters.push(telegramMtprotoStub, xStub, acledStub);
   }
   if (which === "telegram" || which === "all") {

@@ -52,3 +52,23 @@ Dated log of missing credentials/capabilities. Each has a stub in place; nothing
   `/api/z*`) return empty item lists — content ingested via their telegram mirrors
   instead. Kommersant RSS + Iran International (malformed XML) + News of Bahrain/Arab
   Times (invalid XML) logged by the adapter; alternates queued.
+
+## 2026-07-06
+
+- **OpenSanctions API key needed** for live entity enrichment. `api.opensanctions.org`
+  is reachable from Vercel; the `/match` endpoint returns 401 without a key (commercial
+  API; bulk data is non-commercial only). Adapter + entity badges work in stub mode now
+  (seeded fixtures); set `OPENSANCTIONS_API_KEY` (opensanctions.org/api/) then
+  `GET /api/cron/enrich?refresh=1` to populate real sanction/PEP status across all
+  entities. **Action: register at opensanctions.org, add key.**
+- **zakupki.gov.ru (state procurement) unreachable** from BOTH the build host and Vercel
+  egress (`fetch failed`; official mirrors opendata.zakupki / spending.gov.ru also dead;
+  clearspending.ru returns an SPA shell). The ProcurementAdapter is complete, wired into
+  ingest, and tested against a saved results fixture — but returns [] in production until
+  a reachable path exists. It never injects fixture data as real. **Action: a RU-region
+  or residential proxy, a commercial zakupki mirror/API, or the OpenData FTP would
+  unblock the single highest-value Russia data source (fortifications/drones/graves =
+  capability + casualty + regional-strain signal).**
+- **rosstat.gov.ru / customs.gov.ru unreachable** from Vercel too → their series show as
+  `classified`/`unreachable` in the data-dark tracker (which is itself the intended
+  signal). MinFin + CBR are reachable and polled live.
