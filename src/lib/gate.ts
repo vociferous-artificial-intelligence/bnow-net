@@ -2,9 +2,9 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 
 // Core-content gate. Enabled with FEATURE_AUTH_GATE=true (production).
-// Public surface stays open: landing, pricing, scoreboard (marketing needs it),
-// health. Gated: digests, registry, entities. /admin additionally requires an
-// allowlisted email (ADMIN_EMAILS, comma-separated).
+// Public surface stays open (marketing): landing, pricing, scoreboard, datadark,
+// health. Gated (have a layout.tsx calling requireUser): digests, registry,
+// entities. /admin additionally requires an allowlisted email (ADMIN_EMAILS).
 
 export async function requireUser(): Promise<{ email: string } | null> {
   if (process.env.FEATURE_AUTH_GATE !== "true") return null; // gate off

@@ -112,3 +112,11 @@ Continuing into Stage 7 (deepen) with remaining weekend time.
 - Russia depth added: ASTRA, Gladkov, Kadyrov, 1ADAT, AsiansOfRussia TG; Verstka RSS; RFE/RL regional services (Idel.Realii, Kavkaz.Realii, Sibir.Realii, Azatliq-Tatar, Radio Svoboda) via TG mirrors after their RSS APIs proved empty.
 - detectLang extended: tt/ba/cv/ce — 13 Tatar + 1 Bashkir docs tagged within the first sweep.
 - Roster now ~70 telegram channels/sweep (20 curated + 50 registry recent-ranked).
+
+## 2026-07-06 — Roadmap §5 builds 1-3 shipped
+
+1. OpenSanctions → entity graph (§5.1): matchEntity live/stub, /api/cron/enrich, sanctioned/PEP badges on /entities. Ran across 137 entities (stub mode; 2 seeded matches). Flips to real coverage when OPENSANCTIONS_API_KEY added.
+2. Procurement watcher (§5.2, highest-value): ProcurementAdapter (fortifications/drones/graves keywords) → RawDoc meta{regNumber,customer,priceRub,region}; parser tested vs fixture. zakupki blocked from local+Vercel → returns [] in prod (0/0/0 errors confirmed), never fakes data. Blocker + unblock paths documented.
+3. Data-dark tracker (§5.3): watched_series (migration 0002), 7 seeded series, evaluate() logic, public /datadark page. First run: 4 classified, 1 publishing (MinFin), 2 CBR transient-unreachable. The classification IS the intel.
+- Egress probe route added (/api/cron/probe) — mapped which gov hosts Vercel can reach: OpenSanctions/CBR/MinFin/kremlin.ru/government.ru/pravo.gov.ru reachable; zakupki/rosstat/customs blocked. Kremlinology builds (§5.4-5) thus unblocked for next session.
+- crons: +enrich 08:00, +datadark 09:00 UTC. 60 tests green.
