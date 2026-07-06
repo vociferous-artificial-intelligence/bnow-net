@@ -27,6 +27,7 @@ export default async function Home() {
           <Link href="/countries" className="hover:underline">theaters</Link>
           <Link href="/registry" className="hover:underline">source registry</Link>
           <Link href="/scoreboard" className="hover:underline">scoreboard</Link>
+          <Link href="/ask" className="hover:underline">ask</Link>
           <Link href="/datadark" className="hover:underline">data-dark</Link>
           <Link href="/trade" className="hover:underline">trade-evasion</Link>
           <Link href="/signals" className="hover:underline">signals</Link>
