@@ -58,14 +58,16 @@ export async function retrieve(question: string, opts?: { limit?: number }): Pro
 
     // claims matching any term OR whose entity matches; recent first
     const { rows: claimRows } = await pool.query(
-      `SELECT DISTINCT cl.id, cl.text, cl.hedging, cl.claim_date::text AS d,
-              c.iso2, dg.track
+      `SELECT cl.id, cl.text, cl.hedging, cl.claim_date::text AS d, c.iso2, dg.track
        FROM claims cl
        JOIN countries c ON c.id = cl.country_id
        LEFT JOIN digests dg ON dg.id = cl.digest_id
-       LEFT JOIN claim_entities ce ON ce.claim_id = cl.id
-       LEFT JOIN entities e ON e.id = ce.entity_id
-       WHERE cl.text ILIKE ANY($1) OR e.name ILIKE ANY($1)
+       WHERE cl.text ILIKE ANY($1)
+          OR cl.id IN (
+            SELECT ce.claim_id FROM claim_entities ce
+            JOIN entities e ON e.id = ce.entity_id
+            WHERE e.name ILIKE ANY($1)
+          )
        ORDER BY cl.claim_date DESC NULLS LAST, cl.id DESC
        LIMIT $2`,
       [pattern, limit],
