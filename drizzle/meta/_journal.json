@@ -15,6 +15,13 @@
       "when": 1783223319823,
       "tag": "0001_mute_blade",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783312288986,
+      "tag": "0002_lazy_blazing_skull",
+      "breakpoints": true
     }
   ]
 }

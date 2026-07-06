@@ -304,6 +304,33 @@ export const claimEntities = pgTable(
   ],
 );
 
+// Data-dark tracker: watched Russian statistical publications. A series going
+// stale or vanishing is itself intelligence (Rosstat classified 400+ indicators
+// since early 2025) — see docs/RUSSIA-DATA-ROADMAP.md §1.
+export const watchedSeries = pgTable(
+  "watched_series",
+  {
+    id: serial("id").primaryKey(),
+    key: text("key").notNull().unique(), // stable slug
+    label: text("label").notNull(),
+    agency: text("agency").notNull(), // Rosstat|MinFin|CBR|Customs|...
+    url: text("url").notNull(),
+    cadenceDays: integer("cadence_days").notNull().default(30), // expected update interval
+    // 'live' = we can fetch + detect freshness; 'classified' = known suppressed (seeded);
+    // 'unreachable' = host blocks us but not necessarily classified
+    baselineStatus: text("baseline_status").notNull().default("live"),
+    note: text("note"),
+    // current computed state, refreshed by the cron
+    status: text("status").notNull().default("unknown"), // ok|stale|gone|classified|unreachable|unknown
+    lastSeenPeriod: text("last_seen_period"), // e.g. "2025-05" or an ISO date string
+    lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+    lastChangedAt: timestamp("last_changed_at", { withTimezone: true }),
+    history: jsonb("history").notNull().default([]), // [{at, status, period}]
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("watched_series_agency_idx").on(t.agency)],
+);
+
 // ---------- auth (Auth.js drizzle adapter shape) ----------
 
 export const users = pgTable("users", {

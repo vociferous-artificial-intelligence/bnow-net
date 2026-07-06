@@ -3,6 +3,8 @@
     { "path": "/api/cron/ingest?which=fast", "schedule": "*/15 * * * *" },
     { "path": "/api/cron/ingest?which=telegram", "schedule": "10 * * * *" },
     { "path": "/api/cron/digest", "schedule": "30 0,6,12,18 * * *" },
-    { "path": "/api/cron/validate", "schedule": "0 7 * * *" }
+    { "path": "/api/cron/validate", "schedule": "0 7 * * *" },
+    { "path": "/api/cron/enrich", "schedule": "0 8 * * *" },
+    { "path": "/api/cron/datadark", "schedule": "0 9 * * *" }
   ]
 }
