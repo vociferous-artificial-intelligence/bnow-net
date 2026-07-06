@@ -67,6 +67,10 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
     median info-lead +14.7h. ISW report auto-discovery by slug pattern proven live
     (picked up the July 4 report the moment it published). Daily cron 07:00 UTC.
   - Surface: landing / countries / pricing+intents / magic-link auth / email-outbox.
+- Analytics (2026-07-06): mirror-trade evasion watch (/trade, UN Comtrade), buyer
+  profiles (frontline/sanctioning/commodity/compliance switcher on digests), Iran
+  depth (nuclear+elite tracks, fa/ar, Iran-Update-validated scoreboard), analyst
+  signals (/signals: purge/data-dark/trade flags), ownership graph (entity_links).
 - Russia depth (2026-07-05/06): elite-politics track + entity graph (OpenSanctions-
   badged), regional/ethnic-republic + semi-official sources, data-dark tracker
   (/datadark), procurement watcher (wired, zakupki blocked). Postmark email LIVE;

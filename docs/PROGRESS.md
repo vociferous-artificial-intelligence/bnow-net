@@ -155,3 +155,9 @@ Continuing into Stage 7 (deepen) with remaining weekend time.
 - signals.ts (pure, 89 tests): detectPurge (clustered elite pressure→factional-purge flag), detectDataDark (classified/gone series), detectTradeDivergence (dual-use rerouting). rankSignals by severity.
 - /signals page live, firing all 3 on real data (purge on RU entity graph, 4 classified series, 28 dual-use trade flags). Each carries evidence claim-ids/refs — deterministic, no black box.
 - Deferred (backlog): per-digest LLM "what changed & what it means" assessment block — signals engine is the distinctive core; assessment block is polish.
+
+## 2026-07-06 — Build 5/5 shipped: ownership graph — ALL 5 BUILDS COMPLETE
+
+- entity_links (migration 0005); ownership.ts resolver (Companies House live-when-keyed, fixture stub otherwise); enrich cron ownership pass; connections UI on entity pages.
+- Verified: Arkady Rotenberg (entity #4) shows owns→Stroygazmontazh/SMP Bank, associate→Boris Rotenberg. 5 links from stub; flips to real Companies House officer/PSC data with a free key.
+- ALL FIVE recommended builds shipped: mirror-trade, buyer-profiles, iran/gulf depth, analyst-signals, ownership-graph. 92 tests green. New pages: /trade /signals + profile switcher + entity connections + Iran tracks/scoreboard.

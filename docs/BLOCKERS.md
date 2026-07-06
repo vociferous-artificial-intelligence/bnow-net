@@ -77,3 +77,9 @@ Dated log of missing credentials/capabilities. Each has a stub in place; nothing
   authenticated endpoint (comtradeapi.un.org/data/v1). Keyless preview works now
   (1 period/call, looped) and populated 1,724 rows. Register at comtradeplus.un.org
   for higher volume / monthly-frequency pulls. Not blocking.
+
+- **Ownership graph keys (build 5)**: Companies House (free, api.company-information.service.gov.uk),
+  OpenCorporates (freemium), OpenSanctions entities endpoint — all reachable (401 without
+  key). Adapter runs in stub mode now (seeded links for entities in-graph: Rotenberg,
+  Rosnano). Add COMPANIES_HOUSE_API_KEY (free registration) → `GET /api/cron/enrich?only=ownership&refresh=1`
+  populates real officer/PSC edges for company entities. Not blocking.
