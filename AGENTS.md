@@ -147,6 +147,16 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
   China placement: original Tier 1 lists China as second flagship, but its §8.4 build
   plan recommends Gulf as region #2 — our China deferral follows the build plan; no
   contradiction. Phase 0 exits (≥2,000 sources, >90% parse) exceeded: 6,985 / 97.65%.
+- **2026-07-06** Truth-in-UI hardening: stub/fixture data may never persist or render as
+  fact. Stub enrichment persists only sanitized `{matched:false, stub:true}`; stub
+  ownership edges never written; stub adapters unwired from production ingest; digest
+  corpus excludes `[STUB FIXTURE]%` at query level; entity/ask surfaces null out stub
+  fields. Prod purged (2 fabricated-source claims, 4 stub docs, 148 stub enrich records,
+  5 stub edges). Policy: HIDE stub data entirely rather than demo-label it.
+- **2026-07-06** Digest cron split into ?group=core (ru+ua, :30) and ?group=gulf (rest,
+  :50): serial matrix measured ~6 min (RU military digest alone 3m40s under TPM
+  throttle); killed runs silently dropped last-sorting theaters. Audit:
+  docs/reviews/AUDIT-2026-07-06.md.
 
 ## Conventions
 

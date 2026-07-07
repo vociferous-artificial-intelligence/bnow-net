@@ -14,8 +14,14 @@ export default async function EntitiesPage() {
             )::int AS pressure,
             max(cl.claim_date)::text AS last_seen,
             array_agg(DISTINCT ce.role) AS roles,
-            (e.meta->'opensanctions'->>'sanctioned')::boolean AS sanctioned,
-            (e.meta->'opensanctions'->'topics') AS os_topics
+            CASE WHEN coalesce((e.meta->'opensanctions'->>'stub')::boolean, false)
+                   OR e.meta->'opensanctions'->>'osId' LIKE 'NK-stub%'
+                 THEN NULL
+                 ELSE (e.meta->'opensanctions'->>'sanctioned')::boolean END AS sanctioned,
+            CASE WHEN coalesce((e.meta->'opensanctions'->>'stub')::boolean, false)
+                   OR e.meta->'opensanctions'->>'osId' LIKE 'NK-stub%'
+                 THEN NULL
+                 ELSE (e.meta->'opensanctions'->'topics') END AS os_topics
      FROM entities e
      JOIN claim_entities ce ON ce.entity_id = e.id
      JOIN claims cl ON cl.id = ce.claim_id

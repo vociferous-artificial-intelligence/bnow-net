@@ -15,6 +15,21 @@ export interface OsResult {
   score: number; // 0-1 match confidence
   caption: string | null;
   checkedAt: string; // ISO; stamped by caller for resume-safety
+  /** true = fixture stub answered (no API key). Stub matches are demo/test data:
+   *  they must never be persisted as fact or rendered as a badge. */
+  stub?: boolean;
+}
+
+/** What the enrich run is allowed to persist for a stub answer: the check is
+ *  recorded (so the run is resumable and a later ?refresh=1 upgrades it) but NO
+ *  fabricated sanctions/PEP assertion survives. A fabricated "SANCTIONED" badge
+ *  on a real person is a product-integrity failure. */
+export function sanitizeForPersist(r: OsResult): OsResult {
+  if (!r.stub) return r;
+  return {
+    matched: false, sanctioned: false, topics: [], datasets: [],
+    osId: null, score: 0, caption: null, checkedAt: r.checkedAt, stub: true,
+  };
 }
 
 const KIND_TO_SCHEMA: Record<string, string> = {
@@ -53,6 +68,7 @@ function stubResult(name: string): OsResult {
     score: hit?.score ?? (hit ? 0.9 : 0),
     caption: hit?.caption ?? null,
     checkedAt: "", // caller stamps
+    stub: true,
   };
 }
 

@@ -1,5 +1,5 @@
 import { Pool } from "@neondatabase/serverless";
-import { matchEntity } from "./opensanctions";
+import { matchEntity, sanitizeForPersist } from "./opensanctions";
 
 // Enrich entities lacking an OpenSanctions check. Idempotent + resumable: only
 // touches rows whose meta->>'opensanctions' is null (or ?refresh re-checks all).
@@ -32,12 +32,14 @@ export async function enrichEntities(opts?: {
     stats.scanned = rows.length;
 
     for (const e of rows) {
-      const r = await matchEntity(e.name, e.kind);
-      if (r === null) {
+      const raw = await matchEntity(e.name, e.kind);
+      if (raw === null) {
         stats.failed++;
         continue;
       }
-      r.checkedAt = opts?.nowIso ?? "";
+      raw.checkedAt = opts?.nowIso ?? "";
+      // stub answers persist as "checked, unmatched" — never as fabricated sanctions
+      const r = sanitizeForPersist(raw);
       await pool.query(
         `UPDATE entities SET meta = jsonb_set(coalesce(meta,'{}'::jsonb), '{opensanctions}', $2::jsonb)
          WHERE id = $1`,

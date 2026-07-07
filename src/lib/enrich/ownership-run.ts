@@ -1,5 +1,5 @@
 import { Pool } from "@neondatabase/serverless";
-import { resolveLinks } from "./ownership";
+import { persistableLinks, resolveLinks } from "./ownership";
 
 // Backfill entity_links for company/person entities that have none yet.
 // Idempotent/resumable: only touches entities without outgoing links (unless refresh).
@@ -33,12 +33,14 @@ export async function enrichOwnership(opts?: {
     stats.scanned = rows.length;
 
     for (const e of rows) {
-      const links = await resolveLinks(e.name, e.kind);
-      if (links === null) {
+      const resolved = await resolveLinks(e.name, e.kind);
+      if (resolved === null) {
         stats.failed++;
         continue;
       }
       stats.resolved++;
+      // stub edges are demo data — never written to the graph
+      const links = persistableLinks(resolved);
       for (const link of links) {
         // get-or-create the counterpart entity
         const to = await pool.query(

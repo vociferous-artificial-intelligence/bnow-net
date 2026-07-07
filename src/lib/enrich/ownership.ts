@@ -21,6 +21,12 @@ export function ownershipLive(): boolean {
   );
 }
 
+/** Filter to edges that may be written to the DB / shown to users. Stub edges are
+ *  demo/test data — persisting them would render fabricated ownership as fact. */
+export function persistableLinks(links: ResolvedLink[]): ResolvedLink[] {
+  return links.filter((l) => l.source !== "stub");
+}
+
 let stub: Record<string, ResolvedLink[]> | null = null;
 function loadStub(): Record<string, ResolvedLink[]> {
   if (stub) return stub;

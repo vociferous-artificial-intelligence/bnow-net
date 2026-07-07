@@ -198,3 +198,13 @@ Continuing into Stage 7 (deepen) with remaining weekend time.
   original; four under-specifications logged (AGENTS.md decision log) → OPEN-TASKS #11-14:
   §8.7 Phase-2 targets (coverage ≥80% vs actual 17.5%), §6.5 regional-bundle SKUs,
   §8.6 sanctions-counsel review, §5 reliability-calibration scoring dimension.
+
+## 2026-07-06 — Hardening: Task 0b audit + Task 1 truth-in-UI
+
+- Audit (docs/reviews/AUDIT-2026-07-06.md): 7/8 crons healthy; digest cron matrix ~6 min
+  serial → split into core/gulf cron groups; sa feeds dark (OPEN-TASKS #10); 2 lint
+  errors fixed (Date.now purity, empty interface). 104 tests → gate green.
+- Truth-in-UI (docs/reviews/TASK-1-REVIEW.md): stub sanctions/ownership/adapter data can
+  no longer persist, be selected, or render as fact (3-layer defense). Prod purged:
+  2 fabricated-source claims (digest 31), 4 stub docs, 148 stub enrich records, 5 stub
+  edges. +8 tests (112 green).

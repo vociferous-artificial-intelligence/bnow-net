@@ -91,7 +91,10 @@ export async function retrieve(question: string, opts?: { limit?: number }): Pro
     // entities matching a term
     const { rows: entRows } = await pool.query(
       `SELECT e.id, e.name, e.kind,
-              (e.meta->'opensanctions'->>'sanctioned')::boolean AS sanctioned,
+              CASE WHEN coalesce((e.meta->'opensanctions'->>'stub')::boolean, false)
+                     OR e.meta->'opensanctions'->>'osId' LIKE 'NK-stub%'
+                   THEN NULL
+                   ELSE (e.meta->'opensanctions'->>'sanctioned')::boolean END AS sanctioned,
               count(DISTINCT ce.claim_id) FILTER (WHERE ce.role IN ('defendant','target','dismissed'))::int AS pressure
        FROM entities e
        LEFT JOIN claim_entities ce ON ce.entity_id = e.id

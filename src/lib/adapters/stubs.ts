@@ -3,8 +3,13 @@ import { join } from "node:path";
 import type { RawDoc, SourceAdapter } from "./types";
 
 // Deterministic fixture-backed stubs for keyed integrations (see docs/BLOCKERS.md).
-// Each returns the same fixture docs every run; the ingest orchestrator's hash
-// dedupe makes repeat runs no-ops, so they are safe to leave enabled.
+// They exist to exercise the adapter interface in tests — they are NOT wired into
+// production ingest (truth-in-UI: fixture content must never enter the analysis
+// corpus; see docs/reviews/TASK-1-REVIEW.md). Every fixture doc's content starts
+// with STUB_CONTENT_PREFIX so corpus queries can exclude any stray rows.
+
+/** Marker prefix on every stub fixture document's content. */
+export const STUB_CONTENT_PREFIX = "[STUB FIXTURE]";
 
 function loadFixture(name: string): RawDoc[] {
   try {

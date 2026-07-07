@@ -1,4 +1,5 @@
 import { Pool } from "@neondatabase/serverless";
+import { STUB_CONTENT_PREFIX } from "../adapters/stubs";
 import { detectLang } from "./lang";
 import { findNearDuplicates } from "./minhash";
 import { getProvider, type AnalysisInputDoc, type DigestAnalysis } from "./provider";
@@ -50,9 +51,10 @@ export async function generateDigest(
          AND COALESCE(rd.published_at, rd.fetched_at) >= $2::date
          AND COALESCE(rd.published_at, rd.fetched_at) < $2::date + interval '1 day'
          AND length(rd.content) >= 40
+         AND rd.content NOT LIKE $3
        ORDER BY COALESCE(s.reliability_score, 0.3) DESC, rd.published_at DESC NULLS LAST
        LIMIT 600`,
-      [countryIso2, date],
+      [countryIso2, date, `${STUB_CONTENT_PREFIX}%`],
     );
     if (docRows.length === 0) {
       console.warn(`digest ${countryIso2} ${date}: no documents`);

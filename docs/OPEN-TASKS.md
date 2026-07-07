@@ -47,6 +47,12 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
 10. **Content-translation toggle** — LLM per-view translation of digests (i18n scaffolding
     is done; content stays English-first until a buyer needs it).
 
+## From the unattended-run audit (2026-07-06, docs/reviews/AUDIT-2026-07-06.md)
+
+10. **sa (Saudi Arabia) feeds dark.** Theater is active but produced 0 digests in 7 days —
+    only 10 raw docs in 3 days, newest 2026-07-05. Feed-health pass needed (probed feeds
+    may have started bot-walling as il/bh/kw did); find alternates or demote to scaffolded.
+
 ## From the original-brief diff (2026-07-06 — reconstruction under-specified the original)
 
 11. **Track §8.7 Phase 2 targets explicitly.** Original brief targets: event coverage ≥80%

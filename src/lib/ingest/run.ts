@@ -5,7 +5,6 @@ import { canonicalSource } from "../isw/urls";
 import { GdeltAdapter } from "../adapters/gdelt";
 import { ProcurementAdapter } from "../adapters/procurement";
 import { RssAdapter } from "../adapters/rss";
-import { acledStub, telegramMtprotoStub, xStub } from "../adapters/stubs";
 import { TelegramWebAdapter } from "../adapters/telegram-web";
 import type { RawDoc } from "../adapters/types";
 import { REGISTRY_TELEGRAM_TOP_N, RSS_FEEDS, TELEGRAM_CURATED } from "./config";
@@ -46,14 +45,16 @@ export interface IngestStats {
   errors: number;
 }
 
-export async function runIngest(which: "fast" | "telegram" | "all" = "all"): Promise<IngestStats[]> {
-  const stats: IngestStats[] = [];
-
-  const adapters = [];
+/** Adapters for a production ingest run. Fixture stubs (telegram_mtproto/x/acled)
+ *  are deliberately NOT included: stub content must never enter the corpus. When
+ *  their real implementations land (keys in BLOCKERS.md), they get added here. */
+export async function buildIngestAdapters(
+  which: "fast" | "telegram" | "all",
+): Promise<Array<{ name: string; fetchLatest(): Promise<RawDoc[]>; live?: boolean }>> {
+  const adapters: Array<{ name: string; fetchLatest(): Promise<RawDoc[]>; live?: boolean }> = [];
   if (which === "fast" || which === "all") {
     adapters.push(new RssAdapter(RSS_FEEDS), new GdeltAdapter(["ru", "ua"]));
     adapters.push(new ProcurementAdapter());
-    adapters.push(telegramMtprotoStub, xStub, acledStub);
   }
   if (which === "telegram" || which === "all") {
     const curated = TELEGRAM_CURATED;
@@ -65,6 +66,12 @@ export async function runIngest(which: "fast" | "telegram" | "all" = "all"): Pro
     ];
     adapters.push(new TelegramWebAdapter(channels));
   }
+  return adapters;
+}
+
+export async function runIngest(which: "fast" | "telegram" | "all" = "all"): Promise<IngestStats[]> {
+  const stats: IngestStats[] = [];
+  const adapters = await buildIngestAdapters(which);
 
   for (const adapter of adapters) {
     let fetched = 0,

@@ -17,10 +17,13 @@ export default async function EntityDetailPage({
   }>;
   if (entRows.length === 0) notFound();
   const entity = entRows[0];
-  const os = (entity.meta?.opensanctions ?? null) as {
+  const osRaw = (entity.meta?.opensanctions ?? null) as {
     sanctioned?: boolean; topics?: string[]; datasets?: string[]; osId?: string | null;
-    caption?: string | null; checkedAt?: string;
+    caption?: string | null; checkedAt?: string; stub?: boolean;
   } | null;
+  // truth-in-UI: stub enrichment is demo data — a fabricated sanctions badge on a
+  // real person is unacceptable, so stub-derived results render as nothing at all
+  const os = osRaw && !osRaw.stub && !osRaw.osId?.startsWith("NK-stub") ? osRaw : null;
 
   const [claimsRaw, linksRaw] = await Promise.all([
     rawSql.query(
@@ -53,10 +56,11 @@ export default async function EntityDetailPage({
     id: number; text: string; hedging: string; claim_type: string;
     d: string | null; role: string; iso2: string; track: string | null;
   }>;
-  const links = linksRaw as Array<{
+  // stub-sourced edges are demo data — hidden, same policy as the badges
+  const links = (linksRaw as Array<{
     relation: string; source: string; since: string | null;
     to_id: number; to_name: string; to_kind: string; dir: string;
-  }>;
+  }>).filter((l) => l.source !== "stub");
 
   return (
     <main className="mx-auto max-w-3xl p-6">
