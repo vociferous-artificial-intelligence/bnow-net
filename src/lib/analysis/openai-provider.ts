@@ -135,12 +135,24 @@ export class OpenAiProvider implements AnalysisProvider {
       } else throw e;
     }
 
-    const raw = completion.choices[0]?.message?.content ?? '{"events":[]}';
-    let events: ExtractedEvent[] = [];
+    // Distinguish "analyzed fine, genuinely quiet day" from extraction failure:
+    // refusals (null content) and truncated/unparseable JSON must THROW so the
+    // caller never persists an empty digest over a previously good one.
+    const choice = completion.choices[0];
+    const raw = choice?.message?.content;
+    if (!raw) {
+      throw new Error(
+        `openai-provider: empty content (finish=${choice?.finish_reason}, refusal=${choice?.message?.refusal ?? "n/a"})`,
+      );
+    }
+    if (choice.finish_reason === "length") {
+      throw new Error("openai-provider: response truncated (finish_reason=length)");
+    }
+    let events: ExtractedEvent[];
     try {
       events = (JSON.parse(raw) as { events: ExtractedEvent[] }).events ?? [];
     } catch {
-      console.error("openai-provider: unparseable response");
+      throw new Error("openai-provider: unparseable response JSON");
     }
     return { events, provider: this.name };
   }

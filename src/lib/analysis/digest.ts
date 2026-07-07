@@ -113,6 +113,29 @@ export async function generateDigest(
       }))
       .filter((ev) => ev.claims.length > 0);
 
+    // 4b. never overwrite a claim-bearing digest with an empty extraction —
+    // providers throw on hard failures (refusal/truncation/bad JSON), but a
+    // model can also legitimately return zero events; when a previous run
+    // produced claims, empty is strictly worse information and is discarded
+    // (regression guard from the 2026-07-07 ua incident: two good digests were
+    // wiped by silent extraction failures).
+    if (events.length === 0) {
+      const { rows: prev } = await pool.query(
+        `SELECT count(cl.id)::int AS claims
+         FROM digests d LEFT JOIN claims cl ON cl.digest_id = d.id
+         WHERE d.country_id = $1 AND d.digest_date = $2 AND d.track = $3
+         GROUP BY d.id`,
+        [countryId, date, track],
+      );
+      if ((prev[0]?.claims ?? 0) > 0) {
+        console.warn(
+          `digest ${countryIso2} ${date} ${track}: extraction returned 0 events but ` +
+            `existing digest has ${prev[0].claims} claims — keeping the existing digest`,
+        );
+        return null;
+      }
+    }
+
     // 5. persist atomically
     const client = await pool.connect();
     let digestId: number;
