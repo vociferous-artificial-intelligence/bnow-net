@@ -88,7 +88,8 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
   /ask reliability-ordered; source_theater_stats (ME zombies 0); Anthropic provider
   in the seam. Reviews: docs/reviews/{AUDIT,TASK-1,TASK-2,TASK-3}-*.md.
   Operator handoff: SETUP-NEXT-WEEK.md (rewritten); summary: STATUS-REPORT.md.
-- Stubbed: MTProto, X, ACLED (fixtures — NOT wired into prod ingest); Stripe flagged
+- Stubbed: MTProto, X, ACLED (fixtures — NOT wired into prod ingest); X key exists via
+  api.twitterapi.io (`X_API_KEY`) but adapter still needs implementation; Stripe flagged
   off; OpenSanctions + zakupki need key/proxy (BLOCKERS 2026-07-06); Resend superseded
   by Postmark (still on scenefiend domain — migration in SETUP-NEXT-WEEK).
 - Deploys: `npx vercel@latest deploy --prod --yes` (CLI 46 too old; machine session
@@ -217,7 +218,7 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
 | Anthropic | `ANTHROPIC_API_KEY` | absent | console.anthropic.com |
 | Cron auth | `CRON_SECRET` | **live** | (already set) |
 | Telegram MTProto | `TELEGRAM_API_ID/HASH` | stubbed | my.telegram.org |
-| X API | `X_BEARER_TOKEN` | stubbed | developer.x.com |
+| X/Twitter via twitterapi.io | `X_API_KEY` | key present; adapter stubbed | api.twitterapi.io |
 | ACLED | `ACLED_API_KEY`, `ACLED_EMAIL` | stubbed | acleddata.com |
 | Stripe | `STRIPE_SECRET_KEY`, … | flagged off | dashboard.stripe.com |
 | Resend | `RESEND_API_KEY` | stubbed→file | resend.com |

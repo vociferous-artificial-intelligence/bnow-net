@@ -19,7 +19,9 @@ Dated log of missing credentials/capabilities. Each has a stub in place; nothing
 4. **No Telegram MTProto creds.** Web-preview scraping (`t.me/s/<channel>`) is live; the
    GramJS MTProto adapter is stubbed. **Action: my.telegram.org → `TELEGRAM_API_ID`,
    `TELEGRAM_API_HASH`.**
-5. **No X/Twitter API keys.** Adapter stubbed with fixtures. **Action: developer.x.com (paid).**
+5. **No X/Twitter live adapter.** `X_API_KEY` for api.twitterapi.io is present and
+   smoke-tested (2026-07-07), but the production adapter is still stubbed with fixtures.
+   **Action: implement the twitterapi.io adapter with a usage/spend guard.**
 6. **No ACLED key.** Adapter stubbed with fixtures. **Action: acleddata.com/register →
    `ACLED_API_KEY`, `ACLED_EMAIL`.**
 7. **No Stripe keys.** Plans modeled in DB; checkout behind `FEATURE_STRIPE=false`.

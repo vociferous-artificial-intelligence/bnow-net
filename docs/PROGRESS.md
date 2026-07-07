@@ -243,3 +243,23 @@ Continuing into Stage 7 (deepen) with remaining weekend time.
   honest weaknesses, top-5 next moves (X API first).
 - Definition of done: all 6 hardening tasks complete; 137 unit + 6 integration tests
   green; deployed.
+
+## 2026-07-07 11:51 UTC — Human setup / missing-access audit
+
+- Added docs/HUMAN-SETUP-TODO.md: consolidated human-only setup decisions for RU/UA
+  useful-ASAP launch, including Gemini/gcloud, GitHub, Claude, Firecrawl, X, Telegram,
+  OpenSanctions, Companies House, Comtrade, Stripe, legal, and design-partner needs.
+- Initial correction noted that official X had moved from the older `$200/mo Basic` model
+  to pay-per-use; superseded below by Gregory's decision to use api.twitterapi.io instead.
+- Decision recommendation: no Gemini/gcloud or Firecrawl for the immediate RU/UA path;
+  prioritize X credits + Telegram MTProto + GitHub/CI + domain/email + entity keys.
+
+## 2026-07-07 13:58 UTC — twitterapi.io key confirmed
+
+- `X_API_KEY` is present in `.env.local`; `X_BEARER_TOKEN` is absent, by design.
+- Smoke test succeeded: `GET https://api.twitterapi.io/twitter/user/info?userName=elonmusk`
+  with `X-API-Key` returned HTTP 200 and `status:"success"`.
+- Updated AGENTS.md, SETUP-NEXT-WEEK.md, GTM-STRATEGY.md, STATUS-REPORT.md, and
+  HUMAN-SETUP-TODO.md to document twitterapi.io as the chosen X/Twitter path rather than
+  official developer.x.com. Remaining work is a scoped adapter implementation with a
+  usage/spend guard.

@@ -69,10 +69,11 @@ differentiator.
 
 - **Coverage vs ISW is far below the brief's 80% target** (~12–14% avg). The binding
   constraints: (a) source gap — the missing half of ISW's citation diet is mostly X
-  accounts we can't read without an X API key ($200/mo, biggest unlock); (b) the
-  LLM matcher is noisy run-to-run (±30pts on individual days), so the scoreboard moves
-  for reasons other than product quality — fix queued (majority-vote matching);
-  (c) ISW summarizes at a level our per-doc claims don't always reach.
+  accounts; `X_API_KEY` for api.twitterapi.io is now available, but the live adapter still
+  needs to be implemented; (b) the LLM matcher is noisy run-to-run (±30pts on individual
+  days), so the scoreboard moves for reasons other than product quality — fix queued
+  (majority-vote matching); (c) ISW summarizes at a level our per-doc claims don't always
+  reach.
 - **Saudi feeds went dark Jul 5** (bot-walling suspected) — theater is active but empty.
   il/bh/kw were already scaffolded-only for the same reason.
 - **Elite-politics and Gulf digests are unvalidated by design** (no ISW equivalent) —
@@ -85,8 +86,9 @@ differentiator.
 
 ## Top 5 next moves (value order)
 
-1. **X API key ($200/mo)** — 166 recently-ISW-cited accounts we currently can't read;
-   directly attacks the coverage number, which is the product's public proof.
+1. **twitterapi.io adapter** — `X_API_KEY` is present and smoke-tested; wiring the adapter
+   for 166 recently-ISW-cited accounts directly attacks the coverage number, which is the
+   product's public proof.
 2. **Point bnow.net at the app + migrate Postmark sender** — brand-correct URL and
    email before any outreach (partner motion in PARTNER-STRATEGY.md depends on it).
 3. **Majority-vote validation matching** — makes the public scoreboard reproducible;

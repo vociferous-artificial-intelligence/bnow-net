@@ -6,6 +6,12 @@ Goal: make the Russia/Ukraine product useful to analysts as soon as possible. Th
 only covers human setup, account access, purchasing, and decisions. Engineering follow-up
 is noted where a key unlocks an adapter or feature.
 
+Update 2026-07-07: Gregory reports `OPENSANCTIONS_API_KEY` is now in `.env.local`
+with a one-month 2,000-call quota. X access is via `api.twitterapi.io` using an
+`x-api-key` header and intended env var `X_API_KEY`, not the official X API bearer-token
+path originally assumed. Companies House application for `bnow.net` is submitted and
+pending key issuance/approval.
+
 ## Executive priority
 
 1. **Keep OpenAI funded and capped.** The product is already live on OpenAI; if this fails,
@@ -70,7 +76,14 @@ is noted where a key unlocks an adapter or feature.
 
 - Status: remote exists: `git@github.com:vociferous-artificial-intelligence/bnow-net.git`.
   Local branch is `main`; this checkout has local commits that have not reached GitHub.
+- Current push blocker: GitHub `GH007` means the **Git commit author email** is private
+  and GitHub account privacy is blocking command-line pushes that expose it. This is not
+  the app reply-to address.
 - Human task:
+  - Get the GitHub no-reply email from GitHub Settings -> Emails.
+  - Set repo/future commit email to that no-reply address.
+  - Rewrite local unpublished commits to use the no-reply author/committer email, or
+    temporarily disable GitHub's "Block command line pushes that expose my email" setting.
   - Push `main` from a network that can reach GitHub.
   - Confirm branch protection for `main` once CI is green.
   - Add repo secrets for integration tests: `NEON_API_KEY`, `NEON_PROJECT_ID`,
@@ -98,24 +111,22 @@ is noted where a key unlocks an adapter or feature.
 
 ### 7. X API
 
-- Status: missing; adapter is stubbed and not wired into production ingest.
+- Status: access is through `api.twitterapi.io` with header `x-api-key: $X_API_KEY`.
+  The key is present locally and smoke-tested, but a small adapter implementation/change
+  is required before this key can improve ingestion.
 - Need level: **P1, biggest source-coverage unlock**.
 - Human task:
-  - Create X developer access.
-  - Buy API credits, set a hard monthly spending limit, and add `X_BEARER_TOKEN`.
+  - Confirm `X_API_KEY` is present in the environment that deploys/runs the adapter.
+  - Confirm the provider's plan, rate limits, and monthly cap.
   - Start with a small capped balance, then scale based on measured ingestion value.
-- Current pricing correction: X now documents pay-per-use credits, not fixed monthly
-  subscriptions. Public docs list post reads at `$0.005` per returned post and user reads
-  at `$0.010` per returned user; current rates are also shown in the X Developer Console.
+- Pricing note: the earlier official-X estimate does not apply to `api.twitterapi.io`.
+  Use that provider's dashboard/billing limits for actual budget control.
 - Rough budget:
-  - Initial account lookup for 166 users: about `$1.66`.
-  - Backfill 100 posts for each account: about `16,600 * $0.005 = $83`.
-  - Daily polling depends on returned posts. If average relevant volume is 5 posts/account/day,
-    cost is about `$4/day` or `$125/mo`; 20 posts/account/day is about `$16.60/day` or
-    `$500/mo`.
-- Decision: start with `$100-250` prepaid/capped credits, poll only the ISW-cited account
-  list, and measure before expanding.
-- Engineering after setup: implement/enable live X adapter, dedupe, and a usage guard.
+  - Unknown until provider rate card is confirmed.
+  - Poll only the 166 ISW-cited accounts at first, dedupe by tweet id, and measure.
+- Decision: proceed, but require a usage guard and explicit cap before production polling.
+- Engineering after setup: implement/enable a `twitterapi.io` adapter using `X_API_KEY`,
+  dedupe, and a usage guard.
 
 ### 8. Telegram MTProto
 
@@ -157,8 +168,10 @@ is noted where a key unlocks an adapter or feature.
 - Current pricing shape: Firecrawl prices scrape/crawl/map/monitor at `1 credit/page`,
   search at `2 credits/10 results`, and browser interaction by browser-minute; plans/credits
   should be checked before production use.
-- Decision: defer. Consider only for analyst research tooling or targeted feed-health
-  debugging after P1 coverage gaps are fixed.
+- Decision: defer for normal ingestion. It may be worth a one-page proof-of-reachability
+  test against zakupki because Firecrawl supports enhanced proxies and location settings,
+  but do not treat it as the production procurement pipeline until legality, stability,
+  robots/rate limits, and data-retention behavior are checked.
 
 ### 12. zakupki.gov.ru procurement access
 
@@ -174,24 +187,32 @@ is noted where a key unlocks an adapter or feature.
 - Budget expectation: residential/proxy path may start around `$10-50/mo`; commercial
   mirrors vary.
 - Engineering after setup: add proxy/mirror configuration and run the procurement watcher.
+- Firecrawl note: it may be useful as a quick reachability test because enhanced proxies
+  can sometimes access bot-walled sites, but procurement data should probably use a
+  dedicated proxy/mirror path rather than a general scraper if it becomes a core signal.
 
 ## Entity/compliance data setup
 
 ### 13. OpenSanctions
 
-- Status: missing; live endpoint returns unauthorized without a key; stub data is hidden
-  from users by design.
+- Status: `OPENSANCTIONS_API_KEY` is present locally; Gregory reports 2,000 free calls for
+  one month. Stub data is hidden from users by design.
 - Need level: **P1 for compliance buyer credibility**.
-- Human task: get a commercial API key/license.
+- Human task: clarify license/free-use basis before charging customers or using the data
+  in broader public/commercial output.
 - Env var: `OPENSANCTIONS_API_KEY`.
 - Current pricing shape: OpenSanctions says non-commercial use is free; businesses need a
   data license or pay-as-you-go API. Their API metering page lists `/match` at `EUR 0.10`
   per query and `/entities` / `/statements` as free.
-- Engineering after setup: run `/api/cron/enrich?refresh=1`.
+- Decision: use the current quota for internal/beta validation with regional experts if
+  the account terms permit it; fill out the free-use/non-commercial form only if the beta
+  posture actually qualifies. Assume paid licensing is required before commercial launch.
+- Engineering after setup: run `/api/cron/enrich?refresh=1` with a strict call budget.
 
 ### 14. Companies House
 
-- Status: missing.
+- Status: application for app `bnow.net` has been submitted; API key issuance may be
+  pending account/app approval.
 - Need level: **P1/P2**, easy win.
 - Human task: create a free Companies House developer application and API key.
 - Env var: `COMPANIES_HOUSE_API_KEY`.
@@ -260,24 +281,25 @@ is noted where a key unlocks an adapter or feature.
 ## Explicit answers to current questions
 
 - **Do we need Gemini or gcloud?** No, not for ASAP. Gemini is not wired; gcloud is only
-  relevant if choosing Vertex/GCP. Defer.
+  relevant if choosing Vertex/GCP. Gregory reports Gemini env is available via `.bashrc`,
+  but using it would require a new provider implementation. Defer for product work.
 - **Do we need GitHub repo setup?** Yes. Remote exists, CI exists, but GitHub has not been
-  activated by push from this machine. Push `main`, add Neon secrets, enable branch
-  protection.
+  activated by push. Fix GH007 by using the GitHub no-reply email for commits, then push
+  `main`, add Neon secrets, enable branch protection.
 - **Do we need an Anthropic Claude key?** Useful, not mandatory. Add it for redundancy and
   quality comparison after X/Telegram.
 - **Do we need Firecrawl?** Not for core production ingestion. It is optional for ad hoc
   research or feed-health debugging.
 - **Do we need X API and what budget?** Yes. It is the biggest RU/UA coverage unlock.
-  Start with `$100-250` prepaid/capped credits, then adjust after measuring returned-post
-  volume. Backfill and daily polling could range from low hundreds/month to more if
-  polling broad/high-volume accounts aggressively.
+  Use the already-provisioned `api.twitterapi.io` key, not official X. Confirm the
+  provider-side monthly cap, then measure the 166-account pilot before expanding.
 - **Other APIs?** P1: Telegram MTProto, OpenSanctions, Companies House. P2: zakupki
   proxy/mirror, Comtrade, OpenCorporates. P3: ACLED, AIS/maritime, satellite.
 
 ## Source links checked for volatile pricing/access
 
-- X API pricing: https://docs.x.com/x-api/getting-started/pricing
+- twitterapi.io docs: https://docs.twitterapi.io/introduction and
+  https://docs.twitterapi.io/api-reference/endpoint/get_user_by_username
 - Firecrawl pricing: https://www.firecrawl.dev/pricing
 - Anthropic pricing/models: https://platform.claude.com/docs/en/about-claude/pricing and
   https://platform.claude.com/docs/en/about-claude/models/overview

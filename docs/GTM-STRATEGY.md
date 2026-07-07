@@ -79,8 +79,10 @@ by data we already produce. Consultancies (#3) are a force-multiplier — they r
 Grouped by what unlocks which buyer. **P = priority (1 highest).**
 
 ### Coverage gaps (breadth/accuracy of what we ingest)
-- **P1 — X / Twitter API** (`X_BEARER_TOKEN`, paid): 166 recently-ISW-cited accounts we
-  don't ingest. Single biggest purchasable accuracy gain; lifts scoreboard coverage.
+- **P1 — X / Twitter via twitterapi.io** (`X_API_KEY`, paid): 166 recently-ISW-cited
+  accounts we don't ingest. Single biggest purchasable accuracy gain; lifts scoreboard
+  coverage. Chosen path is the third-party `api.twitterapi.io` API, not official
+  developer.x.com, for materially lower testing/beta cost.
 - **P1 — Telegram MTProto** (`TELEGRAM_API_ID/HASH`): channels with web-preview disabled
   (some MoD/siloviki), plus history depth. Cheap (free API), 20 min to obtain.
 - **P2 — Maritime / AIS** (paid: aisstream/MarineTraffic/Windward): shadow-fleet + Hormuz

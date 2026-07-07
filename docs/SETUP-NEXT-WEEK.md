@@ -74,14 +74,20 @@ brand-correct sender. (Resend remains a supported alternative in the seam.)
 | Cost | $0 |
 | Unlocks | full-history backfill + channels with disabled web previews (several MoD/milblogger channels the current t.me/s/ scraper cannot read). Interface ready (`SourceAdapter`); implement with GramJS behind it |
 
-## 6. X API — paid; the single biggest coverage unlock
+## 6. X/Twitter API via twitterapi.io — paid; the single biggest coverage unlock
 
 | | |
 |---|---|
-| Env var | `X_BEARER_TOKEN` |
-| Where | developer.x.com (Basic tier $200/mo) |
-| Cost | $200/mo (Basic, 15K reads/mo) — start here, upgrade only if rate-limited |
+| Env var | `X_API_KEY` |
+| Where | api.twitterapi.io dashboard |
+| Cost | third-party pay-as-you-go; docs currently advertise `$0.15 / 1,000 tweets` and `$0.18 / 1,000 profiles` |
 | Unlocks | **166 X accounts ISW cited in the last 90 days** that we currently cannot read at all. Citation-weighted source parity is ~51%; the missing half is mostly X. Registry knows exactly which accounts to poll |
+
+Status 2026-07-07: `X_API_KEY` is present locally and a smoke call succeeds:
+`curl -H "X-API-Key: $X_API_KEY" "https://api.twitterapi.io/twitter/user/info?userName=elonmusk"`.
+This is **not** the official X API; do not use `X_BEARER_TOKEN`/developer.x.com unless a
+future compliance requirement mandates the official path. Engineering follow-up: replace
+the fixture X adapter with a twitterapi.io adapter and a hard spend/rate guard.
 
 ## 7. OpenSanctions key — commercial, prices on request
 
