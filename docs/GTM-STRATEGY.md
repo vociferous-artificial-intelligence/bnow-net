@@ -45,6 +45,9 @@ by data we already produce. Consultancies (#3) are a force-multiplier — they r
   weekly derived-insight brief (never source prose) to build the list.
 - **Expert-led sales**: analysts buy from analysts. A subject-matter salesperson (ex-gov/
   ex-analyst) converts far better than generic SaaS sales (see BUSINESS-PLAN §1).
+- **Regional partner motion**: treat experts as validators + door-openers first, public
+  amplifiers second. The first ask is a private methodology critique and 2-3 design-buyer
+  introductions, not an endorsement tweet. See PARTNER-STRATEGY.md.
 - **Design-partner / founding-subscriber program** (already scaffolded: subscribe_intents):
   10–20 hand-onboarded accounts at founding pricing in exchange for feedback + logos.
 - **Consultancy channel**: white-label / API resale to political-risk firms → they carry us
