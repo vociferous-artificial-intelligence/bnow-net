@@ -4,7 +4,9 @@ process.env.DATABASE_URL ??= "postgres://test:test@localhost:5432/test";
 const { SpendGuard, envCap, envNum, utcDayIso } = await import("./spend-guard");
 import type { UsageSnapshot, UsageStore } from "./spend-guard";
 
-function memStore(initial: UsageSnapshot = { totalUsd: 0, dayUsd: 0, dayRequests: 0 }): {
+function memStore(
+  initial: UsageSnapshot = { totalUsd: 0, totalRequests: 0, dayUsd: 0, dayRequests: 0 },
+): {
   store: UsageStore;
   state: UsageSnapshot;
 } {
@@ -17,6 +19,7 @@ function memStore(initial: UsageSnapshot = { totalUsd: 0, dayUsd: 0, dayRequests
       },
       async record(_p, _d, requests, _units, usd) {
         state.dayRequests += requests;
+        state.totalRequests += requests;
         state.dayUsd += usd;
         state.totalUsd += usd;
       },
@@ -73,7 +76,7 @@ describe("SpendGuard", () => {
   });
 
   it("blocks at the daily request cap including persisted history", async () => {
-    const { store } = memStore({ totalUsd: 0, dayUsd: 0, dayRequests: 100 });
+    const { store } = memStore({ totalUsd: 0, totalRequests: 100, dayUsd: 0, dayRequests: 100 });
     const g = new SpendGuard(CFG, store);
     await g.init();
     const r = g.tryReserve();
@@ -82,7 +85,7 @@ describe("SpendGuard", () => {
   });
 
   it("blocks at the daily USD cap", async () => {
-    const { store } = memStore({ totalUsd: 0.99, dayUsd: 0.99, dayRequests: 5 });
+    const { store } = memStore({ totalUsd: 0.99, totalRequests: 5, dayUsd: 0.99, dayRequests: 5 });
     const g = new SpendGuard(CFG, store);
     await g.init();
     expect(g.tryReserve().ok).toBe(true);
@@ -93,12 +96,33 @@ describe("SpendGuard", () => {
   });
 
   it("blocks at the total (sprint) cap across days", async () => {
-    const { store } = memStore({ totalUsd: 5.01, dayUsd: 0, dayRequests: 0 });
+    const { store } = memStore({ totalUsd: 5.01, totalRequests: 400, dayUsd: 0, dayRequests: 0 });
     const g = new SpendGuard(CFG, store);
     await g.init();
     const r = g.tryReserve();
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toContain("total spend");
+  });
+
+  it("request-cap-only mode (quota provider): allows under, blocks at cap", async () => {
+    const { store } = memStore({ totalUsd: 0, totalRequests: 299, dayUsd: 0, dayRequests: 10 });
+    const g = new SpendGuard(
+      { ...CFG, totalCapUsd: null, totalRequestCap: 300, dailyRequestCap: 500 },
+      store,
+    );
+    await g.init();
+    expect(g.tryReserve().ok).toBe(true);
+    await g.record(1, 1, 0.11);
+    const r = g.tryReserve();
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toContain("total requests");
+  });
+
+  it("request-cap set means USD cap absence does NOT fail closed", async () => {
+    const { store } = memStore();
+    const g = new SpendGuard({ ...CFG, totalCapUsd: null, totalRequestCap: 300 }, store);
+    await g.init();
+    expect(g.tryReserve().ok).toBe(true);
   });
 });
 

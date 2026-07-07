@@ -12,8 +12,11 @@ async function sql() {
 
 export interface SpendGuardConfig {
   provider: string;
-  /** Total (sprint/quota) cap. null = cap env var unset -> refuse everything. */
+  /** Total (sprint/quota) USD cap. null with no totalRequestCap -> fail closed. */
   totalCapUsd: number | null;
+  /** Total request/call cap for quota-metered providers (e.g. OpenSanctions
+   *  monthly call quota). Either this or totalCapUsd must be set. */
+  totalRequestCap?: number | null;
   dailyUsdCap: number;
   dailyRequestCap: number;
   runRequestCap: number;
@@ -21,6 +24,7 @@ export interface SpendGuardConfig {
 
 export interface UsageSnapshot {
   totalUsd: number;
+  totalRequests: number;
   dayUsd: number;
   dayRequests: number;
 }
@@ -61,17 +65,25 @@ export class SpendGuard {
   /** Check every cap before a paid request. Never throws; refusal carries why. */
   tryReserve(): ReserveResult {
     const c = this.cfg;
-    if (c.totalCapUsd === null || !Number.isFinite(c.totalCapUsd)) {
+    const hasUsdCap = c.totalCapUsd !== null && Number.isFinite(c.totalCapUsd);
+    const hasReqCap = c.totalRequestCap != null && Number.isFinite(c.totalRequestCap);
+    if (!hasUsdCap && !hasReqCap) {
       return { ok: false, reason: `${c.provider}: total cap env unset — failing closed` };
     }
     if (!this.snapshot) {
       return { ok: false, reason: `${c.provider}: guard not initialized — failing closed` };
     }
     const s = this.snapshot;
-    if (s.totalUsd + this.runUsd >= c.totalCapUsd) {
+    if (hasUsdCap && s.totalUsd + this.runUsd >= (c.totalCapUsd as number)) {
       return {
         ok: false,
         reason: `${c.provider}: total spend $${(s.totalUsd + this.runUsd).toFixed(4)} >= cap $${c.totalCapUsd}`,
+      };
+    }
+    if (hasReqCap && s.totalRequests + this.runRequests >= (c.totalRequestCap as number)) {
+      return {
+        ok: false,
+        reason: `${c.provider}: total requests ${s.totalRequests + this.runRequests} >= cap ${c.totalRequestCap}`,
       };
     }
     if (s.dayUsd + this.runUsd >= c.dailyUsdCap) {
@@ -113,13 +125,24 @@ export const pgUsageStore: UsageStore = {
   async load(provider, dayIso) {
     const rows = (await (await sql()).query(
       `SELECT coalesce(sum(est_usd), 0)::float AS total_usd,
+              coalesce(sum(requests), 0)::int AS total_requests,
               coalesce(sum(est_usd) FILTER (WHERE day = $2), 0)::float AS day_usd,
               coalesce(sum(requests) FILTER (WHERE day = $2), 0)::int AS day_requests
        FROM provider_usage WHERE provider = $1`,
       [provider, dayIso],
-    )) as Array<{ total_usd: number; day_usd: number; day_requests: number }>;
+    )) as Array<{
+      total_usd: number;
+      total_requests: number;
+      day_usd: number;
+      day_requests: number;
+    }>;
     const r = rows[0];
-    return { totalUsd: r.total_usd, dayUsd: r.day_usd, dayRequests: r.day_requests };
+    return {
+      totalUsd: r.total_usd,
+      totalRequests: r.total_requests,
+      dayUsd: r.day_usd,
+      dayRequests: r.day_requests,
+    };
   },
   async record(provider, dayIso, requests, units, usd) {
     await (await sql()).query(
