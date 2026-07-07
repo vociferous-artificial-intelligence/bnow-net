@@ -92,15 +92,34 @@ export async function generateDigest(
       };
     });
 
-    // 3. analyze
+    // 3. analyze — dense corpora (e.g. uk-language X days) can push the model
+    // to its output-token ceiling; on truncation retry with a smaller batch
+    // (the top of the reliability-ordered list survives the cut)
     const provider = await getProvider();
-    const analysis = await provider.analyze(countryIso2, date, docs, {
-      systemPrompt: trackCfg.systemPromptByCountry?.[countryIso2] ?? trackCfg.systemPrompt,
-      track,
-    });
+    let analysis: Awaited<ReturnType<typeof provider.analyze>> | null = null;
+    let batch = docs;
+    for (const size of [docs.length, 50, 25]) {
+      batch = docs.slice(0, size);
+      try {
+        analysis = await provider.analyze(countryIso2, date, batch, {
+          systemPrompt: trackCfg.systemPromptByCountry?.[countryIso2] ?? trackCfg.systemPrompt,
+          track,
+        });
+        break;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes("truncated") && size > 25) {
+          console.warn(`digest ${countryIso2} ${date} ${track}: ${msg} at ${size} docs — retrying smaller`);
+          continue;
+        }
+        throw e;
+      }
+    }
+    if (!analysis) throw new Error("digest: analysis unavailable after retries");
+    const docsSent = batch;
 
-    // 4. validate claim docIds against the batch (anti-hallucination gate)
-    const validIds = new Set(docs.map((d) => d.id));
+    // 4. validate claim docIds against the batch actually sent (anti-hallucination gate)
+    const validIds = new Set(docsSent.map((d) => d.id));
     let dropped = 0;
     const events = analysis.events
       .map((ev) => ({
@@ -143,7 +162,7 @@ export async function generateDigest(
     try {
       await client.query("BEGIN");
       const structured = {
-        stats: { docsAnalyzed: docs.length, docsRaw: docRows.length, trackRows: trackRows.length },
+        stats: { docsAnalyzed: docsSent.length, docsRaw: docRows.length, trackRows: trackRows.length },
       };
       const dRes = await client.query(
         `INSERT INTO digests (country_id, digest_date, track, status, structured, provider)
@@ -251,7 +270,7 @@ export async function generateDigest(
       claims: claimCount,
       droppedClaims: dropped,
       provider: analysis.provider,
-      docsAnalyzed: docs.length,
+      docsAnalyzed: docsSent.length,
     };
   } finally {
     await pool.end();
