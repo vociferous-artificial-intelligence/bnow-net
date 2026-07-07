@@ -88,10 +88,16 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
   /ask reliability-ordered; source_theater_stats (ME zombies 0); Anthropic provider
   in the seam. Reviews: docs/reviews/{AUDIT,TASK-1,TASK-2,TASK-3}-*.md.
   Operator handoff: SETUP-NEXT-WEEK.md (rewritten); summary: STATUS-REPORT.md.
-- Stubbed: MTProto, X, ACLED (fixtures — NOT wired into prod ingest); X key exists via
-  api.twitterapi.io (`X_API_KEY`) but adapter still needs implementation; Stripe flagged
-  off; OpenSanctions + zakupki need key/proxy (BLOCKERS 2026-07-06); Resend superseded
-  by Postmark (still on scenefiend domain — migration in SETUP-NEXT-WEEK).
+- Coverage & compliance sprint (2026-07-07 evening): X LIVE via api.twitterapi.io
+  (x_api adapter, 383 ISW-cited accounts, hourly cron, 7-day backfill ~10.5k tweets,
+  ~$1.7 of $5 cap); majority-vote validation matcher (26/27 reproducible); OpenSanctions
+  LIVE (200 checked, 54 sanctioned, ≤300-call budget); sa+il feeds revived (arabnews
+  RSS was frozen upstream — root cause of "sa dark"); bh/kw honestly scaffolded.
+  Results: docs/reviews/COVERAGE-SPRINT-RESULTS.md.
+- Stubbed: MTProto, ACLED (fixtures — NOT wired into prod ingest); the "x" fixture stub
+  remains for tests but the live adapter is x_api; Stripe flagged off; zakupki needs
+  proxy (BLOCKERS 2026-07-06); Resend superseded by Postmark (still on scenefiend
+  domain — migration in SETUP-NEXT-WEEK).
 - Deploys: `npx vercel@latest deploy --prod --yes` (CLI 46 too old; machine session
   auth — env VERCEL_TOKEN expired). Deployment URLs SSO-walled; use project domain.
 - Local-host quirks: api.openai.com and api.gdeltproject.org TCP-unreachable from this
@@ -192,6 +198,37 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
   within a day (was recency-only — state-media claims could lead the evidence set).
 - **2026-07-07** registry-materialize is theater-aware: source_theater_stats (ru/ir)
   + global all-theater aggregates on sources; ME zombie rows 1,574 → 0.
+- **2026-07-07 (sprint)** Paid-provider budget architecture: provider_usage +
+  provider_state tables (migration 0008) + SpendGuard (src/lib/usage/spend-guard.ts).
+  Every paid call passes tryReserve() first; FAIL-CLOSED when the provider's total-cap
+  env is unset (X_SPRINT_USD_CAP / LLM_SPRINT_USD_CAP / OPENSANCTIONS_CALL_CAP). Caps:
+  total USD or total calls, daily USD, daily+per-run requests — all env-tunable.
+- **2026-07-07 (sprint)** Live X adapter is `x_api` (api.twitterapi.io), NOT the "x"
+  fixture stub name — audit tooling treats adapter='x' rows as stub contamination.
+  Steady-state polling uses advanced_search batched `from:` OR-queries since a
+  persisted watermark (pay only new tweets + $0.00015/request minimums); last_tweets
+  (newest ~20, all billed) reserved for backfill. Own cron group (?which=x, hourly
+  :20), excluded from "all" so casual local ingest can't spend. 383 ISW-cited accounts
+  (last 90d), dominant-theater tagged; uk-language tweets re-tag ua (telegram-web
+  convention).
+- **2026-07-07 (sprint)** Majority-vote validation matching (OPEN-TASKS #15): k=5
+  gpt-4o-mini rounds, takeaway↔claim match requires strict majority on the SAME claim;
+  per-vote audit trail in details.votes; matcher records llm-majority|llm|keyword.
+  Measured: 26/27 country-day results identical across 3 full reruns (was ±30pts
+  single-shot); worst case one marginal takeaway (16.7pts on a 6-takeaway day).
+  MATCHER_MODE=single is the fallback flag.
+- **2026-07-07 (sprint)** OpenSanctions live: 200 entities enriched day-one under
+  OPENSANCTIONS_CALL_CAP=300 (121 matched, 54 sanctioned; daily-cap guard stopped run 2
+  at exactly 200 — by design). Priority: pressure-signal entities > persons > companies.
+  Stub-checked rows count as unchecked (live key upgrades them). Spot-check 4/5 correct;
+  1 name-collision flagged → matches are name-based, badges are beta-only until
+  commercial licensing (HUMAN-SETUP-TODO hard gate).
+- **2026-07-07 (sprint)** sa was never bot-walled: arabnews.com RSS froze upstream
+  2026-04-25 (still 200/valid XML). sa → Saudi Gazette + Asharq Al-Awsat EN; il revived
+  (JPost + Ynet, flipped active); bh/kw stay scaffolded (no working feed found).
+- **2026-07-07 (sprint)** Citation-weighted parity after X adapter: ru 62.5%→74.2%,
+  ir 35.9%→57.5% (scripts/source-parity.ts; the moving baseline vs the logged 51% is
+  telegram roster growth since 07-05).
 
 ## Conventions
 
@@ -218,7 +255,8 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
 | Anthropic | `ANTHROPIC_API_KEY` | absent | console.anthropic.com |
 | Cron auth | `CRON_SECRET` | **live** | (already set) |
 | Telegram MTProto | `TELEGRAM_API_ID/HASH` | stubbed | my.telegram.org |
-| X/Twitter via twitterapi.io | `X_API_KEY` | key present; adapter stubbed | api.twitterapi.io |
+| X/Twitter via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live** (x_api, spend-guarded) | api.twitterapi.io |
+| OpenSanctions | `OPENSANCTIONS_API_KEY` + `OPENSANCTIONS_CALL_CAP` | **live** (≤300 calls, licensing gate) | opensanctions.org |
 | ACLED | `ACLED_API_KEY`, `ACLED_EMAIL` | stubbed | acleddata.com |
 | Stripe | `STRIPE_SECRET_KEY`, … | flagged off | dashboard.stripe.com |
 | Resend | `RESEND_API_KEY` | stubbed→file | resend.com |

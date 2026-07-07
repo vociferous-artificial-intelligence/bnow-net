@@ -32,11 +32,11 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
 
 ### New (from the hardening pass)
 
-15. **LLM-matcher nondeterminism.** gpt-4o-mini at temperature 0 still varies run-to-run;
-    re-validating unchanged digests swings coverage ±30pts on individual days, which
-    dominates small-sample scoreboard movement. Fix: majority-vote matching (3 calls) or
-    cache match results keyed on (takeaway set, claim set). Matters for a public
-    validation scoreboard's credibility.
+15. ~~**LLM-matcher nondeterminism.**~~ ✅ 2026-07-07: majority-vote matching shipped
+    (k=5, strict majority per takeaway↔claim, per-vote audit trail in
+    details.votes, matcher records `llm-majority`). Reproducibility measured:
+    3 days rerun twice → identical coverage. Numbers in
+    docs/reviews/COVERAGE-SPRINT-RESULTS.md.
 
 ## Tier 3 — before enterprise/API sales
 
@@ -50,9 +50,11 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
 
 ## From the unattended-run audit (2026-07-06, docs/reviews/AUDIT-2026-07-06.md)
 
-10. **sa (Saudi Arabia) feeds dark.** Theater is active but produced 0 digests in 7 days —
-    only 10 raw docs in 3 days, newest 2026-07-05. Feed-health pass needed (probed feeds
-    may have started bot-walling as il/bh/kw did); find alternates or demote to scaffolded.
+10. ~~**sa (Saudi Arabia) feeds dark.**~~ ✅ 2026-07-07: root cause was arabnews.com's
+    RSS frozen upstream since 2026-04-25 (reachable, stale — NOT bot-walling). sa
+    revived with Saudi Gazette + Asharq Al-Awsat EN (350 fresh docs on day one);
+    il revived with JPost + Ynet and flipped to active; bh/kw have no working feed
+    and stay scaffolded (probe results in ingest/config.ts comments).
 
 ## From the original-brief diff (2026-07-06 — reconstruction under-specified the original)
 

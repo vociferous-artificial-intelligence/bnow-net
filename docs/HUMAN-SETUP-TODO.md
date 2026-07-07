@@ -207,7 +207,14 @@ pending key issuance/approval.
 - Decision: use the current quota for internal/beta validation with regional experts if
   the account terms permit it; fill out the free-use/non-commercial form only if the beta
   posture actually qualifies. Assume paid licensing is required before commercial launch.
-- Engineering after setup: run `/api/cron/enrich?refresh=1` with a strict call budget.
+- Engineering after setup: ~~run enrichment with a strict call budget~~ ✅ DONE
+  2026-07-07: 200 entities live-enriched under `OPENSANCTIONS_CALL_CAP=300` (121
+  matched, 54 sanctioned; 4/5 hand spot-checks confirmed against opensanctions.org,
+  1 flagged as name-collision — see docs/reviews/COVERAGE-SPRINT-RESULTS.md).
+- **HARD GATE before charging customers: commercial licensing.** The 2,000-call quota
+  is a one-month arrangement; sanction/PEP badges are beta/internal-only until a data
+  license or pay-as-you-go commercial agreement is signed. Do not include compliance
+  surfaces in any paid tier before this is resolved.
 
 ### 14. Companies House
 

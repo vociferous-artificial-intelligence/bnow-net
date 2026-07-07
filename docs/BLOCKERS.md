@@ -87,3 +87,27 @@ Dated log of missing credentials/capabilities. Each has a stub in place; nothing
   key). Adapter runs in stub mode now (seeded links for entities in-graph: Rotenberg,
   Rosnano). Add COMPANIES_HOUSE_API_KEY (free registration) → `GET /api/cron/enrich?only=ownership&refresh=1`
   populates real officer/PSC edges for company entities. Not blocking.
+
+## 2026-07-07 (coverage & compliance sprint)
+
+- **Blocker #5 RESOLVED:** live X/Twitter adapter shipped (`x_api`, api.twitterapi.io)
+  behind a fail-closed SpendGuard (`X_SPRINT_USD_CAP=5` in prod). 383 ISW-cited accounts
+  polled hourly (own cron group), ~7-day tiered backfill done (~10.5k tweets, ~$1.6).
+  Citation-weighted parity: ru 62.5%→74.2%, ir 35.9%→57.5%. Raise the cap to scale.
+- **OpenSanctions key live** (2,000 calls/month quota): 200 entities enriched on day one
+  under `OPENSANCTIONS_CALL_CAP=300` (guard stopped run 2 at the 200/day limit as
+  designed; remainder auto-completes via the daily cron). 121 matched / 54 sanctioned.
+  **REMAINING ACTION (licensing, not key):** the quota is a one-month trial-shaped
+  arrangement — commercial licensing MUST be resolved before charging customers for
+  compliance surfaces (see HUMAN-SETUP-TODO §13); treat current data as beta/internal.
+- **Name-collision risk in OpenSanctions matches:** matching is name-based (we hold no
+  DOB/nationality properties). Spot-check found 1 of 5 sampled matches unverifiable
+  (common Russian name matched a Ukrainian-sanctions-listed businessman; our entity is
+  an orphan with zero linked claims). Mitigation queued: require ≥1 linked claim before
+  enriching, render match score + caption next to badges. Logged in
+  docs/reviews/COVERAGE-SPRINT-RESULTS.md.
+- **arabnews.com RSS frozen upstream since 2026-04-25** — root cause of "sa dark since
+  Jul 5" (not bot-walling; feed is 200/valid XML but never updates). sa revived via
+  Saudi Gazette + Asharq Al-Awsat EN; il revived via JPost + Ynet (timesofisrael still
+  403 from Vercel but reachable from the build host). bh/kw: still no working feed
+  (HTML-not-RSS / 404 / 405 / KUNA unreachable) — remain scaffolded.

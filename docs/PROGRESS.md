@@ -263,3 +263,25 @@ Continuing into Stage 7 (deepen) with remaining weekend time.
   HUMAN-SETUP-TODO.md to document twitterapi.io as the chosen X/Twitter path rather than
   official developer.x.com. Remaining work is a scoped adapter implementation with a
   usage/spend guard.
+
+## 2026-07-07 19:20 UTC — Coverage & compliance sprint (X live, majority matcher, OpenSanctions, feeds)
+
+Plan (per sprint prompt): 0) housekeeping 1) twitterapi.io adapter under spend guard
+2) majority-vote matching 3) coverage before/after 4) OpenSanctions ≤300 calls
+5) sa feed health. Budgets: X ≤$5, OpenSanctions ≤300 calls, LLM ≤$10 — all enforced
+in code (SpendGuard, fail-closed).
+
+- Budget architecture: provider_usage/provider_state (migration 0008) + SpendGuard;
+  fail-closed proven live (run with cap unset → 0 requests).
+- x_api adapter live: pilot top-30 (198 docs, $0.03, 100% source attribution) → full
+  383 accounts → hourly cron (own group) → tiered 7-day backfill (6,883 docs inserted,
+  $1.52). Steady-state polling ≈$0.03/cycle via watermarked advanced_search.
+- Parity: ru 62.5%→74.2%, ir 35.9%→57.5% citation-weighted (scripts/source-parity.ts).
+- Majority matcher: k=5 strict majority, votes persisted; 10 days ru/ua/ir revalidated;
+  reproducibility 26/27 identical over 3 runs (was ±30pts).
+- OpenSanctions: 200 live checks (guard-stopped at daily cap exactly), 121 matched,
+  54 sanctioned; 4/5 spot-checks confirmed; 1 name-collision flagged.
+- Feeds: sa root-caused (arabnews RSS frozen upstream since Apr 25) and revived
+  (Saudi Gazette, Asharq EN); il revived (JPost, Ynet) + activated; bh/kw stay
+  scaffolded (no working feed).
+- Coverage before/after with X corpus: see docs/reviews/COVERAGE-SPRINT-RESULTS.md.
