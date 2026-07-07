@@ -25,14 +25,25 @@ export const RSS_FEEDS: RssFeedConfig[] = [
   { url: "https://verstka.media/feed", sourceKey: "verstka.media", lang: "ru", countryIso2: "ru", name: "Verstka" },
   // Gulf / Israel / Iran wave — public news first, social later (playbook step 4).
   // All verified reachable 2026-07-05.
+  // timesofisrael bot-walls Vercel egress (403, reconfirmed 2026-07-07); il
+  // revived via jpost + ynet instead (feed-health pass, OPEN-TASKS #10)
   { url: "https://www.timesofisrael.com/feed/", sourceKey: "timesofisrael.com", lang: "en", countryIso2: "il", name: "Times of Israel" },
+  { url: "https://www.jpost.com/rss/rssfeedsfrontpage.aspx", sourceKey: "jpost.com", lang: "en", countryIso2: "il", name: "Jerusalem Post" },
+  { url: "https://www.ynetnews.com/Integration/StoryRss3082.xml", sourceKey: "ynetnews.com", lang: "en", countryIso2: "il", name: "Ynetnews" },
   { url: "https://www.iranintl.com/en/rss", sourceKey: "iranintl.com", lang: "en", countryIso2: "ir", name: "Iran International (EN)" },
   { url: "https://iranwire.com/en/feed/", sourceKey: "iranwire.com", lang: "en", countryIso2: "ir", name: "IranWire (EN)" },
+  // arabnews RSS froze upstream 2026-04-25 (reachable but stale — the cause of
+  // "sa dark since Jul 5"); kept in case the publisher fixes it, sa lives on:
   { url: "https://www.arabnews.com/rss.xml", sourceKey: "arabnews.com", lang: "en", countryIso2: "sa", name: "Arab News" },
+  { url: "https://saudigazette.com.sa/rssFeed/74", sourceKey: "saudigazette.com.sa", lang: "en", countryIso2: "sa", name: "Saudi Gazette" },
+  { url: "https://english.aawsat.com/feed", sourceKey: "english.aawsat.com", lang: "en", countryIso2: "sa", name: "Asharq Al-Awsat (EN)" },
   { url: "https://www.thenationalnews.com/arc/outboundfeeds/rss/?outputType=xml", sourceKey: "thenationalnews.com", lang: "en", countryIso2: "ae", name: "The National" },
   { url: "https://www.aljazeera.com/xml/rss/all.xml", sourceKey: "aljazeera.com", lang: "en", countryIso2: "qa", name: "Al Jazeera (EN)" },
   { url: "https://dohanews.co/feed/", sourceKey: "dohanews.co", lang: "en", countryIso2: "qa", name: "Doha News" },
   { url: "https://timesofoman.com/feed", sourceKey: "timesofoman.com", lang: "en", countryIso2: "om", name: "Times of Oman" },
+  // bh/kw: no working feed found 2026-07-07 (newsofbahrain + arabtimesonline
+  // now return HTML not RSS; gdnonline/kuwaittimes 404; KUNA unreachable;
+  // BNA 405) — theaters stay scaffolded; adapter warns + skips these cleanly
   { url: "https://www.newsofbahrain.com/rss.xml", sourceKey: "newsofbahrain.com", lang: "en", countryIso2: "bh", name: "News of Bahrain" },
   { url: "https://www.arabtimesonline.com/feed/", sourceKey: "arabtimesonline.com", lang: "en", countryIso2: "kw", name: "Arab Times (KW)" },
   // Iran/Gulf depth (2026-07-06, verified reachable): regional + Iranian state.
