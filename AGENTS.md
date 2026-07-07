@@ -10,7 +10,7 @@ ISW's own citation/hedging behavior, an automated daily digest, and a public val
 scoreboard that scores our digests against ISW's daily Russian Offensive Campaign
 Assessments. Paying users: analysts, risk teams, journalists, desks ($400–$4K/mo tiers).
 Launch theater: **Russia + Ukraine live**; Israel/Iran/Gulf scaffolded config-only; China
-deferred. Authoritative spec: `docs/PRODUCT-BRIEF.md` (reconstructed — see BLOCKERS #1).
+deferred. Authoritative spec: `docs/PRODUCT-BRIEF.md` (original, installed 2026-07-06).
 
 ## Architecture
 
@@ -128,6 +128,25 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
   entities/claim_entities graph, lexicon prefilter + Kremlinology prompt. Unvalidated by
   design (ISW out of scope); factional interpretations always hedging='assessed'.
   Kommersant RSS + t.me/vchkogpu unreachable (blocked / preview off) — degrade cleanly.
+- **2026-07-06** Original product brief installed as `docs/PRODUCT-BRIEF.md`, replacing the
+  2026-07-04 reconstruction (delete explicitly instructed by Gregory's hardening prompt;
+  scoped exception to the no-delete default). Diff findings — nothing built CONTRADICTS the
+  original, but the reconstruction under-specified it in four material ways:
+  (1) §8.7 Phase 2/3 targets were missing: event coverage ≥80% of ISW events same-day
+  (actual: 17.5% avg / 31% nonzero-day), unsupported-claim rate <2%, timeliness ±6h,
+  10 design partners + 1 gov pilot. Now tracked in OPEN-TASKS #11.
+  (2) §6.5 pricing is crisis-cycle + REGIONAL-BUNDLE SKUs (sell "Gulf" not per-country;
+  à-la-carte country ≈40% of bundle; global $10–15K/mo; standby $300–500; NO surge
+  pricing). Implemented per-country tiers ($400/$2–4K) sit inside the ranges, but the
+  bundle packaging layer is absent. OPEN-TASKS #12.
+  (3) §8.6 risk list includes sanctions-exposure counsel review for handling RU
+  state-media content — operator action, added to SETUP-NEXT-WEEK. OPEN-TASKS #13.
+  (4) §5 scoring dimensions include source-reliability CALIBRATION (does our weighting
+  match ISW hedging?) — not currently a scored validation dimension. Ties into the
+  reliability-weighting audit (OPEN-TASKS #6).
+  China placement: original Tier 1 lists China as second flagship, but its §8.4 build
+  plan recommends Gulf as region #2 — our China deferral follows the build plan; no
+  contradiction. Phase 0 exits (≥2,000 sources, >90% parse) exceeded: 6,985 / 97.65%.
 
 ## Conventions
 
@@ -169,7 +188,7 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
 3. Stage 7 candidates (any future session): anthropic provider impl; year-inference
   for 37 unparsed ISW pages; per-source country column; scoreboard trend charts;
   GDELT raw-file fallback.
-4. Open: original brief still needs to replace docs/PRODUCT-BRIEF.md (reconstruction).
+4. ~~Open: original brief still needs to replace docs/PRODUCT-BRIEF.md~~ Done 2026-07-06.
 
 ## Operating protocol
 

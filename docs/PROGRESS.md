@@ -184,3 +184,17 @@ Continuing into Stage 7 (deepen) with remaining weekend time.
 
 - Completed 1A: full ISW Iran Update corpus loaded (was sample-only) — 1,066 reports, 3,647 ME sources, 98,149 citations. ME registry now complete.
 - Debt review surfaced tasks worth addressing now (see docs/OPEN-TASKS.md): CI pipeline, /ask rate limit, entity canonicalization, integration tests, unmaterialized ME sources.
+
+## 2026-07-07 — Partner strategy review
+
+- Reviewed PRODUCT-BRIEF, GTM-STRATEGY, BUSINESS-PLAN, COMPETITIVE-AND-DEMAND, IRAN-GULF-DEPTH, NEW-COUNTRY-PLAYBOOK, and OPEN-TASKS for partner/GTM fit.
+- Added docs/PARTNER-STRATEGY.md: regional partner map, partner-role taxonomy, qualification rubric, outreach sequence, and named-contact evaluation for Jason Jay Smart, Irina Tsukerman, John Sipher, and Malcolm Nance.
+- Updated docs/GTM-STRATEGY.md §4 to add the regional partner motion: experts should be used first as validators and door-openers, public amplifiers second.
+
+## 2026-07-06 — Hardening session: Task 0a — original brief installed
+
+- Original `OSINT-Country-Feed-Product-Brief.md` installed as the sole `docs/PRODUCT-BRIEF.md`
+  (reconstruction deleted per explicit instruction). Diffed: nothing built contradicts the
+  original; four under-specifications logged (AGENTS.md decision log) → OPEN-TASKS #11-14:
+  §8.7 Phase-2 targets (coverage ≥80% vs actual 17.5%), §6.5 regional-bundle SKUs,
+  §8.6 sanctions-counsel review, §5 reliability-calibration scoring dimension.

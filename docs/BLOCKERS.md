@@ -6,7 +6,9 @@ Dated log of missing credentials/capabilities. Each has a stub in place; nothing
 
 1. **Original PRODUCT-BRIEF.md missing.** Not found anywhere on this machine. Reconstructed
    from the execution prompt at `docs/PRODUCT-BRIEF.md` (clearly marked). **Action: drop in
-   the original and diff.**
+   the original and diff.** → **RESOLVED 2026-07-06:** original installed as the sole
+   `docs/PRODUCT-BRIEF.md`; divergences logged in AGENTS.md decision log (§8.7 targets,
+   §6.5 bundle pricing, §8.6 sanctions counsel, §5 calibration dimension → OPEN-TASKS).
 2. **VERCEL_TOKEN expired.** The token in `~/code/scenefiend/.env.local` returns 403.
    Deploys this weekend use the machine's logged-in Vercel CLI session (`go-vociferous`).
    **Action: generate a fresh token at vercel.com/account/tokens → `VERCEL_TOKEN` (needed for

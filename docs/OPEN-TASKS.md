@@ -47,6 +47,26 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
 10. **Content-translation toggle** — LLM per-view translation of digests (i18n scaffolding
     is done; content stays English-first until a buyer needs it).
 
+## From the original-brief diff (2026-07-06 — reconstruction under-specified the original)
+
+11. **Track §8.7 Phase 2 targets explicitly.** Original brief targets: event coverage ≥80%
+    of ISW-reported events same-day (current: 17.5% avg / 31% nonzero-day), unsupported-claim
+    rate <2%, timeliness within ±6h of ISW publication (current median info-lead +14.7h ✓).
+    Surface targets-vs-actuals on /scoreboard or in the validation report; coverage gap is
+    the headline quality metric to drive.
+12. **Regional-bundle packaging (§6.5).** Original sells regional bundles as the SKU
+    ("Gulf", not per-country): bundle $2–5K/mo, à-la-carte country ≈40% of bundle, global
+    $10–15K/mo, standby $300–500/mo, no surge pricing. Current pricing page is per-country
+    tiers (within ranges, not contradictory) — add the bundle layer before GTM launch;
+    reconcile with GTM-STRATEGY packaging section.
+13. **Sanctions-exposure counsel review (§8.6 risk 4).** Handling Russian state-media
+    content may carry sanctions exposure — get counsel review. Operator action (goes in
+    SETUP-NEXT-WEEK checklist).
+14. **Source-reliability calibration as a scored dimension (§5).** Original's validation
+    design scores whether our reliability weighting matches ISW's hedging behavior; we score
+    coverage/divergence/timeliness/unsupported only. Design a calibration metric (e.g.
+    correlation between our source weights and ISW hedging distribution on shared sources).
+
 ## Deferred by design (key-blocked — see BLOCKERS.md)
 
 X API, Telegram MTProto, OpenSanctions key, Companies House key, Comtrade key, zakupki
