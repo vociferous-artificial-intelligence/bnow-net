@@ -168,6 +168,20 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
   repointing) + LLM propose-only audit route (/api/cron/entity-audit) with human
   review before apply (docs/reviews/ENTITY-AUDIT-2026-07-06.jsonl). ENTITY_RULES
   block added to all extraction prompts. Policy: LLM proposals are never auto-applied.
+- **2026-07-07** Integration tests run on disposable Neon branches (fork prod, test,
+  delete — scripts/test-integration.sh); *.itest.ts excluded from the unit suite.
+- **2026-07-07** RU/UA validation filters ISW takeaways per theater
+  (classifyTakeawayTheater). Measured effect small (~0.5 takeaways/report filtered);
+  the dominant coverage noise is gpt-4o-mini matcher nondeterminism even at temp 0
+  (±30pts/day on unchanged digests) → OPEN-TASKS #15 (majority-vote matching).
+- **2026-07-07** Iran military runs a theater prompt + lexicon
+  (TrackConfig.lexiconByCountry/systemPromptByCountry); "quiet days are normal" is
+  explicit in the prompt. Iran coverage off 0%: 33.3/25% on 2 of 4 scored days.
+- **2026-07-07** Reliability weighting: digest event ranking confirmed wired
+  (confidence = mean source reliability); /ask retrieval now orders by confidence
+  within a day (was recency-only — state-media claims could lead the evidence set).
+- **2026-07-07** registry-materialize is theater-aware: source_theater_stats (ru/ir)
+  + global all-theater aggregates on sources; ME zombie rows 1,574 → 0.
 
 ## Conventions
 

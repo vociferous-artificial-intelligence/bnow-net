@@ -19,23 +19,24 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
 
 ## Tier 2 — soon
 
-4. **Integration tests** on the DB-touching paths. All 104 tests are pure-function unit
-   tests; the traceability trigger, digest orchestration, and validation harness have zero
-   automated coverage (the trigger was smoke-tested once by hand). Add: a test that the
-   claim→source invariant rejects orphans, and one digest generated end-to-end against a
-   test DB.
-5. **Iran military digest quality** — produces few/0 events on quiet days; the default
-   prompt is Russia-shaped. Iran scoreboard coverage is ~0% partly for this reason. Make
-   the military prompt theater-neutral; consider validating the *union* of Iran tracks
-   against the (broad) Iran Update rather than the thin military track alone.
-6. **Reliability-weighting spot-check** — a Press TV (Iran state media) claim ("Khamenei
-   funeral") surfaced prominently. The hedging/reliability system marks it low-conf, but
-   verify low-reliability state media is actually de-emphasized in *event ranking*, not
-   just labeled. One-off audit.
-7. **ME source materialization** — 1,574 sources have citation_count=0 (ME-only sources
-   never per-theater-materialized). The /middle-east page computes live so it works, but
-   the global `sources` table has zombie rows and registry detail pages show no ME
-   reliability. Add a per-theater materialization (or a `source_theater_stats` table).
+4. ~~**Integration tests**~~ ✅ 2026-07-07: 6 tests on disposable Neon branches
+   (`npm run test:integration`), CI-wired. TASK-3-REVIEW.md.
+5. ~~**Iran military digest quality**~~ ✅ 2026-07-07: theater prompt + lexicon; coverage
+   0% → 33.3/25% on 2 of 4 scored days. Remaining quality iteration continues with
+   corpus depth (X/MTProto keys).
+6. ~~**Reliability-weighting spot-check**~~ ✅ 2026-07-07: digest ranking was already
+   wired (now regression-tested); /ask retrieval was not — now orders by confidence
+   after recency (integration-tested).
+7. ~~**ME source materialization**~~ ✅ 2026-07-07: `source_theater_stats` per-theater
+   aggregates; global columns aggregate all theaters; 1,574 zombies → 0.
+
+### New (from the hardening pass)
+
+15. **LLM-matcher nondeterminism.** gpt-4o-mini at temperature 0 still varies run-to-run;
+    re-validating unchanged digests swings coverage ±30pts on individual days, which
+    dominates small-sample scoreboard movement. Fix: majority-vote matching (3 calls) or
+    cache match results keyed on (takeaway set, claim set). Matters for a public
+    validation scoreboard's credibility.
 
 ## Tier 3 — before enterprise/API sales
 

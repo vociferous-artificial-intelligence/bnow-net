@@ -218,3 +218,17 @@ Continuing into Stage 7 (deepen) with remaining weekend time.
 - Entities 293 → 85: rules pass (110 junk drops, 41 alias merges, 53 orphans) + LLM
   propose-only audit (4 accepted, 2 rejected on review, 1 reviewer addition) +
   ENTITY_RULES in all extraction prompts + re-enrichment. TASK-2-REVIEW.md.
+
+## 2026-07-07 — Hardening: Task 3 — integration tests + validation quality
+
+- Integration suite (6 tests) on disposable Neon branches: trigger, digest txn +
+  stub-exclusion end-to-end, /ask confidence ordering, scoreDigest on fixture. CI-wired.
+- Per-theater RU/UA takeaway filtering shipped; honest finding: effect small (~0.5
+  takeaways/report), gpt-4o-mini matcher variance (±30pts/day at temp 0) dominates →
+  OPEN-TASKS #15 majority-vote matching.
+- Iran military theater prompt + lexicon: 1-3 events/day (was 0), coverage 0% →
+  33.3%/25% on Jul 3/4; info-lead +10.3h/+5.5h.
+- Reliability: digest ranking confirmed wired (+test); /ask retrieval now
+  confidence-ordered (was recency-only).
+- source_theater_stats: 10,583 rows (ru 6,985 / ir 3,598); zombie ME sources 1,574 → 0;
+  registry detail shows per-corpus stats. TASK-3-REVIEW.md.
