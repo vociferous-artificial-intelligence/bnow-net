@@ -48,6 +48,25 @@ describe("extractTakeaways on real report", () => {
   });
 });
 
+describe("classifyTakeawayTheater", () => {
+  it("frontline-Ukraine toponyms are ua-side", async () => {
+    const { classifyTakeawayTheater } = await import("./keywords");
+    expect(classifyTakeawayTheater(["pokrovsk"])).toBe("ua");
+    expect(classifyTakeawayTheater(["kupyansk", "toretsk"])).toBe("ua");
+  });
+  it("Russia-territory toponyms are ru-side", async () => {
+    const { classifyTakeawayTheater } = await import("./keywords");
+    expect(classifyTakeawayTheater(["ryazan"])).toBe("ru");
+    expect(classifyTakeawayTheater(["belgorod", "kursk"])).toBe("ru");
+  });
+  it("mixed, contested, or non-territorial takeaways are both", async () => {
+    const { classifyTakeawayTheater } = await import("./keywords");
+    expect(classifyTakeawayTheater(["pokrovsk", "ryazan"])).toBe("both");
+    expect(classifyTakeawayTheater(["crimea"])).toBe("both");
+    expect(classifyTakeawayTheater([])).toBe("both"); // political/casualties bullets
+  });
+});
+
 describe("scoreDigest", () => {
   const takeaways = [
     { index: 0, toponyms: ["pokrovsk"], actions: ["advance"], chars: 100 },

@@ -66,3 +66,23 @@ describe("rankEvents", () => {
     for (const p of PROFILES) expect(rankEvents(events, p.key, NOW)).toHaveLength(3);
   });
 });
+
+describe("reliability weighting in event ranking", () => {
+  it("an event backed by low-reliability sources ranks below an otherwise-equal high-reliability one", async () => {
+    const { rankEvents } = await import("./rank");
+    const base = {
+      track: "military", type: "strike", claimCount: 2,
+      platforms: ["telegram"], latestAt: "2026-07-06T12:00:00Z",
+    };
+    const ranked = rankEvents(
+      [
+        { ...base, eventId: 1, avgConfidence: 0.2 }, // e.g. Press TV-only sourcing
+        { ...base, eventId: 2, avgConfidence: 0.9 },
+      ],
+      "balanced",
+      new Date("2026-07-06T13:00:00Z").getTime(),
+    );
+    expect(ranked[0].eventId).toBe(2);
+    expect(ranked[0].score).toBeGreaterThan(ranked[1].score);
+  });
+});

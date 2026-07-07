@@ -56,7 +56,10 @@ export async function retrieve(question: string, opts?: { limit?: number }): Pro
     if (terms.length === 0) return { claims: [], entities: [], terms };
     const pattern = terms.map((t) => `%${t}%`);
 
-    // claims matching any term OR whose entity matches; recent first
+    // claims matching any term OR whose entity matches; recent first, and within
+    // a day higher-confidence first — confidence is the mean reliability_score of
+    // the claim's source documents, so low-reliability (state-media) claims sink
+    // toward the evidence-set cutoff instead of leading it
     const { rows: claimRows } = await pool.query(
       `SELECT cl.id, cl.text, cl.hedging, cl.claim_date::text AS d, c.iso2, dg.track
        FROM claims cl
@@ -68,7 +71,7 @@ export async function retrieve(question: string, opts?: { limit?: number }): Pro
             JOIN entities e ON e.id = ce.entity_id
             WHERE e.name ILIKE ANY($1)
           )
-       ORDER BY cl.claim_date DESC NULLS LAST, cl.id DESC
+       ORDER BY cl.claim_date DESC NULLS LAST, cl.confidence DESC NULLS LAST, cl.id DESC
        LIMIT $2`,
       [pattern, limit],
     );

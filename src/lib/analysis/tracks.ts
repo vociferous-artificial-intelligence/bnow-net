@@ -12,6 +12,10 @@ export interface TrackConfig {
   lexicon: RegExp | null; // null = military's toponym/action filter (in stub-provider)
   systemPrompt: string | null; // null = provider default (military)
   validated: boolean; // scored against ISW?
+  /** per-theater overrides: the RU-shaped defaults misfire on other theaters
+   *  (Iran military needs proxy/maritime/IRGC framing, not toponym gazetteers) */
+  lexiconByCountry?: Record<string, RegExp>;
+  systemPromptByCountry?: Record<string, string>;
 }
 
 const ELITE_LEXICON = new RegExp(
@@ -65,6 +69,60 @@ HARD RULES:
 
 ${ENTITY_RULES}`;
 
+// --- Iran military track (theater variant) ---
+// The default military prompt and the RU/UA toponym relevance signal are useless
+// for Iran: its military picture is proxy attacks, maritime incidents and
+// IRGC/CENTCOM posture, not front lines. Quiet days are normal — the prompt says
+// so explicitly rather than forcing event invention.
+
+const IRAN_MILITARY_LEXICON = new RegExp(
+  [
+    // strikes / air defense
+    "strike", "missile", "drone", "uav", "air defense", "air-defense", "intercept",
+    "explosion", "airstrike", "shot down", "ballistic",
+    // forces & commands
+    "irgc", "revolutionary guard", "artesh", "basij", "quds force", "centcom",
+    "fifth fleet", "idf", "israeli", "military exercise", "drill", "deployment",
+    // proxies
+    "hezbollah", "houthi", "hamas", "islamic jihad", "militia", "proxy",
+    "kataib", "resistance",
+    // maritime
+    "hormuz", "strait", "tanker", "vessel", "seiz", "red sea", "gulf of oman",
+    "bab el-mandeb", "shipping", "naval", "warship", "frigate",
+    // facilities / nuclear-adjacent military
+    "natanz", "fordow", "isfahan", "sabotage", "enrichment site",
+    // Farsi/Arabic
+    "سپاه", "پهپاد", "موشک", "حمله", "الحوثي", "حزب الله", "صاروخ", "هجوم",
+  ].join("|"),
+  "i",
+);
+
+const IRAN_MILITARY_PROMPT = `You are an OSINT analyst producing a daily IRAN-THEATER military/security digest.
+Input: numbered source documents (id, source, reliability 0-1; English/Persian/Arabic).
+Output: significant military-security developments as events with specific claims.
+
+FOCUS (this theater is posture-and-proxy, not front lines):
+- strikes and counterstrikes involving Iran, Israel, or the US (CENTCOM)
+- IRGC / Artesh / Quds Force activity: deployments, exercises, commander statements, losses
+- proxy and partner attacks: Hezbollah, Houthis (incl. Red Sea shipping), Iraqi militias, Palestinian Islamic Jihad
+- maritime incidents: Strait of Hormuz, tanker seizures/harassment, naval movements
+- air-defense activity, airspace closures, sabotage at military or nuclear facilities
+- arms transfers and missile/drone program developments
+
+HARD RULES:
+1. Every claim MUST cite docIds from the input. Never invent ids.
+2. One atomic assertion per claim, English (translate Persian/Arabic), <= 200 chars.
+3. hedging: 'confirmed' for multi-party/visually corroborated; 'claimed' for single-party
+   (state media claims stay 'claimed'); 'unverified' for uncorroborated; analytic
+   judgments claimType='assessment', hedging='assessed'.
+4. Weigh reliability: state-media (Press TV, IRNA) claims need corroboration before
+   leading an event.
+5. QUIET DAYS ARE NORMAL: if the day has no genuine military-security development,
+   return fewer events (0-2) rather than inflating routine news into events.
+6. 0-10 events, most significant first.
+
+${ENTITY_RULES}`;
+
 // --- Iran nuclear track ---
 const NUCLEAR_LEXICON = new RegExp(
   [
@@ -110,6 +168,8 @@ export const TRACKS: Record<Track, TrackConfig> = {
     lexicon: null,
     systemPrompt: null,
     validated: true,
+    lexiconByCountry: { ir: IRAN_MILITARY_LEXICON },
+    systemPromptByCountry: { ir: IRAN_MILITARY_PROMPT },
   },
   elite_politics: {
     track: "elite_politics",

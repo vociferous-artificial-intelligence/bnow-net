@@ -34,17 +34,18 @@ export class StubProvider implements AnalysisProvider {
     docs: AnalysisInputDoc[],
     opts?: { systemPrompt?: string | null; track?: string },
   ): Promise<DigestAnalysis> {
-    // relevance prefilter. Non-military tracks are already lexicon-filtered upstream
-    // (digest.ts trackCfg.lexicon), so keep all their docs; military uses the theater
-    // toponym / action signal to drop housekeeping + off-topic reposts.
-    const nonMilitary = !!opts?.track && opts.track !== "military";
-    const relevant = nonMilitary
+    // relevance prefilter. Non-military tracks and theater-variant military runs
+    // (custom systemPrompt => digest.ts already lexicon-filtered, e.g. Iran) keep
+    // all docs; default RU/UA military uses the toponym/action signal to drop
+    // housekeeping + off-topic reposts.
+    const preFiltered = (!!opts?.track && opts.track !== "military") || !!opts?.systemPrompt;
+    const relevant = preFiltered
       ? docs
       : docs.filter((d) => {
           const sig = extractSignature(`${d.title ?? ""} ${d.content}`.slice(0, 1500));
           return sig.toponyms.size > 0 || sig.actions.size > 0;
         });
-    const pool = relevant.length >= 15 || nonMilitary ? relevant : docs;
+    const pool = relevant.length >= 15 || preFiltered ? relevant : docs;
     if (pool.length === 0) return { events: [], provider: this.name };
 
     const texts = pool.map((d) => `${d.title ?? ""} ${d.content}`.slice(0, 2000));

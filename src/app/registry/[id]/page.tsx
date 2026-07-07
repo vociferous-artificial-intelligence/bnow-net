@@ -31,7 +31,7 @@ export default async function SourceDetailPage({
   if (srcRows.length === 0) notFound();
   const s = srcRows[0];
 
-  const [byYearRaw, recentCitesRaw, recentDocsRaw] = await Promise.all([
+  const [byYearRaw, recentCitesRaw, recentDocsRaw, theaterRaw] = await Promise.all([
     rawSql.query(
       `SELECT extract(year FROM ir.report_date)::int AS y, count(*)::int AS n
        FROM source_citations sc JOIN isw_reports ir ON ir.id = sc.report_id
@@ -49,6 +49,12 @@ export default async function SourceDetailPage({
        WHERE source_id = $1 ORDER BY fetched_at DESC LIMIT 10`,
       [id],
     ),
+    rawSql.query(
+      `SELECT theater, citation_count, first_cited_report_date::text AS first,
+              last_cited_report_date::text AS last, reliability_score, decayed
+       FROM source_theater_stats WHERE source_id = $1 ORDER BY citation_count DESC`,
+      [id],
+    ),
   ]);
   const byYear = byYearRaw as Array<{ y: number; n: number }>;
   const recentCites = recentCitesRaw as Array<{
@@ -57,6 +63,14 @@ export default async function SourceDetailPage({
   const recentDocs = recentDocsRaw as Array<{
     id: number; url: string | null; title: string | null; f: string;
   }>;
+  const theaterStats = theaterRaw as Array<{
+    theater: string; citation_count: number; first: string | null; last: string | null;
+    reliability_score: number | null; decayed: boolean;
+  }>;
+  const THEATER_LABEL: Record<string, string> = {
+    ru: "Russia/Ukraine (ROCA)",
+    ir: "Middle East (Iran Update)",
+  };
 
   const totalH =
     s.hedging_confirmed + s.hedging_assessed + s.hedging_unknown +
@@ -115,6 +129,38 @@ export default async function SourceDetailPage({
           ))}
         </div>
       </section>
+
+      {theaterStats.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-2 text-sm font-semibold">By reference corpus</h2>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 text-left text-xs text-gray-500 dark:border-gray-800">
+                <th className="py-1">theater</th>
+                <th className="text-right">citations</th>
+                <th className="text-right">reliability</th>
+                <th>span</th>
+                <th>status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {theaterStats.map((t) => (
+                <tr key={t.theater} className="border-b border-gray-100 dark:border-gray-900">
+                  <td className="py-1">{THEATER_LABEL[t.theater] ?? t.theater}</td>
+                  <td className="text-right tabular-nums">{t.citation_count.toLocaleString()}</td>
+                  <td className="text-right tabular-nums">
+                    {t.reliability_score !== null ? Number(t.reliability_score).toFixed(2) : "—"}
+                  </td>
+                  <td className="text-xs text-gray-500">
+                    {t.first?.slice(0, 10)} → {t.last?.slice(0, 10)}
+                  </td>
+                  <td className="text-xs">{t.decayed ? "decayed" : "active"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
 
       <section className="mb-8">
         <h2 className="mb-2 text-sm font-semibold">Recent ISW citations</h2>

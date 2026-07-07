@@ -75,6 +75,40 @@ const OBLAST_TOWNS: Record<string, string[]> = {
   sumy: [],
 };
 
+// Theater of each gazetteer toponym: 'ua' = inside Ukraine (frontline + rear),
+// 'ru' = inside Russia, 'both' = covered from both sides (occupied Crimea) or
+// non-territorial. RU and UA digests validate against the same whole-war ISW
+// report; scoring a theater against the other side's takeaways deflates coverage.
+export const TOPONYM_THEATER: Record<string, "ru" | "ua" | "both"> = {
+  pokrovsk: "ua", toretsk: "ua", kupyansk: "ua", chasiv_yar: "ua",
+  kostyantynivka: "ua", lyman: "ua", siversk: "ua", sloviansk: "ua",
+  kramatorsk: "ua", vovchansk: "ua", kharkiv: "ua", sumy: "ua",
+  zaporizhzhia: "ua", kherson: "ua", donetsk: "ua", luhansk: "ua",
+  velykyi_burluk: "ua", novopavlivka: "ua", velyka_novosilka: "ua",
+  hulyaipole: "ua", kyiv: "ua", odesa: "ua", dnipro: "ua",
+  crimea: "both",
+  moscow: "ru", belgorod: "ru", kursk: "ru", bryansk: "ru", rostov: "ru",
+  ryazan: "ru", tatarstan: "ru", st_petersburg: "ru", dubna: "ru",
+  north_korea: "both",
+};
+
+/** Which theater digest should be expected to cover a takeaway with these
+ *  toponyms. No territorial signal (political/casualties bullets) -> both. */
+export function classifyTakeawayTheater(toponyms: string[]): "ru" | "ua" | "both" {
+  let ru = false;
+  let ua = false;
+  for (const t of toponyms) {
+    const th = TOPONYM_THEATER[t];
+    if (th === "ru") ru = true;
+    else if (th === "ua") ua = true;
+    else if (th === "both") return "both";
+  }
+  if (ru && ua) return "both";
+  if (ru) return "ru";
+  if (ua) return "ua";
+  return "both";
+}
+
 export interface Signature {
   toponyms: Set<string>;
   actions: Set<string>;

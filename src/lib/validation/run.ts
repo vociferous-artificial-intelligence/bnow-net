@@ -1,6 +1,7 @@
 import { Pool } from "@neondatabase/serverless";
 import { politeFetch } from "../fetch-cache";
 import { extractTakeawaysWithText } from "./isw-extract";
+import { classifyTakeawayTheater } from "./keywords";
 import { llmMatchTakeaways } from "./llm-match";
 import { scoreDigest, scoreDigestWithMatches, type ClaimForValidation } from "./score";
 
@@ -91,8 +92,31 @@ export async function validateDigest(
     if (!page || page.status !== 200 || page.html.length < 1000)
       return { error: `isw page fetch failed (${page?.status})` };
 
-    const { takeaways, transientTexts } = extractTakeawaysWithText(page.html);
-    if (takeaways.length === 0) return { error: "no takeaways parsed" };
+    const extraction = extractTakeawaysWithText(page.html);
+    if (extraction.takeaways.length === 0) return { error: "no takeaways parsed" };
+
+    // Per-theater takeaway filtering: RU and UA validate against the same
+    // whole-war ROCA report — score each theater only against its own-side +
+    // both-side takeaways, or coverage is structurally deflated. The FULL
+    // extraction still gets persisted on isw_reports below. Re-index the
+    // filtered set: llmMatchTakeaways numbers by array position while
+    // scoreDigestWithMatches correlates on .index — they must stay aligned.
+    let takeaways = extraction.takeaways;
+    let transientTexts = extraction.transientTexts;
+    let takeawaysFiltered = 0;
+    if (countryIso2 === "ru" || countryIso2 === "ua") {
+      const keep = extraction.takeaways.map((t) => {
+        const th = classifyTakeawayTheater(t.toponyms);
+        return th === "both" || th === countryIso2;
+      });
+      takeawaysFiltered = keep.filter((k) => !k).length;
+      takeaways = extraction.takeaways
+        .filter((_, i) => keep[i])
+        .map((t, i) => ({ ...t, index: i }));
+      transientTexts = extraction.transientTexts.filter((_, i) => keep[i]);
+      if (takeaways.length === 0)
+        return { error: `all ${extraction.takeaways.length} takeaways off-theater for ${countryIso2}` };
+    }
 
     const publishedMatch = page.html.match(/"datePublished":"([^"]+)"/);
     const iswPublishedAt = publishedMatch ? new Date(publishedMatch[1]) : null;
@@ -124,9 +148,13 @@ export async function validateDigest(
       : scoreDigest(takeaways, claims, iswPublishedAt);
     const matcher = matches ? "llm" : "keyword";
 
-    // store derived signatures on the report (keywords only, no prose)
+    // store derived signatures on the report (keywords only, no prose) — the
+    // FULL unfiltered extraction; theater filtering is per-validation-run
     await pool.query(`UPDATE isw_reports SET derived = $1 WHERE id = $2`, [
-      JSON.stringify({ takeaways, publishedAt: iswPublishedAt?.toISOString() ?? null }),
+      JSON.stringify({
+        takeaways: extraction.takeaways,
+        publishedAt: iswPublishedAt?.toISOString() ?? null,
+      }),
       report.id,
     ]);
 
@@ -145,7 +173,13 @@ export async function validateDigest(
         score.thinSourcedRate,
         score.timelinessHours,
         JSON.stringify(score.divergences),
-        JSON.stringify({ ...score.details, matcher }),
+        JSON.stringify({
+          ...score.details,
+          matcher,
+          theater: countryIso2,
+          takeawaysTotal: extraction.takeaways.length,
+          takeawaysFiltered,
+        }),
       ],
     );
 

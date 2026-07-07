@@ -160,6 +160,44 @@ describe("generateDigest end-to-end (stub provider, seeded corpus)", () => {
   });
 });
 
+describe("/ask retrieval reliability weighting", () => {
+  it("orders same-day claims by confidence (mean source reliability)", async () => {
+    const client = await pool.connect();
+    let lowId: number, highId: number;
+    try {
+      await client.query("BEGIN");
+      const doc = await client.query(
+        `INSERT INTO raw_documents (adapter, content, content_hash, country_iso2)
+         VALUES ('manual', 'retrieval test doc', 'itest-retrieve-hash', 'ua') RETURNING id`,
+      );
+      const mk = async (text: string, conf: number) => {
+        const c = await client.query(
+          `INSERT INTO claims (country_id, text, claim_date, confidence)
+           VALUES ($1, $2, $3, $4) RETURNING id`,
+          [uaId, text, TEST_DATE, conf],
+        );
+        await client.query(
+          `INSERT INTO claim_sources (claim_id, raw_document_id) VALUES ($1, $2)`,
+          [c.rows[0].id, doc.rows[0].id],
+        );
+        return c.rows[0].id as number;
+      };
+      lowId = await mk("Zzyzxtest event reported by state media", 0.15);
+      highId = await mk("Zzyzxtest event geolocated independently", 0.92);
+      await client.query("COMMIT");
+    } finally {
+      client.release();
+    }
+
+    const { retrieve } = await import("../lib/ask/retrieve");
+    const r = await retrieve("what happened in zzyzxtest?");
+    const ids = r.claims.map((c) => c.claimId);
+    expect(ids).toContain(lowId!);
+    expect(ids).toContain(highId!);
+    expect(ids.indexOf(highId!)).toBeLessThan(ids.indexOf(lowId!));
+  });
+});
+
 describe("scoreDigest end-to-end on the saved ISW fixture", () => {
   it("parses the fixture and scores a synthetic digest against it", async () => {
     const { parseReport } = await import("../lib/isw/parse");

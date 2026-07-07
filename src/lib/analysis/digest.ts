@@ -61,11 +61,11 @@ export async function generateDigest(
       return null;
     }
 
-    // 1b. track lexicon prefilter (elite politics: courts/siloviki/elite-churn terms)
-    const trackRows = trackCfg.lexicon
-      ? docRows.filter((d) =>
-          trackCfg.lexicon!.test(`${d.title ?? ""} ${d.content}`.slice(0, 1500)),
-        )
+    // 1b. track lexicon prefilter (elite politics: courts/siloviki/elite-churn
+    // terms; theater variants override — e.g. Iran military's proxy/maritime set)
+    const lexicon = trackCfg.lexiconByCountry?.[countryIso2] ?? trackCfg.lexicon;
+    const trackRows = lexicon
+      ? docRows.filter((d) => lexicon.test(`${d.title ?? ""} ${d.content}`.slice(0, 1500)))
       : docRows;
     if (trackRows.length === 0) {
       console.warn(`digest ${countryIso2} ${date} ${track}: no track-relevant documents`);
@@ -95,7 +95,7 @@ export async function generateDigest(
     // 3. analyze
     const provider = await getProvider();
     const analysis = await provider.analyze(countryIso2, date, docs, {
-      systemPrompt: trackCfg.systemPrompt,
+      systemPrompt: trackCfg.systemPromptByCountry?.[countryIso2] ?? trackCfg.systemPrompt,
       track,
     });
 

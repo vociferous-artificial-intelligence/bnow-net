@@ -99,6 +99,34 @@ export const sources = pgTable(
   ],
 );
 
+// Per-theater registry aggregates: a source's citation/hedging profile in ONE
+// reference corpus (ru = ROCA, ir = Iran Update). The global columns on `sources`
+// aggregate across all theaters; theater pages and detail-page breakdowns read
+// from here. Recomputed wholesale by scripts/registry-materialize.ts.
+export const sourceTheaterStats = pgTable(
+  "source_theater_stats",
+  {
+    sourceId: integer("source_id")
+      .notNull()
+      .references(() => sources.id, { onDelete: "cascade" }),
+    theater: text("theater").notNull(), // ru|ir
+    citationCount: integer("citation_count").notNull().default(0),
+    firstCitedReportDate: date("first_cited_report_date"),
+    lastCitedReportDate: date("last_cited_report_date"),
+    hedgingConfirmed: integer("hedging_confirmed").notNull().default(0),
+    hedgingClaimed: integer("hedging_claimed").notNull().default(0),
+    hedgingUnverified: integer("hedging_unverified").notNull().default(0),
+    hedgingAssessed: integer("hedging_assessed").notNull().default(0),
+    hedgingUnknown: integer("hedging_unknown").notNull().default(0),
+    reliabilityScore: doublePrecision("reliability_score"),
+    decayed: boolean("decayed").notNull().default(false),
+  },
+  (t) => [
+    primaryKey({ columns: [t.sourceId, t.theater] }),
+    index("source_theater_stats_theater_idx").on(t.theater),
+  ],
+);
+
 export const iswReports = pgTable(
   "isw_reports",
   {
