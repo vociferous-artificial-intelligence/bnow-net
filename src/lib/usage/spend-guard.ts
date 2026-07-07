@@ -4,7 +4,11 @@
 // cap env var is unset. Usage persists to provider_usage (one row per UTC day)
 // so caps hold across serverless invocations and sessions.
 
-import { rawSql } from "@/db";
+// @/db requires DATABASE_URL at module load; import it lazily so pure
+// consumers (unit tests, parsers) can import guard logic without a DB.
+async function sql() {
+  return (await import("@/db")).rawSql;
+}
 
 export interface SpendGuardConfig {
   provider: string;
@@ -107,7 +111,7 @@ export class SpendGuard {
 /** Production store backed by provider_usage. */
 export const pgUsageStore: UsageStore = {
   async load(provider, dayIso) {
-    const rows = (await rawSql.query(
+    const rows = (await (await sql()).query(
       `SELECT coalesce(sum(est_usd), 0)::float AS total_usd,
               coalesce(sum(est_usd) FILTER (WHERE day = $2), 0)::float AS day_usd,
               coalesce(sum(requests) FILTER (WHERE day = $2), 0)::int AS day_requests
@@ -118,7 +122,7 @@ export const pgUsageStore: UsageStore = {
     return { totalUsd: r.total_usd, dayUsd: r.day_usd, dayRequests: r.day_requests };
   },
   async record(provider, dayIso, requests, units, usd) {
-    await rawSql.query(
+    await (await sql()).query(
       `INSERT INTO provider_usage (provider, day, requests, units, est_usd)
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (provider, day) DO UPDATE SET
@@ -152,7 +156,7 @@ export function envCap(name: string): number | null {
 export async function loadProviderState<T extends Record<string, unknown>>(
   provider: string,
 ): Promise<T | null> {
-  const rows = (await rawSql.query(`SELECT state FROM provider_state WHERE provider = $1`, [
+  const rows = (await (await sql()).query(`SELECT state FROM provider_state WHERE provider = $1`, [
     provider,
   ])) as Array<{ state: T }>;
   return rows[0]?.state ?? null;
@@ -162,7 +166,7 @@ export async function saveProviderState(
   provider: string,
   state: Record<string, unknown>,
 ): Promise<void> {
-  await rawSql.query(
+  await (await sql()).query(
     `INSERT INTO provider_state (provider, state) VALUES ($1, $2)
      ON CONFLICT (provider) DO UPDATE SET state = EXCLUDED.state, updated_at = now()`,
     [provider, JSON.stringify(state)],

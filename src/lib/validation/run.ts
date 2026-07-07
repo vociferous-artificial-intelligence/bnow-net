@@ -142,11 +142,13 @@ export async function validateDigest(
 
     // semantic matching when a key is live; keyword gazetteer otherwise.
     // ISW texts are transient prompt inputs only — never persisted (§8.6).
-    const matches = await llmMatchTakeaways(transientTexts, claims);
-    const score = matches
-      ? scoreDigestWithMatches(takeaways, claims, iswPublishedAt, matches)
+    // Default is majority voting over MATCH_VOTES rounds (OPEN-TASKS #15);
+    // per-vote detail lands in details.votes for auditability.
+    const outcome = await llmMatchTakeaways(transientTexts, claims);
+    const score = outcome
+      ? scoreDigestWithMatches(takeaways, claims, iswPublishedAt, outcome.matches)
       : scoreDigest(takeaways, claims, iswPublishedAt);
-    const matcher = matches ? "llm" : "keyword";
+    const matcher = outcome?.matcher ?? "keyword";
 
     // store derived signatures on the report (keywords only, no prose) — the
     // FULL unfiltered extraction; theater filtering is per-validation-run
@@ -179,6 +181,7 @@ export async function validateDigest(
           theater: countryIso2,
           takeawaysTotal: extraction.takeaways.length,
           takeawaysFiltered,
+          ...(outcome?.votes ? { votes: outcome.votes, voteRounds: outcome.voteRounds } : {}),
         }),
       ],
     );
