@@ -13,7 +13,7 @@ import type { RawDoc, SourceAdapter } from "./types";
 
 const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/126 Safari/537.36";
 
-export interface ProcurementDoc extends RawDoc {}
+export type ProcurementDoc = RawDoc;
 
 /** Parse a zakupki extended-search results HTML page into RawDocs. */
 export function parseSearchResults(html: string, keyword: string): RawDoc[] {

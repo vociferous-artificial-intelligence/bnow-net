@@ -9,6 +9,17 @@ export const dynamic = "force-dynamic";
 // YESTERDAY (idempotent upserts): today's digest fills in as the day progresses,
 // yesterday's becomes the complete-day report — and is final before the 07:00 UTC
 // validation run. ?date=yyyy-mm-dd overrides (single date); ?country / ?track narrow.
+//
+// ?group=core|gulf splits the matrix across two cron entries: the full serial run
+// (2 dates x ~7 countries x 3 tracks) measured ~6 min wall-clock on 2026-07-07 —
+// TPM-throttled LLM calls put a single RU military digest at ~3m40s — and a run
+// that dies silently drops whichever theaters sort last (ua lost a today-digest).
+// core = ru+ua (heavy, flagship, validated); gulf = every other active theater.
+const GROUPS: Record<string, (iso2: string) => boolean> = {
+  core: (c) => c === "ru" || c === "ua",
+  gulf: (c) => c !== "ru" && c !== "ua",
+};
+
 export async function GET(req: NextRequest) {
   const auth = req.headers.get("authorization");
   if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -20,6 +31,7 @@ export async function GET(req: NextRequest) {
   const dates = dateParam ? [dateParam] : [yesterday, today];
 
   const country = req.nextUrl.searchParams.get("country");
+  const group = req.nextUrl.searchParams.get("group");
   let countries: string[];
   if (country) {
     countries = [country];
@@ -33,6 +45,7 @@ export async function GET(req: NextRequest) {
     } finally {
       await pool.end();
     }
+    if (group && GROUPS[group]) countries = countries.filter(GROUPS[group]);
   }
 
   const trackParam = req.nextUrl.searchParams.get("track");

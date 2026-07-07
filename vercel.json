@@ -9,8 +9,12 @@
       "schedule": "10 * * * *"
     },
     {
-      "path": "/api/cron/digest",
+      "path": "/api/cron/digest?group=core",
       "schedule": "30 0,6,12,18 * * *"
+    },
+    {
+      "path": "/api/cron/digest?group=gulf",
+      "schedule": "50 0,6,12,18 * * *"
     },
     {
       "path": "/api/cron/validate",

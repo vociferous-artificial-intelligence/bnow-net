@@ -133,8 +133,9 @@ export default async function DigestPage({
     sig.conf.set(r.claim_id, r.confidence);
   }
 
-  // build the profile-ranked event order per digest
-  const nowMs = Date.now();
+  // build the profile-ranked event order per digest — recency anchored to the digest's
+  // own end-of-day, not the wall clock, so a past digest renders stably forever
+  const nowMs = new Date(`${date}T23:59:59Z`).getTime();
   const rankedOrder = new Map<number, number[]>(); // digestId -> ordered eventIds
   for (const [digestId, events] of byDigest) {
     const track = trackByDigest.get(digestId) ?? "military";
