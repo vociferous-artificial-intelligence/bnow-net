@@ -18,3 +18,26 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm run lint
       - run: npm test
+
+  # DB integration tests on a disposable Neon branch. Runs only when the Neon
+  # secrets are configured in the repo; skips cleanly otherwise.
+  integration:
+    runs-on: ubuntu-latest
+    env:
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: integration tests (skipped if Neon secrets absent)
+        run: |
+          if [ -z "$NEON_API_KEY" ]; then
+            echo "NEON_API_KEY not configured — skipping integration tests"
+            exit 0
+          fi
+          npm run test:integration
