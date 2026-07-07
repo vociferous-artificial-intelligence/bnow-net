@@ -232,3 +232,14 @@ Continuing into Stage 7 (deepen) with remaining weekend time.
   confidence-ordered (was recency-only).
 - source_theater_stats: 10,583 rows (ru 6,985 / ir 3,598); zombie ME sources 1,574 → 0;
   registry detail shows per-corpus stats. TASK-3-REVIEW.md.
+
+## 2026-07-07 — Hardening: Tasks 4+5 — operator handoff + status report; session wrap
+
+- AnthropicProvider added to the provider seam (fetch-based, defensive parsing);
+  getProvider auto-selects when only ANTHROPIC_API_KEY exists.
+- SETUP-NEXT-WEEK.md rewritten: one ordered checklist (13 actions + optionals), each
+  with env var/source/cost/unlock; 10-minute smoke-test script.
+- STATUS-REPORT.md written for Gregory: current metrics, hardening before/afters,
+  honest weaknesses, top-5 next moves (X API first).
+- Definition of done: all 6 hardening tasks complete; 137 unit + 6 integration tests
+  green; deployed.

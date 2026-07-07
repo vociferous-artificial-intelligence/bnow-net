@@ -80,8 +80,17 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
   badged), regional/ethnic-republic + semi-official sources, data-dark tracker
   (/datadark), procurement watcher (wired, zakupki blocked). Postmark email LIVE;
   auth gate ON (digests/registry/entities). Gulf wave: ru ua ir sa ae qa om active.
-- Stubbed: MTProto, X, ACLED (fixtures); Stripe flagged off; OpenSanctions + zakupki
-  need key/proxy (BLOCKERS 2026-07-06); Resend superseded by Postmark.
+- Hardening pass (2026-07-06/07): original brief authoritative; stub data unreachable
+  on all user surfaces (3-layer defense + integration test); digest cron split
+  core/gulf; CI + pre-push gate + Neon-branch integration tests; /ask capped
+  (20/user/day, $1/day global, usage logged); entities 293→~97 clean; per-theater
+  validation filtering; Iran military theater prompt (coverage off 0%);
+  /ask reliability-ordered; source_theater_stats (ME zombies 0); Anthropic provider
+  in the seam. Reviews: docs/reviews/{AUDIT,TASK-1,TASK-2,TASK-3}-*.md.
+  Operator handoff: SETUP-NEXT-WEEK.md (rewritten); summary: STATUS-REPORT.md.
+- Stubbed: MTProto, X, ACLED (fixtures — NOT wired into prod ingest); Stripe flagged
+  off; OpenSanctions + zakupki need key/proxy (BLOCKERS 2026-07-06); Resend superseded
+  by Postmark (still on scenefiend domain — migration in SETUP-NEXT-WEEK).
 - Deploys: `npx vercel@latest deploy --prod --yes` (CLI 46 too old; machine session
   auth — env VERCEL_TOKEN expired). Deployment URLs SSO-walled; use project domain.
 - Local-host quirks: api.openai.com and api.gdeltproject.org TCP-unreachable from this
