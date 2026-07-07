@@ -1,0 +1,160 @@
+{
+  "tweets": [
+    {
+      "type": "tweet",
+      "id": "2074551544658153714",
+      "url": "https://x.com/sentdefender/status/2074551544658153714",
+      "twitterUrl": "https://twitter.com/sentdefender/status/2074551544658153714",
+      "text": "Despite recent reports that Kentucky Senator Mitch McConnell is “brain dead,” after being hospitalized weeks ago and not seen or heard from since, CNN contributor Scott Jennings has now claimed to have spoke with the senator this morning. Jennings doubled down on many people’s characterization of his condition,  by saying that he “He’s still recovering in the hospital.” Per Jennings, he spoke on a number of current issues, both domestic and international, with McConnell.",
+      "createdAt": "Tue Jul 07 17:50:06 +0000 2026",
+      "lang": "en",
+      "isReply": false,
+      "conversationId": "2074551544658153714",
+      "retweetCount": 63,
+      "likeCount": 521,
+      "viewCount": 133705,
+      "author": {
+        "userName": "sentdefender",
+        "id": "1457867047334031360",
+        "name": "OSINTdefender"
+      },
+      "retweeted_tweet": null,
+      "quoted_tweet": null
+    },
+    {
+      "type": "tweet",
+      "id": "2074501397337313467",
+      "url": "https://x.com/sentdefender/status/2074501397337313467",
+      "twitterUrl": "https://twitter.com/sentdefender/status/2074501397337313467",
+      "text": "New advisories from the United Kingdom Maritime Trade Operations (@UK_MTO) indicate two additional tankers were struck while transiting the Strait of Hormuz earlier today.\n\nAccording to the reports, one vessel was hit by an unknown projectile, while another was struck by a one-way attack drone. No casualties or pollution have been reported in either incident.\n\nThese latest attacks bring the number of commercial vessels reportedly struck in the Strait of Hormuz over the past 24 hours to four.",
+      "createdAt": "Tue Jul 07 14:30:50 +0000 2026",
+      "lang": "en",
+      "isReply": false,
+      "conversationId": "2074501397337313467",
+      "retweetCount": 67,
+      "likeCount": 335,
+      "viewCount": 87433,
+      "author": {
+        "userName": "sentdefender",
+        "id": "1457867047334031360",
+        "name": "OSINTdefender"
+      },
+      "retweeted_tweet": null,
+      "quoted_tweet": null
+    },
+    {
+      "type": "tweet",
+      "id": "2074480134468301270",
+      "url": "https://x.com/sentdefender/status/2074480134468301270",
+      "twitterUrl": "https://twitter.com/sentdefender/status/2074480134468301270",
+      "text": "During a press availability with Turkish President Recep Tayyip Erdoğan, U.S. President Donald J. Trump said that he’s “not worried” about the existence of Russian-made S-400 air defense systems in Turkey, as it relates to the possibility of a U.S. FMS of F-35s to Turkey. When asked about reports that said systems could be sent to a third party nation before such an FMS took place, President Trump appeared to be unaware of the potential framework, saying “in relation to what,” when asked about the reports.",
+      "createdAt": "Tue Jul 07 13:06:20 +0000 2026",
+      "lang": "en",
+      "isReply": false,
+      "conversationId": "2074480134468301270",
+      "retweetCount": 64,
+      "likeCount": 703,
+      "viewCount": 158864,
+      "author": {
+        "userName": "sentdefender",
+        "id": "1457867047334031360",
+        "name": "OSINTdefender"
+      },
+      "retweeted_tweet": null,
+      "quoted_tweet": null
+    },
+    {
+      "type": "tweet",
+      "id": "2074468672744149344",
+      "url": "https://x.com/CENTCOM/status/2074468672744149344",
+      "twitterUrl": "https://twitter.com/CENTCOM/status/2074468672744149344",
+      "text": "U.S. Sailors test a fighter jet engine aboard USS Abraham Lincoln (CVN 72). These tests help ensure jet engine safety and reliability. https://t.co/8Yg0p0IHFO",
+      "createdAt": "Tue Jul 07 12:20:48 +0000 2026",
+      "lang": "en",
+      "isReply": false,
+      "conversationId": "2074468672744149344",
+      "retweetCount": 160,
+      "likeCount": 1127,
+      "viewCount": 69551,
+      "author": {
+        "userName": "CENTCOM",
+        "id": "25159286",
+        "name": "U.S. Central Command"
+      },
+      "retweeted_tweet": null,
+      "quoted_tweet": null
+    },
+    {
+      "type": "tweet",
+      "id": "2074465578123763998",
+      "url": "https://x.com/sentdefender/status/2074465578123763998",
+      "twitterUrl": "https://twitter.com/sentdefender/status/2074465578123763998",
+      "text": "Following twin blasts in Damascus, Syria, that Syrian officials say likely targeted the security boundaries near the hotel where French President Emmanuel Macron was staying, President Macron has said that his visit to the nation, the first for a Western leader, will continue. https://t.co/ntjrXJze7u",
+      "createdAt": "Tue Jul 07 12:08:30 +0000 2026",
+      "lang": "en",
+      "isReply": false,
+      "conversationId": "2074465578123763998",
+      "retweetCount": 50,
+      "likeCount": 490,
+      "viewCount": 93938,
+      "author": {
+        "userName": "sentdefender",
+        "id": "1457867047334031360",
+        "name": "OSINTdefender"
+      },
+      "retweeted_tweet": null,
+      "quoted_tweet": null
+    },
+    {
+      "type": "tweet",
+      "id": "9000000000000000001",
+      "url": "https://x.com/CENTCOM/status/9000000000000000001",
+      "twitterUrl": null,
+      "text": "RT @some_orig: truncated preview of the original…",
+      "createdAt": "Tue Jul 07 10:00:00 +0000 2026",
+      "lang": "en",
+      "isReply": false,
+      "conversationId": "9000000000000000001",
+      "retweetCount": 1,
+      "likeCount": 0,
+      "viewCount": 10,
+      "author": {
+        "userName": "CENTCOM",
+        "id": "x",
+        "name": "U.S. Central Command"
+      },
+      "retweeted_tweet": {
+        "id": "8000000000000000001",
+        "text": "[synthetic test fixture] full original text of the retweeted post, untruncated.",
+        "createdAt": "Tue Jul 07 09:00:00 +0000 2026",
+        "author": {
+          "userName": "some_orig"
+        }
+      },
+      "quoted_tweet": null
+    },
+    {
+      "type": "tweet",
+      "id": "9000000000000000002",
+      "url": "https://x.com/sentdefender/status/9000000000000000002",
+      "twitterUrl": null,
+      "text": "[synthetic test fixture] Українські сили повідомляють про обстріли поблизу Харкова сьогодні вранці.",
+      "createdAt": "Tue Jul 07 11:30:00 +0000 2026",
+      "lang": "uk",
+      "isReply": false,
+      "conversationId": "9000000000000000002",
+      "retweetCount": 2,
+      "likeCount": 5,
+      "viewCount": 100,
+      "author": {
+        "userName": "sentdefender",
+        "id": "y",
+        "name": "OSINTdefender"
+      },
+      "retweeted_tweet": null,
+      "quoted_tweet": null
+    }
+  ],
+  "has_next_page": true,
+  "next_cursor": "DAADDAABCgABHMpJo2-WUPIKAAIcyTagoBoxVAAIAAIAAAACCAADAAAAAAgABAAAAAAKAAUcyl-HyEAnEAoABhzKX4fIP9jwAAA"
+}

@@ -1,0 +1,96 @@
+{
+  "status": "success",
+  "code": 0,
+  "msg": "success",
+  "data": {
+    "pin_tweet": null,
+    "tweets": [
+      {
+        "type": "tweet",
+        "id": "2074468672744149344",
+        "url": "https://x.com/CENTCOM/status/2074468672744149344",
+        "twitterUrl": "https://twitter.com/CENTCOM/status/2074468672744149344",
+        "text": "U.S. Sailors test a fighter jet engine aboard USS Abraham Lincoln (CVN 72). These tests help ensure jet engine safety and reliability. https://t.co/8Yg0p0IHFO",
+        "createdAt": "Tue Jul 07 12:20:48 +0000 2026",
+        "lang": "en",
+        "isReply": false,
+        "conversationId": "2074468672744149344",
+        "retweetCount": 160,
+        "likeCount": 1127,
+        "viewCount": 69523,
+        "author": {
+          "userName": "CENTCOM",
+          "id": "25159286",
+          "name": "U.S. Central Command"
+        },
+        "retweeted_tweet": null,
+        "quoted_tweet": null
+      },
+      {
+        "type": "tweet",
+        "id": "2074125648671486116",
+        "url": "https://x.com/CENTCOM/status/2074125648671486116",
+        "twitterUrl": "https://twitter.com/CENTCOM/status/2074125648671486116",
+        "text": "A U.S. Marine Corps F-35C stealth fighter prepares to take off from USS Abraham Lincoln (CVN 72) in the Arabian Sea. https://t.co/KDAjwsNr7A",
+        "createdAt": "Mon Jul 06 13:37:44 +0000 2026",
+        "lang": "en",
+        "isReply": false,
+        "conversationId": "2074125648671486116",
+        "retweetCount": 364,
+        "likeCount": 2917,
+        "viewCount": 116334,
+        "author": {
+          "userName": "CENTCOM",
+          "id": "25159286",
+          "name": "U.S. Central Command"
+        },
+        "retweeted_tweet": null,
+        "quoted_tweet": null
+      },
+      {
+        "type": "tweet",
+        "id": "2073763031339737090",
+        "url": "https://x.com/CENTCOM/status/2073763031339737090",
+        "twitterUrl": "https://twitter.com/CENTCOM/status/2073763031339737090",
+        "text": "A U.S. Army paratrooper conducts marksmanship training while deployed to the Middle East. https://t.co/6ndmrA4y1A",
+        "createdAt": "Sun Jul 05 13:36:49 +0000 2026",
+        "lang": "en",
+        "isReply": false,
+        "conversationId": "2073763031339737090",
+        "retweetCount": 368,
+        "likeCount": 3356,
+        "viewCount": 114854,
+        "author": {
+          "userName": "CENTCOM",
+          "id": "25159286",
+          "name": "U.S. Central Command"
+        },
+        "retweeted_tweet": null,
+        "quoted_tweet": null
+      },
+      {
+        "type": "tweet",
+        "id": "2073391893770027130",
+        "url": "https://x.com/CENTCOM/status/2073391893770027130",
+        "twitterUrl": "https://twitter.com/CENTCOM/status/2073391893770027130",
+        "text": "Since America's founding, the nation's best have honorably served in uniform with the sacrifice and support of loved ones. Today, on America's 250th, we honor the millions who've deployed abroad, defended freedom, and proudly served across the CENTCOM theater. Happy 4th of July! 🇺🇸",
+        "createdAt": "Sat Jul 04 13:02:03 +0000 2026",
+        "lang": "en",
+        "isReply": false,
+        "conversationId": "2073391893770027130",
+        "retweetCount": 585,
+        "likeCount": 3005,
+        "viewCount": 104171,
+        "author": {
+          "userName": "CENTCOM",
+          "id": "25159286",
+          "name": "U.S. Central Command"
+        },
+        "retweeted_tweet": null,
+        "quoted_tweet": null
+      }
+    ]
+  },
+  "has_next_page": true,
+  "next_cursor": "DAADDAABCgABHMn-RFCXUWAKAAIcvYMsydcQagAIAAIAAAACCAADAAAAAAgABAAAAAAKAAUcyl92rIAnEAoABhzKX3asf9jwAAA"
+}

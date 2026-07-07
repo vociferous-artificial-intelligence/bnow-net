@@ -526,3 +526,30 @@ export const askUsage = pgTable(
     index("ask_usage_created_idx").on(t.createdAt),
   ],
 );
+
+// ---------- paid-provider budget accounting ----------
+
+// One row per (provider, UTC day): request/unit counts + estimated spend.
+// Spend guards (src/lib/usage/spend-guard.ts) read these to enforce per-day and
+// total caps BEFORE each paid call — fail-closed when a cap env var is unset.
+export const providerUsage = pgTable(
+  "provider_usage",
+  {
+    id: serial("id").primaryKey(),
+    provider: text("provider").notNull(), // x_api | opensanctions | ...
+    day: date("day").notNull(), // UTC day
+    requests: integer("requests").notNull().default(0),
+    units: integer("units").notNull().default(0), // tweets returned / match calls / ...
+    estUsd: doublePrecision("est_usd").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("provider_usage_provider_day_idx").on(t.provider, t.day)],
+);
+
+// Tiny per-provider state (poll watermarks etc.) so incremental fetchers survive
+// serverless restarts without refetching (and re-paying for) covered windows.
+export const providerState = pgTable("provider_state", {
+  provider: text("provider").primaryKey(),
+  state: jsonb("state").notNull().default({}),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

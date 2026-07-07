@@ -7,7 +7,11 @@ import { ProcurementAdapter } from "../adapters/procurement";
 import { RssAdapter } from "../adapters/rss";
 import { TelegramWebAdapter } from "../adapters/telegram-web";
 import type { RawDoc } from "../adapters/types";
+import { XApiAdapter, registryXAccounts, xGuardFromEnv } from "../adapters/x-api";
+import { envNum } from "../usage/spend-guard";
 import { REGISTRY_TELEGRAM_TOP_N, RSS_FEEDS, TELEGRAM_CURATED } from "./config";
+
+export type IngestWhich = "fast" | "telegram" | "x" | "all";
 
 export function contentHash(d: RawDoc): string {
   return createHash("sha256")
@@ -47,14 +51,22 @@ export interface IngestStats {
 
 /** Adapters for a production ingest run. Fixture stubs (telegram_mtproto/x/acled)
  *  are deliberately NOT included: stub content must never enter the corpus. When
- *  their real implementations land (keys in BLOCKERS.md), they get added here. */
+ *  their real implementations land (keys in BLOCKERS.md), they get added here.
+ *  x_api (paid) runs ONLY on its own explicit group — never inside "all" — so
+ *  a casual local `tsx scripts/ingest.ts` cannot spend money, and its cron
+ *  can't starve rss/telegram. */
 export async function buildIngestAdapters(
-  which: "fast" | "telegram" | "all",
+  which: IngestWhich,
 ): Promise<Array<{ name: string; fetchLatest(): Promise<RawDoc[]>; live?: boolean }>> {
   const adapters: Array<{ name: string; fetchLatest(): Promise<RawDoc[]>; live?: boolean }> = [];
   if (which === "fast" || which === "all") {
     adapters.push(new RssAdapter(RSS_FEEDS), new GdeltAdapter(["ru", "ua"]));
     adapters.push(new ProcurementAdapter());
+  }
+  if (which === "x") {
+    const topN = envNum("X_ACCOUNTS_TOP_N", 0);
+    const accounts = await registryXAccounts(topN > 0 ? topN : undefined);
+    adapters.push(new XApiAdapter(accounts, xGuardFromEnv()));
   }
   if (which === "telegram" || which === "all") {
     const curated = TELEGRAM_CURATED;
@@ -69,7 +81,7 @@ export async function buildIngestAdapters(
   return adapters;
 }
 
-export async function runIngest(which: "fast" | "telegram" | "all" = "all"): Promise<IngestStats[]> {
+export async function runIngest(which: IngestWhich = "all"): Promise<IngestStats[]> {
   const stats: IngestStats[] = [];
   const adapters = await buildIngestAdapters(which);
 
