@@ -1,101 +1,197 @@
-# SETUP-NEXT-WEEK — Gregory's Monday checklist
+# SETUP-NEXT-WEEK — the operator checklist
 
-Ordered. Each step says what to do, which env var it fills, and what you should see
-afterward. The app is live and self-sufficient without any of these — they unlock
-quality (LLM digests), reach (email/domain), and revenue (Stripe).
+Rewritten 2026-07-07 (hardening session). One ordered list of every known operator
+action. The app is live and self-sufficient without any of these — they unlock coverage,
+quality, deliverability, and revenue. Do them top-to-bottom; each says the env var,
+where to get it, cost, and what it unlocks. Finish with the smoke test at the bottom.
 
-## 0. Five-minute orientation
+Orientation: live app **https://bnow-net.vercel.app** (Vercel `bnow-net`, team
+`vociferous`) · DB: Neon project **bnow** (`crimson-wave-84127605`, us-east-1, PG17) ·
+state: `AGENTS.md` · blockers detail: `docs/BLOCKERS.md` · plain-language summary:
+`docs/STATUS-REPORT.md`.
 
-- Live app: **https://bnow-net.vercel.app** (Vercel project `bnow-net`, team `vociferous`)
-- DB: Neon project **bnow** (`crimson-wave-84127605`, us-east-1, PG17)
-- Read `AGENTS.md` → current state + decision log, `docs/BLOCKERS.md` → everything below.
-- Repo has an original-brief gap: `docs/PRODUCT-BRIEF.md` is **reconstructed** — drop in
-  the real brief and diff (Blocker #1).
+Adding any env var to production: `npx vercel env add <NAME> production` then redeploy
+(`npx vercel@latest deploy --prod --yes`). Also mirror into `.env.local` for scripts.
 
-## 1. Restore LLM analysis (highest product impact, ~10 min)
+---
 
-The pipeline ran real LLM digests until the OpenAI account's credit died (Blocker #9).
-Everything since uses the extractive stub — works, but quotes rather than synthesizes;
-scoreboard coverage jumps when a real provider returns.
+## 1. LLM credit watch — $0, 5 min, keeps everything running
 
-Option A (fastest): add credits at platform.openai.com/settings/organization/billing.
-Option B (preferred per original plan): get `ANTHROPIC_API_KEY` at console.anthropic.com
-   → then implement `anthropic` provider behind `src/lib/analysis/provider.ts` (seam is
-   ready; ~1h with tests).
+| | |
+|---|---|
+| Env var | `OPENAI_API_KEY` (already live) |
+| Where | platform.openai.com/settings/organization/billing |
+| Cost | gpt-4o-mini usage — whole backtest cost ≈ $2; ~$0.50/day steady state |
+| Unlocks | everything: digests, validation matching, /ask, entity audit |
 
-Then:
-```bash
-npx vercel env rm ANALYSIS_PROVIDER production   # removes the stub override
-# regenerate recent digests with the LLM (any window you want):
-set -a; source .env.local; set +a
-curl -H "Authorization: Bearer $CRON_SECRET" "https://bnow-net.vercel.app/api/cron/digest?date=2026-07-05"
-curl -H "Authorization: Bearer $CRON_SECRET" "https://bnow-net.vercel.app/api/cron/validate?date=2026-07-05"
-```
-**Expect:** /digests/... shows synthesized English claims with multi-doc citations;
-scoreboard coverage on new days rises well above stub baseline (7.8% avg).
+The account died once mid-weekend and everything silently degraded to the extractive
+stub. Check the balance; set an auto-recharge or a billing alert.
+**Alternative now supported:** put `ANTHROPIC_API_KEY` (console.anthropic.com) in prod —
+the provider seam auto-uses Claude (`claude-sonnet-5` default, `ANTHROPIC_MODEL` to
+override) when no OpenAI key exists, or force it with `ANALYSIS_PROVIDER=anthropic`.
 
-## 2. Point bnow.net at Vercel (~10 min + DNS propagation)
+## 2. Fresh VERCEL_TOKEN — $0, 5 min
 
-1. Vercel dashboard → bnow-net → Settings → Domains → add `bnow.net` + `www.bnow.net`.
-2. At your registrar: `A @ 76.76.21.21` and `CNAME www cname.vercel-dns.com` (Vercel
-   shows exact records after you add the domain).
-3. Set env `NEXT_PUBLIC_SITE_URL=https://bnow.net` (production) — used in email links.
-**Expect:** https://bnow.net serves the landing page with a cert within ~30 min.
+| | |
+|---|---|
+| Env var | `VERCEL_TOKEN` (local `.env.local` + GitHub Actions secret if CI deploys) |
+| Where | vercel.com/account/tokens |
+| Cost | $0 |
+| Unlocks | scripted/CI deploys; the old token (scenefiend env) is expired — weekend deploys used the machine's CLI session |
 
-## 3. Fresh VERCEL_TOKEN (5 min — CI/automation only)
+Verify: `npx vercel whoami --token $VERCEL_TOKEN` → `go-vociferous`.
 
-The token in scenefiend's env is expired (Blocker #2); this weekend deployed via the
-machine's CLI session. vercel.com/account/tokens → create → put in `.env.local` as
-`VERCEL_TOKEN`. **Expect:** `vercel whoami --token $VERCEL_TOKEN` prints go-vociferous.
+## 3. bnow.net DNS + domain attach — ~$0, 10 min + propagation
 
-## 4. Telegram MTProto (~20 min, big ingestion upgrade)
+| | |
+|---|---|
+| Env var | `NEXT_PUBLIC_SITE_URL=https://bnow.net` (production) |
+| Where | Vercel dashboard → bnow-net → Settings → Domains → add `bnow.net` + `www` ; registrar: `A @ 76.76.21.21`, `CNAME www cname.vercel-dns.com` |
+| Cost | domain already owned |
+| Unlocks | real brand URL in emails/shares; prerequisite for Postmark migration (step 4) |
 
-my.telegram.org → API development tools → create app → `TELEGRAM_API_ID`,
-`TELEGRAM_API_HASH` into `.env.local` + `vercel env add` (production).
-Real adapter to implement behind `src/lib/adapters/stubs.ts` seam (GramJS; interface
-ready). Until then t.me/s/ web scraping covers the top ~25 channels hourly.
-**Expect after implementing:** /admin/ingest shows `telegram_mtproto` doc counts
-climbing; channels with disabled previews (some MoD channels) start flowing.
+## 4. Postmark sending identity → bnow.net — $0, 20 min
 
-## 5. Resend (~10 min)
+Email is LIVE but borrowing the scenefiend Postmark domain — magic links and digests
+send from scenefiend's identity. After step 3:
 
-resend.com → add domain bnow.net (SPF/DKIM records) → `RESEND_API_KEY`, 
-`EMAIL_FROM="BNOW.NET <digest@bnow.net>"` in Vercel env.
-**Expect:** magic-link sign-in emails deliver; `scripts/email-digest.ts` sends instead
-of writing to `data/outbox/`.
+1. Postmark dashboard → Sender Signatures / Domains → add `bnow.net`.
+2. Add the DKIM + Return-Path DNS records Postmark shows at the registrar; verify.
+3. Update prod env: `POSTMARK_FROM_EMAIL="BNOW.NET <digest@bnow.net>"` (keep
+   `POSTMARK_SERVER_TOKEN`/`POSTMARK_MESSAGE_STREAM`; a bnow-dedicated server token in
+   the same account is cleaner — create server → swap token).
+4. Redeploy; sign in once end-to-end.
 
-## 6. Stripe (~30 min)
+Cost: Postmark free tier 100 emails/mo, then $15/mo. Unlocks: deliverability +
+brand-correct sender. (Resend remains a supported alternative in the seam.)
 
-1. dashboard.stripe.com → create products matching `plans` table: standby $400/mo,
+## 5. Telegram MTProto — $0, 20 min + ~1h adapter work
+
+| | |
+|---|---|
+| Env vars | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` |
+| Where | my.telegram.org → API development tools |
+| Cost | $0 |
+| Unlocks | full-history backfill + channels with disabled web previews (several MoD/milblogger channels the current t.me/s/ scraper cannot read). Interface ready (`SourceAdapter`); implement with GramJS behind it |
+
+## 6. X API — paid; the single biggest coverage unlock
+
+| | |
+|---|---|
+| Env var | `X_BEARER_TOKEN` |
+| Where | developer.x.com (Basic tier $200/mo) |
+| Cost | $200/mo (Basic, 15K reads/mo) — start here, upgrade only if rate-limited |
+| Unlocks | **166 X accounts ISW cited in the last 90 days** that we currently cannot read at all. Citation-weighted source parity is ~51%; the missing half is mostly X. Registry knows exactly which accounts to poll |
+
+## 7. OpenSanctions key — commercial, prices on request
+
+| | |
+|---|---|
+| Env var | `OPENSANCTIONS_API_KEY` |
+| Where | opensanctions.org/api/ (register; commercial use is paid, bulk data is non-commercial-only) |
+| Cost | from ~€ low hundreds/mo (their pricing) |
+| Unlocks | REAL sanctions/PEP badges on /entities (stub data no longer renders anything — hardened 2026-07-06). After adding: `curl -H "Authorization: Bearer $CRON_SECRET" "https://bnow-net.vercel.app/api/cron/enrich?refresh=1"` |
+
+## 8. Companies House key — $0, 10 min
+
+| | |
+|---|---|
+| Env var | `COMPANIES_HOUSE_API_KEY` |
+| Where | developer.company-information.service.gov.uk (free registration) |
+| Cost | $0 |
+| Unlocks | real UK officer/PSC ownership edges on entity pages (stub edges no longer render). After adding: `.../api/cron/enrich?only=ownership&refresh=1` |
+
+## 9. UN Comtrade key — $0 (free tier), 10 min
+
+| | |
+|---|---|
+| Env var | `COMTRADE_API_KEY` |
+| Where | comtradeplus.un.org → register → subscription key |
+| Cost | free tier fine; premium only if volume demands |
+| Unlocks | higher rate limits + monthly-frequency pulls for /trade mirror-flow analysis and /critical-materials (currently keyless preview: 1 period/call, annual only) |
+
+## 10. Stripe activation — $0 setup, ~30 min
+
+1. dashboard.stripe.com → products matching the `plans` table: standby $400/mo,
    full_monthly $3,000/mo, full_annual $19,800/yr.
-2. `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and per-plan price ids into
-   `plans.stripe_price_id` (SQL update) + Vercel env.
-3. Build checkout route behind the flag, then `FEATURE_STRIPE=true`.
-**Expect:** /pricing buttons become live checkout. Intent list to convert manually:
-`SELECT * FROM subscribe_intents ORDER BY created_at;`
+2. Env: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`; put per-plan price ids into
+   `plans.stripe_price_id` (SQL UPDATE).
+3. Build the checkout route behind the flag, then set `FEATURE_STRIPE=true`.
+4. Waiting buyers: `SELECT * FROM subscribe_intents ORDER BY created_at;`
 
-## 7. Optional keys
+Note from the original brief (§6.5): sell **regional bundles** and annual-first pricing;
+see OPEN-TASKS #12 before finalizing the Stripe catalog.
 
-- **ACLED** (acleddata.com/register → `ACLED_API_KEY`, `ACLED_EMAIL`): event data
-  cross-check in validation.
-- **X API** (developer.x.com, paid): only if the ~1,300 registry X sources justify it.
-- **GDELT**: no key needed — API was flaky all weekend (Blocker #10); check
-  /admin/ingest for a `gdelt` row appearing on its own.
+## 11. zakupki.gov.ru access — the highest-value blocked RU source
 
-## 8. Weekend-debt worth knowing about
+zakupki (state procurement: fortifications/drones/graves tenders) is unreachable from
+both the build host and Vercel egress; the adapter is complete and returns [] until a
+path exists. Options, in preference order:
+1. **RU-region or residential proxy** (e.g. a commercial residential-proxy service,
+   ~$10-50/mo) — set it up as an HTTP proxy the adapter can use (small code change).
+2. Commercial zakupki mirror/API (several RU-market data vendors resell it).
+3. The official OpenData FTP dumps (ftp.zakupki.gov.ru), if reachable from a proxy.
 
-- 37/1,577 ISW pages unparsed (year-less titles etc.) — fix path in PHASE0-FEASIBILITY.md.
-- Registry has no per-source country column yet; UA-channel tagging is via language.
-- Validation matcher is keyword-based; LLM matching upgrade rides on step 1B.
-- Local WSL2 box cannot reach api.openai.com / api.gdeltproject.org (TCP timeouts) —
-  anything LLM runs through Vercel; keep it that way or fix WSL networking (MTU?).
+## 12. Legal: sanctions-exposure counsel review — from the brief (§8.6)
 
-## 9. Signing in while Resend is absent (added 2026-07-05)
+Handling Russian state-media content may carry sanctions exposure. Get a counsel review
+of ingesting/processing RU state-media (TASS, RIA via TG, Press TV) before charging
+customers. One-time; also covers the ISW-derived-data posture (we store citations +
+classifications, never prose — see AGENTS.md legal invariant).
 
-Core content is now login-gated (FEATURE_AUTH_GATE=true). Until the Resend key exists,
-magic links are printed to the server log instead of emailed:
-1. https://bnow-net.vercel.app/signin → enter your email → "Email me a sign-in link".
-2. `npx vercel@latest logs bnow-net` (or Vercel dashboard → Logs) → copy the
-   `[auth] magic link for <you>: https://…` URL → open it. Session lasts 30 days.
-- Gate off temporarily: `vercel env rm FEATURE_AUTH_GATE production` + redeploy.
-- Admin allowlist: ADMIN_EMAILS (currently go@vociferous.nyc) guards /admin.
+## 13. Push to GitHub → CI goes live — $0, 2 min
+
+The repo has a remote (github.com/vociferous-artificial-intelligence/bnow-net) but this
+box cannot reach GitHub (SSH egress blocked); 90+ commits are local-only. From any
+machine that can: `git push origin main`. That activates `.github/workflows/ci.yml`
+(typecheck+lint+test on every push/PR). Optional secrets for the DB integration-test
+job: `NEON_API_KEY`, `NEON_PROJECT_ID`, `DATABASE_URL`. Local clones: run
+`git config core.hooksPath .githooks` once to get the enforced pre-push gate.
+
+## Optional / when needed
+
+- **ACLED** (`ACLED_API_KEY`, `ACLED_EMAIL` — acleddata.com/register, free for research):
+  secondary event-data validation baseline.
+- **GDELT**: no key; upstream flaky (blocker #10) — self-heals when their API recovers.
+- **sa (Saudi) feeds are dark** since Jul 5 (OPEN-TASKS #10) — needs a feed-health pass,
+  not a key.
+
+---
+
+## The 10-minute smoke test (run after EACH key you add)
+
+```bash
+cd ~/code/bnow.net && set -a && source .env.local && set +a
+BASE=https://bnow-net.vercel.app   # or https://bnow.net after step 3
+
+# 1. app up + public pages render
+curl -s -o /dev/null -w "landing %{http_code}\n"    $BASE/
+curl -s -o /dev/null -w "scoreboard %{http_code}\n" $BASE/scoreboard
+curl -s -o /dev/null -w "trade %{http_code}\n"      $BASE/trade
+
+# 2. crons authorized + healthy (also proves CRON_SECRET)
+curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/probe" | head -c 300; echo
+
+# 3. ingestion flowing (docs in the last 2h)
+npx tsx scripts/sqlq.ts "SELECT adapter, count(*) FROM raw_documents WHERE fetched_at > now() - interval '2 hours' GROUP BY 1"
+
+# 4. digest + validation freshness (yesterday should be present per active theater)
+npx tsx scripts/sqlq.ts "SELECT c.iso2, d.track, d.digest_date, d.provider FROM digests d JOIN countries c ON c.id=d.country_id WHERE d.digest_date >= (now() - interval '1 day')::date ORDER BY 3 DESC, 1"
+
+# 5. after an LLM key change: force one digest+validation and eyeball it
+curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/digest?country=ua&date=$(date -u -d yesterday +%F)" | head -c 400; echo
+curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/validate?date=$(date -u -d yesterday +%F)&country=ua" | head -c 400; echo
+
+# 6. after enrichment keys: refresh + check badges rendered from REAL data only
+curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/enrich?refresh=1"; echo
+
+# 7. full cron audit (all 8 crons, stub-contamination check)
+npx tsx scripts/audit-cron.ts
+
+# 8. gates still green locally
+npm test && npx tsc --noEmit && npm run lint
+```
+
+Expected: all 200s; ingest rows present; yesterday's digests exist for ru/ua/ir (+ gulf);
+enrich reports matched/sanctioned counts consistent with which keys exist; audit script
+shows every cron with recent evidence and **zero stub docs / zero claims citing them**.

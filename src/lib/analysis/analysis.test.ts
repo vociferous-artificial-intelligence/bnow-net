@@ -101,3 +101,15 @@ describe("detectLang Persian/Arabic", () => {
     expect(detectLang("Российские войска под Покровском продолжают наступление")).toBe("ru");
   });
 });
+
+describe("anthropic provider response parsing", () => {
+  it("parses plain JSON, fenced JSON, and rejects junk", async () => {
+    const { parseEventsJson } = await import("./anthropic-provider");
+    const ev = { title: "t", type: "strike", summary: "s", claims: [] };
+    expect(parseEventsJson(JSON.stringify({ events: [ev] }))).toHaveLength(1);
+    expect(parseEventsJson("```json\n" + JSON.stringify({ events: [ev] }) + "\n```")).toHaveLength(1);
+    expect(parseEventsJson("Sure! Here you go: " + JSON.stringify({ events: [ev] }))).toHaveLength(1);
+    expect(parseEventsJson("no json here")).toEqual([]);
+    expect(parseEventsJson('{"events": "not-an-array"}')).toEqual([]);
+  });
+});

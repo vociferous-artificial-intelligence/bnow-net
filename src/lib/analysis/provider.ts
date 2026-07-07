@@ -61,9 +61,17 @@ export async function getProvider(): Promise<AnalysisProvider> {
     const { StubProvider } = await import("./stub-provider");
     return new StubProvider();
   }
+  if (forced === "anthropic" && process.env.ANTHROPIC_API_KEY) {
+    const { AnthropicProvider } = await import("./anthropic-provider");
+    return new AnthropicProvider();
+  }
   if (process.env.OPENAI_API_KEY) {
     const { OpenAiProvider } = await import("./openai-provider");
     return new OpenAiProvider();
+  }
+  if (process.env.ANTHROPIC_API_KEY) {
+    const { AnthropicProvider } = await import("./anthropic-provider");
+    return new AnthropicProvider();
   }
   const { StubProvider } = await import("./stub-provider");
   return new StubProvider();
