@@ -35,8 +35,23 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
 15. ~~**LLM-matcher nondeterminism.**~~ ✅ 2026-07-07: majority-vote matching shipped
     (k=5, strict majority per takeaway↔claim, per-vote audit trail in
     details.votes, matcher records `llm-majority`). Reproducibility measured:
-    3 days rerun twice → identical coverage. Numbers in
+    26/27 country-day results identical over 3 full reruns. Numbers in
     docs/reviews/COVERAGE-SPRINT-RESULTS.md.
+
+### New (from the coverage sprint, 2026-07-07)
+
+16. **Source-mix quota in digest corpus selection.** X docs (top registry reliability)
+    monopolized the RU analysis batch after the X unlock (8–11 of every 9–12 claims cite
+    x_api) and displaced the telegram/RSS docs behind RU's best coverage days
+    (57.1→14.3, 50→16.7). Cap any single adapter at ~40% of the batch (or blend
+    reliability with source-type diversity), regenerate, re-measure. UA improved
+    (16.3→23.6) because its mix stayed balanced — the ceiling is higher with a quota.
+17. **OpenSanctions match hygiene.** Require ≥1 linked claim before spending a /match
+    call (orphan entities waste quota and invite name-collisions); render match score +
+    caption beside sanction/PEP badges. From the 1/5 spot-check flag ("Andrei Fedorov").
+18. **Truncation-retry watch.** Dense uk-language X corpora push gpt-4o-mini to
+    finish_reason=length; digest gen now retries at 50→25 docs. If the warning becomes
+    frequent, cap event count in the prompt or split extraction into two passes.
 
 ## Tier 3 — before enterprise/API sales
 

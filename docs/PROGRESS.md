@@ -285,3 +285,18 @@ in code (SpendGuard, fail-closed).
   (Saudi Gazette, Asharq EN); il revived (JPost, Ynet) + activated; bh/kw stay
   scaffolded (no working feed).
 - Coverage before/after with X corpus: see docs/reviews/COVERAGE-SPRINT-RESULTS.md.
+
+## 2026-07-07 22:20 UTC — Sprint close: coverage before/after measured
+
+- Pass A/B/C measurement complete (single-shot pre-X / majority pre-X / majority
+  with-X). UA 16.3→23.6 avg; RU 18.2→15.1 (X displacement diagnosed — reliability-
+  ordered corpus let x_api docs monopolize the RU batch; fix = source-mix quota,
+  OPEN-TASKS #16). Zero-coverage day-pairs 7/14→3/14; info-lead measurable 12/14.
+- Incident found+fixed during regen: silent LLM extraction failures (refusal/
+  finish_reason=length) could persist empty digests over good ones — two ua digests
+  wiped, then recovered after shipping: provider throws on bad output; generator
+  refuses empty-over-claims overwrite; truncation retries at 50→25 docs.
+- Vercel env note: sensitive-type vars pull as empty but read fine at runtime; X
+  daily cap raised to 2.5 (backfill day); serverless X path proven (663 fetched).
+- Full report: docs/reviews/COVERAGE-SPRINT-RESULTS.md. Spend: X $1.72/$5,
+  OpenSanctions 200/300 calls, LLM-match $0.035/$10.
