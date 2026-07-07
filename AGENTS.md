@@ -157,6 +157,17 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
   :50): serial matrix measured ~6 min (RU military digest alone 3m40s under TPM
   throttle); killed runs silently dropped last-sorting theaters. Audit:
   docs/reviews/AUDIT-2026-07-06.md.
+- **2026-07-06** CI: .github/workflows/ci.yml (typecheck+lint+test) activates on first
+  push; GitHub unreachable from this box, so the enforced local gate is
+  .githooks/pre-push via `git config core.hooksPath .githooks` (run once per clone).
+- **2026-07-06** /ask capped: ask_usage table logs every question (billing-ready);
+  ASK_USER_DAILY_LIMIT (20/day) + ASK_GLOBAL_DAILY_BUDGET_USD ($1/day) enforced in
+  askWithLimits() wrapping both the page and the API route.
+- **2026-07-06** Entity graph canonicalized 293 → 85: deterministic rules pass
+  (geography/collectives/objects dropped; alias clusters merged with claim/link
+  repointing) + LLM propose-only audit route (/api/cron/entity-audit) with human
+  review before apply (docs/reviews/ENTITY-AUDIT-2026-07-06.jsonl). ENTITY_RULES
+  block added to all extraction prompts. Policy: LLM proposals are never auto-applied.
 
 ## Conventions
 

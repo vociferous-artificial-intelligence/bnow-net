@@ -43,6 +43,13 @@
       "when": 1783334248505,
       "tag": "0005_perpetual_ben_grimm",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783394983768,
+      "tag": "0006_numerous_scrambler",
+      "breakpoints": true
     }
   ]
 }

@@ -478,3 +478,23 @@ export const subscribeIntents = pgTable("subscribe_intents", {
   note: text("note"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// per-question /ask usage: rate limiting (per-user/day + global LLM budget/day)
+// now, per-user billing later
+export const askUsage = pgTable(
+  "ask_usage",
+  {
+    id: serial("id").primaryKey(),
+    userEmail: text("user_email").notNull(), // 'anonymous' only when the auth gate is off
+    question: text("question").notNull(),
+    provider: text("provider"), // openai:<model>|stub|none|error
+    promptTokens: integer("prompt_tokens"),
+    completionTokens: integer("completion_tokens"),
+    costUsd: doublePrecision("cost_usd").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("ask_usage_email_created_idx").on(t.userEmail, t.createdAt),
+    index("ask_usage_created_idx").on(t.createdAt),
+  ],
+);

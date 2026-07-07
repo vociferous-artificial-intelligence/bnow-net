@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/gate";
-import { ask } from "@/lib/ask/answer";
+import { askWithLimits } from "@/lib/ask/limits";
 import { rawSql } from "@/db";
 
 export const dynamic = "force-dynamic";
@@ -24,10 +24,13 @@ export default async function AskPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
-  await requireUser();
+  const user = await requireUser();
   const { q } = await searchParams;
   const question = q?.slice(0, 400);
-  const result = question && question.length >= 3 ? await ask(question) : null;
+  const result =
+    question && question.length >= 3
+      ? await askWithLimits(question, user?.email ?? null)
+      : null;
 
   // resolve cited claims → source links for click-through
   let cited: Array<{ id: number; text: string; iso2: string; date: string | null }> = [];

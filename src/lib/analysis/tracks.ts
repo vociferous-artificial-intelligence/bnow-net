@@ -36,6 +36,15 @@ const ELITE_LEXICON = new RegExp(
   "i",
 );
 
+// Shared entity-extraction discipline: the entity graph feeds sanctions matching,
+// ownership resolution, /entities, /signals and /ask — junk degrades all five.
+// Appended to every track prompt that extracts entities.
+export const ENTITY_RULES = `ENTITY RULES — entities must be specific, trackable real-world actors:
+- ONLY named individuals (first + last name where known), specific agencies/courts ("Investigative Committee", "St. Petersburg City Court"), named companies, named organizations/parties/armed groups.
+- NEVER: unnamed or counted people ("five individuals", "an ex-official", "a schoolboy"); collectives ("civilians", "officials", "protesters", "forces personnel"); bare geography as an actor ("Moscow", "Ukraine", "Isfahan"); weapons/equipment/objects ("Su-27", "oil tankers"); diseases/weather/abstractions.
+- Use ONE canonical English transliteration without titles/honorifics: "Ali Khamenei" not "Ayatollah Seyyed Ali Khamenei"; "Volodymyr Zelenskyy" not "Zelenskiy".
+- If the actor cannot be named specifically, attach no entity at all.`;
+
 export const ELITE_POLITICS_PROMPT = `You are an analyst tracking Russian ELITE POLITICS through open sources: criminal prosecutions, corruption cases, asset seizures/nationalizations, gang/organized-crime trials with political links, appointments, dismissals, and suspicious deaths of officials or businessmen.
 Input: numbered source documents (id, source, reliability 0-1; Russian/Ukrainian/English).
 Output: significant developments as events with specific claims.
@@ -52,7 +61,9 @@ HARD RULES:
 4. Facts get hedging claimed/confirmed/unverified per sourcing; factional interpretation is ALWAYS 'assessed'.
 5. Ignore routine crime with no political/elite dimension.
 6. event type: prosecution|asset_seizure|appointment|dismissal|elite_death|gang_case|other.
-7. 4-10 events, most significant first.`;
+7. 4-10 events, most significant first.
+
+${ENTITY_RULES}`;
 
 // --- Iran nuclear track ---
 const NUCLEAR_LEXICON = new RegExp(
@@ -86,7 +97,9 @@ HARD RULES:
 4. For each claim list involved entities: {name, kind (person|agency|company|faction|org),
    role (target|operator|inspector|official|other)} — e.g. IAEA, AEOI, IRGC, facilities.
 5. event type: enrichment|iaea|facility|sabotage|diplomacy|weaponization|other.
-6. Do not sensationalize; distinguish reported from assessed. 4-10 events.`;
+6. Do not sensationalize; distinguish reported from assessed. 4-10 events.
+
+${ENTITY_RULES}`;
 
 export const TRACKS: Record<Track, TrackConfig> = {
   military: {

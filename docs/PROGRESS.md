@@ -208,3 +208,13 @@ Continuing into Stage 7 (deepen) with remaining weekend time.
   no longer persist, be selected, or render as fact (3-layer defense). Prod purged:
   2 fabricated-source claims (digest 31), 4 stub docs, 148 stub enrich records, 5 stub
   edges. +8 tests (112 green).
+
+## 2026-07-06 — Hardening: Task 2 — CI, /ask caps, entity canonicalization
+
+- CI: GitHub Actions workflow (activates on first push; remote unreachable from box) +
+  enforced .githooks/pre-push local gate.
+- /ask: ask_usage table (migration 0006), per-user 20/day + global $1/day LLM budget,
+  friendly limit message, per-user usage logged for billing.
+- Entities 293 → 85: rules pass (110 junk drops, 41 alias merges, 53 orphans) + LLM
+  propose-only audit (4 accepted, 2 rejected on review, 1 reviewer addition) +
+  ENTITY_RULES in all extraction prompts + re-enrichment. TASK-2-REVIEW.md.

@@ -1,0 +1,5 @@
+{"action":"delete","id":44,"reason":"reviewed: malformed collective (Serbian UNIFIL contingent), not a trackable org"}
+{"action":"delete","id":143,"reason":"reviewed: geography as actor"}
+{"action":"delete","id":450,"reason":"reviewed: geography as actor (village)"}
+{"action":"delete","id":625,"reason":"reviewed: no conflict/sanctions/elite relevance"}
+{"action":"merge","id":508,"intoId":261,"reason":"reviewed: garbled transliteration of Magomet Mutsolgov (LLM missed; added by reviewer)"}

@@ -5,6 +5,7 @@ import type {
   DigestAnalysis,
   ExtractedEvent,
 } from "./provider";
+import { ENTITY_RULES } from "./tracks";
 
 // OpenAI structured-output extraction. Hard rules enforced downstream too:
 // claims may only cite docIds present in the input batch; uncited claims are dropped.
@@ -81,7 +82,9 @@ HARD RULES:
 4. Prefer events corroborated by multiple independent sources; note single-source items as such.
 5. Weigh source reliability: low-reliability sources need corroboration before their
    claims lead an event.
-6. 5-12 events, most significant first. Do not editorialize beyond the evidence.`;
+6. 5-12 events, most significant first. Do not editorialize beyond the evidence.
+
+${ENTITY_RULES}`;
 
 export class OpenAiProvider implements AnalysisProvider {
   readonly name = `openai:${MODEL}`;

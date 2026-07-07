@@ -11,6 +11,8 @@ export interface AskAnswer {
   evidenceCount: number;
   terms: string[];
   provider: string;
+  /** set for LLM-backed answers; feeds the ask_usage spend log */
+  usage?: { promptTokens: number; completionTokens: number; costUsd: number };
 }
 
 const SYSTEM = `You answer questions about geopolitical/OSINT intelligence STRICTLY from the provided evidence rows (claims + entities from the BNOW database). Rules:
@@ -72,10 +74,18 @@ export async function ask(question: string): Promise<AskAnswer> {
     const cited = [...answer.matchAll(/\[c(\d+)\]/g)].map((m) => parseInt(m[1], 10));
     // keep only citations that were actually in the evidence set (anti-fabrication)
     const validIds = new Set(r.claims.map((c) => c.claimId));
+    const promptTokens = completion.usage?.prompt_tokens ?? 0;
+    const completionTokens = completion.usage?.completion_tokens ?? 0;
+    const { estimateCostUsd } = await import("./limits");
     return {
       answer,
       citedClaimIds: [...new Set(cited)].filter((id) => validIds.has(id)),
       evidenceCount, terms: r.terms, provider: `openai:${model}`,
+      usage: {
+        promptTokens,
+        completionTokens,
+        costUsd: estimateCostUsd(model, promptTokens, completionTokens),
+      },
     };
   } catch (e) {
     return {
