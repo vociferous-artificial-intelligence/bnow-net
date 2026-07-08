@@ -286,6 +286,34 @@ in code (SpendGuard, fail-closed).
   scaffolded (no working feed).
 - Coverage before/after with X corpus: see docs/reviews/COVERAGE-SPRINT-RESULTS.md.
 
+## 2026-07-08 22:50 UTC — Source-mix quota shipped + re-measured (OPEN-TASKS #16)
+
+- Shipped `src/lib/analysis/source-mix.ts` + digest wiring: ~40% cap per adapter AND
+  platform at two levels — the gather window (the reliability-ordered top-600 was 100%
+  x_api on heavy X days, e.g. ir Jul 7) and the 100-doc LLM batch. Reliability order
+  preserved within buckets; batch interleaved by adapter so truncation-retry prefixes
+  (50/25) keep the mix; over-cap fill (round-robin) only when the corpus lacks
+  alternatives. Source mix of docsRaw/trackRows/docsAnalyzed now persisted in
+  digest.structured.stats. 177 unit + 6 Neon-branch integration tests green.
+- Regenerated ru/ua Jun 30–Jul 7 + ir Jul 1–7 military digests on the new code.
+  Batch mix guarantee holds: ru batches now x_api=40/telegram=40/rss+gdelt=20 (were
+  100/100 x_api); ir full days 45/45/10.
+- Claim-citation x_api share (citation rows): **ru 78%→49%, 100%-x days 4→0 of 8**;
+  ua 41%→30%; ir 48%→72% — but ir's "before" (Jul 1–6) predates X in its corpus; on
+  the only comparable day (Jul 7) ir went 100%→38%. ir Jul 4–5 still cite only X:
+  just 2–9 non-X docs pass the military lexicon those days and ALL were in the batch —
+  corpus scarcity, not selection (new OPEN-TASKS #19).
+- Validation coverage (majority matcher, sprint window Jun 30–Jul 6): **ru 15.1→21.6
+  avg** (Jul 4: 0→20, Jul 5: 25→50; the displacement regression is recovered), ua
+  23.6→16.8. The ua drop reads as extraction nondeterminism (ua Jun 30 flipped 25→0
+  with zero x_api in either batch; Jul 5 rose 20→60), but a real quota cost on ua's
+  x-heavy days can't be excluded — watch the next validation crons before tuning.
+- Ops: deploy went via `npx vercel@latest deploy --prod` (GitHub push is blocked by
+  the email-privacy setting — origin still holds only "Initial commit"). The WSL
+  "egress block" is DNS: the NAT resolver times out on vercel/openai/understandingwar
+  domains; `scripts/pin-dns.cjs` (NODE_OPTIONS preload) routes them via 1.1.1.1 —
+  this also let ru Jul 5's ISW page fetch for the first time locally.
+
 ## 2026-07-07 22:20 UTC — Sprint close: coverage before/after measured
 
 - Pass A/B/C measurement complete (single-shot pre-X / majority pre-X / majority

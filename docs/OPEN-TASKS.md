@@ -40,12 +40,19 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
 
 ### New (from the coverage sprint, 2026-07-07)
 
-16. **Source-mix quota in digest corpus selection.** X docs (top registry reliability)
-    monopolized the RU analysis batch after the X unlock (8–11 of every 9–12 claims cite
-    x_api) and displaced the telegram/RSS docs behind RU's best coverage days
-    (57.1→14.3, 50→16.7). Cap any single adapter at ~40% of the batch (or blend
-    reliability with source-type diversity), regenerate, re-measure. UA improved
-    (16.3→23.6) because its mix stayed balanced — the ceiling is higher with a quota.
+16. ~~**Source-mix quota in digest corpus selection.**~~ ✅ 2026-07-08: shipped
+    (src/lib/analysis/source-mix.ts) — ~40% cap per adapter AND platform on both the
+    gather window (top-600 was 100% x_api on heavy X days) and the LLM batch, reliability
+    order kept within buckets, batch interleaved so truncation-retry prefixes stay mixed,
+    over-cap fill only when the corpus lacks alternatives. Regenerated ru/ua Jun30–Jul7 +
+    ir Jul1–7 military: ru citation x-share 78%→49% (100%-x days 4→0), ru coverage
+    15.1→21.6; ua 41%→30% x-share, coverage 23.6→16.8 (regen noise vs quota cost —
+    watch); ir Jul 7 100%→38% x-share. Before/after in docs/PROGRESS.md. Follow-up: #19.
+19. **IR non-X military corpus depth.** On ir Jul 1–5 only 2–9 non-x_api docs/day pass
+    the military lexicon (vs 35–72 x_api), so batches stay x-heavy after the quota and
+    thin days (Jul 4–5) still cite only X — every non-X track doc was already in the
+    batch; selection can't fix scarcity. Fix is more ir RSS/Telegram feeds (or lexicon
+    variants for wire-service phrasing), not quota tuning.
 17. **OpenSanctions match hygiene.** Require ≥1 linked claim before spending a /match
     call (orphan entities waste quota and invite name-collisions); render match score +
     caption beside sanction/PEP badges. From the 1/5 spot-check flag ("Andrei Fedorov").
