@@ -3,6 +3,7 @@ import { STUB_CONTENT_PREFIX } from "../adapters/stubs";
 import { detectLang } from "./lang";
 import { findNearDuplicates } from "./minhash";
 import { getProvider, type AnalysisInputDoc, type DigestAnalysis } from "./provider";
+import { MIX_CAP_FRACTION, selectSourceMix, sourceMixStats } from "./source-mix";
 import { TRACKS, type Track } from "./tracks";
 
 // Daily digest generation: gather -> dedupe -> analyze -> validate -> persist.
@@ -12,6 +13,12 @@ import { TRACKS, type Track } from "./tracks";
 // Cyrillic tokenizes ~1 token/char in GPT models; 100 docs x 400 chars keeps a
 // full-RU batch under the entry-tier 60K TPM limit.
 const MAX_DOCS = 100;
+
+// Day-corpus gather window. Also capped per adapter (MIX_CAP_FRACTION share):
+// on heavy X days a purely reliability-ordered window is 100% x_api (ir
+// 2026-07-07: 600/600), which would starve the batch-level source-mix quota
+// of alternatives before it even runs.
+const GATHER_LIMIT = 600;
 
 export interface DigestResult {
   digestId: number;
@@ -43,18 +50,26 @@ export async function generateDigest(
 
     // 1. gather the day's documents (published or fetched that day), joined to reliability
     const { rows: docRows } = await pool.query(
-      `SELECT rd.id, rd.title, rd.content, rd.lang, rd.url, rd.published_at,
-              s.canonical_url AS source_key, s.reliability_score AS reliability
-       FROM raw_documents rd
-       LEFT JOIN sources s ON s.id = rd.source_id
-       WHERE rd.country_iso2 = $1
-         AND COALESCE(rd.published_at, rd.fetched_at) >= $2::date
-         AND COALESCE(rd.published_at, rd.fetched_at) < $2::date + interval '1 day'
-         AND length(rd.content) >= 40
-         AND rd.content NOT LIKE $3
-       ORDER BY COALESCE(s.reliability_score, 0.3) DESC, rd.published_at DESC NULLS LAST
-       LIMIT 600`,
-      [countryIso2, date, `${STUB_CONTENT_PREFIX}%`],
+      `SELECT id, title, content, lang, url, published_at, adapter, source_key, reliability, platform
+       FROM (
+         SELECT rd.id, rd.title, rd.content, rd.lang, rd.url, rd.published_at, rd.adapter,
+                s.canonical_url AS source_key, s.reliability_score AS reliability, s.platform,
+                row_number() OVER (
+                  PARTITION BY rd.adapter
+                  ORDER BY COALESCE(s.reliability_score, 0.3) DESC, rd.published_at DESC NULLS LAST
+                ) AS adapter_rank
+         FROM raw_documents rd
+         LEFT JOIN sources s ON s.id = rd.source_id
+         WHERE rd.country_iso2 = $1
+           AND COALESCE(rd.published_at, rd.fetched_at) >= $2::date
+           AND COALESCE(rd.published_at, rd.fetched_at) < $2::date + interval '1 day'
+           AND length(rd.content) >= 40
+           AND rd.content NOT LIKE $3
+       ) ranked
+       WHERE adapter_rank <= $4
+       ORDER BY COALESCE(reliability, 0.3) DESC, published_at DESC NULLS LAST
+       LIMIT ${GATHER_LIMIT}`,
+      [countryIso2, date, `${STUB_CONTENT_PREFIX}%`, Math.ceil(GATHER_LIMIT * MIX_CAP_FRACTION)],
     );
     if (docRows.length === 0) {
       console.warn(`digest ${countryIso2} ${date}: no documents`);
@@ -72,14 +87,19 @@ export async function generateDigest(
       return null;
     }
 
-    // 2. near-dupe collapse, keep canonical docs up to MAX_DOCS
+    // 2. near-dupe collapse, keep canonical docs (first-seen = most reliable)
     const texts = trackRows.map((d) => `${d.title ?? ""} ${d.content}`.slice(0, 2000));
     const { canonicalOf } = findNearDuplicates(texts, 0.7);
     const canonicalIdx = [...new Set(canonicalOf.values())];
-    const selected = canonicalIdx.slice(0, MAX_DOCS);
 
-    const docs: AnalysisInputDoc[] = selected.map((i) => {
-      const d = trackRows[i];
+    // 2b. source-mix quota (OPEN-TASKS #16): cap any single adapter/platform
+    // at ~40% of the batch so top-reliability x_api docs can't monopolize it
+    const selectedRows = selectSourceMix(
+      canonicalIdx.map((i) => trackRows[i]),
+      MAX_DOCS,
+    );
+
+    const docs: AnalysisInputDoc[] = selectedRows.map((d) => {
       return {
         id: d.id,
         title: d.title,
@@ -94,7 +114,7 @@ export async function generateDigest(
 
     // 3. analyze — dense corpora (e.g. uk-language X days) can push the model
     // to its output-token ceiling; on truncation retry with a smaller batch
-    // (the top of the reliability-ordered list survives the cut)
+    // (the batch is interleaved by adapter, so the cut keeps the source mix)
     const provider = await getProvider();
     let analysis: Awaited<ReturnType<typeof provider.analyze>> | null = null;
     let batch = docs;
@@ -162,7 +182,16 @@ export async function generateDigest(
     try {
       await client.query("BEGIN");
       const structured = {
-        stats: { docsAnalyzed: docsSent.length, docsRaw: docRows.length, trackRows: trackRows.length },
+        stats: {
+          docsAnalyzed: docsSent.length,
+          docsRaw: docRows.length,
+          trackRows: trackRows.length,
+          sourceMix: {
+            docsRaw: sourceMixStats(docRows),
+            trackRows: sourceMixStats(trackRows),
+            docsAnalyzed: sourceMixStats(selectedRows.slice(0, docsSent.length)),
+          },
+        },
       };
       const dRes = await client.query(
         `INSERT INTO digests (country_id, digest_date, track, status, structured, provider)
