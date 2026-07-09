@@ -6,41 +6,30 @@ from "Next step" — do not restart completed tasks. Sprint spec: the MR3 prompt
 
 ## Status
 
-- **Current task:** TASK 0 (close #29 — Lebanese channels → ir)
-- **Tasks done:** none yet (session start 2026-07-09)
+- **Current task:** TASK 1 (deterministic reduce core)
+- **Tasks done:** TASK 0 ✅ (2026-07-09 ~21:00 UTC) — 3 channel pins added, holdout
+  removed, 651 docs retagged ru→ir, deployed, catch-up map run drained (620 selected,
+  41 claims, $0.0041, 0 integrity violations, second dry run selected=0), AGENTS
+  ruling 11 corrected + log entry, OPEN-TASKS #29 closed / #37 added.
 - **Neon branch:** none created yet
-- **Env flags set this sprint:** none yet
-- **LLM spend so far this sprint:** $0
+- **Env flags set this sprint:** none yet (REDUCE_USD_CAP_DAILY still to set in
+  Vercel BEFORE the TASK 2 deploy)
+- **LLM spend so far this sprint:** ~$0.005
 
 ## Next step (resume here)
 
-TASK 0, in order:
-1. Add mtvlebanonews/sameralhajali/mmirleb → ir in `TELEGRAM_CHANNEL_THEATER`
-   (src/lib/ingest/config.ts:111) and rewrite the "known gap" comment above it.
-2. Remove the map worker holdout (`MAP_HOLDOUT_SOURCE_KEYS` in
-   src/lib/analysis/map-worker.ts:34 + its two SQL uses at ~L278 and ~L299-308 +
-   `counts.holdoutSkipped`); drop the holdout print lines in scripts/map-backfill.ts.
-3. typecheck + lint + test; commit + push.
-4. `npx tsx scripts/retag-theater.ts` (dry run, verify counts ≈ 599 docs across the
-   three channels) then `--apply`. Log the moved count. Idempotent.
-5. Deploy (`npx vercel@latest deploy --prod --yes`) — the map catch-up must run the
-   holdout-free code.
-6. Trigger map catch-up via deployed route:
-   `curl -H "Authorization: Bearer $CRON_SECRET" "https://bnow-net.vercel.app/api/cron/map?cap=700"`
-   (hourly cron would also catch up on its own at :40). ~586 doc-days ≈ pennies.
-   Verify `selected` drains to 0 on a second call and doc_claims rows appear for the
-   channels (sqlq join sources.canonical_url).
-7. AGENTS.md: correct standing ruling 11 in place (Lebanese docs no longer "under ru");
-   append decision-log entry (theater = coverage lens, not nationality; proxy content
-   follows the ir lens; revisit as multi-theater tagging = new OPEN-TASKS #37).
-   OPEN-TASKS: mark #29 closed, add #37. Update this checkpoint; commit + push.
-
-## Then
-
-- TASK 1: `src/lib/analysis/reduce.ts` deterministic core (cluster doc_claims,
+TASK 1: `src/lib/analysis/reduce.ts` deterministic core (cluster doc_claims,
   union docIds, independence-aware promotion, confidence, quote_verified stamp,
   entity canonicalization via src/lib/entities/canonicalize.ts, version filtering
-  through ONE accessor). Pure functions + vitest.
+  through ONE accessor module with a test). Pure functions + vitest. Cluster signal:
+  minhash/token similarity over text_en + entity overlap + claim_date proximity +
+  event_hint; tune threshold on labelled pairs built from existing prod claims
+  (claims sharing a claim_sources doc = likely-same-event anchors). Also: in-doc
+  near-dupe collapse (don't require distinct docs); mirrors (doc_dedup) do NOT count
+  as independence; promotion requires domain diversity; single-doc confirmed passes
+  through.
+
+## Then
 - TASK 2: synthesis (K=3 vote, pre-rank groups, REDUCE_USD_CAP_DAILY fail-closed,
   provider=openai_reduce, persist via existing invariant path, thin-regen guard
   closes #32 on both engines).

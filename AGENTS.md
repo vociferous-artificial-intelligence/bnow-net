@@ -161,8 +161,10 @@ Operational rulings:
    validation run or 500 a user page).
 10. `cron_runs` rows are written at START; `finished_at IS NULL` is the timeout signal.
 11. Language routing: fa→ir and uk→ua, plus per-channel theater pins. Arabic is NEVER
-    routed by language — it spans six theaters (the Lebanese-channel docs under ru are
-    an editorial call, OPEN-TASKS #29).
+    routed by language — it spans six theaters; per-channel pins carry it. Theater is
+    a coverage lens, not nationality: the three Lebanese channels are pinned to ir
+    (2026-07-09 adjudication of #29); multi-theater source tagging is the eventual
+    fix (OPEN-TASKS #37).
 12. Dedup verdicts are same-theater and ±1 day only — cross-theater collapse drops
     claims; identical content on distant days is a recurring template, not a mirror.
 13. Map extraction is versioned: `extractor_version` = model + prompt hash; consumers
@@ -243,6 +245,16 @@ Entries 2026-07-04 → 2026-07-09 (MR sprint 1) are archived VERBATIM in
   launch-weekend "$25 cap / deployed by Sunday". `CLAUDE.MD` → `CLAUDE.md` (auto-load
   is case-sensitive) and rewritten: verified commands/setup, commit hygiene, pointers
   instead of restated guardrails. 391/391 tests green at time of writing.
+- **2026-07-09 (MR sprint 3, TASK 0)** OPEN-TASKS #29 adjudicated by the operator: the three
+  Lebanese Arabic channels (mtvlebanonews, sameralhajali, mmirleb) route to **ir**. Rationale:
+  theater is a coverage lens, not nationality — Hezbollah/Lebanon proxy-network content sits
+  inside the IRAN_MILITARY_PROMPT's explicit scope and the ISW Iran Update validation baseline.
+  Executed: three `TELEGRAM_CHANNEL_THEATER` pins, map holdout (`MAP_HOLDOUT_SOURCE_KEYS`)
+  removed, `retag-theater --apply` moved 651 docs ru→ir, deployed, one catch-up map run drained
+  the backlog (620 selected → 100% disposition, 41 claims, $0.0041, 0 integrity violations).
+  This also removes the legacy-vs-mapreduce A/B asymmetry before the sprint-3 gate runs.
+  Standing ruling 11 corrected in place; follow-up = multi-theater source tagging at Tier-2/3
+  expansion (new OPEN-TASKS #37).
 
 ## Conventions
 

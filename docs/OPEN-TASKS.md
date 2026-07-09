@@ -103,15 +103,12 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     variance is upstream in extraction). Options: K-run extraction with claim-level
     merge/vote (mirrors the matcher fix, ~3x LLM cost), or report scoreboard coverage
     as a rolling mean; pairs naturally with two-pass extraction (#18).
-29. **635 Lebanese Arabic docs are filed under the `ru` theater.** Surfaced while fixing the
-    Persian mis-routing (MR sprint 1). They arrive from three registry-derived telegram
-    channels — `mtvlebanonews` (471), `sameralhajali` (109), `mmirleb` (19) — which
-    `registryTelegramChannels()` defaulted to ru. Unlike Persian, Arabic cannot be routed by
-    language: it spans ir/sa/ae/qa/om/il. The `IRAN_MILITARY_PROMPT` explicitly covers
-    Hezbollah and Lebanon, so `ir` is the likely home, but that is an **editorial coverage
-    decision, not a mechanical fix** — deliberately left to Gregory. Once decided, the fix is
-    three lines in `TELEGRAM_CHANNEL_THEATER` plus `npx tsx scripts/retag-theater.ts --apply`
-    (idempotent, dry-run by default).
+29. ~~**635 Lebanese Arabic docs are filed under the `ru` theater.**~~ ✅ 2026-07-09
+    (MR sprint 3 TASK 0): operator adjudicated → **ir** (theater = coverage lens, not
+    nationality; proxy-network content follows the ir lens). Three
+    `TELEGRAM_CHANNEL_THEATER` pins added, map holdout removed, `retag-theater --apply`
+    moved 651 docs, catch-up map run drained the backlog (41 claims, $0.0041, zero
+    integrity violations). Follow-up: #37.
 30. **`digests.structured.stats.llm` makes true LLM cost measurable per digest.** After ~24h of
     metering, replace the audit's MODELLED $0.158/day digest figure with the measured one, and
     recompute the metered/unmetered split (§7c put recorded spend at ~1–2% of true spend).
@@ -154,6 +151,16 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     `cron_runs` (~2min per 400-doc run at concurrency 3; concurrency 6 deployed later).
     After a week of hourly runs, size it to measured p99 and consider whether the hourly
     cadence + 500-doc cap keeps up with peak days (~11.5K docs) without backlog.
+
+### New (from MR sprint 3, 2026-07-09)
+
+37. **Multi-theater source tagging.** The #29 adjudication filed the Lebanese channels
+    under ir, but a channel like mtvlebanonews genuinely serves multiple lenses (il
+    escalation, ir proxy network). `raw_documents.country_iso2` is single-valued, so
+    every such source is an either/or editorial call today. At Tier-2/3 theater
+    expansion, replace the single tag with source→theaters (N:M) tagging so one doc can
+    feed several theater corpora without retag migrations. Until then: per-channel pins
+    + the decision-log rationale are the mechanism.
 
 ## Tier 3 — before enterprise/API sales
 
