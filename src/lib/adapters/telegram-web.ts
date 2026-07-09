@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
 import { detectLang } from "../analysis/lang";
+import { routeTheater } from "../ingest/theater";
 import type { RawDoc, SourceAdapter } from "./types";
 
 // Keyless Telegram ingestion via the public t.me/s/<channel> web preview
@@ -27,9 +28,9 @@ export function parseChannelPage(html: string, channel: string, countryIso2: str
       title: null,
       content: text.slice(0, 8000),
       lang,
-      // Ukrainian-language channels are UA-theater even when the registry
-      // (which has no country column yet) defaulted them to ru
-      countryIso2: lang === "uk" ? "ua" : countryIso2,
+      // Content language overrides the channel's default theater where it is
+      // unambiguous: uk -> ua, fa -> ir (the registry has no country column).
+      countryIso2: routeTheater(lang, countryIso2),
       publishedAt: publishedAt && !isNaN(publishedAt.getTime()) ? publishedAt : null,
       sourceKey: `t.me/${channel.toLowerCase()}`,
       meta: {

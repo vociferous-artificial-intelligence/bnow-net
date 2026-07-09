@@ -9,7 +9,7 @@ import { TelegramWebAdapter } from "../adapters/telegram-web";
 import type { RawDoc } from "../adapters/types";
 import { XApiAdapter, registryXAccounts, xGuardFromEnv } from "../adapters/x-api";
 import { envNum } from "../usage/spend-guard";
-import { REGISTRY_TELEGRAM_TOP_N, RSS_FEEDS, TELEGRAM_CURATED } from "./config";
+import { REGISTRY_TELEGRAM_TOP_N, RSS_FEEDS, TELEGRAM_CURATED, channelTheater } from "./config";
 
 export type IngestWhich = "fast" | "telegram" | "x" | "all";
 
@@ -35,7 +35,9 @@ async function registryTelegramChannels(): Promise<Array<{ channel: string; coun
       LIMIT ${REGISTRY_TELEGRAM_TOP_N}`);
     return (rows.rows as Array<{ name: string }>).map((r) => ({
       channel: r.name,
-      countryIso2: "ru", // theater tag; uk-language posts re-tag ua at parse time
+      // registry has no country column: per-channel override, else the ru default.
+      // Content language re-tags on top of this at parse time (uk->ua, fa->ir).
+      countryIso2: channelTheater(r.name),
     }));
   } catch {
     return [];

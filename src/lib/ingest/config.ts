@@ -93,3 +93,30 @@ export const TELEGRAM_CURATED: Array<{ channel: string; countryIso2: string }> =
 
 /** How many registry-derived telegram channels to add on top of the curated set. */
 export const REGISTRY_TELEGRAM_TOP_N = 50;
+
+/** Theater overrides for REGISTRY-derived telegram channels, keyed by lowercase
+ *  channel name. The registry (ISW citations) carries no country column, so
+ *  registryTelegramChannels() files every channel it finds under the default ru
+ *  theater. These five are Iranian state / semi-official outlets that ISW cites in
+ *  its Iran Updates; they published 3,401 Persian documents into the ru corpus
+ *  before this map existed (PIPELINE-AUDIT-2026-07 §9d).
+ *
+ *  The fa->ir language rule in theater.ts catches their Persian output on its own;
+ *  this map is what also routes their English and Arabic posts correctly.
+ *
+ *  Known gap, deliberately not decided here: mtvlebanonews (471 docs),
+ *  sameralhajali (109) and mmirleb (19) are Lebanese Arabic channels also filed
+ *  under ru. Whether Lebanon/Hezbollah coverage belongs to the ir theater is an
+ *  editorial call for the operator, not a mechanical fix — see docs/OPEN-TASKS.md. */
+export const TELEGRAM_CHANNEL_THEATER: Record<string, string> = {
+  nournews_ir: "ir",
+  mehrnews: "ir",
+  iribnews: "ir",
+  farsna: "ir",
+  defapress_ir: "ir",
+};
+
+/** Default theater for a registry-derived telegram channel. */
+export function channelTheater(channel: string): string {
+  return TELEGRAM_CHANNEL_THEATER[channel.toLowerCase()] ?? "ru";
+}

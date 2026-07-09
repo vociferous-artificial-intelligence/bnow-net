@@ -14,6 +14,7 @@
 import { sql as dsql } from "drizzle-orm";
 import { db } from "@/db";
 import { detectLang, type Lang } from "../analysis/lang";
+import { routeTheater } from "../ingest/theater";
 import {
   SpendGuard,
   envCap,
@@ -126,8 +127,9 @@ export function tweetToRawDoc(t: XApiTweet, account: XAccount): RawDoc {
     title: null,
     content: text.slice(0, 8000),
     lang,
-    // same convention as telegram-web: uk-language content is UA-theater
-    countryIso2: lang === "uk" ? "ua" : account.countryIso2,
+    // same convention as telegram-web: content language overrides the account's
+    // dominant theater where unambiguous (uk -> ua, fa -> ir)
+    countryIso2: routeTheater(lang, account.countryIso2),
     publishedAt: parseTwitterDate(t.createdAt),
     sourceKey: account.sourceKey,
     meta: {
