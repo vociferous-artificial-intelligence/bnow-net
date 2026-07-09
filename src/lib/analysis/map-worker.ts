@@ -4,6 +4,7 @@ import { STUB_CONTENT_PREFIX } from "../adapters/stubs";
 import { LlmBudgetError, assertLlmEnabled, estimateUsd, mapGuardFromEnv } from "../usage/llm-guard";
 import type { SpendGuard } from "../usage/spend-guard";
 import { dedupGate, type DedupDoc } from "./map-dedup";
+import { verifyQuote } from "./quote-verify";
 import {
   MAP_MODEL,
   mapContentChars,
@@ -194,8 +195,6 @@ export interface MapCycleOptions {
   /** select + dedup + batch + cost model only — no LLM call, no writes */
   dryRun?: boolean;
 }
-
-const norm = (s: string) => s.replace(/\s+/g, " ").trim();
 
 interface MapRunStats {
   llmCalls: number;
@@ -587,14 +586,15 @@ async function persistBatch(
       const doc = byId.get(docId)!;
       for (let i = 0; i < claims.length; i++) {
         const c = claims[i];
-        if (c.quoteOrig && !norm(`${doc.title ?? ""} ${doc.content}`).includes(norm(c.quoteOrig))) {
-          stats.quoteMisses++; // best-effort field: kept, but counted for the quality report
-        }
+        // quote_orig is best-effort: the claim is kept either way, but only a
+        // verified quote may render as traceability evidence (quote-verify.ts)
+        const verified = verifyQuote(`${doc.title ?? ""} ${doc.content}`, c.quoteOrig);
+        if (c.quoteOrig && !verified) stats.quoteMisses++;
         await client.query(
           `INSERT INTO doc_claims
              (raw_document_id, track, extractor_version, ordinal, text_en, quote_orig,
-              claim_type, hedging, entities, event_hint, claim_date)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+              claim_type, hedging, entities, event_hint, claim_date, quote_verified)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
            ON CONFLICT DO NOTHING`,
           [
             docId,
@@ -608,6 +608,7 @@ async function persistBatch(
             JSON.stringify(c.entities),
             c.eventHint,
             doc.day,
+            verified,
           ],
         );
       }

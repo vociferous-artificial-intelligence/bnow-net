@@ -625,6 +625,12 @@ export const docClaims = pgTable(
     // reduce clusters on it (plus text similarity); free text, not a key
     eventHint: text("event_hint"),
     claimDate: date("claim_date"), // the doc's UTC day (worker-set, not model-set)
+    // quote_orig verbatim-containment verdict (whitespace/unicode-normalized,
+    // src/lib/analysis/quote-verify.ts). Stamped at insert by the map worker;
+    // NULL = predates the stamp (backfilled lazily by the reduce loader).
+    // Only verified quotes may be rendered as hard traceability evidence
+    // (OPEN-TASKS #34); unverified claims fall back to the doc link.
+    quoteVerified: boolean("quote_verified"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

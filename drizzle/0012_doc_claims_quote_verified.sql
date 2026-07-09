@@ -1,0 +1,1 @@
+ALTER TABLE "doc_claims" ADD COLUMN "quote_verified" boolean;

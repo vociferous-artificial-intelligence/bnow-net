@@ -6,28 +6,47 @@ from "Next step" — do not restart completed tasks. Sprint spec: the MR3 prompt
 
 ## Status
 
-- **Current task:** TASK 1 (deterministic reduce core)
-- **Tasks done:** TASK 0 ✅ (2026-07-09 ~21:00 UTC) — 3 channel pins added, holdout
-  removed, 651 docs retagged ru→ir, deployed, catch-up map run drained (620 selected,
-  41 claims, $0.0041, 0 integrity violations, second dry run selected=0), AGENTS
-  ruling 11 corrected + log entry, OPEN-TASKS #29 closed / #37 added.
+- **Current task:** TASK 2 (K=3-voted synthesis over claim groups)
+- **Tasks done:**
+  - TASK 0 ✅ (2026-07-09 ~21:00 UTC) — 651 docs retagged ru→ir, holdout removed,
+    catch-up map run drained ($0.0041), ruling 11 corrected, #29 closed / #37 added.
+  - TASK 1 ✅ (2026-07-09 ~21:45 UTC) — reduce.ts (star clustering, threshold 0.35
+    tuned: precision 1.0 / recall 0.8 on 30 pos/187 neg labelled pairs),
+    reduce-io.ts loader, map-versions.ts (#35 accessor), quote-verify.ts +
+    quote_verified stamped at map insert (migration 0012, applied to prod),
+    isMetaClaim filter, scripts/reduce-tune.ts. 424 tests green. Smoke on ru 07-08:
+    1,696 claims → 1,052 groups, 25.7% multi-doc, 101 promotions, 133ms.
+    Evidence: docs/reviews/MR3-REDUCE-RESULTS.md.
 - **Neon branch:** none created yet
-- **Env flags set this sprint:** none yet (REDUCE_USD_CAP_DAILY still to set in
-  Vercel BEFORE the TASK 2 deploy)
+- **Env flags set this sprint:** none yet. ⚠ REDUCE_USD_CAP_DAILY must be set in
+  ALL Vercel envs BEFORE any deploy that ships the TASK 2 guard (ruling 4).
 - **LLM spend so far this sprint:** ~$0.005
 
 ## Next step (resume here)
 
-TASK 1: `src/lib/analysis/reduce.ts` deterministic core (cluster doc_claims,
-  union docIds, independence-aware promotion, confidence, quote_verified stamp,
-  entity canonicalization via src/lib/entities/canonicalize.ts, version filtering
-  through ONE accessor module with a test). Pure functions + vitest. Cluster signal:
-  minhash/token similarity over text_en + entity overlap + claim_date proximity +
-  event_hint; tune threshold on labelled pairs built from existing prod claims
-  (claims sharing a claim_sources doc = likely-same-event anchors). Also: in-doc
-  near-dupe collapse (don't require distinct docs); mirrors (doc_dedup) do NOT count
-  as independence; promotion requires domain diversity; single-doc confirmed passes
-  through.
+TASK 2 — synthesis pass (LLM, K=3 voted), `src/lib/analysis/synthesize.ts`:
+1. Input = rankGroups(clusterClaims(loadReduceClaims(...))) — feed top ~150-250
+   groups (env REDUCE_GROUPS_FED, default 200); record
+   structured.stats.reduce.groupsTotal/groupsFed.
+2. Prompt: group claim-groups into 5-12 events, rank by significance,
+   title+summary per event, select claim-group ids per event. Model references
+   GROUP IDS ONLY; docIds come from the groups server-side (hallucination
+   structurally impossible). Strict schema; minItems/maxItems pinned where batched
+   per-item (ruling 7).
+3. K=3 votes (temperature 0.2, same input), majority-merge: event survives if ≥2
+   votes contain it (match events by claim-group overlap, e.g. jaccard ≥ 0.5);
+   claim selection = groups appearing in ≥2 votes of that event; wording from the
+   median-length run. Persist per-vote detail in structured.stats.reduce.votes.
+4. Metering: provider row `openai_reduce`, reduceGuardFromEnv() in llm-guard.ts
+   (REDUCE_USD_CAP_DAILY fail-closed prod; LLM_SPRINT_USD_CAP backstop),
+   max_completion_tokens set.
+5. Persist through the EXISTING digest transaction path shape (events/claims/
+   claim_sources/claim_entities + confidence UPDATE + renderMarkdown), tagged
+   provider='openai:gpt-4o-mini+mapreduce'; digests.structured.stats.reduce.
+6. Thin-regen guard (#32): refuse overwriting an existing digest with <50% of its
+   claim count (env DIGEST_MIN_CLAIM_RATIO=0.5, FORCE_REGEN=1 override), log
+   refusal to cron_runs counts; add the same guard to legacy digest.ts (protects
+   the A/B baseline).
 
 ## Then
 - TASK 2: synthesis (K=3 vote, pre-rank groups, REDUCE_USD_CAP_DAILY fail-closed,
