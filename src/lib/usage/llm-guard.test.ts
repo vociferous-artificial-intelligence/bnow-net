@@ -4,6 +4,8 @@ process.env.DATABASE_URL ??= "postgres://test:test@localhost:5432/test";
 const {
   DIGEST_DAILY_USD_CAP_DEFAULT,
   DIGEST_PROVIDER,
+  MAP_DAILY_USD_CAP_DEFAULT,
+  MAP_PROVIDER,
   LlmDisabledError,
   assertLlmEnabled,
   llmDailyUsdCap,
@@ -11,6 +13,8 @@ const {
   digestMaxOutputTokens,
   estimateUsd,
   isLlmDisabled,
+  mapDailyUsdCap,
+  mapGuardFromEnv,
 } = await import("./llm-guard");
 
 const SAVED = {
@@ -18,6 +22,7 @@ const SAVED = {
   LLM_DIGEST_USD_CAP: process.env.LLM_DIGEST_USD_CAP,
   LLM_DIGEST_MAX_OUTPUT_TOKENS: process.env.LLM_DIGEST_MAX_OUTPUT_TOKENS,
   LLM_SPRINT_USD_CAP: process.env.LLM_SPRINT_USD_CAP,
+  MAP_USD_CAP_DAILY: process.env.MAP_USD_CAP_DAILY,
   NODE_ENV: process.env.NODE_ENV,
   VERCEL_ENV: process.env.VERCEL_ENV,
 };
@@ -104,6 +109,46 @@ describe("digest daily cap resolution", () => {
     process.env.LLM_DIGEST_USD_CAP = "2";
     delete process.env.LLM_SPRINT_USD_CAP;
     const r = digestGuardFromEnv().tryReserve();
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toContain("total cap env unset");
+  });
+});
+
+describe("map daily cap resolution (own env var, never the digest's)", () => {
+  it("uses MAP_USD_CAP_DAILY when set — and ignores LLM_DIGEST_USD_CAP entirely", () => {
+    process.env.MAP_USD_CAP_DAILY = "4";
+    process.env.LLM_DIGEST_USD_CAP = "0.01"; // must have no effect on the map guard
+    expect(mapDailyUsdCap()).toBe(4);
+  });
+
+  it("falls back to the documented default outside production", () => {
+    delete process.env.MAP_USD_CAP_DAILY;
+    delete process.env.VERCEL_ENV;
+    expect(mapDailyUsdCap()).toBe(MAP_DAILY_USD_CAP_DEFAULT);
+  });
+
+  it("fails closed (null) in production when MAP_USD_CAP_DAILY is unset", () => {
+    delete process.env.MAP_USD_CAP_DAILY;
+    process.env.LLM_DIGEST_USD_CAP = "2"; // the digest cap must NOT stand in for it
+    process.env.VERCEL_ENV = "production";
+    expect(mapDailyUsdCap()).toBeNull();
+  });
+
+  it("an unset cap in production makes the guard refuse every reservation", () => {
+    delete process.env.MAP_USD_CAP_DAILY;
+    process.env.VERCEL_ENV = "production";
+    process.env.LLM_SPRINT_USD_CAP = "25";
+    const g = mapGuardFromEnv();
+    expect(g.cfg.provider).toBe(MAP_PROVIDER);
+    const r = g.tryReserve();
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toContain("daily USD cap env unset");
+  });
+
+  it("an unset LLM_SPRINT_USD_CAP (all-time backstop) also fails closed", () => {
+    process.env.MAP_USD_CAP_DAILY = "4";
+    delete process.env.LLM_SPRINT_USD_CAP;
+    const r = mapGuardFromEnv().tryReserve();
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toContain("total cap env unset");
   });

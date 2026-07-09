@@ -15,9 +15,18 @@ export const DIGEST_PROVIDER = "openai_digest";
  *  draw on the one LLM_DIGEST_USD_CAP per-day envelope. */
 export const ENTITY_AUDIT_PROVIDER = "openai_entity_audit";
 
+/** provider_usage.provider for the shadow map stage's extract calls. Its own
+ *  ledger row AND its own daily-cap env (MAP_USD_CAP_DAILY) — never shared with
+ *  LLM_DIGEST_USD_CAP, so a map backfill can neither starve nor be starved by
+ *  the production digest path. */
+export const MAP_PROVIDER = "openai_map";
+
 /** Per-day USD cap used when LLM_DIGEST_USD_CAP is unset OUTSIDE production.
  *  In production an unset cap fails closed — see llmDailyUsdCap(). */
 export const DIGEST_DAILY_USD_CAP_DEFAULT = 2;
+
+/** Per-day USD cap used when MAP_USD_CAP_DAILY is unset OUTSIDE production. */
+export const MAP_DAILY_USD_CAP_DEFAULT = 3;
 
 /** Output-token ceiling for the digest extract call. Measured outputs are
  *  <= 1,448 pretty-JSON tokens (audit §4c); 4096 is ~3x headroom and caps a
@@ -108,5 +117,29 @@ export function entityAuditGuardFromEnv(): SpendGuard {
     ENTITY_AUDIT_PROVIDER,
     envNum("LLM_ENTITY_AUDIT_DAILY_REQUEST_CAP", 10),
     envNum("LLM_ENTITY_AUDIT_RUN_REQUEST_CAP", 1),
+  );
+}
+
+/** Resolved per-day USD cap for the map worker. Same fail-closed contract as the
+ *  digest cap, but its OWN env var: production with MAP_USD_CAP_DAILY unset must
+ *  not map. */
+export function mapDailyUsdCap(): number | null {
+  return envCap("MAP_USD_CAP_DAILY") ?? (isProduction() ? null : MAP_DAILY_USD_CAP_DEFAULT);
+}
+
+/** Guard for the map worker. One instance per run (the worker makes many calls
+ *  per run, unlike the digest's one-reservation cycle); daily/total caps are
+ *  DB-backed so they hold across runs regardless. LLM_SPRINT_USD_CAP stays the
+ *  all-time backstop every OpenAI path honours. */
+export function mapGuardFromEnv(): SpendGuard {
+  return new SpendGuard(
+    {
+      provider: MAP_PROVIDER,
+      totalCapUsd: envCap("LLM_SPRINT_USD_CAP"),
+      dailyUsdCap: mapDailyUsdCap(),
+      dailyRequestCap: envNum("MAP_DAILY_REQUEST_CAP", 1500),
+      runRequestCap: envNum("MAP_RUN_REQUEST_CAP", 80),
+    },
+    pgUsageStore,
   );
 }
