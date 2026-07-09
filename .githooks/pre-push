@@ -1,8 +1,8 @@
 #!/bin/sh
 # Local CI gate: typecheck + lint + tests must pass before any push.
 # Enable once per clone:  git config core.hooksPath .githooks
-# (GitHub Actions runs the same gate remotely — .github/workflows/ci.yml — but
-# pushes from the build host are currently blocked, so this is the working gate.)
+# (GitHub Actions runs the same gate remotely — .github/workflows/ci.yml — this
+# hook catches failures before the push and covers local-only work.)
 set -e
 echo "pre-push: typecheck"
 npx tsc --noEmit

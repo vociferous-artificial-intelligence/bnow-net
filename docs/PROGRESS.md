@@ -708,3 +708,27 @@ leaks ("Iran", "United States"); the store twice caught the production digest
 misattributing (flipped combatants #8, wrong toponym #3 in the spot check) — single-doc
 extraction makes digest errors visible for the first time. Full numbers:
 docs/reviews/MAP-SHADOW-RESULTS.md.
+
+## 2026-07-09 19:00 UTC — docs restructure: AGENTS.md becomes a brain, not a journal
+
+External-review-driven restructure, every recommendation verified against the repo
+before acting (verified-facts list in the session report; falsified claims noted in
+the new decision-log entry).
+
+1. `CLAUDE.MD` → `CLAUDE.md` (git mv): the uppercase name silently prevented per-repo
+   auto-load on case-sensitive filesystems. Rewritten: verified Commands & setup block
+   (test / single-file / typecheck / lint / integration / deploy / hooksPath /
+   pin-dns.cjs usage), affirmative commit-hygiene rule (no vendor trailers), pointers
+   to AGENTS.md instead of restated guardrails.
+2. AGENTS.md 476 → 301 lines. New maintenance rule: ONLY the decision log is
+   append-only; standing sections are corrected in place. "Current state" is now a
+   verified snapshot (crons from vercel.json — digest is 4×/day, not "daily 21:30";
+   391 tests; 29 RSS feeds; anthropic provider in the seam, key absent; Postmark row
+   added). New "Standing rulings": 17 distilled, code-verified one-liners owning the
+   five absolute invariants. Untouchables modernized to the SpendGuard cap envs.
+3. Log entries 2026-07-04 → 07-09 (MR sprint 1) moved VERBATIM to docs/DECISIONS.md
+   (diff-verified byte-identical; 50 archived + 8 kept + 1 new = all 58 preserved).
+4. Environment facts re-verified live: GitHub reachable but DNS slow/flaky (3/3
+   ls-remote failures at 10s, success at 45s; origin/main == local main);
+   api.gdeltproject.org DNS still fails; stale "pushes blocked" comment in
+   .githooks/pre-push corrected.
