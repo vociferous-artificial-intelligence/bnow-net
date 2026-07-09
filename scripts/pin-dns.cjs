@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- NODE_OPTIONS --require preloads must be CommonJS */
 // Preload: route vercel.com / vercel.app / openai.com DNS through 1.1.1.1.
 // The WSL2 NAT resolver (10.255.255.254) times out on these domains while
 // public resolvers answer instantly — this is the "local host cannot reach
