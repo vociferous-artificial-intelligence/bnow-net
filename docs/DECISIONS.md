@@ -6,10 +6,12 @@ preserves history; editing or summarizing entries does not and is forbidden. Ent
 here are never edited or deleted; a wrong entry is corrected by a new dated entry in
 the live log in AGENTS.md.
 
-Split as of 2026-07-09: entries from 2026-07-04 through the 2026-07-09 MR-sprint-1
-corrections live here; AGENTS.md keeps the current sprint cycle (MR sprint 2 onward).
-Durable one-line versions of the still-binding decisions live in AGENTS.md
-§ Standing rulings.
+Split as of 2026-07-09 (second archive pass, taken after the DIGEST_ENGINE cutover):
+entries from 2026-07-04 through the MR-sprint-2 map-stage entries — including the
+tooling and restructure entries — live here; AGENTS.md keeps the current sprint cycle
+(MR sprint 3 and the cutover onward). Durable one-line versions of the still-binding
+decisions live in AGENTS.md § Standing rulings. This preamble records where the split
+currently sits, so it is corrected on each pass; the entries below it never are.
 
 ## Decision log (archived entries, oldest first)
 
@@ -235,3 +237,62 @@ Durable one-line versions of the still-binding decisions live in AGENTS.md
   private email (`e29d220` "Initial commit", `gregoryoconnor@gmail.com`) is already an **ancestor of
   origin/main** — it was pushed long ago, so GH007 cannot fire on it. Every other commit uses the
   `6955+gregoryo@users.noreply.github.com` noreply address. There is no push blocker.
+- **2026-07-09 (MR sprint 2)** Map stage ships in SHADOW: `doc_claims`/`doc_dedup`/`doc_map_state`
+  + hourly `/api/cron/map` (:40, own group). The digest pipeline is byte-untouched — the only
+  shared-file changes are additive (`llm-guard.ts` map guard, `vercel.json` cron, `schema.ts`).
+  `doc_map_state` exists beyond the task list's tables because "mapped, zero relevant claims" must
+  be distinguishable from "never mapped" — claim rows alone cannot say it, and it is what makes the
+  worker idempotent (anti-join) and resumable after a crash.
+- **2026-07-09 (MR sprint 2)** `raw_documents.processed` repurposed to exactly ONE meaning: the map
+  worker reached a final disposition (mapped every applicable track / recorded as mirror / no
+  applicable track). It exists so the hourly scan is an indexed `processed=false` probe instead of
+  an anti-join over the whole corpus. Consequence, recorded as OPEN-TASKS #33: version bumps need
+  their own remap path — the flag deliberately does not reset itself.
+- **2026-07-09 (MR sprint 2)** Dedup gate verdicts are SAME-THEATER and ±1 DAY for exact **and**
+  minhash matches. Same-theater because the map key is theater-scoped (mirroring a ru doc to an ir
+  canonical silently drops the ru claims); ±1 day because identical content on distant days is
+  usually a recurring template (telegram air-raid alerts, audit §9a) describing a *different* day's
+  events — collapsing those would misdate claims. The ±1-day rule was specified for minhash only;
+  extending it to exact matches is this sprint's call, flagged here for review.
+- **2026-07-09 (MR sprint 2)** **gpt-4o-mini silently answers a fraction of a multi-doc batch**:
+  with the response schema unbounded it returned 1 of 15 requested per-doc entries and stopped
+  clean (`finish_reason=stop`); prompt wording ("return exactly N entries", explicit id checklist)
+  did not fix it (43% omission in backfill round 1, 57% in round 2). The fix is grammar-level:
+  `minItems`/`maxItems` = batch size on the results array — **strict mode accepts array bounds and
+  the API's constrained decoding then forces the count** (15/15, correct ids, in order). Any future
+  batched per-item extraction should start from this.
+- **2026-07-09 (MR sprint 2)** Map prompts are versioned: `extractor_version` = model + sha256 of
+  (resolved system prompt, user-frame revision, content budget), 12 hex chars. Two superseded
+  versions from the sprint's own prompt iterations remain in the store as history (append-only) —
+  consumers filter to `mapExtractorVersion()` current versions or double-count (OPEN-TASKS #35).
+- **2026-07-09 (MR sprint 2)** **A standing note in this file is now WRONG:** "api.openai.com
+  TCP-unreachable from this WSL2 box" (Local-host quirks, 2026-07-04). It was never TCP — the WSL2
+  NAT *resolver* times out on those domains, and `scripts/pin-dns.cjs` (routes vercel/openai DNS
+  through 1.1.1.1) makes local OpenAI calls work fine. That is precisely how the omission bug above
+  was root-caused: reproducing one map batch locally and reading the raw response. LLM bulk work
+  still runs via Vercel routes (prod env, metering, crons), but local single-call debugging is
+  available and cheap.
+- **2026-07-09 (MR sprint 2)** Map spend rails: `MAP_USD_CAP_DAILY=4` set in all three Vercel envs
+  BEFORE the deploy (fail-closed like the digest cap, but its OWN env — never shared with
+  `LLM_DIGEST_USD_CAP`, so a backfill can neither starve nor be starved by production digests);
+  `LLM_SPRINT_USD_CAP` stays the all-time backstop; ledger row `provider_usage.openai_map`;
+  `LLM_DISABLE=1` refuses the worker (typed throw). `MAP_CONCURRENCY=6` (prod env) after measuring
+  ~45K tok/min at the default 3 — latency-bound, not TPM-bound.
+ - **2026-07-09 (tooling)**  Added repo-root CLAUDE.md granting the scoped delete/rename/move 
+  exception that ~/CLAUDE.md requires (imports AGENTS.md via @). Supersedes the 2026-07-04 
+  "no deletes/renames" understanding, which mis-attributed a global-~/CLAUDE.md rule to a 
+  nonexistent repo-root file. Applied-migration additivity and 
+  decision-log append-only are explicitly preserved.
+- **2026-07-09 (restructure)** AGENTS.md reorganized from journal to brain, 476 → 301
+  lines. New maintenance rule at top: only this log is append-only; standing sections are
+  corrected in place. Entries 2026-07-04 → 07-09 (MR sprint 1) moved verbatim to
+  `docs/DECISIONS.md`; durable decisions distilled into § Standing rulings. Stale
+  standing facts corrected in place: digest cron is 4×/day at 0/6/12/18 UTC (was "daily
+  21:30"); "openai/gdelt TCP-unreachable" rewritten as the WSL2 DNS quirk (gdelt DNS
+  still fails — not pinned); GitHub reachable but DNS slow (ls-remote: 3/3 fail at 10s,
+  ok at 45s); directory map matched to the real tree; RSS count 8 → 29; anthropic
+  provider exists in the seam (key absent); Postmark added to credentials (live but
+  missing from the table); untouchables now name the SpendGuard cap envs, not the
+  launch-weekend "$25 cap / deployed by Sunday". `CLAUDE.MD` → `CLAUDE.md` (auto-load
+  is case-sensitive) and rewritten: verified commands/setup, commit hygiene, pointers
+  instead of restated guardrails. 391/391 tests green at time of writing.
