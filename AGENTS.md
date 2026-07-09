@@ -2,6 +2,14 @@
 
 Read this first in every fresh session. Keep it under ~300 lines; details live in `docs/`.
 
+**Maintenance rule — ONLY the decision log is append-only.** Every standing section
+(Current state, Architecture, directory map, Standing rulings, credentials, conventions,
+protocol) MUST be corrected in place the moment it becomes wrong; append a log entry
+recording that the correction happened. Never leave wrong standing text with the fix
+buried in a log entry. When the log outgrows this file, move its oldest entries
+**verbatim** to `docs/DECISIONS.md` (the append-only archive) — moving preserves
+history; editing or summarizing it is forbidden.
+
 ## Project charter
 
 BNOW.NET is a subscription OSINT data-intelligence product: per-country conflict-monitoring
@@ -9,18 +17,18 @@ feeds (open news + Telegram + X), **transparent source-reliability ratings** der
 ISW's own citation/hedging behavior, an automated daily digest, and a public validation
 scoreboard that scores our digests against ISW's daily Russian Offensive Campaign
 Assessments. Paying users: analysts, risk teams, journalists, desks ($400–$4K/mo tiers).
-Launch theater: **Russia + Ukraine live**; Israel/Iran/Gulf scaffolded config-only; China
-deferred. Authoritative spec: `docs/PRODUCT-BRIEF.md` (original, installed 2026-07-06).
+Theaters: **Russia + Ukraine + Iran live**; Israel/Gulf ingesting but shallow; bh/kw
+scaffolded; China deferred. Authoritative spec: `docs/PRODUCT-BRIEF.md` (installed 2026-07-06).
 
 ## Architecture
 
 Stack: Next.js 16 App Router (TS strict) on Vercel · Neon Postgres + pgvector · Drizzle ORM ·
 Tailwind v4 · Auth.js (magic link, `session.strategy='database'`) · Vitest (node; jsdom +
-@testing-library per-file for component tests). LLM behind `AnalysisProvider` (`openai` live,
-`stub` deterministic fallback; no Anthropic key yet).
-**No shadcn/ui and no Radix** — despite what earlier revisions of this line said. The UI deps are
-clsx + tailwind-merge + lucide-react; interactive primitives (e.g. `src/components/nav-dropdown.tsx`)
-are hand-rolled to the WAI-ARIA patterns. There is no `src/components/ui/`, no `components.json`.
+@testing-library per-file for component tests). LLM behind `AnalysisProvider`: `openai` live
+(gpt-4o-mini), `anthropic` implemented in the seam (no key in any env yet — auto-selected if
+an Anthropic key exists and no OpenAI key does), `stub` deterministic fallback.
+**No shadcn/ui and no Radix.** UI deps are clsx + tailwind-merge + lucide-react; interactive
+primitives (e.g. `src/components/nav-dropdown.tsx`) are hand-rolled to WAI-ARIA patterns.
 
 ```
  ISW archive ──crawl──> raw HTML cache (disk, internal-only)
@@ -28,348 +36,154 @@ are hand-rolled to the WAI-ARIA patterns. There is no `src/components/ui/`, no `
                              ▼
                       source_citations ──materialize──> sources (registry)
                                                             │ seeds channels + weights
- RSS/TASS/Meduza/... ─┐                                     ▼
+ RSS (29 feeds)      ─┐                                     ▼
  GDELT 15-min slices ─┼─ SourceAdapter.fetchLatest() ─> raw_documents ─┐
  t.me/s/ web preview ─┤      (cron /api/cron/ingest)    (hash-deduped) │
- X, ACLED, MTProto ───┘ (stubbed)                                      ▼
+ X via twitterapi.io ─┘  (MTProto/ACLED: fixture stubs, NOT wired)     ▼
                                         normalize → near-dupe → claims/events
                                         (claim ⇄ raw_documents join = traceability,
                                          enforced: claim INSERT requires source link)
                                                             │
-                                                            ▼
-                        digests (daily, per country) ──> validation_runs (vs ISW same-day:
-                                                          coverage, divergence, timeliness,
-                                                          unsupported-claim rate)
- Product surface: landing / country feeds / registry explorer / scoreboard / auth / pricing
+        shadow map stage (hourly): raw_documents →          ▼
+        doc_claims / doc_dedup / doc_map_state   digests (4×/day, theater×track)
+        — sprint-3 reduce input; digest            └─> validation_runs (vs ISW same-day:
+        pipeline untouched by it                        coverage, divergence, timeliness,
+                                                        unsupported-claim rate)
+ Product surface: landing / countries / digests+scoreboard / registry / entities / signals /
+                  trade / datadark / critical-materials / ask / pricing / auth
 ```
 
-Directory map (update as it changes):
+Directory map (correct in place as it changes):
 
 ```
 src/app/            routes (public pages, /admin/*, /api/cron/*, /api/*)
-src/db/             drizzle schema, client, migrations in drizzle/
-src/lib/adapters/   SourceAdapter impls (rss, gdelt, telegram-web, telegram-mtproto.stub, x.stub, acled.stub)
-src/lib/analysis/   AnalysisProvider (openai, stub), digest generator, claim extraction
-src/lib/isw/        crawler, endnote parser, hedging classifier, registry materializer, validator
-scripts/            local runners: backfills, seed, digest, validate (idempotent + resumable)
+src/components/     shared React components (SiteHeader, hand-rolled ARIA dropdowns)
+src/db/             drizzle schema + client; generated SQL lives in drizzle/
+src/i18n/           LOCALE_REGISTRY + catalogs (en uk de ar ja pl fr; ar is RTL)
+src/integration/    *.itest.ts — Neon-branch integration tests, excluded from unit suite
+src/lib/adapters/   SourceAdapter impls: rss, gdelt, telegram-web, x-api (live), procurement;
+                    stubs.ts = fixture stubs (MTProto/ACLED/x) — never wired into prod ingest
+src/lib/analysis/   AnalysisProvider (openai/anthropic/stub), digest, tracks, source-mix,
+                    map stage (map-worker, map-prompts, map-dedup, minhash)
+src/lib/isw/        crawler, endnote parser, hedging classifier, registry materializer
+src/lib/validation/ ISW scoreboard: keyword gazetteer + majority-vote LLM matcher
+src/lib/usage/      SpendGuard, llm-guard (caps + kill-switch), cron-run bookkeeping
+src/lib/…           ask, entities, enrich, datadark, trade, materials, profiles, email,
+                    nav, ingest, gate/session/auth
+scripts/            local runners (idempotent + resumable): backfills, seed, digest,
+                    validate, map-backfill, sqlq, pin-dns.cjs, test-integration.sh
 fixtures/           saved HTML/JSON for tests
-docs/               brief, progress, blockers, reviews/, feasibility, setup-next-week
+docs/               PRODUCT-BRIEF, PROGRESS, OPEN-TASKS, BLOCKERS, SETUP-NEXT-WEEK,
+                    DECISIONS (log archive), STATUS-REPORT, strategy docs, reviews/
+drizzle/            migrations 0000–00NN + 9999_claim_source_trigger.sql (applies last)
 data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails)
 ```
 
-## Current state (update every commit batch)
+## Current state — snapshot (verified 2026-07-09; correct in place when it changes)
 
-- **2026-07-04 evening — Stages 0–5 PASS** (reviews in docs/reviews/). Stage 6 wrap-up.
-- Works (all live at https://bnow-net.vercel.app):
-  - Registry: 6,985 ISW-derived sources / 251K citations / 1,565 reports (97.65% parse).
-  - Ingestion: 8 RSS + 25 telegram channels (registry-selected), ~6.5K docs, crons
-    */15 + hourly registered and firing. GDELT wired but upstream-flaky (blocker #10).
-  - Digests: daily cron 21:30 UTC; all 30 backtest digests are LLM-generated
-    (gpt-4o-mini) — OpenAI recharged 2026-07-05, stub override removed.
-  - Validation: 30 runs, ALL scored with LLM semantic matching (keyword gazetteer
-    is the no-key fallback). Avg coverage 17.5%, nonzero-day avg 31%, best day 100%,
-    median info-lead +14.7h. ISW report auto-discovery by slug pattern proven live
-    (picked up the July 4 report the moment it published). Daily cron 07:00 UTC.
-  - Surface: landing / countries / pricing+intents / magic-link auth / email-outbox.
-- Next-phase (2026-07-06): critical-materials choke-point tracker (/critical-materials,
-  US import concentration via Comtrade — China 68% rare earths etc.), in-app AI
-  interrogation (/ask, cited answers), ISW Middle East registry (/middle-east, Iran
-  Update theater='ir' — 1423 sources incl Hamas/PIJ/Hezbollah non-state actors),
-  i18n scaffolding (en+uk, 9 locales declared, /api/locale switcher).
-- Analytics (2026-07-06): mirror-trade evasion watch (/trade, UN Comtrade), buyer
-  profiles (frontline/sanctioning/commodity/compliance switcher on digests), Iran
-  depth (nuclear+elite tracks, fa/ar, Iran-Update-validated scoreboard), analyst
-  signals (/signals: purge/data-dark/trade flags), ownership graph (entity_links).
-- Russia depth (2026-07-05/06): elite-politics track + entity graph (OpenSanctions-
-  badged), regional/ethnic-republic + semi-official sources, data-dark tracker
-  (/datadark), procurement watcher (wired, zakupki blocked). Postmark email LIVE;
-  auth gate ON (digests/registry/entities). Gulf wave: ru ua ir sa ae qa om active.
-- Hardening pass (2026-07-06/07): original brief authoritative; stub data unreachable
-  on all user surfaces (3-layer defense + integration test); digest cron split
-  core/gulf; CI + pre-push gate + Neon-branch integration tests; /ask capped
-  (20/user/day, $1/day global, usage logged); entities 293→~97 clean; per-theater
-  validation filtering; Iran military theater prompt (coverage off 0%);
-  /ask reliability-ordered; source_theater_stats (ME zombies 0); Anthropic provider
-  in the seam. Reviews: docs/reviews/{AUDIT,TASK-1,TASK-2,TASK-3}-*.md.
-  Operator handoff: SETUP-NEXT-WEEK.md (rewritten); summary: STATUS-REPORT.md.
-- Coverage & compliance sprint (2026-07-07 evening): X LIVE via api.twitterapi.io
-  (x_api adapter, 383 ISW-cited accounts, hourly cron, 7-day backfill ~10.5k tweets,
-  ~$1.7 of $5 cap); majority-vote validation matcher (26/27 reproducible); OpenSanctions
-  LIVE (200 checked, 54 sanctioned, ≤300-call budget); sa+il feeds revived (arabnews
-  RSS was frozen upstream — root cause of "sa dark"); bh/kw honestly scaffolded.
-  Results: docs/reviews/COVERAGE-SPRINT-RESULTS.md.
-- i18n (2026-07-08, worktree `bnow.net-i18n`, branch `codex/i18n-de-ar-ja-pl-fr`):
-  authoritative `LOCALE_REGISTRY` (code/label/native/dir/order/fallback); de/ar/ja/pl/fr
-  catalogs added (ar RTL) atop en/uk; `resolveLocale` priority = selector>cookie>
-  Accept-Language>en; `/api/locale` open-redirect-guarded; landing page + LanguageSelector
-  wired, other surfaces catalog-ready but not yet JSX-wired; evidence/ISW/source names never
-  translated. Needs native-speaker sign-off before launch. See docs/PROGRESS.md 2026-07-08.
-- Nav & logged-in home (2026-07-09): one session-aware `SiteHeader` in the root layout on every
-  public page (`/admin` opts out); flat module names regrouped by buyer journey —
-  `Product | Coverage | Validation | Solutions | Pricing | auth | language`. **Zero route
-  changes**; a test walks `src/app/**/page.tsx` to prove no dead links. Dropdowns hand-rolled to
-  the WAI-ARIA menu-button pattern (no Radix/shadcn in this repo). 10 inline language links →
-  one globe dropdown. Signed-in `/` drops the subscriber CTA for digest/scoreboard/coverage
-  actions. First React component tests in the repo (jsdom + @testing-library, opted in per file).
-  312 tests (was 245). Adversarial review of the diff found 3 real defects (menu re-opening
-  on back-nav; English-only nav landmark; a vacuous focus test) — all fixed.
-  Review: docs/reviews/NAV-RESTRUCTURE-REVIEW.md.
-- MR sprint 1 — guardrails & hygiene (2026-07-09, pre-map-reduce): the digest extract path,
-  ~98% of true LLM spend, was **unmetered and unguarded** (audit §7c). Now every request
-  reserves against a SpendGuard (`openai_digest`) and records to `provider_usage`, truncated
-  responses included — OpenAI bills those in full and the ladder discards them.
-  `max_completion_tokens=4096` (was gpt-4o-mini's own 16,384) cuts worst-case truncation waste
-  to a quarter. Ladder no longer re-sends an identical batch for `docs.length` 26–50.
-  `LLM_DISABLE=1` is a global kill-switch. Per-digest `structured.stats` gains
-  `{llm, ladder, droppedClaims, sentDocIds}`. `events.track` added + backfilled (493/56/17);
-  per-track response schemas; `claim_must_have_source` re-asserted in a regeneration-proof
-  migration with a test; `cron_runs` gives per-run success/failure for the first time; 3,418
-  Persian-channel docs retagged ru→ir. 350 tests (was 312).
-  Audit: docs/reviews/PIPELINE-AUDIT-2026-07.md.
-- MR sprint 2 — map stage, SHADOW (2026-07-09 evening): every eligible canonical ru/ua/ir
-  doc since 07-04 now has its claims extracted ONCE per (track, extractor_version) into
-  `doc_claims` (14,071 claims / 25,358 doc×track pairs / 23,020 docs), with persistent
-  dedup verdicts (`doc_dedup`: 3,473 mirrors, 9.2%) and per-doc dispositions
-  (`doc_map_state`). Hourly cron `/api/cron/map` (:40) keeps it current; backfill
-  07-04→09 ran $1.61 vs $2.59 modelled ($0.076/1K docs — ~2× under the audit band);
-  guard `MAP_USD_CAP_DAILY=4` fail-closed, ledger `openai_map`. 100% disposition
-  coverage on all 18 theater×day cells; 0 hallucinated ids / omissions / truncations.
-  Hand-judged digest-coverage: 23/30 semantic hits, misses mostly deliberate scope
-  filtering; twice the map was MORE faithful than the production digest. Digest pipeline
-  byte-untouched. 391 tests (was 350). Results: docs/reviews/MAP-SHADOW-RESULTS.md.
-- Stubbed: MTProto, ACLED (fixtures — NOT wired into prod ingest); the "x" fixture stub
-  remains for tests but the live adapter is x_api; Stripe flagged off; zakupki needs
-  proxy (BLOCKERS 2026-07-06); Resend superseded by Postmark (still on scenefiend
-  domain — migration in SETUP-NEXT-WEEK).
-- Deploys: `npx vercel@latest deploy --prod --yes` (CLI 46 too old; machine session
-  auth — env VERCEL_TOKEN expired). Deployment URLs SSO-walled; use project domain.
-- Local-host quirks: api.openai.com and api.gdeltproject.org TCP-unreachable from this
-  WSL2 box — LLM work must run via Vercel routes.
+Live at **https://bnow-net.vercel.app** (Vercel project `bnow-net`, team `vociferous`;
+deployment URLs are SSO-walled — always use the project domain). History/narrative:
+`docs/PROGRESS.md` + `docs/reviews/`; debt: `docs/OPEN-TASKS.md`.
+
+- **Registry:** 6,985 ISW-derived sources / 251K citations / 1,565 reports (97.65% parse);
+  per-theater aggregates in `source_theater_stats` (ru/ir).
+- **Ingestion (live):** 29 RSS feeds (ru ua il ir sa ae qa om + bh/kw scaffolded),
+  registry-selected + curated Telegram via t.me/s/, X via api.twitterapi.io (383
+  ISW-cited accounts), GDELT (wired, upstream-flaky), zakupki procurement (wired,
+  blocked — needs proxy).
+- **Map stage (SHADOW):** all eligible ru/ua/ir docs since 07-04 mapped once per
+  (track, extractor_version) → `doc_claims` (14,071 claims / 23,020 docs), persistent
+  dedup verdicts (`doc_dedup`, 9.2% mirrors), dispositions (`doc_map_state`); hourly
+  cron keeps it current; $0.076/1K docs. Digest pipeline byte-untouched. This is MR
+  sprint 3's reduce input. Results: `docs/reviews/MAP-SHADOW-RESULTS.md`.
+- **Digests:** gpt-4o-mini per theater×track (military/elite/economy), source-mix
+  quota (~40%/adapter+platform), metered + spend-guarded, `structured.stats` records
+  ladder/tokens/sent docs. Known weakness: overwrite guard only refuses zero-event
+  regenerations (OPEN-TASKS #32).
+- **Validation vs ISW:** majority-vote LLM matching (k=5, 26/27 reproducible across
+  reruns), keyword gazetteer as no-key fallback; ISW report auto-discovery by slug.
+  Coverage avg ~17.5% (nonzero-day ~31%), median info-lead +14.7h (2026-07-05 backtest).
+- **Surface:** landing / countries / pricing / magic-link auth (Postmark LIVE, still on
+  scenefiend sender domain) / digests+registry+entities behind FEATURE_AUTH_GATE /
+  signals / trade / datadark / critical-materials / ask (capped 20/user/day, $1/day
+  global) / i18n: en+uk full, de ar ja pl fr catalogs (landing wired; needs native
+  review before promotion).
+- **Tests:** 391 unit tests / 34 files green (`npm test`, ~3s) + Neon-branch
+  integration suite (`npm run test:integration`). CI mirror: `.github/workflows/ci.yml`;
+  the enforced gate is `.githooks/pre-push` (typecheck+lint+test).
+- **Crons (vercel.json):** ingest fast */15 · telegram :10 · x :20 · map :40 (hourly) ·
+  digest core :30 + gulf :50 at 0/6/12/18 UTC · validate 07:00 · enrich 08:00 ·
+  datadark 09:00 · trade monthly (2nd) · materials monthly (3rd).
+- **Stubbed / off:** MTProto + ACLED (fixture stubs, unwired); Stripe flagged off;
+  Resend adapter superseded by Postmark.
+- **Deploy:** `npx vercel@latest deploy --prod --yes` — machine CLI session
+  (`VERCEL_TOKEN` is expired; regen is an operator task, SETUP-NEXT-WEEK #2).
+- **This WSL2 box:** the NAT resolver times out on some domains — a DNS quirk, NOT a
+  TCP block. `NODE_OPTIONS="--require ./scripts/pin-dns.cjs"` pins vercel/openai/
+  understandingwar DNS to public resolvers, making local single-call LLM debugging
+  work; bulk LLM work still runs via deployed Vercel routes (prod env + metering).
+  github.com resolves slowly/flakily: pushes work, but short-timeout git commands can
+  fail — retry or wait ~30s+. api.gdeltproject.org DNS still fails locally (not
+  pinned). TASS/RIA/Lenta RSS unreachable → covered via their Telegram channels.
+- **Git:** origin/main == local main as of 2026-07-09; there is no push blocker.
+
+## Standing rulings (distilled from the decision log; binding until a log entry supersedes)
+
+Invariants — absolute, each owned here:
+
+1. **Legal:** no ISW prose or source full-text in any user-facing output — only URLs,
+   classifications, counts, scores. ISW takeaway text may enter an LLM prompt
+   transiently; only verdicts persist.
+2. **Traceability:** every claim keeps ≥1 raw_document link (FK + app-layer transaction
+   + DB trigger `drizzle/9999_claim_source_trigger.sql`; `migrations.test.ts` guards it).
+3. **Truth-in-UI:** stub/fixture data never persists or renders as fact — excluded at
+   query level and HIDDEN entirely, never demo-labelled.
+4. **Spend:** every paid-provider call passes `SpendGuard.tryReserve()` first and FAILS
+   CLOSED when its total-cap env is unset. Caps: `LLM_SPRINT_USD_CAP` (all-time
+   backstop), `LLM_DIGEST_USD_CAP` (daily), `MAP_USD_CAP_DAILY`, `X_SPRINT_USD_CAP` +
+   `X_DAILY_USD_CAP`, `OPENSANCTIONS_CALL_CAP`. Set a new cap env in ALL Vercel envs
+   BEFORE deploying the guard that reads it, or you stop that pipeline.
+5. **Migrations:** never edit or delete an applied migration; evolve forward with a new
+   one. `9999_claim_source_trigger.sql` re-asserts without DROP, always applies last —
+   never renumber it or let drizzle-kit regeneration drop it.
+
+Operational rulings:
+
+6. LLM proposals are never auto-applied — entity audit is propose-only with human review.
+7. Batched per-item LLM extraction MUST pin `minItems`/`maxItems` = batch size in the
+   strict response schema: gpt-4o-mini silently under-fills otherwise (43–57% omission
+   measured; prompt wording does not fix it, constrained decoding does).
+8. LLM metering lives inside the provider's `analyze()`, never at call sites; truncated
+   responses are recorded before being discarded (OpenAI bills them in full).
+9. `LLM_DISABLE=1` semantics differ by call site ON PURPOSE: digest / anthropic /
+   entity-audit throw typed `LlmDisabledError`; llm-match degrades to keyword matcher;
+   /ask degrades to its deterministic cited-claims path (a throw there would cost a
+   validation run or 500 a user page).
+10. `cron_runs` rows are written at START; `finished_at IS NULL` is the timeout signal.
+11. Language routing: fa→ir and uk→ua, plus per-channel theater pins. Arabic is NEVER
+    routed by language — it spans six theaters (the Lebanese-channel docs under ru are
+    an editorial call, OPEN-TASKS #29).
+12. Dedup verdicts are same-theater and ±1 day only — cross-theater collapse drops
+    claims; identical content on distant days is a recurring template, not a mirror.
+13. Map extraction is versioned: `extractor_version` = model + prompt hash; consumers
+    filter to `mapExtractorVersion()` current versions or they double-count.
+    `raw_documents.processed` means exactly "map reached a final disposition"; version
+    bumps need their own remap path (OPEN-TASKS #33).
+14. Digest corpora are strictly per-theater (`rd.country_iso2`), reliability-ordered,
+    with the ~40% source-mix cap on gather window and LLM batch.
+15. Nav promotes only ru/ua/ir (promoting 2-digest theaters overstates depth); coverage
+    links go to `/countries#<iso2>` (theater pages don't exist; digests are gated);
+    locale links carry no `?to=` (Referer round-trips path+query, `?to=` drops query).
+16. Unhedged ISW declaratives stay `hedging='unknown'` (mid-trust 0.5) — forcing the 4
+    classes would corrupt the reliability signal.
+17. Don't trust a lone digest regeneration: extraction yield varies wildly between
+    identical runs (10→1 claims observed); last writer wins (OPEN-TASKS #32).
 
 ## Decision log (append-only, dated)
 
-- **2026-07-04** Original product brief absent from machine → reconstructed from execution
-  prompt; marked as such. (Blocker #1.)
-- **2026-07-04** VERCEL_TOKEN in scenefiend env is expired (403). Use machine's logged-in
-  Vercel CLI session for weekend deploys; token regen goes in SETUP-NEXT-WEEK.
-- **2026-07-04** No Anthropic key; OPENAI_API_KEY present → `AnalysisProvider` ships with
-  `openai` implementation live (≤$25 cap) + deterministic `stub`. Interface unchanged if/when
-  Anthropic key arrives.
-- **2026-07-04** Postmark creds exist (scenefiend's) but NOT borrowed — bnow email goes
-  through a Resend-shaped adapter stubbed to file output. Avoids cross-product sender-domain
-  mess.
-- **2026-07-04** ISW site redesigned vs prompt's assumption: reports live at
-  `/research/russia-ukraine/russian-offensive-campaign-assessment-<month>-<day>-<year>/`.
-  Crawler targets new structure; criticalthreats.org stays the fallback.
-- **2026-07-04** Per repo-root CLAUDE.md: no vendor branding in commits/files; no
-  deletes/renames outside this repo; small, test-covered diffs.
-- **2026-07-04** TASS/RIA/Lenta RSS TCP-unreachable from host → their content enters
-  via their official telegram channels (tass_agency, rian_ru).
-- **2026-07-04** OpenAI quota died after one successful prod digest → stub provider
-  (deterministic extractive) as designed; ANALYSIS_PROVIDER=stub in prod env.
-- **2026-07-04** ISW "Key Takeaways" stored as keyword signatures only (toponyms +
-  action classes + char count) — no prose in DB, satisfying §8.6 while enabling matching.
-- **2026-07-04** Unhedged ISW declaratives stay hedging='unknown' (mid-trust 0.5) —
-  forcing them into the 4 classes would corrupt the reliability signal.
-- **2026-07-04** Matching is trilingual keyword-based (gazetteer + oblast→town
-  expansion), NOT LLM — deterministic, testable; LLM upgrade slots into same seam.
-- **2026-07-04** Vercel account supports frequent crons (*/15 registered fine) — no
-  local scheduler needed; everything steady-state runs serverless.
-- **2026-07-04** RU/UA digest corpora are strictly per-theater (rd.country_iso2 = X);
-  uk-language telegram posts auto-tag ua (registry lacks per-source country, debt).
-- **2026-07-05** OpenAI recharged → stub override removed; 30 digests regenerated via
-  Vercel route (local OpenAI egress still blocked). LLM semantic matching added for
-  validation: ISW takeaway texts enter the prompt transiently, only verdicts persist
-  (§8.6 holds); keyword matcher remains as fallback; details.matcher records which ran.
-- **2026-07-05** Validate flow auto-discovers new ISW reports from the predictable
-  slug (…-assessment-<month>-<day>-<year>) — corpus updates no longer need local runs.
-- **2026-07-05** Elite-politics track added (Gregory's request): digests.track dimension,
-  entities/claim_entities graph, lexicon prefilter + Kremlinology prompt. Unvalidated by
-  design (ISW out of scope); factional interpretations always hedging='assessed'.
-  Kommersant RSS + t.me/vchkogpu unreachable (blocked / preview off) — degrade cleanly.
-- **2026-07-06** Original product brief installed as `docs/PRODUCT-BRIEF.md`, replacing the
-  2026-07-04 reconstruction (delete explicitly instructed by Gregory's hardening prompt;
-  scoped exception to the no-delete default). Diff findings — nothing built CONTRADICTS the
-  original, but the reconstruction under-specified it in four material ways:
-  (1) §8.7 Phase 2/3 targets were missing: event coverage ≥80% of ISW events same-day
-  (actual: 17.5% avg / 31% nonzero-day), unsupported-claim rate <2%, timeliness ±6h,
-  10 design partners + 1 gov pilot. Now tracked in OPEN-TASKS #11.
-  (2) §6.5 pricing is crisis-cycle + REGIONAL-BUNDLE SKUs (sell "Gulf" not per-country;
-  à-la-carte country ≈40% of bundle; global $10–15K/mo; standby $300–500; NO surge
-  pricing). Implemented per-country tiers ($400/$2–4K) sit inside the ranges, but the
-  bundle packaging layer is absent. OPEN-TASKS #12.
-  (3) §8.6 risk list includes sanctions-exposure counsel review for handling RU
-  state-media content — operator action, added to SETUP-NEXT-WEEK. OPEN-TASKS #13.
-  (4) §5 scoring dimensions include source-reliability CALIBRATION (does our weighting
-  match ISW hedging?) — not currently a scored validation dimension. Ties into the
-  reliability-weighting audit (OPEN-TASKS #6).
-  China placement: original Tier 1 lists China as second flagship, but its §8.4 build
-  plan recommends Gulf as region #2 — our China deferral follows the build plan; no
-  contradiction. Phase 0 exits (≥2,000 sources, >90% parse) exceeded: 6,985 / 97.65%.
-- **2026-07-06** Truth-in-UI hardening: stub/fixture data may never persist or render as
-  fact. Stub enrichment persists only sanitized `{matched:false, stub:true}`; stub
-  ownership edges never written; stub adapters unwired from production ingest; digest
-  corpus excludes `[STUB FIXTURE]%` at query level; entity/ask surfaces null out stub
-  fields. Prod purged (2 fabricated-source claims, 4 stub docs, 148 stub enrich records,
-  5 stub edges). Policy: HIDE stub data entirely rather than demo-label it.
-- **2026-07-06** Digest cron split into ?group=core (ru+ua, :30) and ?group=gulf (rest,
-  :50): serial matrix measured ~6 min (RU military digest alone 3m40s under TPM
-  throttle); killed runs silently dropped last-sorting theaters. Audit:
-  docs/reviews/AUDIT-2026-07-06.md.
-- **2026-07-06** CI: .github/workflows/ci.yml (typecheck+lint+test) activates on first
-  push; GitHub unreachable from this box, so the enforced local gate is
-  .githooks/pre-push via `git config core.hooksPath .githooks` (run once per clone).
-- **2026-07-06** /ask capped: ask_usage table logs every question (billing-ready);
-  ASK_USER_DAILY_LIMIT (20/day) + ASK_GLOBAL_DAILY_BUDGET_USD ($1/day) enforced in
-  askWithLimits() wrapping both the page and the API route.
-- **2026-07-06** Entity graph canonicalized 293 → 85: deterministic rules pass
-  (geography/collectives/objects dropped; alias clusters merged with claim/link
-  repointing) + LLM propose-only audit route (/api/cron/entity-audit) with human
-  review before apply (docs/reviews/ENTITY-AUDIT-2026-07-06.jsonl). ENTITY_RULES
-  block added to all extraction prompts. Policy: LLM proposals are never auto-applied.
-- **2026-07-07** Integration tests run on disposable Neon branches (fork prod, test,
-  delete — scripts/test-integration.sh); *.itest.ts excluded from the unit suite.
-- **2026-07-07** RU/UA validation filters ISW takeaways per theater
-  (classifyTakeawayTheater). Measured effect small (~0.5 takeaways/report filtered);
-  the dominant coverage noise is gpt-4o-mini matcher nondeterminism even at temp 0
-  (±30pts/day on unchanged digests) → OPEN-TASKS #15 (majority-vote matching).
-- **2026-07-07** Iran military runs a theater prompt + lexicon
-  (TrackConfig.lexiconByCountry/systemPromptByCountry); "quiet days are normal" is
-  explicit in the prompt. Iran coverage off 0%: 33.3/25% on 2 of 4 scored days.
-- **2026-07-07** Reliability weighting: digest event ranking confirmed wired
-  (confidence = mean source reliability); /ask retrieval now orders by confidence
-  within a day (was recency-only — state-media claims could lead the evidence set).
-- **2026-07-07** registry-materialize is theater-aware: source_theater_stats (ru/ir)
-  + global all-theater aggregates on sources; ME zombie rows 1,574 → 0.
-- **2026-07-07 (sprint)** Paid-provider budget architecture: provider_usage +
-  provider_state tables (migration 0008) + SpendGuard (src/lib/usage/spend-guard.ts).
-  Every paid call passes tryReserve() first; FAIL-CLOSED when the provider's total-cap
-  env is unset (X_SPRINT_USD_CAP / LLM_SPRINT_USD_CAP / OPENSANCTIONS_CALL_CAP). Caps:
-  total USD or total calls, daily USD, daily+per-run requests — all env-tunable.
-- **2026-07-07 (sprint)** Live X adapter is `x_api` (api.twitterapi.io), NOT the "x"
-  fixture stub name — audit tooling treats adapter='x' rows as stub contamination.
-  Steady-state polling uses advanced_search batched `from:` OR-queries since a
-  persisted watermark (pay only new tweets + $0.00015/request minimums); last_tweets
-  (newest ~20, all billed) reserved for backfill. Own cron group (?which=x, hourly
-  :20), excluded from "all" so casual local ingest can't spend. 383 ISW-cited accounts
-  (last 90d), dominant-theater tagged; uk-language tweets re-tag ua (telegram-web
-  convention).
-- **2026-07-07 (sprint)** Majority-vote validation matching (OPEN-TASKS #15): k=5
-  gpt-4o-mini rounds, takeaway↔claim match requires strict majority on the SAME claim;
-  per-vote audit trail in details.votes; matcher records llm-majority|llm|keyword.
-  Measured: 26/27 country-day results identical across 3 full reruns (was ±30pts
-  single-shot); worst case one marginal takeaway (16.7pts on a 6-takeaway day).
-  MATCHER_MODE=single is the fallback flag.
-- **2026-07-07 (sprint)** OpenSanctions live: 200 entities enriched day-one under
-  OPENSANCTIONS_CALL_CAP=300 (121 matched, 54 sanctioned; daily-cap guard stopped run 2
-  at exactly 200 — by design). Priority: pressure-signal entities > persons > companies.
-  Stub-checked rows count as unchecked (live key upgrades them). Spot-check 4/5 correct;
-  1 name-collision flagged → matches are name-based, badges are beta-only until
-  commercial licensing (HUMAN-SETUP-TODO hard gate).
-- **2026-07-07 (sprint)** sa was never bot-walled: arabnews.com RSS froze upstream
-  2026-04-25 (still 200/valid XML). sa → Saudi Gazette + Asharq Al-Awsat EN; il revived
-  (JPost + Ynet, flipped active); bh/kw stay scaffolded (no working feed found).
-- **2026-07-07 (sprint)** Citation-weighted parity after X adapter: ru 62.5%→74.2%,
-  ir 35.9%→57.5% (scripts/source-parity.ts; the moving baseline vs the logged 51% is
-  telegram roster growth since 07-05).
-- **2026-07-09 (nav)** Server-side session read in the shared header, because `next build`
-  already reported ALL 33 routes as `ƒ` dynamic — there was no static/ISR output to sacrifice,
-  so the client-island alternative would have bought a hydration swap for nothing. Route table
-  diffed byte-identical before/after. `currentUserEmail()` (src/lib/session.ts) wraps `auth()` in
-  React `cache()` (the layout, the page and any gate layout would each fire a separate
-  `strategy:"database"` session query) **and** a try/catch: there is no `error.tsx` anywhere, so a
-  layout-level throw would 500 the whole site. Chrome degrades to signed-out; `requireUser()` is
-  untouched and stays fail-closed.
-- **2026-07-09 (nav)** Solutions labels corrected against page content, over the brief's sketch:
-  `/datadark` is the **Data-dark tracker** (Russia has classified 400+ statistical series; the
-  suppression is the signal) — it is NOT sanctions compliance, and labelling it so would have been
-  a false product claim. `/trade` is the mirror-trade & evasion watch and takes the sanctions
-  label. `critical-materials` is import-concentration/choke-points, not price risk. Final:
-  Sanctions & trade evasion→/trade, Commodity & supply-chain risk→/critical-materials, Economic
-  data suppression→/datadark, Political risk & signals→/signals.
-- **2026-07-09 (nav)** Coverage links to `/countries#<iso2>`, not to theater pages: **there are no
-  per-theater pages** — the per-theater surface is the digest, which sits behind
-  FEATURE_AUTH_GATE. Pointing a top-of-funnel nav item at a sign-in wall defeats the restructure.
-  Digest deep links live on the signed-in homepage, where the gate is already satisfied. Also
-  keeps zero DB queries in the header.
-- **2026-07-09 (nav)** Nav promotes only ru/ua/ir although `countries.status='active'` holds eight
-  rows: il/sa/ae/om/qa carry 2–5 digests vs 27/20/19. Consistent with the standing `home.live`
-  copy; promoting a 2-digest theater would overstate coverage depth (truth-in-UI policy).
-- **2026-07-09 (nav)** Locale links stay plain `<a href="/api/locale?set=xx">` with **no `?to=`**.
-  The route prefers an explicit `?to=` over the Referer, so threading `?to={usePathname()}` would
-  silently drop `?profile=` on digest pages. Verified live: Referer round-trips path AND query.
-- **2026-07-09 (nav)** es/he/ko keep the English per-key fallback rather than receiving nav-only
-  catalogs — half-translated chrome is worse than uniform fallback. OPEN-TASKS #21. The existing
-  i18n suite does NOT guard translation completeness (English fallback satisfies it); the new
-  header test does, for header keys.
-- **2026-07-09 (MR sprint 1)** **Deployed env values read from the Vercel dashboard**, closing
-  audit §12 #5: `MIX_CAP_FRACTION`, `MATCH_VOTES`, `OPENAI_MODEL`, `MATCHER_MODE` and
-  `ANALYSIS_PROVIDER` are all **absent in production** → the shipped defaults are live (0.4, 5,
-  gpt-4o-mini, majority, openai). So the audit's "240 per-adapter gather cap binds" thesis holds
-  unconditionally, and k=5 majority voting is confirmed. `LLM_SPRINT_USD_CAP`, `X_SPRINT_USD_CAP`,
-  `X_DAILY_USD_CAP`, `OPENSANCTIONS_CALL_CAP` are set but their **values stay unreadable** — the
-  CLI returns `""` for sensitive vars, so `vercel env pull` cannot confirm them. Values remain an
-  operator task.
-- **2026-07-09 (MR sprint 1)** The digest guard's **daily** cap is `LLM_DIGEST_USD_CAP` and its
-  **all-time** backstop is the existing `LLM_SPRINT_USD_CAP`. SpendGuard's fail-closed rule keys
-  off the total cap only, so a daily-cap-only guard would have had no fail-closed path; rather than
-  invent a second total-cap env that would be unset in prod (and so kill every digest on deploy),
-  the digest path honours the sprint ceiling llm_match already honours. `dailyUsdCap` is now
-  `number | null`, null = fail closed; every existing caller passes a number, so x_api /
-  opensanctions / llm_match behaviour is unchanged. `LLM_DIGEST_USD_CAP=2` set in Vercel
-  (production, preview, development) **before** deploying — an unset cap in production fails
-  closed, which would have stopped all digests.
-- **2026-07-09 (MR sprint 1)** Metering lives **inside** `openai-provider.analyze()`, not in
-  `digest.ts`: only the provider holds `completion.usage`, and a guard there covers every caller
-  (cron, `scripts/digest.ts`, any future map-reduce reduce pass) rather than one call site. A
-  truncated response is **recorded before it is thrown away** — OpenAI bills it in full, so
-  recording it is the only way the waste ever becomes visible. One guard instance per `analyze()`;
-  the daily/total caps are DB-backed and therefore hold across serverless invocations.
-- **2026-07-09 (MR sprint 1)** `LLM_DISABLE=1` refuses at all four OpenAI call sites, but **not
-  identically**: digest / anthropic / entity-audit throw a typed `LlmDisabledError`, while
-  llm-match degrades to the keyword matcher and `/ask` to its deterministic cited-claims path.
-  Throwing at those two would cost a whole validation run and 500 a user surface — strictly worse
-  than losing the LLM assist, which is all the switch is meant to stop.
-- **2026-07-09 (MR sprint 1)** entity-audit shares `LLM_DIGEST_USD_CAP`'s per-day envelope but
-  writes its **own** `provider_usage` row (`openai_entity_audit`). Folding an unscheduled manual
-  route into `openai_digest` would corrupt the digest ledger that this sprint exists to create.
-- **2026-07-09 (MR sprint 1)** The truncation-ladder retry condition is "a smaller rung remains",
-  not `size > 25`. `LlmBudgetError` / `LlmDisabledError` messages contain no "truncated", so a
-  budget stop rethrows immediately instead of burning the remaining rungs at full price.
-- **2026-07-09 (MR sprint 1)** `drizzle/9999_claim_source_trigger.sql` re-asserts the traceability
-  trigger **without dropping it**: `scripts/migrate.ts` runs statements one at a time outside a
-  transaction, so a DROP/CREATE pair would leave a window in which a live digest cron could commit
-  an unsourced claim. Numbered 9999 so it always applies after generated DDL and can never collide
-  with drizzle-kit's numbering, which counts from `meta/_journal.json` (it emitted `0010` next,
-  confirming the choice). `src/db/migrations.test.ts` fails if a regeneration ever drops it.
-- **2026-07-09 (MR sprint 1)** Persian routing is **two rules, both needed**: `TELEGRAM_CHANNEL_THEATER`
-  pins the five Iranian registry channels to ir (this is what catches their 12 English + 4 Arabic
-  posts), and `routeTheater()` adds fa→ir beside the existing uk→ua (this catches Persian on any
-  future channel). **Arabic is deliberately not routed by language** — it spans ir/sa/ae/qa/om/il,
-  and the 635 Arabic docs still filed under ru are Lebanese (mtvlebanonews 471, sameralhajali 109,
-  mmirleb 19), not Iranian. Whether Lebanon/Hezbollah belongs to the ir theater is an editorial
-  call for Gregory, not a mechanical fix → OPEN-TASKS #29.
-- **2026-07-09 (MR sprint 1)** `cron_runs` rows are written at **start**, not on completion: a run
-  killed by `maxDuration` then leaves `finished_at IS NULL`, and that unterminated row is the
-  timeout signal. Recording only on completion would have made a timeout indistinguishable from a
-  cron that never fired — the exact ambiguity audit §12 #6 flagged.
-- **2026-07-09 (MR sprint 1)** **The empty-extraction guard is weaker than it looks.** Verifying the
-  metering, two regens of ua/2026-07-08 from a byte-identical batch (`promptTokens`=10,516 both
-  times) yielded 1 claim then 8 claims; the first overwrote a 10-claim, 57.1%-coverage digest.
-  `digest.ts:170-185` refuses an overwrite only at **zero** events, so a 10→1 collapse passes, and
-  with ~8 regenerations/digest-day under last-writer-wins the published digest is the *last* roll,
-  not the best. Not fixed here (out of sprint scope, and the fix — compare claim counts, or K-run
-  extraction — belongs with OPEN-TASKS #18/#28). → OPEN-TASKS #32. Only became visible because
-  `stats.llm` now makes per-run extraction yield measurable.
-- **2026-07-09 (MR sprint 1) — two standing notes in this file are now WRONG, corrected here rather
-  than edited above (the log is append-only):**
-  (a) "GitHub unreachable from this box" (2026-07-06 CI entry) — `git ls-remote origin` succeeds.
-  `origin/main` is at `be13063`, pushed 2026-07-09 08:53.
-  (b) The "~100 unpushed commits / email-privacy push blocker" handed down from the earlier
-  session is **stale**: only the 11 MR-sprint-1 commits are unpushed, and the one commit carrying a
-  private email (`e29d220` "Initial commit", `gregoryoconnor@gmail.com`) is already an **ancestor of
-  origin/main** — it was pushed long ago, so GH007 cannot fire on it. Every other commit uses the
-  `6955+gregoryo@users.noreply.github.com` noreply address. There is no push blocker.
+Entries 2026-07-04 → 2026-07-09 (MR sprint 1) are archived VERBATIM in
+`docs/DECISIONS.md`. Distilled still-binding decisions live in Standing rulings above.
+
 - **2026-07-09 (MR sprint 2)** Map stage ships in SHADOW: `doc_claims`/`doc_dedup`/`doc_map_state`
   + hourly `/api/cron/map` (:40, own group). The digest pipeline is byte-untouched — the only
   shared-file changes are additive (`llm-guard.ts` map guard, `vercel.json` cron, `schema.ts`).
@@ -416,21 +230,31 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
   "no deletes/renames" understanding, which mis-attributed a global-~/CLAUDE.md rule to a 
   nonexistent repo-root file. Applied-migration additivity and 
   decision-log append-only are explicitly preserved.
+- **2026-07-09 (restructure)** AGENTS.md reorganized from journal to brain, 476 → 301
+  lines. New maintenance rule at top: only this log is append-only; standing sections are
+  corrected in place. Entries 2026-07-04 → 07-09 (MR sprint 1) moved verbatim to
+  `docs/DECISIONS.md`; durable decisions distilled into § Standing rulings. Stale
+  standing facts corrected in place: digest cron is 4×/day at 0/6/12/18 UTC (was "daily
+  21:30"); "openai/gdelt TCP-unreachable" rewritten as the WSL2 DNS quirk (gdelt DNS
+  still fails — not pinned); GitHub reachable but DNS slow (ls-remote: 3/3 fail at 10s,
+  ok at 45s); directory map matched to the real tree; RSS count 8 → 29; anthropic
+  provider exists in the seam (key absent); Postmark added to credentials (live but
+  missing from the table); untouchables now name the SpendGuard cap envs, not the
+  launch-weekend "$25 cap / deployed by Sunday". `CLAUDE.MD` → `CLAUDE.md` (auto-load
+  is case-sensitive) and rewritten: verified commands/setup, commit hygiene, pointers
+  instead of restated guardrails. 391/391 tests green at time of writing.
 
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).
-  Small and often; main must always build. No vendor branding in commit messages.
+  Small and often; main must always build.
 - Tests: Vitest; every parser/adapter gets fixture-based tests (`fixtures/`). `npm test`
-  green before every deploy.
-- Migrations: drizzle-kit generate; never edit an applied migration; additive evolution.
+  green before every deploy. Component tests opt into jsdom per-file
+  (`@vitest-environment jsdom` docblock).
+- Migrations: `npm run db:generate` → `npm run db:migrate` (additivity: ruling 5).
 - Naming: snake_case DB, camelCase TS, kebab-case files.
-- Scrapers: ≥2s per-host spacing, honor robots.txt, disk-cache every fetch (never fetch the
-  same URL twice), custom UA `BNOWBot/0.1 (+https://bnow.net/bot)`.
-- Legal invariant: **no ISW prose or source full-text in any user-facing output** — only
-  URLs, classifications, counts, scores.
-- Schema invariant: **claims cannot exist without ≥1 raw_document link** (FK + app-layer
-  transaction; enforced in tests).
+- Scrapers: ≥2s per-host spacing, honor robots.txt, disk-cache every fetch (never fetch
+  the same URL twice), custom UA `BNOWBot/0.1 (+https://bnow.net/bot)`.
 
 ## Credentials & integrations
 
@@ -438,39 +262,40 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
 |---|---|---|---|
 | Neon Postgres | `DATABASE_URL`, `NEON_API_KEY` | **live** | console.neon.tech |
 | Vercel deploy | CLI session (`VERCEL_TOKEN` expired) | **live (CLI)** | vercel.com/account/tokens |
-| OpenAI (analysis) | `OPENAI_API_KEY` + `LLM_SPRINT_USD_CAP` (all-time) + `LLM_DIGEST_USD_CAP` ($2/day) | **live, spend-guarded** | platform.openai.com |
-| LLM kill-switch | `LLM_DISABLE=1` | refuses every LLM call site | (env only) |
-| Anthropic | `ANTHROPIC_API_KEY` | absent | console.anthropic.com |
+| OpenAI (analysis) | `OPENAI_API_KEY` + caps (ruling 4) | **live, spend-guarded** | platform.openai.com |
+| LLM kill-switch | `LLM_DISABLE=1` | refuses every LLM call site (ruling 9) | (env only) |
+| Anthropic | `ANTHROPIC_API_KEY` | provider implemented; key absent | console.anthropic.com |
+| Postmark (auth email) | `POSTMARK_SERVER_TOKEN` | **live** (scenefiend sender domain — migrate) | postmarkapp.com |
 | Cron auth | `CRON_SECRET` | **live** | (already set) |
+| X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live** (x_api, spend-guarded) | api.twitterapi.io |
+| OpenSanctions | `OPENSANCTIONS_API_KEY` + `OPENSANCTIONS_CALL_CAP` | **live** (licensing gate before badges ship) | opensanctions.org |
 | Telegram MTProto | `TELEGRAM_API_ID/HASH` | stubbed | my.telegram.org |
-| X/Twitter via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live** (x_api, spend-guarded) | api.twitterapi.io |
-| OpenSanctions | `OPENSANCTIONS_API_KEY` + `OPENSANCTIONS_CALL_CAP` | **live** (≤300 calls, licensing gate) | opensanctions.org |
 | ACLED | `ACLED_API_KEY`, `ACLED_EMAIL` | stubbed | acleddata.com |
 | Stripe | `STRIPE_SECRET_KEY`, … | flagged off | dashboard.stripe.com |
-| Resend | `RESEND_API_KEY` | stubbed→file | resend.com |
+| Resend | `RESEND_API_KEY` | superseded by Postmark | resend.com |
 
 ## Next steps / open questions
 
-1. **Monday (Gregory):** work docs/SETUP-NEXT-WEEK.md top-to-bottom — LLM credits/key
-   first (biggest quality unlock), then DNS, then MTProto/Resend/Stripe.
-2. Russia depth build order: docs/RUSSIA-DATA-ROADMAP.md §5 — next up:
-  OpenSanctions→entity-graph link, zakupki.gov.ru procurement watcher, data-dark
-  tracker, kremlin.ru attendance matrix, decree-gap counter.
-3. Stage 7 candidates (any future session): anthropic provider impl; year-inference
-  for 37 unparsed ISW pages; per-source country column; scoreboard trend charts;
-  GDELT raw-file fallback.
-4. ~~Open: original brief still needs to replace docs/PRODUCT-BRIEF.md~~ Done 2026-07-06.
+1. **Operator:** `docs/SETUP-NEXT-WEEK.md` top-to-bottom — VERCEL_TOKEN regen, bnow.net
+   DNS + domain attach, Postmark sender-domain move off scenefiend, MTProto, Stripe.
+   (OpenAI credits: done 2026-07-05; keep the billing alert.)
+2. **MR sprint 3:** reduce stage over `doc_claims` (cluster → digest), then promote the
+   map out of shadow. Inputs: `docs/reviews/MAP-SHADOW-RESULTS.md`, OPEN-TASKS #32/#33/#35.
+3. Debt & risks: `docs/OPEN-TASKS.md` (prioritized); key-blocked items: `docs/BLOCKERS.md`;
+   Russia depth build order: `docs/RUSSIA-DATA-ROADMAP.md` §5.
 
 ## Operating protocol
 
 1. Plan next ≤2h block as numbered list appended to `docs/PROGRESS.md` (timestamped).
 2. Build + test (fixture-based for every parser/adapter).
-3. Self-review the diff adversarially: edge cases, rate-limit safety, secret leakage, schema
-   invariants (claim-to-source above all).
+3. Self-review the diff adversarially: edge cases, rate-limit safety, secret leakage,
+   schema invariants (claim-to-source above all).
 4. Commit; deploy if main is green.
-5. Update AGENTS.md (current state, decision log) + PROGRESS.md.
-6. Replan freely when reality disagrees with the plan. Untouchables: the four scope pillars
-   (ingest, registry, digest, ISW validation), traceability invariant, legal guardrails,
-   budget caps ($25 LLM), and a deployed app by Sunday night. Every deviation → decision log.
-7. End of each stage: write `docs/reviews/STAGE-N-REVIEW.md` (built, test results,
+5. Update AGENTS.md — correct standing sections in place, append to the decision log —
+   and `docs/PROGRESS.md`.
+6. Replan freely when reality disagrees with the plan. Untouchables: the four scope
+   pillars (ingest, registry, digest, ISW validation) and Standing rulings 1–5
+   (legal, traceability, truth-in-UI, fail-closed SpendGuard caps, migration
+   additivity). Every deviation → decision log.
+7. End of each stage/sprint: write `docs/reviews/<NAME>.md` (built, test results,
    exit-criteria pass/fail with numbers, decisions, debt, risks, replan).
