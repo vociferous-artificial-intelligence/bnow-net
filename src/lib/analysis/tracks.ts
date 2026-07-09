@@ -4,6 +4,39 @@
 
 export type Track = "military" | "elite_politics" | "nuclear";
 
+// Event-type vocabularies, one per track. Each MUST match the "event type:" line
+// of that track's prompt: the response schema is built from these under
+// strict:true, so a value the prompt asks for but the enum omits is unreachable —
+// the model is forced to mis-label the event with someone else's vocabulary.
+export const MILITARY_EVENT_TYPES = [
+  "strike",
+  "advance",
+  "air_defense",
+  "political",
+  "economic",
+  "other",
+] as const;
+
+export const ELITE_POLITICS_EVENT_TYPES = [
+  "prosecution",
+  "asset_seizure",
+  "appointment",
+  "dismissal",
+  "elite_death",
+  "gang_case",
+  "other",
+] as const;
+
+export const NUCLEAR_EVENT_TYPES = [
+  "enrichment",
+  "iaea",
+  "facility",
+  "sabotage",
+  "diplomacy",
+  "weaponization",
+  "other",
+] as const;
+
 export interface TrackConfig {
   track: Track;
   /** which countries run this track */
@@ -12,6 +45,8 @@ export interface TrackConfig {
   lexicon: RegExp | null; // null = military's toponym/action filter (in stub-provider)
   systemPrompt: string | null; // null = provider default (military)
   validated: boolean; // scored against ISW?
+  /** enum for events[].type in this track's response schema */
+  eventTypes: readonly string[];
   /** per-theater overrides: the RU-shaped defaults misfire on other theaters
    *  (Iran military needs proxy/maritime/IRGC framing, not toponym gazetteers) */
   lexiconByCountry?: Record<string, RegExp>;
@@ -168,6 +203,7 @@ export const TRACKS: Record<Track, TrackConfig> = {
     lexicon: null,
     systemPrompt: null,
     validated: true,
+    eventTypes: MILITARY_EVENT_TYPES,
     lexiconByCountry: { ir: IRAN_MILITARY_LEXICON },
     systemPromptByCountry: { ir: IRAN_MILITARY_PROMPT },
   },
@@ -178,6 +214,7 @@ export const TRACKS: Record<Track, TrackConfig> = {
     lexicon: ELITE_LEXICON,
     systemPrompt: ELITE_POLITICS_PROMPT,
     validated: false,
+    eventTypes: ELITE_POLITICS_EVENT_TYPES,
   },
   nuclear: {
     track: "nuclear",
@@ -185,6 +222,7 @@ export const TRACKS: Record<Track, TrackConfig> = {
     lexicon: NUCLEAR_LEXICON,
     systemPrompt: NUCLEAR_PROMPT,
     validated: false,
+    eventTypes: NUCLEAR_EVENT_TYPES,
   },
 };
 

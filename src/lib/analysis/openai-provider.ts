@@ -13,7 +13,7 @@ import type {
   DigestAnalysis,
   ExtractedEvent,
 } from "./provider";
-import { ENTITY_RULES } from "./tracks";
+import { ENTITY_RULES, MILITARY_EVENT_TYPES, TRACKS, type Track } from "./tracks";
 
 // OpenAI structured-output extraction. Hard rules enforced downstream too:
 // claims may only cite docIds present in the input batch; uncited claims are dropped.
@@ -24,7 +24,11 @@ import { ENTITY_RULES } from "./tracks";
 
 const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
 
-const RESPONSE_SCHEMA = {
+// One schema per track: its events[].type enum is that track's own vocabulary.
+// A single military-only enum forced elite_politics and nuclear extractions —
+// whose prompts ask for prosecution/enrichment/... — to label every event from the
+// military vocabulary, because strict:true admits nothing else (audit §3a).
+export const responseSchemaForTypes = (eventTypes: readonly string[]) => ({
   type: "object",
   additionalProperties: false,
   properties: {
@@ -37,7 +41,7 @@ const RESPONSE_SCHEMA = {
           title: { type: "string" },
           type: {
             type: "string",
-            enum: ["strike", "advance", "air_defense", "political", "economic", "other"],
+            enum: eventTypes,
           },
           summary: { type: "string" },
           claims: {
@@ -79,7 +83,14 @@ const RESPONSE_SCHEMA = {
     },
   },
   required: ["events"],
-} as const;
+});
+
+/** Schema for a track name; unknown/absent falls back to military — the default
+ *  digest track, and the shape every Gulf theater runs. */
+export function responseSchemaFor(track?: string) {
+  const cfg = track && track in TRACKS ? TRACKS[track as Track] : undefined;
+  return responseSchemaForTypes(cfg?.eventTypes ?? MILITARY_EVENT_TYPES);
+}
 
 const SYSTEM = `You are an OSINT analyst producing a daily conflict digest.
 Input: numbered source documents (id, source, reliability 0-1, text; Russian/Ukrainian/English).
@@ -132,7 +143,11 @@ export class OpenAiProvider implements AnalysisProvider {
         ],
         response_format: {
           type: "json_schema",
-          json_schema: { name: "digest", schema: RESPONSE_SCHEMA as never, strict: true },
+          json_schema: {
+            name: "digest",
+            schema: responseSchemaFor(opts?.track) as never,
+            strict: true,
+          },
         },
         temperature: 0.2,
         // Without this the model runs to its own 16,384-token ceiling before
