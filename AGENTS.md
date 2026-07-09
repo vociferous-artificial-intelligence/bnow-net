@@ -249,6 +249,17 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   silently serve legacy forever while every dashboard reads "set". (2) `.env.local` was
   deliberately NOT mirrored: it lacks `REDUCE_USD_CAP_DAILY`, so a local mapreduce run would
   fail closed at the reduce guard (ruling 4). Mirror both envs together or neither.
+- **2026-07-09 (env mirror; corrects the entry above)** `.env.local` now mirrors both prod vars,
+  `DIGEST_ENGINE=mapreduce` + `REDUCE_USD_CAP_DAILY=2` (verified through the loader:
+  `digestEngine()` → mapreduce, `reduceDailyUsdCap()` → 2). Value sourced from the entry above,
+  not read back — both are stored Sensitive — and corroborated by `REDUCE_DAILY_USD_CAP_DEFAULT
+  = 2`. **Note (2) above named the wrong guard; corrected here, since the log is append-only.**
+  Per-day caps resolve `envCap(…) ?? (isProduction() ? null : 2)` (digest/map/reduce alike), so
+  they fail closed ONLY in production; the environment-independent fail-closed is the TOTAL cap
+  (`spend-guard.ts` refuses when `totalCapUsd` and `totalRequestCap` are both unset) — which is
+  precisely what ruling 4 says. Ruling right, entry's mechanism wrong. So `LLM_SPRINT_USD_CAP`
+  stays absent from `.env.local`: local digest/map/reduce runs refuse to spend at `tryReserve()`,
+  which is what stops a stray local script billing the account. Set it only to pay for a run.
 
 ## Conventions
 

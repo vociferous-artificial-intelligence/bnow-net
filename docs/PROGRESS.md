@@ -810,3 +810,17 @@ matcher vs ISW; legacy baseline vs the shipped K=5 mapreduce configuration):
    (printf-not-echo; `.env.local` not mirrored because it lacks the reduce cap).
 4. Open: the week-long scoreboard watch, especially ua (−3.6 pts in the A/B,
    noise-scale). Rollback = unset the prod env var + redeploy.
+
+## 2026-07-09 ~23:25 UTC — mirror the cutover envs into .env.local
+
+1. `.env.local` (gitignored) now carries `DIGEST_ENGINE=mapreduce` and
+   `REDUCE_USD_CAP_DAILY=2`, mirroring prod. Verified through the real loader:
+   `digestEngine()` → `mapreduce`, `reduceDailyUsdCap()` → 2. Vitest does not read
+   `.env.local`, so the suite is unaffected (450/450 still green).
+2. Correction, logged in AGENTS.md: the cutover entry claimed an unset
+   `REDUCE_USD_CAP_DAILY` would make a local mapreduce run fail closed. It would not.
+   Per-day caps resolve to a default of 2 outside production (`llm-guard.ts`); the
+   environment-independent fail-closed is the TOTAL cap check in `spend-guard.ts`
+   (`LLM_SPRINT_USD_CAP`). Ruling 4 was right; my mechanism was wrong.
+3. `LLM_SPRINT_USD_CAP` stays absent locally on purpose — local digest/map/reduce
+   runs refuse to spend at `tryReserve()`. Add it only for a run you mean to pay for.
