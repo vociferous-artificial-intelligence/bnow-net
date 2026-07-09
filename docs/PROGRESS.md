@@ -644,3 +644,37 @@ ru -> ru  13 ;  en -> ru  1     source default
 
 Note the run took **126s** — the hourly telegram scrape is the slowest cron and now has its wall-clock
 recorded for the first time (audit §8 listed it UNKNOWN).
+
+## 2026-07-09 14:54 UTC — MR sprint 2 plan: map stage in SHADOW mode
+
+Prerequisite verified live before starting: `provider_usage` has `openai_digest` rows
+(6 req / $0.0108 today) and `cron_runs` is receiving rows from 4 job kinds — MR sprint 1
+is deployed. OPEN-TASKS #29 confirmed still undecided (`ingest/config.ts:107` says
+"deliberately not decided here") → the three Lebanese channels are EXCLUDED from the map.
+
+Block plan (≤2h increments, atomic commits):
+
+1. **Migrations (additive)**: `doc_claims` (UNIQUE raw_document_id/track/extractor_version/
+   ordinal), `doc_dedup` (mirror→canonical, method exact|minhash, absence = canonical),
+   `doc_map_state` (one row per (doc, track, extractor_version) disposition — this is what
+   makes "mapped, zero claims" recordable and the worker idempotent). Metering reuses
+   provider_usage (provider=`openai_map`) + cron_runs — no new map_runs table. `processed`
+   is REPURPOSED with exactly one meaning: "map stage reached a final disposition"
+   (mapped for all applicable tracks / recorded as mirror / nothing applicable). The
+   9999 trigger migration is untouched; migrations.test.ts must stay green.
+2. **Dedup gate** in the worker path: exact (md5 of whitespace-normalized content) then
+   minhash 0.7 (existing minhash.ts) against a rolling same-theater/±1-day canonical
+   window, both persisted to doc_dedup. Mirrors are never sent to the LLM.
+3. **Map worker + hourly cron** (`/api/cron/map`, own group at :40): select canonical
+   eligible unmapped ru/ua/ir docs (indexed `processed=false` scan), per-doc track
+   applicability (military all + ir lexicon; elite/nuclear lexicon-gated), micro-batch
+   10–25 same-theater docs, gpt-4o-mini strict JSON keyed by docId, 1,500 chars/doc,
+   `max_completion_tokens` ~200/doc, `MAP_USD_CAP_DAILY` guard (own env var, fail-closed,
+   `LLM_SPRINT_USD_CAP` all-time backstop), LLM_DISABLE honored, every call metered.
+4. **Backfill via the deployed route** (local box cannot reach api.openai.com): estimate
+   printed first, then 2026-07-04 → forward, oldest first, per-day actual vs model.
+   Lebanese channels skipped + counted. Budget ≤$8 total for backfill + verification.
+5. **docs/reviews/MAP-SHADOW-RESULTS.md** with the honest numbers, incl. the 30-doc
+   digest-coverage spot check and 10 random quote_orig samples for Gregory.
+
+Zero changes to the digest path. Success = corpus mapped once-ever, metered, capped.

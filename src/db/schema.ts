@@ -176,7 +176,7 @@ export const rawDocuments = pgTable(
   "raw_documents",
   {
     id: serial("id").primaryKey(),
-    adapter: text("adapter").notNull(), // rss|gdelt|telegram_web|telegram_mtproto|x|acled|manual
+    adapter: text("adapter").notNull(), // rss|gdelt|telegram_web|x_api|manual
     sourceId: integer("source_id").references(() => sources.id),
     externalId: text("external_id"),
     url: text("url"),
@@ -188,6 +188,14 @@ export const rawDocuments = pgTable(
     publishedAt: timestamp("published_at", { withTimezone: true }),
     fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
     embedding: vector("embedding", { dimensions: 1536 }),
+    // MAP-STAGE DISPOSITION FLAG (repurposed 2026-07-09; dead 0-rows-true before).
+    // true = the map worker reached a FINAL disposition for this doc: mapped under
+    // every applicable track (doc_map_state rows), recorded as a near/exact-dupe
+    // mirror (doc_dedup row), or eligible but matching no track lexicon. Docs the
+    // worker never selects (out-of-scope theaters, length<40, stubs, held-out
+    // channels) stay false. It has no other meaning; the digest path never reads
+    // or writes it. An extractor_version bump re-maps via doc_map_state anti-join,
+    // not this flag.
     processed: boolean("processed").notNull().default(false),
     meta: jsonb("meta").notNull().default({}),
   },
@@ -582,3 +590,97 @@ export const providerState = pgTable("provider_state", {
   state: jsonb("state").notNull().default({}),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ---------- map stage (SHADOW — the digest pipeline does not read these) ----------
+
+// Persistent per-document claim store: every eligible canonical document has its
+// claims extracted ONCE per (track, extractor_version), instead of being re-read
+// on each of a digest-day's ~8 regenerations (PIPELINE-AUDIT-2026-07 §11). Each
+// claim cites exactly its one owning doc; multi-source corroboration is the
+// reduce's job (sprint 3), not the map's.
+//
+// extractor_version = model id + a hash of the exact map prompt + serialization
+// params — the doc-level versioning raw_documents lacks. Same doc, new prompt =>
+// new rows; the old rows stay (immutable, append-only).
+export const docClaims = pgTable(
+  "doc_claims",
+  {
+    id: serial("id").primaryKey(),
+    rawDocumentId: integer("raw_document_id")
+      .notNull()
+      .references(() => rawDocuments.id),
+    track: text("track").notNull(), // military|elite_politics|nuclear
+    extractorVersion: text("extractor_version").notNull(),
+    // position within this doc's claim list for this (track, version) — makes
+    // replays of a crashed batch idempotent via the unique key below
+    ordinal: integer("ordinal").notNull(),
+    textEn: text("text_en").notNull(), // one atomic assertion, English, <=200 chars
+    // supporting span in the SOURCE language (<=300 chars): traceability without
+    // translation loss — lets a reader verify the English against the original
+    quoteOrig: text("quote_orig"),
+    claimType: text("claim_type").notNull().default("factual"), // factual|assessment
+    hedging: hedgingEnum("hedging").notNull().default("unknown"),
+    entities: jsonb("entities").notNull().default([]), // [{name, kind, role}] per ENTITY_RULES
+    // short model-supplied label of the event this claim belongs to — the sprint-3
+    // reduce clusters on it (plus text similarity); free text, not a key
+    eventHint: text("event_hint"),
+    claimDate: date("claim_date"), // the doc's UTC day (worker-set, not model-set)
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("doc_claims_doc_track_version_ordinal_idx").on(
+      t.rawDocumentId,
+      t.track,
+      t.extractorVersion,
+      t.ordinal,
+    ),
+    // reduce-side access path: all claims for a (track, day), theater via join
+    index("doc_claims_track_date_idx").on(t.track, t.claimDate),
+  ],
+);
+
+// Persistent dedup verdicts, written by the map worker's gate BEFORE any LLM call.
+// One row per MIRROR document; canonical docs have no row (absence = canonical).
+// Mirrors are never sent to the LLM — their claims live on the canonical doc.
+// Mirror membership is breadth (same content re-posted), NOT independent
+// corroboration (audit O3): sprint 3 may report it but must not count it as
+// independence.
+export const docDedup = pgTable(
+  "doc_dedup",
+  {
+    rawDocumentId: integer("raw_document_id")
+      .notNull()
+      .primaryKey()
+      .references(() => rawDocuments.id),
+    canonicalDocId: integer("canonical_doc_id")
+      .notNull()
+      .references(() => rawDocuments.id),
+    method: text("method").notNull(), // exact|minhash
+    score: doublePrecision("score"), // estimated jaccard for minhash; 1 for exact
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("doc_dedup_canonical_idx").on(t.canonicalDocId)],
+);
+
+// One row per (doc, track, extractor_version) MAP ATTEMPT THAT COMPLETED — the
+// record that distinguishes "mapped, zero track-relevant claims" (normal, cheap)
+// from "never mapped". Selection of unmapped work anti-joins this table; claim
+// rows alone cannot carry that signal because empty extractions have none.
+// Spend itself is metered elsewhere: provider_usage (provider='openai_map') per
+// call, cron_runs.counts per run — no separate map_runs table.
+export const docMapState = pgTable(
+  "doc_map_state",
+  {
+    rawDocumentId: integer("raw_document_id")
+      .notNull()
+      .references(() => rawDocuments.id),
+    track: text("track").notNull(),
+    extractorVersion: text("extractor_version").notNull(),
+    claimCount: integer("claim_count").notNull().default(0),
+    mappedAt: timestamp("mapped_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.rawDocumentId, t.track, t.extractorVersion] }),
+    index("doc_map_state_track_version_idx").on(t.track, t.extractorVersion),
+  ],
+);
