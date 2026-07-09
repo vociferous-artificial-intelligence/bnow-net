@@ -732,3 +732,28 @@ the new decision-log entry).
    ls-remote failures at 10s, success at 45s; origin/main == local main);
    api.gdeltproject.org DNS still fails; stale "pushes blocked" comment in
    .githooks/pre-push corrected.
+
+## 2026-07-09 ~20:30 UTC — MR sprint 3 plan (reduce, A/B, cutover)
+
+Session checkpoint protocol active: docs/reviews/MR3-CHECKPOINT.md is the resume
+point; commit+push after every green subtask. Budget ≤ $12 LLM, env-capped.
+
+1. TASK 0 — close #29: Lebanese channels (mtvlebanonews, sameralhajali, mmirleb) → ir
+   per operator adjudication; remove map holdout; retag-theater --apply; deploy;
+   map catch-up (~586 doc-days); AGENTS ruling 11 corrected + log entry + #37.
+2. TASK 1 — src/lib/analysis/reduce.ts deterministic core: cluster doc_claims
+   (minhash + entity overlap + date proximity + event_hint), union docIds,
+   independence-aware confirmed-promotion (domains differ AND not doc_dedup mirrors),
+   confidence = mean COALESCE(reliability,0.3), in-doc near-dupe collapse, entity
+   canonicalization reuse, quote_verified stamp, single version-filter accessor
+   (#35 made impossible to forget). Pure + vitest.
+3. TASK 2 — K=3-voted synthesis over pre-ranked claim groups (top ~150-250 fed,
+   groupsTotal/groupsFed recorded), REDUCE_USD_CAP_DAILY fail-closed +
+   openai_reduce ledger, persist through existing invariant path, thin-regen
+   overwrite guard on both engines (#32).
+4. TASK 3 — A/B gate on disposable Neon branch: 10 days × ru/ua/ir military ×
+   {legacy, mapreduce} × K=3, majority matcher vs ISW; resumable driver keyed
+   (day, theater, arm, k). Gate: coverage ≥, unsupported ≤, variance ≤ legacy.
+5. TASK 4 (gate pass only) — DIGEST_ENGINE flag (default legacy), synthesis crons
+   04:00/10:00/19:30 UTC + 02:00 D+1 finalization, validate scores D+1 digest.
+6. TASK 5 — docs, scoreboard, close #18/#28, flip instructions for the operator.

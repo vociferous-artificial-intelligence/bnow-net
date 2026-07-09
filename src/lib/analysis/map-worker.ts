@@ -26,17 +26,6 @@ import { TRACKS, type Track } from "./tracks";
 // a crashed run leaves processed=false and re-selects; unique keys make replays
 // no-ops; already-mapped (doc, track) pairs are skipped by anti-join.
 
-/** OPEN-TASKS #29 holdout: three Lebanese Arabic channels are filed under ru
- *  pending Gregory's retag decision. Mapping them now would bake wrong-theater
- *  claims into the store, so they are excluded (and counted) — after the retag,
- *  one catch-up pass maps them under the right theater; the (doc, track,
- *  version) key makes that safe. */
-export const MAP_HOLDOUT_SOURCE_KEYS = [
-  "t.me/mtvlebanonews",
-  "t.me/sameralhajali",
-  "t.me/mmirleb",
-];
-
 /** Docs published/fetched before this UTC day are out of map scope (sprint 2
  *  backfills 2026-07-04 forward; earlier corpus was cold-start telegram-only). */
 export const MAP_EPOCH = "2026-07-04";
@@ -275,11 +264,10 @@ async function cycle(
        AND rd.country_iso2 = ANY($1)
        AND length(rd.content) >= 40
        AND rd.content NOT LIKE $2
-       AND (s.canonical_url IS NULL OR NOT (s.canonical_url = ANY($3)))
-       AND COALESCE(rd.published_at, rd.fetched_at)::date ${dateOp} $4::date
+       AND COALESCE(rd.published_at, rd.fetched_at)::date ${dateOp} $3::date
      ORDER BY COALESCE(rd.published_at, rd.fetched_at) ASC, rd.id ASC
-     LIMIT $5`,
-    [theaters, `${STUB_CONTENT_PREFIX}%`, MAP_HOLDOUT_SOURCE_KEYS, dateParam, docCap],
+     LIMIT $4`,
+    [theaters, `${STUB_CONTENT_PREFIX}%`, dateParam, docCap],
   );
   const candidates: CandidateDoc[] = candRows.map((r) => ({
     id: r.id,
@@ -294,18 +282,6 @@ async function cycle(
     reliability: r.reliability !== null ? Number(r.reliability) : null,
   }));
   counts.selected = candidates.length;
-
-  // holdout visibility (OPEN-TASKS #29): how many docs the exclusion is parking
-  const { rows: holdRows } = await pool.query(
-    `SELECT count(*)::int AS n
-     FROM raw_documents rd JOIN sources s ON s.id = rd.source_id
-     WHERE rd.processed = false AND rd.country_iso2 = ANY($1)
-       AND s.canonical_url = ANY($2)
-       AND length(rd.content) >= 40 AND rd.content NOT LIKE $3
-       AND COALESCE(rd.published_at, rd.fetched_at)::date ${dateOp} $4::date`,
-    [theaters, MAP_HOLDOUT_SOURCE_KEYS, `${STUB_CONTENT_PREFIX}%`, dateParam],
-  );
-  counts.holdoutSkipped = holdRows[0]?.n ?? 0;
 
   if (candidates.length === 0) return counts;
 

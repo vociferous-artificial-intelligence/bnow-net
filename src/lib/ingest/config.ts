@@ -104,16 +104,20 @@ export const REGISTRY_TELEGRAM_TOP_N = 50;
  *  The fa->ir language rule in theater.ts catches their Persian output on its own;
  *  this map is what also routes their English and Arabic posts correctly.
  *
- *  Known gap, deliberately not decided here: mtvlebanonews (471 docs),
- *  sameralhajali (109) and mmirleb (19) are Lebanese Arabic channels also filed
- *  under ru. Whether Lebanon/Hezbollah coverage belongs to the ir theater is an
- *  editorial call for the operator, not a mechanical fix — see docs/OPEN-TASKS.md. */
+ *  The three Lebanese Arabic channels route to ir per the operator's 2026-07-09
+ *  adjudication of OPEN-TASKS #29: theater is a coverage lens, not nationality —
+ *  Hezbollah/Lebanon proxy-network content sits inside the IRAN_MILITARY_PROMPT's
+ *  scope and the ISW Iran Update validation baseline. Revisit as multi-theater
+ *  source tagging at Tier-2/3 expansion (OPEN-TASKS #37). */
 export const TELEGRAM_CHANNEL_THEATER: Record<string, string> = {
   nournews_ir: "ir",
   mehrnews: "ir",
   iribnews: "ir",
   farsna: "ir",
   defapress_ir: "ir",
+  mtvlebanonews: "ir",
+  sameralhajali: "ir",
+  mmirleb: "ir",
 };
 
 /** Default theater for a registry-derived telegram channel. */

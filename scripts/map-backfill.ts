@@ -77,12 +77,10 @@ async function main() {
     estTotal += n(c, "estUsd");
     console.log(
       `${day}  selected=${n(c, "selected")}  mirrors=${n(c, "mirrors")} (exact=${n(c, "mirrorsExact")}/minhash=${n(c, "mirrorsMinhash")})  ` +
-        `pairs=${n(c, "docTrackPairs")}  batches=${n(c, "batches")}  est=$${n(c, "estUsd").toFixed(4)}  holdout=${n(c, "holdoutSkipped")}`,
+        `pairs=${n(c, "docTrackPairs")}  batches=${n(c, "batches")}  est=$${n(c, "estUsd").toFixed(4)}`,
     );
   }
-  console.log(`\nESTIMATE TOTAL: $${estTotal.toFixed(4)}  (budget $${BUDGET_USD})`);
-  const holdout = days.reduce((s, d) => s + n(estByDay.get(d)!, "holdoutSkipped"), 0);
-  console.log(`holdout (OPEN-TASKS #29 Lebanese channels, excluded): ${holdout} doc-days\n`);
+  console.log(`\nESTIMATE TOTAL: $${estTotal.toFixed(4)}  (budget $${BUDGET_USD})\n`);
 
   if (!APPLY) {
     console.log("estimate only — rerun with --apply to backfill");
