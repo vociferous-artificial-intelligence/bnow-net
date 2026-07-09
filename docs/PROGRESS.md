@@ -623,3 +623,24 @@ military       : strike 4, other 2, political 1, air_defense 1
 
 **Sprint LLM total: $0.0108** across 6 metered digest calls (budget ≤$2). Six months ago that
 number did not exist.
+
+### Routing verified on the live deployment (and a race it exposed)
+
+The `:10` telegram cron fired at **14:12**, one minute before the deploy finished, so it ran the
+old code and re-inserted **62** Persian docs under `ru`. The idempotent retag script cleaned them
+(`--apply` → 62; re-run → 0). This is why the script exists rather than a one-shot SQL statement,
+and it is visible in `cron_runs` precisely *because* that run has no row — it predates the new build.
+
+Triggering `ingest?which=telegram` on the new deployment (free, no LLM) then exercised every branch
+of the routing logic at once (`cron_runs` id 8: ok, 126s, 1,053 fetched, 46 inserted, 0 errors):
+```
+fa -> ir  19    fa->ir language rule
+uk -> ua   7    pre-existing convention, preserved
+en -> ir   1    per-channel override  <- a language-only rule would have missed this
+ar -> ru   5    deliberately NOT routed (OPEN-TASKS #29)
+ru -> ru  13 ;  en -> ru  1     source default
+```
+`fa` outside `ir` is back to **0** with no manual retag. The corpus self-heals from here.
+
+Note the run took **126s** — the hourly telegram scrape is the slowest cron and now has its wall-clock
+recorded for the first time (audit §8 listed it UNKNOWN).
