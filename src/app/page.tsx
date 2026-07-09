@@ -3,23 +3,37 @@ import { rawSql } from "@/db";
 import { getLocale } from "@/i18n/server";
 import { makeT } from "@/i18n/dictionaries";
 import { formatNumber } from "@/i18n/format";
+import { currentUserEmail } from "@/lib/session";
+import { LIVE_THEATERS, latestDigestHref, theaterHref } from "@/lib/nav/site-nav";
 
 export const dynamic = "force-dynamic";
+
+const PRIMARY_CTA =
+  "rounded-lg bg-blue-600 px-5 py-2.5 font-semibold text-white hover:bg-blue-700";
+const SECONDARY_CTA =
+  "rounded-lg border border-gray-300 px-5 py-2.5 font-semibold hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-900";
 
 export default async function Home() {
   const locale = await getLocale();
   const t = makeT(locale);
+  const email = await currentUserEmail();
+  const signedIn = email !== null;
+
   let stats = { sources: 0, citations: 0, docs: 0, runs: 0 };
+  let ruLatest: string | null = null;
   try {
     const [r] = (await rawSql.query(
       `SELECT
         (SELECT count(*) FROM sources WHERE citation_count > 0)::int AS sources,
         (SELECT count(*) FROM source_citations)::int AS citations,
         (SELECT count(*) FROM raw_documents)::int AS docs,
-        (SELECT count(*) FROM validation_runs)::int AS runs`,
+        (SELECT count(*) FROM validation_runs)::int AS runs,
+        (SELECT max(d.digest_date)::text FROM digests d
+           JOIN countries c ON c.id = d.country_id WHERE c.iso2 = 'ru') AS ru_latest`,
       [],
-    )) as Array<typeof stats>;
-    stats = r;
+    )) as Array<typeof stats & { ru_latest: string | null }>;
+    stats = { sources: r.sources, citations: r.citations, docs: r.docs, runs: r.runs };
+    ruLatest = r.ru_latest;
   } catch {
     // health page shows details
   }
@@ -31,21 +45,47 @@ export default async function Home() {
           {t("home.tagline")}
         </h1>
         <p className="mx-auto mt-5 max-w-2xl text-lg text-gray-500">{t("home.sub")}</p>
-        <div className="mt-8 flex justify-center gap-4">
-          <Link
-            href="/pricing"
-            className="rounded-lg bg-blue-600 px-5 py-2.5 font-semibold text-white hover:bg-blue-700"
-          >
-            {t("home.cta.subscribe")}
-          </Link>
-          <Link
-            href="/scoreboard"
-            className="rounded-lg border border-gray-300 px-5 py-2.5 font-semibold hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-900"
-          >
-            {t("home.cta.scoreboard")}
-          </Link>
-        </div>
-        <p className="mt-4 text-sm text-gray-400">{t("home.live")}</p>
+
+        {signedIn ? (
+          // Working home: utility actions, no subscriber pitch. The flagship theater is
+          // hardcoded to RU — there is no per-user default-theater storage to read.
+          <>
+            <div className="mt-8 flex flex-wrap justify-center gap-4">
+              <Link href={latestDigestHref("ru", ruLatest)} className={PRIMARY_CTA}>
+                {t("home.cta.digest")}
+              </Link>
+              <Link href="/scoreboard" className={SECONDARY_CTA}>
+                {t("home.cta.scoreboard")}
+              </Link>
+              <Link href="/countries" className="self-center text-sm underline">
+                {t("home.cta.coverage")}
+              </Link>
+            </div>
+            <p className="mt-4 text-sm text-gray-400">
+              {t("home.live_label")}:{" "}
+              {LIVE_THEATERS.map((th, i) => (
+                <span key={th.iso2}>
+                  {i > 0 && " · "}
+                  <Link href={theaterHref(th.iso2)} className="underline hover:text-gray-600">
+                    {t(th.labelKey)}
+                  </Link>
+                </span>
+              ))}
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="mt-8 flex justify-center gap-4">
+              <Link href="/pricing" className={PRIMARY_CTA}>
+                {t("home.cta.subscribe")}
+              </Link>
+              <Link href="/scoreboard" className={SECONDARY_CTA}>
+                {t("home.cta.scoreboard")}
+              </Link>
+            </div>
+            <p className="mt-4 text-sm text-gray-400">{t("home.live")}</p>
+          </>
+        )}
       </section>
 
       <section className="grid gap-6 py-10 sm:grid-cols-3">
