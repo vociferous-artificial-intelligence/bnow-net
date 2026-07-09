@@ -1,46 +1,50 @@
-CLAUDE.md — BNOW.NET
+# CLAUDE.md — BNOW.NET
 
-Read automatically at the start of every Claude Code session in this repo. It layers on
-top of the global ~/CLAUDE.md; where the two differ, the rules here win for this
-repository.
-
-Source of truth
-
-The persistent project brain is AGENTS.md (charter, architecture, current state,
-decision log, conventions, operating protocol). Read it first, every session.
+Layers on the global `~/CLAUDE.md`; where the two differ, this file wins for this repo.
+The persistent project brain — charter, verified snapshot, standing rulings, decision
+log — is AGENTS.md, imported here:
 
 @AGENTS.md
 
-Scoped exception: deletes, renames, and moves ARE permitted here
+## Scoped exception: deletes, renames, and moves ARE permitted here
 
-The global ~/CLAUDE.md forbids deletes/renames/moves by default and allows them only
-where a repository-local CLAUDE.md grants a scoped exception. This file is that
-exception. In this repository you may delete, rename, and move files whenever it yields
-cleaner, higher-quality code — removing dead code, superseded scripts, obsolete fixtures,
-stale docs; renaming for clarity; restructuring directories.
+The global `~/CLAUDE.md` forbids deletes/renames/moves unless a repository-local
+CLAUDE.md grants a scoped exception. This file is that exception: delete, rename, and
+move freely whenever it leaves the tree in a better state — dead code, superseded
+scripts, obsolete fixtures, stale docs, clarity renames. Do not keep a worse structure
+alive just to avoid a delete. Two carve-outs the exception does NOT lift: applied
+migrations stay additive (AGENTS.md ruling 5) and the decision log stays append-only
+(AGENTS.md maintenance rule). When a delete/rename is non-trivial, say what and why in
+the commit, and fix the AGENTS.md directory map if anything moved.
 
-Prefer the change that leaves the tree in the best state, not merely the additive one. Do
-not keep a worse structure alive just to avoid a delete.
+All other guardrails — legal/traceability/truth-in-UI invariants, fail-closed spend
+caps — are owned by AGENTS.md § Standing rulings; they are not restated here.
 
-Guardrails that still bind (these are the quality bar, not obstacles)
+## Commands & setup
 
+Once per clone: `npm install`, then `git config core.hooksPath .githooks` (the enforced
+pre-push gate: typecheck + lint + test). Local scripts read `.env.local` (mirror prod
+vars there when you add them to Vercel).
 
-Atomic, small, test-covered diffs. npm test green before every deploy.
-Migrations stay additive. Never edit or delete an applied migration; evolve
-forward with a new one. This is a data-safety rule, not file hygiene — the exception
-above does not lift it.
-The AGENTS.md decision log is append-only. Correct a wrong entry with a new dated
-entry; don't rewrite history.
-Legal & schema invariants are absolute: no ISW prose or source full-text in any
-user-facing output; every claim keeps ≥1 raw_document link; budget caps and the
-truth-in-UI (hide stub/fixture data) policy hold.
-No vendor branding in commits, files, PRs, or code comments.
-When a delete/rename/move is non-trivial, state what and why in the commit, and update
-the directory map in AGENTS.md if it moved.
+- All unit tests: `npm test` (vitest run, ~3s)
+- One test file: `npx vitest run src/path/to/file.test.ts`
+- Typecheck: `npm run typecheck` · Lint: `npm run lint` · Dev server: `npm run dev`
+- Integration tests (disposable Neon branch, fork→test→delete): `npm run test:integration`
+- Migrations: `npm run db:generate`, apply with `npm run db:migrate`
+- Deploy: `npx vercel@latest deploy --prod --yes` (machine CLI session — `VERCEL_TOKEN`
+  is expired; deployment URLs are SSO-walled, check https://bnow-net.vercel.app)
+- Local LLM/Vercel calls on this WSL2 box need the DNS pin:
+  `NODE_OPTIONS="--require ./scripts/pin-dns.cjs" npx tsx scripts/<script>.ts`
+  — use it for single-call LLM debugging; bulk LLM work runs via the deployed Vercel
+  routes (prod env + metering). Slow/flaky github.com DNS: give git ~30s+ or retry.
 
+## Commit hygiene
 
-Reflex before finishing
+`area: imperative summary`, small and atomic, main always builds. Commits, PRs, code
+comments, and file contents carry NO vendor branding: no `Co-Authored-By` trailers, no
+"Generated with" lines, no model or vendor names. Write commit messages plain.
+
+## Before finishing
 
 Self-review the diff adversarially (edge cases, secret leakage, claim-to-source,
-rate-limit safety), then run the tests.
-
+rate-limit safety), then run the tests — green before every commit and deploy.
