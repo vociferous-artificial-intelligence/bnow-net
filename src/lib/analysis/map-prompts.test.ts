@@ -3,6 +3,7 @@ import {
   MAP_RESPONSE_SCHEMA,
   mapDocLine,
   mapExtractorVersion,
+  mapResponseSchema,
   mapSystemPrompt,
   mapUserMessage,
 } from "./map-prompts";
@@ -30,6 +31,15 @@ function assertStrictCompatible(node: unknown, path = "$"): void {
 describe("MAP_RESPONSE_SCHEMA", () => {
   it("is strict-mode compatible at every nesting level", () => {
     assertStrictCompatible(MAP_RESPONSE_SCHEMA);
+  });
+
+  it("per-batch schema pins results to exactly the batch size", () => {
+    // grammar-enforced omission fix: without bounds gpt-4o-mini answered 1 of
+    // 15 docs (measured); the API accepts minItems/maxItems under strict mode
+    const s = mapResponseSchema(17);
+    expect(s.properties.results.minItems).toBe(17);
+    expect(s.properties.results.maxItems).toBe(17);
+    assertStrictCompatible(s);
   });
 
   it("is keyed by docId with the five-value hedging enum", () => {

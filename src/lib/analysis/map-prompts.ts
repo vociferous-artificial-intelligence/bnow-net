@@ -20,6 +20,10 @@ export function mapContentChars(): number {
 
 // Strict-mode response schema, keyed by docId. One entry per input doc; a doc
 // with nothing track-relevant returns an empty claims array (normal + cheap).
+// Base shape only — callers use mapResponseSchema(docCount), which pins the
+// results array to EXACTLY the batch size. Prompt instructions alone measurably
+// do not achieve that: without bounds gpt-4o-mini answered 1 of 15 docs and
+// stopped clean (finish_reason=stop); with minItems=maxItems it answered 15/15.
 export const MAP_RESPONSE_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -151,6 +155,22 @@ export function mapDocLine(d: {
 }): string {
   const body = ((d.title ? d.title + ". " : "") + d.content).replace(/\s+/g, " ");
   return `[${d.id}] (${d.sourceKey ?? "unknown"}, rel=${d.reliability?.toFixed(2) ?? "?"}, ${d.day}) ${body.slice(0, mapContentChars())}`;
+}
+
+/** Per-batch response schema: the results array must hold exactly one entry
+ *  per input doc. The count constraint is grammar-enforced by the API, so an
+ *  omitted doc can only happen via a duplicated docId (counted + retried). */
+export function mapResponseSchema(docCount: number) {
+  return {
+    ...MAP_RESPONSE_SCHEMA,
+    properties: {
+      results: {
+        ...MAP_RESPONSE_SCHEMA.properties.results,
+        minItems: docCount,
+        maxItems: docCount,
+      },
+    },
+  };
 }
 
 /** Bump when the user-message framing changes meaning — it is part of the

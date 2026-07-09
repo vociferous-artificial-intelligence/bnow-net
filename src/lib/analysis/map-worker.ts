@@ -6,10 +6,10 @@ import type { SpendGuard } from "../usage/spend-guard";
 import { dedupGate, type DedupDoc } from "./map-dedup";
 import {
   MAP_MODEL,
-  MAP_RESPONSE_SCHEMA,
   mapContentChars,
   mapDocLine,
   mapExtractorVersion,
+  mapResponseSchema,
   mapSystemPrompt,
   mapUserMessage,
 } from "./map-prompts";
@@ -536,7 +536,11 @@ async function extractBatch(
       ],
       response_format: {
         type: "json_schema",
-        json_schema: { name: "doc_claims", schema: MAP_RESPONSE_SCHEMA as never, strict: true },
+        json_schema: {
+          name: "doc_claims",
+          schema: mapResponseSchema(docs.length) as never,
+          strict: true,
+        },
       },
       temperature: 0.2,
       max_completion_tokens: mapBatchMaxTokens(docs.length),
