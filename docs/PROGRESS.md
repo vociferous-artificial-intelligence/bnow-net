@@ -678,3 +678,33 @@ Block plan (≤2h increments, atomic commits):
    digest-coverage spot check and 10 random quote_orig samples for Gregory.
 
 Zero changes to the digest path. Success = corpus mapped once-ever, metered, capped.
+
+## 2026-07-09 17:30 UTC — MR sprint 2 complete: the map stage runs in shadow
+
+The whole eligible ru/ua/ir corpus since 2026-07-04 is now mapped: **23,020 docs →
+25,358 (doc × track) extractions → 14,071 claims**, each claim owning exactly one doc
+with an original-language quote and an event_hint for sprint-3 clustering. 3,473
+mirrors (9.2%) were identified once, persistently, and never sent to a model. All 18
+theater×day cells reached 100% disposition (target was ≥95%).
+
+**Money:** backfill $1.61 actual vs $2.59 modelled vs $6 gate ($8 sprint budget);
+running rate $0.076/1K docs, roughly half the audit's $0.12–0.21 modelled band —
+micro-batching amortizes the system prompt and 46% of verdicts are cheap empties.
+Every call metered to `provider_usage.openai_map` (1,705 requests, 6.83M tokens);
+`MAP_USD_CAP_DAILY=4` fail-closed; `LLM_DISABLE` refuses the worker.
+
+**The find of the sprint:** gpt-4o-mini silently answers a *fraction* of a batched
+per-item extraction — 1 of 15 docs, `finish_reason=stop` — and no prompt wording fixes
+it (43–57% omission measured across two prompt revisions). Grammar does:
+`minItems`/`maxItems` = batch size in the strict response schema forces the count via
+constrained decoding. Zero omissions across 1,705 calls since. Root-caused by running
+one batch locally: `pin-dns.cjs` reaches api.openai.com from this box (the standing
+"unreachable" note was a DNS artifact, corrected in the decision log).
+
+**Quality (honest):** hand-judged coverage of production digest claims 23/30; 4 of 7
+misses are the scope filter deliberately dropping soft content; quotes strictly
+verbatim ~71% (most misses unicode-level); entity discipline good with bare-geography
+leaks ("Iran", "United States"); the store twice caught the production digest
+misattributing (flipped combatants #8, wrong toponym #3 in the spot check) — single-doc
+extraction makes digest errors visible for the first time. Full numbers:
+docs/reviews/MAP-SHADOW-RESULTS.md.

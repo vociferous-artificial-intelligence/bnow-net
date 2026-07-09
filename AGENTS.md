@@ -126,6 +126,17 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
   migration with a test; `cron_runs` gives per-run success/failure for the first time; 3,418
   Persian-channel docs retagged ru→ir. 350 tests (was 312).
   Audit: docs/reviews/PIPELINE-AUDIT-2026-07.md.
+- MR sprint 2 — map stage, SHADOW (2026-07-09 evening): every eligible canonical ru/ua/ir
+  doc since 07-04 now has its claims extracted ONCE per (track, extractor_version) into
+  `doc_claims` (14,071 claims / 25,358 doc×track pairs / 23,020 docs), with persistent
+  dedup verdicts (`doc_dedup`: 3,473 mirrors, 9.2%) and per-doc dispositions
+  (`doc_map_state`). Hourly cron `/api/cron/map` (:40) keeps it current; backfill
+  07-04→09 ran $1.61 vs $2.59 modelled ($0.076/1K docs — ~2× under the audit band);
+  guard `MAP_USD_CAP_DAILY=4` fail-closed, ledger `openai_map`. 100% disposition
+  coverage on all 18 theater×day cells; 0 hallucinated ids / omissions / truncations.
+  Hand-judged digest-coverage: 23/30 semantic hits, misses mostly deliberate scope
+  filtering; twice the map was MORE faithful than the production digest. Digest pipeline
+  byte-untouched. 391 tests (was 350). Results: docs/reviews/MAP-SHADOW-RESULTS.md.
 - Stubbed: MTProto, ACLED (fixtures — NOT wired into prod ingest); the "x" fixture stub
   remains for tests but the live adapter is x_api; Stripe flagged off; zakupki needs
   proxy (BLOCKERS 2026-07-06); Resend superseded by Postmark (still on scenefiend
@@ -359,6 +370,52 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
   private email (`e29d220` "Initial commit", `gregoryoconnor@gmail.com`) is already an **ancestor of
   origin/main** — it was pushed long ago, so GH007 cannot fire on it. Every other commit uses the
   `6955+gregoryo@users.noreply.github.com` noreply address. There is no push blocker.
+- **2026-07-09 (MR sprint 2)** Map stage ships in SHADOW: `doc_claims`/`doc_dedup`/`doc_map_state`
+  + hourly `/api/cron/map` (:40, own group). The digest pipeline is byte-untouched — the only
+  shared-file changes are additive (`llm-guard.ts` map guard, `vercel.json` cron, `schema.ts`).
+  `doc_map_state` exists beyond the task list's tables because "mapped, zero relevant claims" must
+  be distinguishable from "never mapped" — claim rows alone cannot say it, and it is what makes the
+  worker idempotent (anti-join) and resumable after a crash.
+- **2026-07-09 (MR sprint 2)** `raw_documents.processed` repurposed to exactly ONE meaning: the map
+  worker reached a final disposition (mapped every applicable track / recorded as mirror / no
+  applicable track). It exists so the hourly scan is an indexed `processed=false` probe instead of
+  an anti-join over the whole corpus. Consequence, recorded as OPEN-TASKS #33: version bumps need
+  their own remap path — the flag deliberately does not reset itself.
+- **2026-07-09 (MR sprint 2)** Dedup gate verdicts are SAME-THEATER and ±1 DAY for exact **and**
+  minhash matches. Same-theater because the map key is theater-scoped (mirroring a ru doc to an ir
+  canonical silently drops the ru claims); ±1 day because identical content on distant days is
+  usually a recurring template (telegram air-raid alerts, audit §9a) describing a *different* day's
+  events — collapsing those would misdate claims. The ±1-day rule was specified for minhash only;
+  extending it to exact matches is this sprint's call, flagged here for review.
+- **2026-07-09 (MR sprint 2)** **gpt-4o-mini silently answers a fraction of a multi-doc batch**:
+  with the response schema unbounded it returned 1 of 15 requested per-doc entries and stopped
+  clean (`finish_reason=stop`); prompt wording ("return exactly N entries", explicit id checklist)
+  did not fix it (43% omission in backfill round 1, 57% in round 2). The fix is grammar-level:
+  `minItems`/`maxItems` = batch size on the results array — **strict mode accepts array bounds and
+  the API's constrained decoding then forces the count** (15/15, correct ids, in order). Any future
+  batched per-item extraction should start from this.
+- **2026-07-09 (MR sprint 2)** Map prompts are versioned: `extractor_version` = model + sha256 of
+  (resolved system prompt, user-frame revision, content budget), 12 hex chars. Two superseded
+  versions from the sprint's own prompt iterations remain in the store as history (append-only) —
+  consumers filter to `mapExtractorVersion()` current versions or double-count (OPEN-TASKS #35).
+- **2026-07-09 (MR sprint 2)** **A standing note in this file is now WRONG:** "api.openai.com
+  TCP-unreachable from this WSL2 box" (Local-host quirks, 2026-07-04). It was never TCP — the WSL2
+  NAT *resolver* times out on those domains, and `scripts/pin-dns.cjs` (routes vercel/openai DNS
+  through 1.1.1.1) makes local OpenAI calls work fine. That is precisely how the omission bug above
+  was root-caused: reproducing one map batch locally and reading the raw response. LLM bulk work
+  still runs via Vercel routes (prod env, metering, crons), but local single-call debugging is
+  available and cheap.
+- **2026-07-09 (MR sprint 2)** Map spend rails: `MAP_USD_CAP_DAILY=4` set in all three Vercel envs
+  BEFORE the deploy (fail-closed like the digest cap, but its OWN env — never shared with
+  `LLM_DIGEST_USD_CAP`, so a backfill can neither starve nor be starved by production digests);
+  `LLM_SPRINT_USD_CAP` stays the all-time backstop; ledger row `provider_usage.openai_map`;
+  `LLM_DISABLE=1` refuses the worker (typed throw). `MAP_CONCURRENCY=6` (prod env) after measuring
+  ~45K tok/min at the default 3 — latency-bound, not TPM-bound.
+ - **2026-07-09 (tooling)**  Added repo-root CLAUDE.md granting the scoped delete/rename/move 
+  exception that ~/CLAUDE.md requires (imports AGENTS.md via @). Supersedes the 2026-07-04 
+  "no deletes/renames" understanding, which mis-attributed a global-~/CLAUDE.md rule to a 
+  nonexistent repo-root file. Applied-migration additivity and 
+  decision-log append-only are explicitly preserved.
 
 ## Conventions
 

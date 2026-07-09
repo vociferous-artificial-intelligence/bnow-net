@@ -133,6 +133,28 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     #28 variance with teeth. Options: keep the richer extraction (compare claim counts before
     overwriting), or K-run extraction with claim-level merge (#28/#18). **Materially raises the
     stakes of the map-reduce refactor's regeneration cadence.**
+### New (from MR sprint 2 — map stage, 2026-07-09)
+
+33. **Extractor-version bumps need a remap path.** The hourly map worker selects on the
+    indexed `processed=false`, so bumping the prompt/frame/model re-maps **nothing** already
+    processed — sprint 2 handled its own two prompt revisions by hand-resetting `processed`
+    on the affected docs. The proper tool is a budget-gated `scripts/map-remap.ts` that
+    ignores `processed` and anti-joins `doc_map_state` on the *current* versions. Until it
+    exists, any prompt iteration silently applies only to new docs.
+34. **`doc_claims.quote_orig` is best-effort: ~15% fail verbatim containment.** The map
+    counts (`quoteMisses`) claims whose quote does not appear character-for-character in the
+    doc (whitespace-normalized). Down from 42% before the "COPIED CHARACTER-FOR-CHARACTER"
+    rule, but if sprint 3 wants to render quotes as hard traceability evidence, add a
+    repair/validation pass (or render only the verified ones).
+35. **Old-version doc_claims rows are permanent history.** Two superseded extractor
+    versions (~570 doc-states, ~270 claims) from sprint 2's prompt iterations remain in the
+    store by design (append-only). Every consumer — sprint 3 reduce, reports — must filter
+    to the current version set (`mapExtractorVersion()` per track/theater) or double-count.
+36. **Map cron `maxDuration` is provisional (800s).** Measured steady-state runs land in
+    `cron_runs` (~2min per 400-doc run at concurrency 3; concurrency 6 deployed later).
+    After a week of hourly runs, size it to measured p99 and consider whether the hourly
+    cadence + 500-doc cap keeps up with peak days (~11.5K docs) without backlog.
+
 ## Tier 3 — before enterprise/API sales
 
 8. **Per-subscriber canary marking** (BUSINESS-PLAN §4) — required to safely sell $100k
