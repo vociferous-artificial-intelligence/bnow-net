@@ -45,6 +45,15 @@ describe("SpendGuard", () => {
     if (!r.ok) expect(r.reason).toContain("failing closed");
   });
 
+  it("fails closed when the daily USD cap is unset (null)", async () => {
+    const { store } = memStore();
+    const g = new SpendGuard({ ...CFG, dailyUsdCap: null }, store);
+    await g.init();
+    const r = g.tryReserve();
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toContain("daily USD cap env unset");
+  });
+
   it("fails closed when init() was never called", () => {
     const { store } = memStore();
     const g = new SpendGuard(CFG, store);

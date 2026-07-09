@@ -17,7 +17,9 @@ export interface SpendGuardConfig {
   /** Total request/call cap for quota-metered providers (e.g. OpenSanctions
    *  monthly call quota). Either this or totalCapUsd must be set. */
   totalRequestCap?: number | null;
-  dailyUsdCap: number;
+  /** Per-UTC-day USD cap. null -> fail closed (the digest path leaves this null
+   *  in production when LLM_DIGEST_USD_CAP is unset). */
+  dailyUsdCap: number | null;
   dailyRequestCap: number;
   runRequestCap: number;
 }
@@ -69,6 +71,9 @@ export class SpendGuard {
     const hasReqCap = c.totalRequestCap != null && Number.isFinite(c.totalRequestCap);
     if (!hasUsdCap && !hasReqCap) {
       return { ok: false, reason: `${c.provider}: total cap env unset — failing closed` };
+    }
+    if (c.dailyUsdCap === null || !Number.isFinite(c.dailyUsdCap)) {
+      return { ok: false, reason: `${c.provider}: daily USD cap env unset — failing closed` };
     }
     if (!this.snapshot) {
       return { ok: false, reason: `${c.provider}: guard not initialized — failing closed` };
