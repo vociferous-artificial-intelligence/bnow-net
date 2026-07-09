@@ -20,6 +20,14 @@ const MAX_DOCS = 100;
 // of alternatives before it even runs.
 const GATHER_LIMIT = 600;
 
+// Experiment override: MIX_CAP_FRACTION=1 in the environment disables the
+// quota entirely (gather AND batch revert to pure reliability order) — used
+// for quota-on/off A/B runs against a Neon branch. Unset = shipped default.
+function capFraction(): number {
+  const v = Number(process.env.MIX_CAP_FRACTION);
+  return Number.isFinite(v) && v > 0 ? v : MIX_CAP_FRACTION;
+}
+
 export interface DigestResult {
   digestId: number;
   countryIso2: string;
@@ -69,7 +77,7 @@ export async function generateDigest(
        WHERE adapter_rank <= $4
        ORDER BY COALESCE(reliability, 0.3) DESC, published_at DESC NULLS LAST
        LIMIT ${GATHER_LIMIT}`,
-      [countryIso2, date, `${STUB_CONTENT_PREFIX}%`, Math.ceil(GATHER_LIMIT * MIX_CAP_FRACTION)],
+      [countryIso2, date, `${STUB_CONTENT_PREFIX}%`, Math.ceil(GATHER_LIMIT * capFraction())],
     );
     if (docRows.length === 0) {
       console.warn(`digest ${countryIso2} ${date}: no documents`);
@@ -97,6 +105,7 @@ export async function generateDigest(
     const selectedRows = selectSourceMix(
       canonicalIdx.map((i) => trackRows[i]),
       MAX_DOCS,
+      capFraction(),
     );
 
     const docs: AnalysisInputDoc[] = selectedRows.map((d) => {

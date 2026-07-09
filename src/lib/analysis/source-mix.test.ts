@@ -111,6 +111,24 @@ describe("selectSourceMix", () => {
   });
 });
 
+describe("selectSourceMix capFraction override", () => {
+  it("capFraction >= 1 disables the quota: pure reliability-order prefix", () => {
+    const batch = selectSourceMix(monocultureRiskDocs(), 100, 1);
+    expect(sourceMixStats(batch).byAdapter).toEqual({ x_api: 100 }); // old behavior
+    for (let i = 1; i < batch.length; i++)
+      expect(batch[i].reliability).toBeLessThanOrEqual(batch[i - 1].reliability);
+  });
+});
+
+function monocultureRiskDocs(): Doc[] {
+  return corpus([
+    { adapter: "x_api", platform: "x", n: 150, rel: 0.9 },
+    { adapter: "rss", platform: "state_media", n: 30, rel: 0.6 },
+    { adapter: "telegram_web", platform: "telegram", n: 20, rel: 0.5 },
+    { adapter: "gdelt", platform: "other", n: 10, rel: 0.4 },
+  ]);
+}
+
 describe("sourceMixStats", () => {
   it("counts by adapter and platform", () => {
     const stats = sourceMixStats([

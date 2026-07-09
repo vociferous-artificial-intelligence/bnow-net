@@ -23,8 +23,13 @@ export const MIX_CAP_FRACTION = 0.4;
  * prefix of it — the truncation retry re-sends the first 50/25 docs — keeps
  * roughly the same source mix as the whole batch.
  */
-export function selectSourceMix<T extends MixSourceFields>(docs: T[], maxDocs: number): T[] {
-  const cap = Math.max(1, Math.ceil(maxDocs * MIX_CAP_FRACTION));
+export function selectSourceMix<T extends MixSourceFields>(
+  docs: T[],
+  maxDocs: number,
+  capFraction = MIX_CAP_FRACTION,
+): T[] {
+  if (capFraction >= 1) return docs.slice(0, maxDocs); // quota disabled: pure reliability order
+  const cap = Math.max(1, Math.ceil(maxDocs * capFraction));
   const adapterCount = new Map<string, number>();
   const platformCount = new Map<string, number>();
   const pickedIdx: number[] = [];
