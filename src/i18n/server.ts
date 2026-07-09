@@ -1,21 +1,17 @@
 import { cookies, headers } from "next/headers";
-import { DEFAULT_LOCALE, isLocale, makeT, RTL_LOCALES, type Locale } from "./dictionaries";
+import { resolveLocale, makeT, RTL_LOCALES, type Locale } from "./dictionaries";
 
-// Resolve the active locale server-side: explicit cookie wins, else Accept-Language,
-// else default. No route restructuring — locale is ambient via cookie.
+// Resolve the active locale server-side. Priority (see resolveLocale): an explicit
+// selection wins via the "locale" cookie the /api/locale switcher sets, else the browser's
+// Accept-Language, else the default. No route restructuring — locale is ambient.
 
 export async function getLocale(): Promise<Locale> {
   const c = await cookies();
-  const fromCookie = c.get("locale")?.value;
-  if (isLocale(fromCookie)) return fromCookie;
-
   const h = await headers();
-  const al = h.get("accept-language") ?? "";
-  for (const part of al.split(",")) {
-    const code = part.trim().split("-")[0].split(";")[0];
-    if (isLocale(code)) return code;
-  }
-  return DEFAULT_LOCALE;
+  return resolveLocale({
+    cookie: c.get("locale")?.value ?? null,
+    acceptLanguage: h.get("accept-language"),
+  });
 }
 
 export async function getT() {

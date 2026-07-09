@@ -94,6 +94,12 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
   LIVE (200 checked, 54 sanctioned, ≤300-call budget); sa+il feeds revived (arabnews
   RSS was frozen upstream — root cause of "sa dark"); bh/kw honestly scaffolded.
   Results: docs/reviews/COVERAGE-SPRINT-RESULTS.md.
+- i18n (2026-07-08, worktree `bnow.net-i18n`, branch `codex/i18n-de-ar-ja-pl-fr`):
+  authoritative `LOCALE_REGISTRY` (code/label/native/dir/order/fallback); de/ar/ja/pl/fr
+  catalogs added (ar RTL) atop en/uk; `resolveLocale` priority = selector>cookie>
+  Accept-Language>en; `/api/locale` open-redirect-guarded; landing page + LanguageSelector
+  wired, other surfaces catalog-ready but not yet JSX-wired; evidence/ISW/source names never
+  translated. Needs native-speaker sign-off before launch. See docs/PROGRESS.md 2026-07-08.
 - Stubbed: MTProto, ACLED (fixtures — NOT wired into prod ingest); the "x" fixture stub
   remains for tests but the live adapter is x_api; Stripe flagged off; zakupki needs
   proxy (BLOCKERS 2026-07-06); Resend superseded by Postmark (still on scenefiend

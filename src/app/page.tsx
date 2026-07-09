@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { rawSql } from "@/db";
 import { getLocale } from "@/i18n/server";
-import { makeT, LOCALE_NAMES, type Locale } from "@/i18n/dictionaries";
+import { makeT } from "@/i18n/dictionaries";
+import { formatNumber } from "@/i18n/format";
+import { LanguageSelector } from "@/components/language-selector";
 
 export const dynamic = "force-dynamic";
-
-const SHOWN_LOCALES: Locale[] = ["en", "uk"];
 
 export default async function Home() {
   const locale = await getLocale();
@@ -41,17 +41,7 @@ export default async function Home() {
           <Link href="/critical-materials" className="hover:underline">{t("nav.materials")}</Link>
           <Link href="/pricing" className="hover:underline">{t("nav.pricing")}</Link>
           <Link href="/signin" className="hover:underline">{t("nav.signin")}</Link>
-          <span className="flex gap-1 text-xs text-gray-400">
-            {SHOWN_LOCALES.map((l) => (
-              <a
-                key={l}
-                href={`/api/locale?set=${l}`}
-                className={l === locale ? "font-semibold text-blue-600" : "hover:underline"}
-              >
-                {LOCALE_NAMES[l]}
-              </a>
-            ))}
-          </span>
+          <LanguageSelector current={locale} />
         </div>
       </nav>
 
@@ -79,42 +69,40 @@ export default async function Home() {
 
       <section className="grid gap-6 py-10 sm:grid-cols-3">
         <div className="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
-          <h3 className="mb-2 font-semibold">Reliability, derived not asserted</h3>
+          <h3 className="mb-2 font-semibold">{t("home.features.reliability.title")}</h3>
           <p className="text-sm text-gray-500">
-            {stats.sources.toLocaleString()} sources rated from{" "}
-            {stats.citations.toLocaleString()} citations in 4+ years of expert reporting —
-            how often each source is confirmed, merely claimed, or never verified.
+            {t("home.features.reliability.body", {
+              sources: formatNumber(locale, stats.sources),
+              citations: formatNumber(locale, stats.citations),
+            })}
           </p>
           <Link href="/registry" className="mt-3 inline-block text-sm underline">
-            explore the registry →
+            {t("home.features.reliability.link")}
           </Link>
         </div>
         <div className="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
-          <h3 className="mb-2 font-semibold">Claims you can audit</h3>
+          <h3 className="mb-2 font-semibold">{t("home.features.claims.title")}</h3>
           <p className="text-sm text-gray-500">
-            {stats.docs.toLocaleString()} raw documents ingested. Every digest claim is
-            linked to its source documents at the database level — no black-box analysis.
+            {t("home.features.claims.body", { docs: formatNumber(locale, stats.docs) })}
           </p>
           <Link href="/countries" className="mt-3 inline-block text-sm underline">
-            read today&apos;s digest →
+            {t("home.features.claims.link")}
           </Link>
         </div>
         <div className="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
-          <h3 className="mb-2 font-semibold">Scored against experts, daily</h3>
+          <h3 className="mb-2 font-semibold">{t("home.features.scored.title")}</h3>
           <p className="text-sm text-gray-500">
-            {stats.runs.toLocaleString()} validation runs against ISW&apos;s daily
-            assessments. Coverage, misses, and leads — published, not hidden.
+            {t("home.features.scored.body", { runs: formatNumber(locale, stats.runs) })}
           </p>
           <Link href="/scoreboard" className="mt-3 inline-block text-sm underline">
-            see how we score →
+            {t("home.features.scored.link")}
           </Link>
         </div>
       </section>
 
       <footer className="border-t border-gray-200 py-8 text-xs text-gray-400 dark:border-gray-800">
-        BNOW.NET · OSINT data intelligence · analysis derived from open sources; source
-        ratings are statistical artifacts of citation behavior, not endorsements.
-        <Link href="/health" className="ml-2 underline">status</Link>
+        BNOW.NET · {t("home.footer")}
+        <Link href="/health" className="ms-2 underline">{t("common.status")}</Link>
       </footer>
     </main>
   );

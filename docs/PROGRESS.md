@@ -328,3 +328,62 @@ in code (SpendGuard, fail-closed).
   daily cap raised to 2.5 (backfill day); serverless X path proven (663 fetched).
 - Full report: docs/reviews/COVERAGE-SPRINT-RESULTS.md. Spend: X $1.72/$5,
   OpenSanctions 200/300 calls, LLM-match $0.035/$10.
+
+## 2026-07-08 — i18n: de/ar/ja/pl/fr added (isolated worktree)
+
+- **Worktree:** `/home/go/code/bnow.net-i18n` · **branch:** `codex/i18n-de-ar-ja-pl-fr`
+  (separate from `/home/go/code/bnow.net`, which was not touched). `node_modules`
+  symlinked from the main checkout (gitignored; identical dep set at the same commit).
+- **Locales added:** German (de), Arabic (ar, RTL), Japanese (ja), Polish (pl),
+  French (fr). Existing en + uk preserved verbatim (uk's five original keys unchanged).
+  es/he/ko remain declared-but-untranslated stubs (English fallback per key).
+- **Locale registry** is now the single source of truth (`src/i18n/dictionaries.ts`
+  `LOCALE_REGISTRY`): code, English label, native label, `dir`, market priority
+  `order`, and per-locale `fallback`. `LOCALES`, `LOCALE_NAMES`, `RTL_LOCALES` all
+  derive from it. Arabic (+ Hebrew) set `dir="rtl"`; all others `ltr`.
+- **Selection priority** (pure, unit-tested `resolveLocale`): explicit selector →
+  `locale` cookie → `Accept-Language` → English. `/api/locale?set=<code>` validates via
+  `parseLocaleParam` (rejects invalid), sets a 1-year `sameSite=lax` cookie, and 302s
+  back to a **same-origin** referer/`?to=` (open-redirect guard added).
+- **Message catalogs** (flat dotted keys; prefix = namespace) cover all required
+  namespaces: nav, home (landing), countries, pricing, registry, scoreboard, digest,
+  ask, auth, common. `makeT` gained `{token}` interpolation (backward-compatible).
+- **Surfaces localized (wired):** landing page (`/`) fully — nav, hero, three feature
+  cards (locale-aware `Intl` number formatting via `src/i18n/format.ts`), footer — plus
+  the document `<html lang dir>` in `layout.tsx`, and a new reusable
+  `LanguageSelector` (`src/components/language-selector.tsx`) offering all 7 locales in
+  priority order, each labelled in its native script with its own `lang`/`dir`.
+- **Catalog-ready, not yet JSX-wired:** countries / pricing / registry / scoreboard /
+  digest / ask / auth pages still render English literals. Their translations exist and
+  are tested; wiring `t()` into each page's JSX is deferred to keep this diff scoped and
+  avoid a broad visual redesign (see follow-up).
+- **Intentionally NOT translated** (invariant): source names, source URLs, raw evidence,
+  raw document titles, claim IDs, confidence/source metadata, and the literal "ISW" /
+  "OSINT" / "Telegram" labels. No evidence or generated/ISW prose is machine-translated;
+  only UI chrome and section labels live in the catalogs. No stub/fixture data added.
+- **Formatting:** dates/times/numbers/percentages via `Intl` only (never hand-rolled);
+  date helpers default to `timeZone:"UTC"` so server-rendered date-only values are
+  deterministic (no off-by-one).
+- **Verification (local, no paid/live APIs):** `npm run typecheck` clean · `npm run lint`
+  clean · `npm test` 25 files / 244 tests green. New coverage: locale registry, ar=rtl,
+  fallback chain, `resolveLocale` priority + q-weight, `/api/locale` switcher (accept/
+  reject + open-redirect guard, end-to-end), protected-label-literal per own catalog,
+  placeholder-set preservation, non-vacuous namespace coverage, en/uk no-regression,
+  `dirFor`, and Intl formatting. Runtime smoke rendered all 7 locales correctly.
+- **Multi-agent QA/review ran** (21 agents): 5 native-perspective linguists (de/fr/pl/ja/ar)
+  + 4 code-review dimensions (correctness/i18n-invariants/security/test-coverage), each
+  finding adversarially verified. **Fixes applied from it:** (security) closed an open
+  redirect in `/api/locale` — `?to=/\host` folded to `//host` past the old prefix check,
+  now validated by resolved origin; cookie hardened (httpOnly + secure-in-prod).
+  (correctness) `resolveLocale` now ranks Accept-Language by q-weight, not list order.
+  (invariants) Arabic tagline had translated "OSINT" and transliterated "Telegram"; Polish
+  inflected "Telegram"→"Telegrama" — all restored to the literal proper noun. (register)
+  German "Nachrichtendienst-Feeds" (reads as *spy agency*) → "Intelligence-Feeds"; minor
+  de/ar/pl/ja wording. Test gaps the review flagged are now closed (see coverage above).
+- **QA remaining (native-speaker sign-off before launch):** machine-authored translations
+  reviewed by LLM linguists but not yet by humans. Open nuance items: JA `nav.materials`
+  重要鉱物 ("critical minerals" — kept: the /critical-materials tracker is rare-earth/mineral
+  import-concentration, so this is arguably more precise than the broader "materials", but a
+  native reviewer should confirm scope) and general register for ar/ja. Per-page JSX wiring
+  of the non-landing surfaces (countries/pricing/registry/scoreboard/digest/ask/auth) is the
+  main functional follow-up — their catalogs exist and are tested.
