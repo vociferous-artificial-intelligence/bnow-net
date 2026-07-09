@@ -114,6 +114,18 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
   312 tests (was 245). Adversarial review of the diff found 3 real defects (menu re-opening
   on back-nav; English-only nav landmark; a vacuous focus test) — all fixed.
   Review: docs/reviews/NAV-RESTRUCTURE-REVIEW.md.
+- MR sprint 1 — guardrails & hygiene (2026-07-09, pre-map-reduce): the digest extract path,
+  ~98% of true LLM spend, was **unmetered and unguarded** (audit §7c). Now every request
+  reserves against a SpendGuard (`openai_digest`) and records to `provider_usage`, truncated
+  responses included — OpenAI bills those in full and the ladder discards them.
+  `max_completion_tokens=4096` (was gpt-4o-mini's own 16,384) cuts worst-case truncation waste
+  to a quarter. Ladder no longer re-sends an identical batch for `docs.length` 26–50.
+  `LLM_DISABLE=1` is a global kill-switch. Per-digest `structured.stats` gains
+  `{llm, ladder, droppedClaims, sentDocIds}`. `events.track` added + backfilled (493/56/17);
+  per-track response schemas; `claim_must_have_source` re-asserted in a regeneration-proof
+  migration with a test; `cron_runs` gives per-run success/failure for the first time; 3,418
+  Persian-channel docs retagged ru→ir. 350 tests (was 312).
+  Audit: docs/reviews/PIPELINE-AUDIT-2026-07.md.
 - Stubbed: MTProto, ACLED (fixtures — NOT wired into prod ingest); the "x" fixture stub
   remains for tests but the live adapter is x_api; Stripe flagged off; zakupki needs
   proxy (BLOCKERS 2026-07-06); Resend superseded by Postmark (still on scenefiend
@@ -279,6 +291,65 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
   catalogs — half-translated chrome is worse than uniform fallback. OPEN-TASKS #21. The existing
   i18n suite does NOT guard translation completeness (English fallback satisfies it); the new
   header test does, for header keys.
+- **2026-07-09 (MR sprint 1)** **Deployed env values read from the Vercel dashboard**, closing
+  audit §12 #5: `MIX_CAP_FRACTION`, `MATCH_VOTES`, `OPENAI_MODEL`, `MATCHER_MODE` and
+  `ANALYSIS_PROVIDER` are all **absent in production** → the shipped defaults are live (0.4, 5,
+  gpt-4o-mini, majority, openai). So the audit's "240 per-adapter gather cap binds" thesis holds
+  unconditionally, and k=5 majority voting is confirmed. `LLM_SPRINT_USD_CAP`, `X_SPRINT_USD_CAP`,
+  `X_DAILY_USD_CAP`, `OPENSANCTIONS_CALL_CAP` are set but their **values stay unreadable** — the
+  CLI returns `""` for sensitive vars, so `vercel env pull` cannot confirm them. Values remain an
+  operator task.
+- **2026-07-09 (MR sprint 1)** The digest guard's **daily** cap is `LLM_DIGEST_USD_CAP` and its
+  **all-time** backstop is the existing `LLM_SPRINT_USD_CAP`. SpendGuard's fail-closed rule keys
+  off the total cap only, so a daily-cap-only guard would have had no fail-closed path; rather than
+  invent a second total-cap env that would be unset in prod (and so kill every digest on deploy),
+  the digest path honours the sprint ceiling llm_match already honours. `dailyUsdCap` is now
+  `number | null`, null = fail closed; every existing caller passes a number, so x_api /
+  opensanctions / llm_match behaviour is unchanged. `LLM_DIGEST_USD_CAP=2` set in Vercel
+  (production, preview, development) **before** deploying — an unset cap in production fails
+  closed, which would have stopped all digests.
+- **2026-07-09 (MR sprint 1)** Metering lives **inside** `openai-provider.analyze()`, not in
+  `digest.ts`: only the provider holds `completion.usage`, and a guard there covers every caller
+  (cron, `scripts/digest.ts`, any future map-reduce reduce pass) rather than one call site. A
+  truncated response is **recorded before it is thrown away** — OpenAI bills it in full, so
+  recording it is the only way the waste ever becomes visible. One guard instance per `analyze()`;
+  the daily/total caps are DB-backed and therefore hold across serverless invocations.
+- **2026-07-09 (MR sprint 1)** `LLM_DISABLE=1` refuses at all four OpenAI call sites, but **not
+  identically**: digest / anthropic / entity-audit throw a typed `LlmDisabledError`, while
+  llm-match degrades to the keyword matcher and `/ask` to its deterministic cited-claims path.
+  Throwing at those two would cost a whole validation run and 500 a user surface — strictly worse
+  than losing the LLM assist, which is all the switch is meant to stop.
+- **2026-07-09 (MR sprint 1)** entity-audit shares `LLM_DIGEST_USD_CAP`'s per-day envelope but
+  writes its **own** `provider_usage` row (`openai_entity_audit`). Folding an unscheduled manual
+  route into `openai_digest` would corrupt the digest ledger that this sprint exists to create.
+- **2026-07-09 (MR sprint 1)** The truncation-ladder retry condition is "a smaller rung remains",
+  not `size > 25`. `LlmBudgetError` / `LlmDisabledError` messages contain no "truncated", so a
+  budget stop rethrows immediately instead of burning the remaining rungs at full price.
+- **2026-07-09 (MR sprint 1)** `drizzle/9999_claim_source_trigger.sql` re-asserts the traceability
+  trigger **without dropping it**: `scripts/migrate.ts` runs statements one at a time outside a
+  transaction, so a DROP/CREATE pair would leave a window in which a live digest cron could commit
+  an unsourced claim. Numbered 9999 so it always applies after generated DDL and can never collide
+  with drizzle-kit's numbering, which counts from `meta/_journal.json` (it emitted `0010` next,
+  confirming the choice). `src/db/migrations.test.ts` fails if a regeneration ever drops it.
+- **2026-07-09 (MR sprint 1)** Persian routing is **two rules, both needed**: `TELEGRAM_CHANNEL_THEATER`
+  pins the five Iranian registry channels to ir (this is what catches their 12 English + 4 Arabic
+  posts), and `routeTheater()` adds fa→ir beside the existing uk→ua (this catches Persian on any
+  future channel). **Arabic is deliberately not routed by language** — it spans ir/sa/ae/qa/om/il,
+  and the 635 Arabic docs still filed under ru are Lebanese (mtvlebanonews 471, sameralhajali 109,
+  mmirleb 19), not Iranian. Whether Lebanon/Hezbollah belongs to the ir theater is an editorial
+  call for Gregory, not a mechanical fix → OPEN-TASKS #29.
+- **2026-07-09 (MR sprint 1)** `cron_runs` rows are written at **start**, not on completion: a run
+  killed by `maxDuration` then leaves `finished_at IS NULL`, and that unterminated row is the
+  timeout signal. Recording only on completion would have made a timeout indistinguishable from a
+  cron that never fired — the exact ambiguity audit §12 #6 flagged.
+- **2026-07-09 (MR sprint 1)** **The empty-extraction guard is weaker than it looks.** Verifying the
+  metering, two regens of ua/2026-07-08 from a byte-identical batch (`promptTokens`=10,516 both
+  times) yielded 1 claim then 8 claims; the first overwrote a 10-claim, 57.1%-coverage digest.
+  `digest.ts:170-185` refuses an overwrite only at **zero** events, so a 10→1 collapse passes, and
+  with ~8 regenerations/digest-day under last-writer-wins the published digest is the *last* roll,
+  not the best. Not fixed here (out of sprint scope, and the fix — compare claim counts, or K-run
+  extraction — belongs with OPEN-TASKS #18/#28). → OPEN-TASKS #32. Only became visible because
+  `stats.llm` now makes per-run extraction yield measurable.
 
 ## Conventions
 
@@ -301,7 +372,8 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
 |---|---|---|---|
 | Neon Postgres | `DATABASE_URL`, `NEON_API_KEY` | **live** | console.neon.tech |
 | Vercel deploy | CLI session (`VERCEL_TOKEN` expired) | **live (CLI)** | vercel.com/account/tokens |
-| OpenAI (analysis) | `OPENAI_API_KEY` | **live, ≤$25** | platform.openai.com |
+| OpenAI (analysis) | `OPENAI_API_KEY` + `LLM_SPRINT_USD_CAP` (all-time) + `LLM_DIGEST_USD_CAP` ($2/day) | **live, spend-guarded** | platform.openai.com |
+| LLM kill-switch | `LLM_DISABLE=1` | refuses every LLM call site | (env only) |
 | Anthropic | `ANTHROPIC_API_KEY` | absent | console.anthropic.com |
 | Cron auth | `CRON_SECRET` | **live** | (already set) |
 | Telegram MTProto | `TELEGRAM_API_ID/HASH` | stubbed | my.telegram.org |

@@ -478,3 +478,111 @@ skip-to-content link).
 - One quota-off sample initially failed on the truncation path (finish_reason=length
   at 100 docs — the denser un-mixed batch); succeeded on retry at 50 docs. Total run:
   49 generations + validations, ~2.6 h wall-clock, LLM spend well under $1.
+
+## 2026-07-09 13:30 UTC — MR sprint 1: guardrails & hygiene (pre-map-reduce)
+
+Goal: make the pipeline safe and observable **before** the map-reduce refactor multiplies LLM
+call volume ~50–150×. No architecture changes. Every finding cites
+`docs/reviews/PIPELINE-AUDIT-2026-07.md`.
+
+**TASK 1 — the dark digest path is now metered and guarded.** The audit's headline (§7c): the
+digest extract call is ~98% of true LLM spend, wrote **nothing** to `provider_usage`, read
+`completion.usage` never, and passed **no** guard — `OPENAI_API_KEY` alone enabled uncapped spend.
+Metering now lives inside `openai-provider.analyze()`, the only place `completion.usage` exists and
+the one place that covers every caller (cron, `scripts/digest.ts`, any future reduce pass). A
+**truncated response is recorded before it is thrown away**: OpenAI bills it in full, so recording
+it is the only way that waste ever becomes visible. Per-digest
+`structured.stats.llm = {calls, promptTokens, completionTokens, estUsd, truncationRetries}`.
+`LLM_DISABLE=1` refuses at all four OpenAI call sites — throwing for digest/anthropic/entity-audit,
+degrading for llm-match (keyword matcher) and `/ask` (deterministic cited claims), because losing
+those surfaces is worse than losing the assist. entity-audit (§7a site D) is now guarded and
+metered under its own `openai_entity_audit` row.
+
+**TASK 2 — stopped paying for thrown-away truncations.** `max_completion_tokens=4096` (measured
+real outputs ≤1,448 pretty-JSON tokens, §4c; the model previously ran to its own 16,384 ceiling and
+was billed for all of it). Worst-case truncation waste drops to a quarter. The ladder
+`[docs.length, 50, 25]` re-sent an **identical batch** whenever `docs.length` fell in 26–50 —
+slicing 30 docs to 50 yields the same 30 docs, so the "retry" was a second full-price call with the
+same input and the same outcome (§2 O2). `ladderSizes()` keeps only strictly-smaller rungs; a
+≤25-doc batch has no retry, by design and now stated as such. The retry condition is "a smaller
+rung remains", so a `LlmBudgetError` rethrows immediately instead of burning the rest of the ladder.
+
+**TASK 3 — correctness.**
+- `events.track` added + backfilled from the owning claims' digest: **566 → 493 military /
+  56 elite_politics / 17 nuclear**. Verified first that no event's claims span two digests and no
+  event is orphaned, so the mapping was unambiguous. The orphan-event sweep is now track-scoped.
+- **3,418 docs retagged ru→ir.** Five Iranian registry telegram channels (`nournews_ir`,
+  `mehrnews`, `iribnews`, `farsna`, `defapress_ir`) were filed under the default ru theater,
+  stranding 3,401 Persian docs from every ir digest (§9d — the audit said 3,264; live drift).
+  Fixed with **both** a per-channel override (which also catches their 12 English + 4 Arabic posts,
+  invisible to a language rule) and a `fa→ir` rule beside the existing `uk→ua`. All 5,681 Persian
+  docs now sit in ir, none in ru; `scripts/retag-theater.ts` re-runs to 0. Arabic is deliberately
+  **not** language-routed → OPEN-TASKS #29.
+- Per-track response schema: the `type` enum was military-only while the elite and nuclear prompts
+  ask for `prosecution|...` / `enrichment|...`, so under `strict:true` those events had to be
+  labelled from a vocabulary they were never offered (§3a). A test parses the `event type:` line
+  back out of each prompt and asserts the enum matches — and asserts it checked two tracks, so it
+  cannot pass by matching nothing.
+- `claim_must_have_source` lived only in the hand-written 0000 migration (§5d D1). Re-asserted in
+  `drizzle/9999_claim_source_trigger.sql`, **without a DROP** — `migrate.ts` runs statements outside
+  a transaction, so drop-then-create would leave a window for a live cron to commit an unsourced
+  claim. Numbered 9999 so it always runs after generated DDL; drizzle-kit went on to emit `0010`,
+  confirming the choice. Guarded by `src/db/migrations.test.ts` (mutation-tested: it fails when the
+  trigger is removed) and by a live-schema assertion in the integration suite.
+
+**TASK 4 — observability floor.** `cron_runs (job, started_at, finished_at, ok, error, counts)`,
+written by all 7 scheduled routes + entity-audit. The row is written at **start**, so a run killed
+by `maxDuration` leaves `finished_at IS NULL` — that unterminated row *is* the timeout signal,
+resolving the §12 #6 ambiguity between "fired and did nothing" and "never fired". Jobs split across
+cron entries get qualified names (`digest:core` vs `digest:gulf`). `structured.stats.sentDocIds`
+makes the ~10.2× MODELLED re-extraction redundancy (§11) directly measurable for the first time.
+
+**Metering evidence — before.** `audit-cron.ts`, 2026-07-09 pre-deploy:
+```
+2026-07-09 llm_match      req=15  units=15    $0.00225
+2026-07-09 opensanctions  req=9   units=9     $0.99000
+2026-07-09 x_api          req=645 units=4875  $0.77115
+WARNING: no openai_digest rows — the digest path is unmetered again
+```
+Recorded LLM spend all-time was the matcher alone. See below for the after.
+
+**Also resolved for free:** audit §12 #5. `vercel env ls` shows `MIX_CAP_FRACTION`, `MATCH_VOTES`,
+`OPENAI_MODEL`, `MATCHER_MODE` and `ANALYSIS_PROVIDER` **absent in production** → shipped defaults
+(0.4, 5, gpt-4o-mini, majority, openai) are live. The audit's "240 per-adapter gather cap binds"
+thesis therefore holds unconditionally, and k=5 majority voting is confirmed. Cap *values* stay
+unreadable: the CLI returns `""` for sensitive vars.
+
+**Budget note:** OpenSanctions billed **$33.00 in 3 days** ($22.00 + $10.01 + $0.99) against a $25
+intention — the real budget threat is non-LLM, exactly as the audit's aside said. Operator action.
+
+### Verification — the dark path is lit (2026-07-09 14:18 UTC, post-deploy)
+
+One manual digest regen (`?country=ua&track=military&date=2026-07-08`), production:
+
+```
+provider_usage:  openai_digest  req=1  units=10629  $0.0016452     <- did not exist before
+digests.structured.stats.llm:
+  { calls: 1, promptTokens: 10516, completionTokens: 113, estUsd: 0.0016452, truncationRetries: 0 }
+digests.structured.stats.ladder:  { rungs: [100,50,25], rungsTried: 1, finalSize: 100 }
+digests.structured.stats.droppedClaims: 0        sentDocIds: 100 ids
+cron_runs:  ingest:fast ok=1 (fired by the */15 cron 3 min after deploy);  digest ok=2
+```
+`units` = 10,516 + 113 exactly, and `est_usd` reproduces `estimateUsd()` to the cent. The
+`audit-cron.ts` warning "no openai_digest rows — the digest path is unmetered again" is gone.
+Scheduled runs will log as `digest:core` / `digest:gulf`; this manual call logged as bare `digest`,
+so operator backfills stay distinguishable from cron runs. **Sprint LLM spend: $0.0036** (of ≤$2).
+
+### An unplanned finding, from the verification itself
+
+The first regen returned **1 event / 1 claim**; a second, from a **byte-identical batch**
+(`promptTokens` = 10,516 both times, `docsAnalyzed` = 100, `truncationRetries` = 0 both times, so
+neither the corpus nor the new output cap was involved) returned **5 events / 8 claims** — 113 vs
+613 completion tokens. The first roll had overwritten a 10-claim digest that scored **57.1%**
+coverage that morning.
+
+This is OPEN-TASKS #28's extraction variance, but it exposes a sharper edge: the empty-extraction
+guard (`digest.ts:170-185`) declines to overwrite only when the new extraction has **zero** events.
+A 10-claim → 1-claim collapse passes it silently, and since each digest-day is regenerated ~8×
+under last-writer-wins, **the published digest is the last roll, not the best one**. Filed as
+OPEN-TASKS #32. This materially raises the stakes of the map-reduce refactor's regeneration
+cadence — and it was invisible until `stats.llm` made per-run extraction yield measurable.

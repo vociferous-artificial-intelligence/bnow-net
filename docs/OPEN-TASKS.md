@@ -103,7 +103,36 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     variance is upstream in extraction). Options: K-run extraction with claim-level
     merge/vote (mirrors the matcher fix, ~3x LLM cost), or report scoreboard coverage
     as a rolling mean; pairs naturally with two-pass extraction (#18).
+29. **635 Lebanese Arabic docs are filed under the `ru` theater.** Surfaced while fixing the
+    Persian mis-routing (MR sprint 1). They arrive from three registry-derived telegram
+    channels — `mtvlebanonews` (471), `sameralhajali` (109), `mmirleb` (19) — which
+    `registryTelegramChannels()` defaulted to ru. Unlike Persian, Arabic cannot be routed by
+    language: it spans ir/sa/ae/qa/om/il. The `IRAN_MILITARY_PROMPT` explicitly covers
+    Hezbollah and Lebanon, so `ir` is the likely home, but that is an **editorial coverage
+    decision, not a mechanical fix** — deliberately left to Gregory. Once decided, the fix is
+    three lines in `TELEGRAM_CHANNEL_THEATER` plus `npx tsx scripts/retag-theater.ts --apply`
+    (idempotent, dry-run by default).
+30. **`digests.structured.stats.llm` makes true LLM cost measurable per digest.** After ~24h of
+    metering, replace the audit's MODELLED $0.158/day digest figure with the measured one, and
+    recompute the metered/unmetered split (§7c put recorded spend at ~1–2% of true spend).
+    `stats.sentDocIds` likewise makes the ~10.2× MODELLED re-extraction redundancy (§11)
+    directly measurable — the number the map-reduce refactor is built to remove.
+31. **`rank.ts` has no `eventTypeWeights` for the new per-track event types.** Elite/nuclear
+    events now carry `prosecution|enrichment|...` instead of being forced into the military
+    vocabulary; `profile.eventTypeWeights[ev.type] ?? 1` gives them a neutral weight, so nothing
+    breaks, but buyer profiles cannot yet prefer (say) `asset_seizure` over `appointment`.
 
+32. **The empty-extraction guard's threshold is 0 events, so a thin regeneration overwrites a
+    rich one silently.** Demonstrated live while verifying MR sprint 1: regenerating ua/2026-07-08
+    twice from a byte-identical 100-doc batch (`promptTokens` = 10,516 both times, proving the
+    input never changed) produced **1 event / 1 claim** then **5 events / 8 claims** — 113 vs 613
+    completion tokens. The first roll replaced a 10-claim digest that had scored 57.1% coverage.
+    `digest.ts:170-185` only declines to overwrite when the new extraction has **zero** events, so
+    a 10→1 claim collapse sails through, and with ~8 regenerations per digest-day under
+    last-writer-wins the published digest is the *last* roll, not the best one. This is the
+    #28 variance with teeth. Options: keep the richer extraction (compare claim counts before
+    overwriting), or K-run extraction with claim-level merge (#28/#18). **Materially raises the
+    stakes of the map-reduce refactor's regeneration cadence.**
 ## Tier 3 — before enterprise/API sales
 
 8. **Per-subscriber canary marking** (BUSINESS-PLAN §4) — required to safely sell $100k
