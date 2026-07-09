@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pollSeries, seedSeries } from "@/lib/datadark/run";
+import { withCronRun } from "@/lib/usage/cron-run";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
@@ -11,8 +12,12 @@ export async function GET(req: NextRequest) {
   if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  let seeded: number | undefined;
-  if (req.nextUrl.searchParams.get("seed") === "1") seeded = await seedSeries();
-  const stats = await pollSeries(new Date().toISOString());
-  return NextResponse.json({ ok: true, seeded, stats });
+  return withCronRun("datadark", async (counts) => {
+    let seeded: number | undefined;
+    if (req.nextUrl.searchParams.get("seed") === "1") seeded = await seedSeries();
+    const stats = await pollSeries(new Date().toISOString());
+    counts.seeded = seeded ?? 0;
+    counts.stats = stats;
+    return NextResponse.json({ ok: true, seeded, stats });
+  });
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Pool } from "@neondatabase/serverless";
 import { generateDigest } from "@/lib/analysis/digest";
+import { cronJobName, withCronRun } from "@/lib/usage/cron-run";
 
 export const maxDuration = 800;
 export const dynamic = "force-dynamic";
@@ -25,13 +26,21 @@ export async function GET(req: NextRequest) {
   if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+  const group = req.nextUrl.searchParams.get("group");
+  return withCronRun(cronJobName("digest", group), (counts) => run(req, group, counts));
+}
+
+async function run(
+  req: NextRequest,
+  group: string | null,
+  counts: Record<string, unknown>,
+): Promise<NextResponse> {
   const dateParam = req.nextUrl.searchParams.get("date");
   const today = new Date().toISOString().slice(0, 10);
   const yesterday = new Date(Date.now() - 24 * 3600e3).toISOString().slice(0, 10);
   const dates = dateParam ? [dateParam] : [yesterday, today];
 
   const country = req.nextUrl.searchParams.get("country");
-  const group = req.nextUrl.searchParams.get("group");
   let countries: string[];
   if (country) {
     countries = [country];
@@ -71,5 +80,16 @@ export async function GET(req: NextRequest) {
       }
     }
   }
+
+  // counts survive even if a later digest throws: withCronRun persists whatever
+  // the object holds when the callback settles.
+  const errors = results.filter((r) => "error" in r);
+  counts.dates = dates.length;
+  counts.countries = countries.length;
+  counts.tracks = tracks.length;
+  counts.digests = results.length - errors.length;
+  counts.errors = errors.length;
+  if (errors.length) counts.errorMessages = errors.slice(0, 5).map((r) => r.error);
+
   return NextResponse.json({ ok: true, results });
 }

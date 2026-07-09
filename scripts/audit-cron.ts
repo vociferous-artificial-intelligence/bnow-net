@@ -20,6 +20,39 @@ async function main() {
   for (const r of ingest) console.log(`${r.hour.toISOString()}  ${String(r.adapter).padEnd(16)} ${r.docs}`);
   if (!ingest.length) console.log("NO INGEST ROWS IN 24H — ingest cron not landing");
 
+  console.log("\n-- cron_runs: per-job outcome, last 24h --");
+  const runs = await sql`
+    SELECT job,
+           count(*)::int AS runs,
+           sum((ok IS TRUE)::int)::int AS ok,
+           sum((ok IS FALSE)::int)::int AS failed,
+           sum((finished_at IS NULL)::int)::int AS unfinished,
+           max(started_at) AS latest
+    FROM cron_runs WHERE started_at > now() - interval '24 hours'
+    GROUP BY job ORDER BY job`;
+  for (const r of runs)
+    console.log(
+      `${String(r.job).padEnd(18)} runs=${r.runs} ok=${r.ok} failed=${r.failed} ` +
+        `unfinished=${r.unfinished} latest ${r.latest.toISOString()}`,
+    );
+  if (!runs.length) console.log("NO CRON RUNS IN 24H — either nothing fired, or the deploy predates cron_runs");
+  const failures = await sql`
+    SELECT job, started_at, error FROM cron_runs
+    WHERE started_at > now() - interval '24 hours' AND ok IS FALSE
+    ORDER BY started_at DESC LIMIT 5`;
+  for (const r of failures)
+    console.log(`  FAIL ${r.job} ${r.started_at.toISOString()}: ${String(r.error).slice(0, 160)}`);
+
+  console.log("\n-- LLM spend by provider, last 3 days (digest path must appear) --");
+  const llm = await sql`
+    SELECT provider, day::text AS day, requests, units, round(est_usd::numeric, 5) AS est_usd
+    FROM provider_usage WHERE day > (now() - interval '3 days')::date
+    ORDER BY day DESC, provider`;
+  for (const r of llm)
+    console.log(`${r.day} ${String(r.provider).padEnd(20)} req=${r.requests} units=${r.units} $${r.est_usd}`);
+  if (!llm.some((r) => r.provider === "openai_digest"))
+    console.log("WARNING: no openai_digest rows — the digest path is unmetered again");
+
   console.log("\n-- digests: rows for yesterday + today by country/track/status/provider --");
   const digests = await sql`
     SELECT c.iso2, d.digest_date, d.track, d.status, d.provider, d.created_at

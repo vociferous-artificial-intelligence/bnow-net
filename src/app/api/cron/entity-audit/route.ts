@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Pool } from "@neondatabase/serverless";
 import OpenAI from "openai";
+import { withCronRun } from "@/lib/usage/cron-run";
 import { entityAuditGuardFromEnv, estimateUsd, isLlmDisabled } from "@/lib/usage/llm-guard";
 
 export const maxDuration = 120;
@@ -57,6 +58,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: reserved.reason }, { status: 429 });
   }
 
+  // Unscheduled, but it spends: a run row is how a manual invocation shows up.
+  return withCronRun("entity-audit", (counts) => run(guard, counts));
+}
+
+async function run(
+  guard: ReturnType<typeof entityAuditGuardFromEnv>,
+  counts: Record<string, unknown>,
+): Promise<NextResponse> {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
     const { rows } = await pool.query(
@@ -90,6 +99,10 @@ export async function GET(req: NextRequest) {
     const completionTokens = completion.usage?.completion_tokens ?? 0;
     const estUsd = estimateUsd(promptTokens, completionTokens);
     await guard.record(1, promptTokens + completionTokens, estUsd);
+    counts.entities = rows.length;
+    counts.promptTokens = promptTokens;
+    counts.completionTokens = completionTokens;
+    counts.estUsd = estUsd;
 
     const raw = completion.choices[0]?.message?.content ?? "{}";
     let proposals: Proposal[] = [];
@@ -108,6 +121,7 @@ export async function GET(req: NextRequest) {
         name: byId.get(p.id)!.name,
         intoName: p.intoId ? byId.get(p.intoId)!.name : undefined,
       }));
+    counts.proposals = valid.length;
 
     return NextResponse.json({
       ok: true,

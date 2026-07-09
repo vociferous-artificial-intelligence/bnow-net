@@ -555,6 +555,26 @@ export const providerUsage = pgTable(
   (t) => [uniqueIndex("provider_usage_provider_day_idx").on(t.provider, t.day)],
 );
 
+// One row per scheduled-job invocation. Until this table existed, per-run success
+// was unknowable: nothing in the DB distinguished "the cron fired and did nothing"
+// from "the cron never fired", because digests.created_at is last-writer-wins.
+//
+// The row is written at START. A run killed by maxDuration therefore leaves
+// finished_at NULL and ok NULL — that IS the timeout signal, not a lost row.
+export const cronRuns = pgTable(
+  "cron_runs",
+  {
+    id: serial("id").primaryKey(),
+    job: text("job").notNull(), // digest:core | ingest:x | validate | ...
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    ok: boolean("ok"), // null = still running, or killed before it could finish
+    error: text("error"),
+    counts: jsonb("counts").notNull().default({}), // per-job tallies, e.g. {digests, errors}
+  },
+  (t) => [index("cron_runs_job_started_idx").on(t.job, t.startedAt)],
+);
+
 // Tiny per-provider state (poll watermarks etc.) so incremental fetchers survive
 // serverless restarts without refetching (and re-paying for) covered windows.
 export const providerState = pgTable("provider_state", {

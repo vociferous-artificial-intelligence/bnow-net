@@ -71,6 +71,13 @@
       "when": 1783605089845,
       "tag": "0009_events_track",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783605792603,
+      "tag": "0010_cron_runs",
+      "breakpoints": true
     }
   ]
 }

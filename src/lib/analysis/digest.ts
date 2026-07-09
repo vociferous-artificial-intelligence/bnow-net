@@ -236,6 +236,10 @@ export async function generateDigest(
           droppedClaims: dropped,
           // which rungs existed, how many were spent, what finally landed (§12 #8)
           ladder: { rungs: ladder, rungsTried, finalSize: docsSent.length },
+          // exactly which docs the model saw (<=100 ints). Without this the true
+          // re-extraction redundancy across a digest-day's ~8 regenerations is
+          // unmeasurable — the audit could only model it at ~10.2x (§11, §12 #9).
+          sentDocIds: docsSent.map((d) => d.id),
           ...(llmCalls.length ? { llm: summarizeLlmCalls(llmCalls) } : {}),
         },
       };

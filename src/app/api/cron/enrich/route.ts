@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { enrichEntities } from "@/lib/enrich/run";
 import { enrichOwnership } from "@/lib/enrich/ownership-run";
+import { withCronRun } from "@/lib/usage/cron-run";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
@@ -16,12 +17,16 @@ export async function GET(req: NextRequest) {
   const limit = parseInt(req.nextUrl.searchParams.get("limit") ?? "200", 10);
   const only = req.nextUrl.searchParams.get("only");
 
-  const out: Record<string, unknown> = { ok: true };
-  if (only !== "ownership") {
-    out.sanctions = await enrichEntities({ refresh, limit, nowIso: new Date().toISOString() });
-  }
-  if (only !== "sanctions") {
-    out.ownership = await enrichOwnership({ refresh, limit });
-  }
-  return NextResponse.json(out);
+  return withCronRun("enrich", async (counts) => {
+    const out: Record<string, unknown> = { ok: true };
+    if (only !== "ownership") {
+      out.sanctions = await enrichEntities({ refresh, limit, nowIso: new Date().toISOString() });
+      counts.sanctions = out.sanctions;
+    }
+    if (only !== "sanctions") {
+      out.ownership = await enrichOwnership({ refresh, limit });
+      counts.ownership = out.ownership;
+    }
+    return NextResponse.json(out);
+  });
 }
