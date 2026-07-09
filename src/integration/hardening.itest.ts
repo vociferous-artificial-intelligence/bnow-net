@@ -31,6 +31,20 @@ afterAll(async () => {
 });
 
 describe("claim->source traceability trigger", () => {
+  it("exists on the live schema, deferred to COMMIT", async () => {
+    // The behavioural tests below would also fail if the trigger vanished, but this
+    // one names the cause instead of the symptom (audit §5d D1).
+    const { rows } = await pool.query(
+      `SELECT tgname, tgdeferrable, tginitdeferred, tgenabled
+       FROM pg_trigger WHERE tgrelid = 'public.claims'::regclass AND NOT tgisinternal`,
+    );
+    const trig = rows.find((r) => r.tgname === "claim_must_have_source");
+    expect(trig, "claim_must_have_source is missing from the live schema").toBeDefined();
+    expect(trig.tgdeferrable).toBe(true);
+    expect(trig.tginitdeferred).toBe(true);
+    expect(trig.tgenabled).toBe("O"); // enabled in origin/local sessions
+  });
+
   it("rejects a claim with no source link at COMMIT", async () => {
     const client = await pool.connect();
     try {

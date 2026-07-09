@@ -266,9 +266,13 @@ export const claims = pgTable(
 );
 
 // TRACEABILITY INVARIANT: every claim must reference >=1 raw document.
-// Enforced by a DEFERRABLE constraint trigger added in the initial migration SQL
-// (see drizzle/0000_*.sql) — inserting a claim without a claim_sources row in the
-// same transaction fails at COMMIT.
+// Enforced by a DEFERRABLE constraint trigger — inserting a claim without a
+// claim_sources row in the same transaction fails at COMMIT.
+//
+// Drizzle cannot model it, so `drizzle-kit generate` neither emits nor preserves
+// it. drizzle/9999_claim_source_trigger.sql re-asserts it idempotently after all
+// generated DDL, and src/db/migrations.test.ts fails if that file ever stops doing
+// so. Do not rely on drizzle/0000_*.sql, which a regeneration could replace.
 export const claimSources = pgTable(
   "claim_sources",
   {
