@@ -88,6 +88,33 @@ TASK 2 ✅ (shipped, see log below) — synthesis pass details:
    refusal to cron_runs counts; add the same guard to legacy digest.ts (protects
    the A/B baseline).
 
+## Cutover payload (apply ONLY after the gate passes — TASK 4)
+
+Code is already on main (engine.ts dispatch, ?mode route param, rolling window,
+delta framing — all default-legacy). REDUCE_USD_CAP_DAILY=2 is set in all three
+Vercel envs (2026-07-09). Remaining cutover actions:
+
+1. vercel.json: REPLACE the two digest entries
+   (`/api/cron/digest?group=core` + `?group=gulf`, both `*/30 0,6,12,18`) with:
+   ```
+   { "path": "/api/cron/digest?mode=finalize", "schedule": "0 2 * * *" },
+   { "path": "/api/cron/digest?mode=intraday", "schedule": "0 4 * * *" },
+   { "path": "/api/cron/digest?mode=intraday", "schedule": "0 10 * * *" },
+   { "path": "/api/cron/digest?mode=intraday", "schedule": "30 19 * * *" }
+   ```
+   (Full matrix runs serially in one entry now — measured 64s core + 138s gulf
+   legacy; mapreduce ~35s/military digest; well under maxDuration 800.
+   If Vercel rejects duplicate paths, disambiguate with `&slot=1` etc.
+   Map cron at :40 hourly stays; validate 07:00 stays — it already scores
+   yesterday, which after the 02:00 finalize pass IS the D+1 canonical digest.)
+2. Deploy (tests green first): `npx vercel@latest deploy --prod --yes`.
+3. Print flip instructions for Gregory (DO NOT flip): set Vercel env
+   `DIGEST_ENGINE=mapreduce` (production) + redeploy → mapreduce serves ru/ua/ir
+   (all tracks with doc_claims); gulf theaters auto-fall back to legacy.
+   Rollback = remove the env (or set `legacy`) + redeploy.
+4. AGENTS.md decision-log entry (engine flag + cadence), snapshot corrections
+   (crons, digest engine), OPEN-TASKS #18/#28 closed, PROGRESS before/after.
+
 ## Then
 - TASK 2: synthesis (K=3 vote, pre-rank groups, REDUCE_USD_CAP_DAILY fail-closed,
   provider=openai_reduce, persist via existing invariant path, thin-regen guard
