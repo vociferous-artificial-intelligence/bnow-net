@@ -793,3 +793,20 @@ matcher vs ISW; legacy baseline vs the shipped K=5 mapreduce configuration):
    window, delta-framed "Since the previous brief"), validate unchanged (already
    scores the finalized D+1 digest). Intraday mode smoke-verified on prod.
 6. Sprint LLM spend ≈ $1.76 of the $12 cap. Tests 391 → 450 (39 files).
+
+## 2026-07-09 ~23:05 UTC — DIGEST_ENGINE cutover executed (prod on mapreduce)
+
+1. `DIGEST_ENGINE=mapreduce` added to the Vercel production env; redeployed
+   (`dpl_4HdAJA7ZjAKiUGMLamf1ndDnWgpM`, READY; landing/countries/scoreboard 200).
+2. Verified by evidence rather than assumption — Vercel stores a CLI-added var as
+   type Sensitive, so the value cannot be read back and only a real run proves it.
+   One narrow live cell (`?mode=intraday&country=ir&track=nuclear`, 172 docs):
+   returned `provider: "openai:gpt-4o-mini+mapreduce"`; wrote the day's first
+   `provider_usage.openai_reduce` row (5 requests = the K=5 synthesis votes,
+   $0.0054, well under `REDUCE_USD_CAP_DAILY=2`); left `openai_digest` at its
+   pre-flip 34 requests; `cron_runs` digest:intraday closed ok=true in 40s.
+3. AGENTS.md standing sections corrected in place (engine bullet, next-steps #2)
+   + append-only decision-log entry with the two traps for the next flip
+   (printf-not-echo; `.env.local` not mirrored because it lacks the reduce cap).
+4. Open: the week-long scoreboard watch, especially ua (−3.6 pts in the A/B,
+   noise-scale). Rollback = unset the prod env var + redeploy.

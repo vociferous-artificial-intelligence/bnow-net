@@ -96,13 +96,15 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   (`doc_dedup`), dispositions (`doc_map_state`); hourly cron keeps it current;
   $0.076/1K docs. Feeds the mapreduce digest engine (below). Shadow evidence:
   `docs/reviews/MAP-SHADOW-RESULTS.md`.
-- **Digests — two engines behind `DIGEST_ENGINE` (default LEGACY until the operator
-  flips):** legacy = the 100-doc batch extraction (source-mix quota, ladder);
+- **Digests — two engines behind `DIGEST_ENGINE`; prod is FLIPPED to `mapreduce`
+  (2026-07-09; code default is still legacy when the env is unset, which is the
+  rollback):** legacy = the 100-doc batch extraction (source-mix quota, ladder);
   mapreduce = deterministic reduce over doc_claims (star clustering, threshold 0.35,
   corroboration promotion, entity canonicalization) + K=5-voted synthesis over the
   top ~200 ranked claim groups — model cites group ids only, docIds/hedging derive
   server-side. A/B gate PASSED (coverage 25.0 vs 21.1, unsupported 0.30 vs 0.41,
-  variance 6.9 vs 8.0; `docs/reviews/MR3-REDUCE-RESULTS.md`). Both engines persist
+  variance 6.9 vs 8.0; `docs/reviews/MR3-REDUCE-RESULTS.md`). Gulf theaters have no
+  doc_claims, so they fall back to legacy automatically. Both engines persist
   through ONE shared path (`digest-persist.ts`) whose overwrite guard refuses empty
   AND thin (<50% prior claims) regenerations (#32 closed; FORCE_REGEN=1 override).
 - **Validation vs ISW:** majority-vote LLM matching (k=5, 26/27 reproducible across
@@ -287,6 +289,24 @@ Entries 2026-07-04 → 2026-07-09 (MR sprint 1) are archived VERBATIM in
   (resumable-by-key design); cap raised via env for the run, prod default unchanged.
   Closes OPEN-TASKS #18, #28, #32, #34, #35. Flip = operator sets DIGEST_ENGINE=mapreduce
   in Vercel prod env + redeploy; rollback = unset + redeploy.
+- **2026-07-09 (cutover EXECUTED)** `DIGEST_ENGINE=mapreduce` added to the Vercel
+  **production** env and redeployed (`dpl_4HdAJA7ZjAKiUGMLamf1ndDnWgpM`, READY, project
+  domain serving 200). ru/ua/ir digests now generate through the reduce+synthesis engine;
+  gulf theaters keep falling back to legacy (no doc_claims). Standing sections corrected in
+  place. Verified by evidence, not assumption — one narrow live run
+  (`?mode=intraday&country=ir&track=nuclear`, 172 docs) returned
+  `provider: "openai:gpt-4o-mini+mapreduce"`, wrote a fresh `provider_usage.openai_reduce`
+  row (5 requests = the K=5 synthesis votes of ruling 18, $0.0054), left `openai_digest`
+  un-incremented, and closed its `cron_runs` row `ok=true` in 40s.
+  **Two operational notes for the next flip.** (1) Vercel CLI 55 stores a CLI-added var as
+  type **Sensitive**, which is write-only: `vercel env ls` shows only its name and
+  `vercel env run -e production -- printenv DIGEST_ENGINE` prints nothing. You cannot read
+  the value back to confirm it — the only proof the runtime sees the right string is an
+  actual digest run. Add the value with `printf 'mapreduce' | vercel env add …` (no trailing
+  newline): `digestEngine()` compares `=== "mapreduce"`, so a stray `\n` from `echo` would
+  silently serve legacy forever while every dashboard reads "set". (2) `.env.local` was
+  deliberately NOT mirrored: it lacks `REDUCE_USD_CAP_DAILY`, so a local mapreduce run would
+  fail closed at the reduce guard (ruling 4). Mirror both envs together or neither.
 
 ## Conventions
 
@@ -323,10 +343,12 @@ Entries 2026-07-04 → 2026-07-09 (MR sprint 1) are archived VERBATIM in
 1. **Operator:** `docs/SETUP-NEXT-WEEK.md` top-to-bottom — VERCEL_TOKEN regen, bnow.net
    DNS + domain attach, Postmark sender-domain move off scenefiend, MTProto, Stripe.
    (OpenAI credits: done 2026-07-05; keep the billing alert.)
-2. **Flip DIGEST_ENGINE=mapreduce** when ready (operator; instructions in
-   `docs/reviews/MR3-CHECKPOINT.md`) and watch the scoreboard for a week —
-   especially ua (−3.6 pts in the A/B, noise-scale). Then: gulf theaters onto the
-   map worker, the #33 remap path, per-country mix policy.
+2. **DIGEST_ENGINE=mapreduce is LIVE in prod (flipped 2026-07-09).** Watch the
+   scoreboard for a week — especially ua (−3.6 pts in the A/B, noise-scale) — plus
+   `provider_usage.openai_reduce` (expect ≈ $0.10–0.30/day against
+   `REDUCE_USD_CAP_DAILY=2`) and `cron_runs` jobs `digest:finalize`/`digest:intraday`.
+   Rollback = remove the Vercel prod env var (or set `legacy`) + redeploy. Then: gulf
+   theaters onto the map worker, the #33 remap path, per-country mix policy.
 3. Debt & risks: `docs/OPEN-TASKS.md` (prioritized); key-blocked items: `docs/BLOCKERS.md`;
    Russia depth build order: `docs/RUSSIA-DATA-ROADMAP.md` §5.
 

@@ -23,16 +23,24 @@ as the sprint's session record; the authoritative results are in
   intraday mode smoke-verified on prod. REDUCE_USD_CAP_DAILY=2 in all Vercel envs.
 - TASK 5 ✅ docs current; #18/#28/#32/#34/#35 closed; rulings 17 corrected, 18 added.
 
-## Flip instructions (operator)
+## Flip instructions (operator) — ✅ EXECUTED 2026-07-09 ~23:05 UTC
 
 To switch ru/ua/ir digests to the map-reduce engine:
 1. `vercel env add DIGEST_ENGINE production` → value `mapreduce`
+   — pipe it with `printf` (no trailing newline); the CLI stores it as a
+   **Sensitive** var whose value can never be read back, so a stray `\n` would
+   silently serve legacy. See the AGENTS.md cutover log entry.
 2. Redeploy: `npx vercel@latest deploy --prod --yes`
 3. Watch for a day: cron_runs (job `digest:finalize` / `digest:intraday`),
    provider_usage `openai_reduce` (expect ≈ $0.10–0.30/day), /scoreboard coverage
    (ua ran −3.6 pts in the A/B — noise-scale, but watch it).
 Rollback: remove the env (or set `legacy`) and redeploy. Gulf theaters always
 use legacy regardless (no doc_claims → automatic fallback, tested).
+
+Done: deploy `dpl_4HdAJA7ZjAKiUGMLamf1ndDnWgpM`. Verified live on ir/nuclear —
+`provider: "openai:gpt-4o-mini+mapreduce"`, 172 docs, first `openai_reduce` ledger
+row (5 requests = K=5 votes, $0.0054), `openai_digest` un-incremented. The
+week-long ua coverage watch (step 3) is now the open item.
 
 ## Open follow-ups (tracked in OPEN-TASKS)
 
