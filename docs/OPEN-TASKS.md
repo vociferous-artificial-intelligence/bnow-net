@@ -60,6 +60,38 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     finish_reason=length; digest gen now retries at 50→25 docs. If the warning becomes
     frequent, cap event count in the prompt or split extraction into two passes.
 
+### New (from the nav restructure, 2026-07-09 — docs/reviews/NAV-RESTRUCTURE-REVIEW.md)
+
+20. **Native-speaker review of the new header strings.** ~20 new `nav.*` / `home.*` keys were
+    machine-translated into de/fr/pl/ja/ar/uk. Register matters most on the group labels
+    (`Product`/`Coverage`/`Validation`/`Solutions`) and on `nav.item.opacity`
+    ("Economic data suppression"), which is a coined phrase, not a term of art. Same gate as the
+    2026-07-08 i18n batch: no launch into a market before a native pass.
+21. **es / he / ko have no catalogs.** `LOCALE_REGISTRY` declares 10 locales; only 7 ship a
+    dictionary. The other three fall back to English *per key* — true for every string in the app,
+    not just the nav. `he` is `dir="rtl"`, so it currently renders English text in an RTL document.
+    Either translate them fully or drop them from the selector; a nav-only catalog would produce
+    half-translated chrome, which is worse than uniform fallback.
+22. **Combined registry landing page.** `/registry` is RU-only, `/middle-east` is ME-only, and
+    there is no shared index. The header nests "Middle East registry" under Product as a secondary
+    item to avoid two top-level registries. A real combined entry point is the proper fix.
+23. **Per-user default theater.** The signed-in homepage's "Read today's digest" hardcodes `ru`.
+    There is no preference storage; building one was out of scope.
+24. **Solutions persona pages.** The four Solutions entries point at module pages
+    (`/trade`, `/critical-materials`, `/datadark`, `/signals`). If we want Solutions to be a real
+    buyer-facing surface, each needs a brief that frames the module for that persona.
+25. **`src/lib/gate.ts:4-7` doc comment is stale.** It lists the gated routes as
+    "digests, registry, entities", but `ask/layout.tsx` and `middle-east/layout.tsx` also call
+    `requireUser()`. Anyone classifying nav items public-vs-gated from that comment misclassifies
+    two of them.
+26. **No `error.tsx` / `global-error.tsx` anywhere in the app tree.** The header defends itself
+    (`currentUserEmail` catches, chrome degrades to signed-out), but a DB failure inside a *page*
+    still renders Next's unstyled default error. Cheap to fix, real for a product whose pages all
+    query Postgres on every request.
+27. **Skip-to-content link.** A nav now precedes `<main>` on all 22 public pages, so keyboard and
+    screen-reader users traverse it on every navigation. Needs `id="main"` on each page's `<main>`
+    — deliberately not bundled into the nav diff.
+
 ## Tier 3 — before enterprise/API sales
 
 8. **Per-subscriber canary marking** (BUSINESS-PLAN §4) — required to safely sell $100k

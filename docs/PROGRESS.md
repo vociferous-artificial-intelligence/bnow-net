@@ -387,3 +387,74 @@ in code (SpendGuard, fail-closed).
   native reviewer should confirm scope) and general register for ar/ja. Per-page JSX wiring
   of the non-landing surfaces (countries/pricing/registry/scoreboard/digest/ask/auth) is the
   main functional follow-up — their catalogs exist and are tested.
+
+## 2026-07-09 — Navigation restructure & logged-in homepage
+
+Commits: `0d9439b` (nav model + i18n), `828e3b6` (SiteHeader), `1b68f0c` (working home).
+Review gate: `docs/reviews/NAV-RESTRUCTURE-REVIEW.md`.
+
+**Problem.** The public nav was a flat list of internal module names — `theaters · RU registry ·
+ME registry · scoreboard · ask · data-dark · trade-evasion · signals · critical materials ·
+pricing · sign in` — plus 10 inline language links, rendered **only on the landing page**. Every
+other page had a one-line `BNOW.NET · <section>` breadcrumb, and `/registry` and `/scoreboard` had
+nothing at all. A first-time enterprise buyer had to already understand the product to navigate it.
+
+**What shipped.**
+- One `SiteHeader` (server component) mounted in the root layout → present on all 22 public pages.
+  `/admin` opts out. Existing breadcrumbs kept below it.
+- Nav regrouped by buyer journey: `Product | Coverage | Validation | Solutions | Pricing`, plus a
+  session-aware auth slot and a compact globe language dropdown. **Zero route changes.**
+- Dropdowns hand-rolled to the WAI-ARIA menu-button pattern — no Radix/shadcn exists in this repo,
+  despite the stack listing "shadcn/ui". Arrow keys, Home/End, Escape-restores-focus, outside-click
+  and navigation close, `aria-expanded`/`aria-haspopup`, visible focus rings.
+- Signed-in `/` becomes a workbench: subscriber CTA hidden; `Read today's digest` deep-links the
+  freshest RU digest; `Live now` becomes theater quick links; header Pricing loses its CTA styling.
+
+**Findings that changed the plan (Task 0).**
+- `next build` already reported **all 33 routes as `ƒ` dynamic**. The brief's worry — that a
+  server-side session read would flip static pages to dynamic — did not apply. Server read chosen;
+  route table diffed **byte-identical** before/after.
+- **`/datadark` is not a sanctions page.** It tracks Russia classifying its own statistics. The
+  brief mapped "Sanctions compliance" onto it; `/trade` (mirror-trade & evasion watch) is the
+  actual sanctions surface. Mapping corrected — see the decision log.
+- **There are no per-theater pages.** Coverage links `/countries#<iso2>` anchors instead of gated
+  digests, so the buyer-facing nav never lands on a sign-in wall.
+- **8 countries are `active`, not 3** (ru 27 digests, ua 20, ir 19; qa/ae/om/il/sa 2–5). Only the
+  flagship three are promoted to the nav.
+- **No React component tests existed** (`vitest` was node-only, `.tsx` not even collected).
+- **The i18n suite does not guard translation completeness** — `makeT` falls back to English, so
+  English-only keys pass silently. The new header test closes that hole for header keys.
+- `auth()` uses `session.strategy: "database"` and there is **no `error.tsx` anywhere**, so the
+  header's session read is `cache()`d and wrapped in try/catch. A Neon blip degrades the chrome to
+  signed-out instead of 500-ing every route.
+
+**i18n.** ~20 new keys, translated into all 7 locales that ship a catalog (theater names lifted
+from each catalog's existing `home.live` so they stay consistent). No existing key's value changed.
+`es`/`he`/`ko` have no catalogs at all and keep the English per-key fallback — nav-only catalogs
+would give half-translated chrome (OPEN-TASKS #21). Machine-translated, native review pending
+(#20). RTL verified live for `ar` (Arabic labels, no English leak) and `he` (RTL + English
+fallback, no raw keys); panels use logical `start-0`/`end-0`.
+
+**Verification.** `npm test` 27 files / **312 tests** (was 25/245; **+67**), typecheck clean, lint
+clean (it caught 3 genuine `set-state-in-effect` cascading-render bugs, all fixed), build clean.
+Live pass on `next dev` against the prod Neon branch: header on 11 sampled routes, `/admin`
+chromeless, every nav destination 200, `/countries` anchors present, old flat labels gone. With a
+real `sessions` row: subscriber CTA gone, `Read today's digest` → `/digests/ru/2026-07-09` (HTTP
+200, the actual freshest digest), quick links present, Pricing demoted. Locale switch round-trips
+path **and** query (`?profile=frontline` preserved) — which is exactly why the language links keep
+the Referer mechanism instead of an explicit `?to=`.
+
+**Adversarial review of the diff** (6 dimensions, every finding sent to 3 independent refuters,
+majority kills): 10 raised, **3 survived, all real, all fixed** (`51b863c`). The worst was mine:
+deriving `open = (openPath === pathname)` closed dropdowns on navigation without a
+setState-in-effect, but the header survives soft navigation and `openPath` was never cleared — so
+pressing **Back** to the page a menu was opened on made it spring open again, mobile overlay
+included. Replaced with a render-phase state reset. Also: both `<nav>` landmarks hardcoded
+`aria-label="Main"` (English in every locale — now `nav.main`, verified `ar → الرئيسية`), and the
+"Escape returns focus" test was vacuous because opening by click never moved focus off the trigger.
+Two more were caught by self-review first (`30997f0`): tabbing off a trigger could leave two menus
+open; and the mobile sheet claimed `aria-modal="true"` without trapping focus or locking scroll.
+
+**Deferred:** OPEN-TASKS #20–#27 (native review; es/he/ko catalogs; combined registry landing;
+per-user default theater; Solutions persona pages; stale `gate.ts` comment; missing `error.tsx`;
+skip-to-content link).

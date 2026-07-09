@@ -100,6 +100,16 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
   Accept-Language>en; `/api/locale` open-redirect-guarded; landing page + LanguageSelector
   wired, other surfaces catalog-ready but not yet JSX-wired; evidence/ISW/source names never
   translated. Needs native-speaker sign-off before launch. See docs/PROGRESS.md 2026-07-08.
+- Nav & logged-in home (2026-07-09): one session-aware `SiteHeader` in the root layout on every
+  public page (`/admin` opts out); flat module names regrouped by buyer journey —
+  `Product | Coverage | Validation | Solutions | Pricing | auth | language`. **Zero route
+  changes**; a test walks `src/app/**/page.tsx` to prove no dead links. Dropdowns hand-rolled to
+  the WAI-ARIA menu-button pattern (no Radix/shadcn in this repo). 10 inline language links →
+  one globe dropdown. Signed-in `/` drops the subscriber CTA for digest/scoreboard/coverage
+  actions. First React component tests in the repo (jsdom + @testing-library, opted in per file).
+  312 tests (was 245). Adversarial review of the diff found 3 real defects (menu re-opening
+  on back-nav; English-only nav landmark; a vacuous focus test) — all fixed.
+  Review: docs/reviews/NAV-RESTRUCTURE-REVIEW.md.
 - Stubbed: MTProto, ACLED (fixtures — NOT wired into prod ingest); the "x" fixture stub
   remains for tests but the live adapter is x_api; Stripe flagged off; zakupki needs
   proxy (BLOCKERS 2026-07-06); Resend superseded by Postmark (still on scenefiend
@@ -235,6 +245,36 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
 - **2026-07-07 (sprint)** Citation-weighted parity after X adapter: ru 62.5%→74.2%,
   ir 35.9%→57.5% (scripts/source-parity.ts; the moving baseline vs the logged 51% is
   telegram roster growth since 07-05).
+- **2026-07-09 (nav)** Server-side session read in the shared header, because `next build`
+  already reported ALL 33 routes as `ƒ` dynamic — there was no static/ISR output to sacrifice,
+  so the client-island alternative would have bought a hydration swap for nothing. Route table
+  diffed byte-identical before/after. `currentUserEmail()` (src/lib/session.ts) wraps `auth()` in
+  React `cache()` (the layout, the page and any gate layout would each fire a separate
+  `strategy:"database"` session query) **and** a try/catch: there is no `error.tsx` anywhere, so a
+  layout-level throw would 500 the whole site. Chrome degrades to signed-out; `requireUser()` is
+  untouched and stays fail-closed.
+- **2026-07-09 (nav)** Solutions labels corrected against page content, over the brief's sketch:
+  `/datadark` is the **Data-dark tracker** (Russia has classified 400+ statistical series; the
+  suppression is the signal) — it is NOT sanctions compliance, and labelling it so would have been
+  a false product claim. `/trade` is the mirror-trade & evasion watch and takes the sanctions
+  label. `critical-materials` is import-concentration/choke-points, not price risk. Final:
+  Sanctions & trade evasion→/trade, Commodity & supply-chain risk→/critical-materials, Economic
+  data suppression→/datadark, Political risk & signals→/signals.
+- **2026-07-09 (nav)** Coverage links to `/countries#<iso2>`, not to theater pages: **there are no
+  per-theater pages** — the per-theater surface is the digest, which sits behind
+  FEATURE_AUTH_GATE. Pointing a top-of-funnel nav item at a sign-in wall defeats the restructure.
+  Digest deep links live on the signed-in homepage, where the gate is already satisfied. Also
+  keeps zero DB queries in the header.
+- **2026-07-09 (nav)** Nav promotes only ru/ua/ir although `countries.status='active'` holds eight
+  rows: il/sa/ae/om/qa carry 2–5 digests vs 27/20/19. Consistent with the standing `home.live`
+  copy; promoting a 2-digest theater would overstate coverage depth (truth-in-UI policy).
+- **2026-07-09 (nav)** Locale links stay plain `<a href="/api/locale?set=xx">` with **no `?to=`**.
+  The route prefers an explicit `?to=` over the Referer, so threading `?to={usePathname()}` would
+  silently drop `?profile=` on digest pages. Verified live: Referer round-trips path AND query.
+- **2026-07-09 (nav)** es/he/ko keep the English per-key fallback rather than receiving nav-only
+  catalogs — half-translated chrome is worse than uniform fallback. OPEN-TASKS #21. The existing
+  i18n suite does NOT guard translation completeness (English fallback satisfies it); the new
+  header test does, for header keys.
 
 ## Conventions
 
