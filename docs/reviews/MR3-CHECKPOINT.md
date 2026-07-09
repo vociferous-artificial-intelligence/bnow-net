@@ -24,7 +24,29 @@ from "Next step" — do not restart completed tasks. Sprint spec: the MR3 prompt
 
 ## Next step (resume here)
 
-TASK 2 — synthesis pass (LLM, K=3 voted), `src/lib/analysis/synthesize.ts`:
+TASK 3 — the A/B gate. Sequence (resume at first incomplete step):
+1. ▶ IN PROGRESS: pre-epoch map catch-up on PROD for the A/B window's first 5
+   days: per-day runs `curl .../api/cron/map?date=2026-06-2{9}..2026-07-03&cap=1500`
+   (dry-run estimates: $0.42 total, ~4.2K docs). Verify each day drains
+   (selected=0 on re-run with dry=1). If a run returns skipped (hourly cron holds
+   the advisory lock at :40), wait 60s and retry.
+2. Create A/B Neon branch: `npx tsx scripts/neon-branch.ts create mr3-ab` →
+   RECORD THE BRANCH ID + CONNECTION STRING HERE before generating anything.
+3. Smoke: 1 mapreduce digest on the branch (ru 2026-07-08) with pin-dns +
+   AB DATABASE_URL + FORCE_REGEN=1 + caps env. Inspect events/claims/stats.
+4. Build scripts/ab-mapreduce.ts (resumable driver, keyed (day,theater,arm,k),
+   JSONL append docs/reviews/MR3-AB-RESULTS.jsonl, skip existing keys, refuses
+   prod DATABASE_URL, FORCE_REGEN=1, claims embedded per sample for #28 analysis).
+5. Run A/B: 10 days (2026-06-29..2026-07-08) × ru/ua/ir × {legacy,mapreduce} ×
+   k=1..3 = 180 samples. Commit JSONL every few samples. ~2.5h; resumable.
+6. Report per-arm: coverage mean/var, unsupported rate, claims/digest, distinct
+   docs cited, x-share, cost/digest ($ from stats.llm), #28 reproducibility.
+   Gate: mapreduce coverage >= legacy AND unsupported <= legacy AND variance <=
+   legacy. Honest diagnosis if fail. Scope-filter contingency: see sprint prompt.
+
+DONE so far this task: dry-run estimates for the 5 pre-epoch days ($0.42).
+
+TASK 2 ✅ (shipped, see log below) — synthesis pass details:
 1. Input = rankGroups(clusterClaims(loadReduceClaims(...))) — feed top ~150-250
    groups (env REDUCE_GROUPS_FED, default 200); record
    structured.stats.reduce.groupsTotal/groupsFed.
