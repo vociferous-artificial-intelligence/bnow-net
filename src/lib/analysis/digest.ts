@@ -10,9 +10,30 @@ import { TRACKS, type Track } from "./tracks";
 // Persistence runs in ONE transaction so the claim_must_have_source constraint
 // trigger (deferred) verifies traceability at COMMIT.
 
-// Cyrillic tokenizes ~1 token/char in GPT models; 100 docs x 400 chars keeps a
-// full-RU batch under the entry-tier 60K TPM limit.
+// Batch size sent to the model. The original "Cyrillic is ~1 token/char, so 100
+// docs keeps us under a 60K TPM entry tier" rationale is wrong twice over
+// (audit §7b): Cyrillic measures ~0.29 tok/char under o200k_base, a full RU batch
+// is ~7.7-12K prompt tokens, and gpt-4o-mini's Tier-1 TPM is 200,000. Input is
+// never the binding constraint — the OUTPUT ceiling is (§4d). MAX_DOCS stays at
+// 100 because raising it makes truncation more frequent, not because of TPM.
 const MAX_DOCS = 100;
+
+// Truncation retry rungs, tried in order after the full batch. Each rung must be
+// strictly smaller than the one before, or the "retry" re-sends an identical
+// batch and pays for it twice: with a flat [docs.length, 50, 25] any docs.length
+// in 26..50 sliced to 50 yields the same docs (audit §2 O2).
+const LADDER_RUNGS = [50, 25] as const;
+
+/** Rungs actually worth trying for a batch of `docCount` docs: the full batch,
+ *  then each smaller rung. A batch of <= 25 docs has no smaller rung and so is
+ *  never retried — a truncation there is a hard failure, by design. */
+export function ladderSizes(docCount: number, rungs: readonly number[] = LADDER_RUNGS): number[] {
+  const sizes = [docCount];
+  for (const rung of rungs) {
+    if (rung < sizes[sizes.length - 1]) sizes.push(rung);
+  }
+  return sizes;
+}
 
 // Day-corpus gather window. Also capped per adapter (MIX_CAP_FRACTION share):
 // on heavy X days a purely reliability-ordered window is 100% x_api (ir
@@ -129,7 +150,10 @@ export async function generateDigest(
     let batch = docs;
     // every billed request lands here, truncated-and-discarded ones included
     const llmCalls: LlmUsage[] = [];
-    for (const size of [docs.length, 50, 25]) {
+    const ladder = ladderSizes(docs.length);
+    let rungsTried = 0;
+    for (const size of ladder) {
+      rungsTried++;
       batch = docs.slice(0, size);
       try {
         analysis = await provider.analyze(countryIso2, date, batch, {
@@ -140,7 +164,10 @@ export async function generateDigest(
         break;
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        if (msg.includes("truncated") && size > 25) {
+        // Only truncation is retryable, and only while a smaller rung remains.
+        // A budget stop or a kill-switch refusal carries no "truncated" and so
+        // rethrows here rather than burning the rest of the ladder.
+        if (msg.includes("truncated") && rungsTried < ladder.length) {
           console.warn(`digest ${countryIso2} ${date} ${track}: ${msg} at ${size} docs — retrying smaller`);
           continue;
         }
@@ -205,6 +232,10 @@ export async function generateDigest(
             trackRows: sourceMixStats(trackRows),
             docsAnalyzed: sourceMixStats(selectedRows.slice(0, docsSent.length)),
           },
+          // claims the anti-hallucination gate stripped (audit §12 #1)
+          droppedClaims: dropped,
+          // which rungs existed, how many were spent, what finally landed (§12 #8)
+          ladder: { rungs: ladder, rungsTried, finalSize: docsSent.length },
           ...(llmCalls.length ? { llm: summarizeLlmCalls(llmCalls) } : {}),
         },
       };

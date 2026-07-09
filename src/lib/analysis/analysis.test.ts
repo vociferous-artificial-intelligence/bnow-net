@@ -102,6 +102,42 @@ describe("detectLang Persian/Arabic", () => {
   });
 });
 
+describe("truncation ladder", () => {
+  it("keeps the full ladder for a full batch", async () => {
+    const { ladderSizes } = await import("./digest");
+    expect(ladderSizes(100)).toEqual([100, 50, 25]);
+    expect(ladderSizes(99)).toEqual([99, 50, 25]); // the audit's UA 07-02 exemplar
+  });
+
+  it("never re-sends an identical batch (audit O2: docs.length 26..50)", async () => {
+    const { ladderSizes } = await import("./digest");
+    for (let n = 26; n <= 50; n++) {
+      const sizes = ladderSizes(n);
+      expect(sizes[0]).toBe(n);
+      // a rung >= n would slice to the same n docs and be billed for nothing
+      expect(sizes.slice(1).every((s) => s < n)).toBe(true);
+      expect(new Set(sizes).size).toBe(sizes.length);
+    }
+    expect(ladderSizes(30)).toEqual([30, 25]); // was [30, 50, 25]
+    expect(ladderSizes(50)).toEqual([50, 25]); // was [50, 50, 25]
+  });
+
+  it("gives a <=25-doc batch no retry at all", async () => {
+    const { ladderSizes } = await import("./digest");
+    expect(ladderSizes(25)).toEqual([25]);
+    expect(ladderSizes(10)).toEqual([10]);
+    expect(ladderSizes(1)).toEqual([1]);
+  });
+
+  it("is strictly decreasing for every batch size", async () => {
+    const { ladderSizes } = await import("./digest");
+    for (let n = 1; n <= 200; n++) {
+      const sizes = ladderSizes(n);
+      for (let i = 1; i < sizes.length; i++) expect(sizes[i]).toBeLessThan(sizes[i - 1]);
+    }
+  });
+});
+
 describe("per-digest LLM accounting (structured.stats.llm)", () => {
   it("sums the whole ladder, so a truncated rung's wasted spend stays visible", async () => {
     const { summarizeLlmCalls } = await import("./digest");
