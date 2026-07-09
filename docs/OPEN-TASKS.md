@@ -48,6 +48,9 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     ir Jul1–7 military: ru citation x-share 78%→49% (100%-x days 4→0), ru coverage
     15.1→21.6; ua 41%→30% x-share, coverage 23.6→16.8 (regen noise vs quota cost —
     watch); ir Jul 7 100%→38% x-share. Before/after in docs/PROGRESS.md. Follow-up: #19.
+    2026-07-09 K=3 quota-on/off A/B (Neon branch, 48 samples, majority matcher): ua
+    quota cost is −3.0 pts (18.0 vs 21.0), permutation p=0.33 — NOT distinguishable
+    from extraction noise (median within-day SD 9.6 pts). Quota stays. See #28.
 19. **IR non-X military corpus depth.** On ir Jul 1–5 only 2–9 non-x_api docs/day pass
     the military lexicon (vs 35–72 x_api), so batches stay x-heavy after the quota and
     thin days (Jul 4–5) still cite only X — every non-X track doc was already in the
@@ -91,6 +94,15 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
 27. **Skip-to-content link.** A nav now precedes `<main>` on all 22 public pages, so keyboard and
     screen-reader users traverse it on every navigation. Needs `id="main"` on each page's `<main>`
     — deliberately not bundled into the nav diff.
+
+28. **Extraction-run variance is the dominant coverage noise.** Measured on the
+    2026-07-09 A/B: regenerating the SAME ua day with the SAME corpus swings coverage
+    by median ±9.6 pts (max ±23, e.g. [0,40,0] on Jul 7) because each digest is one
+    gpt-4o-mini extraction picking ~10 claims. Any single-regeneration coverage
+    comparison is weather, not climate (the matcher is already majority-stable — the
+    variance is upstream in extraction). Options: K-run extraction with claim-level
+    merge/vote (mirrors the matcher fix, ~3x LLM cost), or report scoreboard coverage
+    as a rolling mean; pairs naturally with two-pass extraction (#18).
 
 ## Tier 3 — before enterprise/API sales
 

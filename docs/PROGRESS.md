@@ -458,3 +458,23 @@ open; and the mobile sheet claimed `aria-modal="true"` without trapping focus or
 **Deferred:** OPEN-TASKS #20–#27 (native review; es/he/ko catalogs; combined registry landing;
 per-user default theater; Solutions persona pages; stale `gate.ts` comment; missing `error.tsx`;
 skip-to-content link).
+
+## 2026-07-09 05:40 UTC — Quota A/B: ua cost within noise; quota stays (closes the #16 "watch")
+
+- K=3 quota-on/off A/B on a disposable Neon branch: 8 ua days (Jun 30–Jul 7) × 2 arms
+  × 3 regenerations, every sample validated with the k=5 majority matcher; arms
+  interleaved per round. `MIX_CAP_FRACTION=1` env override reproduces exact pre-quota
+  behavior (verified: ua Jul 7 batch x_api=70/tg=26/gdelt=4 vs capped 40/40/20).
+- Result: quota ON 18.0 avg vs OFF 21.0 — a −3.0-pt cost, permutation p=0.33, NOT
+  distinguishable from extraction noise. The earlier single-roll −6.8 (23.6→16.8)
+  overstated it. Decision: quota stays everywhere; revisit only via two-pass
+  extraction (#18), which removes the zero-sum batch tradeoff entirely.
+- Headline discovery (new #28): extraction nondeterminism is the dominant coverage
+  noise — same day + same corpus swings median ±9.6 pts across regenerations
+  (max ±23; ua Jul 7 sampled [0, 40, 0]). The matcher is majority-stable; the
+  variance is upstream in which ~10 claims gpt-4o-mini extracts from 100 docs.
+  All single-regeneration coverage deltas (including ru 15.1→21.6) carry this
+  error bar.
+- One quota-off sample initially failed on the truncation path (finish_reason=length
+  at 100 docs — the denser un-mixed batch); succeeded on retry at 50 docs. Total run:
+  49 generations + validations, ~2.6 h wall-clock, LLM spend well under $1.
