@@ -1,5 +1,6 @@
 import "./env";
 import { neon } from "@neondatabase/serverless";
+import { versionFilterSql } from "../src/lib/analysis/map-versions";
 
 // Shadow-map coverage spot check (MR sprint 2, TASK 5): for digest claims the
 // PRODUCTION pipeline published in the backfill window, does the per-doc claim
@@ -49,13 +50,16 @@ async function main() {
     }>;
     const docId = dedup[0]?.canonical_doc_id ?? r.cited_doc;
 
-    const mapClaims = (await sql`
-      SELECT dc.track, dc.hedging, dc.text_en, dc.event_hint
-      FROM doc_claims dc
-      JOIN doc_map_state ms ON ms.raw_document_id = dc.raw_document_id
-        AND ms.track = dc.track AND ms.extractor_version = dc.extractor_version
-      WHERE dc.raw_document_id = ${docId}
-      ORDER BY dc.track, dc.ordinal`) as Array<{
+    // current extractor versions only (OPEN-TASKS #35, via the accessor) —
+    // superseded history rows must not count as coverage
+    const vf = versionFilterSql(r.iso2, "dc", 2);
+    const mapClaims = (await sql.query(
+      `SELECT dc.track, dc.hedging, dc.text_en, dc.event_hint
+       FROM doc_claims dc
+       WHERE dc.raw_document_id = $1 AND ${vf.sql}
+       ORDER BY dc.track, dc.ordinal`,
+      [docId, ...vf.params],
+    )) as Array<{
       track: string;
       hedging: string;
       text_en: string;

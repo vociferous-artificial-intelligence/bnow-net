@@ -27,20 +27,38 @@ calibration). 34 new unit tests.
 Labelled pairs from prod claims in the map window (2026-07-04+, ru/ua/ir military):
 positives = map-claim pairs bridged by a multi-doc prod claim (the legacy batch's
 own same-assertion judgment); negatives = best map anchors of different-event prod
-claims in the same digest. **30 positive / 187 negative** (small positive set —
-honest caveat; re-tune as the corpus grows).
+claims in the same digest. After the adversarial-review fixes (deterministic
+array_agg order, military-track-only anchors, integer sweep): **28 positive /
+170 negative** (small positive set — honest caveat; re-tune as the corpus grows).
 
 | thr | precision | recall | F1 |
 |---|---|---|---|
-| 0.25 | 0.963 | 0.867 | 0.912 |
-| 0.30 | 0.960 | 0.800 | 0.873 |
-| **0.35** | **1.000** | **0.800** | **0.889** |
-| 0.40 | 1.000 | 0.767 | 0.868 |
-| 0.50 | 1.000 | 0.367 | 0.537 |
+| 0.20 | 0.926 | 0.893 | 0.909 |
+| 0.25 | 0.957 | 0.786 | 0.863 |
+| 0.30 | 0.955 | 0.750 | 0.840 |
+| **0.35** | **1.000** | **0.714** | **0.833** |
+| 0.40 | 1.000 | 0.643 | 0.783 |
+| 0.50 | 1.000 | 0.357 | 0.526 |
 
-Operating point **0.35**: highest zero-false-positive threshold; dominates 0.30
-(same recall, better precision). Over-merge misdates claims (ruling 12); under-merge
-only loses corroboration edges.
+Operating point **0.35**: highest zero-false-positive threshold. Over-merge
+misdates claims (ruling 12); under-merge only loses corroboration edges.
+
+### Adversarial review of the core (25-agent workflow, 2026-07-09)
+
+Four-lens review + per-finding adversarial verification over commit 63c4b25.
+Confirmed-and-fixed: maxReliability had a hidden 0.3 floor (sub-0.3 sources were
+over-ranked); HEDGING_LADDER omitted 'assessed' (factual+assessed members
+collapsed to 'unknown'); isMetaClaim over-matched genuine quiet-day world
+negations ("No significant developments occurred along the Kupyansk axis") — now
+requires "claims"-talk or document self-reference; the ±1-day gate failed OPEN on
+unparseable dates (NaN) — now fails closed; quote-verify missed bidi ISOLATES
+U+2066–2069 and ALM U+061C (real in Arabic content); latestPublishedAt used
+lexicographic sort (hardened to timestamp compare); the tuner's array_agg had no
+ORDER BY, mixed non-military anchors in, and its float sweep never reached 0.75
+(all three fixed, threshold re-verified above); scripts/map-coverage-check.ts
+read doc_claims without the #35 version accessor (patched). Rejected as not-real:
+anchor-gate 3-day spans (impossible with the <=2-day windows the engine uses;
+constraint documented in pairScore).
 
 ### Two defects found by running against the real corpus (and their fixes)
 

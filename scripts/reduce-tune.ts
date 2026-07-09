@@ -76,7 +76,8 @@ async function main() {
   // 1. prod military claims in the map window with their cited docs
   const prodRows = await sql`
     SELECT cl.id, cl.text, cl.event_id, cl.digest_id, c.iso2 AS theater,
-           d.digest_date::text AS date, array_agg(cs.raw_document_id) AS doc_ids
+           d.digest_date::text AS date,
+           array_agg(cs.raw_document_id ORDER BY cs.raw_document_id) AS doc_ids
     FROM claims cl
     JOIN digests d ON d.id = cl.digest_id
     JOIN countries c ON c.id = d.country_id
@@ -109,12 +110,16 @@ async function main() {
   const mapByDoc = new Map<number, MapClaimRow[]>();
   for (const theater of THEATERS) {
     const vf = versionFilterSql(theater, "dc", 2);
+    // military only: the labelled prod claims are military-track, and the
+    // production reduce loads exactly one track — cross-track anchors would
+    // calibrate the threshold on pairs production never scores
     const rows = await sql.query(
       `SELECT dc.id, dc.raw_document_id AS doc_id, dc.text_en, dc.entities,
               dc.event_hint, dc.claim_date::text AS claim_date
        FROM doc_claims dc
        JOIN raw_documents rd ON rd.id = dc.raw_document_id
-       WHERE rd.country_iso2 = $1 AND dc.raw_document_id = ANY($${2 + vf.params.length})
+       WHERE rd.country_iso2 = $1 AND dc.track = 'military'
+         AND dc.raw_document_id = ANY($${2 + vf.params.length})
          AND ${vf.sql}`,
       [theater, ...vf.params, canonIds],
     );
@@ -191,7 +196,9 @@ async function main() {
 
   // 4. threshold sweep
   console.log("thr   TP   FN   FP   TN   precision  recall  F1");
-  for (let thr = 0.2; thr <= 0.75; thr += 0.05) {
+  // integer steps: float accumulation would skip the 0.75 endpoint
+  for (let step = 4; step <= 15; step++) {
+    const thr = step * 0.05;
     let tp = 0;
     let fn = 0;
     let fp = 0;

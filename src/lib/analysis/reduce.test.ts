@@ -246,14 +246,33 @@ describe("isMetaClaim", () => {
     }
   });
 
-  it("keeps real negations", () => {
+  it("keeps real negations, including world-state quiet-day claims", () => {
     for (const t of [
       "Germany's Defense Minister stated that Ukraine does not need Taurus missiles.",
       "Israel's Defense Minister stated that Israel does not need permission to remain in Lebanon.",
       "NATO does not believe Russia will capture the entire Donbas by the end of 2027.",
+      "No significant developments occurred along the Kupyansk axis.",
+      "No relevant developments were reported in the Kherson direction.",
+      "No notable developments on the Zaporizhzhia front.",
     ]) {
       expect(isMetaClaim(t)).toBe(false);
     }
+  });
+});
+
+describe("hedging edge cases", () => {
+  it("factual members hedged 'assessed' surface as assessed, not unknown", () => {
+    const groups = clusterClaims([
+      claim({ id: 1, claimType: "factual", hedging: "assessed" }),
+    ]);
+    expect(groups[0].claimType).toBe("factual");
+    expect(groups[0].hedging).toBe("assessed");
+  });
+
+  it("an unparseable claim date fails the day gate closed", () => {
+    const a = claim({ id: 1, claimDate: "not-a-date" });
+    const b = claim({ id: 2, docId: 200 });
+    expect(pairScore(a, b)).toBe(-1);
   });
 });
 
@@ -271,13 +290,20 @@ describe("independentSourceCount", () => {
 });
 
 describe("group fields", () => {
-  it("confidence is the mean COALESCE(reliability, 0.3) over distinct docs", () => {
+  it("confidence is the mean COALESCE(reliability, 0.3) over DISTINCT docs, not members", () => {
     const groups = clusterClaims([
       claim({ id: 1, docId: 10, reliability: 0.9, sourceDomain: "a.com" }),
-      claim({ id: 2, docId: 20, reliability: null, sourceDomain: "b.com" }),
+      claim({ id: 2, docId: 10, reliability: 0.9, sourceDomain: "a.com" }), // same doc twice
+      claim({ id: 3, docId: 20, reliability: null, sourceDomain: "b.com" }),
     ]);
-    expect(groups[0].confidence).toBeCloseTo((0.9 + 0.3) / 2);
+    // per-doc mean = (0.9 + 0.3) / 2 = 0.6; a per-member mean would be 0.7
+    expect(groups[0].confidence).toBeCloseTo(0.6);
     expect(groups[0].maxReliability).toBeCloseTo(0.9);
+  });
+
+  it("maxReliability has no hidden floor — an all-low-reliability group reports its real max", () => {
+    const groups = clusterClaims([claim({ id: 1, reliability: 0.15 })]);
+    expect(groups[0].maxReliability).toBeCloseTo(0.15);
   });
 
   it("drops junk entities and folds aliases via the canonicalization rules", () => {

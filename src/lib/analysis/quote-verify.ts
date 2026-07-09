@@ -13,8 +13,9 @@
 export function normalizeForContainment(s: string): string {
   return s
     .normalize("NFKC")
-    // zero-width/bidi marks, embeddings, word-joiner, BOM, soft hyphen
-    .replace(/[​-‏‪-‮⁠﻿­]/g, "")
+    // zero-width/bidi marks, embeddings + ISOLATES (LRI/RLI/FSI/PDI — common
+    // in mixed-direction Arabic/Hebrew), word-joiner, BOM, soft hyphen, ALM
+    .replace(/[​-‏‪-‮⁦-⁩⁠﻿­؜]/g, "")
     // apostrophe variants
     .replace(/[‘’ʼ`´]/g, "'")
     // double-quote variants

@@ -100,10 +100,11 @@ const W_HINT = 0.15;
 /** Same-group cutoff for the weighted pair score. Tuned 2026-07-09 on labelled
  *  pairs built from prod claims in the map window (scripts/reduce-tune.ts;
  *  positives = map-claim pairs bridged by a multi-doc prod claim, negatives =
- *  same-day different-event pairs; 30 pos / 187 neg): 0.35 = precision 1.000,
- *  recall 0.800 — the highest zero-false-positive point; 0.50 halves recall for
- *  nothing. Over-merge misdates claims (ruling 12); under-merge only loses
- *  corroboration edges. Numbers: docs/reviews/MR3-REDUCE-RESULTS.md. */
+ *  same-day different-event pairs; 28 pos / 170 neg after the determinism +
+ *  military-track fixes): 0.35 = precision 1.000, recall 0.714 — the highest
+ *  zero-false-positive point; 0.50 halves recall for nothing. Over-merge
+ *  misdates claims (ruling 12); under-merge only loses corroboration edges.
+ *  Numbers: docs/reviews/MR3-REDUCE-RESULTS.md. */
 export const REDUCE_THRESHOLD = 0.35;
 
 const STOPWORDS = new Set([
@@ -160,10 +161,15 @@ const DAY_MS = 86_400_000;
 
 /** Weighted pair score in [0,1]; -1 when the day gate fails. Claims more than
  *  one day apart are different events even when worded identically — the same
- *  recurring-template rule the dedup gate applies (standing ruling 12). */
+ *  recurring-template rule the dedup gate applies (standing ruling 12). An
+ *  unparseable claimDate fails CLOSED (same-day-ness cannot be established).
+ *  Note the gate is applied claim-vs-ANCHOR by the star clustering, so a group
+ *  spans at most anchor±1 day — with the <=2-calendar-day windows the engine
+ *  uses, a ruling-12-violating 3-day chain cannot occur. */
 export function pairScore(a: PreparedClaim | ReduceClaim, b: PreparedClaim | ReduceClaim): number {
   const pa = "claim" in a ? (a as PreparedClaim) : prepare(a as ReduceClaim);
   const pb = "claim" in b ? (b as PreparedClaim) : prepare(b as ReduceClaim);
+  if (Number.isNaN(pa.dayMs) || Number.isNaN(pb.dayMs)) return -1;
   if (Math.abs(pa.dayMs - pb.dayMs) > DAY_MS) return -1;
 
   let score = W_TEXT * jaccard(pa.tokens, pb.tokens);
@@ -184,12 +190,16 @@ export function pairScore(a: PreparedClaim | ReduceClaim, b: PreparedClaim | Red
 /** Self-referential map artifacts ("No significant military claims found in
  *  this document.") that the map prompt lets through as claim rows. They are
  *  statements about the DOCUMENT, not the world — dropped before clustering.
- *  Deliberately tight: real negations ("Ukraine does not need Taurus missiles")
- *  must survive. Map-prompt fix deferred: changing the prompt bumps
- *  extractor_version and needs the #33 remap path. */
+ *  Deliberately tight: real negations survive, including world-state quiet-day
+ *  claims ("No significant developments occurred along the Kupyansk axis") —
+ *  only "claims"-talk or explicit document self-reference marks an artifact.
+ *  Map-prompt fix deferred: changing the prompt bumps extractor_version and
+ *  needs the #33 remap path. */
 export function isMetaClaim(text: string): boolean {
-  return /^no (significant|relevant|specific|notable)\b.*\b(claims?|developments?)\b/i.test(
-    text.trim(),
+  const t = text.trim();
+  return (
+    /^no (significant|relevant|specific|notable)\b.*\bclaims?\b/i.test(t) ||
+    (/^no\b/i.test(t) && /\bin (this|the) document\b/i.test(t))
   );
 }
 
@@ -306,7 +316,10 @@ export function independentSourceCount(
   return roots.size;
 }
 
-const HEDGING_LADDER: Hedging[] = ["confirmed", "claimed", "unverified", "unknown"];
+// 'assessed' sits above 'unknown': the map schema permits factual+assessed
+// (the model mislabelling an interpretation) and that hedge must surface as
+// assessed, not collapse to unhedged-fact (ruling 16 semantics).
+const HEDGING_LADDER: Hedging[] = ["confirmed", "claimed", "unverified", "assessed", "unknown"];
 
 function buildGroup(members: PreparedClaim[], opts: ClusterOptions): ClaimGroup {
   const claims = members.map((m) => m.claim).sort((a, b) => a.id - b.id);
@@ -319,7 +332,9 @@ function buildGroup(members: PreparedClaim[], opts: ClusterOptions): ClaimGroup 
   for (const c of claims) if (!relByDoc.has(c.docId)) relByDoc.set(c.docId, rel(c.reliability));
   const confidence =
     [...relByDoc.values()].reduce((s, r) => s + r, 0) / Math.max(1, relByDoc.size);
-  const maxReliability = Math.max(0.3, ...relByDoc.values());
+  // relByDoc is never empty (every group has >=1 doc) and rel() already
+  // COALESCEs — no extra floor, or sub-0.3 sources would silently inflate
+  const maxReliability = Math.max(...relByDoc.values());
 
   // representative wording: highest reliability, verified quote breaks ties,
   // then lowest id (earliest extraction)
@@ -408,7 +423,11 @@ function buildGroup(members: PreparedClaim[], opts: ClusterOptions): ClaimGroup 
         a[0].localeCompare(b[0]),
     )[0]?.[0] ?? null;
 
-  const publishedAts = claims.map((c) => c.publishedAt).filter((p): p is string => p !== null);
+  // compare as timestamps, not strings — mixed ISO formats mis-order lexically
+  const publishedAts = claims
+    .map((c) => c.publishedAt)
+    .filter((p): p is string => p !== null && !Number.isNaN(Date.parse(p)))
+    .sort((a, b) => Date.parse(a) - Date.parse(b));
 
   return {
     key: memberIds[0],
@@ -425,7 +444,7 @@ function buildGroup(members: PreparedClaim[], opts: ClusterOptions): ClaimGroup 
     entities,
     eventHint,
     claimDate: claims.map((c) => c.claimDate).sort()[0],
-    latestPublishedAt: publishedAts.length > 0 ? publishedAts.sort().at(-1)! : null,
+    latestPublishedAt: publishedAts.at(-1) ?? null,
     size: claims.length,
   };
 }
