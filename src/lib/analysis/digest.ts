@@ -254,17 +254,20 @@ export async function generateDigest(
         `DELETE FROM claims WHERE digest_id = $1`,
         [digestId],
       );
+      // Scoped to this track: the other tracks of the same (country, date) keep
+      // their own events, and a parallelised matrix can no longer have one track's
+      // regeneration sweep collect another's rows.
       await client.query(
-        `DELETE FROM events WHERE country_id = $1 AND event_date = $2
+        `DELETE FROM events WHERE country_id = $1 AND event_date = $2 AND track = $3
            AND id NOT IN (SELECT DISTINCT event_id FROM claims WHERE event_id IS NOT NULL)`,
-        [countryId, date],
+        [countryId, date, track],
       );
 
       for (const ev of events) {
         const eRes = await client.query(
-          `INSERT INTO events (country_id, event_date, type, title, summary)
-           VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-          [countryId, date, ev.type, ev.title.slice(0, 300), ev.summary.slice(0, 2000)],
+          `INSERT INTO events (country_id, event_date, track, type, title, summary)
+           VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+          [countryId, date, track, ev.type, ev.title.slice(0, 300), ev.summary.slice(0, 2000)],
         );
         const eventId = eRes.rows[0].id;
         for (const c of ev.claims) {

@@ -208,6 +208,11 @@ export const events = pgTable(
       .notNull()
       .references(() => countries.id),
     eventDate: date("event_date").notNull(),
+    // Same intelligence track as the owning digest. Without it the three tracks
+    // of one (country, date) share a key space: the regeneration sweep that
+    // clears a track's orphaned events cannot tell them apart, which is a
+    // correctness hazard the moment the digest matrix stops running serially.
+    track: text("track").notNull().default("military"),
     type: text("type").notNull().default("other"),
     title: text("title").notNull(),
     summary: text("summary"),
