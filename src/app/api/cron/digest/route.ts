@@ -27,7 +27,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const group = req.nextUrl.searchParams.get("group");
-  return withCronRun(cronJobName("digest", group), (counts) => run(req, group, counts));
+  // job name carries whatever narrows this run: group (legacy entries, manual
+  // runs) or the cadence mode — so cron_runs rows stay distinguishable
+  const qualifier = group ?? req.nextUrl.searchParams.get("mode");
+  return withCronRun(cronJobName("digest", qualifier), (counts) => run(req, group, counts));
 }
 
 async function run(

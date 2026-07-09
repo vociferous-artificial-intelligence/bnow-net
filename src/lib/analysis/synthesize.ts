@@ -41,10 +41,13 @@ export function reduceGroupsFed(): number {
   return Math.min(400, Math.max(50, n));
 }
 
-/** Synthesis votes per digest (OPEN-TASKS #28). 3 is cheap: the input is small. */
+/** Synthesis votes per digest (OPEN-TASKS #28). Default 5: the A/B gate passed
+ *  at K=5 (majority 3-of-5) after K=3 failed the variance criterion — marginal
+ *  events flipped in/out of a 2-of-3 majority between generations
+ *  (docs/reviews/MR3-REDUCE-RESULTS.md). Input is small; 5 votes ≈ $0.007. */
 export function reduceVotes(): number {
   const v = Number(process.env.REDUCE_VOTES);
-  const n = Number.isFinite(v) ? Math.floor(v) : 3;
+  const n = Number.isFinite(v) ? Math.floor(v) : 5;
   return Math.min(5, Math.max(1, n));
 }
 

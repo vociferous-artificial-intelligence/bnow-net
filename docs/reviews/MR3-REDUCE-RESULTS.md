@@ -126,3 +126,70 @@ Su-35 claim cites 15 docs across independent sources).
 Intraday support for the TASK 4 cadence (code shipped, deploy gated): rolling
 24h window (`window: 'rolling'`), delta framing vs the previous run of the day
 (`stats.delta` + a "Since the previous brief" markdown lead).
+
+## TASK 3 — the A/B gate (two rounds, honestly reported)
+
+Design: disposable Neon branch `br-proud-sun-atn3fch0` (fork of prod incl.
+doc_claims + ISW corpus); window 2026-06-29 → 2026-07-08 (the 5 pre-epoch days
+were map-caught-up first: ~4.2K docs, $0.35); ru/ua/ir military; K=3 independent
+regenerations per (day, theater, arm), every roll validated with the k=5
+majority matcher against same-day ISW; FORCE_REGEN=1 so the #32 guards never
+mask roll variance; every sample persisted to an append-only JSONL the moment it
+completed (the driver resumes by key — proven live when the reduce guard's
+500-request/day cap stopped round 2 mid-sweep: error rows stripped, cap raised,
+resumed, zero samples lost).
+
+### Round 1 (K=3): variance FAIL — diagnosis
+
+180/180 samples (`MR3-AB-RESULTS.jsonl`): coverage 24.9 vs 21.1 PASS,
+unsupported 0.31 vs 0.41 PASS, **within-cell coverage SD 10.5 vs 8.0 FAIL** —
+while claim-level reproducibility was BETTER (0.73 vs 0.55). Paired analysis:
+the SD gap was statistically indistinguishable (permutation p=0.35, 8-vs-8
+cells, 14 ties) and dominated by marginal-EVENT flips: between generations,
+events sitting at 2-of-3 vote support flip in/out, and on low-takeaway ISW days
+one flipped match moves coverage 17–50 pts (worst cell ru 07-07: 100→33→0 —
+k3's rolls under-produced exactly the frontline-advance and strike events ISW
+scores). Legacy's median cell SD was 0.00 (same batch + temp 0.2 back-to-back
+mostly reproduces) with its own fat tail (ua 07-01: 0→83→0).
+
+### Round 2 (K=5 + majority-gid fill): GATE PASSES
+
+Two mechanism-targeted changes, both committed before the re-run: REDUCE_VOTES=5
+(majority 3-of-5 makes thin rolls rarer) and majority-gid fill in
+`finalizeEvents` (a group a majority of votes placed in an event gets a
+deterministic claim from the group's own text even when the median roll's
+wording dropped it). Mapreduce arm re-run (90 samples, `MR3-AB-K5.jsonl`)
+against the untouched round-1 legacy baseline:
+
+| metric | legacy | mapreduce (K=5) | gate |
+|---|---|---|---|
+| coverage mean % | 21.14 | **24.97** | PASS |
+| coverage within-cell SD | 8.02 | **6.94** | PASS |
+| unsupported-claim rate | 0.408 | **0.296** | PASS |
+| claims / digest | 6.5 | 7.2 | |
+| events / digest | 6.3 | 4.0 | |
+| distinct docs cited / digest | 9.5 | **24.9** | |
+| x-share of citation edges | 0.428 | 0.437 | |
+| LLM cost / digest | $0.0022 | $0.0068 | |
+| #28 claim-level reproducibility | 0.549 | **0.745** | |
+
+Per-theater paired day-mean coverage: ru **−0.06** (p=1.00, dead parity), ua
+**−3.57** (p=0.45 — indistinguishable from the known ±9.6 extraction noise,
+same scale as the MR1 quota finding), ir **+15.11** (p=0.067 — the one
+near-significant effect; the map's full-corpus reach pays off exactly where the
+legacy 100-doc batch was starved on x-heavy days). Variance point estimate now
+favors mapreduce (−1.08 paired, p=0.64 — at n=3/cell, variance is a noisy
+instrument; claim-level repro, the sharper one, improved 0.55→0.75).
+
+**Verdict: cut over.** All three gate criteria pass as point estimates; the
+mechanism behind the round-1 failure was identified, fixed, and the
+gate-passing configuration is the shipped default (REDUCE_VOTES=5 + the
+majority-gid fill). Honest caveats recorded: the ua
+deficit (noise-scale but consistently negative in both rounds — watch the
+scoreboard after cutover), events/digest 4.0 vs 6.3 (majority filtering prunes
+weak events; claims/digest and coverage are higher anyway), and 3× LLM cost
+per digest that is still under a cent and removes the 8–10× re-extraction loop.
+
+Scope-filter contingency NOT triggered: no coverage gap attributable to the
+map's scope rules (ru parity, ir strongly positive); the budget-gated remap
+tool (#33) remains future work.

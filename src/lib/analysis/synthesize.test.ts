@@ -231,7 +231,7 @@ describe("env knobs", () => {
     process.env.REDUCE_VOTES = "99";
     expect(reduceVotes()).toBe(5);
     delete process.env.REDUCE_VOTES;
-    expect(reduceVotes()).toBe(3);
+    expect(reduceVotes()).toBe(5); // the A/B-validated configuration is the default
   });
 });
 

@@ -17,12 +17,20 @@
       "schedule": "40 * * * *"
     },
     {
-      "path": "/api/cron/digest?group=core",
-      "schedule": "30 0,6,12,18 * * *"
+      "path": "/api/cron/digest?mode=finalize",
+      "schedule": "0 2 * * *"
     },
     {
-      "path": "/api/cron/digest?group=gulf",
-      "schedule": "50 0,6,12,18 * * *"
+      "path": "/api/cron/digest?mode=intraday&slot=kyiv-morning",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/digest?mode=intraday&slot=eu-midday",
+      "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron/digest?mode=intraday&slot=us-afternoon",
+      "schedule": "30 19 * * *"
     },
     {
       "path": "/api/cron/validate",
