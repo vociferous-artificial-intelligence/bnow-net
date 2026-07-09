@@ -44,7 +44,18 @@ TASK 3 — the A/B gate. Sequence (resume at first incomplete step):
    Gate: mapreduce coverage >= legacy AND unsupported <= legacy AND variance <=
    legacy. Honest diagnosis if fail. Scope-filter contingency: see sprint prompt.
 
-DONE so far this task: dry-run estimates for the 5 pre-epoch days ($0.42).
+DONE so far this task:
+- Pre-epoch map catch-up COMPLETE: all 10 A/B days have doc_claims (06-29: 260 …
+  07-08: 3,688; 0 unprocessed docs in window). Actual cost ≈ $0.35.
+- A/B Neon branch CREATED: **br-proud-sun-atn3fch0** (endpoint
+  ep-aged-truth-at6x6kwm.c-9.us-east-1.aws.neon.tech). Connection string saved at
+  scratchpad ab-branch.json (session-local); a fresh session can mint a new
+  connection string for this branch id via the Neon API (see
+  scripts/neon-branch.ts for the API shape) or Neon console. DO NOT DELETE the
+  branch until the A/B report is committed.
+- Driver env recipe: NODE_OPTIONS="--require ./scripts/pin-dns.cjs"
+  DATABASE_URL=<branch> FORCE_REGEN=1 LLM_SPRINT_USD_CAP=12 (guards fail closed
+  without it; non-prod daily defaults then apply).
 
 TASK 2 ✅ (shipped, see log below) — synthesis pass details:
 1. Input = rankGroups(clusterClaims(loadReduceClaims(...))) — feed top ~150-250
