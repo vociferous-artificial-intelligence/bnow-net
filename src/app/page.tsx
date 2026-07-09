@@ -3,7 +3,6 @@ import { rawSql } from "@/db";
 import { getLocale } from "@/i18n/server";
 import { makeT } from "@/i18n/dictionaries";
 import { formatNumber } from "@/i18n/format";
-import { LanguageSelector } from "@/components/language-selector";
 
 export const dynamic = "force-dynamic";
 
@@ -27,24 +26,6 @@ export default async function Home() {
 
   return (
     <main className="mx-auto max-w-5xl px-6">
-      <nav className="flex flex-wrap items-center justify-between gap-2 py-6 text-sm">
-        <span className="font-bold tracking-tight">BNOW.NET</span>
-        <div className="flex flex-wrap items-center gap-4">
-          <Link href="/countries" className="hover:underline">{t("nav.theaters")}</Link>
-          <Link href="/registry" className="hover:underline">{t("nav.ru_registry")}</Link>
-          <Link href="/middle-east" className="hover:underline">{t("nav.me_registry")}</Link>
-          <Link href="/scoreboard" className="hover:underline">{t("nav.scoreboard")}</Link>
-          <Link href="/ask" className="hover:underline">{t("nav.ask")}</Link>
-          <Link href="/datadark" className="hover:underline">{t("nav.datadark")}</Link>
-          <Link href="/trade" className="hover:underline">{t("nav.trade")}</Link>
-          <Link href="/signals" className="hover:underline">{t("nav.signals")}</Link>
-          <Link href="/critical-materials" className="hover:underline">{t("nav.materials")}</Link>
-          <Link href="/pricing" className="hover:underline">{t("nav.pricing")}</Link>
-          <Link href="/signin" className="hover:underline">{t("nav.signin")}</Link>
-          <LanguageSelector current={locale} />
-        </div>
-      </nav>
-
       <section className="py-20 text-center">
         <h1 className="mx-auto max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl">
           {t("home.tagline")}

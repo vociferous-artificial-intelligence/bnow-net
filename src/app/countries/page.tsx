@@ -27,7 +27,9 @@ export default async function CountriesPage() {
         {rows.map((c) => (
           <div
             key={c.iso2}
-            className={`rounded-xl border p-5 ${
+            // Anchor target for the header's Coverage dropdown; scroll-mt clears the sticky header.
+            id={c.iso2}
+            className={`scroll-mt-24 rounded-xl border p-5 ${
               c.status === "active"
                 ? "border-gray-300 dark:border-gray-700"
                 : "border-dashed border-gray-200 opacity-70 dark:border-gray-800"
