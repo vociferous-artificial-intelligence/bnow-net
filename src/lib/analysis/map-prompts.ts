@@ -79,10 +79,10 @@ export const MAP_RESPONSE_SCHEMA = {
 // model already does for two-thirds of confirmed claims (audit §9b); the
 // corroboration-driven upgrade for the multi-doc minority is the reduce's job.
 const MAP_HARD_RULES = `HARD RULES:
-1. Return one entry per input docId, in input order. Include documents that yield ZERO claims (empty claims array) — that is a normal, common outcome. Never invent or omit ids.
+1. results MUST contain EXACTLY ONE entry for EVERY docId listed in the user message, in the same order — no more, no fewer. A document with nothing relevant still gets its entry, with an empty claims array (a normal, common outcome). Before finishing, verify your entry count equals the document count. Never invent or omit ids.
 2. Extract ONLY what each document itself asserts. Do not merge, corroborate, or compare across documents — every claim belongs to exactly one docId.
 3. 0-3 claims per document, most significant first. text_en: ONE atomic assertion in English (translate as needed), <= 200 characters.
-4. quote_orig: the shortest verbatim span of the document's ORIGINAL text (source language, unmodified) that supports the claim, <= 300 characters.
+4. quote_orig: a span COPIED CHARACTER-FOR-CHARACTER from the document text (source language, no paraphrase, no translation, no ellipsis) that supports the claim, <= 300 characters.
 5. hedging: 'confirmed' ONLY for facts this document itself visually or by geolocation corroborates; 'claimed' for single-party assertions (state-media claims stay 'claimed'); 'unverified' for uncorroborated reports; 'assessed' for analytic judgments (those get claim_type='assessment').
 6. event_hint: 3-10 English words naming the real-world event the claim belongs to, specific enough that claims from OTHER documents about the same event would get a similar hint (place + action + date where known).`;
 
@@ -153,21 +153,35 @@ export function mapDocLine(d: {
   return `[${d.id}] (${d.sourceKey ?? "unknown"}, rel=${d.reliability?.toFixed(2) ?? "?"}, ${d.day}) ${body.slice(0, mapContentChars())}`;
 }
 
+/** Bump when the user-message framing changes meaning — it is part of the
+ *  extraction contract, so it participates in mapExtractorVersion exactly like
+ *  the system prompt. rev 2: explicit docId checklist + entry-count demand,
+ *  after rev 1 measured a 43% per-batch omission rate (backfill round 1). */
+export const MAP_USER_FRAME_REV = 2;
+
 export function mapUserMessage(
   track: Track,
   theater: string,
+  docIds: number[],
   docLines: string[],
 ): string {
-  return `Track: ${track} · Theater: ${theater.toUpperCase()}\n\nDocuments:\n${docLines.join("\n")}`;
+  return (
+    `Track: ${track} · Theater: ${theater.toUpperCase()}\n` +
+    `Return exactly ${docIds.length} result entries, one per docId, in this order: ${docIds.join(", ")}\n\n` +
+    `Documents:\n${docLines.join("\n")}`
+  );
 }
 
 /** Version stamp for doc_claims/doc_map_state rows: model + a hash of the exact
- *  resolved prompt and serialization params. Any change to the prompt, the model
- *  or the per-doc content budget yields a new version — old rows stay, the
- *  anti-join re-maps under the new one. */
+ *  resolved prompt, user framing rev and serialization params. Any change to
+ *  the prompt, the model or the per-doc content budget yields a new version
+ *  — old rows stay, the anti-join re-maps under the new one. */
 export function mapExtractorVersion(track: Track, theater: string): string {
-  const basis = [MAP_MODEL, mapSystemPrompt(track, theater), `content=${mapContentChars()}`].join(
-    "\n ",
-  );
+  const basis = [
+    MAP_MODEL,
+    mapSystemPrompt(track, theater),
+    `frame=${MAP_USER_FRAME_REV}`,
+    `content=${mapContentChars()}`,
+  ].join("\n ");
   return `${MAP_MODEL}:${createHash("sha256").update(basis).digest("hex").slice(0, 12)}`;
 }

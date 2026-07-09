@@ -524,7 +524,15 @@ async function extractBatch(
       model: MAP_MODEL,
       messages: [
         { role: "system", content: mapSystemPrompt(track, theater) },
-        { role: "user", content: mapUserMessage(track, theater, docs.map(mapDocLine)) },
+        {
+          role: "user",
+          content: mapUserMessage(
+            track,
+            theater,
+            docs.map((d) => d.id),
+            docs.map(mapDocLine),
+          ),
+        },
       ],
       response_format: {
         type: "json_schema",

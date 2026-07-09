@@ -4,6 +4,7 @@ import {
   mapDocLine,
   mapExtractorVersion,
   mapSystemPrompt,
+  mapUserMessage,
 } from "./map-prompts";
 import { ENTITY_RULES } from "./tracks";
 
@@ -56,8 +57,9 @@ describe("map prompts", () => {
       ["nuclear", "ir"],
     ] as const) {
       const p = mapSystemPrompt(track, theater);
-      expect(p).toContain("one entry per input docId");
+      expect(p).toContain("EXACTLY ONE entry for EVERY docId");
       expect(p).toContain("zero claims");
+      expect(p).toContain("COPIED CHARACTER-FOR-CHARACTER");
       expect(p).toContain(ENTITY_RULES);
       // single-doc 'confirmed' stays restricted to self-corroborating docs
       expect(p).toMatch(/'confirmed' ONLY for facts this document itself/);
@@ -67,6 +69,16 @@ describe("map prompts", () => {
   it("ir military gets the posture-and-proxy variant, ru the front-line one", () => {
     expect(mapSystemPrompt("military", "ir")).toContain("Strait of Hormuz");
     expect(mapSystemPrompt("military", "ru")).not.toContain("Strait of Hormuz");
+  });
+});
+
+describe("mapUserMessage", () => {
+  it("demands an entry per docId with the explicit id checklist (frame rev 2)", () => {
+    // rev 1 framing measured a 43% per-batch omission rate — the checklist is
+    // the fix; if it disappears, omissions come back silently
+    const msg = mapUserMessage("military", "ru", [11, 22, 33], ["[11] a", "[22] b", "[33] c"]);
+    expect(msg).toContain("Return exactly 3 result entries");
+    expect(msg).toContain("11, 22, 33");
   });
 });
 
