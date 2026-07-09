@@ -21,19 +21,24 @@ async function main() {
   if (!ingest.length) console.log("NO INGEST ROWS IN 24H — ingest cron not landing");
 
   console.log("\n-- cron_runs: per-job outcome, last 24h --");
+  // An open row means "running" or "killed", and only the clock tells them apart:
+  // the longest maxDuration in the app is 800s, so an open row older than that was
+  // killed. Reporting both as "unfinished" would make every live run look like a
+  // timeout.
   const runs = await sql`
     SELECT job,
            count(*)::int AS runs,
            sum((ok IS TRUE)::int)::int AS ok,
            sum((ok IS FALSE)::int)::int AS failed,
-           sum((finished_at IS NULL)::int)::int AS unfinished,
+           sum((finished_at IS NULL AND started_at > now() - interval '800 seconds')::int)::int AS running,
+           sum((finished_at IS NULL AND started_at <= now() - interval '800 seconds')::int)::int AS killed,
            max(started_at) AS latest
     FROM cron_runs WHERE started_at > now() - interval '24 hours'
     GROUP BY job ORDER BY job`;
   for (const r of runs)
     console.log(
       `${String(r.job).padEnd(18)} runs=${r.runs} ok=${r.ok} failed=${r.failed} ` +
-        `unfinished=${r.unfinished} latest ${r.latest.toISOString()}`,
+        `running=${r.running} KILLED=${r.killed} latest ${r.latest.toISOString()}`,
     );
   if (!runs.length) console.log("NO CRON RUNS IN 24H — either nothing fired, or the deploy predates cron_runs");
   const failures = await sql`
