@@ -350,6 +350,15 @@ data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails
   not the best. Not fixed here (out of sprint scope, and the fix — compare claim counts, or K-run
   extraction — belongs with OPEN-TASKS #18/#28). → OPEN-TASKS #32. Only became visible because
   `stats.llm` now makes per-run extraction yield measurable.
+- **2026-07-09 (MR sprint 1) — two standing notes in this file are now WRONG, corrected here rather
+  than edited above (the log is append-only):**
+  (a) "GitHub unreachable from this box" (2026-07-06 CI entry) — `git ls-remote origin` succeeds.
+  `origin/main` is at `be13063`, pushed 2026-07-09 08:53.
+  (b) The "~100 unpushed commits / email-privacy push blocker" handed down from the earlier
+  session is **stale**: only the 11 MR-sprint-1 commits are unpushed, and the one commit carrying a
+  private email (`e29d220` "Initial commit", `gregoryoconnor@gmail.com`) is already an **ancestor of
+  origin/main** — it was pushed long ago, so GH007 cannot fire on it. Every other commit uses the
+  `6955+gregoryo@users.noreply.github.com` noreply address. There is no push blocker.
 
 ## Conventions
 
