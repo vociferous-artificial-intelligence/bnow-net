@@ -58,11 +58,24 @@ DONE so far this task:
   without it; non-prod daily defaults then apply). Driver sets FORCE_REGEN itself.
 - Engine smoke on branch PASSED: ru/07-08 → 7 events / 14 claims / $0.0063 /
   0 dropped gids / [6,6,8] votes → 7 merged. Real corroboration in output.
-- **A/B SWEEP LAUNCHED** (~2h): `npx tsx scripts/ab-mapreduce.ts` appending to
-  docs/reviews/MR3-AB-RESULTS.jsonl (committed periodically). If this session
-  died mid-sweep: re-run the driver with the env recipe above — it resumes,
-  skipping completed (day,theater,arm,k) keys. Then compute the gate report
-  (see step 6) and only then delete the branch.
+- **A/B ROUND 1 COMPLETE** (180/180, docs/reviews/MR3-AB-RESULTS.jsonl):
+  coverage PASS (24.9 vs 21.1, ir-driven +12.8), unsupported PASS (0.31 vs
+  0.41), **variance FAIL as point estimate** (within-cell SD 10.5 vs 8.0 —
+  though paired-permutation p=0.35, 8-vs-8 cells, statistically
+  indistinguishable). Diagnosis: marginal events flip out of the 2-of-3 vote
+  majority between generations (ru 07-07 k3 lost the frontline events ISW
+  scores → 100/33/0 coverage triple); claim-level repro is BETTER for
+  mapreduce (0.73 vs 0.55).
+- **ROUND 2 IN PROGRESS**: two mechanism-targeted fixes — REDUCE_VOTES=5
+  (majority 3-of-5) + majority-gid fill in finalizeEvents (majority-supported
+  groups dropped by the median roll get deterministic claims from group text).
+  Re-running the MAPREDUCE ARM ONLY:
+  `REDUCE_VOTES=5 npx tsx scripts/ab-mapreduce.ts --arms mapreduce --out docs/reviews/MR3-AB-K5.jsonl`
+  (same env recipe; resumable the same way). Gate re-evaluation = legacy rows
+  from MR3-AB-RESULTS.jsonl + mapreduce rows from MR3-AB-K5.jsonl (merge into a
+  temp file for scripts/ab-report.ts). If round 2 still fails variance: NO
+  CUTOVER — write the honest FAIL diagnosis, leave the flag legacy, record the
+  cutover payload as future work.
 
 TASK 2 ✅ (shipped, see log below) — synthesis pass details:
 1. Input = rankGroups(clusterClaims(loadReduceClaims(...))) — feed top ~150-250

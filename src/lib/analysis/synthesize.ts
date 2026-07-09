@@ -318,15 +318,26 @@ const asEntityKind = (k: string): EntityKind =>
   ENTITY_KINDS.has(k as EntityKind) ? (k as EntityKind) : "org";
 
 /** Turn merged events into persistable events: docIds/hedging/claimType/entities
- *  all derive from the cited groups, never from the model. */
+ *  all derive from the cited groups, never from the model.
+ *
+ *  Majority-gid fill: a gid a MAJORITY of votes placed in this event is
+ *  majority-supported evidence even when the median roll's wording dropped it —
+ *  it gets a deterministic claim from the group's own representative text. This
+ *  pins the published claim set to the vote majority instead of one roll's
+ *  whims (the A/B's variance mechanism: thin rolls losing exactly the
+ *  frontline claims ISW scores). */
 export function finalizeEvents(
   merged: MergedEvent[],
   groupByKey: Map<number, ClaimGroup>,
 ): PersistEvent[] {
   const out: PersistEvent[] = [];
   for (const ev of merged) {
+    const covered = new Set(ev.claims.flatMap((c) => c.gids));
+    const fill: VoteClaim[] = ev.majorityGids
+      .filter((g) => !covered.has(g) && groupByKey.has(g))
+      .map((g) => ({ text: groupByKey.get(g)!.text, gids: [g] }));
     const claims: PersistEvent["claims"] = [];
-    for (const c of ev.claims) {
+    for (const c of [...ev.claims, ...fill]) {
       const groups = c.gids
         .map((g) => groupByKey.get(g))
         .filter((g): g is ClaimGroup => g !== undefined);

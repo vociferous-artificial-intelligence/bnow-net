@@ -245,3 +245,40 @@ describe("overwriteVerdict (#32)", () => {
     expect(overwriteVerdict(10, 1, 1, 0.5, true)).toBeNull(); // FORCE_REGEN
   });
 });
+
+describe("majority-gid fill", () => {
+  it("synthesizes deterministic claims for majority gids the median roll dropped", async () => {
+    const { finalizeEvents, mergeVotes } = await import("./synthesize");
+    // three votes: gids 1 and 2 both appear in all votes' event, but the
+    // median-length instance only words a claim for gid 1
+    const v = (gidsPerClaim: number[][]) => ({
+      title: "Frontline advance",
+      type: "advance",
+      summary: "s",
+      claims: gidsPerClaim.map((gids, i) => ({ text: `claim ${i} ${"x".repeat(gids.length * 3)}`, gids })),
+    });
+    const votes = [[v([[1], [2]])], [v([[1]])], [v([[1], [2], [2]])]];
+    const merged = mergeVotes(votes);
+    expect(merged[0].majorityGids).toEqual([1, 2]);
+    const groups = new Map([
+      [1, { ...baseGroup(), key: 1, docIds: [10] }],
+      [2, { ...baseGroup(), key: 2, docIds: [20], text: "Russian units liberated Petro-Ivanovka" }],
+    ]);
+    const events = finalizeEvents(merged, groups);
+    const texts = events[0].claims.map((c) => c.text);
+    // whichever roll was median, BOTH majority gids are covered
+    const cited = new Set(events[0].claims.flatMap((c) => c.docIds));
+    expect(cited.has(10)).toBe(true);
+    expect(cited.has(20)).toBe(true);
+    expect(texts.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+function baseGroup() {
+  return {
+    key: 0, memberIds: [0], docIds: [0], independentSources: 1,
+    text: "t", quote: null, claimType: "factual" as const, hedging: "claimed" as const,
+    promoted: false, confidence: 0.5, maxReliability: 0.5, entities: [],
+    eventHint: null, claimDate: "2026-07-08", latestPublishedAt: null, size: 1,
+  };
+}

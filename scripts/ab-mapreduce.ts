@@ -17,9 +17,7 @@
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import "./env";
 
-const RESULTS = "docs/reviews/MR3-AB-RESULTS.jsonl";
 const THEATERS = ["ru", "ua", "ir"] as const;
-const ARMS = ["legacy", "mapreduce"] as const;
 const K = 3;
 
 function arg(name: string, dflt: string): string {
@@ -29,6 +27,8 @@ function arg(name: string, dflt: string): string {
 
 const FROM = arg("from", "2026-06-29");
 const TO = arg("to", "2026-07-08"); // inclusive
+const RESULTS = arg("out", "docs/reviews/MR3-AB-RESULTS.jsonl");
+const ARMS = arg("arms", "legacy,mapreduce").split(",") as Array<"legacy" | "mapreduce">;
 
 function days(from: string, to: string): string[] {
   const out: string[] = [];
