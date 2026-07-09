@@ -126,8 +126,14 @@ export function NavDropdown({
     }
   };
 
+  // Tabbing off the trigger never reaches the panel's Tab handler, so without this a
+  // keyboard user could leave one menu open and open a second.
+  const onFocusOut = (e: React.FocusEvent) => {
+    if (!rootRef.current?.contains(e.relatedTarget as Node | null)) setOpenPath(null);
+  };
+
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="relative" onBlur={onFocusOut}>
       <button
         ref={triggerRef}
         type="button"

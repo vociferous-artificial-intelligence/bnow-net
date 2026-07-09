@@ -47,6 +47,7 @@ export function SiteHeaderView({
   const mobileOpen = openPath === pathname;
   const hamburgerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
   const section = canonicalSection(pathname);
 
   const closeSheet = (returnFocus: boolean) => {
@@ -57,14 +58,35 @@ export function SiteHeaderView({
   useEffect(() => {
     if (!mobileOpen) return;
     closeRef.current?.focus();
+    const { overflow } = document.body.style;
+    document.body.style.overflow = "hidden"; // aria-modal must not lie: no background scroll
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       setOpenPath(null);
       hamburgerRef.current?.focus();
     };
     document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = overflow;
+    };
   }, [mobileOpen]);
+
+  // ...nor may focus escape it.
+  const onSheetKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== "Tab") return;
+    const focusable = sheetRef.current?.querySelectorAll<HTMLElement>("a[href], button");
+    if (!focusable?.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
 
   if (isChromeless(pathname)) return null;
 
@@ -111,10 +133,12 @@ export function SiteHeaderView({
             aria-hidden="true"
           />
           <div
+            ref={sheetRef}
             id="site-mobile-nav"
             role="dialog"
             aria-modal="true"
             aria-label={labels.menu}
+            onKeyDown={onSheetKeyDown}
             className="absolute inset-y-0 end-0 w-[min(20rem,85vw)] overflow-y-auto bg-white p-4 dark:bg-gray-950"
           >
             <div className="mb-4 flex items-center justify-between">

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { localesByPriority, makeT } from "@/i18n/dictionaries";
@@ -186,6 +186,22 @@ describe("dropdown accessibility", () => {
     expect(document.activeElement).toBe(trigger);
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
   });
+
+  it("closes when focus leaves it, so two menus can never be open at once", async () => {
+    const user = userEvent.setup();
+    renderHeader();
+    const nav = within(mainNav());
+    const product = nav.getByRole("button", { name: "Product" });
+
+    product.focus();
+    await user.keyboard("{ArrowDown}"); // opens Product, focus lands on its first item
+    expect(screen.getByRole("menu", { name: "Product" })).toBeTruthy();
+
+    // Move focus away without ever touching the panel's own Tab handler.
+    await act(async () => nav.getByRole("button", { name: "Coverage" }).focus());
+    expect(screen.queryByRole("menu", { name: "Product" })).toBeNull();
+    expect(product.getAttribute("aria-expanded")).toBe("false");
+  });
 });
 
 describe("language selector", () => {
@@ -265,6 +281,33 @@ describe("mobile sheet", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "Menu" })).toBeNull();
     expect(document.activeElement).toBe(hamburger);
+  });
+
+  it("honours aria-modal: focus is trapped and background scroll is locked", async () => {
+    const user = userEvent.setup();
+    renderHeader();
+    await user.click(screen.getByRole("button", { name: "Menu" }));
+    expect(document.body.style.overflow).toBe("hidden");
+
+    const sheet = screen.getByRole("dialog", { name: "Menu" });
+    const focusable = Array.from(sheet.querySelectorAll<HTMLElement>("a[href], button"));
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    first.focus();
+    await user.tab({ shift: true }); // wraps backwards to the end
+    expect(document.activeElement).toBe(last);
+    await user.tab(); // wraps forwards to the start
+    expect(document.activeElement).toBe(first);
+  });
+
+  it("restores background scroll when it closes", async () => {
+    const user = userEvent.setup();
+    renderHeader();
+    await user.click(screen.getByRole("button", { name: "Menu" }));
+    expect(document.body.style.overflow).toBe("hidden");
+    await user.keyboard("{Escape}");
+    expect(document.body.style.overflow).not.toBe("hidden");
   });
 
   it("shows the account controls to a signed-in user", async () => {
