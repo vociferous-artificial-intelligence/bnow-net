@@ -757,3 +757,39 @@ point; commit+push after every green subtask. Budget ≤ $12 LLM, env-capped.
 5. TASK 4 (gate pass only) — DIGEST_ENGINE flag (default legacy), synthesis crons
    04:00/10:00/19:30 UTC + 02:00 D+1 finalization, validate scores D+1 digest.
 6. TASK 5 — docs, scoreboard, close #18/#28, flip instructions for the operator.
+
+## 2026-07-09 ~23:30 UTC — MR sprint 3 SHIPPED: reduce + K-voted synthesis, A/B gate passed, cutover deployed
+
+Before/after (10-day A/B, ru/ua/ir military, K=3 regenerations per cell, majority
+matcher vs ISW; legacy baseline vs the shipped K=5 mapreduce configuration):
+
+| | legacy | mapreduce |
+|---|---|---|
+| ISW coverage mean | 21.1% | **25.0%** (ir +15.1 pts, ru parity, ua −3.6 within noise) |
+| coverage within-cell SD | 8.0 | **6.9** |
+| unsupported-claim rate | 0.41 | **0.30** |
+| claim-level reproducibility (#28) | 0.55 | **0.75** |
+| distinct docs cited / digest | 9.5 | **24.9** |
+| LLM cost / digest | $0.0022 | $0.0068 (and kills the 8–10× re-extraction loop) |
+
+1. TASK 0: #29 closed — Lebanese channels → ir, 651 docs retagged, map holdout
+   removed, catch-up mapped ($0.004).
+2. TASK 1: deterministic reduce core (star clustering — union-find percolated 519
+   claims into one group on real data; threshold 0.35 tuned on labelled prod pairs,
+   precision 1.0), the #35 single version accessor, quote_verified stamping (#34),
+   entity canonicalization reuse. A 25-agent adversarial review confirmed 8 real
+   defects; all fixed and re-verified.
+3. TASK 2: K-voted synthesis over pre-ranked claim groups — model cites group ids
+   only (hallucinated citations structurally impossible), openai_reduce ledger +
+   fail-closed REDUCE_USD_CAP_DAILY; the persist path extracted into ONE shared
+   module; #32 thin-regen guard on both engines.
+4. TASK 3: A/B round 1 (K=3) FAILED the variance gate honestly (marginal events
+   flipping out of 2-of-3 majorities); mechanism diagnosed, fixed (K=5 +
+   majority-gid fill), round 2 PASSED all three criteria. Full data:
+   docs/reviews/MR3-AB-RESULTS.jsonl + MR3-AB-K5.jsonl; report:
+   docs/reviews/MR3-REDUCE-RESULTS.md. Branch deleted after the report committed.
+5. TASK 4: cutover deployed — DIGEST_ENGINE flag (default LEGACY until Gregory
+   flips), cadence 02:00 D+1 finalize + 04:00/10:00/19:30 intraday (rolling 24h
+   window, delta-framed "Since the previous brief"), validate unchanged (already
+   scores the finalized D+1 digest). Intraday mode smoke-verified on prod.
+6. Sprint LLM spend ≈ $1.76 of the $12 cap. Tests 391 → 450 (39 files).

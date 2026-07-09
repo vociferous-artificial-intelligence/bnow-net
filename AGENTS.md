@@ -91,15 +91,20 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   registry-selected + curated Telegram via t.me/s/, X via api.twitterapi.io (383
   ISW-cited accounts), GDELT (wired, upstream-flaky), zakupki procurement (wired,
   blocked — needs proxy).
-- **Map stage (SHADOW):** all eligible ru/ua/ir docs since 07-04 mapped once per
-  (track, extractor_version) → `doc_claims` (14,071 claims / 23,020 docs), persistent
-  dedup verdicts (`doc_dedup`, 9.2% mirrors), dispositions (`doc_map_state`); hourly
-  cron keeps it current; $0.076/1K docs. Digest pipeline byte-untouched. This is MR
-  sprint 3's reduce input. Results: `docs/reviews/MAP-SHADOW-RESULTS.md`.
-- **Digests:** gpt-4o-mini per theater×track (military/elite/economy), source-mix
-  quota (~40%/adapter+platform), metered + spend-guarded, `structured.stats` records
-  ladder/tokens/sent docs. Known weakness: overwrite guard only refuses zero-event
-  regenerations (OPEN-TASKS #32).
+- **Map stage:** all eligible ru/ua/ir docs since 06-29 mapped once per
+  (track, extractor_version) → `doc_claims` (~19K claims), persistent dedup verdicts
+  (`doc_dedup`), dispositions (`doc_map_state`); hourly cron keeps it current;
+  $0.076/1K docs. Feeds the mapreduce digest engine (below). Shadow evidence:
+  `docs/reviews/MAP-SHADOW-RESULTS.md`.
+- **Digests — two engines behind `DIGEST_ENGINE` (default LEGACY until the operator
+  flips):** legacy = the 100-doc batch extraction (source-mix quota, ladder);
+  mapreduce = deterministic reduce over doc_claims (star clustering, threshold 0.35,
+  corroboration promotion, entity canonicalization) + K=5-voted synthesis over the
+  top ~200 ranked claim groups — model cites group ids only, docIds/hedging derive
+  server-side. A/B gate PASSED (coverage 25.0 vs 21.1, unsupported 0.30 vs 0.41,
+  variance 6.9 vs 8.0; `docs/reviews/MR3-REDUCE-RESULTS.md`). Both engines persist
+  through ONE shared path (`digest-persist.ts`) whose overwrite guard refuses empty
+  AND thin (<50% prior claims) regenerations (#32 closed; FORCE_REGEN=1 override).
 - **Validation vs ISW:** majority-vote LLM matching (k=5, 26/27 reproducible across
   reruns), keyword gazetteer as no-key fallback; ISW report auto-discovery by slug.
   Coverage avg ~17.5% (nonzero-day ~31%), median info-lead +14.7h (2026-07-05 backtest).
@@ -108,12 +113,13 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   signals / trade / datadark / critical-materials / ask (capped 20/user/day, $1/day
   global) / i18n: en+uk full, de ar ja pl fr catalogs (landing wired; needs native
   review before promotion).
-- **Tests:** 391 unit tests / 34 files green (`npm test`, ~3s) + Neon-branch
+- **Tests:** 450 unit tests / 39 files green (`npm test`, ~3s) + Neon-branch
   integration suite (`npm run test:integration`). CI mirror: `.github/workflows/ci.yml`;
   the enforced gate is `.githooks/pre-push` (typecheck+lint+test).
 - **Crons (vercel.json):** ingest fast */15 · telegram :10 · x :20 · map :40 (hourly) ·
-  digest core :30 + gulf :50 at 0/6/12/18 UTC · validate 07:00 · enrich 08:00 ·
-  datadark 09:00 · trade monthly (2nd) · materials monthly (3rd).
+  digest 02:00 (D+1 finalize) + 04:00/10:00/19:30 (intraday, rolling window,
+  delta-framed) · validate 07:00 (scores yesterday = the finalized digest) ·
+  enrich 08:00 · datadark 09:00 · trade monthly (2nd) · materials monthly (3rd).
 - **Stubbed / off:** MTProto + ACLED (fixture stubs, unwired); Stripe flagged off;
   Resend adapter superseded by Postmark.
 - **Deploy:** `npx vercel@latest deploy --prod --yes` — machine CLI session
@@ -179,7 +185,15 @@ Operational rulings:
 16. Unhedged ISW declaratives stay `hedging='unknown'` (mid-trust 0.5) — forcing the 4
     classes would corrupt the reliability signal.
 17. Don't trust a lone digest regeneration: extraction yield varies wildly between
-    identical runs (10→1 claims observed); last writer wins (OPEN-TASKS #32).
+    identical runs (10→1 claims observed). The shared persist guard now refuses
+    empty and thin (<50% of prior claims) overwrites on BOTH engines
+    (`digest-persist.ts`; FORCE_REGEN=1 override; refusals land in cron_runs).
+18. The mapreduce engine ships only its A/B-validated configuration: K=5 synthesis
+    votes + majority-gid fill (K=3 FAILED the variance gate — marginal events flip
+    out of 2-of-3 majorities). Do not lower REDUCE_VOTES or remove the fill without
+    re-running the gate (scripts/ab-mapreduce.ts + ab-report.ts). Every doc_claims
+    consumer goes through src/lib/analysis/map-versions.ts (superseded extractor
+    versions double-count otherwise).
 
 ## Decision log (append-only, dated)
 
@@ -255,6 +269,24 @@ Entries 2026-07-04 → 2026-07-09 (MR sprint 1) are archived VERBATIM in
   This also removes the legacy-vs-mapreduce A/B asymmetry before the sprint-3 gate runs.
   Standing ruling 11 corrected in place; follow-up = multi-theater source tagging at Tier-2/3
   expansion (new OPEN-TASKS #37).
+- **2026-07-09 (MR sprint 3)** Reduce + synthesis shipped; **A/B gate evaluated honestly across
+  two rounds and passed; cutover deployed with the flag default LEGACY.** Round 1 (K=3 votes)
+  FAILED the variance criterion (within-cell coverage SD 10.5 vs legacy 8.0, paired p=0.35):
+  marginal events flip out of 2-of-3 vote majorities between generations, dropping exactly the
+  frontline claims ISW scores (ru 07-07: 100→33→0). Fixes: K=5 (majority 3-of-5) + majority-gid
+  fill (majority-supported groups dropped by the median roll get deterministic claims from group
+  text). Round 2 passed all three criteria: coverage 25.0 vs 21.1 (ir +15.1 p=0.067, ru parity,
+  ua −3.6 p=0.45 noise-scale — WATCH post-flip), SD 6.9 vs 8.0, unsupported 0.30 vs 0.41; #28
+  reproducibility 0.75 vs 0.55; distinct docs cited 24.9 vs 9.5. New rulings 17 (corrected) + 18.
+  Cadence: 02:00 D+1 finalize + 04:00/10:00/19:30 intraday (rolling 24h, delta-framed) replaces
+  the 4×6h yesterday+today loop — the 8–10.2× re-extraction redundancy (audit §11) is retired on
+  both engines (legacy now regenerates ≤4×/digest-day). REDUCE_USD_CAP_DAILY=2 set in all three
+  Vercel envs BEFORE the deploy. A/B evidence: MR3-AB-RESULTS.jsonl + MR3-AB-K5.jsonl + report
+  in MR3-REDUCE-RESULTS.md; sprint LLM spend ≈ $1.76 of $12. The A/B driver's one incident —
+  the reduce guard's 500-req/day cap fail-closing round 2 mid-sweep — cost zero samples
+  (resumable-by-key design); cap raised via env for the run, prod default unchanged.
+  Closes OPEN-TASKS #18, #28, #32, #34, #35. Flip = operator sets DIGEST_ENGINE=mapreduce
+  in Vercel prod env + redeploy; rollback = unset + redeploy.
 
 ## Conventions
 
@@ -291,8 +323,10 @@ Entries 2026-07-04 → 2026-07-09 (MR sprint 1) are archived VERBATIM in
 1. **Operator:** `docs/SETUP-NEXT-WEEK.md` top-to-bottom — VERCEL_TOKEN regen, bnow.net
    DNS + domain attach, Postmark sender-domain move off scenefiend, MTProto, Stripe.
    (OpenAI credits: done 2026-07-05; keep the billing alert.)
-2. **MR sprint 3:** reduce stage over `doc_claims` (cluster → digest), then promote the
-   map out of shadow. Inputs: `docs/reviews/MAP-SHADOW-RESULTS.md`, OPEN-TASKS #32/#33/#35.
+2. **Flip DIGEST_ENGINE=mapreduce** when ready (operator; instructions in
+   `docs/reviews/MR3-CHECKPOINT.md`) and watch the scoreboard for a week —
+   especially ua (−3.6 pts in the A/B, noise-scale). Then: gulf theaters onto the
+   map worker, the #33 remap path, per-country mix policy.
 3. Debt & risks: `docs/OPEN-TASKS.md` (prioritized); key-blocked items: `docs/BLOCKERS.md`;
    Russia depth build order: `docs/RUSSIA-DATA-ROADMAP.md` §5.
 

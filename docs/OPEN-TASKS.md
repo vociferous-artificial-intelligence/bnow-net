@@ -59,9 +59,11 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
 17. **OpenSanctions match hygiene.** Require ≥1 linked claim before spending a /match
     call (orphan entities waste quota and invite name-collisions); render match score +
     caption beside sanction/PEP badges. From the 1/5 spot-check flag ("Andrei Fedorov").
-18. **Truncation-retry watch.** Dense uk-language X corpora push gpt-4o-mini to
-    finish_reason=length; digest gen now retries at 50→25 docs. If the warning becomes
-    frequent, cap event count in the prompt or split extraction into two passes.
+18. ~~**Truncation-retry watch.**~~ ✅ 2026-07-09 (MR sprint 3): generalized as the
+    map-reduce split — per-doc extraction (map) + synthesis over claim groups can
+    never hit the batch-output ceiling (synthesis sets max_completion_tokens and its
+    input is ~200 compact groups, not 100 raw docs). Legacy ladder retained for the
+    legacy engine.
 
 ### New (from the nav restructure, 2026-07-09 — docs/reviews/NAV-RESTRUCTURE-REVIEW.md)
 
@@ -95,14 +97,11 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     screen-reader users traverse it on every navigation. Needs `id="main"` on each page's `<main>`
     — deliberately not bundled into the nav diff.
 
-28. **Extraction-run variance is the dominant coverage noise.** Measured on the
-    2026-07-09 A/B: regenerating the SAME ua day with the SAME corpus swings coverage
-    by median ±9.6 pts (max ±23, e.g. [0,40,0] on Jul 7) because each digest is one
-    gpt-4o-mini extraction picking ~10 claims. Any single-regeneration coverage
-    comparison is weather, not climate (the matcher is already majority-stable — the
-    variance is upstream in extraction). Options: K-run extraction with claim-level
-    merge/vote (mirrors the matcher fix, ~3x LLM cost), or report scoreboard coverage
-    as a rolling mean; pairs naturally with two-pass extraction (#18).
+28. ~~**Extraction-run variance is the dominant coverage noise.**~~ ✅ 2026-07-09
+    (MR sprint 3): K=5-voted synthesis with majority-merge shipped in the mapreduce
+    engine — claim-level reproducibility 0.75 vs legacy 0.55, within-cell coverage
+    SD 6.9 vs 8.0 on the 10-day A/B (docs/reviews/MR3-REDUCE-RESULTS.md). Standing
+    ruling 18 pins the validated configuration.
 29. ~~**635 Lebanese Arabic docs are filed under the `ru` theater.**~~ ✅ 2026-07-09
     (MR sprint 3 TASK 0): operator adjudicated → **ir** (theater = coverage lens, not
     nationality; proxy-network content follows the ir lens). Three
@@ -119,17 +118,11 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     vocabulary; `profile.eventTypeWeights[ev.type] ?? 1` gives them a neutral weight, so nothing
     breaks, but buyer profiles cannot yet prefer (say) `asset_seizure` over `appointment`.
 
-32. **The empty-extraction guard's threshold is 0 events, so a thin regeneration overwrites a
-    rich one silently.** Demonstrated live while verifying MR sprint 1: regenerating ua/2026-07-08
-    twice from a byte-identical 100-doc batch (`promptTokens` = 10,516 both times, proving the
-    input never changed) produced **1 event / 1 claim** then **5 events / 8 claims** — 113 vs 613
-    completion tokens. The first roll replaced a 10-claim digest that had scored 57.1% coverage.
-    `digest.ts:170-185` only declines to overwrite when the new extraction has **zero** events, so
-    a 10→1 claim collapse sails through, and with ~8 regenerations per digest-day under
-    last-writer-wins the published digest is the *last* roll, not the best one. This is the
-    #28 variance with teeth. Options: keep the richer extraction (compare claim counts before
-    overwriting), or K-run extraction with claim-level merge (#28/#18). **Materially raises the
-    stakes of the map-reduce refactor's regeneration cadence.**
+32. ~~**The empty-extraction guard's threshold is 0 events, so a thin regeneration overwrites a
+    rich one silently.**~~ ✅ 2026-07-09 (MR sprint 3): the shared persist path
+    (`digest-persist.ts`, both engines) refuses regenerations carrying <50% of the
+    existing digest's claims (DIGEST_MIN_CLAIM_RATIO, FORCE_REGEN=1 override);
+    refusals surface in cron_runs counts. Integration-tested.
 ### New (from MR sprint 2 — map stage, 2026-07-09)
 
 33. **Extractor-version bumps need a remap path.** The hourly map worker selects on the
@@ -138,15 +131,16 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     on the affected docs. The proper tool is a budget-gated `scripts/map-remap.ts` that
     ignores `processed` and anti-joins `doc_map_state` on the *current* versions. Until it
     exists, any prompt iteration silently applies only to new docs.
-34. **`doc_claims.quote_orig` is best-effort: ~15% fail verbatim containment.** The map
-    counts (`quoteMisses`) claims whose quote does not appear character-for-character in the
-    doc (whitespace-normalized). Down from 42% before the "COPIED CHARACTER-FOR-CHARACTER"
-    rule, but if sprint 3 wants to render quotes as hard traceability evidence, add a
-    repair/validation pass (or render only the verified ones).
-35. **Old-version doc_claims rows are permanent history.** Two superseded extractor
-    versions (~570 doc-states, ~270 claims) from sprint 2's prompt iterations remain in the
-    store by design (append-only). Every consumer — sprint 3 reduce, reports — must filter
-    to the current version set (`mapExtractorVersion()` per track/theater) or double-count.
+34. ~~**`doc_claims.quote_orig` is best-effort: ~15% fail verbatim containment.**~~
+    ✅ 2026-07-09 (MR sprint 3): `quote_verified` stamped at insert by the map worker
+    (shared normalization in `quote-verify.ts` — unicode/bidi-isolate/whitespace
+    folds), lazily backfilled for pre-stamp rows by the reduce loader; only verified
+    quotes surface as evidence (`ClaimGroup.quote`), others fall back to the doc link.
+35. ~~**Old-version doc_claims rows are permanent history.**~~ ✅ 2026-07-09
+    (MR sprint 3): `src/lib/analysis/map-versions.ts` is the single accessor every
+    doc_claims consumer goes through (reduce loader, tuner, coverage-check script);
+    tested against `mapExtractorVersion()` per configured (track, theater). Standing
+    ruling 18 makes it binding.
 36. **Map cron `maxDuration` is provisional (800s).** Measured steady-state runs land in
     `cron_runs` (~2min per 400-doc run at concurrency 3; concurrency 6 deployed later).
     After a week of hourly runs, size it to measured p99 and consider whether the hourly
