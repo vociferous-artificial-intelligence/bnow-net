@@ -3,6 +3,7 @@ import {
   LlmBudgetError,
   assertLlmEnabled,
   digestGuardFromEnv,
+  digestMaxOutputTokens,
   estimateUsd,
 } from "../usage/llm-guard";
 import type {
@@ -134,6 +135,13 @@ export class OpenAiProvider implements AnalysisProvider {
           json_schema: { name: "digest", schema: RESPONSE_SCHEMA as never, strict: true },
         },
         temperature: 0.2,
+        // Without this the model runs to its own 16,384-token ceiling before
+        // truncating, and we are billed for every one of those tokens before the
+        // ladder discards the response: UA 07-02 spent 94.8% of its digest cost on
+        // two such throwaways (audit §4d). Measured real outputs are <= 1,448
+        // pretty-JSON tokens (§4c), so 4096 is ~3x headroom and quarters the
+        // worst-case waste.
+        max_completion_tokens: digestMaxOutputTokens(),
       });
 
     // Caps are checked BEFORE each billed request; a refusal throws a typed
