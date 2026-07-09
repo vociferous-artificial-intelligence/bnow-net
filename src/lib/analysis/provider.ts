@@ -39,10 +39,23 @@ export interface DigestAnalysis {
   provider: string;
 }
 
+/** Token/cost accounting for ONE billed LLM request. */
+export interface LlmUsage {
+  promptTokens: number;
+  completionTokens: number;
+  estUsd: number;
+  /** the response hit the output ceiling: billed in full, then discarded */
+  truncated: boolean;
+}
+
 export interface AnalyzeOptions {
   /** override system prompt (elite-politics track); null/undefined = default military */
   systemPrompt?: string | null;
   track?: string;
+  /** Called once per BILLED request, truncated ones included — the caller
+   *  accumulates across the truncation ladder into digests.structured.stats.llm.
+   *  Providers that spend nothing (stub) never call it. */
+  onUsage?: (usage: LlmUsage) => void;
 }
 
 export interface AnalysisProvider {

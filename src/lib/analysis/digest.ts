@@ -2,7 +2,7 @@ import { Pool } from "@neondatabase/serverless";
 import { STUB_CONTENT_PREFIX } from "../adapters/stubs";
 import { detectLang } from "./lang";
 import { findNearDuplicates } from "./minhash";
-import { getProvider, type AnalysisInputDoc, type DigestAnalysis } from "./provider";
+import { getProvider, type AnalysisInputDoc, type DigestAnalysis, type LlmUsage } from "./provider";
 import { MIX_CAP_FRACTION, selectSourceMix, sourceMixStats } from "./source-mix";
 import { TRACKS, type Track } from "./tracks";
 
@@ -127,12 +127,15 @@ export async function generateDigest(
     const provider = await getProvider();
     let analysis: Awaited<ReturnType<typeof provider.analyze>> | null = null;
     let batch = docs;
+    // every billed request lands here, truncated-and-discarded ones included
+    const llmCalls: LlmUsage[] = [];
     for (const size of [docs.length, 50, 25]) {
       batch = docs.slice(0, size);
       try {
         analysis = await provider.analyze(countryIso2, date, batch, {
           systemPrompt: trackCfg.systemPromptByCountry?.[countryIso2] ?? trackCfg.systemPrompt,
           track,
+          onUsage: (u) => llmCalls.push(u),
         });
         break;
       } catch (e) {
@@ -176,6 +179,8 @@ export async function generateDigest(
         [countryId, date, track],
       );
       if ((prev[0]?.claims ?? 0) > 0) {
+        // The call was still billed and is already in provider_usage; only
+        // stats.llm is lost, because the digest row it belongs to is not written.
         console.warn(
           `digest ${countryIso2} ${date} ${track}: extraction returned 0 events but ` +
             `existing digest has ${prev[0].claims} claims — keeping the existing digest`,
@@ -200,6 +205,7 @@ export async function generateDigest(
             trackRows: sourceMixStats(trackRows),
             docsAnalyzed: sourceMixStats(selectedRows.slice(0, docsSent.length)),
           },
+          ...(llmCalls.length ? { llm: summarizeLlmCalls(llmCalls) } : {}),
         },
       };
       const dRes = await client.query(
@@ -313,6 +319,20 @@ export async function generateDigest(
   } finally {
     await pool.end();
   }
+}
+
+/** Per-digest LLM accounting, persisted to structured.stats.llm. `estUsd` is the
+ *  WHOLE ladder's bill — truncated rungs cost real money even though their output
+ *  is discarded, so a digest whose `truncationRetries > 0` is a digest that
+ *  overpaid (audit §4d: one such digest burned 94.8% of its cost on two throwaways). */
+export function summarizeLlmCalls(calls: LlmUsage[]) {
+  return {
+    calls: calls.length,
+    promptTokens: calls.reduce((s, u) => s + u.promptTokens, 0),
+    completionTokens: calls.reduce((s, u) => s + u.completionTokens, 0),
+    estUsd: calls.reduce((s, u) => s + u.estUsd, 0),
+    truncationRetries: calls.filter((u) => u.truncated).length,
+  };
 }
 
 function renderMarkdown(

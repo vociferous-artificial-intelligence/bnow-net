@@ -1,3 +1,4 @@
+import { assertLlmEnabled } from "../usage/llm-guard";
 import type {
   AnalysisInputDoc,
   AnalysisProvider,
@@ -58,6 +59,7 @@ export class AnthropicProvider implements AnalysisProvider {
     docs: AnalysisInputDoc[],
     opts?: { systemPrompt?: string | null; track?: string },
   ): Promise<DigestAnalysis> {
+    assertLlmEnabled("anthropic digest extract");
     const docLines = docs
       .map(
         (d) =>

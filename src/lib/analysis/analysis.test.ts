@@ -102,6 +102,37 @@ describe("detectLang Persian/Arabic", () => {
   });
 });
 
+describe("per-digest LLM accounting (structured.stats.llm)", () => {
+  it("sums the whole ladder, so a truncated rung's wasted spend stays visible", async () => {
+    const { summarizeLlmCalls } = await import("./digest");
+    // audit §4d: UA 07-02 fired [99 truncated, 50 truncated, 25 success]
+    const s = summarizeLlmCalls([
+      { promptTokens: 9056, completionTokens: 16384, estUsd: 0.011189, truncated: true },
+      { promptTokens: 6104, completionTokens: 16384, estUsd: 0.010746, truncated: true },
+      { promptTokens: 3955, completionTokens: 1007, estUsd: 0.001197, truncated: false },
+    ]);
+    expect(s.calls).toBe(3);
+    expect(s.truncationRetries).toBe(2);
+    expect(s.promptTokens).toBe(19115);
+    expect(s.completionTokens).toBe(33775);
+    expect(s.estUsd).toBeCloseTo(0.02313, 5); // the audit's measured $0.02313
+  });
+
+  it("reports a clean single-call digest with no truncation", async () => {
+    const { summarizeLlmCalls } = await import("./digest");
+    const s = summarizeLlmCalls([
+      { promptTokens: 7697, completionTokens: 734, estUsd: 0.001595, truncated: false },
+    ]);
+    expect(s).toEqual({
+      calls: 1,
+      promptTokens: 7697,
+      completionTokens: 734,
+      estUsd: 0.001595,
+      truncationRetries: 0,
+    });
+  });
+});
+
 describe("anthropic provider response parsing", () => {
   it("parses plain JSON, fenced JSON, and rejects junk", async () => {
     const { parseEventsJson } = await import("./anthropic-provider");

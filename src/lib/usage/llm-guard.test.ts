@@ -6,7 +6,7 @@ const {
   DIGEST_PROVIDER,
   LlmDisabledError,
   assertLlmEnabled,
-  digestDailyUsdCap,
+  llmDailyUsdCap,
   digestGuardFromEnv,
   digestMaxOutputTokens,
   estimateUsd,
@@ -73,20 +73,20 @@ describe("gpt-4o-mini pricing", () => {
 describe("digest daily cap resolution", () => {
   it("uses LLM_DIGEST_USD_CAP when set", () => {
     process.env.LLM_DIGEST_USD_CAP = "3.5";
-    expect(digestDailyUsdCap()).toBe(3.5);
+    expect(llmDailyUsdCap()).toBe(3.5);
   });
 
   it("falls back to the documented default outside production", () => {
     delete process.env.LLM_DIGEST_USD_CAP;
     delete process.env.VERCEL_ENV;
     expect(process.env.NODE_ENV).not.toBe("production"); // vitest runs as "test"
-    expect(digestDailyUsdCap()).toBe(DIGEST_DAILY_USD_CAP_DEFAULT);
+    expect(llmDailyUsdCap()).toBe(DIGEST_DAILY_USD_CAP_DEFAULT);
   });
 
   it("fails closed (null) in production when the cap env is unset", () => {
     delete process.env.LLM_DIGEST_USD_CAP;
     process.env.VERCEL_ENV = "production";
-    expect(digestDailyUsdCap()).toBeNull();
+    expect(llmDailyUsdCap()).toBeNull();
   });
 
   it("an unset cap in production makes the guard refuse every reservation", async () => {

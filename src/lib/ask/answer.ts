@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { isLlmDisabled } from "../usage/llm-guard";
 import { retrieve, type RetrievalResult } from "./retrieve";
 
 // Answer a natural-language question strictly from retrieved BNOW data. The LLM may
@@ -47,7 +48,10 @@ export async function ask(question: string): Promise<AskAnswer> {
     };
   }
 
-  if (!process.env.OPENAI_API_KEY || process.env.ANALYSIS_PROVIDER === "stub") {
+  // isLlmDisabled(): the kill-switch refuses the call rather than throwing, because
+  // /ask is a user surface and the deterministic path below still answers honestly
+  // from real cited claims.
+  if (!process.env.OPENAI_API_KEY || process.env.ANALYSIS_PROVIDER === "stub" || isLlmDisabled()) {
     // deterministic fallback: surface the top matching claims verbatim, cited
     const top = r.claims.slice(0, 6);
     const answer =

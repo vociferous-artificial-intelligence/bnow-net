@@ -10,8 +10,13 @@ import { SpendGuard, envCap, envNum, pgUsageStore } from "./spend-guard";
 /** provider_usage.provider for the digest extract call (audit Site A). */
 export const DIGEST_PROVIDER = "openai_digest";
 
+/** provider_usage.provider for the entity-audit route (audit Site D). Its own row
+ *  so the digest ledger stays a clean measure of the digest path, even though both
+ *  draw on the one LLM_DIGEST_USD_CAP per-day envelope. */
+export const ENTITY_AUDIT_PROVIDER = "openai_entity_audit";
+
 /** Per-day USD cap used when LLM_DIGEST_USD_CAP is unset OUTSIDE production.
- *  In production an unset cap fails closed — see digestDailyUsdCap(). */
+ *  In production an unset cap fails closed — see llmDailyUsdCap(). */
 export const DIGEST_DAILY_USD_CAP_DEFAULT = 2;
 
 /** Output-token ceiling for the digest extract call. Measured outputs are
@@ -58,10 +63,11 @@ export function estimateUsd(promptTokens: number, completionTokens: number): num
   return promptTokens * USD_PER_PROMPT_TOKEN + completionTokens * USD_PER_COMPLETION_TOKEN;
 }
 
-/** Resolved per-day USD cap for the digest path. null => the guard fails closed:
- *  production with LLM_DIGEST_USD_CAP unset must not spend. Outside production an
- *  unset cap falls back to the documented default so local runs and tests work. */
-export function digestDailyUsdCap(): number | null {
+/** Resolved per-day USD cap for the unmetered-until-now OpenAI paths (digest
+ *  extract, entity audit). null => the guard fails closed: production with
+ *  LLM_DIGEST_USD_CAP unset must not spend. Outside production an unset cap falls
+ *  back to the documented default so local runs and tests work. */
+export function llmDailyUsdCap(): number | null {
   return envCap("LLM_DIGEST_USD_CAP") ?? (isProduction() ? null : DIGEST_DAILY_USD_CAP_DEFAULT);
 }
 
@@ -69,19 +75,38 @@ export function digestMaxOutputTokens(): number {
   return envNum("LLM_DIGEST_MAX_OUTPUT_TOKENS", DIGEST_MAX_OUTPUT_TOKENS_DEFAULT);
 }
 
-/** Guard for the digest extract call. One instance per analyze() — the daily and
- *  total caps live in provider_usage, so they hold across serverless invocations;
- *  runRequestCap=1 therefore just says "one reservation buys one request". */
-export function digestGuardFromEnv(): SpendGuard {
+/** One guard instance per LLM call — the daily and total caps live in
+ *  provider_usage, so they hold across serverless invocations; runRequestCap
+ *  therefore just says how many requests one reservation cycle may buy. */
+function openAiGuard(provider: string, dailyRequestCap: number, runRequestCap: number): SpendGuard {
   return new SpendGuard(
     {
-      provider: DIGEST_PROVIDER,
+      provider,
       // all-time backstop: the same sprint ceiling llm_match already honours
       totalCapUsd: envCap("LLM_SPRINT_USD_CAP"),
-      dailyUsdCap: digestDailyUsdCap(),
-      dailyRequestCap: envNum("LLM_DIGEST_DAILY_REQUEST_CAP", 400),
-      runRequestCap: envNum("LLM_DIGEST_RUN_REQUEST_CAP", 1),
+      dailyUsdCap: llmDailyUsdCap(),
+      dailyRequestCap,
+      runRequestCap,
     },
     pgUsageStore,
+  );
+}
+
+/** Guard for the digest extract call — the ~98% of LLM spend that had none. */
+export function digestGuardFromEnv(): SpendGuard {
+  return openAiGuard(
+    DIGEST_PROVIDER,
+    envNum("LLM_DIGEST_DAILY_REQUEST_CAP", 400),
+    envNum("LLM_DIGEST_RUN_REQUEST_CAP", 1),
+  );
+}
+
+/** Guard for the unscheduled entity-audit route, whose single prompt grows with
+ *  the entity graph and was never metered (audit §7a site D, §12 #2). */
+export function entityAuditGuardFromEnv(): SpendGuard {
+  return openAiGuard(
+    ENTITY_AUDIT_PROVIDER,
+    envNum("LLM_ENTITY_AUDIT_DAILY_REQUEST_CAP", 10),
+    envNum("LLM_ENTITY_AUDIT_RUN_REQUEST_CAP", 1),
   );
 }

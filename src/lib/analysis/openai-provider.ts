@@ -1,7 +1,14 @@
 import OpenAI from "openai";
+import {
+  LlmBudgetError,
+  assertLlmEnabled,
+  digestGuardFromEnv,
+  estimateUsd,
+} from "../usage/llm-guard";
 import type {
   AnalysisInputDoc,
   AnalysisProvider,
+  AnalyzeOptions,
   DigestAnalysis,
   ExtractedEvent,
 } from "./provider";
@@ -9,6 +16,10 @@ import { ENTITY_RULES } from "./tracks";
 
 // OpenAI structured-output extraction. Hard rules enforced downstream too:
 // claims may only cite docIds present in the input batch; uncited claims are dropped.
+//
+// Every request passes the digest SpendGuard first and is recorded to
+// provider_usage afterwards — INCLUDING responses the truncation ladder throws
+// away, which OpenAI bills in full (PIPELINE-AUDIT-2026-07 §4d, §7c).
 
 const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
 
@@ -94,8 +105,9 @@ export class OpenAiProvider implements AnalysisProvider {
     countryIso2: string,
     date: string,
     docs: AnalysisInputDoc[],
-    opts?: { systemPrompt?: string | null; track?: string },
+    opts?: AnalyzeOptions,
   ): Promise<DigestAnalysis> {
+    assertLlmEnabled("digest extract");
     const docLines = docs
       .map(
         (d) =>
@@ -124,29 +136,54 @@ export class OpenAiProvider implements AnalysisProvider {
         temperature: 0.2,
       });
 
+    // Caps are checked BEFORE each billed request; a refusal throws a typed
+    // LlmBudgetError, whose message carries no "truncated" — so the caller's
+    // ladder rethrows it immediately instead of burning the smaller rungs.
+    const guard = digestGuardFromEnv();
+    await guard.init();
+    const reserve = () => {
+      const r = guard.tryReserve();
+      if (!r.ok) throw new LlmBudgetError(r.reason);
+    };
+
     let completion;
+    reserve();
     try {
       completion = await request();
     } catch (e) {
-      // TPM window 429: one retry after the minute resets
+      // TPM window 429: one retry after the minute resets. The 429 itself was
+      // never billed, so the retry needs its own reservation.
       if ((e as { status?: number }).status === 429) {
         await new Promise((r) => setTimeout(r, 65_000));
+        reserve();
         completion = await request();
       } else throw e;
     }
 
+    // Meter before interpreting: a truncated response is billed for every output
+    // token it emitted and then discarded by the ladder. Recording it is the only
+    // way that waste ever becomes visible.
+    const choice = completion.choices[0];
+    const promptTokens = completion.usage?.prompt_tokens ?? 0;
+    const completionTokens = completion.usage?.completion_tokens ?? 0;
+    const truncated = choice?.finish_reason === "length";
+    const estUsd = estimateUsd(promptTokens, completionTokens);
+    await guard.record(1, promptTokens + completionTokens, estUsd);
+    opts?.onUsage?.({ promptTokens, completionTokens, estUsd, truncated });
+
     // Distinguish "analyzed fine, genuinely quiet day" from extraction failure:
     // refusals (null content) and truncated/unparseable JSON must THROW so the
     // caller never persists an empty digest over a previously good one.
-    const choice = completion.choices[0];
+    // Truncation is checked first: a response cut off at the ceiling can also
+    // come back with empty content, and the ladder keys off the word "truncated".
+    if (truncated) {
+      throw new Error("openai-provider: response truncated (finish_reason=length)");
+    }
     const raw = choice?.message?.content;
     if (!raw) {
       throw new Error(
         `openai-provider: empty content (finish=${choice?.finish_reason}, refusal=${choice?.message?.refusal ?? "n/a"})`,
       );
-    }
-    if (choice.finish_reason === "length") {
-      throw new Error("openai-provider: response truncated (finish_reason=length)");
     }
     let events: ExtractedEvent[];
     try {

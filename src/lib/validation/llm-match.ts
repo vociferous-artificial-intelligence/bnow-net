@@ -1,4 +1,9 @@
 import OpenAI from "openai";
+import {
+  USD_PER_COMPLETION_TOKEN,
+  USD_PER_PROMPT_TOKEN,
+  isLlmDisabled,
+} from "../usage/llm-guard";
 import { SpendGuard, envCap, envNum, pgUsageStore } from "../usage/spend-guard";
 import type { ClaimForValidation } from "./score";
 
@@ -33,10 +38,6 @@ export interface MatchOutcome {
   votes?: TakeawayVotes[];
   voteRounds?: number;
 }
-
-// gpt-4o-mini rates (USD per token)
-const USD_PER_PROMPT_TOKEN = 0.15 / 1e6;
-const USD_PER_COMPLETION_TOKEN = 0.6 / 1e6;
 
 const SCHEMA = {
   type: "object",
@@ -176,6 +177,13 @@ export async function llmMatchTakeaways(
   claims: ClaimForValidation[],
 ): Promise<MatchOutcome | null> {
   if (!process.env.OPENAI_API_KEY || process.env.ANALYSIS_PROVIDER === "stub") return null;
+  // Kill-switch: refuse the call. Unlike the digest path this degrades rather
+  // than throws — the keyword matcher upstream still scores the day, and losing
+  // validation entirely would be a worse outcome than losing its LLM assist.
+  if (isLlmDisabled()) {
+    console.warn("llm-match: LLM_DISABLE=1 — refusing LLM calls, falling back to keyword matcher");
+    return null;
+  }
   const client = new OpenAI();
   const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
   const k = Math.max(1, envNum("MATCH_VOTES", 5));

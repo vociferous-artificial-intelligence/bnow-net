@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Pool } from "@neondatabase/serverless";
 import OpenAI from "openai";
+import { entityAuditGuardFromEnv, estimateUsd, isLlmDisabled } from "@/lib/usage/llm-guard";
 
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
@@ -43,6 +44,18 @@ export async function GET(req: NextRequest) {
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json({ error: "no OPENAI_API_KEY; audit needs the LLM" }, { status: 503 });
   }
+  if (isLlmDisabled()) {
+    return NextResponse.json({ error: "LLM_DISABLE=1; entity audit refused" }, { status: 503 });
+  }
+
+  // This prompt carries the entire entity listing and grows with the graph; it
+  // was billed but never metered or capped (audit §7a site D, §12 #2).
+  const guard = entityAuditGuardFromEnv();
+  await guard.init();
+  const reserved = guard.tryReserve();
+  if (!reserved.ok) {
+    return NextResponse.json({ error: reserved.reason }, { status: 429 });
+  }
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
@@ -73,6 +86,11 @@ export async function GET(req: NextRequest) {
       response_format: { type: "json_object" },
     });
 
+    const promptTokens = completion.usage?.prompt_tokens ?? 0;
+    const completionTokens = completion.usage?.completion_tokens ?? 0;
+    const estUsd = estimateUsd(promptTokens, completionTokens);
+    await guard.record(1, promptTokens + completionTokens, estUsd);
+
     const raw = completion.choices[0]?.message?.content ?? "{}";
     let proposals: Proposal[] = [];
     try {
@@ -95,6 +113,7 @@ export async function GET(req: NextRequest) {
       ok: true,
       model,
       entities: rows.length,
+      usage: { promptTokens, completionTokens, estUsd },
       proposals: valid,
       note: "review, save as JSONL, apply with scripts/entities-cleanup.ts --file <path>",
     });
