@@ -21,6 +21,8 @@ export interface HeaderLabels {
   signIn: string;
   menu: string;
   close: string;
+  /** Landmark name for the <nav> element; screen readers append the role. */
+  mainNav: string;
 }
 
 /** Routes that render their own chrome and must not inherit the marketing header. */
@@ -42,16 +44,23 @@ export function SiteHeaderView({
   signOutAction: (formData: FormData) => void | Promise<void>;
 }) {
   const pathname = usePathname() ?? "/";
-  // Same trick as NavDropdown: remember the path the sheet opened on, so navigating closes it.
-  const [openPath, setOpenPath] = useState<string | null>(null);
-  const mobileOpen = openPath === pathname;
+  const [mobileOpen, setMobileOpen] = useState(false);
   const hamburgerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const section = canonicalSection(pathname);
 
+  // Same reason as NavDropdown: this header survives navigation, so the sheet must be
+  // dismissed on a route change — and dismissed for good, not merely hidden until the
+  // user navigates back to the page they opened it on.
+  const [seenPath, setSeenPath] = useState(pathname);
+  if (seenPath !== pathname) {
+    setSeenPath(pathname);
+    if (mobileOpen) setMobileOpen(false);
+  }
+
   const closeSheet = (returnFocus: boolean) => {
-    setOpenPath(null);
+    setMobileOpen(false);
     if (returnFocus) hamburgerRef.current?.focus();
   };
 
@@ -62,7 +71,7 @@ export function SiteHeaderView({
     document.body.style.overflow = "hidden"; // aria-modal must not lie: no background scroll
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      setOpenPath(null);
+      setMobileOpen(false);
       hamburgerRef.current?.focus();
     };
     document.addEventListener("keydown", onKeyDown);
@@ -100,7 +109,7 @@ export function SiteHeaderView({
         </Link>
 
         {/* desktop */}
-        <nav aria-label="Main" className="hidden items-center gap-1 md:flex">
+        <nav aria-label={labels.mainNav} className="hidden items-center gap-1 md:flex">
           {nav.entries.map((entry) => (
             <DesktopEntry key={entry.id} entry={entry} pathname={pathname} current={section === entry.id} />
           ))}
@@ -118,7 +127,7 @@ export function SiteHeaderView({
           aria-expanded={mobileOpen}
           aria-controls="site-mobile-nav"
           aria-label={labels.menu}
-          onClick={() => setOpenPath(pathname)}
+          onClick={() => setMobileOpen(true)}
           className={`rounded p-1.5 md:hidden ${FOCUS_RING}`}
         >
           <Menu aria-hidden="true" className="h-5 w-5" />
@@ -154,7 +163,7 @@ export function SiteHeaderView({
               </button>
             </div>
 
-            <nav aria-label="Main" className="space-y-5">
+            <nav aria-label={labels.mainNav} className="space-y-5">
               {nav.entries.map((entry) =>
                 entry.kind === "link" ? (
                   <MobileLink key={entry.id} href={entry.href} label={entry.label} pathname={pathname} />
@@ -308,7 +317,7 @@ function AuthSlot({
         </span>
       }
     >
-      <p className="truncate border-b border-gray-100 px-3 py-2 text-xs text-gray-500 dark:border-gray-900">
+      <p role="none" className="truncate border-b border-gray-100 px-3 py-2 text-xs text-gray-500 dark:border-gray-900">
         {nav.auth.email}
       </p>
       <NavMenuLink href={nav.auth.accountHref}>{labels.account}</NavMenuLink>

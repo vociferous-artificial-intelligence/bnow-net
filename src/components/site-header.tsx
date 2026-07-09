@@ -39,6 +39,7 @@ export async function SiteHeader() {
         signIn: t("auth.signin"),
         menu: t("nav.menu"),
         close: t("nav.close"),
+        mainNav: t("nav.main"),
       }}
     />
   );

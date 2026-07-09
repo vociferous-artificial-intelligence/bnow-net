@@ -24,20 +24,33 @@ const labels: HeaderLabels = {
   signIn: "Sign in",
   menu: "Menu",
   close: "Close",
+  mainNav: "Main",
 };
 
 function renderHeader({ signedIn = false, pathname = "/", locale = "en" } = {}) {
   route.pathname = pathname;
   const nav = buildSiteNav(t, { signedIn, email: signedIn ? "gregory@example.com" : null });
-  return render(
+  const signOutAction = vi.fn();
+  // A fresh element each time: re-rendering the *same* element object makes React bail
+  // out, so the component would never observe the new pathname.
+  const ui = () => (
     <SiteHeaderView
       nav={nav}
       locale={locale}
       locales={localesByPriority()}
       labels={labels}
-      signOutAction={vi.fn()}
-    />,
+      signOutAction={signOutAction}
+    />
   );
+  const utils = render(ui());
+  // A soft navigation: the header is mounted in the root layout, so it re-renders with a
+  // new pathname rather than remounting. Its state survives — which is the whole risk.
+  const navigate = (to: string) =>
+    act(() => {
+      route.pathname = to;
+      utils.rerender(ui());
+    });
+  return { ...utils, navigate };
 }
 
 const mainNav = () => screen.getByRole("navigation", { name: "Main" });
@@ -178,12 +191,34 @@ describe("dropdown accessibility", () => {
     const user = userEvent.setup();
     renderHeader();
     const trigger = within(mainNav()).getByRole("button", { name: "Product" });
-    await user.click(trigger);
-    expect(screen.getByRole("menu", { name: "Product" })).toBeTruthy();
+
+    // Open with the keyboard, so focus really leaves the trigger and lands on an item.
+    // Opening by click would leave focus on the trigger and make the assertion below
+    // pass even if focus were never restored.
+    trigger.focus();
+    await user.keyboard("{ArrowDown}");
+    const items = within(screen.getByRole("menu", { name: "Product" })).getAllByRole("menuitem");
+    expect(document.activeElement).toBe(items[0]);
 
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("menu", { name: "Product" })).toBeNull();
     expect(document.activeElement).toBe(trigger);
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("stays closed when the user navigates back to the path it was opened on", async () => {
+    const user = userEvent.setup();
+    const { navigate } = renderHeader({ pathname: "/pricing" });
+    const trigger = within(mainNav()).getByRole("button", { name: "Product" });
+
+    await user.click(trigger); // opened while on /pricing
+    expect(screen.getByRole("menu", { name: "Product" })).toBeTruthy();
+
+    navigate("/ask"); // followed a menu link
+    expect(screen.queryByRole("menu", { name: "Product" })).toBeNull();
+
+    navigate("/pricing"); // browser Back — no pointer or key event at all
+    expect(screen.queryByRole("menu", { name: "Product" })).toBeNull();
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
   });
 
@@ -301,6 +336,19 @@ describe("mobile sheet", () => {
     expect(document.activeElement).toBe(first);
   });
 
+  it("stays closed when the user navigates back to the path it was opened on", async () => {
+    const user = userEvent.setup();
+    const { navigate } = renderHeader({ pathname: "/pricing" });
+    await user.click(screen.getByRole("button", { name: "Menu" }));
+    expect(screen.getByRole("dialog", { name: "Menu" })).toBeTruthy();
+
+    navigate("/ask");
+    expect(screen.queryByRole("dialog", { name: "Menu" })).toBeNull();
+
+    navigate("/pricing"); // browser Back must not resurrect the overlay
+    expect(screen.queryByRole("dialog", { name: "Menu" })).toBeNull();
+  });
+
   it("restores background scroll when it closes", async () => {
     const user = userEvent.setup();
     renderHeader();
@@ -320,6 +368,25 @@ describe("mobile sheet", () => {
     expect(within(sheet).getByRole("link", { name: "Account" })).toBeTruthy();
     expect(within(sheet).getByRole("button", { name: "Sign out" })).toBeTruthy();
     expect(within(sheet).queryByRole("link", { name: "Sign in" })).toBeNull();
+  });
+});
+
+describe("no hardcoded English in the header chrome", () => {
+  it("names the nav landmark from the labels, so it localizes with everything else", () => {
+    route.pathname = "/";
+    const nav = buildSiteNav(t, { signedIn: false });
+    render(
+      <SiteHeaderView
+        nav={nav}
+        locale="ar"
+        locales={localesByPriority()}
+        labels={{ ...labels, mainNav: "الرئيسية", menu: "القائمة" }}
+        signOutAction={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("navigation", { name: "الرئيسية" })).toBeTruthy();
+    expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
+    expect(screen.getByRole("button", { name: "القائمة" })).toBeTruthy();
   });
 });
 

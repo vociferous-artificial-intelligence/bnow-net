@@ -29,6 +29,7 @@ const EXTRA_KEYS = [
   "nav.signout",
   "nav.menu",
   "nav.close",
+  "nav.main",
   "auth.signin",
   "home.cta.digest",
   "home.cta.coverage",

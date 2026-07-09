@@ -35,24 +35,29 @@ export function NavDropdown({
   triggerClassName?: string;
   children: ReactNode;
 }) {
-  // Openness is stored as "the path this menu was opened on", so navigating closes it
-  // for free — the header outlives the route, and an effect that setStates on pathname
-  // change would just be a cascading re-render.
   const pathname = usePathname() ?? "/";
-  const [openPath, setOpenPath] = useState<string | null>(null);
-  const open = openPath === pathname;
+  const [open, setOpen] = useState(false);
   const pendingFocus = useRef<"first" | "last" | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const panelId = useId();
 
-  const setOpen = (next: boolean) => setOpenPath(next ? pathname : null);
+  // The header is mounted in the root layout, so it outlives every navigation and an
+  // open menu would survive one. Reset during render rather than in an effect: an
+  // effect here is a cascading re-render (and this repo's lint rejects it). Deriving
+  // `open` from the pathname instead would re-open the menu when the user navigated
+  // back to the page it was opened on.
+  const [seenPath, setSeenPath] = useState(pathname);
+  if (seenPath !== pathname) {
+    setSeenPath(pathname);
+    if (open) setOpen(false);
+  }
 
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (e: PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpenPath(null);
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener("pointerdown", onPointerDown);
     return () => document.removeEventListener("pointerdown", onPointerDown);
@@ -77,7 +82,7 @@ export function NavDropdown({
   }, [open]);
 
   const close = (returnFocus: boolean) => {
-    setOpenPath(null);
+    setOpen(false);
     if (returnFocus) triggerRef.current?.focus();
   };
 
@@ -129,7 +134,7 @@ export function NavDropdown({
   // Tabbing off the trigger never reaches the panel's Tab handler, so without this a
   // keyboard user could leave one menu open and open a second.
   const onFocusOut = (e: React.FocusEvent) => {
-    if (!rootRef.current?.contains(e.relatedTarget as Node | null)) setOpenPath(null);
+    if (!rootRef.current?.contains(e.relatedTarget as Node | null)) setOpen(false);
   };
 
   return (
@@ -142,7 +147,7 @@ export function NavDropdown({
         aria-controls={open ? panelId : undefined}
         aria-label={ariaLabel}
         data-current={current || undefined}
-        onClick={() => setOpenPath((prev) => (prev === pathname ? null : pathname))}
+        onClick={() => setOpen((v) => !v)}
         onKeyDown={onTriggerKeyDown}
         className={`inline-flex items-center gap-1 rounded px-2 py-1.5 hover:underline data-[current]:font-semibold ${FOCUS_RING} ${triggerClassName}`}
       >
