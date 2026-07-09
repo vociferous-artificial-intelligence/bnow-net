@@ -143,3 +143,41 @@ export function mapGuardFromEnv(): SpendGuard {
     pgUsageStore,
   );
 }
+
+/** provider_usage.provider for the reduce synthesis calls (MR sprint 3). Its own
+ *  ledger row AND its own daily-cap env, isolated from the digest and map
+ *  envelopes for the same reason MAP_USD_CAP_DAILY is: an A/B backfill must
+ *  neither starve nor be starved by the other pipelines. */
+export const REDUCE_PROVIDER = "openai_reduce";
+
+/** Per-day USD cap used when REDUCE_USD_CAP_DAILY is unset OUTSIDE production. */
+export const REDUCE_DAILY_USD_CAP_DEFAULT = 2;
+
+/** Resolved per-day USD cap for the reduce synthesis — fail-closed in
+ *  production when REDUCE_USD_CAP_DAILY is unset (standing ruling 4). */
+export function reduceDailyUsdCap(): number | null {
+  return envCap("REDUCE_USD_CAP_DAILY") ?? (isProduction() ? null : REDUCE_DAILY_USD_CAP_DEFAULT);
+}
+
+/** Output-token ceiling for one synthesis vote: <=12 events of title+summary+
+ *  claims over group ids — comfortably under 6K; capped so a truncated vote
+ *  can never bill gpt-4o-mini's full 16,384 default. */
+export function reduceMaxOutputTokens(): number {
+  const v = Number(process.env.REDUCE_MAX_OUTPUT_TOKENS);
+  const n = Number.isFinite(v) && v >= 1000 ? Math.floor(v) : 6000;
+  return Math.min(16_384, n);
+}
+
+/** Guard for the reduce synthesis (K votes per digest = several calls per run). */
+export function reduceGuardFromEnv(): SpendGuard {
+  return new SpendGuard(
+    {
+      provider: REDUCE_PROVIDER,
+      totalCapUsd: envCap("LLM_SPRINT_USD_CAP"),
+      dailyUsdCap: reduceDailyUsdCap(),
+      dailyRequestCap: envNum("REDUCE_DAILY_REQUEST_CAP", 500),
+      runRequestCap: envNum("REDUCE_RUN_REQUEST_CAP", 40),
+    },
+    pgUsageStore,
+  );
+}

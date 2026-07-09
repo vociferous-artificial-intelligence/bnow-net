@@ -129,7 +129,8 @@ describe("generateDigest end-to-end (stub provider, seeded corpus)", () => {
 
   it("persists a traceable digest and never cites stub-marked docs", async () => {
     const { generateDigest } = await import("../lib/analysis/digest");
-    const result = await generateDigest("ua", TEST_DATE, "military");
+    const outcome = await generateDigest("ua", TEST_DATE, "military");
+    const result = outcome && !("skipped" in outcome) ? outcome : null;
 
     expect(result).not.toBeNull();
     expect(result!.provider).toBe("stub");
@@ -163,14 +164,20 @@ describe("generateDigest end-to-end (stub provider, seeded corpus)", () => {
 
   it("regeneration is idempotent (upsert, no claim duplication)", async () => {
     const { generateDigest } = await import("../lib/analysis/digest");
-    const first = await generateDigest("ua", TEST_DATE, "military");
-    const again = await generateDigest("ua", TEST_DATE, "military");
-    expect(again!.digestId).toBe(first!.digestId);
+    // the stub provider is deterministic, so the second run carries the same
+    // claim count and the thin-regen guard (#32) lets it through
+    const asGenerated = (r: Awaited<ReturnType<typeof generateDigest>>) => {
+      if (!r || "skipped" in r) throw new Error(`expected a generated digest, got ${JSON.stringify(r)}`);
+      return r;
+    };
+    const first = asGenerated(await generateDigest("ua", TEST_DATE, "military"));
+    const again = asGenerated(await generateDigest("ua", TEST_DATE, "military"));
+    expect(again.digestId).toBe(first.digestId);
     const { rows } = await pool.query(
       `SELECT count(*)::int AS n FROM claims WHERE digest_id = $1`,
-      [again!.digestId],
+      [again.digestId],
     );
-    expect(rows[0].n).toBe(again!.claims);
+    expect(rows[0].n).toBe(again.claims);
   });
 });
 

@@ -33,6 +33,12 @@ async function main() {
           console.log(`${date} ${c}: no docs, skipped`);
           continue;
         }
+        if ("skipped" in dig) {
+          console.log(
+            `${date} ${c}: overwrite refused (${dig.skipped}: ${dig.newClaims} vs prior ${dig.priorClaims})`,
+          );
+          continue;
+        }
         const val = await validateDigest(c, date);
         const summary =
           "error" in val

@@ -1,8 +1,9 @@
 import { Pool } from "@neondatabase/serverless";
 import { STUB_CONTENT_PREFIX } from "../adapters/stubs";
+import { isSkipped, persistDigest, type DigestSkipped } from "./digest-persist";
 import { detectLang } from "./lang";
 import { findNearDuplicates } from "./minhash";
-import { getProvider, type AnalysisInputDoc, type DigestAnalysis, type LlmUsage } from "./provider";
+import { getProvider, type AnalysisInputDoc, type LlmUsage } from "./provider";
 import { MIX_CAP_FRACTION, selectSourceMix, sourceMixStats } from "./source-mix";
 import { TRACKS, type Track } from "./tracks";
 
@@ -65,7 +66,7 @@ export async function generateDigest(
   countryIso2: string,
   date: string, // yyyy-mm-dd (UTC day to cover)
   track: Track = "military",
-): Promise<DigestResult | null> {
+): Promise<DigestResult | DigestSkipped | null> {
   const trackCfg = TRACKS[track];
   if (!trackCfg.countries.includes(countryIso2)) return null;
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -191,165 +192,48 @@ export async function generateDigest(
       }))
       .filter((ev) => ev.claims.length > 0);
 
-    // 4b. never overwrite a claim-bearing digest with an empty extraction —
-    // providers throw on hard failures (refusal/truncation/bad JSON), but a
-    // model can also legitimately return zero events; when a previous run
-    // produced claims, empty is strictly worse information and is discarded
-    // (regression guard from the 2026-07-07 ua incident: two good digests were
-    // wiped by silent extraction failures).
-    if (events.length === 0) {
-      const { rows: prev } = await pool.query(
-        `SELECT count(cl.id)::int AS claims
-         FROM digests d LEFT JOIN claims cl ON cl.digest_id = d.id
-         WHERE d.country_id = $1 AND d.digest_date = $2 AND d.track = $3
-         GROUP BY d.id`,
-        [countryId, date, track],
-      );
-      if ((prev[0]?.claims ?? 0) > 0) {
-        // The call was still billed and is already in provider_usage; only
-        // stats.llm is lost, because the digest row it belongs to is not written.
-        console.warn(
-          `digest ${countryIso2} ${date} ${track}: extraction returned 0 events but ` +
-            `existing digest has ${prev[0].claims} claims — keeping the existing digest`,
-        );
-        return null;
-      }
-    }
-
-    // 5. persist atomically
-    const client = await pool.connect();
-    let digestId: number;
-    let claimCount = 0;
-    try {
-      await client.query("BEGIN");
-      const structured = {
-        stats: {
-          docsAnalyzed: docsSent.length,
-          docsRaw: docRows.length,
-          trackRows: trackRows.length,
-          sourceMix: {
-            docsRaw: sourceMixStats(docRows),
-            trackRows: sourceMixStats(trackRows),
-            docsAnalyzed: sourceMixStats(selectedRows.slice(0, docsSent.length)),
-          },
-          // claims the anti-hallucination gate stripped (audit §12 #1)
-          droppedClaims: dropped,
-          // which rungs existed, how many were spent, what finally landed (§12 #8)
-          ladder: { rungs: ladder, rungsTried, finalSize: docsSent.length },
-          // exactly which docs the model saw (<=100 ints). Without this the true
-          // re-extraction redundancy across a digest-day's ~8 regenerations is
-          // unmeasurable — the audit could only model it at ~10.2x (§11, §12 #9).
-          sentDocIds: docsSent.map((d) => d.id),
-          ...(llmCalls.length ? { llm: summarizeLlmCalls(llmCalls) } : {}),
+    // 5. persist through the shared invariant-preserving path (single
+    // transaction, deferred trigger, empty-/thin-regen overwrite guards)
+    const structured = {
+      stats: {
+        docsAnalyzed: docsSent.length,
+        docsRaw: docRows.length,
+        trackRows: trackRows.length,
+        sourceMix: {
+          docsRaw: sourceMixStats(docRows),
+          trackRows: sourceMixStats(trackRows),
+          docsAnalyzed: sourceMixStats(selectedRows.slice(0, docsSent.length)),
         },
-      };
-      const dRes = await client.query(
-        `INSERT INTO digests (country_id, digest_date, track, status, structured, provider)
-         VALUES ($1, $2, $3, 'generated', $4, $5)
-         ON CONFLICT (country_id, digest_date, track)
-         DO UPDATE SET status='generated', structured=$4, provider=$5, created_at=now()
-         RETURNING id`,
-        [countryId, date, track, JSON.stringify(structured), analysis.provider],
-      );
-      digestId = dRes.rows[0].id;
-
-      // regeneration: clear previous claims/events for this digest
-      await client.query(
-        `DELETE FROM claims WHERE digest_id = $1`,
-        [digestId],
-      );
-      // Scoped to this track: the other tracks of the same (country, date) keep
-      // their own events, and a parallelised matrix can no longer have one track's
-      // regeneration sweep collect another's rows.
-      await client.query(
-        `DELETE FROM events WHERE country_id = $1 AND event_date = $2 AND track = $3
-           AND id NOT IN (SELECT DISTINCT event_id FROM claims WHERE event_id IS NOT NULL)`,
-        [countryId, date, track],
-      );
-
-      for (const ev of events) {
-        const eRes = await client.query(
-          `INSERT INTO events (country_id, event_date, track, type, title, summary)
-           VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-          [countryId, date, track, ev.type, ev.title.slice(0, 300), ev.summary.slice(0, 2000)],
-        );
-        const eventId = eRes.rows[0].id;
-        for (const c of ev.claims) {
-          const cRes = await client.query(
-            `INSERT INTO claims (country_id, digest_id, event_id, text, claim_type, hedging, claim_date, confidence)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-            [
-              countryId,
-              digestId,
-              eventId,
-              c.text.slice(0, 500),
-              c.claimType,
-              c.hedging,
-              date,
-              null,
-            ],
-          );
-          const claimId = cRes.rows[0].id;
-          for (const docId of c.docIds) {
-            await client.query(
-              `INSERT INTO claim_sources (claim_id, raw_document_id) VALUES ($1, $2)
-               ON CONFLICT DO NOTHING`,
-              [claimId, docId],
-            );
-          }
-          // entity graph (elite-politics track): get-or-create by (kind, name)
-          for (const ent of c.entities ?? []) {
-            const name = ent.name.trim().slice(0, 200);
-            if (!name) continue;
-            const eIns = await client.query(
-              `INSERT INTO entities (kind, name) VALUES ($1, $2)
-               ON CONFLICT (kind, name) DO UPDATE SET name = EXCLUDED.name
-               RETURNING id`,
-              [ent.kind, name],
-            );
-            await client.query(
-              `INSERT INTO claim_entities (claim_id, entity_id, role) VALUES ($1, $2, $3)
-               ON CONFLICT DO NOTHING`,
-              [claimId, eIns.rows[0].id, ent.role.slice(0, 40)],
-            );
-          }
-          claimCount++;
-        }
-      }
-
-      // confidence: mean reliability of supporting docs (null-safe)
-      await client.query(
-        `UPDATE claims c SET confidence = sub.conf FROM (
-           SELECT cs.claim_id, avg(COALESCE(s.reliability_score, 0.3)) AS conf
-           FROM claim_sources cs
-           JOIN raw_documents rd ON rd.id = cs.raw_document_id
-           LEFT JOIN sources s ON s.id = rd.source_id
-           GROUP BY cs.claim_id
-         ) sub WHERE sub.claim_id = c.id AND c.digest_id = $1`,
-        [digestId],
-      );
-
-      const rendered = renderMarkdown(countryIso2, `${date} · ${track}`, events);
-      await client.query(`UPDATE digests SET rendered_md = $1 WHERE id = $2`, [
-        rendered,
-        digestId,
-      ]);
-
-      await client.query("COMMIT");
-    } catch (e) {
-      await client.query("ROLLBACK");
-      throw e;
-    } finally {
-      client.release();
-    }
+        // claims the anti-hallucination gate stripped (audit §12 #1)
+        droppedClaims: dropped,
+        // which rungs existed, how many were spent, what finally landed (§12 #8)
+        ladder: { rungs: ladder, rungsTried, finalSize: docsSent.length },
+        // exactly which docs the model saw (<=100 ints). Without this the true
+        // re-extraction redundancy across a digest-day's ~8 regenerations is
+        // unmeasurable — the audit could only model it at ~10.2x (§11, §12 #9).
+        sentDocIds: docsSent.map((d) => d.id),
+        ...(llmCalls.length ? { llm: summarizeLlmCalls(llmCalls) } : {}),
+      },
+    };
+    const outcome = await persistDigest({
+      pool,
+      countryId,
+      countryIso2,
+      date,
+      track,
+      provider: analysis.provider,
+      structured,
+      events,
+    });
+    if (isSkipped(outcome)) return outcome;
 
     return {
-      digestId,
+      digestId: outcome.digestId,
       countryIso2,
       date,
       track,
       events: events.length,
-      claims: claimCount,
+      claims: outcome.claimCount,
       droppedClaims: dropped,
       provider: analysis.provider,
       docsAnalyzed: docsSent.length,
@@ -373,23 +257,4 @@ export function summarizeLlmCalls(calls: LlmUsage[]) {
   };
 }
 
-function renderMarkdown(
-  countryIso2: string,
-  date: string,
-  events: DigestAnalysis["events"],
-): string {
-  const lines = [
-    `# ${countryIso2.toUpperCase()} daily digest — ${date}`,
-    "",
-    `_${events.length} events · every claim links to its source documents_`,
-    "",
-  ];
-  for (const ev of events) {
-    lines.push(`## ${ev.title}`, "", ev.summary, "");
-    for (const c of ev.claims) {
-      lines.push(`- **[${c.hedging}]** ${c.text} _(docs: ${c.docIds.join(", ")})_`);
-    }
-    lines.push("");
-  }
-  return lines.join("\n");
-}
+// renderMarkdown lives in digest-persist.ts (shared with the mapreduce engine)

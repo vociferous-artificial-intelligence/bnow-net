@@ -84,12 +84,21 @@ async function run(
   // counts survive even if a later digest throws: withCronRun persists whatever
   // the object holds when the callback settles.
   const errors = results.filter((r) => "error" in r);
+  const refused = results.filter((r) => "skipped" in r);
   counts.dates = dates.length;
   counts.countries = countries.length;
   counts.tracks = tracks.length;
-  counts.digests = results.length - errors.length;
+  counts.digests = results.length - errors.length - refused.length;
   counts.errors = errors.length;
   if (errors.length) counts.errorMessages = errors.slice(0, 5).map((r) => r.error);
+  // empty-/thin-regen overwrite refusals (OPEN-TASKS #32): the run kept the
+  // existing digest instead of letting a thin roll overwrite it
+  counts.overwriteRefusals = refused.length;
+  if (refused.length) {
+    counts.refusalDetails = refused
+      .slice(0, 5)
+      .map((r) => `${"countryIso2" in r ? r.countryIso2 : "?"} ${"skipped" in r ? r.skipped : ""}`);
+  }
 
   return NextResponse.json({ ok: true, results });
 }
