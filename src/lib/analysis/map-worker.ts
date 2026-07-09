@@ -64,6 +64,14 @@ function mapRunDocCap(): number {
   return Number.isFinite(v) && v > 0 ? Math.floor(v) : 500;
 }
 
+/** Concurrent micro-batch calls. 3 workers ≈ 140K tok/min at measured batch
+ *  sizes — inside the 200K Tier-1 TPM (audit §7b) with margin for the digest
+ *  crons; a 429 still sleeps out the window per worker. */
+function mapConcurrency(): number {
+  const v = Number(process.env.MAP_CONCURRENCY);
+  return Number.isFinite(v) && v >= 1 ? Math.min(8, Math.floor(v)) : 3;
+}
+
 /** Output budget: ~200 tokens/doc (a doc yields 0-3 claims at ~90-180 tok,
  *  audit §11), floored so a single dense doc can still answer. */
 export function mapBatchMaxTokens(docCount: number): number {
@@ -445,24 +453,36 @@ async function cycle(
   };
   let budgetStop: string | null = null;
 
-  for (const b of batches) {
-    try {
-      const perDoc = await extractBatch(openai, guard, b.track, b.theater, b.docs, stats);
-      const version = versionOf.get(`${b.track}:${b.theater}`)!;
-      await persistBatch(pool, b.track, version, b.docs, perDoc, stats);
-      for (const docId of perDoc.keys()) pending.get(docId)?.delete(b.track);
-      stats.omittedDocs += b.docs.length - perDoc.size;
-    } catch (e) {
-      if (e instanceof LlmBudgetError) {
-        budgetStop = e.message;
-        break;
+  // small worker pool over independent batches; a budget refusal stops every
+  // worker (daily/total caps are checked before each billed call regardless —
+  // concurrent in-flight calls can overshoot by at most concurrency-1 batches)
+  let nextBatch = 0;
+  const runWorker = async () => {
+    while (!budgetStop) {
+      const i = nextBatch++;
+      if (i >= batches.length) return;
+      const b = batches[i];
+      try {
+        const perDoc = await extractBatch(openai, guard, b.track, b.theater, b.docs, stats);
+        const version = versionOf.get(`${b.track}:${b.theater}`)!;
+        await persistBatch(pool, b.track, version, b.docs, perDoc, stats);
+        for (const docId of perDoc.keys()) pending.get(docId)?.delete(b.track);
+        stats.omittedDocs += b.docs.length - perDoc.size;
+      } catch (e) {
+        if (e instanceof LlmBudgetError) {
+          budgetStop = e.message;
+          return;
+        }
+        stats.batchErrors++;
+        console.warn(
+          `map ${b.theater}/${b.track} batch of ${b.docs.length}: ${e instanceof Error ? e.message : e}`,
+        );
       }
-      stats.batchErrors++;
-      console.warn(
-        `map ${b.theater}/${b.track} batch of ${b.docs.length}: ${e instanceof Error ? e.message : e}`,
-      );
     }
-  }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(mapConcurrency(), batches.length) }, runWorker),
+  );
 
   // 6. final disposition: mapped for all applicable tracks, or nothing applicable
   const doneIds = [

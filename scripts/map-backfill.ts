@@ -109,8 +109,12 @@ async function main() {
           (c.skipped ? `  SKIPPED: ${c.skipped}` : ""),
       );
       if (c.budgetStop) {
-        console.error("server-side budget stop — aborting backfill");
-        process.exit(1);
+        // a per-RUN request-cap stop is benign — the next call gets a fresh
+        // run; daily/total cap stops mean the money is gone, so abort
+        if (!String(c.budgetStop).includes("run requests")) {
+          console.error("server-side budget stop — aborting backfill");
+          process.exit(1);
+        }
       }
       if (c.skipped) {
         // another cycle (the hourly cron) holds the lock; wait it out
