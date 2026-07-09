@@ -586,3 +586,40 @@ A 10-claim → 1-claim collapse passes it silently, and since each digest-day is
 under last-writer-wins, **the published digest is the last roll, not the best one**. Filed as
 OPEN-TASKS #32. This materially raises the stakes of the map-reduce refactor's regeneration
 cadence — and it was invisible until `stats.llm` made per-run extraction yield measurable.
+
+### A live truncation, caught with full accounting (the §4d exemplar, 4x cheaper)
+
+Exercising the two never-before-run track schemas turned up a real truncation on `ir/military`
+2026-07-08 — the first one this pipeline has ever measured rather than guessed at:
+
+```
+digest 299  ir military   docsRaw=600  trackRows=170  docsAnalyzed=50
+  ladder { rungs:[100,50,25], rungsTried:2, finalSize:50 }
+  llm    { calls:2, promptTokens:14402, completionTokens:4402, truncationRetries:1 }
+```
+The truncated rung burned **exactly 4096** output tokens — the new cap — and the 50-doc rung that
+landed emitted **306**. Actual cost **$0.004802**; under gpt-4o-mini's own 16,384 ceiling the same
+two calls would have cost **$0.012174**. **61% cheaper, on one digest.**
+
+**Is 4096 too tight?** No, and the corpus answers it. `ir/military` yields *3 events / 3 claims*
+every single day (07-06, 07-07, 07-09 — each from a full 100 docs), and the successful 50-doc rung
+here emitted 306 tokens. A rung-1 call still generating at 4096 was therefore running ~13x a normal
+response: a runaway, not a long answer. It retried and produced **the same 3 events / 3 claims** as
+its neighbours. No coverage was lost; `LLM_DIGEST_MAX_OUTPUT_TOKENS` remains available if
+`truncationRetries` (now persisted) shows otherwise.
+
+**Why 07-08 and not 07-06?** The retag. `ir` `docsRaw` went 470 → **600 (saturated)** because 3,418
+Persian telegram docs joined the corpus — the intended effect of TASK 3.2, visible in the funnel.
+The two changes landed together, so this one digest is confounded on density; the event/claim yield
+above is what disambiguates it.
+
+**Per-track schemas, verified live** — event types that were *unreachable* before, because the
+military-only enum admitted none of them:
+```
+elite_politics : prosecution 3, asset_seizure 1, other 1
+nuclear        : facility 2, sabotage 2, diplomacy 1
+military       : strike 4, other 2, political 1, air_defense 1
+```
+
+**Sprint LLM total: $0.0108** across 6 metered digest calls (budget ≤$2). Six months ago that
+number did not exist.
