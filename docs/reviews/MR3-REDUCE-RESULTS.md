@@ -90,3 +90,39 @@ unknown-domain docs prove nothing; confidence = mean COALESCE(reliability, 0.3)
 over distinct docs (legacy semantics); entities go through the MR1 canonicalization
 rules (junk dropped, aliases folded); only verified quotes surface as evidence;
 ±1-day date gate (recurring-template rule); deterministic under input reordering.
+
+## TASK 2 — K-voted synthesis engine
+
+**Shipped:** `src/lib/analysis/synthesize.ts` (generateMapReduceDigest),
+`digest-persist.ts` (the persist transaction extracted VERBATIM from digest.ts —
+one invariant-preserving path both engines share), `engine.ts` (DIGEST_ENGINE
+dispatch, default legacy, gulf fallback tested), reduce spend rails in
+llm-guard.ts (`openai_reduce` ledger, REDUCE_USD_CAP_DAILY fail-closed — set in
+all three Vercel envs 2026-07-09 before any deploy could read it).
+
+Design points that make hallucination structural, not behavioral:
+- The model receives claim GROUPS (`[gid] (hedging, conf, sources=N, claims=M)
+  text -- hint`), top ~200 by deterministic rank (corroboration × max
+  reliability × size × recency); the cut is recorded as
+  `stats.reduce.groupsTotal/groupsFed`.
+- The model returns events + claims citing gids ONLY. docIds, hedging,
+  confidence and entities all derive server-side from the cited groups.
+  Unknown gids are stripped and counted (`droppedGidRefs` — 0 in the smoke and
+  the A/B so far).
+- **K=3 voting (closes #28's mechanism):** an event survives only if ≥2 votes
+  independently produce it (matched by gid-set overlap ≥ 0.5); claims keep only
+  majority gids; wording comes from the MEDIAN-length roll. Per-vote event
+  counts persist in `stats.reduce.eventsPerVote`.
+- **#32 closed on BOTH engines:** persistDigest refuses empty regenerations and
+  regenerations carrying <50% of the existing claim count
+  (DIGEST_MIN_CLAIM_RATIO, FORCE_REGEN=1 override); refusals reach cron_runs
+  counts (`overwriteRefusals`). Integration-tested against a real branch.
+
+Smoke (branch, ru/military 2026-07-08): 1,696 claims → 1,052 groups → 200 fed →
+votes [6,6,8] → 7 merged events / 14 claims, $0.0063, 32K prompt tokens, zero
+truncations, zero dropped gids. Multi-doc corroboration visibly restored (one
+Su-35 claim cites 15 docs across independent sources).
+
+Intraday support for the TASK 4 cadence (code shipped, deploy gated): rolling
+24h window (`window: 'rolling'`), delta framing vs the previous run of the day
+(`stats.delta` + a "Since the previous brief" markdown lead).
