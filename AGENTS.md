@@ -14,9 +14,13 @@ deferred. Authoritative spec: `docs/PRODUCT-BRIEF.md` (original, installed 2026-
 
 ## Architecture
 
-Stack: Next.js 15 App Router (TS strict) on Vercel · Neon Postgres + pgvector · Drizzle ORM ·
-Tailwind + shadcn/ui · Auth.js (magic link) · Vitest. LLM behind `AnalysisProvider`
-(`openai` live, `stub` deterministic fallback; no Anthropic key yet).
+Stack: Next.js 16 App Router (TS strict) on Vercel · Neon Postgres + pgvector · Drizzle ORM ·
+Tailwind v4 · Auth.js (magic link, `session.strategy='database'`) · Vitest (node; jsdom +
+@testing-library per-file for component tests). LLM behind `AnalysisProvider` (`openai` live,
+`stub` deterministic fallback; no Anthropic key yet).
+**No shadcn/ui and no Radix** — despite what earlier revisions of this line said. The UI deps are
+clsx + tailwind-merge + lucide-react; interactive primitives (e.g. `src/components/nav-dropdown.tsx`)
+are hand-rolled to the WAI-ARIA patterns. There is no `src/components/ui/`, no `components.json`.
 
 ```
  ISW archive ──crawl──> raw HTML cache (disk, internal-only)
