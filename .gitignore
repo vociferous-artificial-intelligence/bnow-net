@@ -9,3 +9,7 @@ data/cache/
 data/raw/
 coverage/
 .DS_Store
+
+# TypeScript incremental-compile cache: machine-local, rewritten by every
+# `tsc --noEmit` (so by every `npm run typecheck` and `next build`).
+*.tsbuildinfo
