@@ -428,6 +428,73 @@ async function synthesisVote(
   return null;
 }
 
+export interface SynthesizeOptions {
+  /** 'day' (default) = the full UTC day's claims — the canonical/finalization
+   *  window and the A/B arm. 'rolling' = the last 24h of published claims
+   *  ending now, persisted under `date` (=today) — the intraday cadence that
+   *  dissolves the UTC-day-boundary staleness (audit §10a: no fixed-day cron
+   *  ever sees >91% of the current day). */
+  window?: "day" | "rolling";
+  /** injected clock for tests; defaults to Date.now() (rolling mode only) */
+  nowMs?: number;
+}
+
+/** Rolling-window membership: published in the last 24h; claims with no
+ *  publish timestamp fall back to "the doc's day is the digest day". */
+export function inRollingWindow(
+  c: { publishedAt: string | null; claimDate: string },
+  date: string,
+  nowMs: number,
+): boolean {
+  if (c.publishedAt) {
+    const t = Date.parse(c.publishedAt);
+    return !Number.isNaN(t) && t >= nowMs - 86_400_000 && t <= nowMs;
+  }
+  return c.claimDate === date;
+}
+
+export interface DeltaStats {
+  newEvents: number;
+  changedEvents: number;
+  unchangedEvents: number;
+  newTitles: string[];
+}
+
+/** Events new/changed vs the previous run of the same digest-day, by cited-doc
+ *  overlap: NEW = no cited doc was cited before; CHANGED = overlaps but brings
+ *  new docs. Doc identity beats text identity here — wording drifts across
+ *  rolls, evidence does not. */
+export function computeDelta(events: PersistEvent[], priorDocIds: Set<number>): DeltaStats {
+  if (priorDocIds.size === 0) {
+    return { newEvents: events.length, changedEvents: 0, unchangedEvents: 0, newTitles: [] };
+  }
+  const out: DeltaStats = { newEvents: 0, changedEvents: 0, unchangedEvents: 0, newTitles: [] };
+  for (const ev of events) {
+    const docs = new Set(ev.claims.flatMap((c) => c.docIds));
+    let overlap = 0;
+    for (const d of docs) if (priorDocIds.has(d)) overlap++;
+    if (overlap === 0) {
+      out.newEvents++;
+      out.newTitles.push(ev.title);
+    } else if (overlap < docs.size) {
+      out.changedEvents++;
+    } else {
+      out.unchangedEvents++;
+    }
+  }
+  return out;
+}
+
+export function deltaPrelude(delta: DeltaStats): string {
+  const lines = [
+    `### Since the previous brief`,
+    "",
+    `_${delta.newEvents} new · ${delta.changedEvents} updated · ${delta.unchangedEvents} unchanged_`,
+  ];
+  for (const t of delta.newTitles.slice(0, 6)) lines.push(`- NEW: ${t}`);
+  return lines.join("\n");
+}
+
 /** The map-reduce digest engine. Same contract as generateDigest: null = track
  *  not configured or nothing to synthesize (a theater without doc_claims
  *  returns null so the dispatcher can fall back to legacy). */
@@ -435,10 +502,12 @@ export async function generateMapReduceDigest(
   countryIso2: string,
   date: string, // yyyy-mm-dd (UTC day)
   track: Track = "military",
+  opts: SynthesizeOptions = {},
 ): Promise<DigestResult | DigestSkipped | null> {
   const trackCfg = TRACKS[track];
   if (!trackCfg.countries.includes(countryIso2)) return null;
   assertLlmEnabled("reduce synthesize");
+  const windowMode = opts.window ?? "day";
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
@@ -449,18 +518,30 @@ export async function generateMapReduceDigest(
     const countryId: number = countryRows[0].id;
 
     // deterministic reduce: load current-version claims, cluster, rank
-    const to = new Date(Date.parse(`${date}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
-    const { claims, mirrorOf, quotesBackfilled } = await loadReduceClaims(pool, countryIso2, track, {
-      from: date,
-      to,
-    });
+    const dayAfter = new Date(Date.parse(`${date}T00:00:00Z`) + 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    const dayBefore = new Date(Date.parse(`${date}T00:00:00Z`) - 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    const from = windowMode === "rolling" ? dayBefore : date;
+    const to = dayAfter;
+    const loaded = await loadReduceClaims(pool, countryIso2, track, { from, to });
+    const { mirrorOf, quotesBackfilled } = loaded;
+    const runNowMs = opts.nowMs ?? Date.now();
+    const claims =
+      windowMode === "rolling"
+        ? loaded.claims.filter((c) => inRollingWindow(c, date, runNowMs))
+        : loaded.claims;
     if (claims.length === 0) {
       console.warn(`synthesize ${countryIso2} ${date} ${track}: no doc_claims in window`);
       return null;
     }
     const metaDropped = claims.filter((c) => isMetaClaim(c.textEn)).length;
     const groups = clusterClaims(claims, { mirrorOf });
-    const nowMs = Date.parse(`${to}T00:00:00Z`); // rank recency vs window end, reproducible
+    // rank recency against the window end: reproducible for the day window,
+    // the actual run clock for rolling
+    const nowMs = windowMode === "rolling" ? runNowMs : Date.parse(`${to}T00:00:00Z`);
     const ranked = rankGroups(groups, nowMs);
     const fed = ranked.slice(0, reduceGroupsFed());
     const groupByKey = new Map(fed.map((g) => [g.key, g]));
@@ -494,11 +575,30 @@ export async function generateMapReduceDigest(
     const merged = mergeVotes(votes);
     const events = finalizeEvents(merged, groupByKey);
 
+    // delta framing (intraday runs 2..n): what changed since the previous run
+    // of this digest-day. Doc-overlap based; no prior digest -> no delta block.
+    let delta: DeltaStats | null = null;
+    let mdPrelude: string | undefined;
+    if (windowMode === "rolling") {
+      const { rows: priorRows } = await pool.query(
+        `SELECT cs.raw_document_id
+         FROM claims cl
+         JOIN claim_sources cs ON cs.claim_id = cl.id
+         JOIN digests d ON d.id = cl.digest_id
+         WHERE d.country_id = $1 AND d.digest_date = $2 AND d.track = $3`,
+        [countryId, date, track],
+      );
+      if (priorRows.length > 0) {
+        delta = computeDelta(events, new Set(priorRows.map((r) => r.raw_document_id)));
+        mdPrelude = deltaPrelude(delta);
+      }
+    }
+
     const structured = {
       stats: {
         engine: "mapreduce",
         reduce: {
-          window: { from: date, to },
+          window: { from, to, mode: windowMode },
           claims: claims.length,
           metaDropped,
           groupsTotal: groups.length,
@@ -512,6 +612,7 @@ export async function generateMapReduceDigest(
           droppedGidRefs,
         },
         docsAnalyzed: [...new Set(fed.flatMap((g) => g.docIds))].length,
+        ...(delta ? { delta } : {}),
         llm: summarizeLlmCalls(llmCalls),
       },
     };
@@ -525,6 +626,7 @@ export async function generateMapReduceDigest(
       provider: MAPREDUCE_PROVIDER_TAG,
       structured,
       events,
+      mdPrelude,
     });
     if (isSkipped(outcome)) return outcome;
 

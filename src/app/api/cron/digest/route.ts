@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Pool } from "@neondatabase/serverless";
-import { generateDigest } from "@/lib/analysis/digest";
+import { generateDigestWithEngine } from "@/lib/analysis/engine";
 import { cronJobName, withCronRun } from "@/lib/usage/cron-run";
 
 export const maxDuration = 800;
@@ -38,7 +38,13 @@ async function run(
   const dateParam = req.nextUrl.searchParams.get("date");
   const today = new Date().toISOString().slice(0, 10);
   const yesterday = new Date(Date.now() - 24 * 3600e3).toISOString().slice(0, 10);
-  const dates = dateParam ? [dateParam] : [yesterday, today];
+  // ?mode (MR sprint 3 cadence): 'finalize' = the nightly D+1 canonical pass
+  // (yesterday, full-day window); 'intraday' = today only, rolling 24h window
+  // under the mapreduce engine. No mode = the original yesterday+today loop.
+  const mode = req.nextUrl.searchParams.get("mode");
+  const modeDates = mode === "finalize" ? [yesterday] : mode === "intraday" ? [today] : null;
+  const dates = dateParam ? [dateParam] : (modeDates ?? [yesterday, today]);
+  const window = mode === "intraday" ? ("rolling" as const) : ("day" as const);
 
   const country = req.nextUrl.searchParams.get("country");
   let countries: string[];
@@ -67,7 +73,7 @@ async function run(
     for (const c of countries) {
       for (const t of tracks) {
         try {
-          const r = await generateDigest(c, date, t);
+          const r = await generateDigestWithEngine(c, date, t, { window });
           if (r) results.push(r); // null = track not configured for this country
         } catch (e) {
           results.push({

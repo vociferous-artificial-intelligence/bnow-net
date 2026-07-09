@@ -54,8 +54,15 @@ DONE so far this task:
   scripts/neon-branch.ts for the API shape) or Neon console. DO NOT DELETE the
   branch until the A/B report is committed.
 - Driver env recipe: NODE_OPTIONS="--require ./scripts/pin-dns.cjs"
-  DATABASE_URL=<branch> FORCE_REGEN=1 LLM_SPRINT_USD_CAP=12 (guards fail closed
-  without it; non-prod daily defaults then apply).
+  AB_DATABASE_URL=<branch> LLM_SPRINT_USD_CAP=12 (guards fail closed
+  without it; non-prod daily defaults then apply). Driver sets FORCE_REGEN itself.
+- Engine smoke on branch PASSED: ru/07-08 → 7 events / 14 claims / $0.0063 /
+  0 dropped gids / [6,6,8] votes → 7 merged. Real corroboration in output.
+- **A/B SWEEP LAUNCHED** (~2h): `npx tsx scripts/ab-mapreduce.ts` appending to
+  docs/reviews/MR3-AB-RESULTS.jsonl (committed periodically). If this session
+  died mid-sweep: re-run the driver with the env recipe above — it resumes,
+  skipping completed (day,theater,arm,k) keys. Then compute the gate report
+  (see step 6) and only then delete the branch.
 
 TASK 2 ✅ (shipped, see log below) — synthesis pass details:
 1. Input = rankGroups(clusterClaims(loadReduceClaims(...))) — feed top ~150-250

@@ -31,6 +31,8 @@ export interface PersistDigestArgs {
   /** full digests.structured payload (engine-specific stats included) */
   structured: Record<string, unknown>;
   events: PersistEvent[];
+  /** optional markdown block rendered ABOVE the events (delta framing) */
+  mdPrelude?: string;
 }
 
 export interface DigestSkipped {
@@ -176,7 +178,10 @@ export async function persistDigest(args: PersistDigestArgs): Promise<PersistOut
       [digestId],
     );
 
-    const rendered = renderMarkdown(countryIso2, `${date} · ${track}`, events);
+    const body = renderMarkdown(countryIso2, `${date} · ${track}`, events);
+    const rendered = args.mdPrelude
+      ? body.replace("\n\n", `\n\n${args.mdPrelude.trimEnd()}\n\n`) // after the H1
+      : body;
     await client.query(`UPDATE digests SET rendered_md = $1 WHERE id = $2`, [
       rendered,
       digestId,
