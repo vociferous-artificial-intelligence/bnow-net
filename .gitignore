@@ -2,6 +2,8 @@ node_modules/
 .next/
 .env*
 !.env.example
+# Telegram MTProto StringSession: a bearer credential for the whole account.
+.telegram.session
 .vercel
 *.log
 .cache/
