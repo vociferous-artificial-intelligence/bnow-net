@@ -102,38 +102,54 @@ export function SiteHeaderView({
   const pricingCta = nav.entries.find((e) => e.kind === "link" && e.id === "pricing" && e.cta);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/90 backdrop-blur dark:border-gray-800 dark:bg-black/80">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-6 py-3 text-sm">
-        <Link href="/" className={`shrink-0 font-bold tracking-tight ${FOCUS_RING}`}>
-          BNOW.NET
-        </Link>
+    <>
+      <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/90 backdrop-blur dark:border-gray-800 dark:bg-black/80">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-6 py-3 text-sm">
+          <Link href="/" className={`shrink-0 font-bold tracking-tight ${FOCUS_RING}`}>
+            BNOW.NET
+          </Link>
 
-        {/* desktop */}
-        <nav aria-label={labels.mainNav} className="hidden items-center gap-1 md:flex">
-          {nav.entries.map((entry) => (
-            <DesktopEntry key={entry.id} entry={entry} pathname={pathname} current={section === entry.id} />
-          ))}
-        </nav>
+          {/* desktop */}
+          <nav aria-label={labels.mainNav} className="hidden items-center gap-1 md:flex">
+            {nav.entries.map((entry) => (
+              <DesktopEntry key={entry.id} entry={entry} pathname={pathname} current={section === entry.id} />
+            ))}
+          </nav>
 
-        <div className="hidden items-center gap-2 md:flex">
-          <AuthSlot nav={nav} labels={labels} signOutAction={signOutAction} />
-          <LanguageMenu locale={locale} locales={locales} label={labels.language} />
+          <div className="hidden items-center gap-2 md:flex">
+            <AuthSlot nav={nav} labels={labels} signOutAction={signOutAction} />
+            <LanguageMenu locale={locale} locales={locales} label={labels.language} />
+          </div>
+
+          {/* mobile */}
+          <button
+            ref={hamburgerRef}
+            type="button"
+            aria-expanded={mobileOpen}
+            aria-controls="site-mobile-nav"
+            aria-label={labels.menu}
+            onClick={() => setMobileOpen(true)}
+            className={`rounded p-1.5 md:hidden ${FOCUS_RING}`}
+          >
+            <Menu aria-hidden="true" className="h-5 w-5" />
+          </button>
         </div>
 
-        {/* mobile */}
-        <button
-          ref={hamburgerRef}
-          type="button"
-          aria-expanded={mobileOpen}
-          aria-controls="site-mobile-nav"
-          aria-label={labels.menu}
-          onClick={() => setMobileOpen(true)}
-          className={`rounded p-1.5 md:hidden ${FOCUS_RING}`}
-        >
-          <Menu aria-hidden="true" className="h-5 w-5" />
-        </button>
-      </div>
+        {/* Signed-out mobile users still see the commercial anchor without opening the sheet. */}
+        {pricingCta && (
+          <div className="border-t border-gray-100 px-6 py-2 text-center md:hidden dark:border-gray-900">
+            <Link href="/pricing" className={`text-sm font-semibold text-blue-600 ${FOCUS_RING}`}>
+              {pricingCta.kind === "link" ? pricingCta.label : null}
+            </Link>
+          </div>
+        )}
+      </header>
 
+      {/* The sheet is a sibling of <header>, never a child. `backdrop-blur` sets
+          backdrop-filter, which makes the header a containing block for fixed-position
+          descendants and traps their z-index in its stacking context: nested inside,
+          `fixed inset-0` resolves to the header's own box and the menu renders clipped
+          to the header strip. `site-header-view.test.tsx` guards the nesting. */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div
@@ -148,7 +164,7 @@ export function SiteHeaderView({
             aria-modal="true"
             aria-label={labels.menu}
             onKeyDown={onSheetKeyDown}
-            className="absolute inset-y-0 end-0 w-[min(20rem,85vw)] overflow-y-auto bg-white p-4 dark:bg-gray-950"
+            className="absolute inset-y-0 end-0 w-[min(20rem,85vw)] overflow-y-auto overscroll-contain bg-white p-4 dark:bg-gray-950"
           >
             <div className="mb-4 flex items-center justify-between">
               <span className="font-bold tracking-tight">BNOW.NET</span>
@@ -227,16 +243,7 @@ export function SiteHeaderView({
           </div>
         </div>
       )}
-
-      {/* Signed-out mobile users still see the commercial anchor without opening the sheet. */}
-      {pricingCta && (
-        <div className="border-t border-gray-100 px-6 py-2 text-center md:hidden dark:border-gray-900">
-          <Link href="/pricing" className={`text-sm font-semibold text-blue-600 ${FOCUS_RING}`}>
-            {pricingCta.kind === "link" ? pricingCta.label : null}
-          </Link>
-        </div>
-      )}
-    </header>
+    </>
   );
 }
 

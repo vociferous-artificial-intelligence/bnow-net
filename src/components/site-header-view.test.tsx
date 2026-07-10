@@ -306,6 +306,27 @@ describe("mobile sheet", () => {
     expect(within(sheet).getByRole("link", { name: "Sign in" })).toBeTruthy();
   });
 
+  // Regression: the header sets `backdrop-filter` (backdrop-blur), which makes it a
+  // containing block for fixed-position descendants and traps their z-index in its
+  // stacking context. Nested inside it, the sheet's `fixed inset-0` resolved to the
+  // header's box and rendered clipped to the header strip on mobile. jsdom computes no
+  // layout, so only the nesting itself can be asserted here.
+  it("renders the sheet outside the backdrop-filtered header", async () => {
+    const user = userEvent.setup();
+    renderHeader();
+    await user.click(screen.getByRole("button", { name: "Menu" }));
+
+    const sheet = screen.getByRole("dialog", { name: "Menu" });
+    const header = document.querySelector("header")!;
+    expect(header.className).toContain("backdrop-blur");
+    expect(header.contains(sheet)).toBe(false);
+
+    // ...and the overlay it is positioned against is not trapped either.
+    const overlay = sheet.parentElement!;
+    expect(overlay.className).toContain("fixed");
+    expect(header.contains(overlay)).toBe(false);
+  });
+
   it("closes on Escape and returns focus to the hamburger", async () => {
     const user = userEvent.setup();
     renderHeader();
