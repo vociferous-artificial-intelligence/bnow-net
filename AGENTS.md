@@ -115,7 +115,7 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   signals / trade / datadark / critical-materials / ask (capped 20/user/day, $1/day
   global) / i18n: en+uk full, de ar ja pl fr catalogs (landing wired; needs native
   review before promotion).
-- **Tests:** 450 unit tests / 39 files green (`npm test`, ~3s) + Neon-branch
+- **Tests:** 470 unit tests / 41 files green (`npm test`, ~3s) + Neon-branch
   integration suite (`npm run test:integration`). CI mirror: `.github/workflows/ci.yml`;
   the enforced gate is `.githooks/pre-push` (typecheck+lint+test).
 - **Crons (vercel.json):** ingest fast */15 · telegram :10 · x :20 · map :40 (hourly) ·
