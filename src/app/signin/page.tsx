@@ -7,7 +7,9 @@ export const dynamic = "force-dynamic";
 async function requestLink(formData: FormData) {
   "use server";
   const email = String(formData.get("email") ?? "").trim();
-  await signIn("email", { email, redirect: false });
+  // redirectTo rides along in the emailed callback URL, so a verified link lands
+  // on /account rather than back on the sign-in form.
+  await signIn("email", { email, redirect: false, redirectTo: "/account" });
   redirect("/signin?sent=1");
 }
 
@@ -29,7 +31,10 @@ export default async function SignInPage({
       {sp.sent ? (
         <div className="rounded-lg bg-green-100 p-3 text-sm text-green-800 dark:bg-green-900 dark:text-green-100">
           Magic link sent. Check your inbox
-          {!process.env.RESEND_API_KEY && " (demo mode: link is in the server log)"}.
+          {!process.env.POSTMARK_SERVER_TOKEN &&
+            !process.env.RESEND_API_KEY &&
+            " (demo mode: link is in the server log)"}
+          .
         </div>
       ) : (
         <form action={requestLink} className="space-y-3">
