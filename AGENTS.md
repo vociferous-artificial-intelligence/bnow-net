@@ -115,7 +115,7 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   signals / trade / datadark / critical-materials / ask (capped 20/user/day, $1/day
   global) / i18n: en+uk full, de ar ja pl fr catalogs (landing wired; needs native
   review before promotion).
-- **Tests:** 470 unit tests / 41 files green (`npm test`, ~3s) + Neon-branch
+- **Tests:** 471 unit tests / 41 files green (`npm test`, ~3s) + Neon-branch
   integration suite (`npm run test:integration`). CI mirror: `.github/workflows/ci.yml`;
   the enforced gate is `.githooks/pre-push` (typecheck+lint+test).
 - **Crons (vercel.json):** ingest fast */15 · telegram :10 · x :20 · map :40 (hourly) ·
@@ -284,6 +284,7 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
 | Anthropic | `ANTHROPIC_API_KEY` | provider implemented; key absent | console.anthropic.com |
 | Postmark (auth email) | `POSTMARK_SERVER_TOKEN` | **live** (scenefiend sender domain — migrate) | postmarkapp.com |
 | Cron auth | `CRON_SECRET` | **live** | (already set) |
+| Auth.js | `AUTH_SECRET` | **live** (hashes magic-link tokens: rotating it invalidates every unclicked link) | (already set) |
 | X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live** (x_api, spend-guarded) | api.twitterapi.io |
 | OpenSanctions | `OPENSANCTIONS_API_KEY` + `OPENSANCTIONS_CALL_CAP` | **live** (licensing gate before badges ship) | opensanctions.org |
 | Telegram MTProto | `TELEGRAM_API_ID/HASH` | stubbed | my.telegram.org |
