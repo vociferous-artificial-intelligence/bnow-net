@@ -845,3 +845,27 @@ cutover fully executed (MR3-CHECKPOINT.md TASK 4 ✅), state recon clean.
    connect from Vercel; getMe only when TELEGRAM_SESSION is set. Deploy, run, record.
 4. If egress passes: TASK 1 adapter (peer-cache + high-water table via additive
    migration, flood-safe caps, rotation, tests) — commit per green subtask.
+
+## 2026-07-11 ~01:05 UTC — MTProto TASK 0 results
+
+1. Gate 2 EGRESS: PASSED. `/api/cron/probe/mtproto` (CRON_SECRET-gated) live on
+   prod — TCP connect 1844ms cold / 1567ms warm, WSS 1570ms; GetNearestDc ~90ms
+   on both. Connect cost is the DH handshake (empty session); a saved session
+   skips it. Verdict: the adapter CAN run on Vercel; TCP default, WSS is the
+   in-house fallback. One trap found: `telegram/sessions` subpath imports give
+   the bundler a second module copy and gramJS rejects the foreign StringSession
+   (instanceof) — import everything from the `telegram` root; `serverExternalPackages`
+   set in next.config.ts.
+2. Gate 1 LOGIN: OPERATOR-BLOCKED. No `.telegram.session`; scripts/telegram-login.ts
+   ready; TELEGRAM_API_ID/HASH valid (probe's initConnection accepted them).
+   Operator pinged. `scripts/telegram-getme.ts` added = the local getMe check to
+   run after login.
+3. Gate 3 INVENTORY: telegram_web keys docs as externalId "channel/1234", url
+   https://t.me/channel/1234, sourceKey t.me/<channel lowercase>; content_hash
+   INCLUDES adapter name → cross-transport dedupe needs an explicit pre-filter
+   (external-id/url), the hash alone will not catch it. Channels: TELEGRAM_CURATED
+   (28) + registry top-50 recent-cited; theater = channelTheater() override map +
+   routeTheater(lang) (uk→ua, fa→ir).
+4. Deviation from the prompt's "build nothing until these pass": gate 1 blocks
+   only LIVE runs (backfill/cron proof), not the adapter+tests, which are fixture
+   based. Proceeding with TASK 1 while the login is pending; TASKs 3–5 stay gated.
