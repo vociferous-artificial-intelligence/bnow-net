@@ -129,9 +129,9 @@ describe("extractTerms", () => {
   });
 });
 
-describe("ask() — legacy pipeline (ASK_PIPELINE unset, faithful rollback)", () => {
+describe("ask() — legacy pipeline (ASK_PIPELINE=legacy, faithful rollback)", () => {
   it("runs today's retrieve(limit 40) + one-shot answer, wrapped with neutral v2 fills", async () => {
-    vi.stubEnv("ASK_PIPELINE", ""); // not "v2" => legacy
+    vi.stubEnv("ASK_PIPELINE", "legacy"); // exact-match rollback (default is v2 since the 2026-07-11 flip)
     vi.stubEnv("OPENAI_API_KEY", "sk-test");
     vi.stubEnv("ANALYSIS_PROVIDER", "");
     vi.stubEnv("LLM_DISABLE", "");
@@ -176,7 +176,7 @@ describe("ask() — legacy pipeline (ASK_PIPELINE unset, faithful rollback)", ()
   });
 
   it("no-evidence legacy short-circuit → insufficient / provider none", async () => {
-    vi.stubEnv("ASK_PIPELINE", "");
+    vi.stubEnv("ASK_PIPELINE", "legacy");
     vi.stubEnv("OPENAI_API_KEY", "sk-test");
     mocks.retrieveMock.mockResolvedValue({ claims: [], entities: [], terms: [] });
 

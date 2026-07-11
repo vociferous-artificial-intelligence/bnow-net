@@ -2,8 +2,8 @@ import { envNum } from "../usage/spend-guard";
 
 // Env-backed knobs for the ASK v2 pipeline. Numeric knobs reuse spend-guard's
 // envNum (unset / NaN -> default) and are floored to a positive integer, so a
-// bogus env value (0, -1, 1.5) can never produce a nonsensical LIMIT / cap. The
-// supervisor flips ASK_PIPELINE to "v2" only after the eval gate passes; every
+// bogus env value (0, -1, 1.5) can never produce a nonsensical LIMIT / cap.
+// ASK_PIPELINE defaults to v2 (flipped 2026-07-11, D4 eval gate PASSED); every
 // other knob is safe to leave at its default.
 
 /** Positive-integer env knob: envNum's default, truncated, floored to >= 1. */
@@ -18,10 +18,14 @@ function envStr(name: string, dflt: string): string {
   return v !== undefined && v.trim() !== "" ? v.trim() : dflt;
 }
 
-/** "v2" ONLY when ASK_PIPELINE is exactly "v2"; anything else (incl. unset) is
- *  legacy — the supervisor flips this after the eval gate passes. */
+/** "legacy" ONLY when ASK_PIPELINE is exactly "legacy"; anything else (incl.
+ *  unset) is v2. FLIPPED 2026-07-11 after the D4 eval gate PASSED
+ *  (docs/evals/ASK-EVAL-2026-07-11.md: evidence recall 97.0% vs legacy 39.4%,
+ *  +57.6pts; negative honesty 5/5; citation accuracy 93.9%/96.9% vs 27.3%/69.2%).
+ *  ASK_PIPELINE=legacy is the instant, exact-match rollback to the pre-Tier-2+
+ *  keyword pipeline. */
 export function askPipeline(): "v2" | "legacy" {
-  return process.env.ASK_PIPELINE === "v2" ? "v2" : "legacy";
+  return process.env.ASK_PIPELINE === "legacy" ? "legacy" : "v2";
 }
 
 /** Max deduped candidates the pre-rank keeps (vector union lexical, capped). */

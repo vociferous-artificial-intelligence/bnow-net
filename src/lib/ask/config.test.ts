@@ -24,14 +24,14 @@ afterEach(() => {
 });
 
 describe("askPipeline", () => {
-  it("defaults to legacy and only exactly 'v2' flips it", () => {
+  it("defaults to v2 (D4 gate passed 2026-07-11); only exactly 'legacy' rolls back", () => {
     delete process.env.ASK_PIPELINE;
-    expect(askPipeline()).toBe("legacy");
-    process.env.ASK_PIPELINE = "v2";
     expect(askPipeline()).toBe("v2");
-    for (const other of ["legacy", "V2", "v2 ", "vector", ""]) {
+    process.env.ASK_PIPELINE = "legacy";
+    expect(askPipeline()).toBe("legacy");
+    for (const other of ["v2", "LEGACY", "legacy ", "vector", ""]) {
       process.env.ASK_PIPELINE = other;
-      expect(askPipeline()).toBe("legacy");
+      expect(askPipeline()).toBe("v2");
     }
   });
 });

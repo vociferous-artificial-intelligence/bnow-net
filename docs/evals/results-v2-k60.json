@@ -1,0 +1,906 @@
+{
+  "config": "v2-k60",
+  "evalSetPath": "/home/go/code/bnow.net/.workstream/20260711-ask-tier2plus/docs/evals/ask-eval-set.json",
+  "dbHost": "ep-young-rice-at74ll6p.c-9.us-east-1.aws.neon.tech",
+  "updatedAt": "2026-07-11T18:13:17.981Z",
+  "results": {
+    "known-1560": {
+      "questionId": "known-1560",
+      "metrics": {
+        "questionId": "known-1560",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.007701335,
+        "latencyMs": 6697,
+        "degraded": false,
+        "answerSnippet": "- Reportedly, Israel’s cabinet, led by Prime Minister Benjamin Netanyahu, defied a Supreme Court ruling on media regulation [c1560].\n- High Court justices separately warned that public officials who violate court orders may face civil damages, highlighting potential consequences for such defiance [c2514].",
+        "citedClaimIdCount": 2,
+        "completionTokens": 261,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "known-1050": {
+      "questionId": "known-1050",
+      "metrics": {
+        "questionId": "known-1050",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.006873945,
+        "latencyMs": 10086,
+        "degraded": false,
+        "answerSnippet": "Reportedly, Ukraine began constructing a memorial complex for the Heroes of the Heavenly Hundred. [c1050]",
+        "citedClaimIdCount": 1,
+        "completionTokens": 223,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "known-1955": {
+      "questionId": "known-1955",
+      "metrics": {
+        "questionId": "known-1955",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00923004,
+        "latencyMs": 8208,
+        "degraded": false,
+        "answerSnippet": "Reportedly, Iran’s military and intelligence officials vowed to avenge Ayatollah Khamenei’s assassination, signaling potential escalation in regional tensions [c1955]. \n\nWithin the military, the IRGC leadership publicly echoed this line: Commander Hossein Salami stated that punishing those responsible is a “definite demand” [c3802], and IRGC figure Ahmad Vahidi warned the U.S. and Israel of a “cru",
+        "citedClaimIdCount": 3,
+        "completionTokens": 398,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "known-1270": {
+      "questionId": "known-1270",
+      "metrics": {
+        "questionId": "known-1270",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.0069318949999999996,
+        "latencyMs": 5822,
+        "degraded": false,
+        "answerSnippet": "15 years in prison (in absentia) [c1270].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 151,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "known-1061": {
+      "questionId": "known-1061",
+      "metrics": {
+        "questionId": "known-1061",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.008088665,
+        "latencyMs": 7706,
+        "degraded": false,
+        "answerSnippet": "Reportedly on June 21 there were 205 combat engagements, 49 air strikes, and 2,083 incidents of shelling [c1061].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 297,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "known-2528": {
+      "questionId": "known-2528",
+      "metrics": {
+        "questionId": "known-2528",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.013677410000000001,
+        "latencyMs": 16562,
+        "degraded": false,
+        "answerSnippet": "- Trigger: IRGC forces fired at least two missiles at commercial ships in the Strait of Hormuz, hitting multiple vessels. [c2767][c2527]\n\n- U.S. response: U.S. forces launched strikes on the Iranian coast and broader targets inside Iran in direct response, with CENTCOM beginning “powerful” strikes. [c2528][c2766][c2743]\n\n- Scope/locations: Reported targets included sites in southern Iran, with att",
+        "citedClaimIdCount": 10,
+        "completionTokens": 834,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "known-1278": {
+      "questionId": "known-1278",
+      "metrics": {
+        "questionId": "known-1278",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.0072894200000000004,
+        "latencyMs": 7239,
+        "degraded": false,
+        "answerSnippet": "Alexander Neradko. [c1278][c2676]",
+        "citedClaimIdCount": 2,
+        "completionTokens": 215,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "known-1075": {
+      "questionId": "known-1075",
+      "metrics": {
+        "questionId": "known-1075",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.009183460000000001,
+        "latencyMs": 8247,
+        "degraded": false,
+        "answerSnippet": "- Reportedly, observers noted increased Russian military activity around Lyman/Red Liman. [c1075]  \n- Separately, Russian forces were confirmed to have advanced more than 800 meters in the Central district of Red Liman. [c1142]  \n- Observers warned this uptick could signal a possible infiltration threat. [c1075]",
+        "citedClaimIdCount": 2,
+        "completionTokens": 403,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "known-3244": {
+      "questionId": "known-3244",
+      "metrics": {
+        "questionId": "known-3244",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.009146950000000001,
+        "latencyMs": 8613,
+        "degraded": false,
+        "answerSnippet": "According to open-source claims, Iran’s First Vice President praised Iraq’s “massive” turnout honoring Khamenei and said it reflected the deep ties between Iran and Iraq. This is a reported (not confirmed) characterization with moderate uncertainty. [c3244]",
+        "citedClaimIdCount": 1,
+        "completionTokens": 382,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "known-1305": {
+      "questionId": "known-1305",
+      "metrics": {
+        "questionId": "known-1305",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.008741335,
+        "latencyMs": 12145,
+        "degraded": false,
+        "answerSnippet": "Russian security services (FSB) reported detaining several women in Pyatigorsk who were allegedly planning a terrorist attack under orders from Ukrainian intelligence [c1305]. This is a claimed, unverified allegation from the source with moderate assessed reliability [c1305].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 318,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "known-1093": {
+      "questionId": "known-1093",
+      "metrics": {
+        "questionId": "known-1093",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.008018505,
+        "latencyMs": 8378,
+        "degraded": false,
+        "answerSnippet": "On 23 June 2026, Ukraine’s armed forces reportedly conducted chemical and biological defense training/drills. [c1093]",
+        "citedClaimIdCount": 1,
+        "completionTokens": 292,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "known-3361": {
+      "questionId": "known-3361",
+      "metrics": {
+        "questionId": "known-3361",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.013075455000000001,
+        "latencyMs": 15412,
+        "degraded": false,
+        "answerSnippet": "Open-source claims indicate Iran’s armed forces launched attacks on U.S. military targets in Gulf states following the reported killing of Supreme Leader Ali Khamenei [c3361]. \n\nMultiple reports (some marked “confirmed” in the feed) state Iran/IRGC struck U.S. facilities in Bahrain and Kuwait with missile attacks as part of this retaliation [c3351][c3352][c3362][c3350]. \n\nAdditional claimed report",
+        "citedClaimIdCount": 7,
+        "completionTokens": 791,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "known-1581": {
+      "questionId": "known-1581",
+      "metrics": {
+        "questionId": "known-1581",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.010602955,
+        "latencyMs": 14356,
+        "degraded": false,
+        "answerSnippet": "Reportedly, Vladislav Oleynik, a representative of the Karelia national movement, was charged with failing to fulfill the duties required of individuals designated as “foreign agents” [c1581].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 497,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "known-1105": {
+      "questionId": "known-1105",
+      "metrics": {
+        "questionId": "known-1105",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.008751835,
+        "latencyMs": 8489,
+        "degraded": false,
+        "answerSnippet": "Ukrainian forces reportedly struck the Orenburg gas processing plant and a helium plant in Russia’s Orenburg region, with immediate fires reported at the sites. [c1105]",
+        "citedClaimIdCount": 1,
+        "completionTokens": 368,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "known-3659": {
+      "questionId": "known-3659",
+      "metrics": {
+        "questionId": "known-3659",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.007646805,
+        "latencyMs": 7142,
+        "degraded": false,
+        "answerSnippet": "He was reportedly laid to rest in Mashhad [c3659]. The event was described as indicating a significant political transition [c3659].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 230,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "known-2476": {
+      "questionId": "known-2476",
+      "metrics": {
+        "questionId": "known-2476",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.006839525,
+        "latencyMs": 6012,
+        "degraded": false,
+        "answerSnippet": "Petro-Ivanovka. The Russian Defence Ministry claimed Russian forces had “liberated” (recaptured) this settlement in the Kharkiv region [c2476].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 174,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "known-1119": {
+      "questionId": "known-1119",
+      "metrics": {
+        "questionId": "known-1119",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.006370525,
+        "latencyMs": 11154,
+        "degraded": false,
+        "answerSnippet": "Reportedly €3.2 billion as the first tranche of macro-financial assistance. [c1119]",
+        "citedClaimIdCount": 1,
+        "completionTokens": 159,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "known-3810": {
+      "questionId": "known-3810",
+      "metrics": {
+        "questionId": "known-3810",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00932006,
+        "latencyMs": 9063,
+        "degraded": false,
+        "answerSnippet": "Ali Ansari. [c3810][c3662]",
+        "citedClaimIdCount": 2,
+        "completionTokens": 406,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "known-3174": {
+      "questionId": "known-3174",
+      "metrics": {
+        "questionId": "known-3174",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.007234569999999999,
+        "latencyMs": 6677,
+        "degraded": false,
+        "answerSnippet": "Tatiana Stanovaya. Reportedly, she is under investigation for ties to the Carnegie Center [c3174].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 225,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "known-1137": {
+      "questionId": "known-1137",
+      "metrics": {
+        "questionId": "known-1137",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.007278255,
+        "latencyMs": 6449,
+        "degraded": false,
+        "answerSnippet": "Reportedly, it was a cybersecurity tournament in Kyiv with over 50 participants from Ukrainian security forces testing their cyber skills [c1137]. \n\nThe evidence does not provide a specific name for the competition; more details aren’t available in the provided claims [c1137].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 256,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "known-2751": {
+      "questionId": "known-2751",
+      "metrics": {
+        "questionId": "known-2751",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.007331,
+        "latencyMs": 6135,
+        "degraded": false,
+        "answerSnippet": "U.S. Central Command (CENTCOM). [c2751]",
+        "citedClaimIdCount": 1,
+        "completionTokens": 215,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "known-3398": {
+      "questionId": "known-3398",
+      "metrics": {
+        "questionId": "known-3398",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00903415,
+        "latencyMs": 20791,
+        "degraded": false,
+        "answerSnippet": "- Italy responded by expelling two Russian diplomats after arrests over alleged passing of secret information to Russia [c3398].  \n- Specifically, the Italian government ordered the expulsion of two Russian military attachés for espionage activities [c3397].  \n- The first claim links the expulsions to the arrests and is reported (claimed), while the second confirms the expulsion action but does no",
+        "citedClaimIdCount": 2,
+        "completionTokens": 357,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "known-1151": {
+      "questionId": "known-1151",
+      "metrics": {
+        "questionId": "known-1151",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.0064052350000000004,
+        "latencyMs": 5137,
+        "degraded": false,
+        "answerSnippet": "Reportedly, international partners pledged over €550 million for Ukraine’s energy sector at URC2026 [c1151].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 162,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "known-2754": {
+      "questionId": "known-2754",
+      "metrics": {
+        "questionId": "known-2754",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.008008625,
+        "latencyMs": 8270,
+        "degraded": false,
+        "answerSnippet": "Reportedly, the clashes occurred in areas around Piranshahr and Sardasht between IRGC units and Kurdish opposition groups [c2754].  \nNo more specific locations are provided in the available evidence [c2754].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 311,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "temporal-01": {
+      "questionId": "temporal-01",
+      "metrics": {
+        "questionId": "temporal-01",
+        "type": "temporal",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": false,
+        "state": "answered",
+        "windowExpected": {
+          "from": "2026-07-04",
+          "to": "2026-07-11"
+        },
+        "windowCorrect": true,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.01543747,
+        "latencyMs": 19057,
+        "degraded": false,
+        "answerSnippet": "Reported strikes in Ukraine over the past week:\n\n- Kyiv: Russian attacks repeatedly hit the capital. July 5: ballistic/Zircon launches toward Kyiv; Vyshhorod HPP and a residential building struck [c2704][c2705]. Night of July 6: at least 18 Kyiv residents killed [c2716]; nationwide, 11 killed reported on eve of NATO summit [c1969]. July 7: ballistic missiles hit Kyiv; >10 explosions in ~20 minutes",
+        "citedClaimIdCount": 18,
+        "completionTokens": 1058,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "temporal-02": {
+      "questionId": "temporal-02",
+      "metrics": {
+        "questionId": "temporal-02",
+        "type": "temporal",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowExpected": {
+          "from": "2026-07-05",
+          "to": "2026-07-11"
+        },
+        "windowCorrect": true,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.01656243,
+        "latencyMs": 18704,
+        "degraded": false,
+        "answerSnippet": "Since July 5, Russia launched ballistic and Zircon missiles toward Kyiv from Bryansk and Kursk, and six Kalibrs from the Black Sea Fleet base in Novorossiysk [c2704][c2706]. Three Tu-95MS took off from Olenya, and a Tu-160M later launched from Engels-2 in Saratov region [c2709][c2724].\n\nUkrainian long‑range drones struck deep inside Russia, including extensive damage at the Omsk Oil Refinery (over",
+        "citedClaimIdCount": 17,
+        "completionTokens": 1169,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "temporal-03": {
+      "questionId": "temporal-03",
+      "metrics": {
+        "questionId": "temporal-03",
+        "type": "temporal",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowExpected": {
+          "from": "2026-06-01",
+          "to": "2026-06-30"
+        },
+        "windowCorrect": true,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.01131449,
+        "latencyMs": 17319,
+        "degraded": false,
+        "answerSnippet": "Insufficient evidence: the provided June 2026 items concern the Russia‑Ukraine war (e.g., Russian airstrikes and reported advances) and related activities, not Iran [c2621][c1173][c1127].  \nNone of the supplied claims mention Iran or Iran-linked entities, so I cannot summarize Iran-related developments from this dataset [c2621][c1173].\n\nIf you can share Iran-focused claims for June 2026 (e.g., dom",
+        "citedClaimIdCount": 3,
+        "completionTokens": 645,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "temporal-04": {
+      "questionId": "temporal-04",
+      "metrics": {
+        "questionId": "temporal-04",
+        "type": "temporal",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowExpected": {
+          "from": "2026-07-10",
+          "to": "2026-07-10"
+        },
+        "windowCorrect": true,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.013250765,
+        "latencyMs": 18326,
+        "degraded": false,
+        "answerSnippet": "Key open-source reports dated yesterday (unverified unless noted):\n\n- Ukraine’s military claimed it hit 13 enemy tankers overnight and destroyed 13 vessels near Crimea [c3717][c3716].  \n- In Zaporizhzhia, a Russian attack reportedly injured three people, and at least 15 private houses were destroyed or damaged [c3714][c3715].  \n- Russia said Ukrainian drones struck Taganrog seaport and a Rostov-re",
+        "citedClaimIdCount": 17,
+        "completionTokens": 882,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "temporal-05": {
+      "questionId": "temporal-05",
+      "metrics": {
+        "questionId": "temporal-05",
+        "type": "temporal",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowExpected": {
+          "from": "2026-07-08",
+          "to": "2026-07-11"
+        },
+        "windowCorrect": true,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.022364655,
+        "latencyMs": 21347,
+        "degraded": false,
+        "answerSnippet": "Here are Russia-related loss claims reported in the last 3 days (open-source; varying reliability):\n\n- Jul 11: Ukrainian forces struck 28 vessels of Russia’s shadow fleet in the Sea of Azov (confirmed). [c3848]\n- Jul 11: Ukrainian forces reportedly hit four Russian ships in Taganrog Bay; one sailor was killed (claimed/confirmed death). [c3833][c3832]\n- Jul 11: Ukraine claimed 170 Russian personnel",
+        "citedClaimIdCount": 14,
+        "completionTokens": 1743,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "temporal-06": {
+      "questionId": "temporal-06",
+      "metrics": {
+        "questionId": "temporal-06",
+        "type": "temporal",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowExpected": {
+          "from": "2026-07-06",
+          "to": "2026-07-11"
+        },
+        "windowCorrect": true,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.010762389999999998,
+        "latencyMs": 12978,
+        "degraded": false,
+        "answerSnippet": "Reportedly a surge in drone and missile activity hit Russia this week. Russian authorities said they downed 178 Ukrainian drones on July 11 and 144 drones on July 10, including four aimed at Moscow [c3834][c3835][c3692]. Separately, the MoD claimed 376 drones were shot down overnight on July 10 [c3690]. In the south, multiple vessels were attacked by drones in Taganrog Bay; officials reported four",
+        "citedClaimIdCount": 23,
+        "completionTokens": 555,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "temporal-07": {
+      "questionId": "temporal-07",
+      "metrics": {
+        "questionId": "temporal-07",
+        "type": "temporal",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowExpected": {
+          "from": "2026-06-28",
+          "to": "2026-07-11"
+        },
+        "windowCorrect": true,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.014505825,
+        "latencyMs": 17974,
+        "degraded": false,
+        "answerSnippet": "Yes. OSINT since June 28 indicates multiple new U.S. sanctions steps:\n\n- July 7: The U.S. revoked a general license that had authorized the sale of Iranian oil (confirmed). [c2768] Some outlets also claimed Washington “reinstated” oil sanctions, calling Iran’s actions in the Strait of Hormuz unacceptable (claimed). [c2511]\n\n- July 11: The U.S. imposed new sanctions on Iran and IRGC‑linked entities",
+        "citedClaimIdCount": 8,
+        "completionTokens": 954,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "temporal-08": {
+      "questionId": "temporal-08",
+      "metrics": {
+        "questionId": "temporal-08",
+        "type": "temporal",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowExpected": {
+          "from": "2026-07-11",
+          "to": "2026-07-11"
+        },
+        "windowCorrect": true,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.015541659999999999,
+        "latencyMs": 15181,
+        "degraded": false,
+        "answerSnippet": "- Kyiv was hit overnight: reports vary between 10 and 11 wounded; authorities later said the toll rose to 11 with damage in several districts [c3826][c3825][c3829]. Zelenskyy said 11 were injured, including a child [c3828]. Russia said it conducted group strikes on military production in Kyiv and port infrastructure in Odesa [c3827]. Russia reportedly used 12 missiles and 121 drones in the July 11",
+        "citedClaimIdCount": 18,
+        "completionTokens": 1090,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "temporal-09": {
+      "questionId": "temporal-09",
+      "metrics": {
+        "questionId": "temporal-09",
+        "type": "temporal",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowExpected": {
+          "from": "2026-07-09",
+          "to": "2026-07-11"
+        },
+        "windowCorrect": true,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.02351876,
+        "latencyMs": 27774,
+        "degraded": false,
+        "answerSnippet": "- Kinetic ops: Russia reportedly launched a combined strike with 12 missiles and 121 drones on July 11 [c3850]. Ukrainian air defenses said they downed 111 drones and 2 missiles that night [c3849]. Russia claimed its air defenses shot down 178 Ukrainian drones over multiple regions on July 11 and 376 overnight on July 10, including four near Moscow [c3834][c3690][c3692]. Separately, Russian strike",
+        "citedClaimIdCount": 30,
+        "completionTokens": 1830,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "temporal-10": {
+      "questionId": "temporal-10",
+      "metrics": {
+        "questionId": "temporal-10",
+        "type": "temporal",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": false,
+        "cited": false,
+        "state": "answered",
+        "windowExpected": {
+          "from": "2026-07-01",
+          "to": "2026-07-31"
+        },
+        "windowCorrect": true,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.01693847,
+        "latencyMs": 20789,
+        "degraded": false,
+        "answerSnippet": "Below is what open-source claims indicate about strikes in/against Ukraine in July 2026 (varying reliability noted):\n\n- Jul 5: Russia launched ballistic and Zircon hypersonic missiles toward Kyiv; a hydroelectric plant in Vyshhorod (Kyiv oblast) was struck multiple times and a residential building was impacted [c2704][c2705].  \n- Jul 6: Ukraine reportedly struck oil facilities in Crimea and Russia",
+        "citedClaimIdCount": 9,
+        "completionTokens": 1204,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "negative-01": {
+      "questionId": "negative-01",
+      "metrics": {
+        "questionId": "negative-01",
+        "type": "negative",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": true,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.008977135,
+        "latencyMs": 11538,
+        "degraded": false,
+        "answerSnippet": "Short answer: There’s no evidence in the provided claims of any recent rotations or deployments of North Korean troops in Africa. The set focuses on Ukraine-Russia fighting, Middle East activity, and one Sudan-related U.S. statement, with no mention of DPRK forces or Africa deployments [c2704][c2741][c3382][c3787].\n\nGiven the evidence constraints, I cannot confirm such rotations. Suggest narrowing",
+        "citedClaimIdCount": 4,
+        "completionTokens": 436,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "negative-02": {
+      "questionId": "negative-02",
+      "metrics": {
+        "questionId": "negative-02",
+        "type": "negative",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": true,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.009560175,
+        "latencyMs": 10387,
+        "degraded": false,
+        "answerSnippet": "Insufficient evidence. The provided claims address new U.S. sanctions on Iran/IRGC-linked financiers and entities (e.g., Ali Ansari) following maritime attacks, not Venezuela or its oil sector [c3804][c3810][c3793]. I see no entries mentioning Venezuela this month in the supplied dataset.\n\nIf you can share evidence rows specifically about U.S. measures on Venezuela’s oil sector (e.g., company/pers",
+        "citedClaimIdCount": 3,
+        "completionTokens": 446,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "negative-03": {
+      "questionId": "negative-03",
+      "metrics": {
+        "questionId": "negative-03",
+        "type": "negative",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": true,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.01084182,
+        "latencyMs": 17602,
+        "degraded": false,
+        "answerSnippet": "Insufficient evidence. The provided claims discuss attacks and diversions involving unspecified commercial vessels in/near the Strait of Hormuz and one vessel hit off Oman, but none mention the MV Solara Pride being seized or inspected. [c2766] [c2767] [c2531] [c2759] [c2764]\n\nThese are open‑source-derived and of varying reliability; no claim here identifies Solara Pride by name or describes a boa",
+        "citedClaimIdCount": 5,
+        "completionTokens": 606,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "negative-04": {
+      "questionId": "negative-04",
+      "metrics": {
+        "questionId": "negative-04",
+        "type": "negative",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": true,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.009637795000000001,
+        "latencyMs": 10170,
+        "degraded": false,
+        "answerSnippet": "Insufficient evidence. None of the provided claims mention the Wagner Group or a legal entity named “Konstel Group,” so I can’t assess whether a rebrand occurred this month based on this dataset. Please provide claims (IDs) that reference “Wagner,” “Konstel,” or related rebranding/corporate filings in July 2026.",
+        "citedClaimIdCount": 0,
+        "completionTokens": 463,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "negative-05": {
+      "questionId": "negative-05",
+      "metrics": {
+        "questionId": "negative-05",
+        "type": "negative",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": true,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00885003,
+        "latencyMs": 9575,
+        "degraded": false,
+        "answerSnippet": "Insufficient evidence. The provided BNOW claims contain no entries about Chinese (PLA Navy) exercises near Taiwan in the past two weeks, so I cannot identify any vessels involved. Please supply relevant BNOW claim IDs about Chinese naval activity near Taiwan within the last 14 days, and I can extract the vessel names and statuses.",
+        "citedClaimIdCount": 0,
+        "completionTokens": 394,
+        "provider": "openai:gpt-5"
+      }
+    }
+  }
+}

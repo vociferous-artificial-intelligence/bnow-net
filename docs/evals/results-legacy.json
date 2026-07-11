@@ -1,0 +1,770 @@
+{
+  "config": "legacy",
+  "evalSetPath": "/home/go/code/bnow.net/.workstream/20260711-ask-tier2plus/docs/evals/ask-eval-set.json",
+  "dbHost": "ep-young-rice-at74ll6p.c-9.us-east-1.aws.neon.tech",
+  "updatedAt": "2026-07-11T17:58:14.561Z",
+  "results": {
+    "known-1560": {
+      "questionId": "known-1560",
+      "metrics": {
+        "questionId": "known-1560",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": false,
+        "evidenceHit": false,
+        "cited": false,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00034725,
+        "latencyMs": 1892,
+        "degraded": false
+      }
+    },
+    "known-1050": {
+      "questionId": "known-1050",
+      "metrics": {
+        "questionId": "known-1050",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": false,
+        "evidenceHit": false,
+        "cited": false,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00030645,
+        "latencyMs": 1545,
+        "degraded": false
+      }
+    },
+    "known-1955": {
+      "questionId": "known-1955",
+      "metrics": {
+        "questionId": "known-1955",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": false,
+        "evidenceHit": false,
+        "cited": false,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00042119999999999994,
+        "latencyMs": 2727,
+        "degraded": false
+      }
+    },
+    "known-1270": {
+      "questionId": "known-1270",
+      "metrics": {
+        "questionId": "known-1270",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.0002748,
+        "latencyMs": 1169,
+        "degraded": false
+      }
+    },
+    "known-1061": {
+      "questionId": "known-1061",
+      "metrics": {
+        "questionId": "known-1061",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": false,
+        "evidenceHit": false,
+        "cited": false,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00036,
+        "latencyMs": 1848,
+        "degraded": false
+      }
+    },
+    "known-2528": {
+      "questionId": "known-2528",
+      "metrics": {
+        "questionId": "known-2528",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": false,
+        "evidenceHit": false,
+        "cited": false,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00041565,
+        "latencyMs": 5809,
+        "degraded": false
+      }
+    },
+    "known-1278": {
+      "questionId": "known-1278",
+      "metrics": {
+        "questionId": "known-1278",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00011085,
+        "latencyMs": 1248,
+        "degraded": false
+      }
+    },
+    "known-1075": {
+      "questionId": "known-1075",
+      "metrics": {
+        "questionId": "known-1075",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": false,
+        "evidenceHit": false,
+        "cited": false,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.0003855,
+        "latencyMs": 2235,
+        "degraded": false
+      }
+    },
+    "known-3244": {
+      "questionId": "known-3244",
+      "metrics": {
+        "questionId": "known-3244",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": false,
+        "evidenceHit": false,
+        "cited": false,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00038595,
+        "latencyMs": 2109,
+        "degraded": false
+      }
+    },
+    "known-1305": {
+      "questionId": "known-1305",
+      "metrics": {
+        "questionId": "known-1305",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": false,
+        "evidenceHit": false,
+        "cited": false,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00034904999999999995,
+        "latencyMs": 1744,
+        "degraded": false
+      }
+    },
+    "known-1093": {
+      "questionId": "known-1093",
+      "metrics": {
+        "questionId": "known-1093",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": false,
+        "evidenceHit": false,
+        "cited": false,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00035985,
+        "latencyMs": 1713,
+        "degraded": false
+      }
+    },
+    "known-3361": {
+      "questionId": "known-3361",
+      "metrics": {
+        "questionId": "known-3361",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": false,
+        "evidenceHit": false,
+        "cited": false,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.0003987,
+        "latencyMs": 5568,
+        "degraded": false
+      }
+    },
+    "known-1581": {
+      "questionId": "known-1581",
+      "metrics": {
+        "questionId": "known-1581",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00037485,
+        "latencyMs": 1419,
+        "degraded": false
+      }
+    },
+    "known-1105": {
+      "questionId": "known-1105",
+      "metrics": {
+        "questionId": "known-1105",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": false,
+        "evidenceHit": false,
+        "cited": false,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00034185,
+        "latencyMs": 1468,
+        "degraded": false
+      }
+    },
+    "known-3659": {
+      "questionId": "known-3659",
+      "metrics": {
+        "questionId": "known-3659",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00038355,
+        "latencyMs": 1864,
+        "degraded": false
+      }
+    },
+    "known-2476": {
+      "questionId": "known-2476",
+      "metrics": {
+        "questionId": "known-2476",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": false,
+        "evidenceHit": false,
+        "cited": false,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00038429999999999996,
+        "latencyMs": 1848,
+        "degraded": false
+      }
+    },
+    "known-1119": {
+      "questionId": "known-1119",
+      "metrics": {
+        "questionId": "known-1119",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": false,
+        "evidenceHit": false,
+        "cited": false,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00032324999999999997,
+        "latencyMs": 1374,
+        "degraded": false
+      }
+    },
+    "known-3810": {
+      "questionId": "known-3810",
+      "metrics": {
+        "questionId": "known-3810",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00035399999999999993,
+        "latencyMs": 1681,
+        "degraded": false
+      }
+    },
+    "known-3174": {
+      "questionId": "known-3174",
+      "metrics": {
+        "questionId": "known-3174",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00030135,
+        "latencyMs": 1324,
+        "degraded": false
+      }
+    },
+    "known-1137": {
+      "questionId": "known-1137",
+      "metrics": {
+        "questionId": "known-1137",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00030359999999999995,
+        "latencyMs": 1269,
+        "degraded": false
+      }
+    },
+    "known-2751": {
+      "questionId": "known-2751",
+      "metrics": {
+        "questionId": "known-2751",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": false,
+        "evidenceHit": false,
+        "cited": false,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00037245,
+        "latencyMs": 1854,
+        "degraded": false
+      }
+    },
+    "known-3398": {
+      "questionId": "known-3398",
+      "metrics": {
+        "questionId": "known-3398",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": false,
+        "evidenceHit": false,
+        "cited": false,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00036435,
+        "latencyMs": 1460,
+        "degraded": false
+      }
+    },
+    "known-1151": {
+      "questionId": "known-1151",
+      "metrics": {
+        "questionId": "known-1151",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": false,
+        "evidenceHit": false,
+        "cited": false,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00030824999999999993,
+        "latencyMs": 1249,
+        "degraded": false
+      }
+    },
+    "known-2754": {
+      "questionId": "known-2754",
+      "metrics": {
+        "questionId": "known-2754",
+        "type": "known-answer",
+        "answerable": true,
+        "candidateHit": false,
+        "evidenceHit": false,
+        "cited": false,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00036209999999999997,
+        "latencyMs": 1856,
+        "degraded": false
+      }
+    },
+    "temporal-01": {
+      "questionId": "temporal-01",
+      "metrics": {
+        "questionId": "temporal-01",
+        "type": "temporal",
+        "answerable": true,
+        "candidateHit": false,
+        "evidenceHit": false,
+        "cited": false,
+        "state": "answered",
+        "windowExpected": {
+          "from": "2026-07-04",
+          "to": "2026-07-11"
+        },
+        "windowCorrect": false,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00036960000000000004,
+        "latencyMs": 2784,
+        "degraded": false
+      }
+    },
+    "temporal-02": {
+      "questionId": "temporal-02",
+      "metrics": {
+        "questionId": "temporal-02",
+        "type": "temporal",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": false,
+        "state": "answered",
+        "windowExpected": {
+          "from": "2026-07-05",
+          "to": "2026-07-11"
+        },
+        "windowCorrect": false,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00047714999999999997,
+        "latencyMs": 3843,
+        "degraded": false
+      }
+    },
+    "temporal-03": {
+      "questionId": "temporal-03",
+      "metrics": {
+        "questionId": "temporal-03",
+        "type": "temporal",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowExpected": {
+          "from": "2026-06-01",
+          "to": "2026-06-30"
+        },
+        "windowCorrect": false,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.0004785,
+        "latencyMs": 3636,
+        "degraded": false
+      }
+    },
+    "temporal-04": {
+      "questionId": "temporal-04",
+      "metrics": {
+        "questionId": "temporal-04",
+        "type": "temporal",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": false,
+        "state": "answered",
+        "windowExpected": {
+          "from": "2026-07-10",
+          "to": "2026-07-10"
+        },
+        "windowCorrect": false,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00034275,
+        "latencyMs": 5809,
+        "degraded": false
+      }
+    },
+    "temporal-05": {
+      "questionId": "temporal-05",
+      "metrics": {
+        "questionId": "temporal-05",
+        "type": "temporal",
+        "answerable": true,
+        "candidateHit": false,
+        "evidenceHit": false,
+        "cited": false,
+        "state": "answered",
+        "windowExpected": {
+          "from": "2026-07-08",
+          "to": "2026-07-11"
+        },
+        "windowCorrect": false,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00039660000000000004,
+        "latencyMs": 2375,
+        "degraded": false
+      }
+    },
+    "temporal-06": {
+      "questionId": "temporal-06",
+      "metrics": {
+        "questionId": "temporal-06",
+        "type": "temporal",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": false,
+        "state": "answered",
+        "windowExpected": {
+          "from": "2026-07-06",
+          "to": "2026-07-11"
+        },
+        "windowCorrect": false,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00047129999999999996,
+        "latencyMs": 3769,
+        "degraded": false
+      }
+    },
+    "temporal-07": {
+      "questionId": "temporal-07",
+      "metrics": {
+        "questionId": "temporal-07",
+        "type": "temporal",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowExpected": {
+          "from": "2026-06-28",
+          "to": "2026-07-11"
+        },
+        "windowCorrect": false,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00044295,
+        "latencyMs": 3019,
+        "degraded": false
+      }
+    },
+    "temporal-08": {
+      "questionId": "temporal-08",
+      "metrics": {
+        "questionId": "temporal-08",
+        "type": "temporal",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": true,
+        "state": "answered",
+        "windowExpected": {
+          "from": "2026-07-11",
+          "to": "2026-07-11"
+        },
+        "windowCorrect": false,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.0003693,
+        "latencyMs": 2610,
+        "degraded": false
+      }
+    },
+    "temporal-09": {
+      "questionId": "temporal-09",
+      "metrics": {
+        "questionId": "temporal-09",
+        "type": "temporal",
+        "answerable": true,
+        "candidateHit": true,
+        "evidenceHit": true,
+        "cited": false,
+        "state": "answered",
+        "windowExpected": {
+          "from": "2026-07-09",
+          "to": "2026-07-11"
+        },
+        "windowCorrect": false,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00045285,
+        "latencyMs": 3384,
+        "degraded": false
+      }
+    },
+    "temporal-10": {
+      "questionId": "temporal-10",
+      "metrics": {
+        "questionId": "temporal-10",
+        "type": "temporal",
+        "answerable": true,
+        "candidateHit": false,
+        "evidenceHit": false,
+        "cited": false,
+        "state": "answered",
+        "windowExpected": {
+          "from": "2026-07-01",
+          "to": "2026-07-31"
+        },
+        "windowCorrect": false,
+        "negativeHonest": null,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.000351,
+        "latencyMs": 1865,
+        "degraded": false
+      }
+    },
+    "negative-01": {
+      "questionId": "negative-01",
+      "metrics": {
+        "questionId": "negative-01",
+        "type": "negative",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": true,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.0001491,
+        "latencyMs": 2901,
+        "degraded": false,
+        "answerSnippet": "The provided evidence does not contain any claims regarding the rotation of North Korean troops into deployments in Africa. Therefore, I cannot confirm or deny such activities. For a more precise inquiry, you might consider asking about specific countries in Africa or recent military movements involving North Korea.",
+        "citedClaimIdCount": 0,
+        "completionTokens": 53,
+        "provider": "openai:gpt-4o-mini"
+      }
+    },
+    "negative-02": {
+      "questionId": "negative-02",
+      "metrics": {
+        "questionId": "negative-02",
+        "type": "negative",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": true,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00037395,
+        "latencyMs": 1873,
+        "degraded": false,
+        "answerSnippet": "The evidence provided does not include any claims regarding new sanctions imposed by the US on Venezuela's oil sector this month. The claims primarily focus on sanctions related to Iran and military actions involving Russia and Ukraine. \n\nFor a more specific inquiry, you might consider asking about recent sanctions on Venezuela in general or any specific actions taken by the US regarding Venezuela",
+        "citedClaimIdCount": 0,
+        "completionTokens": 76,
+        "provider": "openai:gpt-4o-mini"
+      }
+    },
+    "negative-03": {
+      "questionId": "negative-03",
+      "metrics": {
+        "questionId": "negative-03",
+        "type": "negative",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": false,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.0002352,
+        "latencyMs": 1694,
+        "degraded": false,
+        "answerSnippet": "The evidence provided does not specifically mention the cargo vessel MV Solara Pride being seized or inspected in the Persian Gulf. There are claims regarding attacks on commercial vessels in the Strait of Hormuz and other maritime activities in the region, but none directly reference the MV Solara Pride or confirm its status. \n\nFor a more precise inquiry, you might consider asking whether there a",
+        "citedClaimIdCount": 0,
+        "completionTokens": 93,
+        "provider": "openai:gpt-4o-mini"
+      }
+    },
+    "negative-04": {
+      "questionId": "negative-04",
+      "metrics": {
+        "questionId": "negative-04",
+        "type": "negative",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": true,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00034094999999999997,
+        "latencyMs": 1907,
+        "degraded": false,
+        "answerSnippet": "There is no evidence provided that confirms the Wagner Group has rebranded under a new legal entity called 'Konstel Group' this month. The claims listed do not mention the Wagner Group or any related rebranding activities. Therefore, I cannot provide a definitive answer regarding this matter. A more specific question about the Wagner Group's activities or changes might yield better results.",
+        "citedClaimIdCount": 0,
+        "completionTokens": 73,
+        "provider": "openai:gpt-4o-mini"
+      }
+    },
+    "negative-05": {
+      "questionId": "negative-05",
+      "metrics": {
+        "questionId": "negative-05",
+        "type": "negative",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": true,
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00032084999999999997,
+        "latencyMs": 1501,
+        "degraded": false,
+        "answerSnippet": "The provided evidence does not contain any claims regarding Chinese naval vessels conducting exercises near Taiwan in the past two weeks. Therefore, I cannot provide an answer to your question. Please consider asking a more specific question or providing additional context.",
+        "citedClaimIdCount": 0,
+        "completionTokens": 45,
+        "provider": "openai:gpt-4o-mini"
+      }
+    }
+  }
+}
