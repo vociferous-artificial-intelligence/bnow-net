@@ -91,14 +91,50 @@ export const TELEGRAM_CURATED: Array<{ channel: string; countryIso2: string }> =
   { channel: "AuroraIntel", countryIso2: "ir" },
 ];
 
-/** How many registry-derived telegram channels to add on top of the curated set. */
-export const REGISTRY_TELEGRAM_TOP_N = 50;
+/** Reads an env var as a positive integer; unset/non-numeric/non-positive values
+ *  fall back to `fallback` so a bad Vercel env can never zero out or invert a
+ *  registry cut. Exported for direct unit testing (spend-guard.ts's envNum/envCap
+ *  precedent). */
+export function envPositiveInt(name: string, fallback: number): number {
+  const v = Number(process.env[name]);
+  return Number.isFinite(v) && v > 0 ? Math.floor(v) : fallback;
+}
 
-/** MTProto reads deeper into the registry (MTProto sprint TASK 4): ranks 51–75 by
- *  recent citations are the first expansion batch — channels the preview scraper
- *  never polled (several lack public previews entirely). Grow this only after a
- *  clean day at 75 (sprint rule: more only after a clean day at 25 added). */
-export const REGISTRY_TELEGRAM_TOP_N_MTPROTO = 75;
+export type ReportTheater = "ru" | "ir";
+
+/** Reads an env var as an isw_reports.theater filter for the registry ranking:
+ *  'ru' = ROCA only, 'ir' = Iran Update only, 'all'/'any' = pan-theater (null, no
+ *  filter — the explicit opt-out that restores the old blended ranking without a
+ *  code change). Unset/empty/typo falls back to `fallback` (never silently
+ *  pan-theater). */
+export function envReportTheater(name: string, fallback: ReportTheater): ReportTheater | null {
+  const v = process.env[name]?.trim().toLowerCase();
+  if (v === "ru" || v === "ir") return v;
+  if (v === "all" || v === "any") return null;
+  return fallback;
+}
+
+/** How many registry-derived telegram channels to add on top of the curated set. */
+export const REGISTRY_TELEGRAM_TOP_N = envPositiveInt("REGISTRY_TELEGRAM_TOP_N", 50);
+
+/** MTProto reads deeper into the registry than the web scraper AND, by default, off
+ *  a ROCA-only ranking (see REGISTRY_TELEGRAM_MTPROTO_REPORT_THEATER below): the
+ *  2026-07-11 RU/UA evaluation sprint raised this from 75 (pan-theater) to 120
+ *  (ROCA-only) so Iran-Update-only citations stop consuming MTProto's expansion
+ *  slots and more RU/UA channels get included. Grow further only after a clean day
+ *  at the new depth (sprint rule: more only after a clean day at the prior one). */
+export const REGISTRY_TELEGRAM_TOP_N_MTPROTO = envPositiveInt("REGISTRY_TELEGRAM_TOP_N_MTPROTO", 120);
+
+/** ISW report theater MTProto's registry ranking restricts citations to by
+ *  default: 'ru' = ROCA (Russia/Ukraine), 'ir' = Iran Update, 'all'/'any' =
+ *  pan-theater (null). ROCA-only is the RU/UA-priority default (2026-07-11); set
+ *  the env to 'all' for a code-free rollback to the old blended ranking. Web
+ *  Telegram is unaffected — it never passes a reportTheater, so its ranking stays
+ *  pan-theater as before. */
+export const REGISTRY_TELEGRAM_MTPROTO_REPORT_THEATER = envReportTheater(
+  "REGISTRY_TELEGRAM_MTPROTO_REPORT_THEATER",
+  "ru",
+);
 
 /** Theater overrides for REGISTRY-derived telegram channels, keyed by lowercase
  *  channel name. The registry (ISW citations) carries no country column, so
@@ -133,6 +169,42 @@ export const TELEGRAM_CHANNEL_THEATER: Record<string, string> = {
   bentzionm: "ir",
   presstv: "ir",
   manniefabian: "ir",
+  // Ukraine official/military pins (RU/UA priority evaluation, 2026-07-11). These
+  // are Ukrainian-theater sources whose ru/en posts the uk->ua language rule in
+  // theater.ts (which only re-tags Ukrainian-LANGUAGE text) would otherwise leave
+  // in the default ru bucket. All 27 verified against the production registry —
+  // each is ROCA-cited (isw_reports.theater='ru') with ~0 Iran-Update citations,
+  // sits inside the ROCA-only top-120 MTProto reads, and its ingested documents
+  // are predominantly Ukrainian-language — plus a confirmed institutional/public
+  // identity (see the comment on each). None are Russian-theater, so none of these
+  // pins can misroute genuinely-Russian content.
+  v_zelenskiy_official: "ua", // President Zelensky, official channel
+  vitaliy_klitschko: "ua", // Kyiv city mayor
+  ihor_terekhov: "ua", // Kharkiv city mayor
+  synegubov: "ua", // Kharkiv Oblast Military Administration head
+  ivan_fedorov_zp: "ua", // Zaporizhzhia Oblast Military Administration head
+  sbukr: "ua", // SBU (Security Service of Ukraine)
+  ukr_sof: "ua", // Ukrainian Special Operations Forces, press service
+  usf_army: "ua", // Ukrainian Unmanned Systems Forces (Сили безпілотних систем)
+  dsns_telegram: "ua", // DSNS — State Emergency Service of Ukraine
+  ua_national_police: "ua", // National Police of Ukraine
+  prokuratura_kharkiv: "ua", // Kharkiv Oblast Prosecutor's Office
+  dnipropetrovskaoda: "ua", // Dnipropetrovsk Oblast Military Administration
+  odeskaoda: "ua", // Odesa Oblast Military Administration
+  odesamva: "ua", // Odesa City Military Administration (Одеська МВА)
+  chernigivskaoda: "ua", // Chernihiv Oblast Military Administration
+  khersonskaoda: "ua", // Kherson Oblast Military Administration
+  kyivoda: "ua", // Kyiv Oblast Military Administration
+  mykolaivskaoda: "ua", // Mykolaiv Oblast Military Administration
+  zoda_gov_ua: "ua", // Zaporizhzhia Oblast state administration
+  dniproofficial: "ua", // Dnipro city official channel
+  sjtf_odes: "ua", // South Joint Task Force — "Захисники Півдня України" (Odesa)
+  joint_forces_task_force: "ua", // Ukrainian Joint Forces grouping (Угруповання об'єднаних сил)
+  wararchive_ua: "ua", // Ukraine-focused OSINT war-footage archive
+  serhii_flash: "ua", // Ukrainian military OSINT commentator
+  andriyshtime: "ua", // Ukrainian OSINT/journalist channel (posts some ru — pin is load-bearing there)
+  robert_magyar: "ua", // Robert "Magyar" Brovdi, 414th UAV regiment commander
+  atesh_ua: "ua", // Ukraine-aligned partisan/resistance network (occupied territories)
 };
 
 /** Default theater for a registry-derived telegram channel. */
