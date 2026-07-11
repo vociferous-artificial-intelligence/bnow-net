@@ -8,9 +8,10 @@ import { auth } from "@/lib/auth";
  *  - `cache()` dedupes the session read within a request, so a gated page that also
  *    calls `requireUser` does not pay for two `auth()` round-trips.
  *  - It never throws. `auth()` uses `session.strategy: "database"`, so a Neon blip
- *    would otherwise take down every route at the layout level — there is no
- *    error.tsx or global-error.tsx to catch it. Chrome degrades to signed-out;
- *    the auth *gate* keeps its own fail-closed behaviour in `requireUser`.
+ *    would otherwise take down every route at the layout level — error.tsx /
+ *    global-error.tsx exist now, but chrome degrading to signed-out beats showing
+ *    an error page for a transient session read. The auth *gate* keeps its own
+ *    fail-closed behaviour in `requireUser`.
  */
 export const currentUserEmail = cache(async (): Promise<string | null> => {
   try {
