@@ -1,20 +1,38 @@
 import Link from "next/link";
 import { rawSql } from "@/db";
+import { getLocale } from "@/i18n/server";
+import { makeT, type Locale } from "@/i18n/dictionaries";
+import { formatDateTime } from "@/i18n/format";
 
 export const dynamic = "force-dynamic";
 
+// Freshness is labeled "ET" (not the DST-varying EDT/EST abbreviation) because that's the
+// stable label the product uses for its US-analyst audience; the IANA zone name still
+// drives correct DST math under the hood via formatDateTime, so no offset is ever hardcoded.
+function freshnessLabel(locale: Locale, lastFetch: string): string {
+  const formatted = formatDateTime(locale, lastFetch, {
+    timeZone: "America/New_York",
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+  return `${formatted} ET`;
+}
+
 export default async function CountriesPage() {
+  const locale = await getLocale();
+  const t = makeT(locale);
   const rows = (await rawSql.query(
     `SELECT c.iso2, c.name, c.slug, c.status,
             (SELECT max(digest_date) FROM digests d WHERE d.country_id = c.id) AS latest_digest,
-            (SELECT count(*) FROM raw_documents rd WHERE rd.country_iso2 = c.iso2)::int AS docs
+            (SELECT count(*) FROM raw_documents rd WHERE rd.country_iso2 = c.iso2)::int AS docs,
+            (SELECT max(rd.fetched_at) FROM raw_documents rd WHERE rd.country_iso2 = c.iso2) AS last_fetch
      FROM countries c
      WHERE c.status != 'deferred'
      ORDER BY c.status = 'active' DESC, c.name`,
     [],
   )) as Array<{
     iso2: string; name: string; slug: string; status: string;
-    latest_digest: string | null; docs: number;
+    latest_digest: string | null; docs: number; last_fetch: string | null;
   }>;
 
   return (
@@ -22,7 +40,7 @@ export default async function CountriesPage() {
       <p className="mb-1 text-sm text-gray-500">
         <Link href="/" className="underline">BNOW.NET</Link> · theaters
       </p>
-      <h1 className="mb-6 text-2xl font-bold">Coverage</h1>
+      <h1 className="mb-6 text-2xl font-bold">{t("countries.title")}</h1>
       <div className="grid gap-4 sm:grid-cols-2">
         {rows.map((c) => (
           <div
@@ -49,6 +67,11 @@ export default async function CountriesPage() {
             </div>
             {c.status === "active" ? (
               <div className="mt-3 space-y-1 text-sm">
+                {c.last_fetch && (
+                  <p className="text-gray-600 dark:text-gray-300">
+                    {t("countries.data_current", { time: freshnessLabel(locale, c.last_fetch) })}
+                  </p>
+                )}
                 <p className="text-gray-500">{c.docs.toLocaleString()} documents ingested</p>
                 {c.latest_digest ? (
                   <Link
@@ -58,7 +81,7 @@ export default async function CountriesPage() {
                     latest digest ({String(c.latest_digest).slice(0, 10)}) →
                   </Link>
                 ) : (
-                  <p className="text-gray-400">first digest pending</p>
+                  <p className="text-gray-400">{t("countries.first_digest_pending")}</p>
                 )}
               </div>
             ) : (
