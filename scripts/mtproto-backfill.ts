@@ -17,7 +17,13 @@ import "./env";
 
 const MAP_USD_PER_1K_DOCS = 0.076; // measured, docs/reviews/MAP-SHADOW-RESULTS.md
 const SPRINT_LLM_BUDGET_USD = 6; // ground rule 3 of the sprint prompt
-const DEPTH_MULTIPLIER = 2; // MTProto full history vs ~20-post preview window
+// Map cost applies only to docs that INSERT: messages the preview scraper already
+// ingested are excluded by the external-id pre-filter and never reach the map
+// worker. So the estimate counts NEW docs only — assume the preview's ~20-post
+// hourly window missed about as many messages as it captured (bursty channels),
+// plus a flat rate for channels the preview never read at all.
+const MISSED_PER_CAPTURED = 1.0;
+const UNPOLLED_PER_DAY = 10;
 const THEATERS = new Set(["ru", "ua", "ir"]);
 
 async function main() {
@@ -45,12 +51,14 @@ async function main() {
     WHERE rd.adapter = 'telegram_web' AND rd.fetched_at > now() - interval '7 days'
     GROUP BY s.canonical_url`) as Array<{ key: string; docs: number }>;
   const perDay = new Map(observed.map((r) => [r.key, r.docs / 7]));
-  const FALLBACK_PER_DAY = 5; // channels the preview never reached (the reach gap)
 
   let estDocs = 0;
   for (const c of roster) {
-    const key = `t.me/${c.channel.toLowerCase()}`;
-    estDocs += (perDay.get(key) ?? FALLBACK_PER_DAY) * days * DEPTH_MULTIPLIER;
+    const captured = perDay.get(`t.me/${c.channel.toLowerCase()}`);
+    estDocs +=
+      captured !== undefined
+        ? captured * days * MISSED_PER_CAPTURED // dedupe drops the captured share
+        : UNPOLLED_PER_DAY * days; // never previewed: everything is new
   }
   estDocs = Math.round(estDocs);
   const estUsd = (estDocs / 1000) * MAP_USD_PER_1K_DOCS;
