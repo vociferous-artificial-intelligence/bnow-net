@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { rawSql } from "@/db";
+import { getT } from "@/i18n/server";
+import { currentRole } from "@/lib/gate";
+import { registryView } from "@/lib/registry/view-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +24,19 @@ export default async function MiddleEastPage({
   const q = sp.q?.slice(0, 80);
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
 
+  // Same moat gate as /registry (view-policy.ts). Reduced role: the reliability
+  // CASE expression is left OUT of the SQL text entirely below, not merely
+  // hidden at render time — this page computes the score live from citations,
+  // so "don't compute it" is the stronger, more defensible gate.
+  const [role, t] = await Promise.all([currentRole(), getT()]);
+  const view = registryView(role);
+  const reliabilitySelect = view.showReliability
+    ? `,
+              round(avg(CASE sc.hedging
+                WHEN 'confirmed' THEN 1.0 WHEN 'assessed' THEN 0.75 WHEN 'unknown' THEN 0.5
+                WHEN 'claimed' THEN 0.4 WHEN 'unverified' THEN 0.15 ELSE 0.5 END)::numeric, 2) AS reliability`
+    : "";
+
   const [statsRows, reportRows, sourceRows] = await Promise.all([
     rawSql.query(
       `SELECT count(DISTINCT sc.source_id)::int AS sources,
@@ -39,10 +55,7 @@ export default async function MiddleEastPage({
       `SELECT s.id, s.canonical_url, s.platform,
               count(*)::int AS citations,
               min(ir.report_date)::text AS first_cited,
-              max(ir.report_date)::text AS last_cited,
-              round(avg(CASE sc.hedging
-                WHEN 'confirmed' THEN 1.0 WHEN 'assessed' THEN 0.75 WHEN 'unknown' THEN 0.5
-                WHEN 'claimed' THEN 0.4 WHEN 'unverified' THEN 0.15 ELSE 0.5 END)::numeric, 2) AS reliability
+              max(ir.report_date)::text AS last_cited${reliabilitySelect}
        FROM source_citations sc
        JOIN isw_reports ir ON ir.id = sc.report_id
        JOIN sources s ON s.id = sc.source_id
@@ -60,7 +73,10 @@ export default async function MiddleEastPage({
   const span = reportRows[0] as { lo: string | null; hi: string | null };
   const sources = sourceRows as Array<{
     id: number; canonical_url: string; platform: string; citations: number;
-    first_cited: string | null; last_cited: string | null; reliability: string | null;
+    first_cited: string | null; last_cited: string | null;
+    // Absent entirely from the row (not just null) when reliabilitySelect was
+    // omitted above — the reduced view must never read this field.
+    reliability?: string | null;
   }>;
 
   const qs = (over: Record<string, string | number | undefined>) => {
@@ -77,7 +93,7 @@ export default async function MiddleEastPage({
         <Link href="/" className="underline">BNOW.NET</Link> · Middle East source registry
       </p>
       <h1 className="mb-1 text-2xl font-bold">Middle East Source Registry</h1>
-      <p className="mb-4 max-w-3xl text-sm text-gray-500">
+      <p className="mb-1 max-w-3xl text-sm text-gray-500">
         {stats.sources.toLocaleString()} sources from {stats.citations.toLocaleString()}{" "}
         citations across {stats.reports.toLocaleString()} ISW Iran Update reports
         {span.lo && ` (${span.lo.slice(0, 7)} → ${span.hi?.slice(0, 7)})`}. The Iran Update
@@ -85,6 +101,11 @@ export default async function MiddleEastPage({
         Hamas, and Iraqi militias — so their cited media and Telegram channels appear here.
         Reliability is the hedging-weighted score of how ISW cites each source.
       </p>
+      {span.hi && (
+        <p className="mb-4 text-xs text-gray-400">
+          {t("registry.scores_as_of")} {span.hi}
+        </p>
+      )}
 
       <div className="mb-4 flex flex-wrap gap-2 text-sm">
         <Link href={qs({ platform: undefined, page: 1 })} className={`rounded px-2 py-1 ${!platform ? "bg-blue-600 text-white" : "bg-gray-100 dark:bg-gray-800"}`}>all</Link>
@@ -110,7 +131,7 @@ export default async function MiddleEastPage({
               <th className="py-2">source</th>
               <th>platform</th>
               <th className="text-right">citations</th>
-              <th className="text-right">reliability</th>
+              {view.showReliability && <th className="text-right">reliability</th>}
               <th>cited</th>
             </tr>
           </thead>
@@ -122,7 +143,9 @@ export default async function MiddleEastPage({
                 </td>
                 <td className="text-xs">{s.platform.replace("_", " ")}</td>
                 <td className="text-right tabular-nums">{s.citations}</td>
-                <td className="text-right tabular-nums">{s.reliability ?? "—"}</td>
+                {view.showReliability && (
+                  <td className="text-right tabular-nums">{s.reliability ?? "—"}</td>
+                )}
                 <td className="whitespace-nowrap text-xs tabular-nums">
                   {s.first_cited?.slice(0, 7)} → {s.last_cited?.slice(0, 7)}
                 </td>

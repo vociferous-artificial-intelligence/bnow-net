@@ -1,6 +1,9 @@
 import { and, count, desc, eq, ilike, sql as dsql } from "drizzle-orm";
 import Link from "next/link";
-import { db, schema } from "@/db";
+import { db, rawSql, schema } from "@/db";
+import { getT } from "@/i18n/server";
+import { currentRole } from "@/lib/gate";
+import { registryView, resolveRegistrySort } from "@/lib/registry/view-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +25,12 @@ export default async function RegistryPage({
     : undefined;
   const q = params.q?.slice(0, 80);
   const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
-  const sort = params.sort === "reliability" ? "reliability" : "citations";
+
+  // Role resolved BEFORE the sort param is trusted: a regular user cannot
+  // opt into reliability ordering by hand-editing the URL (see view-policy.ts).
+  const [role, t] = await Promise.all([currentRole(), getT()]);
+  const view = registryView(role);
+  const sort = resolveRegistrySort(params.sort, view);
 
   const where = and(
     dsql`${schema.sources.citationCount} > 0`,
@@ -30,7 +38,7 @@ export default async function RegistryPage({
     q ? ilike(schema.sources.canonicalUrl, `%${q}%`) : undefined,
   );
 
-  const [rows, totalRow] = await Promise.all([
+  const [rows, totalRow, asOfRows] = await Promise.all([
     db
       .select()
       .from(schema.sources)
@@ -43,8 +51,13 @@ export default async function RegistryPage({
       .limit(PAGE_SIZE)
       .offset((page - 1) * PAGE_SIZE),
     db.select({ n: count() }).from(schema.sources).where(where),
+    rawSql.query(
+      `SELECT max(last_cited_report_date)::text AS as_of FROM sources WHERE citation_count > 0`,
+      [],
+    ),
   ]);
   const total = totalRow[0].n;
+  const asOf = (asOfRows as Array<{ as_of: string | null }>)[0]?.as_of ?? null;
 
   const qs = (over: Record<string, string | number | undefined>) => {
     const p = new URLSearchParams();
@@ -56,11 +69,19 @@ export default async function RegistryPage({
   return (
     <main className="mx-auto max-w-6xl p-6">
       <h1 className="mb-1 text-2xl font-bold">Source Registry</h1>
-      <p className="mb-4 text-sm text-gray-500">
+      <p className="mb-1 text-sm text-gray-500">
         {total.toLocaleString()} sources derived from ISW Russian Offensive Campaign
         Assessment citations. Reliability = hedging-weighted score of how ISW cites each
         source (methodology on each source page).
       </p>
+      <div className="mb-4 space-y-1 text-xs text-gray-400">
+        {asOf && (
+          <p>
+            {t("registry.scores_as_of")} {asOf}
+          </p>
+        )}
+        {!view.showReliability && <p>{t("registry.reduced.methodology")}</p>}
+      </div>
 
       <div className="mb-4 flex flex-wrap gap-2 text-sm">
         <Link
@@ -99,11 +120,13 @@ export default async function RegistryPage({
                 citations
               </Link>
             </th>
-            <th className="text-right">
-              <Link href={qs({ sort: "reliability", page: 1 })} className="underline">
-                reliability
-              </Link>
-            </th>
+            {view.showReliability && (
+              <th className="text-right">
+                <Link href={qs({ sort: "reliability", page: 1 })} className="underline">
+                  reliability
+                </Link>
+              </th>
+            )}
             <th>hedging mix</th>
             <th>cited</th>
             <th>status</th>
@@ -123,9 +146,11 @@ export default async function RegistryPage({
                 </td>
                 <td className="text-xs">{s.platform.replace("_", " ")}</td>
                 <td className="text-right tabular-nums">{s.citationCount}</td>
-                <td className="text-right tabular-nums">
-                  {s.reliabilityScore?.toFixed(2) ?? "—"}
-                </td>
+                {view.showReliability && (
+                  <td className="text-right tabular-nums">
+                    {s.reliabilityScore?.toFixed(2) ?? "—"}
+                  </td>
+                )}
                 <td>
                   <div className="flex h-2 w-28 overflow-hidden rounded bg-gray-200 dark:bg-gray-800" title={`confirmed ${pct(s.hedgingConfirmed, totalH)}% · assessed ${pct(s.hedgingAssessed, totalH)}% · claimed ${pct(s.hedgingClaimed, totalH)}% · unverified ${pct(s.hedgingUnverified, totalH)}%`}>
                     <div className="bg-green-600" style={{ width: `${pct(s.hedgingConfirmed, totalH)}%` }} />
