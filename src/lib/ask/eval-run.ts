@@ -231,15 +231,68 @@ export interface QuestionMetrics {
   costUsd: number;
   latencyMs: number;
   degraded: boolean;
+  // -- audit trail (supervisor round 1): enough raw answer context persisted per
+  // question that a future metric recalibration (like the negative-honesty one)
+  // is auditable/replayable offline, without a paid rerun. Deliberately wider
+  // than the honesty lead window (ANSWER_SNIPPET_CHARS > NEGATIVE_DENIAL_LEAD_CHARS).
+  /** first ANSWER_SNIPPET_CHARS chars of the answer text, verbatim */
+  answerSnippet: string;
+  /** answer.citedClaimIds.length (the ids themselves stay in the pipeline) */
+  citedClaimIdCount: number;
+  /** answer-stage completion tokens (usage.completionTokens); null when the
+   *  stage made no paid call — with the snippet, the truncation tell (a cut-off
+   *  snippet at max output tokens) survives into the record */
+  completionTokens: number | null;
+  /** provider verbatim — alongside `state` (already stored verbatim), this is
+   *  all the finish/refusal context the frozen AskAnswerV2 contract carries
+   *  (there is no finish_reason field; a refusal is state "refused") */
+  provider: string;
 }
 
-const NEGATIVE_HONEST_PATTERN = /no matching|insufficient/i;
+/** Chars of the answer text preserved verbatim in each stored result record. */
+export const ANSWER_SNIPPET_CHARS = 400;
 
-function isNegativeHonest(answer: AskAnswerV2): boolean {
-  return (
-    answer.state === "insufficient" ||
-    (answer.citedClaimIds.length === 0 && NEGATIVE_HONEST_PATTERN.test(answer.answer))
-  );
+// ---- negative-control honesty ---------------------------------------------------
+
+/** Leading window (chars) of the answer scanned for denial language. The verdict
+ *  ("there are no entries about X") leads an honest denial; per-claim caveats and
+ *  walk-throughs follow it. Scanning only the lead keeps a trailing aside like
+ *  "...though evidence on Y is insufficient" inside an otherwise affirmative
+ *  answer from scoring as a denial. */
+export const NEGATIVE_DENIAL_LEAD_CHARS = 250;
+
+/** Denial-language families (case-insensitive) scanned over the answer lead.
+ *  Named + exported so honesty verdicts stay reproducible offline from the
+ *  stored answerSnippet (which is longer than the lead window on purpose). */
+export const DENIAL_LANGUAGE_PATTERN = new RegExp(
+  [
+    // "insufficient evidence", "the evidence is insufficient", state-message echoes
+    "insufficient",
+    // "no entries about", "no evidence of", "no matching evidence", "no reports regarding"
+    // (the of/about/regarding preposition is optional by construction — the noun match suffices)
+    "\\bno\\s+(?:mention|entries|evidence|matching|reports?|claims?)\\b",
+    // "cannot confirm", "can't confirm" (straight or typographic apostrophe), "can not confirm"
+    "\\bcan(?:not|['’]t|\\s+not)\\s+confirm\\b",
+    // "not found in the provided evidence", "not mentioned in the current dataset"
+    "\\bnot\\s+(?:found|present|mentioned)\\s+in\\s+the\\s+(?:provided|supplied|current)\\b",
+    // "the corpus does not mention/contain/include ..."
+    "\\bdoes\\s+not\\s+(?:mention|contain|include)\\b",
+  ].join("|"),
+  "i",
+);
+
+/** Negative-control honesty verdict — RECALIBRATED (supervisor round 1,
+ *  2026-07-11). The original rule required EMPTY citations alongside denial
+ *  text, but a live diagnostic showed gpt-5 denying honestly WHILE citing the
+ *  claims it checked ("The only Venezuela-related item concerns volunteers...
+ *  not sanctions [c1567]") — citing the evidence you examined while denying is
+ *  exactly the behavior we want, and the old rule scored both pipelines 0/5 on
+ *  that artifact. New rule: honest = state "insufficient" OR the answer's
+ *  leading NEGATIVE_DENIAL_LEAD_CHARS chars match DENIAL_LANGUAGE_PATTERN.
+ *  Citations are irrelevant to the verdict in both directions. */
+export function isNegativeAnswerHonest(state: AnswerState, answerText: string): boolean {
+  if (state === "insufficient") return true;
+  return DENIAL_LANGUAGE_PATTERN.test(answerText.slice(0, NEGATIVE_DENIAL_LEAD_CHARS));
 }
 
 /** windowExpected `{}` (both bounds undefined, used by ambiguous seed templates
@@ -265,7 +318,7 @@ export function computeQuestionMetrics(r: QuestionRunResult): QuestionMetrics {
   const cited = answerable ? answer.citedClaimIds.some((id) => goldSet.has(id)) : null;
   const windowCorrect =
     question.windowExpected !== undefined ? windowMatches(answer.window, question.windowExpected) : null;
-  const negativeHonest = isNegative ? isNegativeHonest(answer) : null;
+  const negativeHonest = isNegative ? isNegativeAnswerHonest(answer.state, answer.answer) : null;
   const degraded = isDegradedResult({
     retrievalMode: answer.retrievalMode,
     provider: answer.provider,
@@ -287,6 +340,10 @@ export function computeQuestionMetrics(r: QuestionRunResult): QuestionMetrics {
     costUsd: r.costUsd,
     latencyMs: r.latencyMs,
     degraded,
+    answerSnippet: answer.answer.slice(0, ANSWER_SNIPPET_CHARS),
+    citedClaimIdCount: answer.citedClaimIds.length,
+    completionTokens: answer.usage?.completionTokens ?? null,
+    provider: answer.provider,
   };
 }
 
@@ -344,6 +401,30 @@ export function pendingQuestions(
   if (fresh || !existing) return evalSet.questions.slice();
   const done = new Set(Object.keys(existing.results));
   return evalSet.questions.filter((q) => !done.has(q.id));
+}
+
+/** Targeted-rerun selection (the --only flag): run EXACTLY the listed question
+ *  ids, always rerunning them even when already recorded (mergeResults replaces
+ *  their entries on collision), leaving every other stored result untouched.
+ *  Built for metric recalibrations — e.g. after the negative-honesty round-1 fix,
+ *  only the 5 negative controls need a paid rerun, not the whole sweep. Unknown
+ *  ids are returned for the caller to print and refuse on (no silent caps). */
+export function selectOnlyQuestions(
+  evalSet: EvalSet,
+  onlyIds: string[],
+): { selected: EvalQuestion[]; unknownIds: string[] } {
+  const byId = new Map(evalSet.questions.map((q) => [q.id, q]));
+  const selected: EvalQuestion[] = [];
+  const unknownIds: string[] = [];
+  const seen = new Set<string>();
+  for (const id of onlyIds) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const q = byId.get(id);
+    if (q) selected.push(q);
+    else unknownIds.push(id);
+  }
+  return { selected, unknownIds };
 }
 
 // ============================================================================

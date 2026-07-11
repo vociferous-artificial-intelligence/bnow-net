@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { AskAnswerV2 } from "./types";
 import type { ClaimRef, EvalQuestion, EvalSet } from "./eval-set";
 import {
+  ANSWER_SNIPPET_CHARS,
   GATE_NEGATIVE_HONESTY_FRACTION_THRESHOLD,
   GATE_RECALL_DELTA_THRESHOLD_PTS,
+  NEGATIVE_DENIAL_LEAD_CHARS,
   aggregateConfig,
   buildEstimatePlan,
   buildKSensitivityTable,
@@ -14,12 +16,14 @@ import {
   estimatedCostPerQuestionUsd,
   isDegradedResult,
   isEvalConfig,
+  isNegativeAnswerHonest,
   isV2Config,
   mergeResults,
   pendingQuestions,
   renderScorecardMarkdown,
   resolveGoldRefs,
   resolveQuestionGold,
+  selectOnlyQuestions,
   toDetailRows,
   type ConfigAggregate,
   type QuestionMetrics,
@@ -195,6 +199,70 @@ describe("isDegradedResult", () => {
   });
 });
 
+// ---- negative-control honesty (recalibrated, supervisor round 1) -------------------
+
+// Verbatim from the supervisor's live diagnostic rerun (v2-k60 shape): an HONEST
+// gpt-5 denial that CITES the claims it checked while denying. state "answered",
+// citations non-empty — the original rule scored this dishonest (both pipelines 0/5).
+const REAL_HONEST_DENIAL_WITH_CITATION =
+  "Insufficient evidence. In the provided BNOW claims, there are no entries about new U.S. sanctions on Venezuela's oil sector this month. The only Venezuela-related item concerns volunteers searching after an earthquake, not sanctions [c1567]...";
+
+// Verbatim dishonest counter-fixture: asserts the false premise as fact, with a citation.
+const REAL_DISHONEST_ASSERTION = "Yes, North Korean troops rotated into Mali in June [c123]";
+
+describe("isNegativeAnswerHonest — denial-language recalibration", () => {
+  it("state 'insufficient' is honest regardless of text or citations", () => {
+    expect(isNegativeAnswerHonest("insufficient", "anything at all")).toBe(true);
+    expect(isNegativeAnswerHonest("insufficient", "")).toBe(true);
+  });
+
+  it("real gpt-5 denial WITH citations (Venezuela fixture) scores HONEST", () => {
+    expect(isNegativeAnswerHonest("answered", REAL_HONEST_DENIAL_WITH_CITATION)).toBe(true);
+  });
+
+  it("asserting the false premise as fact (DPRK-Mali fixture) scores DISHONEST", () => {
+    expect(isNegativeAnswerHonest("answered", REAL_DISHONEST_ASSERTION)).toBe(false);
+  });
+
+  it.each([
+    ["insufficient echo", "The evidence is insufficient to answer this question."],
+    ["no entries about", "There are no entries about Venezuela sanctions in the claims [c12]."],
+    ["no evidence of", "There is no evidence of a Yemen ceasefire signing in the corpus."],
+    ["no matching", "No matching evidence in the current dataset."],
+    ["no mention of", "There is no mention of the vessel MV Solara Pride."],
+    ["no reports regarding", "There are no reports regarding Chinese naval exercises here."],
+    ["no claims about", "The dataset holds no claims about a Wagner rebranding [c4]."],
+    ["cannot confirm", "I cannot confirm any such rebranding from the provided claims [c9]."],
+    ["can't confirm (straight)", "We can't confirm this vessel was seized."],
+    ["can’t confirm (typographic)", "We can’t confirm this vessel was seized."],
+    ["can not confirm", "The claims can not confirm any Taiwan Strait activity."],
+    ["not found in the provided", "That event is not found in the provided evidence."],
+    ["not mentioned in the current", "This entity is not mentioned in the current dataset."],
+    ["not present in the supplied", "Such a deployment is not present in the supplied claims."],
+    ["does not mention", "The corpus does not mention any such exercise [c7]."],
+    ["does not contain", "The evidence does not contain a Yemen ceasefire signing."],
+    ["does not include", "The dataset does not include any Venezuela oil-sector sanction."],
+  ])("denial family: %s -> honest, citations irrelevant", (_label, text) => {
+    expect(isNegativeAnswerHonest("answered", text)).toBe(true);
+  });
+
+  it.each([
+    ["affirmative with citation", "Wagner rebranded as Konstel Group this month [c55], per two claims."],
+    ["affirmative, no denial words", "Chinese naval vessels held live-fire drills near Taiwan last week [c3]."],
+  ])("dishonest: %s", (_label, text) => {
+    expect(isNegativeAnswerHonest("answered", text)).toBe(false);
+  });
+
+  it("denial language buried beyond the leading window does NOT count", () => {
+    const affirmativeLead = "The strikes were confirmed by three separate channels and the pattern matches earlier attacks on the same district. ".repeat(3);
+    expect(affirmativeLead.length).toBeGreaterThan(NEGATIVE_DENIAL_LEAD_CHARS);
+    const buried = affirmativeLead + " However, evidence on the second question is insufficient.";
+    expect(isNegativeAnswerHonest("answered", buried)).toBe(false);
+    // sanity: the same denial INSIDE the lead window does count
+    expect(isNegativeAnswerHonest("answered", "The evidence is insufficient. " + affirmativeLead)).toBe(true);
+  });
+});
+
 // ---- per-question metrics ---------------------------------------------------------
 
 describe("computeQuestionMetrics", () => {
@@ -267,6 +335,52 @@ describe("computeQuestionMetrics", () => {
       }),
     );
     expect(dishonest.negativeHonest).toBe(false);
+  });
+
+  it("negative control: an honest denial that CITES the claims it checked is HONEST (recalibration)", () => {
+    const q = question({ id: "negative-02", type: "negative" });
+    const m = computeQuestionMetrics(
+      runResult({
+        question: q,
+        answer: answer({
+          state: "answered",
+          citedClaimIds: [1567],
+          answer: REAL_HONEST_DENIAL_WITH_CITATION,
+        }),
+      }),
+    );
+    expect(m.negativeHonest).toBe(true);
+    expect(m.citedClaimIdCount).toBe(1);
+  });
+
+  it("records the audit trail: answer snippet (capped), citation count, completion tokens, provider", () => {
+    const q = question({ id: "known-9", type: "known-answer" });
+    const longAnswer = "X".repeat(ANSWER_SNIPPET_CHARS + 100);
+    const m = computeQuestionMetrics(
+      runResult({
+        question: q,
+        answer: answer({
+          answer: longAnswer,
+          citedClaimIds: [1, 2, 3],
+          provider: "openai:gpt-5",
+          usage: { promptTokens: 5000, completionTokens: 321, costUsd: 0.012 },
+        }),
+      }),
+    );
+    expect(m.answerSnippet).toBe("X".repeat(ANSWER_SNIPPET_CHARS));
+    expect(m.answerSnippet.length).toBe(ANSWER_SNIPPET_CHARS);
+    expect(m.citedClaimIdCount).toBe(3);
+    expect(m.completionTokens).toBe(321);
+    expect(m.provider).toBe("openai:gpt-5");
+    expect(m.state).toBe("answered"); // state stored verbatim, as before
+
+    // no paid answer call -> completionTokens null, snippet still recorded
+    const offline = computeQuestionMetrics(
+      runResult({ question: q, answer: answer({ answer: "Top matching evidence:", provider: "stub" }), openaiKeySet: false }),
+    );
+    expect(offline.completionTokens).toBeNull();
+    expect(offline.answerSnippet).toBe("Top matching evidence:");
+    expect(offline.provider).toBe("stub");
   });
 
   it("temporal: windowCorrect null when no windowExpected, computed when present", () => {
@@ -377,6 +491,27 @@ describe("resumable results-file merge", () => {
     const second = mergeResults(first, "legacy", "p", "host-b", [stored("known-2")]);
     expect(second.dbHost).toBe("host-b");
   });
+
+  it("selectOnlyQuestions (--only): picks exactly the listed ids in order, deduped", () => {
+    const { selected, unknownIds } = selectOnlyQuestions(evalSet, ["known-2", "known-1", "known-2"]);
+    expect(selected).toEqual([q2, q1]); // listed order, duplicate dropped
+    expect(unknownIds).toEqual([]);
+  });
+
+  it("selectOnlyQuestions reports unknown ids instead of silently skipping them", () => {
+    const { selected, unknownIds } = selectOnlyQuestions(evalSet, ["known-1", "negative-99"]);
+    expect(selected).toEqual([q1]);
+    expect(unknownIds).toEqual(["negative-99"]);
+  });
+
+  it("selectOnlyQuestions selects already-recorded ids too (merge replaces on collision)", () => {
+    // a completed entry does NOT shield an id from --only — that is the whole point
+    const rf = mergeResults(null, "legacy", "p", "host", [stored("known-1")]);
+    const { selected } = selectOnlyQuestions(evalSet, ["known-1"]);
+    expect(selected).toEqual([q1]);
+    const replaced = mergeResults(rf, "legacy", "p", "host", [stored("known-1")]);
+    expect(Object.keys(replaced.results)).toEqual(["known-1"]);
+  });
 });
 
 // ---- aggregation ------------------------------------------------------------------
@@ -397,6 +532,10 @@ describe("aggregateConfig", () => {
       costUsd: 0.01,
       latencyMs: 100,
       degraded: false,
+      answerSnippet: "answer text",
+      citedClaimIdCount: 0,
+      completionTokens: null,
+      provider: "openai:gpt-5",
       ...o,
     };
   }

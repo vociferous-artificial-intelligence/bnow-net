@@ -56,9 +56,20 @@ const NO_EVIDENCE_MESSAGE =
  *  i18n callout; this stays as the payload fallback. */
 const REFUSED_MESSAGE = "The model declined to answer this phrasing.";
 
-/** Answer-stage output-token ceiling (env-overridable). gpt-5 meters reasoning tokens
- *  inside this budget, so it is generous relative to the <=180-word answer. */
-export const ANSWER_MAX_OUTPUT_TOKENS = 1200;
+/** Payload string when the model consumed the whole output budget without emitting an
+ *  answer (finish_reason "length" + empty content). Truncation, NOT a refusal — a
+ *  distinct third case so users are never told the model "declined" when it ran out
+ *  of budget. */
+const TRUNCATED_MESSAGE =
+  "The answer exceeded its output budget — ask a narrower question, or try again.";
+
+/** Answer-stage output-token ceiling (env-overridable via ASK_ANSWER_MAX_OUTPUT_TOKENS).
+ *  gpt-5 bills reasoning tokens INSIDE this budget. Measured (2026-07-11 live sweep):
+ *  broad questions legitimately use ~1100 completion tokens incl. reasoning at effort
+ *  "low", and at the previous 1200 ceiling ~half of broad questions stochastically
+ *  truncated to empty content. 2500 gives burst headroom; worst-case cost
+ *  2500 x $10/1M = $0.025/question, still inside the ask budget math. */
+export const ANSWER_MAX_OUTPUT_TOKENS = 2500;
 function answerMaxOutputTokens(): number {
   return envNum("ASK_ANSWER_MAX_OUTPUT_TOKENS", ANSWER_MAX_OUTPUT_TOKENS);
 }
@@ -340,8 +351,20 @@ export async function answerFromEvidence(
 
     const refusal = choice?.message?.refusal;
     const content = choice?.message?.content;
-    if ((refusal != null && refusal.trim() !== "") || content == null || content.trim() === "") {
-      // Declined or nothing usable — billed, so usage AND answerModel are still reported (D7).
+    const emptyContent = content == null || content.trim() === "";
+    if (refusal != null && refusal.trim() !== "") {
+      // Explicit decline — billed, so usage AND answerModel are still reported (D7).
+      return assembleV2(retrieval, ranked, REFUSED_MESSAGE, [], `openai:${model}`, "refused", answerUsage, billedAnswerModel);
+    }
+    if (emptyContent && choice?.finish_reason === "length") {
+      // Truncation, NOT a refusal: reasoning tokens consumed the whole
+      // max_completion_tokens budget before any content was emitted (observed live on
+      // broad questions). Distinct state + message; billed, so usage/answerModel
+      // still reported.
+      return assembleV2(retrieval, ranked, TRUNCATED_MESSAGE, [], `openai:${model}`, "error", answerUsage, billedAnswerModel);
+    }
+    if (emptyContent) {
+      // Empty content without a length stop — treated as a decline (D7).
       return assembleV2(retrieval, ranked, REFUSED_MESSAGE, [], `openai:${model}`, "refused", answerUsage, billedAnswerModel);
     }
 

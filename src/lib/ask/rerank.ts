@@ -49,9 +49,12 @@ export function serializeCandidates(candidates: CandidateClaim[]): string {
   return ["id\tdate\tiso2\ttext", ...candidates.map(serializeCandidate)].join("\n");
 }
 
-/** Strict JSON-schema for the listwise response: an ids array of at most k
- *  integers. Bounds are pinned in the schema (standing-ruling-7 discipline — this
- *  is a selection, not a per-item extraction, so only min 1 / max k apply). */
+/** Strict JSON-schema for the listwise response: an ids array of EXACTLY k
+ *  integers, pinned minItems = maxItems = k (standing ruling 7: constrained
+ *  decoding is the under-fill fix, prompt wording is not — a min-1 schema let
+ *  gpt-5-mini return 0–24 ids on most live k=60/k=100 calls, billing a ranking
+ *  the < ceil(k/2) gate then discarded). A paid call only happens when
+ *  candidates.length > k, so k ids always exist to return. */
 export function rerankResponseSchema(k: number) {
   return {
     type: "object",
@@ -59,7 +62,7 @@ export function rerankResponseSchema(k: number) {
     properties: {
       ids: {
         type: "array",
-        minItems: 1,
+        minItems: k,
         maxItems: k,
         items: { type: "integer" },
       },
@@ -73,12 +76,12 @@ export function rerankSystemPrompt(k: number): string {
 You are given a question and a list of candidate claims, one per line, tab-separated
 with columns: id, date, iso2, text.
 
-Return STRICT JSON of the form {"ids": [<int>, ...]}: the ids of the up-to-${k} claims
-MOST relevant to answering the question, most relevant first.
+Return STRICT JSON of the form {"ids": [<int>, ...]}: EXACTLY the ${k} most relevant
+claim ids for answering the question, in order, most relevant first.
 
 HARD RULES:
 1. Use ONLY ids that appear in the candidate list. Never invent ids.
-2. Return at most ${k} ids, most relevant first, no duplicates.
+2. Return EXACTLY ${k} ids, most relevant first, no duplicates.
 3. Output the JSON object only — no prose, no explanation, no code fences.`;
 }
 

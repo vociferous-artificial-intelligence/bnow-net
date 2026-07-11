@@ -48,9 +48,17 @@ import "./env";
 //        writes docs/evals/ASK-EVAL-2026-07-11.md (default --out). $0, no DB
 //        needed (branch host metadata is carried inside each results file), no LLM.
 //
+//   ... npx tsx scripts/ask-eval.ts --only negative-01,negative-02,negative-03,negative-04,negative-05
+//     -> targeted rerun: runs EXACTLY the listed question ids (replacing their
+//        stored entries even when already recorded), leaving everything else
+//        untouched. The cheap way to apply a metric recalibration — the round-1
+//        negative-honesty fix needs only the 5 negatives re-scored per config
+//        (~$0.29 across all four configs), not a full --fresh sweep (~$1.68).
+//
 // Flags: --configs a,b,c (default: all four) · --eval-set <path> (default
 // docs/evals/ask-eval-set.json) · --fresh (ignore existing results, rerun
-// everything) · --out <path> (--report only).
+// everything) · --only id1,id2 (targeted rerun of exactly these ids; mutually
+// exclusive with --fresh) · --out <path> (--report only).
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -69,6 +77,7 @@ import {
   pendingQuestions,
   renderScorecardMarkdown,
   resolveQuestionGold,
+  selectOnlyQuestions,
   toDetailRows,
   type EvalConfig,
   type LiveClaim,
@@ -297,17 +306,31 @@ async function runConfig(
   evalSet: EvalSet,
   liveClaims: LiveClaim[],
   fresh: boolean,
+  onlyIds: string[] | null,
   dbHost: string,
   evalSetPath: string,
 ): Promise<void> {
   const existing = loadResultsFile(config);
-  const todo = pendingQuestions(evalSet, existing, fresh);
+  let todo: EvalQuestion[];
+  if (onlyIds !== null) {
+    // targeted rerun: exactly these ids, replacing their stored entries
+    const { selected, unknownIds } = selectOnlyQuestions(evalSet, onlyIds);
+    if (unknownIds.length > 0) {
+      console.error(`--only: unknown question id(s) not in the eval set: ${unknownIds.join(", ")} — refusing`);
+      process.exit(2);
+    }
+    todo = selected;
+  } else {
+    todo = pendingQuestions(evalSet, existing, fresh);
+  }
   const alreadyDone = Object.keys(existing?.results ?? {}).length;
   if (todo.length === 0) {
     console.log(`[${config}] nothing to do — ${alreadyDone} question(s) already recorded (use --fresh to rerun)`);
     return;
   }
-  console.log(`[${config}] running ${todo.length} question(s) (${alreadyDone} already recorded)`);
+  console.log(
+    `[${config}] running ${todo.length} question(s) (${alreadyDone} already recorded${onlyIds !== null ? "; --only targeted rerun" : ""})`,
+  );
 
   let rf = existing ?? emptyResultsFile(config, evalSetPath, dbHost);
 
@@ -338,9 +361,18 @@ async function runConfig(
   console.log(`[${config}] done.`);
 }
 
-async function modeRun(configs: EvalConfig[], evalSetPath: string, fresh: boolean): Promise<void> {
+async function modeRun(
+  configs: EvalConfig[],
+  evalSetPath: string,
+  fresh: boolean,
+  onlyIds: string[] | null,
+): Promise<void> {
   if (!process.env.DATABASE_URL) {
     console.error("DATABASE_URL not set — point it at the disposable Neon EVAL BRANCH (never prod) and rerun");
+    process.exit(2);
+  }
+  if (fresh && onlyIds !== null) {
+    console.error("--fresh and --only are mutually exclusive (--only is already a forced rerun of its ids)");
     process.exit(2);
   }
   preflightEnvWarnings();
@@ -352,7 +384,7 @@ async function modeRun(configs: EvalConfig[], evalSetPath: string, fresh: boolea
   console.log(`loaded ${liveClaims.length} live claim(s) from ${dbHost} for gold text-resolution`);
 
   for (const config of configs) {
-    await runConfig(config, evalSet, liveClaims, fresh, dbHost, evalSetPath);
+    await runConfig(config, evalSet, liveClaims, fresh, onlyIds, dbHost, evalSetPath);
   }
   console.log('\nsweep complete. Run with --report to build the scorecard.');
 }
@@ -425,10 +457,12 @@ async function main(): Promise<void> {
   const evalSetPath = flagValue("eval-set") ?? DEFAULT_EVAL_SET_PATH;
   const outPath = flagValue("out") ?? DEFAULT_REPORT_PATH;
   const fresh = hasFlag("fresh");
+  const onlyRaw = flagValue("only");
+  const onlyIds = onlyRaw !== undefined ? onlyRaw.split(",").map((s) => s.trim()).filter(Boolean) : null;
 
   if (hasFlag("estimate")) return modeEstimate(configs, evalSetPath);
   if (hasFlag("report")) return modeReport(configs, evalSetPath, outPath);
-  return modeRun(configs, evalSetPath, fresh);
+  return modeRun(configs, evalSetPath, fresh, onlyIds);
 }
 
 main()

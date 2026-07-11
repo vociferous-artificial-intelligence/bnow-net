@@ -72,11 +72,17 @@ function ranked(o: Partial<RankedEvidence> = {}): RankedEvidence {
 function completion(o: {
   content?: string | null;
   refusal?: string | null;
+  finishReason?: string;
   promptTokens?: number;
   completionTokens?: number;
 }) {
   return {
-    choices: [{ message: { content: o.content ?? null, refusal: o.refusal ?? null } }],
+    choices: [
+      {
+        message: { content: o.content ?? null, refusal: o.refusal ?? null },
+        finish_reason: o.finishReason ?? "stop",
+      },
+    ],
     usage: { prompt_tokens: o.promptTokens ?? 100, completion_tokens: o.completionTokens ?? 20 },
   };
 }
@@ -263,13 +269,26 @@ describe("answerFromEvidence() — v2 answer stage", () => {
     expect(mocks.guard.tryReserve).toHaveBeenCalled();
     expect(mocks.guard.record).toHaveBeenCalledWith(1, 120, expectedCost);
 
-    // gpt-5 params: max_completion_tokens + reasoning_effort, never temperature
+    // gpt-5 params: max_completion_tokens (default ceiling 2500 — raised from 1200
+    // after live truncations) + reasoning_effort, never temperature
     const createArgs = mocks.createMock.mock.calls[0][0];
     expect(createArgs.model).toBe("gpt-5");
-    expect(createArgs.max_completion_tokens).toBe(1200);
+    expect(createArgs.max_completion_tokens).toBe(2500);
     expect(createArgs.reasoning_effort).toBe("low");
     expect(createArgs.temperature).toBeUndefined();
     expect(createArgs.max_tokens).toBeUndefined();
+  });
+
+  it("ASK_ANSWER_MAX_OUTPUT_TOKENS env override sets the output ceiling", async () => {
+    envPaidV2();
+    vi.stubEnv("ASK_ANSWER_MAX_OUTPUT_TOKENS", "3000");
+    const retrieval = retrievalV2({ claims: pool.slice(0, 2), totalMatching: 2 });
+    const rk = ranked({ claims: pool.slice(0, 2), rerankUsed: false });
+    mocks.createMock.mockResolvedValue(completion({ content: "Answer [c1]." }));
+
+    await answerFromEvidence("q", retrieval, rk);
+
+    expect(mocks.createMock.mock.calls[0][0].max_completion_tokens).toBe(3000);
   });
 
   it("sampled=false when totalMatching is within the candidate cap", async () => {
@@ -302,16 +321,40 @@ describe("answerFromEvidence() — v2 answer stage", () => {
     expect(res.answerModel).toBe("gpt-5");
   });
 
-  it("empty/whitespace content → state 'refused'", async () => {
+  it("empty/whitespace content WITHOUT finish_reason 'length' → state 'refused'", async () => {
     envPaidV2();
     const retrieval = retrievalV2({ claims: pool, totalMatching: 5 });
     const rk = ranked({ claims: pool.slice(0, 3), rerankUsed: false });
-    mocks.createMock.mockResolvedValue(completion({ content: "   " }));
+    mocks.createMock.mockResolvedValue(completion({ content: "   ", finishReason: "stop" }));
 
     const res = await answerFromEvidence("q", retrieval, rk);
     expect(res.state).toBe("refused");
     expect(res.answer).toBe("The model declined to answer this phrasing.");
     expect(res.citedClaimIds).toEqual([]);
+  });
+
+  it("truncation (empty content + finish_reason 'length') → state 'error', distinct message, usage recorded", async () => {
+    envPaidV2();
+    const retrieval = retrievalV2({ claims: pool, totalMatching: 5 });
+    const rk = ranked({ claims: pool.slice(0, 3), rerankUsed: false });
+    // reasoning consumed the whole max_completion_tokens budget → no content
+    mocks.createMock.mockResolvedValue(
+      completion({ content: null, finishReason: "length", promptTokens: 100, completionTokens: 2500 }),
+    );
+
+    const res = await answerFromEvidence("q", retrieval, rk);
+
+    expect(res.state).toBe("error"); // NOT "refused" — the model did not decline
+    expect(res.answer).toBe(
+      "The answer exceeded its output budget — ask a narrower question, or try again.",
+    );
+    expect(res.citedClaimIds).toEqual([]);
+    // billed in full: usage + answerModel still reported, guard recorded
+    const expectedCost = estimateCostUsd("gpt-5", 100, 2500);
+    expect(res.usage).toEqual({ promptTokens: 100, completionTokens: 2500, costUsd: expectedCost });
+    expect(mocks.guard.record).toHaveBeenCalledWith(1, 2600, expectedCost);
+    expect(res.answerModel).toBe("gpt-5");
+    expect(res.provider).toBe("openai:gpt-5");
   });
 
   it("budget refusal (tryReserve not ok) → provider 'budget', deterministic claims, NO LLM call", async () => {

@@ -165,9 +165,9 @@ describe("serialization", () => {
 });
 
 describe("rerankResponseSchema", () => {
-  it("pins integer items with minItems 1 / maxItems k", () => {
+  it("pins integer items with minItems = maxItems = k (ruling 7)", () => {
     const s = rerankResponseSchema(7);
-    expect(s.properties.ids.minItems).toBe(1);
+    expect(s.properties.ids.minItems).toBe(7);
     expect(s.properties.ids.maxItems).toBe(7);
     expect(s.properties.ids.items).toEqual({ type: "integer" });
     expect(s.required).toEqual(["ids"]);
@@ -286,6 +286,18 @@ describe("rerankCandidates — happy path", () => {
     expect(res.rerankUsed).toBe(true);
   });
 
+  it("full-k response with a few unknown ids still clears ceil(k/2) and tops up to k", async () => {
+    // exactly-k=4 response (the minItems=maxItems=k schema shape) where the
+    // model slipped in one hallucinated id: 3 valid >= ceil(4/2)=2 -> reranked
+    // prefix survives and composite top-up restores the full k
+    completionResult = idsResponse([8, 999, 6, 4]);
+    const res = await rerankCandidates("q", pool([1, 2, 3, 4, 5, 6, 7, 8]), 4);
+    expect(ids(res)).toEqual([8, 6, 4, 1]);
+    expect(res.claims).toHaveLength(4);
+    expect(res.rerankUsed).toBe(true);
+    expect(res.rerankUsage).toBeDefined();
+  });
+
   it("reserves BEFORE the request and records AFTER", async () => {
     await rerankCandidates("q", pool([1, 2, 3, 4, 5, 6, 7, 8]), 4);
     expect(order).toEqual(["init", "reserve", "create", "record"]);
@@ -302,6 +314,7 @@ describe("rerankCandidates — happy path", () => {
     expect(arg.max_completion_tokens).toBe(RERANK_MAX_OUTPUT_TOKENS);
     expect(arg.reasoning_effort).toBe("minimal");
     expect(arg.response_format.json_schema.strict).toBe(true);
+    expect(arg.response_format.json_schema.schema.properties.ids.minItems).toBe(4);
     expect(arg.response_format.json_schema.schema.properties.ids.maxItems).toBe(4);
   });
 });
