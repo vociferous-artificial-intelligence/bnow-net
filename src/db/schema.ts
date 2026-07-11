@@ -591,6 +591,27 @@ export const providerState = pgTable("provider_state", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Per-channel MTProto ingest state. Peer id + access_hash are cached because
+// ResolveUsername is among Telegram's most tightly flood-limited calls: resolve
+// once, reuse forever (a resolve failure backs off via next_resolve_at, never a
+// hot loop). last_message_id is the incremental high-water mark — advanced only
+// AFTER the fetched docs are inserted, so a killed run re-covers one channel's
+// window and the cross-adapter external-id filter absorbs the overlap.
+// backfill_min_id walks downward during the one-off history backfill (resumable).
+export const telegramChannelState = pgTable("telegram_channel_state", {
+  channel: text("channel").primaryKey(), // lowercase public username, no @
+  peerId: text("peer_id"), // Telegram channel id (bigint as text)
+  accessHash: text("access_hash"), // session-scoped peer credential (bigint as text)
+  lastMessageId: integer("last_message_id").notNull().default(0),
+  backfillMinId: integer("backfill_min_id"), // lowest message id backfill has reached
+  backfillDone: boolean("backfill_done").notNull().default(false),
+  resolveFails: integer("resolve_fails").notNull().default(0),
+  nextResolveAt: timestamp("next_resolve_at", { withTimezone: true }),
+  lastFetchAt: timestamp("last_fetch_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ---------- map stage (SHADOW — the digest pipeline does not read these) ----------
 
 // Persistent per-document claim store: every eligible canonical document has its

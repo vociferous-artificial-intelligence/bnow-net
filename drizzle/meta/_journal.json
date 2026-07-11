@@ -92,6 +92,13 @@
       "when": 1783620506460,
       "tag": "0012_doc_claims_quote_verified",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1783746465157,
+      "tag": "0013_telegram_channel_state",
+      "breakpoints": true
     }
   ]
 }
