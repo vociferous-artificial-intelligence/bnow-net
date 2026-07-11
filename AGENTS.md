@@ -91,9 +91,10 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   per-theater aggregates in `source_theater_stats` (ru/ir).
 - **Ingestion (live):** 29 RSS feeds (ru ua il ir sa ae qa om + bh/kw scaffolded),
   registry-selected + curated Telegram via t.me/s/, Telegram MTProto (**wired
-  2026-07-11, gated on TELEGRAM_SESSION: `ingest:mtproto` cron :35 hourly runs green
-  but fetched=0 until the operator's one-time login — egress PROVEN on Vercel tcp+wss;
-  reads registry top-75 vs the scraper's top-50**), X via api.twitterapi.io (383
+  2026-07-11; `TELEGRAM_SESSION` present in production (added 2026-07-11): operator
+  login done, `ingest:mtproto` cron :35 hourly runs green — first live fetch pending
+  verification; egress PROVEN on Vercel tcp+wss; reads registry top-75 vs the
+  scraper's top-50**), X via api.twitterapi.io (383
   ISW-cited accounts — **wired but FROZEN since 2026-07-09 20:21Z: `X_SPRINT_USD_CAP`
   reached ($5.00 all-time), `ingest:x` runs green but fetched=0; resumes only when the
   operator raises the cap — OPEN-TASKS #38**), GDELT (wired, upstream-flaky), zakupki
@@ -342,7 +343,7 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
 | Auth.js | `AUTH_SECRET` | **live** (hashes magic-link tokens: rotating it invalidates every unclicked link) | (already set) |
 | X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live but FROZEN** (x_api; sprint cap $5.00 reached 2026-07-09 → fetched=0, #38) | api.twitterapi.io |
 | OpenSanctions | `OPENSANCTIONS_API_KEY` + `OPENSANCTIONS_CALL_CAP` | **live but FROZEN** (300-call lifetime cap reached 2026-07-09; licensing gate before badges ship) | opensanctions.org |
-| Telegram MTProto | `TELEGRAM_API_ID/HASH` (in prod env) + `TELEGRAM_SESSION` (MISSING) | **wired, session-gated** — operator login mints it (`scripts/telegram-login.ts`) | my.telegram.org |
+| Telegram MTProto | `TELEGRAM_API_ID/HASH` + `TELEGRAM_SESSION` (all in prod env) | **wired; `TELEGRAM_SESSION` present in production** (added 2026-07-11 as a Sensitive var, minted via `scripts/telegram-login.ts`; first live fetch pending `:35` cron verification) | my.telegram.org |
 | ACLED | `ACLED_API_KEY`, `ACLED_EMAIL` | stubbed | acleddata.com |
 | Stripe | `STRIPE_SECRET_KEY`, … | flagged off | dashboard.stripe.com |
 | Resend | `RESEND_API_KEY` | superseded by Postmark | resend.com |
