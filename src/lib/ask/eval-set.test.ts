@@ -114,6 +114,41 @@ describe("stratifiedSample", () => {
     const b = stratifiedSample(rows, { targetSize: 10 }).map((r) => r.id);
     expect(a).toEqual(b);
   });
+
+  it("never starves a theater when bucket count exceeds targetSize (round-1 regression)", () => {
+    // Bug shape (supervisor round 1): with a flat rotation over theater|track|date
+    // bucket keys, ~90 buckets > targetSize 25 meant the first pass filled every
+    // slot from the alphabetically-first buckets — the live estimate printed
+    // ae=8/il=5/ir=12 with ZERO ru/ua picks despite ru+ua being ~440 of 765 claims.
+    // Reproduce: 3 theaters x 30 date buckets each (90 buckets > target 25), the
+    // alphabetically earliest ("ir") alone holding enough candidates to fill the
+    // target on its own.
+    const rows: HarvestClaimRow[] = [];
+    let id = 1;
+    for (const iso2 of ["ir", "ru", "ua"]) {
+      for (let d = 1; d <= 30; d++) {
+        const day = String(d).padStart(2, "0");
+        rows.push(
+          row({
+            id: id++,
+            countryIso2: iso2,
+            claimDate: `2026-06-${day}`,
+            text: `Day ${day} ${iso2} report: strikes and force movements described in a distinct claim`,
+          }),
+        );
+      }
+    }
+    const sample = stratifiedSample(rows, { targetSize: 25 });
+    expect(sample).toHaveLength(25);
+    const counts = new Map<string, number>();
+    for (const r of sample) counts.set(r.countryIso2, (counts.get(r.countryIso2) ?? 0) + 1);
+    for (const iso2 of ["ir", "ru", "ua"]) {
+      const n = counts.get(iso2) ?? 0;
+      expect(n, `theater ${iso2} must be represented`).toBeGreaterThan(0);
+      // roughly even: 25 over 3 theaters -> 9/8/8, allow +-2 around the mean
+      expect(Math.abs(n - 25 / 3), `theater ${iso2} share ${n} not roughly even`).toBeLessThanOrEqual(2);
+    }
+  });
 });
 
 describe("buildKnownAnswerQuestion", () => {

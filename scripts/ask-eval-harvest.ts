@@ -70,6 +70,13 @@ interface HarvestSampleFile {
 
 // ---- DB read (SELECT only) -------------------------------------------------------
 
+// The eval set targets the three LIVE theaters only (spec: "~25 claims spread across
+// ru/ua/ir"). Gulf theaters (ae/il/sa/qa/om/bh/kw) are 2-digest-depth legacy corpora —
+// harvesting them would both dilute the eval and, with alphabetical bucket ordering,
+// crowd out ru/ua (supervisor round-1 finding: the unfiltered plan read ae=8/il=5/ir=12
+// with ZERO ru/ua picks).
+const HARVEST_THEATERS = ["ru", "ua", "ir"];
+
 async function fetchCandidates(): Promise<HarvestClaimRow[]> {
   const sql = neon(process.env.DATABASE_URL!);
   const rows = (await sql.query(
@@ -80,8 +87,10 @@ async function fetchCandidates(): Promise<HarvestClaimRow[]> {
      LEFT JOIN digests dg ON dg.id = cl.digest_id
      LEFT JOIN claim_entities ce ON ce.claim_id = cl.id
      LEFT JOIN entities e ON e.id = ce.entity_id
+     WHERE c.iso2 = ANY($1)
      GROUP BY cl.id, cl.claim_date, c.iso2, dg.track
      ORDER BY cl.claim_date DESC NULLS LAST, cl.id DESC`,
+    [HARVEST_THEATERS],
   )) as Array<{
     id: number;
     text: string;

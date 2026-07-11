@@ -85,10 +85,6 @@ export function normalizedPrefix(text: string, chars = 40): string {
     .slice(0, chars);
 }
 
-function bucketKeyFor(row: HarvestClaimRow): string {
-  return `${row.countryIso2}|${row.track ?? "_"}|${row.claimDate ?? "_"}`;
-}
-
 function askabilityScore(row: HarvestClaimRow, minTextLength: number): number {
   let score = 0;
   if (row.entities.length > 0) score += 2; // entities give the LLM something concrete to paraphrase around
@@ -96,11 +92,33 @@ function askabilityScore(row: HarvestClaimRow, minTextLength: number): number {
   return score;
 }
 
-/** Stratified, deterministic sample across (theater, track, date) buckets, preferring
- *  askable claims (has entities, text length > minTextLength) and skipping near-dupes.
- *  Round-robins one pick per bucket per pass so the sample spreads across theaters/
- *  tracks/dates rather than clumping on whichever bucket sorts first. Deterministic
- *  for a fixed input (no randomness), so it is safe to unit test and safe to re-run. */
+interface Candidate {
+  row: HarvestClaimRow;
+  prefix: string;
+  score: number;
+}
+
+interface TheaterCursor {
+  /** this theater's (track, date) buckets, key-sorted; each bucket best-candidate-first */
+  buckets: Candidate[][];
+  /** inner round-robin rotation: which bucket this theater picks from next */
+  nextBucket: number;
+}
+
+/** Stratified, deterministic sample — TWO-LEVEL round-robin: OUTER over theaters
+ *  (sorted iso2), INNER over each theater's (track, date) buckets. Prefers askable
+ *  claims (has entities, text length > minTextLength) and skips near-dupes by
+ *  normalized text prefix.
+ *
+ *  Two-level on purpose (supervisor round-1 fix): the original single flat rotation
+ *  over theater|track|date bucket keys starved whole theaters whenever the total
+ *  bucket count reached targetSize — the alphabetically-first buckets (ae*, il*,
+ *  ir*) filled every slot before ru/ua were ever reached. The outer theater loop
+ *  guarantees every theater with candidates gets a pick each pass, so a theater can
+ *  never be starved by another theater's bucket count or sort position.
+ *
+ *  Deterministic for a fixed input (no randomness): theaters and buckets sort by
+ *  key; candidates by askability score, then text length, then lower id. */
 export function stratifiedSample(
   rows: HarvestClaimRow[],
   opts: StratifiedSampleOptions = {},
@@ -109,35 +127,55 @@ export function stratifiedSample(
   const minTextLength = opts.minTextLength ?? 60;
   const prefixChars = opts.dedupePrefixChars ?? 40;
 
-  const buckets = new Map<string, { row: HarvestClaimRow; prefix: string; score: number }[]>();
+  const bucketsByTheater = new Map<string, Map<string, Candidate[]>>();
   for (const row of rows) {
-    const key = bucketKeyFor(row);
+    const buckets = bucketsByTheater.get(row.countryIso2) ?? new Map<string, Candidate[]>();
+    const key = `${row.track ?? "_"}|${row.claimDate ?? "_"}`;
     const list = buckets.get(key) ?? [];
     list.push({ row, prefix: normalizedPrefix(row.text, prefixChars), score: askabilityScore(row, minTextLength) });
     buckets.set(key, list);
+    bucketsByTheater.set(row.countryIso2, buckets);
   }
-  // best candidate first within each bucket: higher askability score, then longer
-  // text, then lower id (deterministic tiebreak — no reliance on array insertion order)
-  for (const list of buckets.values()) {
-    list.sort((a, b) => b.score - a.score || b.row.text.length - a.row.text.length || a.row.id - b.row.id);
-  }
-  const bucketKeys = [...buckets.keys()].sort();
+
+  const theaters: TheaterCursor[] = [...bucketsByTheater.keys()].sort().map((iso2) => ({
+    buckets: [...bucketsByTheater.get(iso2)!.entries()]
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([, list]) =>
+        // best candidate first within each bucket: higher askability score, then longer
+        // text, then lower id (deterministic tiebreak — no reliance on insertion order)
+        list.sort((a, b) => b.score - a.score || b.row.text.length - a.row.text.length || a.row.id - b.row.id),
+      ),
+    nextBucket: 0,
+  }));
 
   const picked: HarvestClaimRow[] = [];
   const seenPrefixes = new Set<string>();
+
+  // one pick from this theater, rotating through its buckets; null when exhausted
+  const pickFromTheater = (t: TheaterCursor): HarvestClaimRow | null => {
+    for (let tries = 0; tries < t.buckets.length; tries++) {
+      const idx = (t.nextBucket + tries) % t.buckets.length;
+      const bucket = t.buckets[idx];
+      while (bucket.length > 0) {
+        const next = bucket.shift()!;
+        if (seenPrefixes.has(next.prefix)) continue; // near-duplicate — skip, try the bucket's next candidate
+        seenPrefixes.add(next.prefix);
+        t.nextBucket = (idx + 1) % t.buckets.length; // rotate past this bucket for the theater's next turn
+        return next.row;
+      }
+    }
+    return null;
+  };
+
   let progressedLastPass = true;
   while (picked.length < targetSize && progressedLastPass) {
     progressedLastPass = false;
-    for (const key of bucketKeys) {
+    for (const t of theaters) {
       if (picked.length >= targetSize) break;
-      const list = buckets.get(key)!;
-      while (list.length > 0) {
-        const next = list.shift()!;
-        if (seenPrefixes.has(next.prefix)) continue; // near-duplicate — skip, try the bucket's next candidate
-        seenPrefixes.add(next.prefix);
-        picked.push(next.row);
+      const row = pickFromTheater(t);
+      if (row) {
+        picked.push(row);
         progressedLastPass = true;
-        break; // one pick per bucket per pass, so the round-robin spreads across buckets
       }
     }
   }
