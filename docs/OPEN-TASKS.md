@@ -3,19 +3,26 @@
 Prioritized. "Tier 1" = address now (cheap, real risk/quality). Key-blocked items live
 in BLOCKERS.md and are deliberately deferred until credentials exist.
 
+> **Reconciled against DB + git + disk 2026-07-11** (`docs/reviews/STATE-2026-07-10.md`).
+> Item numbers are stable — the decision log and standing rulings cite them by number, so
+> closed items are struck in place and new items continue at #38+. This pass closed the
+> stale-open #1/#2/#3, updated #11/#30/#36 with measured data, and added #38–#46.
+
 ## Tier 1 — address now
 
-1. **CI pipeline** (GitHub Actions: `typecheck` + `test` on push/PR). The codebase crossed
-   the threshold (~15 features, 104 tests) where manual test-running is a real regression
-   risk — a broken deploy is one `git push` away. Highest-leverage safety net. Needs a
-   fresh VERCEL_TOKEN only if we also want CI-triggered deploys (optional).
-2. **/ask rate limit** — the interrogation feature calls OpenAI per query gated only by
-   auth. An authenticated user can run up LLM cost. Add a per-user/day cap. Small, real.
-3. **Entity canonicalization** (was task #9). Junk entities pollute the graph:
-   "Five individuals", "unnamed schoolboy", "ex-Central Bank employee", generic "Russian
-   courts". This graph feeds OpenSanctions matching, ownership, signals, /entities, and
-   /ask retrieval — so the junk degrades 5 surfaces. Fix: tighten the extraction prompt to
-   skip non-specific/collective actors + a dedup/merge cleanup pass (alias merge via LLM).
+1. ~~**CI pipeline** (GitHub Actions: `typecheck` + `test` on push/PR).~~ ✅ SHIPPED
+   (verified 2026-07-11): `.github/workflows/ci.yml` gate job = `tsc --noEmit` + `npm run
+   lint` + `npm test` on push+PR, plus an `integration` job behind `NEON_API_KEY`; enforced
+   locally by `.githooks/pre-push` (`core.hooksPath=.githooks`). Was stale-open in Tier 1.
+2. ~~**/ask rate limit**~~ ✅ SHIPPED (verified 2026-07-11): `src/lib/ask/limits.ts` =
+   20/user/UTC-day (`ASK_USER_DAILY_LIMIT`) + $1/day global (`ASK_GLOBAL_DAILY_BUDGET_USD`);
+   `askWithLimits` logs every call to `ask_usage`; `route.ts:16` returns 429 over-cap.
+3. ~~**Entity canonicalization** (was task #9).~~ ✅ SHIPPED as capability (verified
+   2026-07-11): all three layers present — rules `canonicalize.ts` (`junkReason`/`planCleanup`),
+   propose-only LLM audit `entity-audit/route.ts:131` (ruling 6, never auto-writes), extraction
+   lexicon `tracks.ts:81 ENTITY_RULES`. **Caveat:** the LLM merge/cleanup pass is propose-only
+   and has not been *run* against prod (no `openai_entity_audit` usage rows) — applying it is an
+   operator step (`scripts/entities-cleanup.ts --file <jsonl>`).
 
 ## Tier 2 — soon
 
@@ -108,11 +115,12 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     `TELEGRAM_CHANNEL_THEATER` pins added, map holdout removed, `retag-theater --apply`
     moved 651 docs, catch-up map run drained the backlog (41 claims, $0.0041, zero
     integrity violations). Follow-up: #37.
-30. **`digests.structured.stats.llm` makes true LLM cost measurable per digest.** After ~24h of
-    metering, replace the audit's MODELLED $0.158/day digest figure with the measured one, and
-    recompute the metered/unmetered split (§7c put recorded spend at ~1–2% of true spend).
-    `stats.sentDocIds` likewise makes the ~10.2× MODELLED re-extraction redundancy (§11)
-    directly measurable — the number the map-reduce refactor is built to remove.
+30. **`digests.structured.stats.llm` makes true LLM cost measurable per digest.** Metering now
+    has data (verified 2026-07-11, `provider_usage`): the MODELLED $0.158/day digest figure is
+    replaced by **measured** reduce $0.173/day + map $0.159/day steady + digest(gulf legacy)
+    $0.017/day (07-10, first full mapreduce day). Remaining: recompute the audit's §7c
+    metered/unmetered split and the §11 re-extraction-redundancy multiple from the recorded
+    `stats` now that both engines meter through the shared path.
 31. **`rank.ts` has no `eventTypeWeights` for the new per-track event types.** Elite/nuclear
     events now carry `prosecution|enrichment|...` instead of being forced into the military
     vocabulary; `profile.eventTypeWeights[ev.type] ?? 1` gives them a neutral weight, so nothing
@@ -141,10 +149,11 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     doc_claims consumer goes through (reduce loader, tuner, coverage-check script);
     tested against `mapExtractorVersion()` per configured (track, theater). Standing
     ruling 18 makes it binding.
-36. **Map cron `maxDuration` is provisional (800s).** Measured steady-state runs land in
-    `cron_runs` (~2min per 400-doc run at concurrency 3; concurrency 6 deployed later).
-    After a week of hourly runs, size it to measured p99 and consider whether the hourly
-    cadence + 500-doc cap keeps up with peak days (~11.5K docs) without backlog.
+36. ~~**Map cron `maxDuration` is provisional (800s).**~~ ✅ ANSWERED (verified 2026-07-11): steady
+    `map` runs land at **max 102s / avg 33s vs the 800s ceiling (13%)** (`cron_runs`, 38 runs), and
+    the hourly cadence keeps pace — ru/ua/ir map coverage **99.87%**, backlog 57 docs all <1h old.
+    Sizing is comfortable; downgraded to a WATCH (revisit only if a peak day or an extractor-version
+    remap (#33) changes the steady-state).
 
 ### New (from MR sprint 3, 2026-07-09)
 
@@ -177,10 +186,13 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
 ## From the original-brief diff (2026-07-06 — reconstruction under-specified the original)
 
 11. **Track §8.7 Phase 2 targets explicitly.** Original brief targets: event coverage ≥80%
-    of ISW-reported events same-day (current: 17.5% avg / 31% nonzero-day), unsupported-claim
-    rate <2%, timeliness within ±6h of ISW publication (current median info-lead +14.7h ✓).
-    Surface targets-vs-actuals on /scoreboard or in the validation report; coverage gap is
-    the headline quality metric to drive.
+    of ISW-reported events same-day, unsupported-claim rate <2%, timeliness within ±6h.
+    **Measured 2026-07-11 (49 validation_runs):** coverage ru 18.4 / ua 15.6 / ir 20.7% mean
+    (nonzero-day ~32%) — **59–64 pts short**; "unsupported" 45–56% but that column is the
+    *thin-sourced proxy* (docCount<2 AND hedged), not literal hallucination (see #45); median
+    info-lead +15h — favorable but outside the symmetric ±6h band (early side), and null on the
+    22/49 zero-match days. Surface targets-vs-actuals on /scoreboard; the coverage gap is the
+    headline quality metric to drive (corpus depth #19/#42 is the lever, not tuning).
 12. **Regional-bundle packaging (§6.5).** Original sells regional bundles as the SKU
     ("Gulf", not per-country): bundle $2–5K/mo, à-la-carte country ≈40% of bundle, global
     $10–15K/mo, standby $300–500/mo, no surge pricing. Current pricing page is per-country
@@ -193,6 +205,49 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     design scores whether our reliability weighting matches ISW's hedging behavior; we score
     coverage/divergence/timeliness/unsupported only. Design a calibration metric (e.g.
     correlation between our source weights and ISW hedging distribution on shared sources).
+
+## New (from the 2026-07-10/11 state recon — docs/reviews/STATE-2026-07-10.md)
+
+38. **[Tier 1] X ingestion is frozen, and a green cron is masking it.** `X_SPRINT_USD_CAP` is
+    exhausted at exactly $5.0001; `ingest:x` has fired 39× since 2026-07-09 20:21Z, all `ok=true`
+    but `counts.fetched=0` — ~32h of zero new X docs while docs/AGENTS still list X as "live"
+    (DRIFT; corrected in AGENTS.md). X is ~27–29% of digest citations (#42), so this is material.
+    Two-part fix: (a) operator raises `X_SPRINT_USD_CAP` (+ verify `X_DAILY_USD_CAP`) to resume;
+    (b) add a monitor so a budget-frozen ingest cron does not read as healthy (e.g. alert when a
+    fast/hourly ingest run posts fetched=0 N times running).
+39. **[Tier 1] No git→Vercel deploy integration.** `git push` does not deploy — after the 07-09
+    auth fix, prod served the stale build ~20 min (`AUTH-EMAIL-2026-07-09.md`). Wire the Vercel Git
+    integration, or codify "push then `npx vercel@latest deploy --prod`" in a release checklist so a
+    pushed fix is not assumed live.
+40. **[Tier 1] Magic-link login is not usable across two devices.** The single-use token is consumed
+    by the first open (phone prefetch/scanner), so reopening on a second device →
+    `/api/auth/error?error=Verification` (`AUTH-EMAIL-2026-07-09.md`). The 07-09 Postmark tracking
+    fix (`9b5b368`) addressed a real but *secondary* defect, not this. Decide: change the token model
+    (multi-use within TTL, or device-agnostic) or document the constraint on the sign-in page.
+41. **[Tier 2] OpenSanctions enrichment is frozen at its 300-call lifetime cap.** `OPENSANCTIONS_CALL_CAP=300`
+    reached 2026-07-09 (confirmed live: `cron_runs` id 253 `budgetStopped="…300 >= cap 300"`); zero new
+    sanctions checks since. Fail-closed is working as designed; raising the cap is gated on the
+    licensing review (credentials table / BLOCKERS). Relates to #17 (match hygiene before spending).
+42. **[Tier 2] X single-platform citation dependency (~27–29%).** ~1 in 3.4 cited docs is from X
+    (twitterapi.io). Concentration risk + validation contamination (§8.6 risks 1–2), sharpened by the
+    fact that X is currently the *frozen* adapter (#38). Diversify corpus (MTProto, more RSS/Telegram)
+    — the same lever that closes the coverage gap (#11/#19).
+43. **[maintenance] AGENTS.md is over its own ~300-line budget (323).** Sprint-3/cutover log entries
+    accreted past the "under ~300 lines" rule. Do an archive pass — move the oldest current-cycle
+    decision-log entries **verbatim** to `docs/DECISIONS.md` (append-only; moving preserves history).
+44. **[maintenance] `X_DAILY_USD_CAP` prod value is above the 1.5 code default.** 07-07 billed $1.877
+    in one day without the daily guard stopping it, so prod is raised above the default. Reconcile the
+    code default/comment (`x-api.ts:166`) with the actual prod cap so the ledger is not misleading.
+45. **[Tier 2] "unsupported-claim rate" KPI is a thin-sourced proxy mislabeled as literal.**
+    `score.ts:101-103` measures `docCount<2 AND hedging∈{claimed,unverified}` — but the schema
+    guarantees ≥1 source (ruling 2), so *nothing is truly unsupported*. The 45–56% figure overstates
+    hallucination risk against §8.7's plain-English "<2%". Rename the metric (e.g. "thin-sourced rate")
+    and/or add a true-corroboration (≥2 independent sources) metric. Relates to #14 (calibration dimension).
+46. **[WATCH] Two non-actionable-yet watches.** (a) `ingest:fast` runtime averages 141s / peaks 162s
+    against a 300s `maxDuration` (54%) — if RSS/GDELT latency grows it approaches the ceiling; consider
+    splitting the adapter set or raising headroom. (b) **ua coverage** — A/B −3.6 pts (noise-scale) and
+    07-10 ua military digest was thin (998 chars, 2 surviving events); the standing ruling-18 "watch ua"
+    item, monitor as the post-cutover sample grows.
 
 ## Deferred by design (key-blocked — see BLOCKERS.md)
 

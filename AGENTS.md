@@ -89,8 +89,10 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   per-theater aggregates in `source_theater_stats` (ru/ir).
 - **Ingestion (live):** 29 RSS feeds (ru ua il ir sa ae qa om + bh/kw scaffolded),
   registry-selected + curated Telegram via t.me/s/, X via api.twitterapi.io (383
-  ISW-cited accounts), GDELT (wired, upstream-flaky), zakupki procurement (wired,
-  blocked — needs proxy).
+  ISW-cited accounts — **wired but FROZEN since 2026-07-09 20:21Z: `X_SPRINT_USD_CAP`
+  reached ($5.00 all-time), `ingest:x` runs green but fetched=0; resumes only when the
+  operator raises the cap — OPEN-TASKS #38**), GDELT (wired, upstream-flaky), zakupki
+  procurement (wired, blocked — needs proxy).
 - **Map stage:** all eligible ru/ua/ir docs since 06-29 mapped once per
   (track, extractor_version) → `doc_claims` (~19K claims), persistent dedup verdicts
   (`doc_dedup`), dispositions (`doc_map_state`); hourly cron keeps it current;
@@ -122,7 +124,9 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   digest 02:00 (D+1 finalize) + 04:00/10:00/19:30 (intraday, rolling window,
   delta-framed) · validate 07:00 (scores yesterday = the finalized digest) ·
   enrich 08:00 · datadark 09:00 · trade monthly (2nd) · materials monthly (3rd).
-- **Stubbed / off:** MTProto + ACLED (fixture stubs, unwired); Stripe flagged off;
+- **Stubbed / off:** MTProto + ACLED (fixture stubs, unwired — MTProto has session-mint
+  tooling now (`scripts/telegram-login.ts`, `bc30e2c`) and API creds in env, but no
+  `.telegram.session` yet and the adapter is not in prod ingest); Stripe flagged off;
   Resend adapter superseded by Postmark.
 - **Deploy:** `npx vercel@latest deploy --prod --yes` — machine CLI session
   (`VERCEL_TOKEN` is expired; regen is an operator task, SETUP-NEXT-WEEK #2).
@@ -260,6 +264,20 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   precisely what ruling 4 says. Ruling right, entry's mechanism wrong. So `LLM_SPRINT_USD_CAP`
   stays absent from `.env.local`: local digest/map/reduce runs refuse to spend at `tryReserve()`,
   which is what stops a stray local script billing the account. Set it only to pay for a run.
+- **2026-07-11 (state recon, read-only, $0)** Full DB+git+disk reconciliation →
+  `docs/reviews/STATE-2026-07-10.md`. Verified healthy in place: MR sprint 3 shipped and live
+  (ru/ua/ir on `openai:gpt-4o-mini+mapreduce`, `votes=5/failedVotes=0`), all July-6 hardening debt
+  shipped, 471/41 tests green, 92 post-07-07 commits all accounted (HEAD==origin/main `2884f50`),
+  every cron 0-failed/0-killed, map coverage 99.87%, persist guard observed firing (2 ir thin-regen
+  refusals), all-time paid spend $40.63 with no daily cap trending. **Two live drifts corrected in
+  place above:** (1) **X ingestion FROZEN** since 07-09 20:21Z — `X_SPRINT_USD_CAP` reached, `ingest:x`
+  green but fetched=0 (~32h dark, X≈27–29% of citations); (2) **OpenSanctions enrichment FROZEN** at
+  the 300-call lifetime cap (confirmed live via `cron_runs` id 253). Both are correct fail-closed
+  behavior, but the "live" labels were stale. Also: the `now() AT TIME ZONE 'UTC'` form in `sqlq`
+  reads +4h (driver localizes the naive timestamp) — use raw `timestamptz`. New OPEN-TASKS #38–#46;
+  stale-open #1/#2/#3 closed (CI, /ask caps, entity-canon — all had shipped); #30/#36 answered with
+  measured data. Recommended next session: (b) MTProto ingest sprint (attacks the coverage gap +
+  the frozen X dependency; primed by `bc30e2c`, gated on a one-time operator login).
 
 ## Conventions
 
@@ -285,8 +303,8 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
 | Postmark (auth email) | `POSTMARK_SERVER_TOKEN` | **live** (scenefiend sender domain — migrate) | postmarkapp.com |
 | Cron auth | `CRON_SECRET` | **live** | (already set) |
 | Auth.js | `AUTH_SECRET` | **live** (hashes magic-link tokens: rotating it invalidates every unclicked link) | (already set) |
-| X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live** (x_api, spend-guarded) | api.twitterapi.io |
-| OpenSanctions | `OPENSANCTIONS_API_KEY` + `OPENSANCTIONS_CALL_CAP` | **live** (licensing gate before badges ship) | opensanctions.org |
+| X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live but FROZEN** (x_api; sprint cap $5.00 reached 2026-07-09 → fetched=0, #38) | api.twitterapi.io |
+| OpenSanctions | `OPENSANCTIONS_API_KEY` + `OPENSANCTIONS_CALL_CAP` | **live but FROZEN** (300-call lifetime cap reached 2026-07-09; licensing gate before badges ship) | opensanctions.org |
 | Telegram MTProto | `TELEGRAM_API_ID/HASH` | stubbed | my.telegram.org |
 | ACLED | `ACLED_API_KEY`, `ACLED_EMAIL` | stubbed | acleddata.com |
 | Stripe | `STRIPE_SECRET_KEY`, … | flagged off | dashboard.stripe.com |
