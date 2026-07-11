@@ -20,9 +20,11 @@ interface TransportResult {
 }
 
 async function probeTransport(useWSS: boolean, session: string | null): Promise<TransportResult> {
-  const { TelegramClient, Api } = await import("telegram");
-  const { StringSession } = await import("telegram/sessions");
-  const { LogLevel } = await import("telegram/extensions/Logger");
+  // Everything from the ONE root module: mixing `telegram` with subpath imports
+  // (`telegram/sessions`) gives the bundler two module instances, and gramJS's
+  // constructor rejects a StringSession made from the other copy (instanceof).
+  const { TelegramClient, Api, sessions } = await import("telegram");
+  const { StringSession } = sessions;
 
   const apiId = Number(process.env.TELEGRAM_API_ID ?? "");
   const apiHash = process.env.TELEGRAM_API_HASH ?? "";
@@ -36,7 +38,7 @@ async function probeTransport(useWSS: boolean, session: string | null): Promise<
     deviceModel: "BNOW ingest",
     appVersion: "0.1.0",
   });
-  client.setLogLevel(LogLevel.ERROR);
+  client.setLogLevel("error" as Parameters<typeof client.setLogLevel>[0]);
 
   const out: TransportResult = { ok: false };
   const hardStop = new Promise<never>((_, reject) =>
