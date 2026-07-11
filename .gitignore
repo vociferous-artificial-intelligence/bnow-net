@@ -15,3 +15,6 @@ coverage/
 # TypeScript incremental-compile cache: machine-local, rewritten by every
 # `tsc --noEmit` (so by every `npm run typecheck` and `next build`).
 *.tsbuildinfo
+
+# Isolated workstream checkouts (git worktrees for sandboxed agent work)
+.workstream/
