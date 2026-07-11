@@ -17,6 +17,7 @@
   "dependencies": {
     "@auth/drizzle-adapter": "^1.7.4",
     "@neondatabase/serverless": "^1.0.0",
+    "big-integer": "^1.6.52",
     "cheerio": "^1.0.0",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.44.2",

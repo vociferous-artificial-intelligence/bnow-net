@@ -43,12 +43,9 @@ class FixtureStubAdapter implements SourceAdapter {
   }
 }
 
-/** MTProto (GramJS) — real impl pending TELEGRAM_API_ID/HASH. */
-export const telegramMtprotoStub = new FixtureStubAdapter(
-  "telegram_mtproto",
-  "telegram-mtproto.json",
-  ["TELEGRAM_API_ID", "TELEGRAM_API_HASH"],
-);
+// The telegram_mtproto stub that lived here was deleted 2026-07-11: the REAL
+// MTProto adapter (adapters/telegram-mtproto.ts) now owns that adapter name, so
+// the name is no longer stub contamination and must not be treated as such.
 
 /** X API v2 — pending X_BEARER_TOKEN (paid). */
 export const xStub = new FixtureStubAdapter("x", "x.json", ["X_BEARER_TOKEN"]);

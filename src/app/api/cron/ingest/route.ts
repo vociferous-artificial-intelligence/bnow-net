@@ -19,6 +19,8 @@ export async function GET(req: NextRequest) {
     counts.inserted = stats.reduce((s, a) => s + a.inserted, 0);
     counts.errors = stats.reduce((s, a) => s + a.errors, 0);
     counts.ms = Date.now() - started;
+    // per-adapter tallies (mtproto flood waits/aborts etc.) — TASK 1.6 metering
+    for (const a of stats) if (a.detail && Object.keys(a.detail).length) counts[a.adapter] = a.detail;
     return NextResponse.json({
       ok: true,
       which,

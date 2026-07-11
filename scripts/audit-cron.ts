@@ -107,9 +107,11 @@ async function main() {
   console.log(`rows=${trade[0].rows} latest fetch=${trade[0].latest?.toISOString() ?? "never"}`);
 
   console.log("\n-- stub-adapter documents present (truth-in-UI check) --");
+  // telegram_mtproto is NOT in this list since 2026-07-11: the real MTProto
+  // adapter owns that name now (its fixture stub was deleted).
   const stubs = await sql`
     SELECT adapter, count(*)::int AS docs FROM raw_documents
-    WHERE adapter IN ('telegram_mtproto', 'x', 'acled') OR content LIKE '[STUB FIXTURE]%'
+    WHERE adapter IN ('x', 'acled') OR content LIKE '[STUB FIXTURE]%'
     GROUP BY adapter`;
   for (const r of stubs) console.log(`${r.adapter}: ${r.docs} docs`);
   if (!stubs.length) console.log("none");
@@ -120,7 +122,7 @@ async function main() {
     FROM claim_sources cs
     JOIN raw_documents rd ON rd.id = cs.raw_document_id
     JOIN claims cl ON cl.id = cs.claim_id
-    WHERE rd.adapter IN ('telegram_mtproto', 'x', 'acled') OR rd.content LIKE '[STUB FIXTURE]%'`;
+    WHERE rd.adapter IN ('x', 'acled') OR rd.content LIKE '[STUB FIXTURE]%'`;
   console.log(`claims citing stub docs: ${stubCites[0].claims} across ${stubCites[0].digests} digests`);
 }
 

@@ -5,13 +5,18 @@ import { canonicalSource } from "../isw/urls";
 import { GdeltAdapter } from "../adapters/gdelt";
 import { ProcurementAdapter } from "../adapters/procurement";
 import { RssAdapter } from "../adapters/rss";
+import {
+  TelegramMtprotoAdapter,
+  mtprotoDepsFromEnv,
+  mtprotoOptsFromEnv,
+} from "../adapters/telegram-mtproto";
 import { TelegramWebAdapter } from "../adapters/telegram-web";
 import type { RawDoc } from "../adapters/types";
 import { XApiAdapter, registryXAccounts, xGuardFromEnv } from "../adapters/x-api";
 import { envNum } from "../usage/spend-guard";
 import { REGISTRY_TELEGRAM_TOP_N, RSS_FEEDS, TELEGRAM_CURATED, channelTheater } from "./config";
 
-export type IngestWhich = "fast" | "telegram" | "x" | "all";
+export type IngestWhich = "fast" | "telegram" | "mtproto" | "x" | "all";
 
 export function contentHash(d: RawDoc): string {
   return createHash("sha256")
@@ -49,18 +54,40 @@ export interface IngestStats {
   fetched: number;
   inserted: number;
   errors: number;
+  /** adapter-specific run tallies (e.g. mtproto flood waits) for cron_runs counts */
+  detail?: Record<string, number>;
 }
 
-/** Adapters for a production ingest run. Fixture stubs (telegram_mtproto/x/acled)
- *  are deliberately NOT included: stub content must never enter the corpus. When
- *  their real implementations land (keys in BLOCKERS.md), they get added here.
- *  x_api (paid) runs ONLY on its own explicit group — never inside "all" — so
- *  a casual local `tsx scripts/ingest.ts` cannot spend money, and its cron
- *  can't starve rss/telegram. */
-export async function buildIngestAdapters(
-  which: IngestWhich,
-): Promise<Array<{ name: string; fetchLatest(): Promise<RawDoc[]>; live?: boolean }>> {
-  const adapters: Array<{ name: string; fetchLatest(): Promise<RawDoc[]>; live?: boolean }> = [];
+/** The one telegram channel roster (curated + recently-cited registry channels),
+ *  shared by BOTH transports so a channel keeps its sourceKey — and its registry
+ *  reliability history — whether a doc arrives via preview scrape or MTProto. */
+export async function telegramChannelRoster(): Promise<
+  Array<{ channel: string; countryIso2: string }>
+> {
+  const curated = TELEGRAM_CURATED;
+  const fromRegistry = await registryTelegramChannels();
+  const seen = new Set(curated.map((c) => c.channel.toLowerCase()));
+  return [...curated, ...fromRegistry.filter((c) => !seen.has(c.channel.toLowerCase()))];
+}
+
+/** An ingest-runnable adapter: the SourceAdapter surface runIngest needs, plus the
+ *  optional post-insert mark commit and run tallies the MTProto adapter provides. */
+export interface RunnableAdapter {
+  name: string;
+  fetchLatest(): Promise<RawDoc[]>;
+  live?: boolean;
+  /** called only AFTER insertDocs succeeded — watermark advancement is insert-gated */
+  commitMarks?(): Promise<void>;
+  runStats?: Record<string, number>;
+}
+
+/** Adapters for a production ingest run. Fixture stubs (x/acled) are deliberately
+ *  NOT included: stub content must never enter the corpus. x_api (paid) and
+ *  mtproto (flood-budgeted) run ONLY on their own explicit groups — never inside
+ *  "all" — so a casual local `tsx scripts/ingest.ts` cannot spend money or burn
+ *  the telegram account's flood budget, and their crons can't starve rss/telegram. */
+export async function buildIngestAdapters(which: IngestWhich): Promise<RunnableAdapter[]> {
+  const adapters: RunnableAdapter[] = [];
   if (which === "fast" || which === "all") {
     adapters.push(new RssAdapter(RSS_FEEDS), new GdeltAdapter(["ru", "ua"]));
     adapters.push(new ProcurementAdapter());
@@ -71,14 +98,16 @@ export async function buildIngestAdapters(
     adapters.push(new XApiAdapter(accounts, xGuardFromEnv()));
   }
   if (which === "telegram" || which === "all") {
-    const curated = TELEGRAM_CURATED;
-    const fromRegistry = await registryTelegramChannels();
-    const seen = new Set(curated.map((c) => c.channel.toLowerCase()));
-    const channels = [
-      ...curated,
-      ...fromRegistry.filter((c) => !seen.has(c.channel.toLowerCase())),
-    ];
-    adapters.push(new TelegramWebAdapter(channels));
+    adapters.push(new TelegramWebAdapter(await telegramChannelRoster()));
+  }
+  if (which === "mtproto") {
+    adapters.push(
+      new TelegramMtprotoAdapter(
+        await telegramChannelRoster(),
+        mtprotoDepsFromEnv(),
+        mtprotoOptsFromEnv(),
+      ),
+    );
   }
   return adapters;
 }
@@ -95,11 +124,13 @@ export async function runIngest(which: IngestWhich = "all"): Promise<IngestStats
       const docs = await adapter.fetchLatest();
       fetched = docs.length;
       inserted = await insertDocs(docs);
+      // marks advance only once the docs they cover are safely inserted
+      if (adapter.commitMarks) await adapter.commitMarks();
     } catch (e) {
       errors++;
       console.error(`${adapter.name}: ${e instanceof Error ? e.message : e}`);
     }
-    stats.push({ adapter: adapter.name, fetched, inserted, errors });
+    stats.push({ adapter: adapter.name, fetched, inserted, errors, detail: adapter.runStats });
   }
   return stats;
 }

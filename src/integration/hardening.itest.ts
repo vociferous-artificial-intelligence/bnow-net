@@ -119,7 +119,7 @@ describe("generateDigest end-to-end (stub provider, seeded corpus)", () => {
     // a stub-marked doc in the same window MUST be excluded from the corpus
     const stub = await pool.query(
       `INSERT INTO raw_documents (adapter, title, content, content_hash, country_iso2, published_at)
-       VALUES ('telegram_mtproto', 'stub doc',
+       VALUES ('acled', 'stub doc',
                '[STUB FIXTURE] Russian forces struck Kharkiv — fixture content that must never surface',
                'itest-stub-hash', 'ua', $1) RETURNING id`,
       [`${TEST_DATE}T11:00:00Z`],

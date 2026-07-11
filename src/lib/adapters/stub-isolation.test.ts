@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { STUB_CONTENT_PREFIX, acledStub, telegramMtprotoStub, xStub } from "./stubs";
+import { STUB_CONTENT_PREFIX, acledStub, xStub } from "./stubs";
 
 // ingest/run.ts transitively imports src/db, which requires DATABASE_URL at module
 // load. buildIngestAdapters("fast") never touches the DB at runtime, so a dummy
@@ -13,15 +13,13 @@ const { buildIngestAdapters } = await import("../ingest/run");
 // analysis corpus — not at ingest (stubs are unwired) and not at digest time
 // (the corpus query excludes STUB_CONTENT_PREFIX rows as belt-and-braces).
 
-const STUB_ADAPTER_NAMES = new Set([
-  telegramMtprotoStub.name,
-  xStub.name,
-  acledStub.name,
-]);
+// telegram_mtproto left this set 2026-07-11: its stub was deleted and the name
+// now belongs to the real MTProto adapter.
+const STUB_ADAPTER_NAMES = new Set([xStub.name, acledStub.name]);
 
 describe("stub fixture isolation", () => {
   it("every stub fixture doc's content starts with the stub marker", async () => {
-    for (const stub of [telegramMtprotoStub, xStub, acledStub]) {
+    for (const stub of [xStub, acledStub]) {
       const docs = await stub.fetchLatest();
       expect(docs.length).toBeGreaterThan(0);
       for (const d of docs) {
@@ -33,7 +31,7 @@ describe("stub fixture isolation", () => {
   it("the stub fixture files themselves carry the marker on every doc", () => {
     // direct file check (fetchLatest may silently skip unparseable fixtures)
     const dir = join(process.cwd(), "fixtures", "adapters");
-    for (const f of ["telegram-mtproto.json", "x.json", "acled.json"]) {
+    for (const f of ["x.json", "acled.json"]) {
       const rows = JSON.parse(readFileSync(join(dir, f), "utf8")) as Array<{ content: string }>;
       expect(rows.length).toBeGreaterThan(0);
       for (const r of rows) {
