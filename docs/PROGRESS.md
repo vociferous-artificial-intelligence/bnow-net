@@ -869,3 +869,28 @@ cutover fully executed (MR3-CHECKPOINT.md TASK 4 ✅), state recon clean.
 4. Deviation from the prompt's "build nothing until these pass": gate 1 blocks
    only LIVE runs (backfill/cron proof), not the adapter+tests, which are fixture
    based. Proceeding with TASK 1 while the login is pending; TASKs 3–5 stay gated.
+
+## 2026-07-11 ~01:30 UTC — MTProto sprint: TASKs 1–2 shipped, 3–5 staged behind the login
+
+1. Adapter live (`src/lib/adapters/telegram-mtproto.ts`, 20 unit tests): peer
+   cache + exponential resolve backoff in `telegram_channel_state` (migration
+   0013), gap-free ascending high-water reads (gramJS reverse iteration; first
+   contact = one newest page), flood policy = sleep+retry ≤30s / run-abort above,
+   all counted into cron_runs counts; marks commit only AFTER insert (runIngest
+   calls adapter.commitMarks). Cross-transport dedupe via lower(external_id)
+   pre-filter + new expression index — content_hash cannot catch it (adapter name
+   hashed in; preview text ≠ raw MTProto text).
+2. The telegram_mtproto fixture stub is DELETED; the real adapter owns the name
+   (prod had 0 legacy rows; audit-cron + isolation test + hardening itest updated).
+3. Own cron group `ingest?which=mtproto` at :35 hourly (never inside "all", like x).
+   Deployed; exercised on prod: cron_runs `ingest:mtproto` ok=true, fetched=0 —
+   fail-closed without TELEGRAM_SESSION, the frozen-x pattern.
+4. Registry expansion staged: mtproto reads registry top-75 (web scraper stays at
+   50); ranks 51–75 = the 25-channel batch, six ir pins added (coverage-lens rule).
+5. Backfill script `scripts/mtproto-backfill.ts`: estimate-first (dedupe-aware:
+   only NEW docs cost map spend), --apply gated, resumable passes, oldest-day-first
+   insert, per-day actual-vs-estimate log. Estimate: ~44K docs ≈ $3.37 of the $6
+   sprint LLM budget.
+6. BLOCKED on operator: one-time `npx tsx scripts/telegram-login.ts` (interactive),
+   then `scripts/telegram-getme.ts` to verify, `TELEGRAM_SESSION` into Vercel prod
+   (printf, no trailing newline — Sensitive var), redeploy, run backfill --apply.
