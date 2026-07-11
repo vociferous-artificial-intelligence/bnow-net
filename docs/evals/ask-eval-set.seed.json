@@ -1,0 +1,143 @@
+{
+  "notes": "Hand-authored scaffold (Workstream F1, 2026-07-11) — NOT run against the DB or an LLM. 10 temporal-window templates + 6 negative controls, in the same EvalQuestion shape as docs/evals/ask-eval-set.json. The supervisor merges the ones that survive review into ask-eval-set.json (temporal: fill `gold` from a real date-window SELECT against the harvested corpus; negative: run `--verify-negatives` first and replace any that flag >3 lexical matches). windowExpected values on the relative-phrase templates (past week/yesterday/today/last N days/past 48 hours) are illustrative for the authoring date 2026-07-11 — recompute them against whatever date the harvest actually runs on.",
+  "questions": [
+    {
+      "id": "temporal-01",
+      "type": "temporal",
+      "question": "What strikes were reported in Ukraine in the past week?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "windowExpected": { "from": "2026-07-04", "to": "2026-07-11" },
+      "notes": "supervisor fills from harvest sample by date-window SELECT. Relative window ('the past week'); recompute from/to against the actual run date, not the authoring date above."
+    },
+    {
+      "id": "temporal-02",
+      "type": "temporal",
+      "question": "What happened in Russia since July 5?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "windowExpected": { "from": "2026-07-05" },
+      "notes": "supervisor fills from harvest sample by date-window SELECT. Absolute open-ended anchor ('since <date>'); year inferred as the current year since none is stated — should parse the same regardless of run date."
+    },
+    {
+      "id": "temporal-03",
+      "type": "temporal",
+      "question": "Summarize Iran-related developments in June 2026.",
+      "gold": [],
+      "acceptableAlternates": [],
+      "windowExpected": { "from": "2026-06-01", "to": "2026-06-30" },
+      "notes": "supervisor fills from harvest sample by date-window SELECT. Absolute month-year window; the corpus only starts 2026-06-20 so expect a partial-month, nonzero answer — not a negative control. Exercises the 'month name' parse path called out in ASK-FEATURE-ASSESSMENT-2026-07-11.md."
+    },
+    {
+      "id": "temporal-04",
+      "type": "temporal",
+      "question": "What was reported yesterday in Ukraine?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "windowExpected": { "from": "2026-07-10", "to": "2026-07-10" },
+      "notes": "supervisor fills from harvest sample by date-window SELECT. Relative single-day window ('yesterday'); recompute from/to against the actual run date."
+    },
+    {
+      "id": "temporal-05",
+      "type": "temporal",
+      "question": "Show me claims from the last 3 days about Russian military losses.",
+      "gold": [],
+      "acceptableAlternates": [],
+      "windowExpected": { "from": "2026-07-09", "to": "2026-07-11" },
+      "notes": "supervisor fills from harvest sample by date-window SELECT. Relative N-day window ('the last 3 days'); recompute against the actual run date."
+    },
+    {
+      "id": "temporal-06",
+      "type": "temporal",
+      "question": "What happened between July 1 and July 8 in the nuclear track?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "windowExpected": { "from": "2026-07-01", "to": "2026-07-08" },
+      "notes": "supervisor fills from harvest sample by date-window SELECT. Absolute explicit range ('between X and Y'). Also names a track ('nuclear') in the question text — track-scoping is a retrieval concern, not the window parser's job; treat that part as ordinary search terms unless the runner does more."
+    },
+    {
+      "id": "temporal-07",
+      "type": "temporal",
+      "question": "Any updates since last Monday on Iranian sanctions?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "windowExpected": {},
+      "notes": "supervisor fills from harvest sample by date-window SELECT. Deliberately ambiguous relative anchor ('last Monday') — a good edge-case probe for whether parseTimeWindow resolves weekday-relative phrasing or leaves window null. Left windowExpected empty on purpose; fill in once actual parser behavior is known, including 'expected null' if that is the correct/acceptable outcome."
+    },
+    {
+      "id": "temporal-08",
+      "type": "temporal",
+      "question": "What did we report today about Ukraine?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "windowExpected": { "from": "2026-07-11", "to": "2026-07-11" },
+      "notes": "supervisor fills from harvest sample by date-window SELECT. Relative single-day window ('today'); recompute from/to against the actual run date."
+    },
+    {
+      "id": "temporal-09",
+      "type": "temporal",
+      "question": "Give me a rundown of the past 48 hours in Russia.",
+      "gold": [],
+      "acceptableAlternates": [],
+      "windowExpected": { "from": "2026-07-09", "to": "2026-07-11" },
+      "notes": "supervisor fills from harvest sample by date-window SELECT. Relative window phrased in hours rather than days ('past 48 hours') — tests whether the parser normalizes sub-day phrasing to whole UTC calendar days per the TimeWindow contract (src/lib/ask/types.ts: 'UTC calendar days ... both bounds inclusive'). Recompute against the actual run date."
+    },
+    {
+      "id": "temporal-10",
+      "type": "temporal",
+      "question": "What happened in the first week of July 2026 in Ukraine?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "windowExpected": { "from": "2026-07-01", "to": "2026-07-07" },
+      "notes": "supervisor fills from harvest sample by date-window SELECT. Absolute ordinal-week-of-month phrasing — a harder parse case. If parseTimeWindow does not support this form and returns window:null, that is an acceptable measured miss to record, not a bug to chase before shipping."
+    },
+    {
+      "id": "negative-01",
+      "type": "negative",
+      "question": "Have North Korean troops been rotated into any deployments in Africa recently?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "notes": "Absent by theater scope. The corpus covers Russia/Ukraine/Iran only (AGENTS.md charter); DPRK-Africa deployments are a real OSINT topic but outside all three ingested theaters. Expect near-zero lexical/semantic matches — run --verify-negatives to confirm before shipping."
+    },
+    {
+      "id": "negative-02",
+      "type": "negative",
+      "question": "What new sanctions has the US imposed on Venezuela's oil sector this month?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "notes": "Absent by theater scope. Venezuela is not one of the live theaters (ru/ua/ir); no Venezuela-tagged claims should exist in this corpus. Run --verify-negatives to confirm."
+    },
+    {
+      "id": "negative-03",
+      "type": "negative",
+      "question": "Was the cargo vessel MV Solara Pride seized or inspected in the Persian Gulf?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "notes": "Fictional vessel name (does not exist) — tests whether the system fabricates a plausible-sounding answer instead of reporting insufficient evidence. The corpus does cover Persian Gulf / Strait of Hormuz maritime incidents generally (ir theater), so a naive keyword probe on 'Persian Gulf' could over-trigger; the vessel name itself should return zero matches. Worth a manual look even if --verify-negatives flags it, rather than discarding outright."
+    },
+    {
+      "id": "negative-04",
+      "type": "negative",
+      "question": "Did the Wagner Group rebrand under a new legal entity called 'Konstel Group' this month?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "notes": "Fictional entity name (does not exist) — PMC rebranding is a real recurring OSINT topic for the ru theater, so this tests specific-entity hallucination risk rather than plain topic-absence: 'Wagner' alone would match many claims, but 'Konstel Group' should match none. Expect --verify-negatives to flag this one on the 'Wagner' term alone — that is expected; judge it on whether 'Konstel Group' specifically is unsupported, not on the raw match count."
+    },
+    {
+      "id": "negative-05",
+      "type": "negative",
+      "question": "Which Chinese naval vessels conducted exercises near Taiwan in the past two weeks?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "notes": "Absent by theater scope. China is explicitly deferred per the product charter (AGENTS.md); no Taiwan Strait content is ingested. Run --verify-negatives to confirm."
+    },
+    {
+      "id": "negative-06",
+      "type": "negative",
+      "question": "What is the status of the ceasefire agreement signed in Yemen in July 2026?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "notes": "Absent specific event. Houthi/Red Sea activity can appear as ir-theater proxy content, so generic 'Yemen' terms may over-match on --verify-negatives, but no Yemen ceasefire SIGNING is asserted anywhere in this ~3-week corpus. Good test of citation precision (does the answer cite something real but off-point?) as much as recall."
+    }
+  ]
+}
