@@ -93,4 +93,10 @@ export interface AskAnswerV2 {
   /** per-stage breakdown for ask_usage's additive columns */
   usageByStage?: { embed?: StageUsage; rerank?: StageUsage; answer?: StageUsage };
   rerankUsed?: boolean;
+  /** pre-rerank candidate pool size (ask_usage.candidates_count) */
+  candidatesCount?: number;
+  /** models the paid stages actually used (ask_usage.rerank_model/answer_model);
+   *  absent when the stage didn't run a paid call */
+  rerankModel?: string;
+  answerModel?: string;
 }

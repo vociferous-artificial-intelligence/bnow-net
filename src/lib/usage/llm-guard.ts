@@ -181,3 +181,44 @@ export function reduceGuardFromEnv(): SpendGuard {
     pgUsageStore,
   );
 }
+
+// ---------- ASK (/ask) paid-stage guard (Tier-2+ sprint, 2026-07-11) ----------
+// The /ask money path has TWO independent gates. The FIRST is the ask-specific
+// daily budget + per-user question cap in src/lib/ask/limits.ts (evaluateAllowance),
+// which runs once per question before the pipeline starts. This — askGuardFromEnv —
+// is the SECOND gate: a SpendGuard on provider "openai_ask" that every paid ASK
+// stage (embed / rerank / answer, wired inside the stages by workstreams C and D)
+// passes via tryReserve() BEFORE its call, so spend fails closed at the provider
+// level even if the first gate's cost estimate lags. Own provider_usage row and own
+// daily-cap env, isolated from the digest/map/reduce/embed envelopes.
+
+/** provider_usage.provider for every paid /ask stage call. */
+export const ASK_PROVIDER = "openai_ask";
+
+/** Per-day USD cap used when ASK_USD_CAP_DAILY is unset OUTSIDE production.
+ *  In production an unset cap fails closed — see askDailyUsdCap(). */
+export const ASK_DAILY_USD_CAP_DEFAULT = 2;
+
+/** Resolved per-day USD cap for the ASK path. null => the guard fails closed:
+ *  production with ASK_USD_CAP_DAILY unset must not spend (standing ruling 4).
+ *  Outside production an unset cap falls back to the documented default. */
+export function askDailyUsdCap(): number | null {
+  return envCap("ASK_USD_CAP_DAILY") ?? (isProduction() ? null : ASK_DAILY_USD_CAP_DEFAULT);
+}
+
+/** Guard shared by the ASK embed/rerank/answer stages (several calls per question,
+ *  so the run cap bounds one question's pipeline). Daily/total caps live in
+ *  provider_usage so they hold across serverless invocations; LLM_SPRINT_USD_CAP
+ *  stays the shared all-time backstop every OpenAI path honours. */
+export function askGuardFromEnv(): SpendGuard {
+  return new SpendGuard(
+    {
+      provider: ASK_PROVIDER,
+      totalCapUsd: envCap("LLM_SPRINT_USD_CAP"),
+      dailyUsdCap: askDailyUsdCap(),
+      dailyRequestCap: envNum("ASK_DAILY_REQUEST_CAP", 500),
+      runRequestCap: envNum("ASK_RUN_REQUEST_CAP", 10),
+    },
+    pgUsageStore,
+  );
+}

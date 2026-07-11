@@ -538,10 +538,33 @@ export const askUsage = pgTable(
     userEmail: text("user_email").notNull(), // 'anonymous' only when the auth gate is off
     question: text("question").notNull(),
     provider: text("provider"), // openai:<model>|stub|none|error
-    promptTokens: integer("prompt_tokens"),
-    completionTokens: integer("completion_tokens"),
-    costUsd: doublePrecision("cost_usd").notNull().default(0),
+    promptTokens: integer("prompt_tokens"), // ANSWER-stage prompt tokens (historical meaning kept)
+    completionTokens: integer("completion_tokens"), // ANSWER-stage completion tokens (historical meaning kept)
+    costUsd: doublePrecision("cost_usd").notNull().default(0), // TOTAL cost across ALL stages (embed+rerank+answer)
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // ---- ASK v2 per-stage metering (Tier-2+ sprint, 2026-07-11) ----
+    // All additive + nullable. cost_usd above stays the whole-pipeline total (the
+    // daily-budget SUM(cost_usd) query must keep covering every stage); these
+    // columns break that total down for telemetry/billing. Absent when a legacy
+    // (pre-v2) /ask run produced the row.
+    retrievalMode: text("retrieval_mode"), // legacy | v2 | v2-lexical-only
+    state: text("state"), // answered | insufficient | refused | error | limit
+    rerankModel: text("rerank_model"),
+    answerModel: text("answer_model"),
+    rerankUsed: boolean("rerank_used"),
+    embedTokens: integer("embed_tokens"),
+    embedCostUsd: doublePrecision("embed_cost_usd"),
+    rerankPromptTokens: integer("rerank_prompt_tokens"),
+    rerankCompletionTokens: integer("rerank_completion_tokens"),
+    rerankCostUsd: doublePrecision("rerank_cost_usd"),
+    answerPromptTokens: integer("answer_prompt_tokens"),
+    answerCompletionTokens: integer("answer_completion_tokens"),
+    answerCostUsd: doublePrecision("answer_cost_usd"),
+    candidatesCount: integer("candidates_count"),
+    evidenceCount: integer("evidence_count"),
+    totalMatching: integer("total_matching"),
+    windowFrom: date("window_from"),
+    windowTo: date("window_to"),
   },
   (t) => [
     index("ask_usage_email_created_idx").on(t.userEmail, t.createdAt),

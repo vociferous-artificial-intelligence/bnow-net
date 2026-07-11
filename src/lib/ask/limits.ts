@@ -1,11 +1,17 @@
 import { Pool } from "@neondatabase/serverless";
 import { ask, type AskAnswer } from "./answer";
+import type { AskAnswerV2 } from "./types";
 
 // /ask spend control: an authenticated user could otherwise run up LLM cost with
-// unlimited questions. Two independent caps, both env-tunable:
-//   ASK_USER_DAILY_LIMIT       questions per user per UTC day (default 20)
-//   ASK_GLOBAL_DAILY_BUDGET_USD  LLM spend across all users per UTC day (default $1)
+// unlimited questions. This is the FIRST of two gates on the /ask money path:
+//   ASK_USER_DAILY_LIMIT        questions per user per UTC day (default 100)
+//   ASK_GLOBAL_DAILY_BUDGET_USD LLM spend across all users per UTC day (default $10)
+// The SECOND gate is askGuardFromEnv() (provider "openai_ask") in
+// src/lib/usage/llm-guard.ts, enforced INSIDE each paid stage (embed/rerank/answer)
+// via SpendGuard.tryReserve() before its call.
 // Every question is logged to ask_usage (per-user rows double as billing data).
+// ask_usage.cost_usd is the TOTAL question cost across ALL stages, so the
+// global-budget SUM(cost_usd) query below keeps covering the whole pipeline.
 
 export interface Allowance {
   allowed: boolean;
@@ -16,12 +22,12 @@ export interface Allowance {
 
 export function userDailyLimit(): number {
   const n = Number(process.env.ASK_USER_DAILY_LIMIT);
-  return Number.isFinite(n) && n > 0 ? n : 20;
+  return Number.isFinite(n) && n > 0 ? n : 100;
 }
 
 export function globalDailyBudgetUsd(): number {
   const n = Number(process.env.ASK_GLOBAL_DAILY_BUDGET_USD);
-  return Number.isFinite(n) && n > 0 ? n : 1.0;
+  return Number.isFinite(n) && n > 0 ? n : 10;
 }
 
 /** Pure decision given today's usage. Exported for tests. */
@@ -38,10 +44,14 @@ export function evaluateAllowance(
   return { allowed: true, reason: "ok", userCountToday, globalCostToday };
 }
 
-// gpt-4o-mini list price; other models fall back to a conservative over-estimate
+// List price per 1M tokens. gpt-5 family added for the Tier-2+ ASK pipeline;
+// gpt-4o entries retained; unknown models fall back to a conservative over-estimate.
 const PRICES_PER_MTOK: Record<string, { in: number; out: number }> = {
   "gpt-4o-mini": { in: 0.15, out: 0.6 },
   "gpt-4o": { in: 2.5, out: 10 },
+  "gpt-5": { in: 1.25, out: 10 },
+  "gpt-5-mini": { in: 0.125, out: 1 },
+  "gpt-5-nano": { in: 0.05, out: 0.4 },
 };
 
 export function estimateCostUsd(
@@ -59,6 +69,96 @@ export function limitMessage(a: Allowance, limit: number): string {
     : "The shared daily analysis budget is exhausted. It resets at midnight UTC; please try again tomorrow.";
 }
 
+// The pipeline may return a complete AskAnswerV2 (v2 path) or a legacy AskAnswer
+// (pre-v2 / degraded path) whose v2-only fields are absent. Model that reality so
+// the reads below are honestly optional, not casts that pretend absent fields exist.
+type RawAskResult = AskAnswer &
+  Partial<
+    Pick<
+      AskAnswerV2,
+      | "state"
+      | "relatedClaimIds"
+      | "window"
+      | "totalMatching"
+      | "sampled"
+      | "retrievalMode"
+      | "usageByStage"
+      | "rerankUsed"
+      | "candidatesCount"
+      | "rerankModel"
+      | "answerModel"
+    >
+  >;
+
+/** Fill the neutral v2 values (types.ts contract) so callers always get a complete
+ *  AskAnswerV2, whatever shape ask() returned. */
+function normalizeV2(raw: RawAskResult): AskAnswerV2 {
+  return {
+    answer: raw.answer,
+    citedClaimIds: raw.citedClaimIds,
+    evidenceCount: raw.evidenceCount,
+    terms: raw.terms,
+    provider: raw.provider,
+    state: raw.state ?? "answered",
+    relatedClaimIds: raw.relatedClaimIds ?? [],
+    window: raw.window ?? null,
+    totalMatching: raw.totalMatching ?? raw.evidenceCount,
+    sampled: raw.sampled ?? false,
+    retrievalMode: raw.retrievalMode ?? "legacy",
+    usage: raw.usage,
+    usageByStage: raw.usageByStage,
+    rerankUsed: raw.rerankUsed,
+  };
+}
+
+/** Total question cost across every paid stage. When the per-stage breakdown is
+ *  present, sum embed+rerank+answer; the answer stage is NOT also folded in via
+ *  usage (D reports stage cost only in usageByStage, so no double counting). When
+ *  usageByStage is absent (legacy path), fall back to the answer-stage usage cost. */
+export function totalCostUsd(r: {
+  usage?: { costUsd: number };
+  usageByStage?: { embed?: { costUsd: number }; rerank?: { costUsd: number }; answer?: { costUsd: number } };
+}): number {
+  const s = r.usageByStage;
+  if (s) {
+    return (s.embed?.costUsd ?? 0) + (s.rerank?.costUsd ?? 0) + (s.answer?.costUsd ?? 0);
+  }
+  return r.usage?.costUsd ?? 0;
+}
+
+function limitAnswer(message: string): AskAnswerV2 {
+  return {
+    answer: message,
+    citedClaimIds: [],
+    evidenceCount: 0,
+    terms: [],
+    provider: "limit",
+    state: "limit",
+    relatedClaimIds: [],
+    window: null,
+    totalMatching: 0,
+    sampled: false,
+    retrievalMode: "legacy",
+  };
+}
+
+function errorAnswer(e: unknown): AskAnswerV2 {
+  const msg = e instanceof Error ? e.message : String(e);
+  return {
+    answer: `Query failed: ${msg}. Evidence may have been retrieved; please try again.`,
+    citedClaimIds: [],
+    evidenceCount: 0,
+    terms: [],
+    provider: "error",
+    state: "error",
+    relatedClaimIds: [],
+    window: null,
+    totalMatching: 0,
+    sampled: false,
+    retrievalMode: "legacy",
+  };
+}
+
 async function todayUsage(pool: Pool, email: string): Promise<{ count: number; cost: number }> {
   const { rows } = await pool.query(
     `SELECT
@@ -71,36 +171,122 @@ async function todayUsage(pool: Pool, email: string): Promise<{ count: number; c
   return { count: rows[0].user_count, cost: rows[0].global_cost };
 }
 
+/** Log one ask_usage row. cost_usd carries the whole-pipeline total; the per-stage
+ *  columns record exactly what the pipeline reported (NULL where a stage is absent). */
+async function logUsage(
+  pool: Pool,
+  email: string,
+  question: string,
+  r: RawAskResult,
+  totalCost: number,
+): Promise<void> {
+  const s = r.usageByStage;
+  await pool.query(
+    `INSERT INTO ask_usage (
+       user_email, question, provider, prompt_tokens, completion_tokens, cost_usd,
+       retrieval_mode, state, rerank_model, answer_model, rerank_used,
+       embed_tokens, embed_cost_usd,
+       rerank_prompt_tokens, rerank_completion_tokens, rerank_cost_usd,
+       answer_prompt_tokens, answer_completion_tokens, answer_cost_usd,
+       candidates_count, evidence_count, total_matching, window_from, window_to
+     ) VALUES (
+       $1, $2, $3, $4, $5, $6,
+       $7, $8, $9, $10, $11,
+       $12, $13,
+       $14, $15, $16,
+       $17, $18, $19,
+       $20, $21, $22, $23, $24
+     )`,
+    [
+      email,
+      question.slice(0, 400),
+      r.provider,
+      // prompt_tokens/completion_tokens keep their historical meaning: answer-stage.
+      s?.answer?.promptTokens ?? r.usage?.promptTokens ?? null,
+      s?.answer?.completionTokens ?? r.usage?.completionTokens ?? null,
+      totalCost,
+      r.retrievalMode ?? null,
+      r.state ?? null,
+      r.rerankModel ?? null,
+      r.answerModel ?? null,
+      r.rerankUsed ?? null,
+      s?.embed?.promptTokens ?? null,
+      s?.embed?.costUsd ?? null,
+      s?.rerank?.promptTokens ?? null,
+      s?.rerank?.completionTokens ?? null,
+      s?.rerank?.costUsd ?? null,
+      s?.answer?.promptTokens ?? r.usage?.promptTokens ?? null,
+      s?.answer?.completionTokens ?? r.usage?.completionTokens ?? null,
+      s?.answer?.costUsd ?? r.usage?.costUsd ?? null,
+      r.candidatesCount ?? null,
+      r.evidenceCount,
+      r.totalMatching ?? null,
+      r.window?.from ?? null,
+      r.window?.to ?? null,
+    ],
+  );
+}
+
 /** Gate + run + log. Both the /ask page and the API route go through here. */
-export async function askWithLimits(question: string, userEmail: string | null): Promise<AskAnswer> {
+export async function askWithLimits(
+  question: string,
+  userEmail: string | null,
+): Promise<AskAnswerV2> {
   const email = userEmail ?? "anonymous";
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
-    const usage = await todayUsage(pool, email);
+    let usage: { count: number; cost: number };
+    try {
+      usage = await todayUsage(pool, email);
+    } catch (e) {
+      // Gate unavailable = gate REFUSES (fail closed): if we cannot read today's
+      // usage we must not run the pipeline on an unknown budget. Degrade to a
+      // contract-complete error answer instead of 500ing the /ask surface.
+      console.warn(`askWithLimits: usage gate unavailable — refusing without ask(): ${e instanceof Error ? e.message : e}`);
+      return errorAnswer(new Error("usage gate unavailable; question refused"));
+    }
     const limit = userDailyLimit();
     const allowance = evaluateAllowance(usage.count, usage.cost, limit, globalDailyBudgetUsd());
     if (!allowance.allowed) {
-      return {
-        answer: limitMessage(allowance, limit),
-        citedClaimIds: [], evidenceCount: 0, terms: [], provider: "limit",
-      };
+      // First gate refused: no pipeline runs, no ask() call, no row (the refusal is
+      // not a metered question). The user gets a complete AskAnswerV2.
+      return limitAnswer(limitMessage(allowance, limit));
     }
 
-    const result = await ask(question);
+    let raw: RawAskResult;
+    try {
+      raw = await ask(question);
+    } catch (e) {
+      // ask() is designed to degrade internally (ruling 9), not throw. If it throws
+      // anyway, still write ONE ask_usage row (state "error", cost 0) so the crashed
+      // question increments the per-user daily count — an attacker must not get free
+      // retries by crashing the pipeline. Any stage spend already landed in
+      // provider_usage via the stage guards; ask_usage is the per-question ledger and
+      // a thrown question produced no answer to meter, so cost_usd is 0 here.
+      const errRow = errorAnswer(e);
+      try {
+        await logUsage(pool, email, question, errRow, 0);
+      } catch (logErr) {
+        // The row is diagnostics + rate-count; losing it must not mask the ORIGINAL
+        // failure the user needs reported (E adversarial review finding 2).
+        console.warn(`askWithLimits: error-row insert failed: ${logErr instanceof Error ? logErr.message : logErr}`);
+      }
+      return errRow;
+    }
 
-    await pool.query(
-      `INSERT INTO ask_usage (user_email, question, provider, prompt_tokens, completion_tokens, cost_usd)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [
-        email,
-        question.slice(0, 400),
-        result.provider,
-        result.usage?.promptTokens ?? null,
-        result.usage?.completionTokens ?? null,
-        result.usage?.costUsd ?? 0,
-      ],
-    );
-    return result;
+    // Coherent settlement: cost_usd is exactly the stages that actually ran. A
+    // mid-pipeline failure (e.g. embed+rerank present, answer absent) still writes
+    // one row summing only the reported stages — nothing double-counted.
+    const totalCost = totalCostUsd(raw);
+    try {
+      await logUsage(pool, email, question, raw, totalCost);
+    } catch (logErr) {
+      // The answer exists and was already paid for — return it. The lost row means
+      // this question escapes the ask-budget sum; real spend stays bounded by the
+      // per-stage SpendGuard caps (provider_usage recorded inside each stage).
+      console.warn(`askWithLimits: usage-row insert failed (answer still returned): ${logErr instanceof Error ? logErr.message : logErr}`);
+    }
+    return normalizeV2(raw);
   } finally {
     await pool.end();
   }
