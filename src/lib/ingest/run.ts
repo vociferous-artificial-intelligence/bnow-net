@@ -14,7 +14,13 @@ import { TelegramWebAdapter } from "../adapters/telegram-web";
 import type { RawDoc } from "../adapters/types";
 import { XApiAdapter, registryXAccounts, xGuardFromEnv } from "../adapters/x-api";
 import { envNum } from "../usage/spend-guard";
-import { REGISTRY_TELEGRAM_TOP_N, RSS_FEEDS, TELEGRAM_CURATED, channelTheater } from "./config";
+import {
+  REGISTRY_TELEGRAM_TOP_N,
+  REGISTRY_TELEGRAM_TOP_N_MTPROTO,
+  RSS_FEEDS,
+  TELEGRAM_CURATED,
+  channelTheater,
+} from "./config";
 
 export type IngestWhich = "fast" | "telegram" | "mtproto" | "x" | "all";
 
@@ -26,7 +32,9 @@ export function contentHash(d: RawDoc): string {
 
 /** Top telegram channels by RECENT ISW citations (last 90 days of reports) —
  *  all-time ranking over-weights decayed 2022 channels. */
-async function registryTelegramChannels(): Promise<Array<{ channel: string; countryIso2: string }>> {
+async function registryTelegramChannels(
+  topN: number = REGISTRY_TELEGRAM_TOP_N,
+): Promise<Array<{ channel: string; countryIso2: string }>> {
   try {
     const rows = await db.execute(dsql`
       SELECT s.name, count(*) AS recent_citations
@@ -37,7 +45,7 @@ async function registryTelegramChannels(): Promise<Array<{ channel: string; coun
         AND ir.report_date > (SELECT max(report_date) FROM isw_reports) - interval '90 days'
       GROUP BY s.name
       ORDER BY recent_citations DESC
-      LIMIT ${REGISTRY_TELEGRAM_TOP_N}`);
+      LIMIT ${topN}`);
     return (rows.rows as Array<{ name: string }>).map((r) => ({
       channel: r.name,
       // registry has no country column: per-channel override, else the ru default.
@@ -60,12 +68,13 @@ export interface IngestStats {
 
 /** The one telegram channel roster (curated + recently-cited registry channels),
  *  shared by BOTH transports so a channel keeps its sourceKey — and its registry
- *  reliability history — whether a doc arrives via preview scrape or MTProto. */
-export async function telegramChannelRoster(): Promise<
-  Array<{ channel: string; countryIso2: string }>
-> {
+ *  reliability history — whether a doc arrives via preview scrape or MTProto.
+ *  MTProto passes the deeper registry cut (ranks 51+ are its expansion batch). */
+export async function telegramChannelRoster(
+  registryTopN?: number,
+): Promise<Array<{ channel: string; countryIso2: string }>> {
   const curated = TELEGRAM_CURATED;
-  const fromRegistry = await registryTelegramChannels();
+  const fromRegistry = await registryTelegramChannels(registryTopN);
   const seen = new Set(curated.map((c) => c.channel.toLowerCase()));
   return [...curated, ...fromRegistry.filter((c) => !seen.has(c.channel.toLowerCase()))];
 }
@@ -103,7 +112,7 @@ export async function buildIngestAdapters(which: IngestWhich): Promise<RunnableA
   if (which === "mtproto") {
     adapters.push(
       new TelegramMtprotoAdapter(
-        await telegramChannelRoster(),
+        await telegramChannelRoster(REGISTRY_TELEGRAM_TOP_N_MTPROTO),
         mtprotoDepsFromEnv(),
         mtprotoOptsFromEnv(),
       ),

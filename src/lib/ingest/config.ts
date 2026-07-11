@@ -94,6 +94,12 @@ export const TELEGRAM_CURATED: Array<{ channel: string; countryIso2: string }> =
 /** How many registry-derived telegram channels to add on top of the curated set. */
 export const REGISTRY_TELEGRAM_TOP_N = 50;
 
+/** MTProto reads deeper into the registry (MTProto sprint TASK 4): ranks 51–75 by
+ *  recent citations are the first expansion batch — channels the preview scraper
+ *  never polled (several lack public previews entirely). Grow this only after a
+ *  clean day at 75 (sprint rule: more only after a clean day at 25 added). */
+export const REGISTRY_TELEGRAM_TOP_N_MTPROTO = 75;
+
 /** Theater overrides for REGISTRY-derived telegram channels, keyed by lowercase
  *  channel name. The registry (ISW citations) carries no country column, so
  *  registryTelegramChannels() files every channel it finds under the default ru
@@ -118,6 +124,15 @@ export const TELEGRAM_CHANNEL_THEATER: Record<string, string> = {
   mtvlebanonews: "ir",
   sameralhajali: "ir",
   mmirleb: "ir",
+  // MTProto expansion batch (registry ranks 51–75, 2026-07-11): the six channels
+  // ISW cites in its Iran Updates, not ROCA — same coverage-lens rationale as the
+  // Lebanese trio above (theater = which reference corpus scores them).
+  rahbar_enghelab_ir: "ir",
+  sepah_pasdaran: "ir",
+  elamalmoqawama: "ir",
+  bentzionm: "ir",
+  presstv: "ir",
+  manniefabian: "ir",
 };
 
 /** Default theater for a registry-derived telegram channel. */

@@ -28,10 +28,13 @@ async function main() {
     "../src/lib/adapters/telegram-mtproto"
   );
   const { insertDocs, telegramChannelRoster } = await import("../src/lib/ingest/run");
+  const { REGISTRY_TELEGRAM_TOP_N_MTPROTO } = await import("../src/lib/ingest/config");
   const { neon } = await import("@neondatabase/serverless");
   const sql = neon(process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL!);
 
-  const roster = (await telegramChannelRoster()).filter((c) => THEATERS.has(c.countryIso2));
+  const roster = (await telegramChannelRoster(REGISTRY_TELEGRAM_TOP_N_MTPROTO)).filter((c) =>
+    THEATERS.has(c.countryIso2),
+  );
   const to = new Date();
   const from = new Date(to.getTime() - days * 24 * 3600 * 1000);
 
