@@ -3,6 +3,9 @@ import Link from "next/link";
 import { rawSql } from "@/db";
 import { getProfile, PROFILES } from "@/lib/profiles/config";
 import { rankEvents, type RankableEvent } from "@/lib/profiles/rank";
+import { getLocale } from "@/i18n/server";
+import { makeT } from "@/i18n/dictionaries";
+import { ClaimSources, type ClaimSourceDoc } from "@/components/claim-sources";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +23,7 @@ interface ClaimRow {
   doc_url: string | null;
   doc_title: string | null;
   adapter: string;
+  source_id: number | null;
   source_key: string | null;
   reliability: number | null;
   source_platform: string | null;
@@ -58,6 +62,9 @@ export default async function DigestPage({
   const { profile: profileKey } = await searchParams;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^[a-z]{2}$/.test(country)) notFound();
 
+  const locale = await getLocale();
+  const t = makeT(locale);
+
   const digestRows = (await rawSql.query(
     `SELECT d.id, d.track, d.status, d.provider, c.name AS country_name
      FROM digests d JOIN countries c ON c.id = d.country_id
@@ -75,7 +82,7 @@ export default async function DigestPage({
               ev.type AS event_type, ev.summary AS event_summary,
               cl.text, cl.hedging, cl.confidence,
               rd.id AS doc_id, rd.url AS doc_url, rd.title AS doc_title, rd.adapter,
-              s.canonical_url AS source_key, s.reliability_score AS reliability,
+              s.id AS source_id, s.canonical_url AS source_key, s.reliability_score AS reliability,
               s.platform AS source_platform,
               COALESCE(rd.published_at, rd.fetched_at)::text AS doc_at
        FROM claims cl
@@ -237,21 +244,23 @@ export default async function DigestPage({
                             ))}
                           </div>
                         )}
-                        <div className="mt-1 flex flex-wrap gap-2 pl-1">
-                          {c.docs.map((d) => (
-                            <a
-                              key={d.doc_id}
-                              href={d.doc_url ?? "#"}
-                              rel="nofollow noopener"
-                              target="_blank"
-                              className="rounded border border-gray-300 px-1.5 py-0.5 font-mono text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-                              title={d.doc_title ?? undefined}
-                            >
-                              {d.source_key ?? d.adapter}#{d.doc_id}
-                              {d.reliability !== null && ` · ${Number(d.reliability).toFixed(2)}`}
-                            </a>
-                          ))}
-                        </div>
+                        <ClaimSources
+                          docs={c.docs.map(
+                            (d): ClaimSourceDoc => ({
+                              docId: d.doc_id,
+                              url: d.doc_url,
+                              sourceId: d.source_id,
+                              sourceKey: d.source_key,
+                              adapter: d.adapter,
+                              platform: d.source_platform,
+                              reliability: d.reliability === null ? null : Number(d.reliability),
+                              publishedAt: d.doc_at,
+                              title: d.doc_title,
+                            }),
+                          )}
+                          showScores
+                          t={t}
+                        />
                       </li>
                     ))}
                   </ul>
