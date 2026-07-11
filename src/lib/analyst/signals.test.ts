@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  detectDataDark, detectPurge, detectTradeDivergence, rankSignals,
-  type PressureClaim, type Signal,
+  collectSignalEvidenceIds, detectDataDark, detectPurge, detectTradeDivergence,
+  evidenceForSignal, groupEvidenceRows, rankSignals,
+  type PressureClaim, type Signal, type SignalEvidenceRow,
 } from "./signals";
 
 const NOW = "2026-07-06T12:00:00Z";
@@ -20,6 +21,23 @@ describe("detectPurge", () => {
     expect(s).not.toBeNull();
     expect(s!.kind).toBe("purge");
     expect(s!.evidenceClaimIds).toEqual([1, 2, 3]);
+  });
+  it("dedupes evidenceClaimIds when one claim names >1 watched entity (B1)", () => {
+    // mirrors the live shape: 32 (claim, entity, role) edges over 30 distinct claims —
+    // scaled down here to 2 claims each carrying 2 entity edges among 4 single-edge
+    // claims, so 8 edges collapse to 6 distinct ids.
+    const claims = [
+      mk(1, "Ivanov", "defendant", "2026-07-01"),
+      mk(1, "Sidorov", "defendant", "2026-07-01"), // same claim, second watched entity
+      mk(2, "Petrov", "dismissed", "2026-07-02"),
+      mk(2, "Orlova", "target", "2026-07-02"), // same claim, second watched entity
+      mk(3, "Volkov", "defendant", "2026-07-03"),
+      mk(4, "Zaitsev", "target", "2026-07-04"),
+    ];
+    const s = detectPurge(claims, { windowDays: 14, minCount: 3, theater: "ru", nowIso: NOW });
+    expect(s).not.toBeNull();
+    expect(s!.evidenceClaimIds).toEqual([1, 2, 3, 4]); // 6 edges -> 4 distinct claim ids
+    expect(s!.evidenceClaimIds).toHaveLength(new Set(s!.evidenceClaimIds).size);
   });
   it("does not fire below threshold or outside window", () => {
     const claims = [
@@ -86,5 +104,56 @@ describe("rankSignals", () => {
     });
     const ranked = rankSignals([sig("info", "a"), sig("elevated", "b"), sig("watch", "c")]);
     expect(ranked.map((s) => s.severity)).toEqual(["elevated", "watch", "info"]);
+  });
+});
+
+describe("collectSignalEvidenceIds", () => {
+  const sig = (ids: number[]): Signal => ({
+    key: "k", kind: "purge", theater: "ru", severity: "watch", headline: "", detail: "",
+    evidenceClaimIds: ids, evidenceRefs: [], at: NOW,
+  });
+  it("unions ids across signals, deduped, dropping empty (evidenceRefs-only) signals", () => {
+    expect(collectSignalEvidenceIds([sig([1, 2]), sig([2, 3]), sig([])])).toEqual([1, 2, 3]);
+  });
+  it("empty when no signal carries claim evidence", () => {
+    expect(collectSignalEvidenceIds([sig([])])).toEqual([]);
+  });
+});
+
+describe("groupEvidenceRows + evidenceForSignal", () => {
+  const row = (over: Partial<SignalEvidenceRow>): SignalEvidenceRow => ({
+    claim_id: 1, text: "claim text", hedging: "assessed", claim_date: "2026-07-01",
+    doc_id: 1, doc_url: "https://example.com/1", doc_title: "t", adapter: "rss",
+    source_id: 1, source_key: "src1", reliability: "0.75", source_platform: "rss",
+    doc_at: "2026-07-01T00:00:00Z",
+    ...over,
+  });
+
+  it("groups multiple doc rows for the same claim into one EvidenceClaim with all docs", () => {
+    const rows = [
+      row({ claim_id: 1, doc_id: 1 }),
+      row({ claim_id: 1, doc_id: 2, source_key: "src2" }),
+      row({ claim_id: 2, doc_id: 3, text: "other claim" }),
+    ];
+    const byClaim = groupEvidenceRows(rows);
+    expect(byClaim.size).toBe(2);
+    expect(byClaim.get(1)!.docs.map((d) => d.docId)).toEqual([1, 2]);
+    expect(byClaim.get(2)!.text).toBe("other claim");
+  });
+
+  it("coerces the wire-string numeric reliability to a number, preserving null", () => {
+    const byClaim = groupEvidenceRows([row({ reliability: "0.75" }), row({ claim_id: 2, reliability: null, doc_id: 2 })]);
+    expect(byClaim.get(1)!.docs[0].reliability).toBe(0.75);
+    expect(byClaim.get(2)!.docs[0].reliability).toBeNull();
+  });
+
+  it("evidenceForSignal returns claims in the signal's own id order and skips ids missing from the map", () => {
+    const byClaim = groupEvidenceRows([row({ claim_id: 5 }), row({ claim_id: 2, doc_id: 2 })]);
+    const signal: Signal = {
+      key: "k", kind: "purge", theater: "ru", severity: "watch", headline: "", detail: "",
+      evidenceClaimIds: [2, 999, 5], // 999 never came back from the query
+      evidenceRefs: [], at: NOW,
+    };
+    expect(evidenceForSignal(signal, byClaim).map((c) => c.claimId)).toEqual([2, 5]);
   });
 });

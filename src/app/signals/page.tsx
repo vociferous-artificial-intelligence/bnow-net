@@ -1,5 +1,14 @@
 import Link from "next/link";
+import { rawSql } from "@/db";
 import { computeSignals } from "@/lib/analyst/run";
+import {
+  collectSignalEvidenceIds, evidenceForSignal, groupEvidenceRows,
+  type EvidenceClaim, type SignalEvidenceRow,
+} from "@/lib/analyst/signals";
+import { currentUserEmail } from "@/lib/session";
+import { getLocale } from "@/i18n/server";
+import { makeT } from "@/i18n/dictionaries";
+import { ClaimSources } from "@/components/claim-sources";
 
 export const dynamic = "force-dynamic";
 
@@ -13,8 +22,27 @@ const SEV_BADGE: Record<string, string> = {
   watch: "bg-amber-500 text-white",
   info: "bg-gray-400 text-white",
 };
+// Same idiom as the digest page (src/app/digests/[country]/[date]/page.tsx) — kept as a
+// local copy rather than a shared import: neither file is in this change's ownership set.
+const HEDGE_COLORS: Record<string, string> = {
+  confirmed: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  assessed: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+  claimed: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+  unverified: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+  unknown: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+};
 
 export default async function SignalsPage() {
+  const locale = await getLocale();
+  const t = makeT(locale);
+  // /signals is a PUBLIC page (docs/reviews/DESIGN-FUNCTION-EVAL-2026-07-11.md §0.5,
+  // D3) — claim text and source URLs are a gated benefit. currentUserEmail() (not
+  // requireUser()) is the boundary check here on purpose: requireUser()'s dev-mode
+  // FEATURE_AUTH_GATE bypass would leak evidence to anonymous visitors whenever the
+  // gate flag is off, which is fine for the *gated* pages (their layout redirects
+  // instead) but wrong for a page that has no redirect at all.
+  const signedIn = (await currentUserEmail()) !== null;
+
   let signals: Awaited<ReturnType<typeof computeSignals>> = [];
   try {
     signals = await computeSignals(new Date().toISOString());
@@ -22,41 +50,91 @@ export default async function SignalsPage() {
     // dependencies may be empty
   }
 
+  // One evidence query for every signal's claim ids combined (spec cap: ids <= ~60).
+  let evidenceByClaim = new Map<number, EvidenceClaim>();
+  if (signedIn) {
+    const ids = collectSignalEvidenceIds(signals);
+    if (ids.length > 0) {
+      try {
+        const rows = (await rawSql.query(
+          `SELECT cl.id AS claim_id, cl.text, cl.hedging, cl.claim_date::text AS claim_date,
+                  rd.id AS doc_id, rd.url AS doc_url, rd.title AS doc_title, rd.adapter,
+                  s.id AS source_id, s.canonical_url AS source_key, s.reliability_score AS reliability,
+                  s.platform AS source_platform,
+                  COALESCE(rd.published_at, rd.fetched_at)::text AS doc_at
+           FROM claims cl
+           JOIN claim_sources cs ON cs.claim_id = cl.id
+           JOIN raw_documents rd ON rd.id = cs.raw_document_id
+           LEFT JOIN sources s ON s.id = rd.source_id
+           WHERE cl.id = ANY($1::int[])
+           ORDER BY cl.id, rd.id`,
+          [ids],
+        )) as SignalEvidenceRow[];
+        evidenceByClaim = groupEvidenceRows(rows);
+      } catch {
+        // degrade to the count-only view rather than a full-page crash — the count
+        // above already came back fine from computeSignals, only the drill-down failed
+      }
+    }
+  }
+
   return (
     <main className="mx-auto max-w-3xl p-6">
       <p className="mb-1 text-sm text-gray-500">
-        <Link href="/" className="underline">BNOW.NET</Link> · analyst signals
+        <Link href="/" className="underline">BNOW.NET</Link> · {t("signals.breadcrumb")}
       </p>
-      <h1 className="mb-1 text-2xl font-bold">Active signals</h1>
-      <p className="mb-6 max-w-2xl text-sm text-gray-500">
-        Deterministic cross-cutting flags computed over the entity graph, procurement,
-        data-transparency and trade layers. Each carries the evidence that triggered it —
-        no black-box scoring. Analytical judgments, not confirmed facts.
-      </p>
+      <h1 className="mb-1 text-2xl font-bold">{t("signals.title")}</h1>
+      <p className="mb-6 max-w-2xl text-sm text-gray-500">{t("signals.intro")}</p>
 
       {signals.length === 0 ? (
-        <p className="py-8 text-center text-gray-400">No active signals.</p>
+        <p className="py-8 text-center text-gray-400">{t("signals.empty")}</p>
       ) : (
         <div className="space-y-3">
-          {signals.map((s) => (
-            <div key={s.key} className={`rounded-lg border-2 p-4 ${SEV_STYLE[s.severity]}`}>
-              <div className="mb-1 flex items-center gap-2">
-                <span className={`rounded px-1.5 py-0.5 text-xs font-semibold uppercase ${SEV_BADGE[s.severity]}`}>
-                  {s.severity}
-                </span>
-                <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-gray-800">
-                  {s.theater.toUpperCase()} · {s.kind}
-                </span>
-                <h2 className="font-semibold">{s.headline}</h2>
+          {signals.map((s) => {
+            const claims = s.evidenceClaimIds.length > 0 ? evidenceForSignal(s, evidenceByClaim) : [];
+            return (
+              <div key={s.key} className={`rounded-lg border-2 p-4 ${SEV_STYLE[s.severity]}`}>
+                <div className="mb-1 flex items-center gap-2">
+                  <span className={`rounded px-1.5 py-0.5 text-xs font-semibold uppercase ${SEV_BADGE[s.severity]}`}>
+                    {s.severity}
+                  </span>
+                  <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-gray-800">
+                    {s.theater.toUpperCase()} · {s.kind}
+                  </span>
+                  <h2 className="font-semibold">{s.headline}</h2>
+                </div>
+                <p className="text-sm text-gray-600 dark:text-gray-300">{s.detail}</p>
+
+                {s.evidenceClaimIds.length > 0 && (
+                  signedIn ? (
+                    <details className="mt-1">
+                      <summary className="cursor-pointer text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                        {s.evidenceClaimIds.length} {t("signals.evidence.summary")}
+                      </summary>
+                      <ul className="mt-2 space-y-3 border-l border-gray-200 pl-3 dark:border-gray-800">
+                        {claims.map((c) => (
+                          <li key={c.claimId} className="text-sm">
+                            <span className={`mr-2 rounded px-1.5 py-0.5 text-xs ${HEDGE_COLORS[c.hedging] ?? HEDGE_COLORS.unknown}`}>
+                              {c.hedging}
+                            </span>
+                            {c.text}
+                            <ClaimSources docs={c.docs} showScores={false} t={t} />
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  ) : (
+                    <p className="mt-1 text-xs text-gray-400">
+                      {s.evidenceClaimIds.length} {t("signals.evidence.public")} ·{" "}
+                      <Link href="/signin" className="underline">
+                        {t("signals.evidence.signin_prompt")}
+                      </Link>
+                    </p>
+                  )
+                )}
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-300">{s.detail}</p>
-              {s.evidenceClaimIds.length > 0 && (
-                <p className="mt-1 text-xs text-gray-400">
-                  {s.evidenceClaimIds.length} supporting claim(s) · traceable to sources
-                </p>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </main>

@@ -221,6 +221,18 @@ const en: Dict = {
   "digest.track.military": "Military situation",
   "digest.track.elite": "Elite politics & prosecutions",
 
+  // signals page framing. Evidence count-line strings are deliberately
+  // {placeholder}-free (see home.status.* above for the same convention): the
+  // number is composed next to the label in the page, not interpolated, so it can't
+  // collide with i18n.test.ts's fixed interpolation-test var set.
+  "signals.breadcrumb": "analyst signals",
+  "signals.title": "Active signals",
+  "signals.intro": "Deterministic cross-cutting flags computed over the entity graph, procurement, data-transparency and trade layers. Each carries the evidence that triggered it — no black-box scoring. Analytical judgments, not confirmed facts.",
+  "signals.empty": "No active signals.",
+  "signals.evidence.summary": "supporting claim(s) — expand to inspect",
+  "signals.evidence.public": "supporting claim(s) · traceable to sources",
+  "signals.evidence.signin_prompt": "sign in to inspect the evidence",
+
   // ask page framing
   "ask.title": "Interrogate the intelligence",
   "ask.subtitle": "Cited evidence",
@@ -342,6 +354,13 @@ const uk: Dict = {
   "digest.confidence": "впевненість",
   "digest.track.military": "Військова ситуація",
   "digest.track.elite": "Політика еліт і переслідування",
+  "signals.breadcrumb": "аналітичні сигнали",
+  "signals.title": "Активні сигнали",
+  "signals.intro": "Детерміновані наскрізні індикатори, обчислені на основі графа сутностей, закупівель, шарів прозорості даних і торгівлі. Кожен супроводжується доказами, що його спричинили — без чорної скриньки. Аналітичні судження, а не підтверджені факти.",
+  "signals.empty": "Активних сигналів немає.",
+  "signals.evidence.summary": "підтверджувальних тверджень — розгорнути для перегляду",
+  "signals.evidence.public": "підтверджувальних тверджень · простежуються до джерел",
+  "signals.evidence.signin_prompt": "увійдіть, щоб переглянути докази",
   "ask.title": "Запитати розвідку",
   "ask.subtitle": "Цитовані докази",
   "ask.placeholder": "напр., яких олігархів переслідують?",
