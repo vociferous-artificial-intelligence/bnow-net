@@ -1,0 +1,258 @@
+{
+  "generatedAt": "2026-07-11T16:59:38.578Z",
+  "corpus": {
+    "claimCount": 560,
+    "minDate": "2026-06-20",
+    "maxDate": "2026-07-11"
+  },
+  "sample": [
+    {
+      "id": 1560,
+      "text": "Israeli cabinet members, led by Prime Minister Benjamin Netanyahu, defy Supreme Court ruling on media regulation.",
+      "countryIso2": "ir",
+      "track": "elite_politics",
+      "claimDate": "2026-07-05",
+      "entities": [
+        "Benjamin Netanyahu",
+        "Israeli Government",
+        "Supreme Court of Israel"
+      ]
+    },
+    {
+      "id": 2,
+      "text": "sourced claim",
+      "countryIso2": "ru",
+      "track": null,
+      "claimDate": null,
+      "entities": []
+    },
+    {
+      "id": 1050,
+      "text": "Ukraine has begun construction of a memorial complex for the Heroes of the Heavenly Hundred.",
+      "countryIso2": "ua",
+      "track": "military",
+      "claimDate": "2026-06-20",
+      "entities": []
+    },
+    {
+      "id": 1955,
+      "text": "Iran's military and intelligence officials vowed to avenge Khamenei's assassination, indicating a potential escalation in regional tensions.",
+      "countryIso2": "ir",
+      "track": "elite_politics",
+      "claimDate": "2026-07-06",
+      "entities": [
+        "Gholam-Hossein Mohseni-Ejei",
+        "Mohammad Reza Aref"
+      ]
+    },
+    {
+      "id": 1270,
+      "text": "Irina Rapoport, former Rosnano manager, sentenced to 15 years in absentia for embezzlement.",
+      "countryIso2": "ru",
+      "track": "elite_politics",
+      "claimDate": "2026-07-02",
+      "entities": [
+        "Irina Rapoport",
+        "Rosnano"
+      ]
+    },
+    {
+      "id": 1061,
+      "text": "A total of 205 combat clashes occurred on June 21, with 49 aerial strikes and 2083 shellings reported.",
+      "countryIso2": "ua",
+      "track": "military",
+      "claimDate": "2026-06-21",
+      "entities": []
+    },
+    {
+      "id": 2528,
+      "text": "US forces launched strikes on the Iranian coast following IRGC's missile attacks on commercial ships, indicating heightened conflict.",
+      "countryIso2": "ir",
+      "track": "elite_politics",
+      "claimDate": "2026-07-07",
+      "entities": [
+        "Islamic Revolutionary Guard Corps",
+        "United States"
+      ]
+    },
+    {
+      "id": 1278,
+      "text": "Alexander Neradko, former head of Rosaviation, arrested for fraud by Investigative Committee.",
+      "countryIso2": "ru",
+      "track": "elite_politics",
+      "claimDate": "2026-07-03",
+      "entities": [
+        "Alexander Neradko",
+        "Investigative Committee"
+      ]
+    },
+    {
+      "id": 1075,
+      "text": "Increased Russian military activity has been observed in Lyman, indicating possible infiltration.",
+      "countryIso2": "ua",
+      "track": "military",
+      "claimDate": "2026-06-22",
+      "entities": []
+    },
+    {
+      "id": 3244,
+      "text": "Iran's First Vice President praised Iraq for honoring Khamenei with a massive funeral turnout, reflecting deep ties between the nations.",
+      "countryIso2": "ir",
+      "track": "elite_politics",
+      "claimDate": "2026-07-08",
+      "entities": [
+        "Iran",
+        "Iraq",
+        "Mohammad Reza Aref"
+      ]
+    },
+    {
+      "id": 1305,
+      "text": "FSB arrested women planning a terrorist attack in Pyatigorsk, allegedly on orders from Ukrainian intelligence.",
+      "countryIso2": "ru",
+      "track": "elite_politics",
+      "claimDate": "2026-07-04",
+      "entities": [
+        "FSB",
+        "Ukrainian Intelligence"
+      ]
+    },
+    {
+      "id": 1093,
+      "text": "Ukrainian military conducted training on chemical and biological defense on June 23, 2026.",
+      "countryIso2": "ua",
+      "track": "military",
+      "claimDate": "2026-06-23",
+      "entities": []
+    },
+    {
+      "id": 3361,
+      "text": "Iran's armed forces launched attacks on U.S. military targets in Gulf states following the killing of Supreme Leader Ali Khamenei.",
+      "countryIso2": "ir",
+      "track": "elite_politics",
+      "claimDate": "2026-07-09",
+      "entities": [
+        "Iranian armed forces"
+      ]
+    },
+    {
+      "id": 1581,
+      "text": "Vladislav Oleynik, a representative of the Karelia national movement, faces charges for not fulfilling 'foreign agent' duties.",
+      "countryIso2": "ru",
+      "track": "elite_politics",
+      "claimDate": "2026-07-05",
+      "entities": [
+        "Karelia National Movement",
+        "Russian Government",
+        "Vladislav Oleynik"
+      ]
+    },
+    {
+      "id": 1105,
+      "text": "Ukrainian forces hit the Orenburg gas processing plant and helium plant in Russia, causing fires.",
+      "countryIso2": "ua",
+      "track": "military",
+      "claimDate": "2026-06-24",
+      "entities": []
+    },
+    {
+      "id": 3659,
+      "text": "Iran's Supreme Leader Ayatollah Ali Khamenei has been buried in Mashhad following his death, indicating a significant political transition.",
+      "countryIso2": "ir",
+      "track": "elite_politics",
+      "claimDate": "2026-07-10",
+      "entities": [
+        "Ali Khamenei"
+      ]
+    },
+    {
+      "id": 2476,
+      "text": "The Russian Army has liberated Petro-Ivanovka in the Kharkov region, according to the Defense Ministry.",
+      "countryIso2": "ru",
+      "track": "elite_politics",
+      "claimDate": "2026-07-07",
+      "entities": [
+        "Russian Army",
+        "Ukrainian Armed Forces"
+      ]
+    },
+    {
+      "id": 1119,
+      "text": "The European Commission has disbursed €3.2 billion to Ukraine as the first tranche of macro-financial assistance.",
+      "countryIso2": "ua",
+      "track": "military",
+      "claimDate": "2026-06-25",
+      "entities": []
+    },
+    {
+      "id": 3810,
+      "text": "Ali Ansari is targeted by US sanctions for financially supporting Iran's Revolutionary Guards and enriching government elites.",
+      "countryIso2": "ir",
+      "track": "elite_politics",
+      "claimDate": "2026-07-11",
+      "entities": [
+        "Ali Ansari",
+        "Islamic Revolutionary Guard Corps",
+        "Mojtaba Khamenei",
+        "Revolutionary Guards"
+      ]
+    },
+    {
+      "id": 3174,
+      "text": "Political analyst Tatiana Stanovaya is under investigation for ties to the Carnegie Center.",
+      "countryIso2": "ru",
+      "track": "elite_politics",
+      "claimDate": "2026-07-08",
+      "entities": [
+        "Carnegie Center",
+        "Tatiana Stanovaya"
+      ]
+    },
+    {
+      "id": 1137,
+      "text": "A cybersecurity tournament was held in Kyiv with over 50 participants from Ukrainian security forces.",
+      "countryIso2": "ua",
+      "track": "military",
+      "claimDate": "2026-06-26",
+      "entities": []
+    },
+    {
+      "id": 2751,
+      "text": "U.S. Central Command hosted a regional security dialogue with leaders from 12 nations, including Bahrain and Saudi Arabia.",
+      "countryIso2": "ir",
+      "track": "military",
+      "claimDate": "2026-07-01",
+      "entities": [
+        "U.S. Central Command"
+      ]
+    },
+    {
+      "id": 3398,
+      "text": "Italy expelled two Russian diplomats following the arrest of individuals accused of passing secret data to Russia.",
+      "countryIso2": "ru",
+      "track": "elite_politics",
+      "claimDate": "2026-07-09",
+      "entities": [
+        "Italian Prosecutor's Office"
+      ]
+    },
+    {
+      "id": 1151,
+      "text": "International partners announced over €550 million for Ukraine's energy sector at URC2026.",
+      "countryIso2": "ua",
+      "track": "military",
+      "claimDate": "2026-06-27",
+      "entities": []
+    },
+    {
+      "id": 2754,
+      "text": "Armed clashes erupted between IRGC forces and Kurdish opposition groups near Piranshahr and Sardasht.",
+      "countryIso2": "ir",
+      "track": "military",
+      "claimDate": "2026-07-02",
+      "entities": [
+        "Islamic Revolutionary Guard Corps"
+      ]
+    }
+  ]
+}

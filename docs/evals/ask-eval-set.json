@@ -1,0 +1,679 @@
+{
+  "version": 1,
+  "createdAt": "2026-07-11T17:00:38.321Z",
+  "corpus": {
+    "claimCount": 560,
+    "minDate": "2026-06-20",
+    "maxDate": "2026-07-11"
+  },
+  "questions": [
+    {
+      "id": "known-1560",
+      "type": "known-answer",
+      "question": "How did Israel's cabinet, led by Prime Minister Benjamin Netanyahu, react to a Supreme Court decision about media oversight?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 1560,
+          "text": "Israeli cabinet members, led by Prime Minister Benjamin Netanyahu, defy Supreme Court ruling on media regulation.",
+          "countryIso2": "ir",
+          "claimDate": "2026-07-05"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "known-1050",
+      "type": "known-answer",
+      "question": "What memorial complex did Ukraine begin constructing to commemorate those known as the Heavenly Hundred?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 1050,
+          "text": "Ukraine has begun construction of a memorial complex for the Heroes of the Heavenly Hundred.",
+          "countryIso2": "ua",
+          "claimDate": "2026-06-20"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "known-1955",
+      "type": "known-answer",
+      "question": "Which parts of Iran's security establishment pledged revenge after reports of Khamenei's killing, signaling a possible rise in regional tensions?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 1955,
+          "text": "Iran's military and intelligence officials vowed to avenge Khamenei's assassination, indicating a potential escalation in regional tensions.",
+          "countryIso2": "ir",
+          "claimDate": "2026-07-06"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "known-1270",
+      "type": "known-answer",
+      "question": "What length of prison sentence was imposed in absentia on former Rosnano executive Irina Rapoport for embezzlement?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 1270,
+          "text": "Irina Rapoport, former Rosnano manager, sentenced to 15 years in absentia for embezzlement.",
+          "countryIso2": "ru",
+          "claimDate": "2026-07-02"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "known-1061",
+      "type": "known-answer",
+      "question": "On June 21, how many combat engagements were recorded, and what were the reported numbers of air strikes and incidents of shelling?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 1061,
+          "text": "A total of 205 combat clashes occurred on June 21, with 49 aerial strikes and 2083 shellings reported.",
+          "countryIso2": "ua",
+          "claimDate": "2026-06-21"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "known-2528",
+      "type": "known-answer",
+      "question": "How did U.S. forces respond off Iran’s coast after the IRGC fired missiles at commercial vessels, and what does that response indicate about the level of conflict?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 2528,
+          "text": "US forces launched strikes on the Iranian coast following IRGC's missile attacks on commercial ships, indicating heightened conflict.",
+          "countryIso2": "ir",
+          "claimDate": "2026-07-07"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "known-1278",
+      "type": "known-answer",
+      "question": "Which ex-head of Rosaviation was taken into custody by the Investigative Committee on allegations of fraud?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 1278,
+          "text": "Alexander Neradko, former head of Rosaviation, arrested for fraud by Investigative Committee.",
+          "countryIso2": "ru",
+          "claimDate": "2026-07-03"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "known-1075",
+      "type": "known-answer",
+      "question": "What change in Russian military behavior was noted around Lyman, and what potential threat did observers say it could signal?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 1075,
+          "text": "Increased Russian military activity has been observed in Lyman, indicating possible infiltration.",
+          "countryIso2": "ua",
+          "claimDate": "2026-06-22"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "known-3244",
+      "type": "known-answer",
+      "question": "How did Iran’s First Vice President describe Iraq’s large turnout for Khamenei’s funeral, and what did he say it revealed about the relationship between the two countries?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 3244,
+          "text": "Iran's First Vice President praised Iraq for honoring Khamenei with a massive funeral turnout, reflecting deep ties between the nations.",
+          "countryIso2": "ir",
+          "claimDate": "2026-07-08"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "known-1305",
+      "type": "known-answer",
+      "question": "What did Russian security services report about female suspects detained in Pyatigorsk and their alleged connection to Ukrainian intelligence?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 1305,
+          "text": "FSB arrested women planning a terrorist attack in Pyatigorsk, allegedly on orders from Ukrainian intelligence.",
+          "countryIso2": "ru",
+          "claimDate": "2026-07-04"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "known-1093",
+      "type": "known-answer",
+      "question": "What kind of drills did Ukraine's armed forces carry out on 23 June 2026?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 1093,
+          "text": "Ukrainian military conducted training on chemical and biological defense on June 23, 2026.",
+          "countryIso2": "ua",
+          "claimDate": "2026-06-23"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "known-3361",
+      "type": "known-answer",
+      "question": "What action did Iran's military reportedly take against U.S. targets in Gulf countries after the reported killing of Supreme Leader Ali Khamenei?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 3361,
+          "text": "Iran's armed forces launched attacks on U.S. military targets in Gulf states following the killing of Supreme Leader Ali Khamenei.",
+          "countryIso2": "ir",
+          "claimDate": "2026-07-09"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "known-1581",
+      "type": "known-answer",
+      "question": "What charges were brought against Vladislav Oleynik of the Karelia national movement related to duties tied to a 'foreign agent' designation?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 1581,
+          "text": "Vladislav Oleynik, a representative of the Karelia national movement, faces charges for not fulfilling 'foreign agent' duties.",
+          "countryIso2": "ru",
+          "claimDate": "2026-07-05"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "known-1105",
+      "type": "known-answer",
+      "question": "Which facilities in Russia's Orenburg region did Ukrainian forces reportedly strike, and what was the reported immediate consequence?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 1105,
+          "text": "Ukrainian forces hit the Orenburg gas processing plant and helium plant in Russia, causing fires.",
+          "countryIso2": "ua",
+          "claimDate": "2026-06-24"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "known-3659",
+      "type": "known-answer",
+      "question": "According to the report, in which city was Iran’s supreme religious leader laid to rest after his death, and how was this event described in terms of its political implications?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 3659,
+          "text": "Iran's Supreme Leader Ayatollah Ali Khamenei has been buried in Mashhad following his death, indicating a significant political transition.",
+          "countryIso2": "ir",
+          "claimDate": "2026-07-10"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "known-2476",
+      "type": "known-answer",
+      "question": "Which settlement in the Kharkiv region did the Russian Defence Ministry say Russian forces had recaptured?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 2476,
+          "text": "The Russian Army has liberated Petro-Ivanovka in the Kharkov region, according to the Defense Ministry.",
+          "countryIso2": "ru",
+          "claimDate": "2026-07-07"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "known-1119",
+      "type": "known-answer",
+      "question": "How much did the European Commission release to Ukraine as the initial installment of its macro-financial support?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 1119,
+          "text": "The European Commission has disbursed €3.2 billion to Ukraine as the first tranche of macro-financial assistance.",
+          "countryIso2": "ua",
+          "claimDate": "2026-06-25"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "known-3810",
+      "type": "known-answer",
+      "question": "Which individual was hit with U.S. sanctions for allegedly providing financial backing to Iran’s Revolutionary Guard and enriching the country’s ruling elites?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 3810,
+          "text": "Ali Ansari is targeted by US sanctions for financially supporting Iran's Revolutionary Guards and enriching government elites.",
+          "countryIso2": "ir",
+          "claimDate": "2026-07-11"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "known-3174",
+      "type": "known-answer",
+      "question": "Which political analyst is reported to be under investigation over links to the Carnegie Center?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 3174,
+          "text": "Political analyst Tatiana Stanovaya is under investigation for ties to the Carnegie Center.",
+          "countryIso2": "ru",
+          "claimDate": "2026-07-08"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "known-1137",
+      "type": "known-answer",
+      "question": "What Kyiv-based competition involved more than fifty members of Ukraine's security services testing cyber skills?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 1137,
+          "text": "A cybersecurity tournament was held in Kyiv with over 50 participants from Ukrainian security forces.",
+          "countryIso2": "ua",
+          "claimDate": "2026-06-26"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "known-2751",
+      "type": "known-answer",
+      "question": "Which U.S. regional military command convened a security dialogue attended by leaders from 12 countries, including Bahrain and Saudi Arabia?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 2751,
+          "text": "U.S. Central Command hosted a regional security dialogue with leaders from 12 nations, including Bahrain and Saudi Arabia.",
+          "countryIso2": "ir",
+          "claimDate": "2026-07-01"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "known-3398",
+      "type": "known-answer",
+      "question": "What steps did Italy take against Russian diplomatic staff after arrests over alleged transmission of secret information to Russia?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 3398,
+          "text": "Italy expelled two Russian diplomats following the arrest of individuals accused of passing secret data to Russia.",
+          "countryIso2": "ru",
+          "claimDate": "2026-07-09"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "known-1151",
+      "type": "known-answer",
+      "question": "How much funding did international partners pledge for Ukraine’s energy sector at URC2026?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 1151,
+          "text": "International partners announced over €550 million for Ukraine's energy sector at URC2026.",
+          "countryIso2": "ua",
+          "claimDate": "2026-06-27"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "known-2754",
+      "type": "known-answer",
+      "question": "In which areas did clashes occur between IRGC units and Kurdish opposition forces near Piranshahr and Sardasht?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 2754,
+          "text": "Armed clashes erupted between IRGC forces and Kurdish opposition groups near Piranshahr and Sardasht.",
+          "countryIso2": "ir",
+          "claimDate": "2026-07-02"
+        }
+      ],
+      "acceptableAlternates": []
+    },
+    {
+      "id": "temporal-01",
+      "type": "temporal",
+      "question": "What strikes were reported in Ukraine in the past week?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 3416,
+          "text": "A Russian drone attacked a vehicle with a family in Kharkiv region, injuring a 28-year-old man and a five-month-old child.",
+          "countryIso2": "ua",
+          "claimDate": "2026-07-09"
+        },
+        {
+          "claimIdAtHarvest": 2729,
+          "text": "The Russian Ministry of Defense threatened to increase the frequency and intensity of missile strikes on Ukraine.",
+          "countryIso2": "ua",
+          "claimDate": "2026-07-06"
+        },
+        {
+          "claimIdAtHarvest": 2731,
+          "text": "Ukrainian forces attacked oil facilities in Crimea and Russia, including the Kerch oil depot and S-400 systems.",
+          "countryIso2": "ua",
+          "claimDate": "2026-07-06"
+        }
+      ],
+      "acceptableAlternates": [],
+      "windowExpected": {
+        "from": "2026-07-04",
+        "to": "2026-07-11"
+      },
+      "notes": "curated 2026-07-11; window from parseTimeWindow@2026-07-11 (relative phrasings assume the eval runs that UTC day); gold = top in-window topic claims (3)"
+    },
+    {
+      "id": "temporal-02",
+      "type": "temporal",
+      "question": "What happened in Russia since July 5?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 3830,
+          "text": "Ukrainian President Volodymyr Zelenskyy stated that an independent command for long-range strikes against Russia will be established in the Ukrainian Armed Forces.",
+          "countryIso2": "ru",
+          "claimDate": "2026-07-11"
+        },
+        {
+          "claimIdAtHarvest": 3707,
+          "text": "The Russian Prosecutor General's Office filed a lawsuit to seize assets from the European Bearing Corporation due to corruption allegations against its owners.",
+          "countryIso2": "ru",
+          "claimDate": "2026-07-10"
+        },
+        {
+          "claimIdAtHarvest": 2715,
+          "text": "Ukrainian drones struck the Omsk Oil Refinery, the largest in Russia, located over 2500 km from the front line, causing extensive damage.",
+          "countryIso2": "ru",
+          "claimDate": "2026-07-06"
+        }
+      ],
+      "acceptableAlternates": [],
+      "windowExpected": {
+        "from": "2026-07-05",
+        "to": "2026-07-11"
+      },
+      "notes": "curated 2026-07-11; window from parseTimeWindow@2026-07-11 (relative phrasings assume the eval runs that UTC day); gold = top in-window topic claims (3)"
+    },
+    {
+      "id": "temporal-03",
+      "type": "temporal",
+      "question": "Summarize Iran-related developments in June 2026.",
+      "gold": [],
+      "acceptableAlternates": [],
+      "windowExpected": {
+        "from": "2026-06-01",
+        "to": "2026-06-30"
+      },
+      "notes": "curated 2026-07-11; window from parseTimeWindow@2026-07-11 (relative phrasings assume the eval runs that UTC day); gold = top in-window topic claims (0)"
+    },
+    {
+      "id": "temporal-04",
+      "type": "temporal",
+      "question": "What was reported yesterday in Ukraine?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 3715,
+          "text": "At least 15 private houses were destroyed or damaged in Zaporizhzhia due to a Russian attack.",
+          "countryIso2": "ua",
+          "claimDate": "2026-07-10"
+        },
+        {
+          "claimIdAtHarvest": 3716,
+          "text": "Thirteen vessels were destroyed near Crimea as part of ongoing Ukrainian operations.",
+          "countryIso2": "ua",
+          "claimDate": "2026-07-10"
+        },
+        {
+          "claimIdAtHarvest": 3717,
+          "text": "Ukrainian forces reported hitting 13 enemy tankers during the night.",
+          "countryIso2": "ua",
+          "claimDate": "2026-07-10"
+        }
+      ],
+      "acceptableAlternates": [],
+      "windowExpected": {
+        "from": "2026-07-10",
+        "to": "2026-07-10"
+      },
+      "notes": "curated 2026-07-11; window from parseTimeWindow@2026-07-11 (relative phrasings assume the eval runs that UTC day); gold = top in-window topic claims (3)"
+    },
+    {
+      "id": "temporal-05",
+      "type": "temporal",
+      "question": "Show me claims from the last 3 days about Russian military losses.",
+      "gold": [
+        {
+          "claimIdAtHarvest": 3686,
+          "text": "Ukrainian drones attacked the Taganrog seaport and an oil refinery in the Rostov region, causing fires but no casualties reported.",
+          "countryIso2": "ru",
+          "claimDate": "2026-07-10"
+        },
+        {
+          "claimIdAtHarvest": 3170,
+          "text": "U.S. forces attacked the Bandar Abbas fishing pier, resulting in casualties among fishermen.",
+          "countryIso2": "ru",
+          "claimDate": "2026-07-08"
+        },
+        {
+          "claimIdAtHarvest": 3166,
+          "text": "A Ukrainian drone strike destroyed a Russian ammunition depot in Sorokino, Luhansk Oblast.",
+          "countryIso2": "ru",
+          "claimDate": "2026-07-08"
+        }
+      ],
+      "acceptableAlternates": [],
+      "windowExpected": {
+        "from": "2026-07-08",
+        "to": "2026-07-11"
+      },
+      "notes": "curated 2026-07-11; window from parseTimeWindow@2026-07-11 (relative phrasings assume the eval runs that UTC day); gold = top in-window topic claims (3)"
+    },
+    {
+      "id": "temporal-06",
+      "type": "temporal",
+      "question": "What happened in Russia this week?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 3830,
+          "text": "Ukrainian President Volodymyr Zelenskyy stated that an independent command for long-range strikes against Russia will be established in the Ukrainian Armed Forces.",
+          "countryIso2": "ru",
+          "claimDate": "2026-07-11"
+        },
+        {
+          "claimIdAtHarvest": 3707,
+          "text": "The Russian Prosecutor General's Office filed a lawsuit to seize assets from the European Bearing Corporation due to corruption allegations against its owners.",
+          "countryIso2": "ru",
+          "claimDate": "2026-07-10"
+        },
+        {
+          "claimIdAtHarvest": 2715,
+          "text": "Ukrainian drones struck the Omsk Oil Refinery, the largest in Russia, located over 2500 km from the front line, causing extensive damage.",
+          "countryIso2": "ru",
+          "claimDate": "2026-07-06"
+        }
+      ],
+      "acceptableAlternates": [],
+      "windowExpected": {
+        "from": "2026-07-06",
+        "to": "2026-07-11"
+      },
+      "notes": "curated 2026-07-11; window from parseTimeWindow@2026-07-11 (relative phrasings assume the eval runs that UTC day); gold = top in-window topic claims (3)"
+    },
+    {
+      "id": "temporal-07",
+      "type": "temporal",
+      "question": "Any updates since June 28 on Iranian sanctions?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 3662,
+          "text": "Ali Ansari is targeted by US sanctions for financially supporting Iran's Revolutionary Guards and enriching government elites.",
+          "countryIso2": "ir",
+          "claimDate": "2026-07-10"
+        },
+        {
+          "claimIdAtHarvest": 3810,
+          "text": "Ali Ansari is targeted by US sanctions for financially supporting Iran's Revolutionary Guards and enriching government elites.",
+          "countryIso2": "ir",
+          "claimDate": "2026-07-11"
+        },
+        {
+          "claimIdAtHarvest": 3803,
+          "text": "The US issued new sanctions related to Iran due to attacks on international shipping in the Strait of Hormuz.",
+          "countryIso2": "ir",
+          "claimDate": "2026-07-11"
+        }
+      ],
+      "acceptableAlternates": [],
+      "windowExpected": {
+        "from": "2026-06-28",
+        "to": "2026-07-11"
+      },
+      "notes": "curated 2026-07-11; window from parseTimeWindow@2026-07-11 (relative phrasings assume the eval runs that UTC day); gold = top in-window topic claims (3)"
+    },
+    {
+      "id": "temporal-08",
+      "type": "temporal",
+      "question": "What did we report today about Ukraine?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 3851,
+          "text": "Ukrainian defenders eliminated 170 enemy personnel and destroyed 45 units of military equipment in one day.",
+          "countryIso2": "ua",
+          "claimDate": "2026-07-11"
+        },
+        {
+          "claimIdAtHarvest": 3852,
+          "text": "Increased activity of Russian tactical aviation has been reported in eastern and southeastern directions.",
+          "countryIso2": "ua",
+          "claimDate": "2026-07-11"
+        },
+        {
+          "claimIdAtHarvest": 3848,
+          "text": "Ukrainian forces struck 28 vessels of the Russian shadow fleet in the Sea of Azov on July 11.",
+          "countryIso2": "ua",
+          "claimDate": "2026-07-11"
+        }
+      ],
+      "acceptableAlternates": [],
+      "windowExpected": {
+        "from": "2026-07-11",
+        "to": "2026-07-11"
+      },
+      "notes": "curated 2026-07-11; window from parseTimeWindow@2026-07-11 (relative phrasings assume the eval runs that UTC day); gold = top in-window topic claims (3)"
+    },
+    {
+      "id": "temporal-09",
+      "type": "temporal",
+      "question": "Give me a rundown of the past 2 days in Russia.",
+      "gold": [
+        {
+          "claimIdAtHarvest": 3830,
+          "text": "Ukrainian President Volodymyr Zelenskyy stated that an independent command for long-range strikes against Russia will be established in the Ukrainian Armed Forces.",
+          "countryIso2": "ru",
+          "claimDate": "2026-07-11"
+        },
+        {
+          "claimIdAtHarvest": 3707,
+          "text": "The Russian Prosecutor General's Office filed a lawsuit to seize assets from the European Bearing Corporation due to corruption allegations against its owners.",
+          "countryIso2": "ru",
+          "claimDate": "2026-07-10"
+        },
+        {
+          "claimIdAtHarvest": 3687,
+          "text": "Two fuel storage facilities caught fire in Azov after a drone attack, with firefighting efforts ongoing at the marine port in Taganrog.",
+          "countryIso2": "ru",
+          "claimDate": "2026-07-10"
+        }
+      ],
+      "acceptableAlternates": [],
+      "windowExpected": {
+        "from": "2026-07-09",
+        "to": "2026-07-11"
+      },
+      "notes": "curated 2026-07-11; window from parseTimeWindow@2026-07-11 (relative phrasings assume the eval runs that UTC day); gold = top in-window topic claims (3)"
+    },
+    {
+      "id": "temporal-10",
+      "type": "temporal",
+      "question": "What strikes happened in Ukraine in July 2026?",
+      "gold": [
+        {
+          "claimIdAtHarvest": 3416,
+          "text": "A Russian drone attacked a vehicle with a family in Kharkiv region, injuring a 28-year-old man and a five-month-old child.",
+          "countryIso2": "ua",
+          "claimDate": "2026-07-09"
+        },
+        {
+          "claimIdAtHarvest": 2725,
+          "text": "Ukrainian forces struck the Omsk oil refinery, which processes over 22 million tons of oil annually, using FP-1 drones.",
+          "countryIso2": "ua",
+          "claimDate": "2026-07-06"
+        },
+        {
+          "claimIdAtHarvest": 2729,
+          "text": "The Russian Ministry of Defense threatened to increase the frequency and intensity of missile strikes on Ukraine.",
+          "countryIso2": "ua",
+          "claimDate": "2026-07-06"
+        }
+      ],
+      "acceptableAlternates": [],
+      "windowExpected": {
+        "from": "2026-07-01",
+        "to": "2026-07-31"
+      },
+      "notes": "curated 2026-07-11; window from parseTimeWindow@2026-07-11 (relative phrasings assume the eval runs that UTC day); gold = top in-window topic claims (3)"
+    },
+    {
+      "id": "negative-01",
+      "type": "negative",
+      "question": "Have North Korean troops been rotated into any deployments in Africa recently?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "notes": "Absent by theater scope. The corpus covers Russia/Ukraine/Iran only (AGENTS.md charter); DPRK-Africa deployments are a real OSINT topic but outside all three ingested theaters. Expect near-zero lexical/semantic matches — run --verify-negatives to confirm before shipping. | subject-term probe 2026-07-11: distinguishing subjects absent from corpus (venezuela hit = earthquake-volunteers claim only)"
+    },
+    {
+      "id": "negative-02",
+      "type": "negative",
+      "question": "What new sanctions has the US imposed on Venezuela's oil sector this month?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "notes": "Absent by theater scope. Venezuela is not one of the live theaters (ru/ua/ir); no Venezuela-tagged claims should exist in this corpus. Run --verify-negatives to confirm. | subject-term probe 2026-07-11: distinguishing subjects absent from corpus (venezuela hit = earthquake-volunteers claim only)"
+    },
+    {
+      "id": "negative-03",
+      "type": "negative",
+      "question": "Was the cargo vessel MV Solara Pride seized or inspected in the Persian Gulf?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "notes": "Fictional vessel name (does not exist) — tests whether the system fabricates a plausible-sounding answer instead of reporting insufficient evidence. The corpus does cover Persian Gulf / Strait of Hormuz maritime incidents generally (ir theater), so a naive keyword probe on 'Persian Gulf' could over-trigger; the vessel name itself should return zero matches. Worth a manual look even if --verify-negatives flags it, rather than discarding outright. | subject-term probe 2026-07-11: distinguishing subjects absent from corpus (venezuela hit = earthquake-volunteers claim only)"
+    },
+    {
+      "id": "negative-04",
+      "type": "negative",
+      "question": "Did the Wagner Group rebrand under a new legal entity called 'Konstel Group' this month?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "notes": "Fictional entity name (does not exist) — PMC rebranding is a real recurring OSINT topic for the ru theater, so this tests specific-entity hallucination risk rather than plain topic-absence: 'Wagner' alone would match many claims, but 'Konstel Group' should match none. Expect --verify-negatives to flag this one on the 'Wagner' term alone — that is expected; judge it on whether 'Konstel Group' specifically is unsupported, not on the raw match count. | subject-term probe 2026-07-11: distinguishing subjects absent from corpus (venezuela hit = earthquake-volunteers claim only)"
+    },
+    {
+      "id": "negative-05",
+      "type": "negative",
+      "question": "Which Chinese naval vessels conducted exercises near Taiwan in the past two weeks?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "notes": "Absent by theater scope. China is explicitly deferred per the product charter (AGENTS.md); no Taiwan Strait content is ingested. Run --verify-negatives to confirm. | subject-term probe 2026-07-11: distinguishing subjects absent from corpus (venezuela hit = earthquake-volunteers claim only)"
+    }
+  ],
+  "curatedAt": "2026-07-11"
+}
