@@ -6,6 +6,11 @@ import { formatNumber } from "@/i18n/format";
 import { currentUserEmail } from "@/lib/session";
 import { LIVE_THEATERS, latestDigestHref, theaterHref } from "@/lib/nav/site-nav";
 import { TheaterStatusPanel, type TheaterStatusEntry } from "@/components/theater-status-panel";
+import {
+  HomeValidationTiles,
+  type TheaterValidationEntry,
+  type CorroboratedShare,
+} from "@/components/home-validation-tiles";
 import { nextFire } from "@/lib/cron/next-fire";
 import vercelConfig from "../../vercel.json";
 
@@ -27,6 +32,18 @@ interface DigestRow {
   iso2: string;
   last_digest: string | null;
   latest_date: string | null;
+}
+
+interface ValidationRow {
+  iso2: string;
+  coverage_pct: number | string | null;
+  timeliness_hours: number | string | null;
+  run_at: string | null;
+}
+
+interface CorroboratedRow {
+  corroborated: number;
+  total: number;
 }
 
 const PRIMARY_CTA =
@@ -65,9 +82,11 @@ export default async function Home() {
   let theaterStatus: TheaterStatusEntry[] = [];
   let xPaused = false;
   let nextUpdateLabel = "";
+  let validationEntries: TheaterValidationEntry[] = [];
+  let corroboratedShare: CorroboratedShare | null = null;
   if (signedIn) {
     try {
-      const [freshnessRows, digestRows] = (await Promise.all([
+      const [freshnessRows, digestRows, validationRows, corroboratedRows] = (await Promise.all([
         rawSql.query(
           `SELECT rd.country_iso2 AS iso2,
                   max(rd.fetched_at) AS last_fetch,
@@ -85,10 +104,52 @@ export default async function Home() {
            GROUP BY 1`,
           [],
         ),
-      ])) as [FreshnessRow[], DigestRow[]];
+        // Latest validation run per theater — DISTINCT ON picks the newest row per
+        // iso2 (run_at DESC) instead of an aggregate, so coverage/timeliness stay a
+        // matched pair from the same run rather than mixed maxima across runs.
+        rawSql.query(
+          `SELECT DISTINCT ON (c.iso2) c.iso2 AS iso2, vr.coverage_pct, vr.timeliness_hours, vr.run_at
+           FROM validation_runs vr
+           JOIN digests d ON d.id = vr.digest_id
+           JOIN countries c ON c.id = d.country_id
+           WHERE c.iso2 IN ('ru','ua','ir')
+           ORDER BY c.iso2, vr.run_at DESC`,
+          [],
+        ),
+        // Corroborated share: today's digest claims (any track) across live theaters,
+        // counted (not shared) here — the honest 0-vs-not-yet-computed distinction is
+        // decided in TS below from `total`.
+        rawSql.query(
+          `SELECT count(*) FILTER (WHERE doc_count >= 2)::int AS corroborated, count(*)::int AS total
+           FROM (
+             SELECT cl.id, count(cs.raw_document_id) AS doc_count
+             FROM claims cl
+             JOIN digests d ON d.id = cl.digest_id
+             JOIN countries c ON c.id = d.country_id
+             LEFT JOIN claim_sources cs ON cs.claim_id = cl.id
+             WHERE c.iso2 IN ('ru','ua','ir') AND d.digest_date = current_date
+             GROUP BY cl.id
+           ) claim_doc_counts`,
+          [],
+        ),
+      ])) as [FreshnessRow[], DigestRow[], ValidationRow[], CorroboratedRow[]];
 
       const freshnessByIso2 = new Map(freshnessRows.map((r) => [r.iso2, r]));
       const digestByIso2 = new Map(digestRows.map((r) => [r.iso2, r]));
+      const validationByIso2 = new Map(validationRows.map((r) => [r.iso2, r]));
+
+      validationEntries = LIVE_THEATERS.map((th) => {
+        const v = validationByIso2.get(th.iso2);
+        return {
+          iso2: th.iso2,
+          name: t(th.labelKey),
+          coveragePct: v?.coverage_pct != null ? Number(v.coverage_pct) : null,
+          timelinessHours: v?.timeliness_hours != null ? Number(v.timeliness_hours) : null,
+          runAt: v?.run_at ?? null,
+        };
+      });
+      const cr = corroboratedRows[0];
+      corroboratedShare = cr && cr.total > 0 ? { corroborated: cr.corroborated, total: cr.total } : null;
 
       theaterStatus = LIVE_THEATERS.map((th) => {
         const f = freshnessByIso2.get(th.iso2);
@@ -177,19 +238,47 @@ export default async function Home() {
                 {t("home.cta.scoreboard")}
               </Link>
             </div>
+            {/* Buyer journey tertiary line: proof (registry) -> coverage -> validation ->
+                request access. Reuses existing dictionary keys throughout — no new i18n
+                surface — and stays a single muted line, not a new section. */}
+            <p className="mt-3 text-xs text-gray-400">
+              <Link href="/registry" className="underline hover:text-gray-600 dark:hover:text-gray-300">
+                {t("home.features.reliability.link")}
+              </Link>
+              {" · "}
+              <Link href="/countries" className="underline hover:text-gray-600 dark:hover:text-gray-300">
+                {t("home.cta.coverage")}
+              </Link>
+              {" · "}
+              <Link href="/scoreboard" className="underline hover:text-gray-600 dark:hover:text-gray-300">
+                {t("home.cta.scoreboard")}
+              </Link>
+              {" · "}
+              <Link href="/pricing" className="underline hover:text-gray-600 dark:hover:text-gray-300">
+                {t("pricing.cta.request")}
+              </Link>
+            </p>
             <p className="mt-4 text-sm text-gray-400">{t("home.live")}</p>
           </>
         )}
       </section>
 
       {signedIn ? (
-        <TheaterStatusPanel
-          locale={locale}
-          t={t}
-          entries={theaterStatus}
-          nextUpdateLabel={nextUpdateLabel}
-          xPaused={xPaused}
-        />
+        <>
+          <TheaterStatusPanel
+            locale={locale}
+            t={t}
+            entries={theaterStatus}
+            nextUpdateLabel={nextUpdateLabel}
+            xPaused={xPaused}
+          />
+          <HomeValidationTiles
+            locale={locale}
+            t={t}
+            entries={validationEntries}
+            corroboratedShare={corroboratedShare}
+          />
+        </>
       ) : (
         <section className="grid gap-6 py-10 sm:grid-cols-3">
           <div className="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
