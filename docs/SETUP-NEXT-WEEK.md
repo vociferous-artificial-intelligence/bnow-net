@@ -65,14 +65,14 @@ send from scenefiend's identity. After step 3:
 Cost: Postmark free tier 100 emails/mo, then $15/mo. Unlocks: deliverability +
 brand-correct sender. (Resend remains a supported alternative in the seam.)
 
-## 5. Telegram MTProto — $0, 20 min + ~1h adapter work
+## 5. Telegram MTProto — $0, ~10 min (ONLY the login remains; adapter shipped 2026-07-11)
 
 | | |
 |---|---|
-| Env vars | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` |
-| Where | my.telegram.org → API development tools |
-| Cost | $0 |
-| Unlocks | full-history backfill + channels with disabled web previews (several MoD/milblogger channels the current t.me/s/ scraper cannot read). Interface ready (`SourceAdapter`); implement with GramJS behind it |
+| Env vars | `TELEGRAM_API_ID`/`HASH` ✅ (local + prod) · `TELEGRAM_SESSION` ← the missing one |
+| Steps | 1) `npx tsx scripts/telegram-login.ts` (interactive; `--qr` if the phone-code path is flood-limited) → writes `.telegram.session` · 2) verify: `npx tsx scripts/telegram-getme.ts` · 3) `printf '%s' "$(cat .telegram.session)" \| npx vercel@latest env add TELEGRAM_SESSION production` (printf — a trailing newline breaks nothing here but keep the cutover convention; var is Sensitive/write-only) · 4) redeploy · 5) `npx tsx scripts/mtproto-backfill.ts 14 --apply` (estimate ≈ $3.37 map spend of the $6 sprint budget) |
+| Cost | $0 API; backfill map catch-up ≈ $3.37 inside `MAP_USD_CAP_DAILY` |
+| Unlocks | full-history backfill + registry ranks 51–75 + channels with disabled web previews (several MoD/milblogger channels the t.me/s/ scraper cannot read). Cron `ingest:mtproto` (:35 hourly) starts fetching on its own once the env var lands |
 
 ## 6. X/Twitter API via twitterapi.io — paid; the single biggest coverage unlock
 

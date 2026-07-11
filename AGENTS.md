@@ -37,9 +37,10 @@ primitives (e.g. `src/components/nav-dropdown.tsx`) are hand-rolled to WAI-ARIA 
                       source_citations ──materialize──> sources (registry)
                                                             │ seeds channels + weights
  RSS (29 feeds)      ─┐                                     ▼
- GDELT 15-min slices ─┼─ SourceAdapter.fetchLatest() ─> raw_documents ─┐
- t.me/s/ web preview ─┤      (cron /api/cron/ingest)    (hash-deduped) │
- X via twitterapi.io ─┘  (MTProto/ACLED: fixture stubs, NOT wired)     ▼
+ GDELT 15-min slices ─┤
+ t.me/s/ web preview ─┼─ SourceAdapter.fetchLatest() ─> raw_documents ─┐
+ t.me MTProto (gramJS)┤      (cron /api/cron/ingest)    (hash-deduped) │
+ X via twitterapi.io ─┘  (ACLED: fixture stub, NOT wired)              ▼
                                         normalize → near-dupe → claims/events
                                         (claim ⇄ raw_documents join = traceability,
                                          enforced: claim INSERT requires source link)
@@ -61,8 +62,9 @@ src/components/     shared React components (SiteHeader, hand-rolled ARIA dropdo
 src/db/             drizzle schema + client; generated SQL lives in drizzle/
 src/i18n/           LOCALE_REGISTRY + catalogs (en uk de ar ja pl fr; ar is RTL)
 src/integration/    *.itest.ts — Neon-branch integration tests, excluded from unit suite
-src/lib/adapters/   SourceAdapter impls: rss, gdelt, telegram-web, x-api (live), procurement;
-                    stubs.ts = fixture stubs (MTProto/ACLED/x) — never wired into prod ingest
+src/lib/adapters/   SourceAdapter impls: rss, gdelt, telegram-web, telegram-mtproto, x-api
+                    (live), procurement; stubs.ts = fixture stubs (ACLED/x) — never wired
+                    into prod ingest
 src/lib/analysis/   AnalysisProvider (openai/anthropic/stub), digest, tracks, source-mix,
                     map stage (map-worker, map-prompts, map-dedup, minhash)
 src/lib/isw/        crawler, endnote parser, hedging classifier, registry materializer
@@ -88,7 +90,10 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
 - **Registry:** 6,985 ISW-derived sources / 251K citations / 1,565 reports (97.65% parse);
   per-theater aggregates in `source_theater_stats` (ru/ir).
 - **Ingestion (live):** 29 RSS feeds (ru ua il ir sa ae qa om + bh/kw scaffolded),
-  registry-selected + curated Telegram via t.me/s/, X via api.twitterapi.io (383
+  registry-selected + curated Telegram via t.me/s/, Telegram MTProto (**wired
+  2026-07-11, gated on TELEGRAM_SESSION: `ingest:mtproto` cron :35 hourly runs green
+  but fetched=0 until the operator's one-time login — egress PROVEN on Vercel tcp+wss;
+  reads registry top-75 vs the scraper's top-50**), X via api.twitterapi.io (383
   ISW-cited accounts — **wired but FROZEN since 2026-07-09 20:21Z: `X_SPRINT_USD_CAP`
   reached ($5.00 all-time), `ingest:x` runs green but fetched=0; resumes only when the
   operator raises the cap — OPEN-TASKS #38**), GDELT (wired, upstream-flaky), zakupki
@@ -117,17 +122,16 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   signals / trade / datadark / critical-materials / ask (capped 20/user/day, $1/day
   global) / i18n: en+uk full, de ar ja pl fr catalogs (landing wired; needs native
   review before promotion).
-- **Tests:** 471 unit tests / 41 files green (`npm test`, ~3s) + Neon-branch
+- **Tests:** 491 unit tests / 42 files green (`npm test`, ~3s) + Neon-branch
   integration suite (`npm run test:integration`). CI mirror: `.github/workflows/ci.yml`;
   the enforced gate is `.githooks/pre-push` (typecheck+lint+test).
-- **Crons (vercel.json):** ingest fast */15 · telegram :10 · x :20 · map :40 (hourly) ·
-  digest 02:00 (D+1 finalize) + 04:00/10:00/19:30 (intraday, rolling window,
+- **Crons (vercel.json):** ingest fast */15 · telegram :10 · x :20 · mtproto :35 ·
+  map :40 (hourly) · digest 02:00 (D+1 finalize) + 04:00/10:00/19:30 (intraday, rolling window,
   delta-framed) · validate 07:00 (scores yesterday = the finalized digest) ·
   enrich 08:00 · datadark 09:00 · trade monthly (2nd) · materials monthly (3rd).
-- **Stubbed / off:** MTProto + ACLED (fixture stubs, unwired — MTProto has session-mint
-  tooling now (`scripts/telegram-login.ts`, `bc30e2c`) and API creds in env, but no
-  `.telegram.session` yet and the adapter is not in prod ingest); Stripe flagged off;
-  Resend adapter superseded by Postmark.
+- **Stubbed / off:** ACLED (fixture stub, unwired); Stripe flagged off; Resend adapter
+  superseded by Postmark. (MTProto left this list 2026-07-11 — real adapter wired,
+  session-gated; see Ingestion above.)
 - **Deploy:** `npx vercel@latest deploy --prod --yes` — machine CLI session
   (`VERCEL_TOKEN` is expired; regen is an operator task, SETUP-NEXT-WEEK #2).
 - **This WSL2 box:** the NAT resolver times out on some domains — a DNS quirk, NOT a
@@ -278,6 +282,39 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   stale-open #1/#2/#3 closed (CI, /ask caps, entity-canon — all had shipped); #30/#36 answered with
   measured data. Recommended next session: (b) MTProto ingest sprint (attacks the coverage gap +
   the frozen X dependency; primed by `bc30e2c`, gated on a one-time operator login).
+- **2026-07-11 (MTProto ingest sprint, TASKs 0–2 + staging for 3–5)** Prompt:
+  `docs/prompts/2026-07-10-mtproto.md`. **TASK 0 gates:** egress PASSED — MTProto works from
+  Vercel functions on BOTH transports (`/api/cron/probe/mtproto`: TCP connect 1844ms cold/1567ms
+  warm, WSS 1570ms; GetNearestDc ~90ms; empty-session handshake, so live connects with a saved
+  session skip the DH cost). Bundler trap for the next gramJS consumer: import everything from
+  the `telegram` ROOT module — a `telegram/sessions` subpath import creates a second module copy
+  and the client constructor rejects the foreign StringSession by instanceof; `telegram` is in
+  `serverExternalPackages`. Login artifact ABSENT → operator-gated (interactive phone-code/QR);
+  API creds valid (probe's initConnection accepted them). **Adapter shipped** (TASK 1, 20 tests):
+  `telegram_channel_state` table (migration 0013) caches peer id+access_hash (ResolveUsername is
+  the flood-limited call; failures back off 1h→48h, capped resolves/run), per-channel
+  last_message_id high-water with gramJS REVERSE iteration (ascending from the mark — a burst
+  larger than the per-run cap resumes next run instead of silently losing the middle; first
+  contact reads one newest page only), flood policy sleep+retry ≤30s / abort-run above (both
+  counted in cron_runs counts), marks commit only AFTER insert (runIngest → adapter.commitMarks).
+  **Cross-transport dedupe is an explicit lower(external_id) pre-filter** (+ expression index in
+  0013): content_hash CANNOT catch it — the adapter name is hashed in, and preview-rendered text
+  differs from raw MTProto text; doc_dedup at map stage is the near-dupe backstop. **The
+  telegram_mtproto fixture stub is DELETED** and the real adapter owns the name (x kept the
+  stub/live x/x_api split only because both names coexist in data; here prod had 0 legacy rows —
+  audit-cron, stub-isolation test, hardening itest updated). **Cron**: own group
+  `ingest?which=mtproto` :35 hourly, never inside "all" (flood budget = the spend-guard analog);
+  verified on prod fail-closed (ok=true, fetched=0, no session). **Expansion staged** (TASK 4):
+  mtproto reads registry top-75 vs the scraper's top-50; ranks 51–75 are the 25-channel batch;
+  six Iran-Update-cited channels pinned → ir (rahbar_enghelab_ir, sepah_pasdaran, elamalmoqawama,
+  bentzionm, presstv, manniefabian — coverage-lens rationale of the 07-09 #29 adjudication).
+  **Backfill staged** (TASK 3): `scripts/mtproto-backfill.ts`, estimate-first and --apply-gated;
+  dedupe-aware estimate counts only NEW docs toward map cost: ~44K docs ≈ $3.37 of the $6 sprint
+  LLM budget (the naive both-transport count read $6.57 and would have wrongly refused).
+  **Blocked on the operator login** (then: local getMe check via `scripts/telegram-getme.ts`,
+  TELEGRAM_SESSION into Vercel prod via printf (Sensitive var — verify by exercising, not
+  reading), redeploy, backfill --apply, first live cron day): TASKs 3–5 including the
+  preview-scraper fate decision, which waits for a proven full MTProto day by design.
 
 ## Conventions
 
@@ -305,7 +342,7 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
 | Auth.js | `AUTH_SECRET` | **live** (hashes magic-link tokens: rotating it invalidates every unclicked link) | (already set) |
 | X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live but FROZEN** (x_api; sprint cap $5.00 reached 2026-07-09 → fetched=0, #38) | api.twitterapi.io |
 | OpenSanctions | `OPENSANCTIONS_API_KEY` + `OPENSANCTIONS_CALL_CAP` | **live but FROZEN** (300-call lifetime cap reached 2026-07-09; licensing gate before badges ship) | opensanctions.org |
-| Telegram MTProto | `TELEGRAM_API_ID/HASH` | stubbed | my.telegram.org |
+| Telegram MTProto | `TELEGRAM_API_ID/HASH` (in prod env) + `TELEGRAM_SESSION` (MISSING) | **wired, session-gated** — operator login mints it (`scripts/telegram-login.ts`) | my.telegram.org |
 | ACLED | `ACLED_API_KEY`, `ACLED_EMAIL` | stubbed | acleddata.com |
 | Stripe | `STRIPE_SECRET_KEY`, … | flagged off | dashboard.stripe.com |
 | Resend | `RESEND_API_KEY` | superseded by Postmark | resend.com |

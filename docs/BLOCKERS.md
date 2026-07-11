@@ -16,9 +16,12 @@ Dated log of missing credentials/capabilities. Each has a stub in place; nothing
 3. **No ANTHROPIC_API_KEY.** `OPENAI_API_KEY` is present and is used as the live
    `AnalysisProvider` (≤$25 cap). **Action (optional): add `ANTHROPIC_API_KEY` at
    console.anthropic.com → flips provider per env config.**
-4. **No Telegram MTProto creds.** Web-preview scraping (`t.me/s/<channel>`) is live; the
-   GramJS MTProto adapter is stubbed. **Action: my.telegram.org → `TELEGRAM_API_ID`,
-   `TELEGRAM_API_HASH`.**
+4. **No Telegram StringSession (creds exist, adapter shipped).** 2026-07-11: the live
+   GramJS MTProto adapter is deployed (own cron `ingest:mtproto`, fail-closed) and
+   `TELEGRAM_API_ID/HASH` are in local + prod envs; the ONLY missing artifact is the
+   one-time interactive login. **Action: `npx tsx scripts/telegram-login.ts` (phone
+   code or --qr), verify with `scripts/telegram-getme.ts`, then load the session as
+   `TELEGRAM_SESSION` into Vercel prod (printf, no trailing newline) + redeploy.**
 5. **No X/Twitter live adapter.** `X_API_KEY` for api.twitterapi.io is present and
    smoke-tested (2026-07-07), but the production adapter is still stubbed with fixtures.
    **Action: implement the twitterapi.io adapter with a usage/spend guard.**

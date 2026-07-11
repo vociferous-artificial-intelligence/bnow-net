@@ -249,11 +249,21 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     07-10 ua military digest was thin (998 chars, 2 surviving events); the standing ruling-18 "watch ua"
     item, monitor as the post-cutover sample grows.
 
+47. **[Tier 1] MTProto ingest is one operator login away from live.** 2026-07-11: adapter,
+    cron (`ingest:mtproto` :35), peer-cache/high-water table, dedupe gate, backfill script
+    and the registry top-75 expansion are ALL deployed and fail-closed on the missing
+    `TELEGRAM_SESSION`. Operator: SETUP-NEXT-WEEK §5 (login → getme → env → redeploy →
+    backfill --apply, ≈$3.37 map spend). Then: first-live-day watch (flood counts in
+    cron_runs), preview-scraper fate decision (sprint TASK 2), MTPROTO-RESULTS.md with
+    the 3-day revalidation (TASK 5). Attacks #42 (X concentration) and the #11/#19
+    coverage gap while X stays frozen (#38).
+
 ## Deferred by design (key-blocked — see BLOCKERS.md)
 
-X API, Telegram MTProto, OpenSanctions key, Companies House key, Comtrade key, zakupki
+X API (frozen at cap), OpenSanctions key, Companies House key, Comtrade key, zakupki
 proxy, maritime/AIS, ACLED, satellite. All wired behind stubs; flip on when keys land.
 The user explicitly asked to progress "before API keys are set up," so these wait.
+(Telegram MTProto graduated to #47 — deployed, login-gated.)
 
 ## Just completed (was open)
 
