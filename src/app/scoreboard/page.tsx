@@ -53,7 +53,7 @@ export default async function ScoreboardPage() {
   const nonzero = nonzeroDayCoverage(rows);
 
   return (
-    <main className="mx-auto max-w-4xl p-6">
+    <main id="main" className="mx-auto max-w-4xl p-6">
       <h1 className="mb-1 text-2xl font-bold">{t("scoreboard.title")}</h1>
       <p className="mb-6 max-w-2xl text-sm text-gray-500">
         Every day we score our automated digest against ISW&apos;s Russian Offensive Campaign

@@ -233,7 +233,7 @@ export default async function PricingPage({
   const tiers = buildTiers(plans);
 
   return (
-    <main className="mx-auto max-w-6xl p-6">
+    <main id="main" className="mx-auto max-w-6xl p-6">
       <p className="mb-1 text-sm text-gray-500">
         <Link href="/" className="underline">BNOW.NET</Link> · {t("pricing.breadcrumb")}
       </p>

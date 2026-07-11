@@ -43,7 +43,7 @@ export default function Error({
   };
 
   return (
-    <main className="mx-auto flex min-h-[60vh] max-w-lg flex-col items-center justify-center gap-4 p-8 text-center">
+    <main id="main" className="mx-auto flex min-h-[60vh] max-w-lg flex-col items-center justify-center gap-4 p-8 text-center">
       <h1 className="text-xl font-semibold">{t("error.heading")}</h1>
       <p className="text-sm text-gray-500 dark:text-gray-400">{t("error.body")}</p>
       {error.digest && (

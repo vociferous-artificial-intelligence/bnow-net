@@ -194,7 +194,7 @@ export default async function Home() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-6">
+    <main id="main" className="mx-auto max-w-5xl px-6">
       <section className="py-20 text-center">
         <h1 className="mx-auto max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl">
           {t("home.tagline")}

@@ -91,7 +91,7 @@ export default async function SourceDetailPage({
   const maxYear = Math.max(...byYear.map((r) => r.n), 1);
 
   return (
-    <main className="mx-auto max-w-3xl p-6">
+    <main id="main" className="mx-auto max-w-3xl p-6">
       <p className="mb-1 text-sm text-gray-500">
         <Link href="/registry" className="underline">registry</Link> · source #{s.id}
       </p>
@@ -156,36 +156,38 @@ export default async function SourceDetailPage({
       {theaterStats.length > 0 && (
         <section className="mb-8">
           <h2 className="mb-2 text-sm font-semibold">By reference corpus</h2>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 text-left text-xs text-gray-500 dark:border-gray-800">
-                <th className="py-1">theater</th>
-                <th className="text-right">citations</th>
-                {view.showReliability && <th className="text-right">reliability</th>}
-                <th>span</th>
-                <th>status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {theaterStats.map((row) => (
-                <tr key={row.theater} className="border-b border-gray-100 dark:border-gray-900">
-                  <td className="py-1">{THEATER_LABEL[row.theater] ?? row.theater}</td>
-                  <td className="text-right tabular-nums">{row.citation_count.toLocaleString()}</td>
-                  {view.showReliability && (
-                    <td className="text-right tabular-nums">
-                      {row.reliability_score !== null
-                        ? Number(row.reliability_score).toFixed(2)
-                        : "—"}
-                    </td>
-                  )}
-                  <td className="text-xs text-gray-500">
-                    {row.first?.slice(0, 10)} → {row.last?.slice(0, 10)}
-                  </td>
-                  <td className="text-xs">{row.decayed ? "decayed" : "active"}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 text-left text-xs text-gray-500 dark:border-gray-800">
+                  <th className="py-1">theater</th>
+                  <th className="text-right">citations</th>
+                  {view.showReliability && <th className="text-right">reliability</th>}
+                  <th>span</th>
+                  <th>status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {theaterStats.map((row) => (
+                  <tr key={row.theater} className="border-b border-gray-100 dark:border-gray-900">
+                    <td className="py-1">{THEATER_LABEL[row.theater] ?? row.theater}</td>
+                    <td className="text-right tabular-nums">{row.citation_count.toLocaleString()}</td>
+                    {view.showReliability && (
+                      <td className="text-right tabular-nums">
+                        {row.reliability_score !== null
+                          ? Number(row.reliability_score).toFixed(2)
+                          : "—"}
+                      </td>
+                    )}
+                    <td className="text-xs text-gray-500">
+                      {row.first?.slice(0, 10)} → {row.last?.slice(0, 10)}
+                    </td>
+                    <td className="text-xs">{row.decayed ? "decayed" : "active"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
 

@@ -171,7 +171,7 @@ export default async function DigestPage({
   );
 
   return (
-    <main className="mx-auto max-w-3xl p-6">
+    <main id="main" className="mx-auto max-w-3xl p-6">
       <p className="mb-1 text-sm text-gray-500">
         <Link href="/" className="underline">BNOW.NET</Link> · daily digest
       </p>

@@ -67,7 +67,7 @@ export default async function RegistryPage({
   };
 
   return (
-    <main className="mx-auto max-w-6xl p-6">
+    <main id="main" className="mx-auto max-w-6xl p-6">
       <h1 className="mb-1 text-2xl font-bold">Source Registry</h1>
       <p className="mb-1 text-sm text-gray-500">
         {total.toLocaleString()} sources derived from ISW Russian Offensive Campaign
@@ -110,67 +110,69 @@ export default async function RegistryPage({
         </form>
       </div>
 
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b-2 border-gray-300 text-left dark:border-gray-700">
-            <th className="py-2">source</th>
-            <th>platform</th>
-            <th className="text-right">
-              <Link href={qs({ sort: "citations", page: 1 })} className="underline">
-                citations
-              </Link>
-            </th>
-            {view.showReliability && (
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b-2 border-gray-300 text-left dark:border-gray-700">
+              <th className="py-2">source</th>
+              <th>platform</th>
               <th className="text-right">
-                <Link href={qs({ sort: "reliability", page: 1 })} className="underline">
-                  reliability
+                <Link href={qs({ sort: "citations", page: 1 })} className="underline">
+                  citations
                 </Link>
               </th>
-            )}
-            <th>hedging mix</th>
-            <th>cited</th>
-            <th>status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((s) => {
-            const totalH =
-              s.hedgingConfirmed + s.hedgingClaimed + s.hedgingUnverified +
-              s.hedgingAssessed + s.hedgingUnknown;
-            return (
-              <tr key={s.id} className="border-b border-gray-100 dark:border-gray-800">
-                <td className="max-w-[280px] truncate py-1.5 font-mono text-xs">
-                  <Link href={`/registry/${s.id}`} className="hover:underline">
-                    {s.canonicalUrl}
+              {view.showReliability && (
+                <th className="text-right">
+                  <Link href={qs({ sort: "reliability", page: 1 })} className="underline">
+                    reliability
                   </Link>
-                </td>
-                <td className="text-xs">{s.platform.replace("_", " ")}</td>
-                <td className="text-right tabular-nums">{s.citationCount}</td>
-                {view.showReliability && (
-                  <td className="text-right tabular-nums">
-                    {s.reliabilityScore?.toFixed(2) ?? "—"}
+                </th>
+              )}
+              <th>hedging mix</th>
+              <th>cited</th>
+              <th>status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((s) => {
+              const totalH =
+                s.hedgingConfirmed + s.hedgingClaimed + s.hedgingUnverified +
+                s.hedgingAssessed + s.hedgingUnknown;
+              return (
+                <tr key={s.id} className="border-b border-gray-100 dark:border-gray-800">
+                  <td className="max-w-[280px] truncate py-1.5 font-mono text-xs">
+                    <Link href={`/registry/${s.id}`} className="hover:underline">
+                      {s.canonicalUrl}
+                    </Link>
                   </td>
-                )}
-                <td>
-                  <div className="flex h-2 w-28 overflow-hidden rounded bg-gray-200 dark:bg-gray-800" title={`confirmed ${pct(s.hedgingConfirmed, totalH)}% · assessed ${pct(s.hedgingAssessed, totalH)}% · claimed ${pct(s.hedgingClaimed, totalH)}% · unverified ${pct(s.hedgingUnverified, totalH)}%`}>
-                    <div className="bg-green-600" style={{ width: `${pct(s.hedgingConfirmed, totalH)}%` }} />
-                    <div className="bg-blue-500" style={{ width: `${pct(s.hedgingAssessed, totalH)}%` }} />
-                    <div className="bg-gray-400" style={{ width: `${pct(s.hedgingUnknown, totalH)}%` }} />
-                    <div className="bg-amber-500" style={{ width: `${pct(s.hedgingClaimed, totalH)}%` }} />
-                    <div className="bg-red-500" style={{ width: `${pct(s.hedgingUnverified, totalH)}%` }} />
-                  </div>
-                </td>
-                <td className="whitespace-nowrap text-xs tabular-nums">
-                  {s.firstCitedReportDate?.slice(0, 7)} → {s.lastCitedReportDate?.slice(0, 7)}
-                </td>
-                <td className="text-xs">
-                  {s.decayed ? <span className="text-amber-600">decayed</span> : "active"}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  <td className="text-xs">{s.platform.replace("_", " ")}</td>
+                  <td className="text-right tabular-nums">{s.citationCount}</td>
+                  {view.showReliability && (
+                    <td className="text-right tabular-nums">
+                      {s.reliabilityScore?.toFixed(2) ?? "—"}
+                    </td>
+                  )}
+                  <td>
+                    <div className="flex h-2 w-28 overflow-hidden rounded bg-gray-200 dark:bg-gray-800" title={`confirmed ${pct(s.hedgingConfirmed, totalH)}% · assessed ${pct(s.hedgingAssessed, totalH)}% · claimed ${pct(s.hedgingClaimed, totalH)}% · unverified ${pct(s.hedgingUnverified, totalH)}%`}>
+                      <div className="bg-green-600" style={{ width: `${pct(s.hedgingConfirmed, totalH)}%` }} />
+                      <div className="bg-blue-500" style={{ width: `${pct(s.hedgingAssessed, totalH)}%` }} />
+                      <div className="bg-gray-400" style={{ width: `${pct(s.hedgingUnknown, totalH)}%` }} />
+                      <div className="bg-amber-500" style={{ width: `${pct(s.hedgingClaimed, totalH)}%` }} />
+                      <div className="bg-red-500" style={{ width: `${pct(s.hedgingUnverified, totalH)}%` }} />
+                    </div>
+                  </td>
+                  <td className="whitespace-nowrap text-xs tabular-nums">
+                    {s.firstCitedReportDate?.slice(0, 7)} → {s.lastCitedReportDate?.slice(0, 7)}
+                  </td>
+                  <td className="text-xs">
+                    {s.decayed ? <span className="text-amber-600">decayed</span> : "active"}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
       <div className="mt-4 flex items-center gap-3 text-sm">
         {page > 1 && (

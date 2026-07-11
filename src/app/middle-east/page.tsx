@@ -88,7 +88,7 @@ export default async function MiddleEastPage({
   };
 
   return (
-    <main className="mx-auto max-w-6xl p-6">
+    <main id="main" className="mx-auto max-w-6xl p-6">
       <p className="mb-1 text-sm text-gray-500">
         <Link href="/" className="underline">BNOW.NET</Link> · Middle East source registry
       </p>
@@ -125,34 +125,36 @@ export default async function MiddleEastPage({
           No Middle East sources loaded yet — the Iran Update backfill populates this.
         </p>
       ) : (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b-2 border-gray-300 text-left dark:border-gray-700">
-              <th className="py-2">source</th>
-              <th>platform</th>
-              <th className="text-right">citations</th>
-              {view.showReliability && <th className="text-right">reliability</th>}
-              <th>cited</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sources.map((s) => (
-              <tr key={s.id} className="border-b border-gray-100 dark:border-gray-800">
-                <td className="max-w-[320px] truncate py-1.5 font-mono text-xs">
-                  <Link href={`/registry/${s.id}`} className="hover:underline">{s.canonical_url}</Link>
-                </td>
-                <td className="text-xs">{s.platform.replace("_", " ")}</td>
-                <td className="text-right tabular-nums">{s.citations}</td>
-                {view.showReliability && (
-                  <td className="text-right tabular-nums">{s.reliability ?? "—"}</td>
-                )}
-                <td className="whitespace-nowrap text-xs tabular-nums">
-                  {s.first_cited?.slice(0, 7)} → {s.last_cited?.slice(0, 7)}
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b-2 border-gray-300 text-left dark:border-gray-700">
+                <th className="py-2">source</th>
+                <th>platform</th>
+                <th className="text-right">citations</th>
+                {view.showReliability && <th className="text-right">reliability</th>}
+                <th>cited</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {sources.map((s) => (
+                <tr key={s.id} className="border-b border-gray-100 dark:border-gray-800">
+                  <td className="max-w-[320px] truncate py-1.5 font-mono text-xs">
+                    <Link href={`/registry/${s.id}`} className="hover:underline">{s.canonical_url}</Link>
+                  </td>
+                  <td className="text-xs">{s.platform.replace("_", " ")}</td>
+                  <td className="text-right tabular-nums">{s.citations}</td>
+                  {view.showReliability && (
+                    <td className="text-right tabular-nums">{s.reliability ?? "—"}</td>
+                  )}
+                  <td className="whitespace-nowrap text-xs tabular-nums">
+                    {s.first_cited?.slice(0, 7)} → {s.last_cited?.slice(0, 7)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       <div className="mt-4 flex items-center gap-3 text-sm">
