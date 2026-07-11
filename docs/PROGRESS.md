@@ -824,3 +824,24 @@ matcher vs ISW; legacy baseline vs the shipped K=5 mapreduce configuration):
    (`LLM_SPRINT_USD_CAP`). Ruling 4 was right; my mechanism was wrong.
 3. `LLM_SPRINT_USD_CAP` stays absent locally on purpose — local digest/map/reduce
    runs refuse to spend at `tryReserve()`. Add it only for a run you mean to pay for.
+
+## 2026-07-11 — MTProto ingest sprint: plan (next ~2h block)
+
+Sprint prompt: `docs/prompts/2026-07-10-mtproto.md`. Prerequisite verified: MR3
+cutover fully executed (MR3-CHECKPOINT.md TASK 4 ✅), state recon clean.
+
+1. TASK 0.3 inventory (done in-session): telegram_web sourceKey = `t.me/<channel
+   lowercase>`; dedup = sha256(adapter|externalId|title|content[:4000]) — adapter
+   name in the hash means content-hash alone CANNOT dedupe across transports;
+   MTProto needs an explicit external-id/url pre-filter. Channels = TELEGRAM_CURATED
+   (28) + registry top-50 by recent citations; theater via channelTheater() +
+   routeTheater(lang) at parse time.
+2. TASK 0.1 login artifact: `.telegram.session` ABSENT; `scripts/telegram-login.ts`
+   present and session-capable; TELEGRAM_API_ID/HASH in .env.local. Login is
+   interactive (phone code / QR) → operator gate. Surface to operator; do not block
+   egress-probe or adapter work on it (probe proves egress unauthenticated).
+3. TASK 0.2 egress probe: local unauthenticated connect+getConfig sanity script,
+   then CRON_SECRET-gated `/api/cron/probe/mtproto` measuring TCP and WSS cold
+   connect from Vercel; getMe only when TELEGRAM_SESSION is set. Deploy, run, record.
+4. If egress passes: TASK 1 adapter (peer-cache + high-water table via additive
+   migration, flood-safe caps, rotation, tests) — commit per green subtask.
