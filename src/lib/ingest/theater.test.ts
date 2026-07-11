@@ -51,4 +51,55 @@ describe("channelTheater", () => {
     expect(routeTheater("en", channelTheater("mehrnews"))).toBe("ir");
     expect(routeTheater("ar", channelTheater("iribnews"))).toBe("ir");
   });
+
+  it("routes all 27 RU/UA-priority Ukrainian official/military pins to ua", () => {
+    // registry-verified Ukrainian-theater sources (ROCA-cited, ~0 Iran, uk-dominant
+    // docs); the uk->ua language rule alone misses their ru/en posts, so the
+    // per-channel override is what actually routes them.
+    const UA_PINS = [
+      "v_zelenskiy_official",
+      "vitaliy_klitschko",
+      "ihor_terekhov",
+      "synegubov",
+      "ivan_fedorov_zp",
+      "sbukr",
+      "ukr_sof",
+      "usf_army",
+      "dsns_telegram",
+      "ua_national_police",
+      "prokuratura_kharkiv",
+      "dnipropetrovskaoda",
+      "odeskaoda",
+      "odesamva",
+      "chernigivskaoda",
+      "khersonskaoda",
+      "kyivoda",
+      "mykolaivskaoda",
+      "zoda_gov_ua",
+      "dniproofficial",
+      "sjtf_odes",
+      "joint_forces_task_force",
+      "wararchive_ua",
+      "serhii_flash",
+      "andriyshtime",
+      "robert_magyar",
+      "atesh_ua",
+    ];
+    expect(UA_PINS).toHaveLength(27);
+    for (const c of UA_PINS) {
+      expect(channelTheater(c), c).toBe("ua");
+    }
+  });
+
+  it("is case-insensitive for the Ukrainian pins too", () => {
+    expect(channelTheater("V_Zelenskiy_Official")).toBe("ua");
+    expect(channelTheater("SBUkr")).toBe("ua");
+    expect(channelTheater("SJTF_Odes")).toBe("ua");
+  });
+
+  it("still defaults an unrelated/unknown channel to ru (pins are exact-match only)", () => {
+    for (const c of ["some_russian_milblogger", "rybar", "sjtf_odesa_typo"]) {
+      expect(channelTheater(c), c).toBe("ru");
+    }
+  });
 });

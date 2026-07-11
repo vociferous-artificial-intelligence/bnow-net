@@ -93,8 +93,10 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   registry-selected + curated Telegram via t.me/s/, Telegram MTProto (**wired
   2026-07-11; `TELEGRAM_SESSION` present in production (added 2026-07-11): operator
   login done, `ingest:mtproto` cron :35 hourly runs green — first live fetch pending
-  verification; egress PROVEN on Vercel tcp+wss; reads registry top-75 vs the
-  scraper's top-50**), X via api.twitterapi.io (383
+  verification; egress PROVEN on Vercel tcp+wss; reads registry **top-120 ROCA-only**
+  (`isw_reports.theater='ru'`) vs the scraper's top-50 pan-theater — RU/UA-priority
+  roster deployed 2026-07-11, env-tunable, rollback via
+  `REGISTRY_TELEGRAM_MTPROTO_REPORT_THEATER=all`**), X via api.twitterapi.io (383
   ISW-cited accounts — **wired but FROZEN since 2026-07-09 20:21Z: `X_SPRINT_USD_CAP`
   reached ($5.00 all-time), `ingest:x` runs green but fetched=0; resumes only when the
   operator raises the cap — OPEN-TASKS #38**), GDELT (wired, upstream-flaky), zakupki
@@ -316,6 +318,36 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   TELEGRAM_SESSION into Vercel prod via printf (Sensitive var — verify by exercising, not
   reading), redeploy, backfill --apply, first live cron day): TASKs 3–5 including the
   preview-scraper fate decision, which waits for a proven full MTProto day by design.
+- **2026-07-11 (MTProto RU/UA-priority roster — branch `codex/ru-ua-mtproto-priority`, code+env
+  done, DEPLOY PENDING)** Reprioritizes MTProto's registry roster to Russia/Ukraine. Before: MTProto
+  read the registry's **pan-theater** top-75, which blended ROCA and Iran-Update citations —
+  verified live that 16 of those 75 slots were Iran-Update-dominant channels (mmirleb alone has
+  5,730 Iran citations). After: `registryTelegramChannels()` takes an options object
+  `{ topN?, reportTheater? }`; MTProto passes `reportTheater='ru'` (ROCA-only, filters
+  `isw_reports.theater='ru'`) + `topN=120`. Web Telegram passes neither → its pan-theater top-50 is
+  **byte-for-byte unchanged** (proven: real `telegramChannelRoster()` against prod returns the same
+  70-channel pan-theater roster; MTProto now returns 136 channels ru:102/ua:31/ir:3, the 3 ir being
+  the intentional curated OSINT aggregators, zero Iran-Update *registry* channels). Tuning values are
+  now env-overridable with safe fallback: `REGISTRY_TELEGRAM_TOP_N` (50), `REGISTRY_TELEGRAM_TOP_N_MTPROTO`
+  (120), new `REGISTRY_TELEGRAM_MTPROTO_REPORT_THEATER` (ru), plus the pre-existing `TG_MTPROTO_*`
+  knobs — all set in Vercel as **type=plain (non-Sensitive, readable back)**, in prod+preview+dev,
+  BEFORE deploy (the registry 3 are inert until this branch ships; `TG_MTPROTO_CHANNELS_PER_RUN=40` +
+  `TG_MTPROTO_RESOLVES_PER_RUN=12` affect the current deployed cron immediately). **27 Ukrainian
+  official/military channels pinned → ua** in `TELEGRAM_CHANNEL_THEATER` (the pin fixes their ru/en
+  posts, which the uk→ua language rule alone misses — same coverage-lens mechanism as the ir pins).
+  Every pin registry-verified: ROCA-cited, ~0 Iran citations, inside the ROCA top-120, docs
+  predominantly Ukrainian-language, confirmed institutional identity. The five originally-held
+  candidates (sjtf_odes rank 9, joint_forces_task_force rank 13, usf_army=Unmanned Systems Forces,
+  andriyshtime, odesamva) were resolved by the DB probe and included — the candidate list is fully
+  pinned. `scripts/mtproto-backfill.ts` gains `--registry-top-n / --report-theater / --theaters /
+  --budget-usd` (RU/UA eval command documented in-file). Tests: +13 (config env-wiring, theater
+  filter shape, ROCA-only vs pan-theater wiring, 27-pin routing, curated dedupe) → 504 green;
+  typecheck+lint clean. Merged to main and **deployed 2026-07-11**; the standing "Current state"
+  Ingestion line was corrected in place to "top-120 ROCA-only" as part of this deploy.
+  Rollback is env-only, no redeploy: set the plain var
+  `REGISTRY_TELEGRAM_MTPROTO_REPORT_THEATER=all` → pan-theater ranking again (unset/empty stays ru by
+  design, so `all`/`any` is the deliberate opt-out; `envReportTheater`). The 27 ua pins are additive
+  and harmless to leave. No migrations, no invariant changes.
 
 ## Conventions
 

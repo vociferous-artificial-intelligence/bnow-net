@@ -15,11 +15,13 @@ import type { RawDoc } from "../adapters/types";
 import { XApiAdapter, registryXAccounts, xGuardFromEnv } from "../adapters/x-api";
 import { envNum } from "../usage/spend-guard";
 import {
+  REGISTRY_TELEGRAM_MTPROTO_REPORT_THEATER,
   REGISTRY_TELEGRAM_TOP_N,
   REGISTRY_TELEGRAM_TOP_N_MTPROTO,
   RSS_FEEDS,
   TELEGRAM_CURATED,
   channelTheater,
+  type ReportTheater,
 } from "./config";
 
 export type IngestWhich = "fast" | "telegram" | "mtproto" | "x" | "all";
@@ -30,11 +32,23 @@ export function contentHash(d: RawDoc): string {
     .digest("hex");
 }
 
+export interface RegistryTelegramOptions {
+  /** how many ranked channels to return (default: web's REGISTRY_TELEGRAM_TOP_N) */
+  topN?: number;
+  /** restrict ranking to citations from ISW reports of this theater only
+   *  ('ru'=ROCA, 'ir'=Iran Update); omit/null for the pan-theater ranking. */
+  reportTheater?: ReportTheater | null;
+}
+
 /** Top telegram channels by RECENT ISW citations (last 90 days of reports) —
- *  all-time ranking over-weights decayed 2022 channels. */
+ *  all-time ranking over-weights decayed 2022 channels. reportTheater narrows the
+ *  citations counted to one ISW report theater (MTProto's ROCA-only default; web
+ *  Telegram never passes it, so it stays pan-theater). */
 async function registryTelegramChannels(
-  topN: number = REGISTRY_TELEGRAM_TOP_N,
+  opts: RegistryTelegramOptions = {},
 ): Promise<Array<{ channel: string; countryIso2: string }>> {
+  const topN = opts.topN ?? REGISTRY_TELEGRAM_TOP_N;
+  const theaterFilter = opts.reportTheater ? dsql`AND ir.theater = ${opts.reportTheater}` : dsql``;
   try {
     const rows = await db.execute(dsql`
       SELECT s.name, count(*) AS recent_citations
@@ -43,6 +57,7 @@ async function registryTelegramChannels(
       JOIN isw_reports ir ON ir.id = sc.report_id
       WHERE s.platform = 'telegram'
         AND ir.report_date > (SELECT max(report_date) FROM isw_reports) - interval '90 days'
+        ${theaterFilter}
       GROUP BY s.name
       ORDER BY recent_citations DESC
       LIMIT ${topN}`);
@@ -69,12 +84,12 @@ export interface IngestStats {
 /** The one telegram channel roster (curated + recently-cited registry channels),
  *  shared by BOTH transports so a channel keeps its sourceKey — and its registry
  *  reliability history — whether a doc arrives via preview scrape or MTProto.
- *  MTProto passes the deeper registry cut (ranks 51+ are its expansion batch). */
+ *  MTProto passes a deeper, ROCA-only registry cut (see buildIngestAdapters). */
 export async function telegramChannelRoster(
-  registryTopN?: number,
+  opts: RegistryTelegramOptions = {},
 ): Promise<Array<{ channel: string; countryIso2: string }>> {
   const curated = TELEGRAM_CURATED;
-  const fromRegistry = await registryTelegramChannels(registryTopN);
+  const fromRegistry = await registryTelegramChannels(opts);
   const seen = new Set(curated.map((c) => c.channel.toLowerCase()));
   return [...curated, ...fromRegistry.filter((c) => !seen.has(c.channel.toLowerCase()))];
 }
@@ -112,7 +127,10 @@ export async function buildIngestAdapters(which: IngestWhich): Promise<RunnableA
   if (which === "mtproto") {
     adapters.push(
       new TelegramMtprotoAdapter(
-        await telegramChannelRoster(REGISTRY_TELEGRAM_TOP_N_MTPROTO),
+        await telegramChannelRoster({
+          topN: REGISTRY_TELEGRAM_TOP_N_MTPROTO,
+          reportTheater: REGISTRY_TELEGRAM_MTPROTO_REPORT_THEATER,
+        }),
         mtprotoDepsFromEnv(),
         mtprotoOptsFromEnv(),
       ),

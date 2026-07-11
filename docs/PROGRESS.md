@@ -894,3 +894,34 @@ cutover fully executed (MR3-CHECKPOINT.md TASK 4 ✅), state recon clean.
 6. BLOCKED on operator: one-time `npx tsx scripts/telegram-login.ts` (interactive),
    then `scripts/telegram-getme.ts` to verify, `TELEGRAM_SESSION` into Vercel prod
    (printf, no trailing newline — Sensitive var), redeploy, run backfill --apply.
+
+## 2026-07-11 — MTProto RU/UA-priority roster (branch codex/ru-ua-mtproto-priority)
+
+Reprioritizes MTProto ingestion toward Russia/Ukraine for expert evaluation. Code +
+Vercel env done; NOT deployed (isolated worktree; no deploy per instructions).
+
+1. `registryTelegramChannels()` now takes `{ topN?, reportTheater? }`. MTProto passes
+   `reportTheater='ru'` (ROCA-only: `AND ir.theater='ru'`, parameterized) + `topN=120`.
+   Web Telegram passes neither → pan-theater top-50 unchanged (proven end-to-end:
+   real `telegramChannelRoster()` vs prod returns the identical 70-channel web roster;
+   MTProto returns 136 = ru:102/ua:31/ir:3, the 3 ir = intentional curated OSINT).
+2. Tuning values env-overridable, safe fallback: `REGISTRY_TELEGRAM_TOP_N` (50),
+   `REGISTRY_TELEGRAM_TOP_N_MTPROTO` (120), `REGISTRY_TELEGRAM_MTPROTO_REPORT_THEATER`
+   (ru; `all`/`any` → pan-theater = code-free rollback). `TG_MTPROTO_*` knobs already
+   env-read. All set in Vercel as **type=plain (non-Sensitive, readable back)**,
+   prod+preview+dev.
+3. Live-verified against the registry that the OLD pan-theater top-75 wasted 16 slots
+   on Iran-Update-dominant channels (mmirleb: 5,730 Iran citations). ROCA-only reclaims
+   them; ROCA-120 adds 61 RU/UA channels not in the old top-75.
+4. **27 Ukrainian official/military channels pinned → ua** (fixes their ru/en posts the
+   uk→ua rule misses). Every pin registry-verified: ROCA-cited, ~0 Iran, inside ROCA
+   top-120, docs predominantly uk, confirmed identity. The 5 originally-held candidates
+   (sjtf_odes #9, joint_forces_task_force #13, usf_army=Unmanned Systems Forces,
+   andriyshtime, odesamva) resolved via DB probe and included.
+5. `scripts/mtproto-backfill.ts`: `--registry-top-n / --report-theater / --theaters /
+   --budget-usd`; RU/UA eval command documented in-file.
+6. Tests +13 → **504 green**, typecheck + lint clean.
+
+Operator on deploy: (a) deploy this branch; (b) correct AGENTS.md Current-state
+Ingestion line "top-75"→"top-120 ROCA-only"; (c) watch `ingest:mtproto` cron_runs
+(fetched>0 once TELEGRAM_SESSION live) + first ua-heavy map/digest cycle.

@@ -12,11 +12,17 @@ import "./env";
 // after each pass's docs are inserted. A killed run costs one channel's pass.
 //
 // Usage: tsx scripts/mtproto-backfill.ts [days=14] [--apply]
+//          [--registry-top-n <n>] [--report-theater ru|ir] [--theaters ru,ua,ir]
+//          [--budget-usd <usd>]
 //        (needs .telegram.session or TELEGRAM_SESSION; flood-safe: sequential,
 //         2s spacing, FLOOD_WAIT aborts the pass and the next pass resumes)
+//
+// RU/UA evaluation (ROCA-only registry ranking, top 120, RU+UA docs only):
+//   tsx scripts/mtproto-backfill.ts 14 --apply --registry-top-n 120 \
+//     --report-theater ru --theaters ru,ua --budget-usd 6
 
 const MAP_USD_PER_1K_DOCS = 0.076; // measured, docs/reviews/MAP-SHADOW-RESULTS.md
-const SPRINT_LLM_BUDGET_USD = 6; // ground rule 3 of the sprint prompt
+const DEFAULT_SPRINT_LLM_BUDGET_USD = 6; // ground rule 3 of the sprint prompt
 // Map cost applies only to docs that INSERT: messages the preview scraper already
 // ingested are excluded by the external-id pre-filter and never reach the map
 // worker. So the estimate counts NEW docs only — assume the preview's ~20-post
@@ -24,7 +30,11 @@ const SPRINT_LLM_BUDGET_USD = 6; // ground rule 3 of the sprint prompt
 // plus a flat rate for channels the preview never read at all.
 const MISSED_PER_CAPTURED = 1.0;
 const UNPOLLED_PER_DAY = 10;
-const THEATERS = new Set(["ru", "ua", "ir"]);
+
+function flagValue(name: string): string | undefined {
+  const i = process.argv.indexOf(name);
+  return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : undefined;
+}
 
 async function main() {
   const days = parseInt(process.argv.find((a) => /^\d+$/.test(a)) ?? "14", 10);
@@ -34,13 +44,43 @@ async function main() {
     "../src/lib/adapters/telegram-mtproto"
   );
   const { insertDocs, telegramChannelRoster } = await import("../src/lib/ingest/run");
-  const { REGISTRY_TELEGRAM_TOP_N_MTPROTO } = await import("../src/lib/ingest/config");
+  const { REGISTRY_TELEGRAM_TOP_N_MTPROTO, REGISTRY_TELEGRAM_MTPROTO_REPORT_THEATER } = await import(
+    "../src/lib/ingest/config"
+  );
   const { neon } = await import("@neondatabase/serverless");
   const sql = neon(process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL!);
 
-  const roster = (await telegramChannelRoster(REGISTRY_TELEGRAM_TOP_N_MTPROTO)).filter((c) =>
-    THEATERS.has(c.countryIso2),
+  const registryTopNArg = flagValue("--registry-top-n");
+  const registryTopN =
+    registryTopNArg && /^\d+$/.test(registryTopNArg) ? parseInt(registryTopNArg, 10) : undefined;
+
+  const reportTheaterArg = flagValue("--report-theater")?.toLowerCase();
+  const reportTheater =
+    reportTheaterArg === "ru" || reportTheaterArg === "ir"
+      ? reportTheaterArg
+      : reportTheaterArg === "all" || reportTheaterArg === "any"
+        ? null // pan-theater
+        : REGISTRY_TELEGRAM_MTPROTO_REPORT_THEATER;
+
+  const theatersArg = flagValue("--theaters");
+  const THEATERS = new Set(
+    (theatersArg ?? "ru,ua,ir")
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean),
   );
+
+  const budgetArg = flagValue("--budget-usd");
+  const budgetNum = budgetArg !== undefined ? Number(budgetArg) : NaN;
+  const SPRINT_LLM_BUDGET_USD =
+    Number.isFinite(budgetNum) && budgetNum > 0 ? budgetNum : DEFAULT_SPRINT_LLM_BUDGET_USD;
+
+  const roster = (
+    await telegramChannelRoster({
+      topN: registryTopN ?? REGISTRY_TELEGRAM_TOP_N_MTPROTO,
+      reportTheater,
+    })
+  ).filter((c) => THEATERS.has(c.countryIso2));
   const to = new Date();
   const from = new Date(to.getTime() - days * 24 * 3600 * 1000);
 
@@ -65,7 +105,10 @@ async function main() {
   const estPerDayDocs = Math.round(estDocs / days);
 
   console.log(`backfill window: ${from.toISOString()} .. ${to.toISOString()} (${days} days)`);
-  console.log(`channels (ru/ua/ir): ${roster.length}`);
+  console.log(
+    `channels (${[...THEATERS].join("/")}, registry top-${registryTopN ?? REGISTRY_TELEGRAM_TOP_N_MTPROTO}` +
+      `${reportTheater ? ` ${reportTheater.toUpperCase()}-only` : ""}): ${roster.length}`,
+  );
   console.log(
     `ESTIMATE: ~${estDocs} docs (${estPerDayDocs}/day) -> map cost ~$${estUsd.toFixed(2)} ` +
       `at $${MAP_USD_PER_1K_DOCS}/1K (sprint budget $${SPRINT_LLM_BUDGET_USD})`,
