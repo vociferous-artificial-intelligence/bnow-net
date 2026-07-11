@@ -92,8 +92,9 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
 - **Ingestion (live):** 29 RSS feeds (ru ua il ir sa ae qa om + bh/kw scaffolded),
   registry-selected + curated Telegram via t.me/s/, Telegram MTProto (**wired
   2026-07-11; `TELEGRAM_SESSION` present in production (added 2026-07-11): operator
-  login done, `ingest:mtproto` cron :35 hourly runs green — first live fetch pending
-  verification; egress PROVEN on Vercel tcp+wss; reads registry **top-120 ROCA-only**
+  login done, `ingest:mtproto` cron :35 hourly runs green — **first live fetch VERIFIED
+  2026-07-11** (~3.8K docs across runs, 0 errors, cross-transport dedupe firing); egress
+  PROVEN on Vercel tcp+wss; reads registry **top-120 ROCA-only**
   (`isw_reports.theater='ru'`) vs the scraper's top-50 pan-theater — RU/UA-priority
   roster deployed 2026-07-11, env-tunable, rollback via
   `REGISTRY_TELEGRAM_MTPROTO_REPORT_THEATER=all`**), X via api.twitterapi.io (383
@@ -348,6 +349,24 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   `REGISTRY_TELEGRAM_MTPROTO_REPORT_THEATER=all` → pan-theater ranking again (unset/empty stays ru by
   design, so `all`/`any` is the deliberate opt-out; `envReportTheater`). The 27 ua pins are additive
   and harmless to leave. No migrations, no invariant changes.
+- **2026-07-11 (deploy EXECUTED + first live MTProto fetch VERIFIED — supersedes the "DEPLOY PENDING"
+  header of the entry above)** Merged `codex/ru-ua-mtproto-priority` → main (`646b5a4`) and deployed
+  to prod (`dpl_w231oedey89E3S8A3b7vAB7HFNzk`, READY, aliased `bnow-net.vercel.app`; prod had been on
+  the pre-`609c34b` build `6a486a1`, so this also shipped the intervening docs commit). Verified by
+  evidence: two manual `ingest?which=mtproto` runs on the new build returned
+  `channelsPicked=40 / resolves=12` (vs `25 / 8` on the runs minutes earlier on the old build) —
+  proving the plain env vars `TG_MTPROTO_CHANNELS_PER_RUN=40` + `TG_MTPROTO_RESOLVES_PER_RUN=12` are
+  read live — with `fetched=1999` then `1285`, `errors=0`, `skippedExisting=915/1379`
+  (cross-transport dedupe firing). **This is also the FIRST PROVEN LIVE MTProto FETCH** (session +
+  egress both work end-to-end; ~3.8K docs, all-time mtproto footprint ru:1580/ua:945/ir:647 where the
+  647 ir are ONLY the 3 curated OSINT aggregators, zero registry Iran-Update channels — the ROCA-only
+  filter working as designed). The 27 ua pins route correctly: 4 already ingesting
+  (robert_magyar 249 / sjtf_odes 164 / joint_forces_task_force 130 / synegubov 27 docs, all tagged
+  ua), the other 23 rolling in over the next few `:35` crons (resolve budget 12/run, `resolveBudgetSkips=28`).
+  Backfill script re-verified in estimate mode with the RU/UA flags (133 ru/ua channels, ~$3.07 map
+  cost < $6 budget); a live `--apply` backfill still runs only from a box with the session + Telegram
+  egress (not this WSL2 dev box) or via the accumulating `:35` crons. Workstream
+  `.workstream/codex-ru-ua-mtproto-priority` closed out.
 
 ## Conventions
 
