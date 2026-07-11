@@ -13,6 +13,10 @@
       "schedule": "20 * * * *"
     },
     {
+      "path": "/api/cron/ingest?which=mtproto",
+      "schedule": "35 * * * *"
+    },
+    {
       "path": "/api/cron/map",
       "schedule": "40 * * * *"
     },
