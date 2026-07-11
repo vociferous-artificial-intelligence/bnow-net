@@ -2,6 +2,8 @@ import Link from "next/link";
 import { requireUser } from "@/lib/gate";
 import { askWithLimits } from "@/lib/ask/limits";
 import { rawSql } from "@/db";
+import { getT } from "@/i18n/server";
+import { AskResult, type AskResultLike, type ResolvedClaim } from "./ask-result";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +27,7 @@ export default async function AskPage({
   searchParams: Promise<{ q?: string }>;
 }) {
   const user = await requireUser();
+  const t = await getT();
   const { q } = await searchParams;
   const question = q?.slice(0, 400);
   const result =
@@ -32,24 +35,35 @@ export default async function AskPage({
       ? await askWithLimits(question, user?.email ?? null)
       : null;
 
-  // resolve cited claims → source links for click-through
-  let cited: Array<{ id: number; text: string; iso2: string; date: string | null }> = [];
-  if (result && result.citedClaimIds.length > 0) {
-    cited = (await rawSql.query(
-      `SELECT cl.id, cl.text, c.iso2, cl.claim_date::text AS date
-       FROM claims cl JOIN countries c ON c.id = cl.country_id
-       WHERE cl.id = ANY($1::int[])`,
-      [result.citedClaimIds],
-    )) as typeof cited;
+  // resolve cited + related claim ids → source links for click-through. One query for
+  // the union of both id sets (relatedClaimIds is a v2-only field, absent on the
+  // legacy shape — defensive ?? [] per the frozen contract, src/lib/ask/types.ts).
+  let cited: ResolvedClaim[] = [];
+  let related: ResolvedClaim[] = [];
+  if (result) {
+    const relatedIds = (result as AskResultLike).relatedClaimIds ?? [];
+    const allIds = [...new Set([...result.citedClaimIds, ...relatedIds])];
+    if (allIds.length > 0) {
+      const rows = (await rawSql.query(
+        `SELECT cl.id, cl.text, c.iso2, cl.claim_date::text AS date
+         FROM claims cl JOIN countries c ON c.id = cl.country_id
+         WHERE cl.id = ANY($1::int[])`,
+        [allIds],
+      )) as ResolvedClaim[];
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      cited = result.citedClaimIds
+        .map((id) => byId.get(id))
+        .filter((c): c is ResolvedClaim => !!c);
+      related = relatedIds.map((id) => byId.get(id)).filter((c): c is ResolvedClaim => !!c);
+    }
   }
-  const citedById = new Map(cited.map((c) => [c.id, c]));
 
   return (
     <main className="mx-auto max-w-3xl p-6">
       <p className="mb-1 text-sm text-gray-500">
         <Link href="/" className="underline">BNOW.NET</Link> · ask the data
       </p>
-      <h1 className="mb-1 text-2xl font-bold">Interrogate the intelligence</h1>
+      <h1 className="mb-1 text-2xl font-bold">{t("ask.title")}</h1>
       <p className="mb-4 max-w-2xl text-sm text-gray-500">
         Ask in plain language. Answers are built strictly from our claim database and cite
         the evidence — every fact links back to its source documents. No outside knowledge,
@@ -60,11 +74,11 @@ export default async function AskPage({
         <input
           name="question"
           defaultValue={question ?? ""}
-          placeholder="e.g. which oligarchs are under prosecution?"
+          placeholder={t("ask.placeholder")}
           className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
         />
         <button className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
-          Ask
+          {t("ask.submit")}
         </button>
       </form>
 
@@ -82,40 +96,7 @@ export default async function AskPage({
         </div>
       )}
 
-      {result && (
-        <div className="space-y-4">
-          <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
-            <div className="whitespace-pre-wrap text-sm leading-relaxed">{result.answer}</div>
-            <p className="mt-3 text-xs text-gray-400">
-              {result.evidenceCount} evidence rows · {result.citedClaimIds.length} cited ·{" "}
-              {result.provider}
-            </p>
-          </div>
-
-          {cited.length > 0 && (
-            <div>
-              <h2 className="mb-2 text-sm font-semibold">Cited evidence</h2>
-              <ul className="space-y-2">
-                {result.citedClaimIds.map((id) => {
-                  const c = citedById.get(id);
-                  if (!c) return null;
-                  return (
-                    <li key={id} className="rounded border border-gray-100 p-2 text-sm dark:border-gray-800">
-                      <span className="mr-2 font-mono text-xs text-gray-400">c{id}</span>
-                      {c.text}{" "}
-                      {c.date && (
-                        <Link href={`/digests/${c.iso2}/${c.date.slice(0, 10)}`} className="text-xs underline">
-                          digest →
-                        </Link>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
+      {result && <AskResult result={result} cited={cited} related={related} t={t} />}
     </main>
   );
 }

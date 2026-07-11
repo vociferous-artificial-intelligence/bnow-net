@@ -214,6 +214,19 @@ const en: Dict = {
   "ask.placeholder": "e.g. which oligarchs are under prosecution?",
   "ask.submit": "Ask",
   "ask.examples": "Try one of these",
+  // v2 answer-state framing (Tier-2+ sprint) — fragments, not {token} templates: the
+  // dynamic count/date values are composed in JSX, not via makeT's vars interpolation,
+  // so a new placeholder name here can't collide with i18n.test.ts's fixed vars fixture.
+  "ask.state.insufficient": "No sufficient evidence in the covered corpus — try narrowing to a country, actor, or event type.",
+  "ask.state.refused": "The model declined to answer this phrasing — rewording usually resolves it.",
+  "ask.sampled.prefix": "Evidence sampled from",
+  "ask.sampled.suffix": "matching claims — see the digest for full coverage.",
+  "ask.window.prefix": "Searched claims",
+  "ask.window.from": "from",
+  "ask.window.to": "to",
+  "ask.window.since": "since",
+  "ask.window.through": "through",
+  "ask.related.title": "Related claims",
 
   // auth labels
   "auth.signin": "Sign in",
@@ -326,6 +339,16 @@ const uk: Dict = {
   "ask.placeholder": "напр., яких олігархів переслідують?",
   "ask.submit": "Запитати",
   "ask.examples": "Спробуйте одне з цих",
+  "ask.state.insufficient": "Недостатньо доказів у охопленому масиві даних — спробуйте звузити запит до країни, дійової особи чи типу події.", // uk: needs native review
+  "ask.state.refused": "Модель відмовилася відповідати на це формулювання — перефразування зазвичай допомагає.", // uk: needs native review
+  "ask.sampled.prefix": "Докази вибрано з", // uk: needs native review
+  "ask.sampled.suffix": "відповідних тверджень — повне охоплення дивіться в дайджесті.", // uk: needs native review
+  "ask.window.prefix": "Пошук тверджень", // uk: needs native review
+  "ask.window.from": "з", // uk: needs native review
+  "ask.window.to": "по", // uk: needs native review
+  "ask.window.since": "з", // uk: needs native review
+  "ask.window.through": "по", // uk: needs native review
+  "ask.related.title": "Пов'язані твердження", // uk: needs native review
   "auth.signin": "Увійти",
   "auth.email_placeholder": "ви@приклад.ua",
   "auth.send_link": "Надіслати магічне посилання",
