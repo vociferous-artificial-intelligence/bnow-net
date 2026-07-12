@@ -113,7 +113,7 @@ export function TheaterStatusPanel({
           return (
             <div
               key={entry.iso2}
-              className="rounded-xl border border-gray-200 p-5 text-sm dark:border-gray-800"
+              className="relative rounded-xl border border-gray-200 p-5 text-sm dark:border-gray-800"
             >
               <h3 className="mb-3 font-semibold">{entry.name}</h3>
               <dl className="space-y-2">
@@ -134,7 +134,10 @@ export function TheaterStatusPanel({
                     {t("home.status.latest_digest")}
                   </dt>
                   <dd className="text-right">
-                    <Link href={entry.digestHref} className="underline hover:text-gray-600 dark:hover:text-gray-300">
+                    <Link
+                      href={entry.digestHref}
+                      className="relative z-10 underline hover:text-gray-600 dark:hover:text-gray-300"
+                    >
                       {status.kind === "none" ? t("home.status.no_digest") : digestLabel(status, locale, t)}
                     </Link>
                     {status.kind === "previous" && (
@@ -164,11 +167,23 @@ export function TheaterStatusPanel({
               {entry.scoreboardHref && (
                 <Link
                   href={entry.scoreboardHref}
-                  className="mt-3 inline-block text-xs underline hover:text-gray-600 dark:hover:text-gray-300"
+                  className="relative z-10 mt-3 inline-block text-xs underline hover:text-gray-600 dark:hover:text-gray-300"
                 >
                   {t("home.status.scoreboard_link")}
                 </Link>
               )}
+              {/* Whole-card stretched link (R3, analyst-home-v2 sprint): placed last
+                  so it never shifts the tab/query order of the two links above it,
+                  and z-0 (implicit, below the z-10 links) keeps them independently
+                  clickable on top of it. Points at the same digestHref the "Latest
+                  digest" row already links to (including its honest /countries#..
+                  fallback when no digest exists yet), so the whole-card target is
+                  never a lie the row link doesn't already tell. */}
+              <Link
+                href={entry.digestHref}
+                aria-label={`${entry.name} — ${t("home.status.latest_digest")}`}
+                className="absolute inset-0 rounded-xl"
+              />
             </div>
           );
         })}

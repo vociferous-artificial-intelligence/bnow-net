@@ -30,7 +30,7 @@ vi.mock("@/lib/session", () => ({
 
 const queryMock = vi.fn();
 
-const STATS_ROW = { sources: 10, citations: 20, docs: 30, runs: 5, ru_latest: "2026-07-10" };
+const STATS_ROW = { sources: 10, citations: 20, docs: 30, runs: 5 };
 
 const Home = (await import("./page")).default;
 
@@ -234,5 +234,77 @@ describe("signed-out home: additive Iran/Gulf card (W3)", () => {
     expect(container.querySelector('a[href="/countries#ir"]')).toBeTruthy();
     // Still no /ask form and no paid-pipeline import surface for signed-out users.
     expect(container.querySelector('form[action="/ask"]')).toBeNull();
+  });
+});
+
+describe("signed-in home: section order (R3, analyst-home-v2 sprint)", () => {
+  it("renders headline -> rail -> theater panel -> ask form -> recent asks -> validation tiles, top to bottom", async () => {
+    emailMock.mockResolvedValue("user@example.com");
+    mockSignedInQueries({
+      recentAsks: [{ question: "What happened near Kupiansk?", last_at: "2026-07-12T01:00:00.000Z" }],
+    });
+
+    const element = await Home();
+    const { container } = render(element);
+
+    const headline = screen.getByRole("heading", { level: 1, name: "Today's intelligence picture" });
+    // { selector: "p" } narrows to the rail's own paragraph — without it, every
+    // ancestor whose full textContent happens to contain "Quick links" (section,
+    // main) would also match and getByText would throw on multiple elements.
+    const rail = screen.getByText(/Quick links/, { selector: "p" }).closest("section")!;
+    const panel = container.querySelector('[aria-label="Data freshness by theater"]')!;
+    const askForm = container.querySelector('form[action="/ask"]')!;
+    const recentAsks = screen.getByText("Your recent questions").closest("section")!;
+    const validationTiles = container.querySelector('[aria-label="Validation vs ISW"]')!;
+
+    for (const el of [headline, rail, panel, askForm, recentAsks, validationTiles]) {
+      expect(el).toBeTruthy();
+    }
+
+    // Node.DOCUMENT_POSITION_FOLLOWING = 4: bit set on `b` when `a` precedes `b`.
+    const isBefore = (a: Element, b: Element) =>
+      (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+
+    const inOrder = [headline, rail, panel, askForm, recentAsks, validationTiles];
+    for (let i = 0; i < inOrder.length - 1; i++) {
+      expect(isBefore(inOrder[i], inOrder[i + 1])).toBe(true);
+    }
+  });
+});
+
+describe("signed-in home: compact headline, no marketing CTAs (R3)", () => {
+  it("renders only the one-line headline — no subtitle, no digest/pricing CTA, no Live-now line", async () => {
+    emailMock.mockResolvedValue("user@example.com");
+    mockSignedInQueries();
+
+    const element = await Home();
+    const { container } = render(element);
+
+    expect(screen.getByRole("heading", { level: 1, name: "Today's intelligence picture" })).toBeTruthy();
+    expect(screen.queryByText("Read today's digest")).toBeNull();
+    expect(container.querySelector('a[href="/pricing"]')).toBeNull();
+    expect(screen.queryByText(/^Live now/)).toBeNull();
+    // The old marketing subtitle must not leak into the signed-in render either.
+    expect(screen.queryByText(/Per-country intelligence feeds from open news/)).toBeNull();
+  });
+});
+
+describe("signed-out home: CTA + hero untouched (regression guard)", () => {
+  it("still renders the marketing headline, subtitle, subscribe CTA and Live-now line", async () => {
+    emailMock.mockResolvedValue(null);
+    queryMock.mockResolvedValueOnce([STATS_ROW]); // only the top stats query runs
+
+    const element = await Home();
+    const { container } = render(element);
+
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: "Transparent source reliability ratings for conflict-zone OSINT",
+      }),
+    ).toBeTruthy();
+    const subscribeLink = container.querySelector('a[href="/pricing"]');
+    expect(subscribeLink?.textContent).toBe("Become a founding subscriber");
+    expect(screen.getByText(/^Live now/)).toBeTruthy();
   });
 });

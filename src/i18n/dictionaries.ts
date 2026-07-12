@@ -141,6 +141,10 @@ const en: Dict = {
   "nav.main": "Main",
 
   // landing page
+  // Signed-in home headline (R3, analyst-home-v2 sprint): the sole hero string —
+  // no subtitle, no CTA copy alongside it. Kept short on purpose (pinned by a
+  // word-count test in i18n.test.ts) so the compact hero stays one line.
+  "home.headline": "Today's intelligence picture",
   "home.tagline": "Transparent source reliability ratings for conflict-zone OSINT",
   "home.sub": "Per-country intelligence feeds from open news, Telegram and social sources — scored for reliability, fused into a daily digest, and validated every day against expert human analysis. Every claim links to its evidence.",
   "home.cta.subscribe": "Become a founding subscriber",
@@ -429,6 +433,7 @@ const uk: Dict = {
   "nav.menu": "Меню",
   "nav.close": "Закрити",
   "nav.main": "Основна",
+  "home.headline": "Сьогоднішня розвідувальна картина", // uk: needs native review
   "home.tagline": "Прозорі рейтинги надійності джерел для OSINT зон конфлікту",
   "home.sub": "Розвідувальні стрічки по країнах з відкритих новин, Telegram та соцмереж — оцінені за надійністю, зведені у щоденний дайджест і щодня звірені з експертним аналізом. Кожне твердження має посилання на доказ.",
   "home.cta.subscribe": "Стати першим передплатником",

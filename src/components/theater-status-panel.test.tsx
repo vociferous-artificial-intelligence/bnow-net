@@ -153,7 +153,11 @@ describe("theater cards", () => {
     // No claims row: there is no bucket to key a count to.
     expect(text(ir)).not.toContain("Digest claims");
     expect(ir.textContent).not.toContain("Invalid Date");
-    const link = within(ir).getByRole("link");
+    // Two links now: the inner "none yet" row link, and the whole-card overlay
+    // link (below) — both point at the same honest fallback href. Index [0] is
+    // the inner row link (the overlay renders last in DOM; see "whole-card
+    // stretched link" below for its own coverage).
+    const link = within(ir).getAllByRole("link")[0];
     expect(link.getAttribute("href")).toBe("/countries#ir");
   });
 
@@ -175,6 +179,41 @@ describe("scoreboard link", () => {
   it("is omitted when the theater has no validation run yet (scoreboardHref null)", () => {
     renderPanel();
     expect(within(card("Ukraine")).queryByText("scoreboard →")).toBeNull();
+  });
+});
+
+describe("whole-card stretched link (W2)", () => {
+  it("gives every card an overlay link to its digestHref with an aria-label naming the theater", () => {
+    renderPanel();
+    for (const entry of FIXTURE_ENTRIES) {
+      const overlay = screen.getByRole("link", {
+        name: new RegExp(`^${entry.name} — `),
+      });
+      expect(overlay.getAttribute("href")).toBe(entry.digestHref);
+      expect(overlay.className).toContain("absolute");
+      expect(overlay.className).toContain("inset-0");
+    }
+  });
+
+  it("keeps the inner digest-status link and the scoreboard link above the overlay (z-10)", () => {
+    renderPanel();
+    const ru = card("Russia");
+    // The inner "Latest digest" row link — not the overlay (which has no
+    // visible text, only an aria-label) — must carry the stacking class.
+    const digestLink = within(ru)
+      .getAllByRole("link")
+      .find((l) => l.textContent?.includes("2026-07-12 · intraday"));
+    expect(digestLink?.className).toContain("z-10");
+    const scoreboardLink = within(ru).getByRole("link", { name: "scoreboard →" });
+    expect(scoreboardLink.className).toContain("z-10");
+  });
+
+  it("does not nest an <a> inside another <a> (overlay is a sibling, not a wrapper)", () => {
+    renderPanel();
+    const ru = card("Russia");
+    for (const a of within(ru).getAllByRole("link")) {
+      expect(a.querySelector("a")).toBeNull();
+    }
   });
 });
 

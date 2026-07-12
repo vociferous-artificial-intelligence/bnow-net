@@ -8,8 +8,9 @@ async function requestLink(formData: FormData) {
   "use server";
   const email = String(formData.get("email") ?? "").trim();
   // redirectTo rides along in the emailed callback URL, so a verified link lands
-  // on /account rather than back on the sign-in form.
-  await signIn("email", { email, redirect: false, redirectTo: "/account" });
+  // on the signed-in home rather than back on the sign-in form. The signed-in
+  // home is the landing surface now (R7, analyst-home-v2 sprint) — not /account.
+  await signIn("email", { email, redirect: false, redirectTo: "/" });
   redirect("/signin?sent=1");
 }
 
@@ -19,7 +20,7 @@ export default async function SignInPage({
   searchParams: Promise<{ sent?: string }>;
 }) {
   const session = await auth();
-  if (session?.user) redirect("/account");
+  if (session?.user) redirect("/");
   const sp = await searchParams;
 
   return (

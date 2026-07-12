@@ -4,7 +4,7 @@ import { getLocale } from "@/i18n/server";
 import { makeT } from "@/i18n/dictionaries";
 import { formatNumber } from "@/i18n/format";
 import { currentUserEmail } from "@/lib/session";
-import { LIVE_THEATERS, latestDigestHref, theaterHref } from "@/lib/nav/site-nav";
+import { LIVE_THEATERS, latestDigestHref } from "@/lib/nav/site-nav";
 import { TheaterStatusPanel, type TheaterStatusEntry } from "@/components/theater-status-panel";
 import { QuickLinksRail, type QuickLinksTheaterEntry } from "@/components/quick-links-rail";
 import {
@@ -81,20 +81,16 @@ export default async function Home() {
   const signedIn = email !== null;
 
   let stats = { sources: 0, citations: 0, docs: 0, runs: 0 };
-  let ruLatest: string | null = null;
   try {
     const [r] = (await rawSql.query(
       `SELECT
         (SELECT count(*) FROM sources WHERE citation_count > 0)::int AS sources,
         (SELECT count(*) FROM source_citations)::int AS citations,
         (SELECT count(*) FROM raw_documents)::int AS docs,
-        (SELECT count(*) FROM validation_runs)::int AS runs,
-        (SELECT max(d.digest_date)::text FROM digests d
-           JOIN countries c ON c.id = d.country_id WHERE c.iso2 = 'ru') AS ru_latest`,
+        (SELECT count(*) FROM validation_runs)::int AS runs`,
       [],
-    )) as Array<typeof stats & { ru_latest: string | null }>;
+    )) as Array<typeof stats>;
     stats = { sources: r.sources, citations: r.citations, docs: r.docs, runs: r.runs };
-    ruLatest = r.ru_latest;
   } catch {
     // health page shows details
   }
@@ -308,41 +304,22 @@ export default async function Home() {
 
   return (
     <main id="main" className="mx-auto max-w-5xl px-6">
-      <section className="py-20 text-center">
-        <h1 className="mx-auto max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl">
-          {t("home.tagline")}
-        </h1>
-        <p className="mx-auto mt-5 max-w-2xl text-lg text-gray-500">{t("home.sub")}</p>
-
+      <section className={signedIn ? "py-6 text-center" : "py-20 text-center"}>
         {signedIn ? (
-          // Working home: utility actions, no subscriber pitch. The flagship theater is
-          // hardcoded to RU — there is no per-user default-theater storage to read.
-          <>
-            <div className="mt-8 flex flex-wrap justify-center gap-4">
-              <Link href={latestDigestHref("ru", ruLatest)} className={PRIMARY_CTA}>
-                {t("home.cta.digest")}
-              </Link>
-              <Link href="/scoreboard" className={SECONDARY_CTA}>
-                {t("home.cta.scoreboard")}
-              </Link>
-              <Link href="/countries" className="self-center text-sm underline">
-                {t("home.cta.coverage")}
-              </Link>
-            </div>
-            <p className="mt-4 text-sm text-gray-400">
-              {t("home.live_label")}:{" "}
-              {LIVE_THEATERS.map((th, i) => (
-                <span key={th.iso2}>
-                  {i > 0 && " · "}
-                  <Link href={theaterHref(th.iso2)} className="underline hover:text-gray-600">
-                    {t(th.labelKey)}
-                  </Link>
-                </span>
-              ))}
-            </p>
-          </>
+          // Working home: a one-line headline, nothing else. No subtitle, no CTA
+          // buttons, no "Live now" line — the quick-links rail + theater panels
+          // below supersede all of that (R3, analyst-home-v2 sprint). Kept compact
+          // (small vertical padding) so the panels sit above the fold at desktop
+          // heights.
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+            {t("home.headline")}
+          </h1>
         ) : (
           <>
+            <h1 className="mx-auto max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl">
+              {t("home.tagline")}
+            </h1>
+            <p className="mx-auto mt-5 max-w-2xl text-lg text-gray-500">{t("home.sub")}</p>
             <div className="mt-8 flex justify-center gap-4">
               <Link href="/pricing" className={PRIMARY_CTA}>
                 {t("home.cta.subscribe")}
@@ -386,13 +363,6 @@ export default async function Home() {
             nextFinalizeIso={nextFinalizeIso}
             xPaused={xPaused}
           />
-          <HomeValidationTiles
-            locale={locale}
-            t={t}
-            entries={validationEntries}
-            corroboratedShare={corroboratedShare}
-            corroboratedDate={todayEt}
-          />
           {/* Zero-JS entry point to /ask: a plain GET form. Landing on /ask only
               prefills the input from ?q= (src/app/ask/page.tsx) — the paid pipeline
               fires solely from that page's own form submission, so this box can never
@@ -430,6 +400,16 @@ export default async function Home() {
               </ul>
             </section>
           )}
+          {/* Validation-vs-ISW tiles now sit last, right before the footer (R3,
+              analyst-home-v2 sprint): the working surfaces (rail, theater status,
+              ask, recent asks) lead; the trust/proof metric follows. */}
+          <HomeValidationTiles
+            locale={locale}
+            t={t}
+            entries={validationEntries}
+            corroboratedShare={corroboratedShare}
+            corroboratedDate={todayEt}
+          />
         </>
       ) : (
         <>

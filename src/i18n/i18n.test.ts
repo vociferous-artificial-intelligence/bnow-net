@@ -222,6 +222,14 @@ describe("locale selection", () => {
   });
 });
 
+describe("signed-in home headline (R3, analyst-home-v2 sprint)", () => {
+  it("stays a compact one-line headline: 3-5 words in English", () => {
+    const words = dict("en")["home.headline"].trim().split(/\s+/);
+    expect(words.length).toBeGreaterThanOrEqual(3);
+    expect(words.length).toBeLessThanOrEqual(5);
+  });
+});
+
 describe("no regression for existing en / uk", () => {
   it("English chrome values are unchanged", () => {
     const t = makeT("en");
