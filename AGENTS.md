@@ -50,8 +50,8 @@ primitives (e.g. `src/components/nav-dropdown.tsx`) are hand-rolled to WAI-ARIA 
         — sprint-3 reduce input; digest            └─> validation_runs (vs ISW same-day:
         pipeline untouched by it                        coverage, divergence, timeliness,
                                                         unsupported-claim rate)
- Product surface: landing / countries / digests+scoreboard / registry / entities / signals /
-                  trade / datadark / critical-materials / ask / pricing / auth
+ Product surface: landing / countries / digests+archive+scoreboard / registry / entities /
+                  signals / trade / datadark / critical-materials / ask / search / pricing / auth
 ```
 
 Directory map (correct in place as it changes):
@@ -156,12 +156,27 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   (2026-07-12):** targets-vs-actuals sublines + thin-sourced tile + nonzero-day
   mean + a true median info-lead (was silently a mean; closes OPEN-TASKS #11).
   Root error boundaries (`src/app/error.tsx` / `global-error.tsx`, 2026-07-12)
-  never render raw error messages. i18n: en+uk full, de ar ja pl fr catalogs
-  (landing wired; needs native review before promotion; ~77 uk strings — 10
+  never render raw error messages. **Analyst home & Iran prominence (2026-07-12,
+  deploy `bnow-jihmibgm6`):** signed-in home gained a quick-links rail (latest+prev
+  digest dates ×ru/ua/ir + scoreboard/registry/signals/search), date-led digest
+  links + claims-today + per-theater scoreboard deep links on the theater cards,
+  and a recent-asks list (`/ask?q=` prefills, never executes); signed-out home
+  gained one additive Iran/Gulf card (quality-gated: ir validation 07-11 = 100%
+  coverage; links `/countries#ir` per ruling 15); digest archive index
+  `/digests/[country]` + prev/next date nav + scoreboard→digest cross-link;
+  feedback mailtos on digest + registry-detail pages (env `FEEDBACK_EMAIL`, plain,
+  all three Vercel envs — affordance hidden when unset); **/search** = free
+  deterministic claim search (signed-in): ASK v2's lexical arm extracted to
+  `src/lib/ask/lexical.ts` (shared with retrieveV2, byte-green), $0 by
+  construction — no SpendGuard, no usage rows, proven live (5 queries, zero
+  counter movement); GET-with-q EXECUTES there by design ($0), the deliberate
+  contrast to /ask. i18n: en+uk full, de ar ja pl fr catalogs
+  (landing wired; needs native review before promotion; ~108 uk strings — 10
   `ask.*` (MERGE 1) + ~64 design-branch strings (MERGE 2: pricing, home.status,
-  home.validation, signals, registry) + 3 ask-polish strings — await native
-  review, tracked in `docs/reviews/UK-NATIVE-REVIEW-2026-07-12.md`).
-- **Tests:** 956 unit tests / 74 files green (`npm test`, ~3s) + Neon-branch
+  home.validation, signals, registry) + 3 ask-polish strings + 31 analyst-home
+  strings — await native review, tracked in
+  `docs/reviews/UK-NATIVE-REVIEW-2026-07-12.md`).
+- **Tests:** 996 unit tests / 79 files green (`npm test`, ~3s) + Neon-branch
   integration suite (`npm run test:integration`). CI mirror: `.github/workflows/ci.yml`;
   the enforced gate is `.githooks/pre-push` (typecheck+lint+test).
 - **Crons (vercel.json):** ingest fast */15 · telegram :10 · x :20 · mtproto :35 ·
@@ -487,6 +502,32 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   construction. Both branches deleted. OPEN-TASKS #48 closed (idempotency window stays
   parked); 3 uk strings appended to the native-review inventory. Tests 902→956 (74
   files). OpenAI spend $0.106 of $2. Operator checklist in the note §⑥.
+- **2026-07-12 (analyst home & Iran prominence sprint, unattended — FULL SHIP, deployed)**
+  Plan `docs/BNOW-NEXT-FEATURES-PLAN-2026-07-12.md` (installed this session; the executing
+  prompt's full decision register never reached the repo — reversible defaults taken and
+  ledgered in the readback, `docs/reviews/ANALYST-HOME-READBACK-2026-07-12.md`). All seven
+  workstreams shipped; branch `20260712-analyst-home-iran` (tag
+  `pre-analyst-home-20260712`) merged `4482669`, deployed **`bnow-jihmibgm6`** (rollback
+  target recorded pre-deploy: `bnow-qdesocr6p`); morning note
+  `docs/reviews/ANALYST-HOME-NOTE-2026-07-12.md`. **Iran quality gate PASSED on evidence**
+  (daily 3-track ir digests, claim parity with ru/ua, validation 07-11 ir 100% vs ru 57.1 —
+  the 07-10 "IR parity 57.5" concern is stale), so public Iran prominence shipped; no
+  Iran-quality emergency follow-up warranted. Ship list: signed-in quick-links rail +
+  quick-strip upgrades + recent-asks; additive signed-out Iran/Gulf card; digest archive
+  `/digests/[country]` + prev/next nav (closes the "yesterday's digest unreachable" gap) +
+  scoreboard→digest cross-link; feedback mailtos (new plain env `FEEDBACK_EMAIL` =
+  go@vociferous.nyc in prod+preview+dev, verified by round-trip; affordances hidden when
+  unset); **/search free claim search** — ASK v2's lexical arm extracted MECHANICALLY to
+  `src/lib/ask/lexical.ts` (all 252 pre-existing ask tests green with zero edits; module
+  carries a never-guard/never-provider/never-write invariant comment), $0 proven live
+  against prod (5 queries: ask_usage 28→28, provider_usage 343→343) and pinned by
+  throw-if-touched tests. **Deliberate contrast ruling: GET /search?q= EXECUTES ($0
+  deterministic SQL) while GET /ask?q= only prefills (paid) — documented in the page
+  source; do not "unify" them.** Tests 956→996 (79 files); typecheck/lint/`next build`
+  green; prod smoke green signed-out (Iran card live, marketing sections byte-intact,
+  /digests/ru + /search 307-gated). Deep links verified sound: claim_date==digest_date for
+  all 846 claims (latent coupling → OPEN-TASKS #54; /search nav entry deferred → #55).
+  31 uk strings appended to the native-review inventory. LLM spend $0.00.
 
 ## Conventions
 

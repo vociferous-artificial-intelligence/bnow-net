@@ -1030,3 +1030,23 @@ ir 100%). Branch `20260712-analyst-home-iran`, tag `pre-analyst-home-20260712`.
    gated /search page, money tests.
 6. Review every diff, full gate, deploy if green, signed-out smoke, morning note,
    AGENTS.md decision log.
+
+## 2026-07-12 (analyst-home & Iran prominence sprint) — results
+
+**FULL SHIP.** Merge `4482669`, deploy `bnow-jihmibgm6` (rollback: `bnow-qdesocr6p`).
+Morning note: `docs/reviews/ANALYST-HOME-NOTE-2026-07-12.md`.
+
+1. W4 `8def883`: `/digests/[country]` archive index (date/tracks/claims), prev/next
+   date nav + archive breadcrumb on digest pages, scoreboard detail → digest
+   cross-link, digest pages onto existing catalog keys, flag-digest +
+   flag-source mailtos (`FEEDBACK_EMAIL`, fail-closed hidden).
+2. W7 `aa06648`: lexical arm extracted mechanically to `src/lib/ask/lexical.ts`
+   (252 pre-existing ask tests green, zero edits), gated `/search` page, $0 proven
+   live (5 prod queries, zero usage-counter movement) + throw-if-touched tests.
+3. W1+W2+W3+W6 `176d2f8`: quick-links rail (latest+prev digests ×3 theaters +
+   scoreboard/registry/signals/search), date-led digest links + claims-today +
+   per-theater scoreboard deep links, recent-asks prefill list, additive signed-out
+   Iran/Gulf card (quality gate PASSED: ir 07-11 validation 100%).
+4. Gate: tests 956→996 (79 files), typecheck/lint/`next build` clean, pre-push green;
+   prod smoke green signed-out. OPEN-TASKS +#54 (claim_date↔digest_date link
+   coupling) +#55 (/search nav entry). LLM spend $0.00.

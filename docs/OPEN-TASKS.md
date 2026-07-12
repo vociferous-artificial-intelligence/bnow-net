@@ -296,6 +296,16 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     machine-checked signed-out; nobody has exercised them with a real magic-link session yet
     (design implementation note §5, item 6).
 
+54. **Digest deep links assume `claim_date == digest_date`.** Both /ask citations and the
+    new /search results build `/digests/{iso2}/{claim_date}#c{id}` from the claim's own
+    date. True for all 846 digest claims today (verified 2026-07-12, zero divergence), but
+    if intraday delta framing ever persists a claim dated D-1 into a D digest, the link
+    lands on the wrong day's page (renders, but misses the anchor). Fix = select
+    `dg.digest_date` in the two link queries (ask actions.ts resolver + lexical search row).
+55. **/search is not in the nav.** Reachable only from the signed-in home quick-links rail
+    (analyst-home readback, decision 3 — nav carries frozen-URL + all-locale-label
+    invariants). Add a `nav.item.search` Product-group entry once the surface proves itself.
+
 ## Deferred by design (key-blocked — see BLOCKERS.md)
 
 X API (frozen at cap), OpenSanctions key, Companies House key, Comtrade key, zakupki
