@@ -19,6 +19,8 @@ interface RunRow {
   unsupported_claim_rate: number | null;
   timeliness_hours: number | null;
   divergences: Array<{ kind: string }>;
+  /** details.atPublish (jsonb): evidence-in-hand-at-ISW-publish dual coverage, when computed. */
+  at_publish: { coveragePct: number | null } | null;
   provider: string;
 }
 
@@ -38,7 +40,8 @@ export default async function ScoreboardPage() {
   const t = makeT(locale);
   const rows = (await rawSql.query(
     `SELECT vr.id, d.digest_date, c.iso2, vr.coverage_pct, vr.unsupported_claim_rate,
-            vr.timeliness_hours, vr.divergences, d.provider
+            vr.timeliness_hours, vr.divergences, vr.details->'atPublish' AS at_publish,
+            d.provider
      FROM validation_runs vr
      JOIN digests d ON d.id = vr.digest_id
      JOIN countries c ON c.id = d.country_id
@@ -62,6 +65,7 @@ export default async function ScoreboardPage() {
         </p>
         <ul className="list-disc space-y-1 pl-4 text-xs text-gray-500 dark:text-gray-400">
           <li>{t("scoreboard.how_to_read.coverage")}</li>
+          <li>{t("scoreboard.how_to_read.at_publish")}</li>
           <li>{t("scoreboard.how_to_read.lead")}</li>
           <li>{t("scoreboard.how_to_read.thin")}</li>
           <li>{t("scoreboard.how_to_read.divergence")}</li>
@@ -137,6 +141,13 @@ export default async function ScoreboardPage() {
                         {r.coverage_pct !== null ? `${Number(r.coverage_pct).toFixed(0)}%` : "—"}
                       </span>
                     </div>
+                    {r.at_publish?.coveragePct != null && (
+                      <div className="text-xs text-gray-400 tabular-nums">
+                        {t("scoreboard.at_publish", {
+                          pct: Number(r.at_publish.coveragePct).toFixed(0),
+                        })}
+                      </div>
+                    )}
                   </td>
                   <td className="text-right tabular-nums">
                     {r.unsupported_claim_rate !== null

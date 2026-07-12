@@ -74,8 +74,10 @@ describe("scoreDigest", () => {
     { index: 2, toponyms: [], actions: [], chars: 50 }, // unmatchable
   ];
   const claims = [
-    { claimId: 1, text: "Российские войска штурмуют Покровск", hedging: "claimed", docCount: 3, earliestDocAt: "2026-06-30T08:00:00Z" },
-    { claimId: 2, text: "Fire at chemical plant in Novosibirsk", hedging: "unverified", docCount: 1, earliestDocAt: null },
+    // earliestFetchedAt (ingest instant) deliberately later than earliestDocAt
+    // (the source's own publish claim) — only the former feeds atPublish.
+    { claimId: 1, text: "Российские войска штурмуют Покровск", hedging: "claimed", docCount: 3, earliestDocAt: "2026-06-30T08:00:00Z", earliestFetchedAt: "2026-06-30T10:00:00Z" },
+    { claimId: 2, text: "Fire at chemical plant in Novosibirsk", hedging: "unverified", docCount: 1, earliestDocAt: null, earliestFetchedAt: null },
   ];
 
   it("computes coverage over matchable takeaways only", () => {
@@ -98,6 +100,32 @@ describe("scoreDigest", () => {
     const s = scoreDigest([{ index: 0, toponyms: [], actions: [], chars: 10 }], claims, null);
     expect(s.coveragePct).toBeNull();
   });
+
+  it("atPublish shares the coverage denominator and gates on the ingest instant", () => {
+    // Claim 1's evidence was fetched 10:00Z, well before ISW's 23:35Z publish —
+    // the one agreement counts, so at-publish coverage == final coverage here.
+    const s = scoreDigest(takeaways, claims, new Date("2026-06-30T23:35:00Z"));
+    expect(s.atPublish).toEqual({
+      coveragePct: 50,
+      matchedBefore: 1,
+      matchedTotal: 1,
+      iswPublishedAt: "2026-06-30T23:35:00.000Z",
+    });
+  });
+
+  it("atPublish drops agreements whose evidence was ingested after ISW published", () => {
+    const lateClaims = claims.map((c) =>
+      c.claimId === 1 ? { ...c, earliestFetchedAt: "2026-07-01T02:00:00Z" } : c,
+    );
+    const s = scoreDigest(takeaways, lateClaims, new Date("2026-06-30T23:35:00Z"));
+    expect(s.coveragePct).toBe(50); // final coverage unchanged...
+    expect(s.atPublish).toMatchObject({ coveragePct: 0, matchedBefore: 0, matchedTotal: 1 });
+  });
+
+  it("atPublish is null (undefined, not fabricated) without an ISW publish time", () => {
+    const s = scoreDigest(takeaways, claims, null);
+    expect(s.atPublish).toBeNull();
+  });
 });
 
 describe("iswUrlForDate", () => {
@@ -118,8 +146,8 @@ describe("scoreDigestWithMatches (llm matcher path)", () => {
       { index: 1, toponyms: [], actions: [], chars: 80 },
     ];
     const claims = [
-      { claimId: 5, text: "Russian forces liberated Malinovka", hedging: "claimed", docCount: 2, earliestDocAt: "2026-06-30T09:00:00Z" },
-      { claimId: 6, text: "Unrelated economic item", hedging: "claimed", docCount: 1, earliestDocAt: null },
+      { claimId: 5, text: "Russian forces liberated Malinovka", hedging: "claimed", docCount: 2, earliestDocAt: "2026-06-30T09:00:00Z", earliestFetchedAt: "2026-06-30T09:30:00Z" },
+      { claimId: 6, text: "Unrelated economic item", hedging: "claimed", docCount: 1, earliestDocAt: null, earliestFetchedAt: null },
     ];
     const s = scoreDigestWithMatches(takeaways, claims, new Date("2026-06-30T23:00:00Z"), [
       { takeawayIndex: 0, claimId: 5, confidence: 0.85 },
@@ -131,6 +159,13 @@ describe("scoreDigestWithMatches (llm matcher path)", () => {
     expect(s.divergences.filter((d) => d.kind === "isw_only")).toHaveLength(1);
     expect(s.divergences.filter((d) => d.kind === "ours_only")).toHaveLength(1);
     expect(s.thinSourcedRate).toBe(0.5);
+    // LLM path: atPublish divides by ALL takeaways (its coverage denominator);
+    // claim 5's evidence (09:30Z) predates the 23:00Z publish.
+    expect(s.atPublish).toMatchObject({ coveragePct: 50, matchedBefore: 1, matchedTotal: 1 });
+    // agreement entries carry the ingest instant for the backfill/audit trail
+    expect(s.divergences.find((d) => d.kind === "agreement")?.earliestFetchedAt).toBe(
+      "2026-06-30T09:30:00Z",
+    );
   });
 });
 

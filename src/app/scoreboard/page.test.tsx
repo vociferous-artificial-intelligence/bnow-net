@@ -46,6 +46,7 @@ const ROW = {
     { kind: "isw_only" },
     { kind: "ours_only" },
   ],
+  at_publish: null,
   provider: "openai:gpt-4o-mini+mapreduce",
 };
 
@@ -103,5 +104,25 @@ describe("table rows still render", () => {
     const element = await ScoreboardPage();
     render(element);
     expect(screen.getByText("ru")).toBeTruthy();
+  });
+});
+
+describe("at-publish dual coverage (W4)", () => {
+  it("renders the at-publish subline in the coverage cell when details carry it", async () => {
+    queryMock.mockResolvedValueOnce([
+      { ...ROW, at_publish: { coveragePct: 28.6, matchedBefore: 2, matchedTotal: 4 } },
+    ]);
+    const element = await ScoreboardPage();
+    const { container } = render(element);
+    expect(container.textContent).toContain("at ISW publish: 29%");
+    // and its how-to-read line explains the pair
+    expect(container.textContent).toContain("At ISW publish — of those same takeaways");
+  });
+
+  it("renders no subline for runs scored before the dual metric existed", async () => {
+    queryMock.mockResolvedValueOnce([ROW]); // at_publish: null
+    const element = await ScoreboardPage();
+    const { container } = render(element);
+    expect(container.textContent).not.toContain("at ISW publish:");
   });
 });

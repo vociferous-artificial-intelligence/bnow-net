@@ -181,7 +181,7 @@ const en: Dict = {
   // Signed-in validation snapshot tiles (below the theater status panel). Same
   // placeholder-free convention as home.status.* above.
   "home.validation.panel_label": "Validation vs ISW",
-  "home.validation.coverage_suffix": "coverage",
+  "home.validation.coverage_suffix": "final coverage",
   "home.validation.not_validated": "not yet validated",
   "home.validation.median_lead_label": "Median info lead vs ISW",
   "home.validation.last_validated_label": "Last validated",
@@ -312,7 +312,14 @@ const en: Dict = {
   "scoreboard.how_to_read.summary": "How to read these numbers",
   // Coverage: matched / matchable ISW same-day takeaways (score.ts coveragePct).
   "scoreboard.how_to_read.coverage":
-    "Coverage % — the share of ISW's same-day takeaways our digest also matched.",
+    "Coverage % — the share of ISW's same-day takeaways our digest also matched. The headline number scores our finalized digest (published ~10:00 PM ET), after ISW's report is already out.",
+  // Dual metric (analyst-trust W4): evidence-in-hand at ISW publish — same
+  // denominator as coverage, gated on min(raw_documents.fetched_at) <= ISW's
+  // datePublished (src/lib/validation/at-publish.ts). Rendered as a per-row
+  // subline in the coverage column.
+  "scoreboard.how_to_read.at_publish":
+    "At ISW publish — of those same takeaways, the share we had matched with evidence already ingested when ISW's report went out: the apples-to-apples number. The gap to the headline is what later ingestion added.",
+  "scoreboard.at_publish": "at ISW publish: {pct}%",
   // Lead: median hours across matched pairs of (ISW publish time − earliest
   // supporting doc's published_at, fallback fetched_at) — score.ts timelinessHours,
   // run.ts earliest_doc_at query.
@@ -487,7 +494,7 @@ const uk: Dict = {
   "home.status.no_digest": "ще немає", // uk: needs native review
   "home.status.x_paused": "Прийом даних з X призупинено (ліміт витрат вичерпано) — RSS і Telegram продовжують оновлюватися",
   "home.validation.panel_label": "Валідація проти ISW",
-  "home.validation.coverage_suffix": "охоплення",
+  "home.validation.coverage_suffix": "фінальне охоплення", // uk: needs native review
   "home.validation.not_validated": "ще не перевірено",
   "home.validation.median_lead_label": "Медіанне випередження ISW",
   "home.validation.last_validated_label": "Востаннє перевірено",
@@ -595,7 +602,10 @@ const uk: Dict = {
     "Ми оцінюємо власний результат. Щодня ми порівнюємо дайджест цієї системи з експертним аналізом людей — Russian Offensive Campaign Assessment від ISW та іншими базовими джерелами — і перевіряємо, чи ми зафіксували ті самі події, наскільки рано, і яка частка опублікованого спирається більш ніж на одне джерело. Ми публікуємо результати, включно з промахами, бо аналітики повинні точно знати, наскільки довіряти автоматизованій стрічці. На відміну від готового текстового звіту, кожне твердження тут посилається на вихідний документ, доступне для пошуку і може з'явитися на години раніше — ця сторінка показує, чого коштує ця швидкість у покритті.", // uk: needs native review
   "scoreboard.how_to_read.summary": "Як читати ці цифри", // uk: needs native review
   "scoreboard.how_to_read.coverage":
-    "Покриття % — частка тез ISW за той самий день, які також збіглися з нашим дайджестом.", // uk: needs native review
+    "Покриття % — частка тез ISW за той самий день, які також збіглися з нашим дайджестом. Основне число оцінює наш фінальний дайджест (публікується ~22:00 ET), коли звіт ISW уже вийшов.", // uk: needs native review
+  "scoreboard.how_to_read.at_publish":
+    "На момент публікації ISW — частка тих самих тез, які ми на той час уже підтвердили завантаженими доказами: чесне порівняння один до одного. Різниця з основним числом — внесок пізнішого завантаження.", // uk: needs native review
+  "scoreboard.at_publish": "на момент публікації ISW: {pct}%", // uk: needs native review
   "scoreboard.how_to_read.lead":
     "Інформаційне випередження — медіана годин між нашим найранішим підтверджувальним документом-джерелом і часом публікації ISW серед подій, що збіглися; додатне значення означає, що ми дізналися першими.", // uk: needs native review
   "scoreboard.how_to_read.thin":
