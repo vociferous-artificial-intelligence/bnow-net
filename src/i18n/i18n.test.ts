@@ -143,7 +143,7 @@ describe("interpolation", () => {
     const vars = {
       sources: "1", citations: "2", docs: "3", runs: "4",
       n: "5", channels: "6", platforms: "7", total: "8",
-      pct: "9", amount: "10", time: "11", days: "12",
+      pct: "9", amount: "10", time: "11", days: "12", date: "13",
     };
     for (const loc of LOCALES) {
       const d = dict(loc);
@@ -219,6 +219,14 @@ describe("locale selection", () => {
     expect(resolveLocale({ acceptLanguage: "de, fr" })).toBe("de");
     // unsupported-but-higher-q is skipped for the next supported one
     expect(resolveLocale({ acceptLanguage: "zz;q=1.0, fr;q=0.4" })).toBe("fr");
+  });
+});
+
+describe("signed-in home headline (R3, analyst-home-v2 sprint)", () => {
+  it("stays a compact one-line headline: 3-5 words in English", () => {
+    const words = dict("en")["home.headline"].trim().split(/\s+/);
+    expect(words.length).toBeGreaterThanOrEqual(3);
+    expect(words.length).toBeLessThanOrEqual(5);
   });
 });
 

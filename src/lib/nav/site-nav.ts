@@ -75,8 +75,9 @@ const SECTION_ROUTES: ReadonlyArray<readonly [string, SectionId]> = [
   ["/countries", "coverage"],
   ["/digests", "coverage"],
   ["/scoreboard", "validation"],
-  ["/registry", "product"],
-  ["/middle-east", "product"],
+  // /registry and /middle-east deliberately absent: R5 (2026-07-12) made the source
+  // registry admin-only and dropped its nav entries below, so neither route has a
+  // trigger left to light up.
   ["/ask", "product"],
   ["/signals", "product"],
   ["/entities", "product"],
@@ -130,10 +131,11 @@ export function buildSiteNav(
       labelKey: "nav.group.product",
       label: t("nav.group.product"),
       items: [
+        // /registry and /middle-east links removed (R5, 2026-07-12): the source
+        // registry is admin-only now, so it's not advertised in nav — admins
+        // reach it by URL.
         link("feeds", "nav.item.feeds", "/countries"),
         link("ask", "nav.item.ask", "/ask"),
-        link("registry", "nav.item.registry", "/registry"),
-        link("me_registry", "nav.item.me_registry", "/middle-east"),
         link("signals", "nav.item.signals", "/signals"),
       ],
     },

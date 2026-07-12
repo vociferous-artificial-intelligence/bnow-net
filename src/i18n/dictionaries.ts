@@ -141,6 +141,10 @@ const en: Dict = {
   "nav.main": "Main",
 
   // landing page
+  // Signed-in home headline (R3, analyst-home-v2 sprint): the sole hero string —
+  // no subtitle, no CTA copy alongside it. Kept short on purpose (pinned by a
+  // word-count test in i18n.test.ts) so the compact hero stays one line.
+  "home.headline": "Today's intelligence picture",
   "home.tagline": "Transparent source reliability ratings for conflict-zone OSINT",
   "home.sub": "Per-country intelligence feeds from open news, Telegram and social sources — scored for reliability, fused into a daily digest, and validated every day against expert human analysis. Every claim links to its evidence.",
   "home.cta.subscribe": "Become a founding subscriber",
@@ -162,23 +166,32 @@ const en: Dict = {
   "home.status.panel_label": "Data freshness by theater",
   "home.status.data_current": "Data current as of",
   "home.status.docs_24h": "Documents, last 24h",
-  "home.status.digest_generated": "Digest generated",
+  // Cadence-aware digest status (analyst-trust sprint, docs/TIME-MODEL.md): the
+  // card names the digest bucket it describes and labels its stage; the claims row
+  // is keyed to that same bucket via {date}, so it can never contradict the status.
+  "home.status.latest_digest": "Latest digest",
+  "home.status.stage_intraday": "intraday",
+  "home.status.stage_final": "final",
+  "home.status.none_today": "no digest yet today",
+  "home.status.claims_for": "Digest claims, {date}",
   "home.status.next_update": "Next update",
   "home.status.no_data": "no data yet",
-  "home.status.no_digest": "not yet generated",
+  "home.status.no_digest": "none yet",
   "home.status.x_paused": "X ingestion paused (spend cap reached) — RSS and Telegram continue updating",
   // Signed-in validation snapshot tiles (below the theater status panel). Same
   // placeholder-free convention as home.status.* above.
   "home.validation.panel_label": "Validation vs ISW",
-  "home.validation.coverage_suffix": "coverage",
+  "home.validation.coverage_suffix": "final coverage",
   "home.validation.not_validated": "not yet validated",
   "home.validation.median_lead_label": "Median info lead vs ISW",
   "home.validation.last_validated_label": "Last validated",
-  "home.validation.corroborated_label": "Corroborated share, today",
+  "home.validation.corroborated_label": "Corroborated share, {date}",
   "home.validation.not_computed": "not yet computed",
-  // Signed-in analyst quick-strip additions (analyst-home sprint) — same
-  // placeholder-free convention as home.status.* above.
-  "home.status.claims_today": "Digest claims, today",
+  // One-line caption above the tile grid (scoreboard-explainer sprint, W3): sets
+  // expectations before the numbers, same voice as scoreboard.explainer below.
+  "home.validation.caption":
+    "We score our own digests against expert analysis daily — including the misses.",
+  // Signed-in analyst quick-strip additions (analyst-home sprint).
   "home.status.scoreboard_link": "scoreboard →",
   // Signed-in quick-links rail: compact known-destination links; digest dates
   // are composed in JSX next to these labels.
@@ -288,6 +301,38 @@ const en: Dict = {
   "scoreboard.target_lead": "target within ±{n}h",
   "scoreboard.nonzero_day_mean": "nonzero days: {pct}% (n={days})",
   "scoreboard.view_digest": "view this day's digest →",
+  // Explainer block (scoreboard-explainer sprint, W3): replaces the old one-line
+  // targets note near the top of the page. Substance verified against
+  // src/lib/validation/score.ts + src/lib/scoreboard/summary.ts — see the
+  // how_to_read.* lines below for the per-metric definitions this must stay
+  // consistent with. Per-metric numeric targets stay in the target_* tile
+  // sublines above, unchanged by this block.
+  "scoreboard.explainer":
+    "We score our own output. Every day we compare this system's digest against expert human analysis — ISW's Russian Offensive Campaign Assessment and other baselines — measuring whether we surfaced the same events, how early, and how much of what we published rests on more than one source. We publish the results, including the misses, because analysts should know exactly how much to trust an automated feed. Unlike a finished prose report, every claim here links back to its source document, is searchable, and can land hours earlier — this page shows what that speed costs in coverage.",
+  "scoreboard.how_to_read.summary": "How to read these numbers",
+  // Coverage: matched / matchable ISW same-day takeaways (score.ts coveragePct).
+  "scoreboard.how_to_read.coverage":
+    "Coverage % — the share of ISW's same-day takeaways our digest also matched. The headline number scores our finalized digest (published ~10:00 PM ET), after ISW's report is already out.",
+  // Dual metric (analyst-trust W4): evidence-in-hand at ISW publish — same
+  // denominator as coverage, gated on min(raw_documents.fetched_at) <= ISW's
+  // datePublished (src/lib/validation/at-publish.ts). Rendered as a per-row
+  // subline in the coverage column.
+  "scoreboard.how_to_read.at_publish":
+    "At ISW publish — of those same takeaways, the share we had matched with evidence already ingested when ISW's report went out: the apples-to-apples number. The gap to the headline is what later ingestion added.",
+  "scoreboard.at_publish": "at ISW publish: {pct}%",
+  // Lead: median hours across matched pairs of (ISW publish time − earliest
+  // supporting doc's published_at, fallback fetched_at) — score.ts timelinessHours,
+  // run.ts earliest_doc_at query.
+  "scoreboard.how_to_read.lead":
+    "Information lead — median hours between our earliest supporting source document and ISW's publish time, across matched events; positive means we had it first.",
+  // Thin-sourced: docCount<2 AND hedging in (claimed, unverified) — score.ts thin
+  // filter. NOT literal "unsupported"; every claim keeps >=1 source (ruling 2).
+  "scoreboard.how_to_read.thin":
+    "Thin-sourced % — the share of our claims resting on a single source while still hedged as claimed or unverified, never stated as settled fact. Lower is better.",
+  // Divergence kinds: agreement / isw_only (our miss) / ours_only (potential lead) —
+  // score.ts DivergenceEntry.kind.
+  "scoreboard.how_to_read.divergence":
+    "Agreement / ISW-only / ours-only — events both sides reported, events ISW reported that we missed, and events we reported that ISW didn't carry (a potential lead).",
 
   // digest page framing
   "digest.no_events": "No events extracted.",
@@ -424,6 +469,7 @@ const uk: Dict = {
   "nav.menu": "Меню",
   "nav.close": "Закрити",
   "nav.main": "Основна",
+  "home.headline": "Сьогоднішня розвідувальна картина", // uk: needs native review
   "home.tagline": "Прозорі рейтинги надійності джерел для OSINT зон конфлікту",
   "home.sub": "Розвідувальні стрічки по країнах з відкритих новин, Telegram та соцмереж — оцінені за надійністю, зведені у щоденний дайджест і щодня звірені з експертним аналізом. Кожне твердження має посилання на доказ.",
   "home.cta.subscribe": "Стати першим передплатником",
@@ -438,19 +484,24 @@ const uk: Dict = {
   "home.status.panel_label": "Актуальність даних за театрами",
   "home.status.data_current": "Дані станом на",
   "home.status.docs_24h": "Документів за останні 24 год",
-  "home.status.digest_generated": "Дайджест згенеровано",
+  "home.status.latest_digest": "Останній дайджест", // uk: needs native review
+  "home.status.stage_intraday": "проміжний", // uk: needs native review
+  "home.status.stage_final": "фінальний", // uk: needs native review
+  "home.status.none_today": "сьогодні дайджесту ще немає", // uk: needs native review
+  "home.status.claims_for": "Тверджень у дайджесті, {date}", // uk: needs native review
   "home.status.next_update": "Наступне оновлення",
   "home.status.no_data": "даних поки немає",
-  "home.status.no_digest": "ще не згенеровано",
+  "home.status.no_digest": "ще немає", // uk: needs native review
   "home.status.x_paused": "Прийом даних з X призупинено (ліміт витрат вичерпано) — RSS і Telegram продовжують оновлюватися",
   "home.validation.panel_label": "Валідація проти ISW",
-  "home.validation.coverage_suffix": "охоплення",
+  "home.validation.coverage_suffix": "фінальне охоплення", // uk: needs native review
   "home.validation.not_validated": "ще не перевірено",
   "home.validation.median_lead_label": "Медіанне випередження ISW",
   "home.validation.last_validated_label": "Востаннє перевірено",
-  "home.validation.corroborated_label": "Частка підтверджених, сьогодні",
+  "home.validation.corroborated_label": "Частка підтверджених, {date}", // uk: needs native review
   "home.validation.not_computed": "ще не обчислено",
-  "home.status.claims_today": "Тверджень у дайджесті, сьогодні", // uk: needs native review
+  "home.validation.caption":
+    "Ми щодня оцінюємо власні дайджести проти експертного аналізу — включно з промахами.", // uk: needs native review
   "home.status.scoreboard_link": "таблиця валідації →", // uk: needs native review
   "home.quicklinks.label": "Швидкі посилання", // uk: needs native review
   "home.quicklinks.digest": "дайджест", // uk: needs native review
@@ -547,6 +598,20 @@ const uk: Dict = {
   "scoreboard.target_lead": "ціль у межах ±{n} год",
   "scoreboard.nonzero_day_mean": "дні з ненульовим покриттям: {pct}% (n={days})",
   "scoreboard.view_digest": "переглянути дайджест цього дня →", // uk: needs native review
+  "scoreboard.explainer":
+    "Ми оцінюємо власний результат. Щодня ми порівнюємо дайджест цієї системи з експертним аналізом людей — Russian Offensive Campaign Assessment від ISW та іншими базовими джерелами — і перевіряємо, чи ми зафіксували ті самі події, наскільки рано, і яка частка опублікованого спирається більш ніж на одне джерело. Ми публікуємо результати, включно з промахами, бо аналітики повинні точно знати, наскільки довіряти автоматизованій стрічці. На відміну від готового текстового звіту, кожне твердження тут посилається на вихідний документ, доступне для пошуку і може з'явитися на години раніше — ця сторінка показує, чого коштує ця швидкість у покритті.", // uk: needs native review
+  "scoreboard.how_to_read.summary": "Як читати ці цифри", // uk: needs native review
+  "scoreboard.how_to_read.coverage":
+    "Покриття % — частка тез ISW за той самий день, які також збіглися з нашим дайджестом. Основне число оцінює наш фінальний дайджест (публікується ~22:00 ET), коли звіт ISW уже вийшов.", // uk: needs native review
+  "scoreboard.how_to_read.at_publish":
+    "На момент публікації ISW — частка тих самих тез, які ми на той час уже підтвердили завантаженими доказами: чесне порівняння один до одного. Різниця з основним числом — внесок пізнішого завантаження.", // uk: needs native review
+  "scoreboard.at_publish": "на момент публікації ISW: {pct}%", // uk: needs native review
+  "scoreboard.how_to_read.lead":
+    "Інформаційне випередження — медіана годин між нашим найранішим підтверджувальним документом-джерелом і часом публікації ISW серед подій, що збіглися; додатне значення означає, що ми дізналися першими.", // uk: needs native review
+  "scoreboard.how_to_read.thin":
+    "Слабко підкріплені % — частка наших тверджень, що спираються лише на одне джерело і при цьому позначені як заявлені чи неперевірені, а не подані як встановлений факт. Менше — краще.", // uk: needs native review
+  "scoreboard.how_to_read.divergence":
+    "Збіг / лише ISW / лише ми — події, які повідомили обидві сторони, події, які повідомив ISW, а ми пропустили, і події, які повідомили ми, а ISW не згадав (можливе випередження).", // uk: needs native review
   "digest.no_events": "Подій не виявлено.",
   "digest.view_for": "перегляд для:",
   "digest.sources": "джерела",

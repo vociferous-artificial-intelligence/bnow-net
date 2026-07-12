@@ -71,12 +71,14 @@ src/lib/isw/        crawler, endnote parser, hedging classifier, registry materi
 src/lib/validation/ ISW scoreboard: keyword gazetteer + majority-vote LLM matcher
 src/lib/usage/      SpendGuard, llm-guard (caps + kill-switch), cron-run bookkeeping
 src/lib/…           ask, entities, enrich, datadark, trade, materials, profiles, email,
-                    nav, ingest, gate/session/auth
+                    nav, ingest, time (ET/UTC day + format + digest-status helpers),
+                    gate/session/auth
 scripts/            local runners (idempotent + resumable): backfills, seed, digest,
                     validate, map-backfill, sqlq, pin-dns.cjs, test-integration.sh
 fixtures/           saved HTML/JSON for tests
 docs/               PRODUCT-BRIEF, PROGRESS, OPEN-TASKS, BLOCKERS, SETUP-NEXT-WEEK,
-                    DECISIONS (log archive), STATUS-REPORT, strategy docs, reviews/
+                    DECISIONS (log archive), STATUS-REPORT, TIME-MODEL, strategy docs,
+                    reviews/, designs/
 drizzle/            migrations 0000–00NN + 9999_claim_source_trigger.sql (applies last)
 data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails)
 ```
@@ -126,10 +128,11 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   `src/lib/pricing/tiers.ts`, Regional bundles + Enterprise/API on request) /
   magic-link auth (Postmark LIVE, still on scenefiend sender domain) / digests
   (ClaimSources diversity-selected source collapse, **adopted 2026-07-12**) +
-  registry (**role-gated 2026-07-12**: `src/lib/registry/view-policy.ts` — reduced
-  view for `user`/anon, full for `analyst`/`admin`; `?sort=reliability` ignored
-  server-side for reduced; `/middle-east` splices the reliability CASE out of the
-  SQL for reduced roles) + entities behind FEATURE_AUTH_GATE / signals
+  registry (**ADMIN-ONLY since 2026-07-12** analyst-trust R5:
+  `requireAdminOr404()` in both layouts — every non-admin, signed-in or out, gets a
+  404, replacing the old requireUser 307; registry links removed from nav, rail and
+  all pages; `view-policy.ts` still shapes what an admin sees; "suggest a source"
+  mailto moved to digest footers) + entities behind FEATURE_AUTH_GATE / signals
   (**evidence-gated 2026-07-12**: signed-in ClaimSources evidence in `<details>`,
   signed-out count+sign-in-only) / trade / datadark / critical-materials / ask
   (**v2 pipeline LIVE 2026-07-12**: hybrid vector+lexical retrieval, gpt-5-mini
@@ -151,14 +154,25 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   `src/lib/gate.ts` helpers back the registry/signals gating above; `ADMIN_EMAILS`
   bootstraps admin pre-grant, live in Vercel **Production only** (absent
   Preview/Development — fails closed to reduced views there). **Signed-in home
-  (2026-07-12):** theater status panel + validation-vs-ISW tiles replace the
-  marketing cards for signed-in users; signed-out cards unchanged. **Scoreboard
+  (rebuilt 2026-07-12 analyst-trust R3):** compact one-line headline (no hero/CTAs),
+  quick-links rail, cadence-aware theater panels (whole-card click → latest digest;
+  the card names its digest bucket + intraday/final stage and keys the claims count
+  to that bucket — the "not yet generated beside 14 claims" contradiction was a
+  driver bigint-as-string fold bug, fixed + regression-pinned), Ask box + recent
+  asks, validation tiles last; signed-out home unchanged. Magic-link sign-in lands
+  on `/`. Time model: docs/TIME-MODEL.md + src/lib/time/* (ET display, UTC buckets,
+  explicit-tz helpers only). **Scoreboard
   (2026-07-12):** targets-vs-actuals sublines + thin-sourced tile + nonzero-day
-  mean + a true median info-lead (was silently a mean; closes OPEN-TASKS #11).
+  mean + a true median info-lead (closes OPEN-TASKS #11); **explainer block +
+  per-metric how-to-read lines** and an **at-publish dual-coverage subline**:
+  `validation_runs.details.atPublish` = share of the run's takeaways matched with
+  evidence ingested before ISW's publish instant (src/lib/validation/at-publish.ts,
+  jsonb only — no migration; 7-day deterministic backfill applied 2026-07-12; full
+  cutoff-anchored design parked in docs/designs/ISW-CUTOFF-SCORING.md).
   Root error boundaries (`src/app/error.tsx` / `global-error.tsx`, 2026-07-12)
   never render raw error messages. **Analyst home & Iran prominence (2026-07-12,
   deploy `bnow-jihmibgm6`):** signed-in home gained a quick-links rail (latest+prev
-  digest dates ×ru/ua/ir + scoreboard/registry/signals/search), date-led digest
+  digest dates ×ru/ua/ir + scoreboard/signals/search (registry link removed 2026-07-12 R5)), date-led digest
   links + claims-today + per-theater scoreboard deep links on the theater cards,
   and a recent-asks list (`/ask?q=` prefills, never executes); signed-out home
   gained one additive Iran/Gulf card (quality-gated: ir validation 07-11 = 100%
@@ -174,9 +188,9 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   (landing wired; needs native review before promotion; ~108 uk strings — 10
   `ask.*` (MERGE 1) + ~64 design-branch strings (MERGE 2: pricing, home.status,
   home.validation, signals, registry) + 3 ask-polish strings + 31 analyst-home
-  strings — await native review, tracked in
+  strings + 18 analyst-trust strings — await native review, tracked in
   `docs/reviews/UK-NATIVE-REVIEW-2026-07-12.md`).
-- **Tests:** 996 unit tests / 79 files green (`npm test`, ~3s) + Neon-branch
+- **Tests:** 1053 unit tests / 84 files green (`npm test`, ~3s) + Neon-branch
   integration suite (`npm run test:integration`). CI mirror: `.github/workflows/ci.yml`;
   the enforced gate is `.githooks/pre-push` (typecheck+lint+test).
 - **Crons (vercel.json):** ingest fast */15 · telegram :10 · x :20 · mtproto :35 ·

@@ -54,10 +54,8 @@ export function QuickLinksRail({ t, theaters }: QuickLinksRailProps) {
           {t("home.quicklinks.scoreboard")}
         </Link>
         {" · "}
-        <Link href="/registry" className={LINK_CLASS}>
-          {t("home.quicklinks.registry")}
-        </Link>
-        {" · "}
+        {/* /registry link removed (R5, 2026-07-12): the source registry is
+            admin-only now, so it's not advertised here. */}
         <Link href="/signals" className={LINK_CLASS}>
           {t("home.quicklinks.signals")}
         </Link>

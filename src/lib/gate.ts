@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 
 // Core-content gate. Enabled with FEATURE_AUTH_GATE=true (production).
@@ -86,4 +86,14 @@ export async function requireRole(min: Role): Promise<void> {
   const role = await currentRole();
   if (role === "anon") redirect("/signin");
   if (!roleAtLeast(role, min)) redirect("/");
+}
+
+// R5 (2026-07-12, operator ruling): the source registry becomes admin-only. Every
+// other role — analyst/user signed in, or signed out — gets a 404, not a redirect,
+// so the gated surface isn't advertised by its own redirect-to-signin. Anon and
+// non-admin get identical treatment (both routes to notFound()); currentRole()
+// already fails closed to "user" on any lookup error, so this inherits that.
+export async function requireAdminOr404(): Promise<void> {
+  if (process.env.FEATURE_AUTH_GATE !== "true") return; // gate off (dev parity)
+  if ((await currentRole()) !== "admin") notFound();
 }

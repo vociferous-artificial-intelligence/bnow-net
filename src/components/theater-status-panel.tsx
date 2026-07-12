@@ -1,30 +1,40 @@
 // Signed-in replacement for the marketing feature cards: an honest per-theater
-// data-state panel (docs/reviews/DESIGN-FUNCTION-EVAL-2026-07-11.md §1). Pure sync
-// server component — no fetch, no next/headers — so it renders directly in jsdom
-// tests and never blocks on its own I/O (the page does the one DB round-trip).
+// data-state panel. Pure sync server component — no fetch, no next/headers — so it
+// renders directly in jsdom tests and never blocks on its own I/O (the page does
+// the one DB round-trip).
 //
-// Deliberately absent: any "last ranking run" tile. Under the mapreduce digest engine
-// there is no discrete scoring run to timestamp (eval §1) — showing one would either
+// Cadence-aware since the 2026-07-12 analyst-trust sprint (docs/TIME-MODEL.md):
+// the card names the digest BUCKET it describes (latest digest_date), labels its
+// stage (intraday vs final) from the bucket's last write time, and keys the claims
+// count to that same bucket — so "no digest" can never sit next to a nonzero
+// claims count (the R2 hard rule, pinned by tests).
+//
+// Deliberately absent: any "last ranking run" tile. Under the mapreduce digest
+// engine there is no discrete scoring run to timestamp — showing one would either
 // surface the stale manual registry-materialize date or invite a fabricated one.
 
 import Link from "next/link";
 import type { Locale } from "@/i18n/dictionaries";
 import { formatNumber } from "@/i18n/format";
+import { toInstant } from "@/lib/time/day-boundary";
+import { formatEtDateTime, formatEtTime } from "@/lib/time/format-et";
+import { digestStatus, type DigestStatus } from "@/lib/time/digest-status";
 
 export interface TheaterStatusEntry {
   iso2: string;
   /** Pre-localized theater name (t(home.theater.*)), not translated here. */
   name: string;
-  /** ISO timestamp of the freshest ingested document, or null if none yet. */
-  lastFetch: string | null;
+  /** Freshest ingested document (raw_documents.fetched_at max), or null if none yet. */
+  lastFetch: string | Date | null;
   docs24h: number;
-  /** ISO timestamp the latest digest was (re)generated, or null if none exists. */
-  lastDigestAt: string | null;
-  digestHref: string;
+  /** Latest digest_date bucket (YYYY-MM-DD, a UTC day), or null when no digest exists. */
   latestDate: string | null;
-  /** count(claims) for this theater where claim_date = today (honest 0, not "no data"). */
-  claimsToday: number;
-  /** `/scoreboard/{iso2}/{digestDate}` of the theater's latest validation run, or null when none exists yet. */
+  /** Last write to THAT bucket (its max created_at — last-writer-wins), or null. */
+  lastGeneratedAt: string | Date | null;
+  /** count(claims) where claim_date = latestDate — always the displayed bucket's count. */
+  claimsForLatest: number;
+  digestHref: string;
+  /** `/scoreboard/{iso2}/{digestDate}` of the theater's latest validation run, or null. */
   scoreboardHref: string | null;
 }
 
@@ -32,68 +42,78 @@ export interface TheaterStatusPanelProps {
   locale: Locale;
   t: (key: string, vars?: Record<string, string | number>) => string;
   entries: TheaterStatusEntry[];
-  /** Pre-formatted, e.g. "~Jul 12, 02:00 ET" — derived from vercel.json's digest crons. */
-  nextUpdateLabel: string;
+  /** The page's single render instant — injected so tests pin every cadence state. */
+  nowIso: string;
+  /** Next intraday digest cron fire (ISO), from vercel.json; null if underivable. */
+  nextIntradayIso: string | null;
+  /** Next finalize digest cron fire (ISO), from vercel.json; null if underivable. */
+  nextFinalizeIso: string | null;
   /** True when the X adapter's freshest fetch is null or stale (page decides the threshold). */
   xPaused: boolean;
 }
 
-// Short absolute timestamp in America/New_York, always labeled "ET" (ruling D4 of the
-// eval doc): never a hardcoded UTC offset, so DST transitions stay correct without a
-// redeploy. Returns null on missing/invalid input so callers can render an honest
-// "no data yet" instead of "Invalid Date".
-function formatEt(iso: string | null, locale: Locale): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  const formatted = new Intl.DateTimeFormat(locale, {
-    timeZone: "America/New_York",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(d);
-  return `${formatted} ET`;
+// "{date} · {stage} {h:mm AM/PM ET}" — the digest row names the bucket, its stage,
+// and when that stage was written. A missing/invalid write time degrades to
+// "{date} · {stage}" rather than fabricating a clock reading.
+function digestLabel(
+  status: Extract<DigestStatus, { kind: "today" | "previous" }>,
+  locale: Locale,
+  t: TheaterStatusPanelProps["t"],
+): string {
+  const stage = t(status.stage === "final" ? "home.status.stage_final" : "home.status.stage_intraday");
+  const time = formatEtTime(status.generatedAt, locale);
+  return time ? `${status.date} · ${stage} ${time}` : `${status.date} · ${stage}`;
 }
 
-// Time-only companion to formatEt above, used solely to compose the digest row's
-// "{latestDate} · {HH:MM ET}" label — formatEt's own month/day would duplicate the
-// leading latestDate. Same null/invalid-safe contract.
-function formatEtTime(iso: string | null, locale: Locale): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  const formatted = new Intl.DateTimeFormat(locale, {
-    timeZone: "America/New_York",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(d);
-  return `${formatted} ET`;
+// What fires next, phrased for the current stage. Before the day's finalize:
+// "~3:30 PM ET · final ~10:00 PM ET" (or just the finalize when it is the sooner
+// fire). After today's bucket is finalized, the only meaningful upcoming write is
+// the next day's first intraday run.
+function nextUpdateLabel(
+  status: DigestStatus,
+  nextIntradayIso: string | null,
+  nextFinalizeIso: string | null,
+  locale: Locale,
+  t: TheaterStatusPanelProps["t"],
+): string {
+  const intradayAt = toInstant(nextIntradayIso);
+  const finalizeAt = toInstant(nextFinalizeIso);
+  const intraday = formatEtTime(intradayAt, locale);
+  const final = formatEtTime(finalizeAt, locale);
+  if (status.kind === "today" && status.stage === "final") {
+    return intraday ? `~${intraday}` : "—";
+  }
+  const finalPart = final ? `${t("home.status.stage_final")} ~${final}` : null;
+  if (intraday && finalPart && intradayAt && finalizeAt && intradayAt < finalizeAt) {
+    return `~${intraday} · ${finalPart}`;
+  }
+  return finalPart ?? (intraday ? `~${intraday}` : "—");
 }
 
 export function TheaterStatusPanel({
   locale,
   t,
   entries,
-  nextUpdateLabel,
+  nowIso,
+  nextIntradayIso,
+  nextFinalizeIso,
   xPaused,
 }: TheaterStatusPanelProps) {
+  const now = toInstant(nowIso) ?? new Date();
   return (
     <section aria-label={t("home.status.panel_label")} className="py-10">
       <div className="grid gap-6 sm:grid-cols-3">
         {entries.map((entry) => {
-          const current = formatEt(entry.lastFetch, locale);
-          // Digest date leads the label ("2026-07-12 · 09:12 ET") — latestDate and
-          // lastDigestAt come from the same GROUP BY row in page.tsx, so they're
-          // either both present or both null; either half missing falls back to
-          // the honest no_digest string rather than a half-composed label.
-          const digestTime = formatEtTime(entry.lastDigestAt, locale);
-          const digestLabel = entry.latestDate && digestTime ? `${entry.latestDate} · ${digestTime}` : null;
+          const current = formatEtDateTime(entry.lastFetch, locale);
+          const status = digestStatus({
+            latestDate: entry.latestDate,
+            lastGeneratedAt: entry.lastGeneratedAt,
+            now,
+          });
           return (
             <div
               key={entry.iso2}
-              className="rounded-xl border border-gray-200 p-5 text-sm dark:border-gray-800"
+              className="relative rounded-xl border border-gray-200 p-5 text-sm dark:border-gray-800"
             >
               <h3 className="mb-3 font-semibold">{entry.name}</h3>
               <dl className="space-y-2">
@@ -111,35 +131,59 @@ export function TheaterStatusPanel({
                 </div>
                 <div className="flex items-baseline justify-between gap-3">
                   <dt className="text-gray-500 dark:text-gray-400">
-                    {t("home.status.digest_generated")}
+                    {t("home.status.latest_digest")}
                   </dt>
                   <dd className="text-right">
-                    <Link href={entry.digestHref} className="underline hover:text-gray-600 dark:hover:text-gray-300">
-                      {digestLabel ?? t("home.status.no_digest")}
+                    <Link
+                      href={entry.digestHref}
+                      className="relative z-10 underline hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      {status.kind === "none" ? t("home.status.no_digest") : digestLabel(status, locale, t)}
                     </Link>
+                    {status.kind === "previous" && (
+                      <span className="block text-xs text-gray-400 dark:text-gray-500">
+                        {t("home.status.none_today")}
+                      </span>
+                    )}
                   </dd>
                 </div>
-                <div className="flex items-baseline justify-between gap-3">
-                  <dt className="text-gray-500 dark:text-gray-400">
-                    {t("home.status.claims_today")}
-                  </dt>
-                  <dd className="text-right">{formatNumber(locale, entry.claimsToday)}</dd>
-                </div>
+                {status.kind !== "none" && (
+                  <div className="flex items-baseline justify-between gap-3">
+                    <dt className="text-gray-500 dark:text-gray-400">
+                      {t("home.status.claims_for", { date: status.date })}
+                    </dt>
+                    <dd className="text-right">{formatNumber(locale, entry.claimsForLatest)}</dd>
+                  </div>
+                )}
                 <div className="flex items-baseline justify-between gap-3">
                   <dt className="text-gray-500 dark:text-gray-400">
                     {t("home.status.next_update")}
                   </dt>
-                  <dd className="text-right">{nextUpdateLabel}</dd>
+                  <dd className="text-right">
+                    {nextUpdateLabel(status, nextIntradayIso, nextFinalizeIso, locale, t)}
+                  </dd>
                 </div>
               </dl>
               {entry.scoreboardHref && (
                 <Link
                   href={entry.scoreboardHref}
-                  className="mt-3 inline-block text-xs underline hover:text-gray-600 dark:hover:text-gray-300"
+                  className="relative z-10 mt-3 inline-block text-xs underline hover:text-gray-600 dark:hover:text-gray-300"
                 >
                   {t("home.status.scoreboard_link")}
                 </Link>
               )}
+              {/* Whole-card stretched link (R3, analyst-home-v2 sprint): placed last
+                  so it never shifts the tab/query order of the two links above it,
+                  and z-0 (implicit, below the z-10 links) keeps them independently
+                  clickable on top of it. Points at the same digestHref the "Latest
+                  digest" row already links to (including its honest /countries#..
+                  fallback when no digest exists yet), so the whole-card target is
+                  never a lie the row link doesn't already tell. */}
+              <Link
+                href={entry.digestHref}
+                aria-label={`${entry.name} — ${t("home.status.latest_digest")}`}
+                className="absolute inset-0 rounded-xl"
+              />
             </div>
           );
         })}

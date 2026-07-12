@@ -22,7 +22,13 @@ export interface ClaimForValidation {
   text: string;
   hedging: string;
   docCount: number;
-  earliestDocAt: string | null; // ISO
+  earliestDocAt: string | null; // ISO — min(COALESCE(published_at, fetched_at)): info-lead input
+  /**
+   * ISO — min(fetched_at) across supporting docs: when the evidence was actually
+   * in OUR corpus, for the at-publish dual metric (source publish claims can
+   * predate our ingestion, so earliestDocAt would overstate what we "had").
+   */
+  earliestFetchedAt: string | null;
 }
 
 export interface DivergenceEntry {
@@ -33,12 +39,16 @@ export interface DivergenceEntry {
   claimId?: number;
   claimText?: string;
   score?: number;
+  /** Agreements only: the matched claim's earliest ingest instant (audit trail for atPublish). */
+  earliestFetchedAt?: string | null;
 }
 
 export interface ValidationScore {
   coveragePct: number | null;
   thinSourcedRate: number;
   timelinessHours: number | null;
+  /** Evidence-in-hand-at-ISW-publish dual coverage; null when publish time unknown. */
+  atPublish: AtPublishResult | null;
   divergences: DivergenceEntry[];
   details: {
     iswTakeaways: number;
@@ -49,6 +59,7 @@ export interface ValidationScore {
   };
 }
 
+import { computeAtPublish, type AtPublishResult } from "./at-publish";
 import type { LlmMatch } from "./llm-match";
 
 /** Score using precomputed LLM semantic matches (preferred when available). */
@@ -78,6 +89,7 @@ export function scoreDigestWithMatches(
         claimId: claim.claimId,
         claimText: claim.text.slice(0, 200),
         score: +(m!.confidence).toFixed(2),
+        earliestFetchedAt: claim.earliestFetchedAt,
       });
       if (iswPublishedAt && claim.earliestDocAt) {
         leadHours.push(
@@ -109,6 +121,13 @@ export function scoreDigestWithMatches(
       takeaways.length > 0 ? +((matched / takeaways.length) * 100).toFixed(1) : null,
     thinSourcedRate: claims.length > 0 ? +(thin / claims.length).toFixed(4) : 0,
     timelinessHours: median !== null ? +median.toFixed(1) : null,
+    // Same denominator as coveragePct, so the pair reads as final vs at-publish
+    // of one ratio (docs/reviews/ANALYST-TRUST-NOTE-2026-07-12.md §④).
+    atPublish: computeAtPublish(
+      iswPublishedAt,
+      divergences.filter((d) => d.kind === "agreement"),
+      takeaways.length,
+    ),
     divergences,
     details: {
       iswTakeaways: takeaways.length,
@@ -162,6 +181,7 @@ export function scoreDigest(
         claimId: best.claim.claimId,
         claimText: best.claim.text.slice(0, 200),
         score: +best.score.toFixed(2),
+        earliestFetchedAt: best.claim.earliestFetchedAt,
       });
       if (iswPublishedAt && best.claim.earliestDocAt) {
         leadHours.push(
@@ -201,6 +221,13 @@ export function scoreDigest(
       matchable.length > 0 ? +((matched / matchable.length) * 100).toFixed(1) : null,
     thinSourcedRate: claims.length > 0 ? +(thin / claims.length).toFixed(4) : 0,
     timelinessHours: median !== null ? +median.toFixed(1) : null,
+    // Keyword path divides by its own matchable denominator, exactly like its
+    // coveragePct — the pair must always share a denominator.
+    atPublish: computeAtPublish(
+      iswPublishedAt,
+      divergences.filter((d) => d.kind === "agreement"),
+      matchable.length,
+    ),
     divergences,
     details: {
       iswTakeaways: takeaways.length,

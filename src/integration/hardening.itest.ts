@@ -235,8 +235,8 @@ describe("scoreDigest end-to-end on the saved ISW fixture", () => {
     const score = scoreDigest(
       takeaways,
       [
-        { claimId: 1, text: "Russian forces advanced near Kupyansk", hedging: "claimed", docCount: 2, earliestDocAt: "2026-06-30T08:00:00Z" },
-        { claimId: 2, text: "Drone strike hit Kharkiv energy infrastructure", hedging: "claimed", docCount: 1, earliestDocAt: "2026-06-30T09:00:00Z" },
+        { claimId: 1, text: "Russian forces advanced near Kupyansk", hedging: "claimed", docCount: 2, earliestDocAt: "2026-06-30T08:00:00Z", earliestFetchedAt: "2026-06-30T08:30:00Z" },
+        { claimId: 2, text: "Drone strike hit Kharkiv energy infrastructure", hedging: "claimed", docCount: 1, earliestDocAt: "2026-06-30T09:00:00Z", earliestFetchedAt: "2026-06-30T09:30:00Z" },
       ],
       new Date("2026-06-30T23:00:00Z"),
     );

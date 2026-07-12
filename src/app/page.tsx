@@ -4,7 +4,7 @@ import { getLocale } from "@/i18n/server";
 import { makeT } from "@/i18n/dictionaries";
 import { formatNumber } from "@/i18n/format";
 import { currentUserEmail } from "@/lib/session";
-import { LIVE_THEATERS, latestDigestHref, theaterHref } from "@/lib/nav/site-nav";
+import { LIVE_THEATERS, latestDigestHref } from "@/lib/nav/site-nav";
 import { TheaterStatusPanel, type TheaterStatusEntry } from "@/components/theater-status-panel";
 import { QuickLinksRail, type QuickLinksTheaterEntry } from "@/components/quick-links-rail";
 import {
@@ -13,6 +13,7 @@ import {
   type CorroboratedShare,
 } from "@/components/home-validation-tiles";
 import { nextFire } from "@/lib/cron/next-fire";
+import { etToday } from "@/lib/time/day-boundary";
 import vercelConfig from "../../vercel.json";
 
 export const dynamic = "force-dynamic";
@@ -29,16 +30,19 @@ interface FreshnessRow {
   last_x: string | null;
 }
 
-// Ranked (not aggregated) digest-date row: up to two per theater (rn=1 latest,
-// rn=2 previous), from a window function over each theater's distinct digest_date
-// values. Feeds both TheaterStatusPanel (rn=1 only) and QuickLinksRail (rn 1+2) from
-// one query. last_digest is the theater's max(created_at) across ALL digest rows —
-// not scoped to the rn=1 date — repeated on every row for that iso2.
+// Ranked digest-date row: up to two per theater (rn=1 latest, rn=2 previous), from
+// a window function over each theater's digest_date values. Feeds both
+// TheaterStatusPanel (rn=1 only) and QuickLinksRail (rn 1+2) from one query.
+// last_generated is max(created_at) scoped to THAT date's rows (created_at is
+// last-writer-wins), so the panel can tell an intraday write from the finalize.
+// rn is cast ::int in SQL AND folded via Number(): the driver returns uncast
+// bigint (row_number()) as a STRING, and a strict === against it silently broke
+// this fold in prod on 2026-07-12 (the "not yet generated" contradiction).
 interface DigestDateRow {
   iso2: string;
   digest_date: string;
-  rn: number;
-  last_digest: string | null;
+  rn: number | string;
+  last_generated: string | Date | null;
 }
 
 interface ValidationRow {
@@ -54,8 +58,9 @@ interface CorroboratedRow {
   total: number;
 }
 
-interface ClaimsTodayRow {
+interface ClaimsByDateRow {
   iso2: string;
+  d: string;
   n: number;
 }
 
@@ -76,20 +81,16 @@ export default async function Home() {
   const signedIn = email !== null;
 
   let stats = { sources: 0, citations: 0, docs: 0, runs: 0 };
-  let ruLatest: string | null = null;
   try {
     const [r] = (await rawSql.query(
       `SELECT
         (SELECT count(*) FROM sources WHERE citation_count > 0)::int AS sources,
         (SELECT count(*) FROM source_citations)::int AS citations,
         (SELECT count(*) FROM raw_documents)::int AS docs,
-        (SELECT count(*) FROM validation_runs)::int AS runs,
-        (SELECT max(d.digest_date)::text FROM digests d
-           JOIN countries c ON c.id = d.country_id WHERE c.iso2 = 'ru') AS ru_latest`,
+        (SELECT count(*) FROM validation_runs)::int AS runs`,
       [],
-    )) as Array<typeof stats & { ru_latest: string | null }>;
+    )) as Array<typeof stats>;
     stats = { sources: r.sources, citations: r.citations, docs: r.docs, runs: r.runs };
-    ruLatest = r.ru_latest;
   } catch {
     // health page shows details
   }
@@ -99,14 +100,21 @@ export default async function Home() {
   // nothing beyond the existing `stats` query above.
   let theaterStatus: TheaterStatusEntry[] = [];
   let xPaused = false;
-  let nextUpdateLabel = "";
+  let nextIntradayIso: string | null = null;
+  let nextFinalizeIso: string | null = null;
   let validationEntries: TheaterValidationEntry[] = [];
   let corroboratedShare: CorroboratedShare | null = null;
   let quickLinksTheaters: QuickLinksTheaterEntry[] = [];
   let recentAsks: RecentAskRow[] = [];
+  // One render instant for every day-boundary and next-fire computation on this
+  // page (docs/TIME-MODEL.md): "today" means the ET day, computed explicitly —
+  // never SQL current_date (the DB session runs UTC) and never implicit-local math
+  // (the dev box runs ET, Vercel runs UTC).
+  const now = new Date();
+  const todayEt = etToday(now);
   if (signedIn) {
     try {
-      const [freshnessRows, digestRows, validationRows, corroboratedRows, claimsTodayRows, recentAskRows] = (await Promise.all([
+      const [freshnessRows, digestRows, validationRows, corroboratedRows, claimsByDateRows, recentAskRows] = (await Promise.all([
         rawSql.query(
           `SELECT rd.country_iso2 AS iso2,
                   max(rd.fetched_at) AS last_fetch,
@@ -117,32 +125,25 @@ export default async function Home() {
            GROUP BY 1`,
           [],
         ),
-        // Top-two distinct digest_dates per theater (rn=1 latest, rn=2 previous),
-        // window-ranked so TheaterStatusPanel (rn=1) and QuickLinksRail (rn 1+2) share
-        // one query. last_digest (max(created_at) across ALL digest rows for the
-        // theater, not just the rn=1 date) is joined onto every ranked row.
+        // Top-two digest_dates per theater (rn=1 latest, rn=2 previous),
+        // window-ranked so TheaterStatusPanel (rn=1) and QuickLinksRail (rn 1+2)
+        // share one query. last_generated is max(created_at) scoped to each date's
+        // own rows (across tracks), so the panel can stage-label the latest bucket.
+        // rn MUST stay cast ::int — row_number() is bigint and the driver returns
+        // uncast bigint as a string (see DigestDateRow above).
         rawSql.query(
-          `WITH distinct_dates AS (
-             SELECT DISTINCT country_id, digest_date FROM digests
-           ),
-           ranked AS (
-             SELECT c.iso2, dd.digest_date,
-                    row_number() OVER (PARTITION BY c.iso2 ORDER BY dd.digest_date DESC) AS rn
-             FROM distinct_dates dd
-             JOIN countries c ON c.id = dd.country_id
+          `WITH per_date AS (
+             SELECT c.iso2, d.digest_date, max(d.created_at) AS last_generated,
+                    row_number() OVER (PARTITION BY c.iso2 ORDER BY d.digest_date DESC) AS rn
+             FROM digests d
+             JOIN countries c ON c.id = d.country_id
              WHERE c.iso2 IN ('ru','ua','ir')
-           ),
-           created AS (
-             SELECT c.iso2, max(d.created_at) AS last_digest
-             FROM digests d JOIN countries c ON c.id = d.country_id
-             WHERE c.iso2 IN ('ru','ua','ir')
-             GROUP BY 1
+             GROUP BY c.iso2, d.digest_date
            )
-           SELECT r.iso2, r.digest_date::text AS digest_date, r.rn, cr.last_digest
-           FROM ranked r
-           JOIN created cr ON cr.iso2 = r.iso2
-           WHERE r.rn <= 2
-           ORDER BY r.iso2, r.rn`,
+           SELECT iso2, digest_date::text AS digest_date, rn::int AS rn, last_generated
+           FROM per_date
+           WHERE rn <= 2
+           ORDER BY iso2, rn`,
           [],
         ),
         // Latest validation run per theater — DISTINCT ON picks the newest row per
@@ -159,9 +160,11 @@ export default async function Home() {
            ORDER BY c.iso2, vr.run_at DESC`,
           [],
         ),
-        // Corroborated share: today's digest claims (any track) across live theaters,
-        // counted (not shared) here — the honest 0-vs-not-yet-computed distinction is
-        // decided in TS below from `total`.
+        // Corroborated share: the ET-day bucket's digest claims (any track) across
+        // live theaters, counted (not shared) here — the honest 0-vs-not-yet-computed
+        // distinction is decided in TS below from `total`. The bucket is passed
+        // explicitly ($1 = today in ET) — NOT SQL current_date, whose UTC session day
+        // rolls at 8 PM ET and would blank the tile every evening.
         rawSql.query(
           `SELECT count(*) FILTER (WHERE doc_count >= 2)::int AS corroborated, count(*)::int AS total
            FROM (
@@ -170,18 +173,20 @@ export default async function Home() {
              JOIN digests d ON d.id = cl.digest_id
              JOIN countries c ON c.id = d.country_id
              LEFT JOIN claim_sources cs ON cs.claim_id = cl.id
-             WHERE c.iso2 IN ('ru','ua','ir') AND d.digest_date = current_date
+             WHERE c.iso2 IN ('ru','ua','ir') AND d.digest_date = $1
              GROUP BY cl.id
            ) claim_doc_counts`,
-          [],
+          [todayEt],
         ),
-        // Claims-today per theater — `claims` holds only digest claims, so this is a
-        // cheap direct count, not a join through raw_documents.
+        // Claims per (theater, claim_date) over the last week — the panel picks the
+        // count for the exact bucket its status line names, so the count can never
+        // contradict the digest-status label (R2 hard rule). `claims` holds only
+        // digest claims, so this is a cheap direct count.
         rawSql.query(
-          `SELECT c.iso2, count(*)::int AS n
+          `SELECT c.iso2, cl.claim_date::text AS d, count(*)::int AS n
            FROM claims cl JOIN countries c ON c.id = cl.country_id
-           WHERE cl.claim_date = current_date AND c.iso2 IN ('ru','ua','ir')
-           GROUP BY 1`,
+           WHERE cl.claim_date > current_date - 8 AND c.iso2 IN ('ru','ua','ir')
+           GROUP BY 1, 2`,
           [],
         ),
         // This user's past /ask questions, most recent first, deduped by question text.
@@ -193,26 +198,32 @@ export default async function Home() {
            GROUP BY question ORDER BY last_at DESC LIMIT 5`,
           [email],
         ),
-      ])) as [FreshnessRow[], DigestDateRow[], ValidationRow[], CorroboratedRow[], ClaimsTodayRow[], RecentAskRow[]];
+      ])) as [FreshnessRow[], DigestDateRow[], ValidationRow[], CorroboratedRow[], ClaimsByDateRow[], RecentAskRow[]];
 
       const freshnessByIso2 = new Map(freshnessRows.map((r) => [r.iso2, r]));
       const validationByIso2 = new Map(validationRows.map((r) => [r.iso2, r]));
-      const claimsTodayByIso2 = new Map(claimsTodayRows.map((r) => [r.iso2, r.n]));
+      const claimsByIso2Date = new Map(claimsByDateRows.map((r) => [`${r.iso2}|${r.d}`, r.n]));
 
       // Fold the ranked digest-date rows into one entry per theater (latest + prev
-      // date, plus the theater-wide last_digest timestamp) for both theaterStatus and
-      // quickLinksTheaters below.
+      // date, plus the latest bucket's own last-write timestamp) for both
+      // theaterStatus and quickLinksTheaters below. Number(row.rn) — never a strict
+      // === against the raw value — because the driver delivers uncast bigint as a
+      // string; the SQL ::int cast is belt, this is suspenders (regression-pinned in
+      // page.test.tsx with string rn fixtures).
       interface DigestDates {
         latest: string | null;
         prev: string | null;
-        lastDigestAt: string | null;
+        lastGeneratedAt: string | Date | null;
       }
       const digestByIso2 = new Map<string, DigestDates>();
       for (const row of digestRows) {
-        const cur = digestByIso2.get(row.iso2) ?? { latest: null, prev: null, lastDigestAt: row.last_digest };
-        if (row.rn === 1) cur.latest = row.digest_date;
-        else if (row.rn === 2) cur.prev = row.digest_date;
-        cur.lastDigestAt = row.last_digest;
+        const cur = digestByIso2.get(row.iso2) ?? { latest: null, prev: null, lastGeneratedAt: null };
+        if (Number(row.rn) === 1) {
+          cur.latest = row.digest_date;
+          cur.lastGeneratedAt = row.last_generated;
+        } else if (Number(row.rn) === 2) {
+          cur.prev = row.digest_date;
+        }
         digestByIso2.set(row.iso2, cur);
       }
 
@@ -233,15 +244,17 @@ export default async function Home() {
         const f = freshnessByIso2.get(th.iso2);
         const d = digestByIso2.get(th.iso2);
         const v = validationByIso2.get(th.iso2);
+        const latest = d?.latest ?? null;
         return {
           iso2: th.iso2,
           name: t(th.labelKey),
           lastFetch: f?.last_fetch ?? null,
           docs24h: f?.docs_24h ?? 0,
-          lastDigestAt: d?.lastDigestAt ?? null,
-          digestHref: latestDigestHref(th.iso2, d?.latest ?? null),
-          latestDate: d?.latest ?? null,
-          claimsToday: claimsTodayByIso2.get(th.iso2) ?? 0,
+          latestDate: latest,
+          lastGeneratedAt: d?.lastGeneratedAt ?? null,
+          // Keyed to the displayed bucket, not an ambient "today" — the R2 invariant.
+          claimsForLatest: latest ? (claimsByIso2Date.get(`${th.iso2}|${latest}`) ?? 0) : 0,
+          digestHref: latestDigestHref(th.iso2, latest),
           scoreboardHref: v?.digest_date ? `/scoreboard/${th.iso2}/${v.digest_date}` : null,
         };
       });
@@ -269,18 +282,21 @@ export default async function Home() {
       }, null);
       xPaused = freshestX === null || Date.now() - freshestX > X_STALE_MS;
 
-      const digestCronSchedules = (vercelConfig.crons as Array<{ path: string; schedule: string }>)
-        .filter((c) => c.path.startsWith("/api/cron/digest"))
-        .map((c) => c.schedule);
-      const next = nextFire(new Date(), digestCronSchedules);
-      const formattedNext = new Intl.DateTimeFormat(locale, {
-        timeZone: "America/New_York",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(next);
-      nextUpdateLabel = `~${formattedNext} ET`;
+      // Split the digest crons by mode so the panel can phrase what fires next
+      // ("~3:30 PM ET · final ~10:00 PM ET") instead of an unlabeled instant.
+      const digestCrons = (vercelConfig.crons as Array<{ path: string; schedule: string }>)
+        .filter((c) => c.path.startsWith("/api/cron/digest"));
+      const scheduleOf = (mode: string) =>
+        digestCrons.filter((c) => c.path.includes(`mode=${mode}`)).map((c) => c.schedule);
+      const safeNextFire = (schedules: string[]): string | null => {
+        try {
+          return schedules.length > 0 ? nextFire(now, schedules).toISOString() : null;
+        } catch {
+          return null; // unparseable schedule — the panel renders an honest "—"
+        }
+      };
+      nextIntradayIso = safeNextFire(scheduleOf("intraday"));
+      nextFinalizeIso = safeNextFire(scheduleOf("finalize"));
     } catch {
       // panel renders with whatever it got; health page has details
     }
@@ -288,41 +304,22 @@ export default async function Home() {
 
   return (
     <main id="main" className="mx-auto max-w-5xl px-6">
-      <section className="py-20 text-center">
-        <h1 className="mx-auto max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl">
-          {t("home.tagline")}
-        </h1>
-        <p className="mx-auto mt-5 max-w-2xl text-lg text-gray-500">{t("home.sub")}</p>
-
+      <section className={signedIn ? "py-6 text-center" : "py-20 text-center"}>
         {signedIn ? (
-          // Working home: utility actions, no subscriber pitch. The flagship theater is
-          // hardcoded to RU — there is no per-user default-theater storage to read.
-          <>
-            <div className="mt-8 flex flex-wrap justify-center gap-4">
-              <Link href={latestDigestHref("ru", ruLatest)} className={PRIMARY_CTA}>
-                {t("home.cta.digest")}
-              </Link>
-              <Link href="/scoreboard" className={SECONDARY_CTA}>
-                {t("home.cta.scoreboard")}
-              </Link>
-              <Link href="/countries" className="self-center text-sm underline">
-                {t("home.cta.coverage")}
-              </Link>
-            </div>
-            <p className="mt-4 text-sm text-gray-400">
-              {t("home.live_label")}:{" "}
-              {LIVE_THEATERS.map((th, i) => (
-                <span key={th.iso2}>
-                  {i > 0 && " · "}
-                  <Link href={theaterHref(th.iso2)} className="underline hover:text-gray-600">
-                    {t(th.labelKey)}
-                  </Link>
-                </span>
-              ))}
-            </p>
-          </>
+          // Working home: a one-line headline, nothing else. No subtitle, no CTA
+          // buttons, no "Live now" line — the quick-links rail + theater panels
+          // below supersede all of that (R3, analyst-home-v2 sprint). Kept compact
+          // (small vertical padding) so the panels sit above the fold at desktop
+          // heights.
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+            {t("home.headline")}
+          </h1>
         ) : (
           <>
+            <h1 className="mx-auto max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl">
+              {t("home.tagline")}
+            </h1>
+            <p className="mx-auto mt-5 max-w-2xl text-lg text-gray-500">{t("home.sub")}</p>
             <div className="mt-8 flex justify-center gap-4">
               <Link href="/pricing" className={PRIMARY_CTA}>
                 {t("home.cta.subscribe")}
@@ -331,14 +328,12 @@ export default async function Home() {
                 {t("home.cta.scoreboard")}
               </Link>
             </div>
-            {/* Buyer journey tertiary line: proof (registry) -> coverage -> validation ->
-                request access. Reuses existing dictionary keys throughout — no new i18n
-                surface — and stays a single muted line, not a new section. */}
+            {/* Buyer journey tertiary line: coverage -> validation -> request access.
+                Reuses existing dictionary keys throughout — no new i18n surface —
+                and stays a single muted line, not a new section. The registry link
+                that used to lead this line was removed (R5, 2026-07-12): the source
+                registry is admin-only now. */}
             <p className="mt-3 text-xs text-gray-400">
-              <Link href="/registry" className="underline hover:text-gray-600 dark:hover:text-gray-300">
-                {t("home.features.reliability.link")}
-              </Link>
-              {" · "}
               <Link href="/countries" className="underline hover:text-gray-600 dark:hover:text-gray-300">
                 {t("home.cta.coverage")}
               </Link>
@@ -363,14 +358,10 @@ export default async function Home() {
             locale={locale}
             t={t}
             entries={theaterStatus}
-            nextUpdateLabel={nextUpdateLabel}
+            nowIso={now.toISOString()}
+            nextIntradayIso={nextIntradayIso}
+            nextFinalizeIso={nextFinalizeIso}
             xPaused={xPaused}
-          />
-          <HomeValidationTiles
-            locale={locale}
-            t={t}
-            entries={validationEntries}
-            corroboratedShare={corroboratedShare}
           />
           {/* Zero-JS entry point to /ask: a plain GET form. Landing on /ask only
               prefills the input from ?q= (src/app/ask/page.tsx) — the paid pipeline
@@ -409,6 +400,16 @@ export default async function Home() {
               </ul>
             </section>
           )}
+          {/* Validation-vs-ISW tiles now sit last, right before the footer (R3,
+              analyst-home-v2 sprint): the working surfaces (rail, theater status,
+              ask, recent asks) lead; the trust/proof metric follows. */}
+          <HomeValidationTiles
+            locale={locale}
+            t={t}
+            entries={validationEntries}
+            corroboratedShare={corroboratedShare}
+            corroboratedDate={todayEt}
+          />
         </>
       ) : (
         <>
@@ -421,9 +422,8 @@ export default async function Home() {
                   citations: formatNumber(locale, stats.citations),
                 })}
               </p>
-              <Link href="/registry" className="mt-3 inline-block text-sm underline">
-                {t("home.features.reliability.link")}
-              </Link>
+              {/* "explore the registry →" link removed (R5, 2026-07-12): the source
+                  registry is admin-only now; the card keeps its title/body copy. */}
             </div>
             <div className="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
               <h3 className="mb-2 font-semibold">{t("home.features.claims.title")}</h3>

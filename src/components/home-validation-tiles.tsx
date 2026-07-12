@@ -13,6 +13,7 @@
 import Link from "next/link";
 import type { Locale } from "@/i18n/dictionaries";
 import { formatNumber, formatPercent } from "@/i18n/format";
+import { formatEtDateTime } from "@/lib/time/format-et";
 
 export interface TheaterValidationEntry {
   iso2: string;
@@ -43,6 +44,12 @@ export interface HomeValidationTilesProps {
    * 0% corroboration day must still render "0%", not the same fallback as "no data").
    */
   corroboratedShare: CorroboratedShare | null;
+  /**
+   * The ET-day digest bucket the corroborated share was computed over
+   * (YYYY-MM-DD) — rendered into the tile label so the metric names its window
+   * instead of an ambient "today" (docs/TIME-MODEL.md).
+   */
+  corroboratedDate: string;
 }
 
 function median(values: number[]): number | null {
@@ -50,25 +57,6 @@ function median(values: number[]): number | null {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
-
-// Same short absolute-timestamp convention as theater-status-panel.tsx's formatEt:
-// America/New_York, always labeled "ET" (never a hardcoded UTC offset), null-safe so
-// a missing/invalid timestamp renders an honest fallback instead of "Invalid Date".
-// Duplicated locally rather than imported — it's five lines and keeps this component
-// free of any dependency on a file another workstream owns this wave.
-function formatEt(iso: string | null, locale: Locale): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  const formatted = new Intl.DateTimeFormat(locale, {
-    timeZone: "America/New_York",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(d);
-  return `${formatted} ET`;
 }
 
 function formatLead(hours: number | null): string | null {
@@ -85,6 +73,7 @@ export function HomeValidationTiles({
   t,
   entries,
   corroboratedShare,
+  corroboratedDate,
 }: HomeValidationTilesProps) {
   const medianLead = median(
     entries.map((e) => e.timelinessHours).filter((h): h is number => h !== null),
@@ -97,6 +86,9 @@ export function HomeValidationTiles({
 
   return (
     <section aria-label={t("home.validation.panel_label")} className="pb-10">
+      <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+        {t("home.validation.caption")}
+      </p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {entries.map((entry) => (
           <div key={entry.iso2} className={TILE}>
@@ -116,7 +108,7 @@ export function HomeValidationTiles({
         </div>
         <div className={TILE}>
           <div className={VALUE}>
-            {formatEt(lastValidatedAt, locale) ?? t("home.validation.not_computed")}
+            {formatEtDateTime(lastValidatedAt, locale) ?? t("home.validation.not_computed")}
           </div>
           <div className={LABEL}>{t("home.validation.last_validated_label")}</div>
         </div>
@@ -127,7 +119,7 @@ export function HomeValidationTiles({
               : t("home.validation.not_computed")}
           </div>
           <div className={LABEL}>
-            {t("home.validation.corroborated_label")}
+            {t("home.validation.corroborated_label", { date: corroboratedDate })}
             {corroboratedShare &&
               ` · ${formatNumber(locale, corroboratedShare.corroborated)}/${formatNumber(locale, corroboratedShare.total)}`}
           </div>

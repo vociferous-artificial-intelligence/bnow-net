@@ -121,10 +121,15 @@ export async function validateDigest(
     const publishedMatch = page.html.match(/"datePublished":"([^"]+)"/);
     const iswPublishedAt = publishedMatch ? new Date(publishedMatch[1]) : null;
 
+    // earliest_doc_at (publish-or-fetch) feeds the info-lead metric;
+    // earliest_fetched_at (ingest instant only) feeds the at-publish dual metric —
+    // a source's own publish claim can predate our ingestion, so it must not
+    // count as evidence we "had in hand" (docs/TIME-MODEL.md).
     const { rows: claimRows } = await pool.query(
       `SELECT cl.id, cl.text, cl.hedging,
               count(cs.raw_document_id)::int AS doc_count,
-              min(COALESCE(rd.published_at, rd.fetched_at)) AS earliest_doc_at
+              min(COALESCE(rd.published_at, rd.fetched_at)) AS earliest_doc_at,
+              min(rd.fetched_at) AS earliest_fetched_at
        FROM claims cl
        JOIN claim_sources cs ON cs.claim_id = cl.id
        JOIN raw_documents rd ON rd.id = cs.raw_document_id
@@ -138,6 +143,9 @@ export async function validateDigest(
       hedging: r.hedging,
       docCount: r.doc_count,
       earliestDocAt: r.earliest_doc_at ? new Date(r.earliest_doc_at).toISOString() : null,
+      earliestFetchedAt: r.earliest_fetched_at
+        ? new Date(r.earliest_fetched_at).toISOString()
+        : null,
     }));
 
     // semantic matching when a key is live; keyword gazetteer otherwise.
@@ -181,6 +189,9 @@ export async function validateDigest(
           theater: countryIso2,
           takeawaysTotal: extraction.takeaways.length,
           takeawaysFiltered,
+          // Dual coverage (jsonb, no schema change): evidence-in-hand at ISW
+          // publish vs the headline (final) coverage_pct — same denominator.
+          ...(score.atPublish ? { atPublish: score.atPublish } : {}),
           ...(outcome?.votes ? { votes: outcome.votes, voteRounds: outcome.voteRounds } : {}),
         }),
       ],

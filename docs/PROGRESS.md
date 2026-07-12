@@ -1050,3 +1050,17 @@ Morning note: `docs/reviews/ANALYST-HOME-NOTE-2026-07-12.md`.
 4. Gate: tests 956→996 (79 files), typecheck/lint/`next build` clean, pre-push green;
    prod smoke green signed-out. OPEN-TASKS +#54 (claim_date↔digest_date link
    coupling) +#55 (/search nav entry). LLM spend $0.00.
+
+## 2026-07-12 ~12:30 ET — analyst-trust sprint plan (unattended)
+
+Prompt: docs/prompts/2026-07-12-analyst-trust.md. Branch 20260712-analyst-trust.
+1. W0 diagnosis readback (DONE — rn bigint-string bug confirmed as the contradiction's
+   root cause; W4 audit verdict: implement $0 dual coverage, park window restructure).
+2. W1 time-model: shared ET/UTC day+format helpers, fix rn fold bug, cadence-aware
+   digest status per R2, docs/TIME-MODEL.md, day-boundary matrix tests.
+3. W3 scoreboard explainer + W5 registry admin-gating (parallel subagents, worktrees).
+4. W2 signed-in home reorder per R3 + R7 redirect fix (after W1 lands).
+5. W4 evidence-at-publish dual coverage: scoring-time computation + deterministic
+   7-day backfill (Neon branch first), scoreboard display; design doc for the parked
+   window restructure.
+6. W6 docs ride-along; assembled gate; deploy; prod smoke; morning note.

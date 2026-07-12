@@ -131,3 +131,59 @@ describe("digest date navigation", () => {
     expect(nav?.querySelector('a[href="/digests/ru"]')).toBeTruthy();
   });
 });
+
+// R5 (2026-07-12): the "suggest or flag a source" mailto moved here from the
+// (now admin-only) registry detail page, alongside the pre-existing
+// "flag an error in this digest" mailto. Both follow the same feedbackMailto
+// env-driven pattern (src/lib/feedback.ts): present when FEEDBACK_EMAIL is
+// set, hidden entirely when it isn't.
+describe("digest page feedback mailtos", () => {
+  const ORIGINAL = process.env.FEEDBACK_EMAIL;
+
+  afterEach(() => {
+    if (ORIGINAL === undefined) delete process.env.FEEDBACK_EMAIL;
+    else process.env.FEEDBACK_EMAIL = ORIGINAL;
+  });
+
+  it("renders both the flag-digest and suggest-a-source mailtos when FEEDBACK_EMAIL is set", async () => {
+    process.env.FEEDBACK_EMAIL = "ops@example.com";
+    queryMock
+      .mockResolvedValueOnce([DIGEST_ROW])
+      .mockResolvedValueOnce([CLAIM_ROW])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+
+    const element = await DigestPage({
+      params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
+      searchParams: Promise.resolve({}),
+    });
+    const { container } = render(element);
+
+    const digestLink = container.querySelector('a[href^="mailto:ops@example.com?subject=%5BBNOW%20digest%5D"]');
+    const sourceLink = container.querySelector('a[href^="mailto:ops@example.com?subject=%5BBNOW%20source%5D"]');
+    expect(digestLink).toBeTruthy();
+    expect(sourceLink).toBeTruthy();
+    expect(sourceLink?.getAttribute("href")).toBe(
+      "mailto:ops@example.com?subject=%5BBNOW%20source%5D%20suggestion",
+    );
+    expect(digestLink?.textContent).toBe("Flag an error in this digest");
+    expect(sourceLink?.textContent).toBe("Suggest or flag a source");
+  });
+
+  it("hides both mailtos when FEEDBACK_EMAIL is unset", async () => {
+    delete process.env.FEEDBACK_EMAIL;
+    queryMock
+      .mockResolvedValueOnce([DIGEST_ROW])
+      .mockResolvedValueOnce([CLAIM_ROW])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+
+    const element = await DigestPage({
+      params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
+      searchParams: Promise.resolve({}),
+    });
+    const { container } = render(element);
+
+    expect(container.querySelector('a[href^="mailto:"]')).toBeNull();
+  });
+});
