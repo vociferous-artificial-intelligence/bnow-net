@@ -15,6 +15,7 @@ import {
 import { chatParamsForModel } from "./llm-params";
 import { dataCurrentThrough } from "./currency";
 import { parseTimeWindow } from "./window";
+import { selectRelatedClaimIds } from "./related";
 import type {
   AnswerState,
   AskAnswerV2,
@@ -344,10 +345,8 @@ function assembleV2(
   const validIds = new Set(ranked.claims.map((c) => c.claimId));
   const citedClaimIds = [...new Set(rawCitedIds)].filter((id) => validIds.has(id));
   const citedSet = new Set(citedClaimIds);
-  const relatedClaimIds = ranked.claims
-    .map((c) => c.claimId)
-    .filter((id) => !citedSet.has(id))
-    .slice(0, 10);
+  // relevance-floored, capped RELATED_MAX (W4) — see related.ts for the calibration.
+  const relatedClaimIds = selectRelatedClaimIds(ranked.claims, citedSet);
   const rerankModel = ranked.rerankUsage ? askRerankModel() : undefined;
   return {
     answer,

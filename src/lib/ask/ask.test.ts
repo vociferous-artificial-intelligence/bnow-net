@@ -224,12 +224,12 @@ describe("answerFromEvidence() — v2 answer stage", () => {
   const pool = [
     candidate({ claimId: 1, text: "claim one" }),
     candidate({ claimId: 2, text: "claim two" }),
-    candidate({ claimId: 3, text: "claim three" }),
-    candidate({ claimId: 4, text: "claim four" }),
-    candidate({ claimId: 5, text: "claim five" }),
+    candidate({ claimId: 3, text: "claim three", vectorScore: 0.6 }), // clears the 0.5 floor (W4)
+    candidate({ claimId: 4, text: "claim four", vectorScore: 0.3 }), // below the floor -> dropped
+    candidate({ claimId: 5, text: "claim five" }), // vectorScore null (lexical-only) -> dropped
   ];
 
-  it("happy path: citation filter, related = rerank order minus cited (top 10), usageByStage, spend, gpt-5 params", async () => {
+  it("happy path: citation filter, related floored+capped (uncited, vectorScore >= floor, ranked order), usageByStage, spend, gpt-5 params", async () => {
     envPaidV2();
     const retrieval = retrievalV2({
       claims: pool, // pre-rerank pool of 5 => candidatesCount 5
@@ -239,7 +239,7 @@ describe("answerFromEvidence() — v2 answer stage", () => {
       embedUsage: EMBED_USAGE,
     });
     const rk = ranked({
-      claims: [pool[1], pool[0], pool[2]], // reranked order: 2, 1, 3
+      claims: [pool[1], pool[0], pool[2], pool[3], pool[4]], // reranked order: 2, 1, 3, 4, 5
       rerankUsed: true,
       rerankUsage: RERANK_USAGE,
     });
@@ -250,9 +250,10 @@ describe("answerFromEvidence() — v2 answer stage", () => {
 
     const res = await answerFromEvidence("what happened?", retrieval, rk);
 
-    // sacred citation filter: dedup + keep only ids in ranked.claims {1,2,3}
+    // sacred citation filter: dedup + keep only ids in ranked.claims {1,2,3,4,5}
     expect(res.citedClaimIds).toEqual([2, 1]);
-    // related = ranked order [2,1,3] minus cited {2,1}
+    // related = uncited ranked order [3,4,5] floored at 0.5 (W4): 3 (0.6) survives,
+    // 4 (0.3, below floor) and 5 (null, lexical-only) are dropped
     expect(res.relatedClaimIds).toEqual([3]);
 
     expect(res.provider).toBe("openai:gpt-5");
@@ -260,7 +261,7 @@ describe("answerFromEvidence() — v2 answer stage", () => {
     expect(res.retrievalMode).toBe("v2");
     expect(res.rerankUsed).toBe(true);
     expect(res.sampled).toBe(true);
-    expect(res.evidenceCount).toBe(4); // 3 ranked claims + 1 entity
+    expect(res.evidenceCount).toBe(6); // 5 ranked claims + 1 entity
 
     // stage-model fields (addendum): all three present on the paid happy path
     expect(res.candidatesCount).toBe(5);

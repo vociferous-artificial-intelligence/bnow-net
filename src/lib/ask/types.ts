@@ -80,7 +80,9 @@ export interface AskAnswerV2 {
   terms: string[];
   provider: string;
   state: AnswerState;
-  /** retrieved-but-uncited claim ids, rerank order, capped ~10 (D7) */
+  /** retrieved-but-uncited claim ids, ranked order, floored at askRelatedMinScore()
+   *  (vectorScore == null is always excluded — see related.ts), capped RELATED_MAX
+   *  (W4; was an unfiltered top-10, which surfaced off-topic rerank padding) */
   relatedClaimIds: number[];
   window: TimeWindow | null;
   totalMatching: number;
