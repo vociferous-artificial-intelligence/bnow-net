@@ -450,6 +450,9 @@ export const users = pgTable("users", {
   emailVerified: timestamp("email_verified", { withTimezone: true }),
   image: text("image"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // 'user' | 'analyst' | 'admin' (hierarchy in that order); plain text, not a pg
+  // enum, so this migration stays additive (AGENTS.md ruling 5) — see src/lib/gate.ts.
+  role: text("role").notNull().default("user"),
 });
 
 export const accounts = pgTable(

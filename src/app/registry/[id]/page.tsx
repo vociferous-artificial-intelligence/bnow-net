@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { rawSql } from "@/db";
+import { getT } from "@/i18n/server";
+import { currentRole } from "@/lib/gate";
+import { registryView } from "@/lib/registry/view-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +23,12 @@ export default async function SourceDetailPage({
 }) {
   const { id } = await params;
   if (!/^\d+$/.test(id)) notFound();
+
+  // Same moat gate as /registry (view-policy.ts): sequential ids make this
+  // detail page id-walkable, so it must independently withhold the score
+  // fields for a reduced role rather than relying on the index hiding a link.
+  const [role, t] = await Promise.all([currentRole(), getT()]);
+  const view = registryView(role);
 
   const srcRows = (await rawSql.query(`SELECT * FROM sources WHERE id = $1`, [id])) as Array<{
     id: number; canonical_url: string; domain: string; platform: string; name: string | null;
@@ -82,7 +91,7 @@ export default async function SourceDetailPage({
   const maxYear = Math.max(...byYear.map((r) => r.n), 1);
 
   return (
-    <main className="mx-auto max-w-3xl p-6">
+    <main id="main" className="mx-auto max-w-3xl p-6">
       <p className="mb-1 text-sm text-gray-500">
         <Link href="/registry" className="underline">registry</Link> · source #{s.id}
       </p>
@@ -90,8 +99,16 @@ export default async function SourceDetailPage({
       <p className="mb-6 text-sm text-gray-500">
         {s.platform.replace("_", " ")} · {s.citation_count.toLocaleString()} ISW citations ·{" "}
         {s.first_cited_report_date?.slice(0, 10)} → {s.last_cited_report_date?.slice(0, 10)} ·{" "}
-        {s.decayed ? "decayed" : "active"} · reliability{" "}
-        <strong>{s.reliability_score !== null ? Number(s.reliability_score).toFixed(2) : "—"}</strong>
+        {s.decayed ? "decayed" : "active"}
+        {view.showReliability && (
+          <>
+            {" "}
+            · reliability{" "}
+            <strong>
+              {s.reliability_score !== null ? Number(s.reliability_score).toFixed(2) : "—"}
+            </strong>
+          </>
+        )}
       </p>
 
       <section className="mb-8 grid gap-6 sm:grid-cols-2">
@@ -111,10 +128,16 @@ export default async function SourceDetailPage({
               </span>
             </div>
           ))}
-          <p className="mt-2 text-xs text-gray-400">
-            Reliability = weighted mean: confirmed 1.0 · assessed .75 · unknown .5 ·
-            claimed .4 · unverified .15
-          </p>
+          {view.showWeightConstants ? (
+            <p className="mt-2 text-xs text-gray-400">
+              Reliability = weighted mean: confirmed 1.0 · assessed .75 · unknown .5 ·
+              claimed .4 · unverified .15
+            </p>
+          ) : (
+            <p className="mt-2 text-xs text-gray-400">
+              {t("registry.detail.weighting_qualitative")}
+            </p>
+          )}
         </div>
         <div>
           <h2 className="mb-2 text-sm font-semibold">Citations by year</h2>
@@ -133,32 +156,38 @@ export default async function SourceDetailPage({
       {theaterStats.length > 0 && (
         <section className="mb-8">
           <h2 className="mb-2 text-sm font-semibold">By reference corpus</h2>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 text-left text-xs text-gray-500 dark:border-gray-800">
-                <th className="py-1">theater</th>
-                <th className="text-right">citations</th>
-                <th className="text-right">reliability</th>
-                <th>span</th>
-                <th>status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {theaterStats.map((t) => (
-                <tr key={t.theater} className="border-b border-gray-100 dark:border-gray-900">
-                  <td className="py-1">{THEATER_LABEL[t.theater] ?? t.theater}</td>
-                  <td className="text-right tabular-nums">{t.citation_count.toLocaleString()}</td>
-                  <td className="text-right tabular-nums">
-                    {t.reliability_score !== null ? Number(t.reliability_score).toFixed(2) : "—"}
-                  </td>
-                  <td className="text-xs text-gray-500">
-                    {t.first?.slice(0, 10)} → {t.last?.slice(0, 10)}
-                  </td>
-                  <td className="text-xs">{t.decayed ? "decayed" : "active"}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 text-left text-xs text-gray-500 dark:border-gray-800">
+                  <th className="py-1">theater</th>
+                  <th className="text-right">citations</th>
+                  {view.showReliability && <th className="text-right">reliability</th>}
+                  <th>span</th>
+                  <th>status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {theaterStats.map((row) => (
+                  <tr key={row.theater} className="border-b border-gray-100 dark:border-gray-900">
+                    <td className="py-1">{THEATER_LABEL[row.theater] ?? row.theater}</td>
+                    <td className="text-right tabular-nums">{row.citation_count.toLocaleString()}</td>
+                    {view.showReliability && (
+                      <td className="text-right tabular-nums">
+                        {row.reliability_score !== null
+                          ? Number(row.reliability_score).toFixed(2)
+                          : "—"}
+                      </td>
+                    )}
+                    <td className="text-xs text-gray-500">
+                      {row.first?.slice(0, 10)} → {row.last?.slice(0, 10)}
+                    </td>
+                    <td className="text-xs">{row.decayed ? "decayed" : "active"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
 

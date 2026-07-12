@@ -1,5 +1,13 @@
 import Link from "next/link";
 import { rawSql } from "@/db";
+import { getLocale } from "@/i18n/server";
+import { makeT } from "@/i18n/dictionaries";
+import {
+  meanCoveragePct,
+  medianLeadHours,
+  meanThinSourcedPct,
+  nonzeroDayCoverage,
+} from "@/lib/scoreboard/summary";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +34,8 @@ function Bar({ pct }: { pct: number }) {
 }
 
 export default async function ScoreboardPage() {
+  const locale = await getLocale();
+  const t = makeT(locale);
   const rows = (await rawSql.query(
     `SELECT vr.id, d.digest_date, c.iso2, vr.coverage_pct, vr.unsupported_claim_rate,
             vr.timeliness_hours, vr.divergences, d.provider
@@ -37,20 +47,14 @@ export default async function ScoreboardPage() {
     [],
   )) as RunRow[];
 
-  const covered = rows.filter((r) => r.coverage_pct !== null);
-  const avgCoverage =
-    covered.length > 0
-      ? covered.reduce((s, r) => s + Number(r.coverage_pct), 0) / covered.length
-      : null;
-  const timely = rows.filter((r) => r.timeliness_hours !== null);
-  const avgLead =
-    timely.length > 0
-      ? timely.reduce((s, r) => s + Number(r.timeliness_hours), 0) / timely.length
-      : null;
+  const avgCoverage = meanCoveragePct(rows);
+  const avgThin = meanThinSourcedPct(rows);
+  const medianLead = medianLeadHours(rows);
+  const nonzero = nonzeroDayCoverage(rows);
 
   return (
-    <main className="mx-auto max-w-4xl p-6">
-      <h1 className="mb-1 text-2xl font-bold">Validation Scoreboard</h1>
+    <main id="main" className="mx-auto max-w-4xl p-6">
+      <h1 className="mb-1 text-2xl font-bold">{t("scoreboard.title")}</h1>
       <p className="mb-6 max-w-2xl text-sm text-gray-500">
         Every day we score our automated digest against ISW&apos;s Russian Offensive Campaign
         Assessment for the same day. Divergence is a feature: &quot;ours only&quot; entries are
@@ -59,18 +63,38 @@ export default async function ScoreboardPage() {
         {TARGETS.timeliness}h.
       </p>
 
-      <div className="mb-8 grid grid-cols-3 gap-4">
+      <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
           <div className="text-2xl font-bold tabular-nums">
             {avgCoverage !== null ? `${avgCoverage.toFixed(0)}%` : "—"}
           </div>
-          <div className="text-xs text-gray-500">avg event coverage vs ISW</div>
+          <div className="text-xs text-gray-500">{t("scoreboard.avg_coverage")}</div>
+          <div className="mt-1 text-xs text-gray-400">
+            {t("scoreboard.target_coverage", { n: TARGETS.coverage })}
+            {nonzero.meanPct !== null &&
+              ` · ${t("scoreboard.nonzero_day_mean", {
+                pct: nonzero.meanPct.toFixed(0),
+                days: nonzero.days,
+              })}`}
+          </div>
         </div>
         <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
           <div className="text-2xl font-bold tabular-nums">
-            {avgLead !== null ? `${avgLead > 0 ? "+" : ""}${avgLead.toFixed(1)}h` : "—"}
+            {avgThin !== null ? `${avgThin.toFixed(0)}%` : "—"}
           </div>
-          <div className="text-xs text-gray-500">median information lead vs ISW publish</div>
+          <div className="text-xs text-gray-500">{t("scoreboard.avg_thin_sourced")}</div>
+          <div className="mt-1 text-xs text-gray-400">
+            {t("scoreboard.target_thin", { n: TARGETS.thin })}
+          </div>
+        </div>
+        <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+          <div className="text-2xl font-bold tabular-nums">
+            {medianLead !== null ? `${medianLead > 0 ? "+" : ""}${medianLead.toFixed(1)}h` : "—"}
+          </div>
+          <div className="text-xs text-gray-500">{t("scoreboard.median_lead")}</div>
+          <div className="mt-1 text-xs text-gray-400">
+            {t("scoreboard.target_lead", { n: TARGETS.timeliness })}
+          </div>
         </div>
         <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
           <div className="text-2xl font-bold tabular-nums">{rows.length}</div>
@@ -78,64 +102,66 @@ export default async function ScoreboardPage() {
         </div>
       </div>
 
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b-2 border-gray-300 text-left dark:border-gray-700">
-            <th className="py-2">date</th>
-            <th>theater</th>
-            <th>coverage</th>
-            <th className="text-right">thin-sourced</th>
-            <th className="text-right">lead (h)</th>
-            <th className="text-right">agree / isw-only / ours-only</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => {
-            const kinds = (r.divergences ?? []).reduce(
-              (acc, d) => ((acc[d.kind] = (acc[d.kind] ?? 0) + 1), acc),
-              {} as Record<string, number>,
-            );
-            return (
-              <tr key={r.id} className="border-b border-gray-100 dark:border-gray-800">
-                <td className="py-1.5 tabular-nums">{String(r.digest_date).slice(0, 10)}</td>
-                <td className="uppercase">{r.iso2}</td>
-                <td>
-                  <div className="flex items-center gap-2">
-                    <Bar pct={Number(r.coverage_pct ?? 0)} />
-                    <span className="tabular-nums">
-                      {r.coverage_pct !== null ? `${Number(r.coverage_pct).toFixed(0)}%` : "—"}
-                    </span>
-                  </div>
-                </td>
-                <td className="text-right tabular-nums">
-                  {r.unsupported_claim_rate !== null
-                    ? `${(Number(r.unsupported_claim_rate) * 100).toFixed(0)}%`
-                    : "—"}
-                </td>
-                <td className="text-right tabular-nums">
-                  {r.timeliness_hours !== null
-                    ? `${Number(r.timeliness_hours) > 0 ? "+" : ""}${Number(r.timeliness_hours).toFixed(1)}`
-                    : "—"}
-                </td>
-                <td className="text-right tabular-nums">
-                  {kinds.agreement ?? 0} / {kinds.isw_only ?? 0} / {kinds.ours_only ?? 0}
-                </td>
-                <td>
-                  <Link
-                    href={`/scoreboard/${r.iso2}/${String(r.digest_date).slice(0, 10)}`}
-                    className="text-xs underline"
-                  >
-                    detail
-                  </Link>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] text-sm">
+          <thead>
+            <tr className="border-b-2 border-gray-300 text-left dark:border-gray-700">
+              <th className="py-2">date</th>
+              <th>{t("scoreboard.col.theater")}</th>
+              <th>{t("scoreboard.col.coverage")}</th>
+              <th className="text-right">{t("scoreboard.thin_sourced")}</th>
+              <th className="text-right">{t("scoreboard.col.lead")}</th>
+              <th className="text-right">agree / isw-only / ours-only</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const kinds = (r.divergences ?? []).reduce(
+                (acc, d) => ((acc[d.kind] = (acc[d.kind] ?? 0) + 1), acc),
+                {} as Record<string, number>,
+              );
+              return (
+                <tr key={r.id} className="border-b border-gray-100 dark:border-gray-800">
+                  <td className="py-1.5 tabular-nums">{String(r.digest_date).slice(0, 10)}</td>
+                  <td className="uppercase">{r.iso2}</td>
+                  <td>
+                    <div className="flex items-center gap-2">
+                      <Bar pct={Number(r.coverage_pct ?? 0)} />
+                      <span className="tabular-nums">
+                        {r.coverage_pct !== null ? `${Number(r.coverage_pct).toFixed(0)}%` : "—"}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="text-right tabular-nums">
+                    {r.unsupported_claim_rate !== null
+                      ? `${(Number(r.unsupported_claim_rate) * 100).toFixed(0)}%`
+                      : "—"}
+                  </td>
+                  <td className="text-right tabular-nums">
+                    {r.timeliness_hours !== null
+                      ? `${Number(r.timeliness_hours) > 0 ? "+" : ""}${Number(r.timeliness_hours).toFixed(1)}`
+                      : "—"}
+                  </td>
+                  <td className="text-right tabular-nums">
+                    {kinds.agreement ?? 0} / {kinds.isw_only ?? 0} / {kinds.ours_only ?? 0}
+                  </td>
+                  <td>
+                    <Link
+                      href={`/scoreboard/${r.iso2}/${String(r.digest_date).slice(0, 10)}`}
+                      className="text-xs underline"
+                    >
+                      detail
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
       {rows.length === 0 && (
-        <p className="py-8 text-center text-gray-400">No validation runs yet.</p>
+        <p className="py-8 text-center text-gray-400">{t("scoreboard.empty")}</p>
       )}
     </main>
   );

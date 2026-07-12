@@ -2,6 +2,8 @@
 // DB I/O in run.ts. Every signal carries the evidence (claim ids / rows) that
 // triggered it — the moat is that nothing is asserted without traceable support.
 
+import type { ClaimSourceDoc } from "@/components/claim-sources";
+
 export type Severity = "info" | "watch" | "elevated";
 
 export interface Signal {
@@ -45,7 +47,9 @@ export function detectPurge(
     severity: uniqueTargets.size >= opts.minCount * 2 ? "elevated" : "watch",
     headline: `${uniqueTargets.size} officials under prosecution/dismissal in ${opts.windowDays}d`,
     detail: `Clustered elite pressure — possible factional purge. Targets incl.: ${names.join(", ")}.`,
-    evidenceClaimIds: recent.map((c) => c.claimId),
+    // one claim can name >1 watched entity (claim_entities is an edge table) — dedupe
+    // to distinct claim ids or the public evidence count overstates support (B1).
+    evidenceClaimIds: [...new Set(recent.map((c) => c.claimId))],
     evidenceRefs: [],
     at: opts.nowIso,
   };
@@ -110,4 +114,77 @@ export function detectTradeDivergence(
 export function rankSignals(signals: Signal[]): Signal[] {
   const order: Record<Severity, number> = { elevated: 0, watch: 1, info: 2 };
   return [...signals].sort((a, b) => order[a.severity] - order[b.severity] || a.kind.localeCompare(b.kind));
+}
+
+// --- evidence expansion (page-level: signed-in users only render this) ---
+// Shape mirrors the digest page's claims -> claim_sources -> raw_documents LEFT JOIN
+// sources query (src/app/digests/[country]/[date]/page.tsx) so the same row can feed
+// the shared ClaimSources component.
+
+export interface SignalEvidenceRow {
+  claim_id: number;
+  text: string;
+  hedging: string;
+  claim_date: string | null;
+  doc_id: number;
+  doc_url: string | null;
+  doc_title: string | null;
+  adapter: string;
+  source_id: number | null;
+  source_key: string | null;
+  reliability: number | string | null; // numeric columns arrive as strings over the wire
+  source_platform: string | null;
+  doc_at: string | null;
+}
+
+export interface EvidenceClaim {
+  claimId: number;
+  text: string;
+  hedging: string;
+  claimDate: string | null;
+  docs: ClaimSourceDoc[];
+}
+
+/**
+ * Union of every signal's evidenceClaimIds, deduped — the single query's `= ANY($1)`
+ * set. Signals never share a claim id today (one purge signal per theater), but the
+ * union stays correct if that changes.
+ */
+export function collectSignalEvidenceIds(signals: Signal[]): number[] {
+  return [...new Set(signals.flatMap((s) => s.evidenceClaimIds))];
+}
+
+/** Group one-row-per-(claim,doc) query results into per-claim evidence, docs in row order. */
+export function groupEvidenceRows(rows: SignalEvidenceRow[]): Map<number, EvidenceClaim> {
+  const byClaim = new Map<number, EvidenceClaim>();
+  for (const r of rows) {
+    if (!byClaim.has(r.claim_id)) {
+      byClaim.set(r.claim_id, {
+        claimId: r.claim_id,
+        text: r.text,
+        hedging: r.hedging,
+        claimDate: r.claim_date,
+        docs: [],
+      });
+    }
+    byClaim.get(r.claim_id)!.docs.push({
+      docId: r.doc_id,
+      url: r.doc_url,
+      sourceId: r.source_id,
+      sourceKey: r.source_key,
+      adapter: r.adapter,
+      platform: r.source_platform,
+      reliability: r.reliability === null ? null : Number(r.reliability),
+      publishedAt: r.doc_at,
+      title: r.doc_title,
+    });
+  }
+  return byClaim;
+}
+
+/** Claims for one signal, in its own evidenceClaimIds order; ids missing from the map (e.g. a claim deleted between query and render) are skipped rather than rendered blank. */
+export function evidenceForSignal(signal: Signal, byClaim: Map<number, EvidenceClaim>): EvidenceClaim[] {
+  return signal.evidenceClaimIds
+    .map((id) => byClaim.get(id))
+    .filter((c): c is EvidenceClaim => c !== undefined);
 }

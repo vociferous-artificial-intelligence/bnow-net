@@ -138,7 +138,13 @@ describe("interpolation", () => {
 
   it("no catalog string has an unresolved placeholder when all vars are supplied", () => {
     // guards against a translation that renamed a {token}
-    const vars = { sources: "1", citations: "2", docs: "3", runs: "4" };
+    // Every {token} name used anywhere in any catalog must appear here, or this
+    // blanket check false-positives on a legitimate new key.
+    const vars = {
+      sources: "1", citations: "2", docs: "3", runs: "4",
+      n: "5", channels: "6", platforms: "7", total: "8",
+      pct: "9", amount: "10", time: "11", days: "12",
+    };
     for (const loc of LOCALES) {
       const d = dict(loc);
       const t = makeT(loc);
