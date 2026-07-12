@@ -33,6 +33,9 @@ export interface AskResultLike {
   window?: TimeWindow | null;
   totalMatching?: number;
   sampled?: boolean;
+  /** corpus currency (max claim_date, yyyy-mm-dd), set by the v2 path — optional,
+   *  defensive read consistent with the other v2 fields above. */
+  dataCurrentThrough?: string;
 }
 
 export type Translate = (key: string) => string;
@@ -88,6 +91,11 @@ export function AskResult({ result, cited, related, t }: AskResultProps) {
   const window = result.window ?? null;
   const sampled = result.sampled ?? false;
   const echo = window ? windowEcho(window, t) : null;
+  const currency = result.dataCurrentThrough;
+  // No-coverage: the question's window begins entirely after the newest claim, so no
+  // evidence can exist yet — a distinct callout from the generic "insufficient" one.
+  const noCoverage =
+    state === "insufficient" && !!window?.from && !!currency && window.from > currency;
 
   return (
     <div className="space-y-4">
@@ -105,11 +113,23 @@ export function AskResult({ result, cited, related, t }: AskResultProps) {
           <div className="whitespace-pre-wrap text-sm leading-relaxed">{result.answer}</div>
         )}
 
-        {state === "insufficient" && (
-          <p className="mt-3 rounded bg-gray-50 p-2 text-xs text-gray-600 dark:bg-gray-900 dark:text-gray-300">
-            {t("ask.state.insufficient")}
-          </p>
-        )}
+        {state === "insufficient" &&
+          (noCoverage && window?.from && currency ? (
+            <p className="mt-3 rounded bg-gray-50 p-2 text-xs text-gray-600 dark:bg-gray-900 dark:text-gray-300">
+              {t("ask.nocoverage.prefix")}{" "}
+              {window.to && window.to !== window.from
+                ? `${window.from}–${window.to}`
+                : window.from}
+              . {t("ask.nocoverage.currency")} {currency}.
+            </p>
+          ) : (
+            <p className="mt-3 rounded bg-gray-50 p-2 text-xs text-gray-600 dark:bg-gray-900 dark:text-gray-300">
+              {t("ask.state.insufficient")}
+              {/* freshness-honest even when the short-circuit env is off: show currency
+                  whenever it is known on an insufficient result */}
+              {currency ? ` ${t("ask.nocoverage.currency")} ${currency}.` : ""}
+            </p>
+          ))}
         {state === "refused" && (
           <p className="rounded bg-gray-50 p-2 text-xs text-gray-600 dark:bg-gray-900 dark:text-gray-300">
             {t("ask.state.refused")}

@@ -99,4 +99,9 @@ export interface AskAnswerV2 {
    *  absent when the stage didn't run a paid call */
   rerankModel?: string;
   answerModel?: string;
+  /** OPTIONAL (additive, W1): corpus currency — max(claim_date) as yyyy-mm-dd, set
+   *  by the v2 path when a currency read succeeded (short-circuit + every
+   *  assembleV2/noEvidenceV2 result). Drives the freshness-honest UI callout; absent
+   *  on the legacy path and whenever the read returned null. */
+  dataCurrentThrough?: string;
 }
