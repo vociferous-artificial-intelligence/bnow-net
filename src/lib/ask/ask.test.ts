@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   retrieveMock: vi.fn(),
   retrieveV2Mock: vi.fn(),
   rerankMock: vi.fn(),
+  currencyMock: vi.fn(),
   guard: { init: vi.fn(), tryReserve: vi.fn(), record: vi.fn() },
 }));
 
@@ -26,14 +27,21 @@ vi.mock("./retrieve", async (importOriginal) => {
 vi.mock("./retrieve-v2", () => ({ retrieveV2: mocks.retrieveV2Mock }));
 vi.mock("./rerank", () => ({ rerankCandidates: mocks.rerankMock }));
 
+// currency: mocked so no DB is touched and each test drives the corpus-currency read.
+vi.mock("./currency", () => ({
+  dataCurrentThrough: mocks.currencyMock,
+  _resetCurrencyCacheForTests: vi.fn(),
+}));
+
 // llm-guard: keep the real LlmBudgetError + isLlmDisabled (driven via env), swap the guard.
 vi.mock("../usage/llm-guard", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../usage/llm-guard")>();
   return { ...actual, askGuardFromEnv: () => mocks.guard };
 });
 
-import { ask, answerFromEvidence } from "./answer";
+import { ask, answerFromEvidence, SYSTEM_V2 } from "./answer";
 import { estimateCostUsd } from "./limits";
+import { DENIAL_LANGUAGE_PATTERN, NEGATIVE_DENIAL_LEAD_CHARS } from "./eval-run";
 
 // ---- fixtures -----------------------------------------------------------------
 
@@ -95,6 +103,9 @@ beforeEach(() => {
   mocks.guard.init.mockResolvedValue(undefined);
   mocks.guard.tryReserve.mockReturnValue({ ok: true });
   mocks.guard.record.mockResolvedValue(undefined);
+  // Default: currency unknown → no short-circuit, no context line, no field. Tests
+  // that exercise currency override this per-case.
+  mocks.currencyMock.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -213,12 +224,12 @@ describe("answerFromEvidence() — v2 answer stage", () => {
   const pool = [
     candidate({ claimId: 1, text: "claim one" }),
     candidate({ claimId: 2, text: "claim two" }),
-    candidate({ claimId: 3, text: "claim three" }),
-    candidate({ claimId: 4, text: "claim four" }),
-    candidate({ claimId: 5, text: "claim five" }),
+    candidate({ claimId: 3, text: "claim three", vectorScore: 0.6 }), // clears the 0.5 floor (W4)
+    candidate({ claimId: 4, text: "claim four", vectorScore: 0.3 }), // below the floor -> dropped
+    candidate({ claimId: 5, text: "claim five" }), // vectorScore null (lexical-only) -> dropped
   ];
 
-  it("happy path: citation filter, related = rerank order minus cited (top 10), usageByStage, spend, gpt-5 params", async () => {
+  it("happy path: citation filter, related floored+capped (uncited, vectorScore >= floor, ranked order), usageByStage, spend, gpt-5 params", async () => {
     envPaidV2();
     const retrieval = retrievalV2({
       claims: pool, // pre-rerank pool of 5 => candidatesCount 5
@@ -228,7 +239,7 @@ describe("answerFromEvidence() — v2 answer stage", () => {
       embedUsage: EMBED_USAGE,
     });
     const rk = ranked({
-      claims: [pool[1], pool[0], pool[2]], // reranked order: 2, 1, 3
+      claims: [pool[1], pool[0], pool[2], pool[3], pool[4]], // reranked order: 2, 1, 3, 4, 5
       rerankUsed: true,
       rerankUsage: RERANK_USAGE,
     });
@@ -239,9 +250,10 @@ describe("answerFromEvidence() — v2 answer stage", () => {
 
     const res = await answerFromEvidence("what happened?", retrieval, rk);
 
-    // sacred citation filter: dedup + keep only ids in ranked.claims {1,2,3}
+    // sacred citation filter: dedup + keep only ids in ranked.claims {1,2,3,4,5}
     expect(res.citedClaimIds).toEqual([2, 1]);
-    // related = ranked order [2,1,3] minus cited {2,1}
+    // related = uncited ranked order [3,4,5] floored at 0.5 (W4): 3 (0.6) survives,
+    // 4 (0.3, below floor) and 5 (null, lexical-only) are dropped
     expect(res.relatedClaimIds).toEqual([3]);
 
     expect(res.provider).toBe("openai:gpt-5");
@@ -249,7 +261,7 @@ describe("answerFromEvidence() — v2 answer stage", () => {
     expect(res.retrievalMode).toBe("v2");
     expect(res.rerankUsed).toBe(true);
     expect(res.sampled).toBe(true);
-    expect(res.evidenceCount).toBe(4); // 3 ranked claims + 1 entity
+    expect(res.evidenceCount).toBe(6); // 5 ranked claims + 1 entity
 
     // stage-model fields (addendum): all three present on the paid happy path
     expect(res.candidatesCount).toBe(5);
@@ -440,5 +452,224 @@ describe("answerFromEvidence() — v2 answer stage", () => {
     expect(userMessage).toContain(
       "[c7] (ua/-, undated, unknown, reliability ?, entities: ) Undated unreliable claim.",
     );
+  });
+});
+
+// ---- W1: no-coverage short-circuit ($0, before retrieveV2) --------------------
+
+describe("ask() — no-coverage short-circuit (W1)", () => {
+  it("fires when the window begins entirely after currency: NO retrieveV2/rerank/LLM, $0 payload", async () => {
+    envPaidV2();
+    mocks.currencyMock.mockResolvedValue("2000-01-01"); // corpus ends long ago
+
+    const res = await ask("did russia strike kyiv today"); // window.from = real today > 2000
+
+    expect(mocks.retrieveV2Mock).not.toHaveBeenCalled();
+    expect(mocks.rerankMock).not.toHaveBeenCalled();
+    expect(mocks.createMock).not.toHaveBeenCalled();
+
+    expect(res.state).toBe("insufficient");
+    expect(res.provider).toBe("none");
+    expect(res.retrievalMode).toBe("v2"); // NOT "v2-lexical-only" (degraded-run tell)
+    expect(res.candidatesCount).toBe(0);
+    expect(res.citedClaimIds).toEqual([]);
+    expect(res.relatedClaimIds).toEqual([]);
+    expect(res.evidenceCount).toBe(0);
+    expect(res.totalMatching).toBe(0);
+    expect(res.sampled).toBe(false);
+    expect(res.rerankUsed).toBe(false);
+    expect(res.dataCurrentThrough).toBe("2000-01-01");
+    expect(res.window?.from).toBeTruthy();
+    // cost-free shape: no answer-stage usage recorded at all
+    expect(res.usage).toBeUndefined();
+    expect(res.usageByStage).toBeUndefined();
+  });
+
+  it("does NOT fire when window.from == currency (boundary, strict >)", async () => {
+    envPaidV2();
+    mocks.currencyMock.mockResolvedValue("2026-07-12");
+    mocks.retrieveV2Mock.mockResolvedValue(retrievalV2({ claims: [], entities: [] }));
+
+    const res = await ask("what changed since 2026-07-12"); // window.from == currency
+
+    expect(mocks.retrieveV2Mock).toHaveBeenCalled();
+    expect(res.provider).toBe("none"); // fell through to the empty-retrieval path
+  });
+
+  it("does NOT fire when the window straddles/predates currency", async () => {
+    envPaidV2();
+    mocks.currencyMock.mockResolvedValue("2026-07-05");
+    mocks.retrieveV2Mock.mockResolvedValue(retrievalV2({ claims: [], entities: [] }));
+
+    await ask("strikes since 2000-01-01"); // from 2000 <= currency
+
+    expect(mocks.retrieveV2Mock).toHaveBeenCalled();
+  });
+
+  it("does NOT fire when the question has no time window", async () => {
+    envPaidV2();
+    mocks.currencyMock.mockResolvedValue("2000-01-01");
+    mocks.retrieveV2Mock.mockResolvedValue(retrievalV2({ claims: [], entities: [] }));
+
+    await ask("russia ukraine strikes"); // parseTimeWindow → null
+
+    expect(mocks.retrieveV2Mock).toHaveBeenCalled();
+  });
+
+  it("does NOT fire when currency is null (fail open to the real pipeline)", async () => {
+    envPaidV2();
+    mocks.currencyMock.mockResolvedValue(null);
+    mocks.retrieveV2Mock.mockResolvedValue(retrievalV2({ claims: [], entities: [] }));
+
+    await ask("did russia strike kyiv today");
+
+    expect(mocks.retrieveV2Mock).toHaveBeenCalled();
+  });
+
+  it("does NOT fire when the env knob is off (ASK_NO_COVERAGE_SHORTCIRCUIT=0)", async () => {
+    envPaidV2();
+    vi.stubEnv("ASK_NO_COVERAGE_SHORTCIRCUIT", "0");
+    mocks.currencyMock.mockResolvedValue("2000-01-01");
+    mocks.retrieveV2Mock.mockResolvedValue(retrievalV2({ claims: [], entities: [] }));
+
+    await ask("did russia strike kyiv today"); // would fire if the knob were on
+
+    expect(mocks.retrieveV2Mock).toHaveBeenCalled();
+  });
+
+  it("no-evidence path carries the currency through to the payload", async () => {
+    envPaidV2();
+    mocks.currencyMock.mockResolvedValue("2026-07-05");
+    mocks.retrieveV2Mock.mockResolvedValue(
+      retrievalV2({ claims: [], entities: [], totalMatching: 0 }),
+    );
+
+    const res = await ask("obscure topic with no matches");
+
+    expect(res.state).toBe("insufficient");
+    expect(res.dataCurrentThrough).toBe("2026-07-05");
+  });
+});
+
+// ---- W1: currency context line on the answer stage ---------------------------
+
+describe("answerFromEvidence() — currency context (W1)", () => {
+  const pool = [candidate({ claimId: 1, text: "claim one" }), candidate({ claimId: 2, text: "claim two" })];
+
+  it("appends a currency + window line to the USER message and sets dataCurrentThrough", async () => {
+    envPaidV2();
+    mocks.currencyMock.mockResolvedValue("2026-07-11");
+    const retrieval = retrievalV2({
+      claims: pool,
+      totalMatching: 2,
+      window: { from: "2026-07-01", to: "2026-07-10", matchedPhrase: "last week" },
+    });
+    const rk = ranked({ claims: pool, rerankUsed: false });
+    mocks.createMock.mockResolvedValue(completion({ content: "Answer [c1]." }));
+
+    const res = await answerFromEvidence("q", retrieval, rk);
+
+    const userMessage = mocks.createMock.mock.calls[0][0].messages[1].content as string;
+    expect(userMessage).toContain("Data current through: 2026-07-11 (UTC).");
+    expect(userMessage).toContain("Question window: 2026-07-01..2026-07-10");
+    expect(res.dataCurrentThrough).toBe("2026-07-11");
+    // the system prompt is SYSTEM_V2, not the legacy SYSTEM
+    expect(mocks.createMock.mock.calls[0][0].messages[0].content).toBe(SYSTEM_V2);
+  });
+
+  it("omits the window line when the question carried no window", async () => {
+    envPaidV2();
+    mocks.currencyMock.mockResolvedValue("2026-07-11");
+    const retrieval = retrievalV2({ claims: pool, totalMatching: 2, window: null });
+    const rk = ranked({ claims: pool, rerankUsed: false });
+    mocks.createMock.mockResolvedValue(completion({ content: "Answer [c1]." }));
+
+    await answerFromEvidence("q", retrieval, rk);
+
+    const userMessage = mocks.createMock.mock.calls[0][0].messages[1].content as string;
+    expect(userMessage).toContain("Data current through: 2026-07-11 (UTC).");
+    expect(userMessage).not.toContain("Question window:");
+  });
+
+  it("omits the currency line entirely when currency is null", async () => {
+    envPaidV2();
+    mocks.currencyMock.mockResolvedValue(null);
+    const retrieval = retrievalV2({ claims: pool, totalMatching: 2 });
+    const rk = ranked({ claims: pool, rerankUsed: false });
+    mocks.createMock.mockResolvedValue(completion({ content: "Answer [c1]." }));
+
+    const res = await answerFromEvidence("q", retrieval, rk);
+
+    const userMessage = mocks.createMock.mock.calls[0][0].messages[1].content as string;
+    expect(userMessage).not.toContain("Data current through");
+    expect(res.dataCurrentThrough).toBeUndefined();
+  });
+});
+
+// ---- W1: persona + legacy rollback guard --------------------------------------
+
+/** FROZEN legacy system prompt — a byte-for-byte copy of the SYSTEM const in
+ *  answer.ts. Guards the ASK_PIPELINE=legacy rollback: any edit to the legacy prompt
+ *  string breaks this, since the legacy path must send it unchanged. */
+const FROZEN_LEGACY_SYSTEM = `You answer questions about geopolitical/OSINT intelligence STRICTLY from the provided evidence rows (claims + entities from the BNOW database). Rules:
+1. Use ONLY the evidence provided. Never use outside knowledge or invent facts.
+2. Cite the claim ids you rely on inline as [c<ID>] (e.g. [c1438]). Every factual sentence needs a citation.
+3. If the evidence is insufficient to answer, say so plainly and suggest a narrower question. Do not speculate.
+4. Be concise (<= 180 words). Note hedging where relevant ("reportedly", "unverified").
+5. These are open-source-derived claims of varying reliability, not confirmed truth — reflect that.`;
+
+describe("SYSTEM_V2 persona + legacy rollback (W1)", () => {
+  it("addresses the END USER and forbids requesting claim ids / pipeline internals", () => {
+    expect(SYSTEM_V2.toLowerCase()).toContain("end user");
+    // no instruction telling the reader to hand over ids/datasets — the persona
+    // explicitly PROHIBITS it (case-insensitive on "never ask the reader")
+    expect(/never ask the reader/i.test(SYSTEM_V2)).toBe(true);
+    expect(/claim ids/i.test(SYSTEM_V2)).toBe(true);
+  });
+
+  it("retains the citation instruction, the <=180-word cap, hedging + reliability framing", () => {
+    expect(SYSTEM_V2).toContain("[c<ID>]");
+    expect(SYSTEM_V2).toContain("<= 180 words");
+    expect(SYSTEM_V2).toContain("hedging");
+    expect(SYSTEM_V2.toLowerCase()).toContain("open-source-derived");
+    // insufficient-vs-refusal distinction preserved
+    expect(SYSTEM_V2.toLowerCase()).toContain("not a refusal");
+  });
+
+  it("instructs honest denials to LEAD with denial phrasing the honesty metric recognizes", () => {
+    // the leading example phrasing must itself trip DENIAL_LANGUAGE_PATTERN
+    expect(DENIAL_LANGUAGE_PATTERN.test("No claims in the covered data address that.")).toBe(true);
+    expect(DENIAL_LANGUAGE_PATTERN.test("The evidence is insufficient to determine that.")).toBe(true);
+  });
+
+  it("legacy path sends the byte-identical frozen SYSTEM (ASK_PIPELINE=legacy rollback)", async () => {
+    vi.stubEnv("ASK_PIPELINE", "legacy");
+    vi.stubEnv("OPENAI_API_KEY", "sk-test");
+    vi.stubEnv("ANALYSIS_PROVIDER", "");
+    vi.stubEnv("LLM_DISABLE", "");
+    mocks.retrieveMock.mockResolvedValue({
+      claims: [{ claimId: 1, text: "x", hedging: "reported", claimDate: "2026-07-05", countryIso2: "ru", track: null, entities: [] }],
+      entities: [],
+      terms: ["x"],
+    });
+    mocks.createMock.mockResolvedValue(completion({ content: "Answer [c1]." }));
+
+    await ask("q");
+
+    expect(mocks.createMock.mock.calls[0][0].messages[0].content).toBe(FROZEN_LEGACY_SYSTEM);
+  });
+});
+
+// ---- W1: denial-language compatibility ---------------------------------------
+
+describe("denial-language compatibility (W1)", () => {
+  it("the short-circuit payload answer reads as an honest denial", async () => {
+    envPaidV2();
+    mocks.currencyMock.mockResolvedValue("2000-01-01");
+
+    const res = await ask("did russia strike kyiv today");
+
+    expect(res.answer.startsWith("No claims yet cover")).toBe(true);
+    expect(DENIAL_LANGUAGE_PATTERN.test(res.answer.slice(0, NEGATIVE_DENIAL_LEAD_CHARS))).toBe(true);
   });
 });

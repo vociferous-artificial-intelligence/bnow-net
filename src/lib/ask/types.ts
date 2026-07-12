@@ -80,7 +80,9 @@ export interface AskAnswerV2 {
   terms: string[];
   provider: string;
   state: AnswerState;
-  /** retrieved-but-uncited claim ids, rerank order, capped ~10 (D7) */
+  /** retrieved-but-uncited claim ids, ranked order, floored at askRelatedMinScore()
+   *  (vectorScore == null is always excluded — see related.ts), capped RELATED_MAX
+   *  (W4; was an unfiltered top-10, which surfaced off-topic rerank padding) */
   relatedClaimIds: number[];
   window: TimeWindow | null;
   totalMatching: number;
@@ -99,4 +101,9 @@ export interface AskAnswerV2 {
    *  absent when the stage didn't run a paid call */
   rerankModel?: string;
   answerModel?: string;
+  /** OPTIONAL (additive, W1): corpus currency — max(claim_date) as yyyy-mm-dd, set
+   *  by the v2 path when a currency read succeeded (short-circuit + every
+   *  assembleV2/noEvidenceV2 result). Drives the freshness-honest UI callout; absent
+   *  on the legacy path and whenever the read returned null. */
+  dataCurrentThrough?: string;
 }

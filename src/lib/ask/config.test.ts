@@ -4,6 +4,7 @@ import {
   askCandidates,
   askEvidenceK,
   askLexicalTop,
+  askNoCoverageShortcircuit,
   askPipeline,
   askRerankModel,
   askVectorTop,
@@ -17,6 +18,7 @@ const KEYS = [
   "ASK_LEXICAL_TOP",
   "ASK_ANSWER_MODEL",
   "ASK_RERANK_MODEL",
+  "ASK_NO_COVERAGE_SHORTCIRCUIT",
 ] as const;
 
 afterEach(() => {
@@ -73,5 +75,23 @@ describe("model knobs", () => {
     expect(askAnswerModel()).toBe("gpt-5-pro");
     process.env.ASK_RERANK_MODEL = "   ";
     expect(askRerankModel()).toBe("gpt-5-mini"); // whitespace-only -> default
+  });
+});
+
+describe("askNoCoverageShortcircuit", () => {
+  it("defaults ON when unset", () => {
+    delete process.env.ASK_NO_COVERAGE_SHORTCIRCUIT;
+    expect(askNoCoverageShortcircuit()).toBe(true);
+  });
+
+  it("only 0/false/off (trimmed, case-insensitive) disable it", () => {
+    for (const off of ["0", "false", "off", " OFF ", "False", "Off"]) {
+      process.env.ASK_NO_COVERAGE_SHORTCIRCUIT = off;
+      expect(askNoCoverageShortcircuit()).toBe(false);
+    }
+    for (const on of ["1", "true", "on", "yes", "", "  ", "anything"]) {
+      process.env.ASK_NO_COVERAGE_SHORTCIRCUIT = on;
+      expect(askNoCoverageShortcircuit()).toBe(true);
+    }
   });
 });

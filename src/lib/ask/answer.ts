@@ -5,8 +5,17 @@ import { retrieve, type RetrievalResult, type RetrievedEntity } from "./retrieve
 import { retrieveV2 } from "./retrieve-v2";
 import { rerankCandidates } from "./rerank";
 import { estimateCostUsd } from "./limits";
-import { askAnswerModel, askCandidates, askPipeline, askRerankModel } from "./config";
+import {
+  askAnswerModel,
+  askCandidates,
+  askNoCoverageShortcircuit,
+  askPipeline,
+  askRerankModel,
+} from "./config";
 import { chatParamsForModel } from "./llm-params";
+import { dataCurrentThrough } from "./currency";
+import { parseTimeWindow } from "./window";
+import { selectRelatedClaimIds } from "./related";
 import type {
   AnswerState,
   AskAnswerV2,
@@ -14,6 +23,7 @@ import type {
   RankedEvidence,
   RetrievalV2Result,
   StageUsage,
+  TimeWindow,
 } from "./types";
 
 // Answer a natural-language question STRICTLY from retrieved BNOW data. The LLM may
@@ -47,6 +57,26 @@ const SYSTEM = `You answer questions about geopolitical/OSINT intelligence STRIC
 3. If the evidence is insufficient to answer, say so plainly and suggest a narrower question. Do not speculate.
 4. Be concise (<= 180 words). Note hedging where relevant ("reportedly", "unverified").
 5. These are open-source-derived claims of varying reliability, not confirmed truth — reflect that.`;
+
+/** V2-only system prompt (W1). SYSTEM above stays byte-identical for the
+ *  ASK_PIPELINE=legacy rollback; this one is used ONLY by answerFromEvidence.
+ *  Keeps SYSTEM's invariants (strictly-from-evidence, inline [c<ID>] citations —
+ *  the downstream filter parses `[c(\d+)]` — <=180 words, hedging notes,
+ *  open-source-reliability framing, insufficient-vs-refusal distinction) and adds
+ *  the end-user persona: the reader consumes an intelligence product, never the
+ *  pipeline, so the model must NEVER ask them for claim ids/datasets/"the provided
+ *  claims", and an honest "we don't have this yet" must LEAD with denial phrasing
+ *  (so eval-run.ts's isNegativeAnswerHonest / DENIAL_LANGUAGE_PATTERN recognizes it).
+ *  Exported for the persona snapshot test. */
+export const SYSTEM_V2 = `You answer questions about geopolitical/OSINT intelligence for an END USER reading the BNOW intelligence product, STRICTLY from the provided evidence rows (claims + entities from the BNOW database). Rules:
+1. Use ONLY the evidence provided. Never use outside knowledge or invent facts.
+2. Cite the claim ids you rely on inline as [c<ID>] (e.g. [c1438]). Every factual sentence needs a citation. Those bracketed ids are rendered by the interface — they are NOT a request to the reader.
+3. You are writing for an end user, NOT an API caller. Never ask the reader to provide, supply, paste, or share claim ids, "the provided claims", datasets, or any pipeline internals — they cannot and should not, and such a request is a product failure.
+4. If the evidence is insufficient to answer, say so plainly and LEAD with a denial — begin with wording like "No claims in the covered data address …" or "The evidence is insufficient to …". Then, if anything adjacent was retrieved, briefly note what it DOES cover; if a data-currency date is provided and the question reaches beyond it, state that the data is current only through that date; and suggest widening the time window or rephrasing toward covered topics (Russia/Ukraine/Iran; strikes, prosecutions, sanctions, trade). Do not speculate.
+5. Insufficient evidence is NOT a refusal: give the honest "we don't have this yet" answer, never decline the phrasing.
+6. Be concise (<= 180 words). Note hedging where relevant ("reportedly", "unverified").
+7. These are open-source-derived claims of varying reliability, not confirmed truth — reflect that.
+8. When a "Data current through" date is provided in the context, you may state it as a fact.`;
 
 /** Shared no-evidence message — byte-identical string on the legacy and v2 paths. */
 const NO_EVIDENCE_MESSAGE =
@@ -218,10 +248,60 @@ function deterministicAnswer(
   return { answer: "Matched entities: " + entities.map((e) => e.name).join(", "), citedClaimIds: [] };
 }
 
+/** Corpus currency for the answer stage, belt-and-suspenders fail-soft: the
+ *  underlying dataCurrentThrough() already returns null on any DB error, and this
+ *  wrapper guarantees a currency read can NEVER throw the answer path (ruling 9 —
+ *  /ask is a user surface). Backed by the module's in-process cache, so ask() and
+ *  answerFromEvidence sharing one question cost at most one DB round-trip. */
+async function safeCurrency(): Promise<string | null> {
+  try {
+    return await dataCurrentThrough();
+  } catch {
+    return null;
+  }
+}
+
+/** Extra USER-message line (never the system prompt) stating corpus currency and,
+ *  when the question carried one, the parsed window. Empty string when currency is
+ *  unknown so the evidence-block format is otherwise byte-unchanged. */
+function currencyContextLine(currency: string | null, window: TimeWindow | null): string {
+  if (currency == null) return "";
+  const base = `\n\nData current through: ${currency} (UTC).`;
+  if (window && (window.from || window.to)) {
+    return `${base} Question window: ${window.from ?? ""}..${window.to ?? ""}`;
+  }
+  return base;
+}
+
+/** Deterministic no-coverage short-circuit payload ($0, W1): the question's window
+ *  begins entirely AFTER the newest claim, so no evidence can exist yet — no embed,
+ *  no rerank, no answer call. Answer text leads with "No claims yet cover …" so the
+ *  honesty metric (DENIAL_LANGUAGE_PATTERN) recognizes it. retrievalMode is "v2"
+ *  (NOT "v2-lexical-only": that string flags a degraded run to the eval detector). */
+function noCoverageShortcircuit(window: TimeWindow, from: string, currency: string): AskAnswerV2 {
+  const range = window.to && window.to !== from ? `${from}..${window.to}` : from;
+  return {
+    answer: `No claims yet cover ${range} — data is current through ${currency}. Try widening the window (e.g. "in the past week") or asking without a date.`,
+    citedClaimIds: [],
+    evidenceCount: 0,
+    terms: [],
+    provider: "none",
+    state: "insufficient",
+    relatedClaimIds: [],
+    window,
+    totalMatching: 0,
+    sampled: false,
+    retrievalMode: "v2",
+    rerankUsed: false,
+    candidatesCount: 0,
+    dataCurrentThrough: currency,
+  };
+}
+
 /** No-evidence short-circuit payload (step 1): zero candidates AND zero entities.
  *  No rerank, no LLM. embedUsage is carried through — the vector arm may have billed
- *  even with zero results. */
-function noEvidenceV2(retrieval: RetrievalV2Result): AskAnswerV2 {
+ *  even with zero results. `currency` is the one per-question read (may be null). */
+function noEvidenceV2(retrieval: RetrievalV2Result, currency: string | null): AskAnswerV2 {
   return {
     answer: NO_EVIDENCE_MESSAGE,
     citedClaimIds: [],
@@ -237,6 +317,7 @@ function noEvidenceV2(retrieval: RetrievalV2Result): AskAnswerV2 {
     usageByStage: { embed: retrieval.embedUsage },
     rerankUsed: false,
     candidatesCount: retrieval.claims.length,
+    ...(currency != null ? { dataCurrentThrough: currency } : {}),
   };
 }
 
@@ -259,14 +340,13 @@ function assembleV2(
   state: AnswerState,
   answerUsage: StageUsage | undefined,
   answerModel: string | undefined,
+  dataCurrentThrough: string | null,
 ): AskAnswerV2 {
   const validIds = new Set(ranked.claims.map((c) => c.claimId));
   const citedClaimIds = [...new Set(rawCitedIds)].filter((id) => validIds.has(id));
   const citedSet = new Set(citedClaimIds);
-  const relatedClaimIds = ranked.claims
-    .map((c) => c.claimId)
-    .filter((id) => !citedSet.has(id))
-    .slice(0, 10);
+  // relevance-floored, capped RELATED_MAX (W4) — see related.ts for the calibration.
+  const relatedClaimIds = selectRelatedClaimIds(ranked.claims, citedSet);
   const rerankModel = ranked.rerankUsage ? askRerankModel() : undefined;
   return {
     answer,
@@ -287,6 +367,7 @@ function assembleV2(
     // omit the model keys entirely (not undefined) when the stage ran no paid call
     ...(rerankModel !== undefined ? { rerankModel } : {}),
     ...(answerModel !== undefined ? { answerModel } : {}),
+    ...(dataCurrentThrough != null ? { dataCurrentThrough } : {}),
   };
 }
 
@@ -299,16 +380,20 @@ export async function answerFromEvidence(
   retrieval: RetrievalV2Result,
   ranked: RankedEvidence,
 ): Promise<AskAnswerV2> {
+  // One currency read per question (cached; fail-soft to null). Threaded onto every
+  // outcome so the freshness-honest UI callout works, and stated to the model below.
+  const currency = await safeCurrency();
+
   // Defensive no-evidence guard for direct callers (ask() short-circuits before rerank).
   if (ranked.claims.length === 0 && retrieval.entities.length === 0) {
-    return noEvidenceV2(retrieval);
+    return noEvidenceV2(retrieval, currency);
   }
 
   // Offline / deterministic: an honest answer from real claims, provider "stub" (§9).
   // No paid answer call, so answerModel stays absent.
   if (answerOffline()) {
     const det = deterministicAnswer(ranked.claims, retrieval.entities);
-    return assembleV2(retrieval, ranked, det.answer, det.citedClaimIds, "stub", "answered", undefined, undefined);
+    return assembleV2(retrieval, ranked, det.answer, det.citedClaimIds, "stub", "answered", undefined, undefined, currency);
   }
 
   const model = askAnswerModel();
@@ -325,15 +410,18 @@ export async function answerFromEvidence(
     const reserve = guard.tryReserve();
     if (!reserve.ok) {
       const det = deterministicAnswer(ranked.claims, retrieval.entities);
-      return assembleV2(retrieval, ranked, det.answer, det.citedClaimIds, "budget", "answered", undefined, undefined);
+      return assembleV2(retrieval, ranked, det.answer, det.citedClaimIds, "budget", "answered", undefined, undefined, currency);
     }
 
     const client = new OpenAI();
     const completion = await client.chat.completions.create({
       model,
       messages: [
-        { role: "system", content: SYSTEM },
-        { role: "user", content: `Question: ${question}\n\nEvidence:\n${evidenceBlockV2(ranked, retrieval)}` },
+        { role: "system", content: SYSTEM_V2 },
+        {
+          role: "user",
+          content: `Question: ${question}\n\nEvidence:\n${evidenceBlockV2(ranked, retrieval)}${currencyContextLine(currency, retrieval.window)}`,
+        },
       ],
       ...chatParamsForModel(model, answerMaxOutputTokens(), { reasoningEffort: "low" }),
     });
@@ -354,29 +442,29 @@ export async function answerFromEvidence(
     const emptyContent = content == null || content.trim() === "";
     if (refusal != null && refusal.trim() !== "") {
       // Explicit decline — billed, so usage AND answerModel are still reported (D7).
-      return assembleV2(retrieval, ranked, REFUSED_MESSAGE, [], `openai:${model}`, "refused", answerUsage, billedAnswerModel);
+      return assembleV2(retrieval, ranked, REFUSED_MESSAGE, [], `openai:${model}`, "refused", answerUsage, billedAnswerModel, currency);
     }
     if (emptyContent && choice?.finish_reason === "length") {
       // Truncation, NOT a refusal: reasoning tokens consumed the whole
       // max_completion_tokens budget before any content was emitted (observed live on
       // broad questions). Distinct state + message; billed, so usage/answerModel
       // still reported.
-      return assembleV2(retrieval, ranked, TRUNCATED_MESSAGE, [], `openai:${model}`, "error", answerUsage, billedAnswerModel);
+      return assembleV2(retrieval, ranked, TRUNCATED_MESSAGE, [], `openai:${model}`, "error", answerUsage, billedAnswerModel, currency);
     }
     if (emptyContent) {
       // Empty content without a length stop — treated as a decline (D7).
-      return assembleV2(retrieval, ranked, REFUSED_MESSAGE, [], `openai:${model}`, "refused", answerUsage, billedAnswerModel);
+      return assembleV2(retrieval, ranked, REFUSED_MESSAGE, [], `openai:${model}`, "refused", answerUsage, billedAnswerModel, currency);
     }
 
     const cited = [...content.matchAll(/\[c(\d+)\]/g)].map((m) => parseInt(m[1], 10));
-    return assembleV2(retrieval, ranked, content, cited, `openai:${model}`, "answered", answerUsage, billedAnswerModel);
+    return assembleV2(retrieval, ranked, content, cited, `openai:${model}`, "answered", answerUsage, billedAnswerModel, currency);
   } catch (e) {
     // A budget stop degrades (never surfaces as an error); any other throw is state
     // "error" with today's message shape — never a 500 for a user surface (ruling 9).
     // billedAnswerModel is set only if the call already billed (error-after-call).
     if (e instanceof LlmBudgetError) {
       const det = deterministicAnswer(ranked.claims, retrieval.entities);
-      return assembleV2(retrieval, ranked, det.answer, det.citedClaimIds, "budget", "answered", undefined, undefined);
+      return assembleV2(retrieval, ranked, det.answer, det.citedClaimIds, "budget", "answered", undefined, undefined, currency);
     }
     return assembleV2(
       retrieval,
@@ -387,6 +475,7 @@ export async function answerFromEvidence(
       "error",
       undefined,
       billedAnswerModel,
+      currency,
     );
   }
 }
@@ -398,10 +487,23 @@ export async function ask(question: string): Promise<AskAnswerV2> {
     return toV2FromLegacy(await legacyAnswer(question));
   }
 
+  // Deterministic no-coverage short-circuit ($0) BEFORE retrieveV2 — no embed, no
+  // rerank, no answer call. Fires ONLY when the parsed window begins entirely after
+  // the corpus's newest claim (window.from > currency, strict yyyy-mm-dd compare); a
+  // window that straddles or predates currency runs the real pipeline. Fail-open:
+  // currency null (no DB) never short-circuits. Rollback: ASK_NO_COVERAGE_SHORTCIRCUIT=0.
+  const currency = await safeCurrency();
+  if (askNoCoverageShortcircuit() && currency != null) {
+    const window = parseTimeWindow(question);
+    if (window?.from && window.from > currency) {
+      return noCoverageShortcircuit(window, window.from, currency);
+    }
+  }
+
   const retrieval = await retrieveV2(question);
   // No-evidence short-circuit BEFORE rerank/LLM (step 1): no paid call at all.
   if (retrieval.claims.length === 0 && retrieval.entities.length === 0) {
-    return noEvidenceV2(retrieval);
+    return noEvidenceV2(retrieval, currency);
   }
   const ranked = await rerankCandidates(question, retrieval.claims);
   return answerFromEvidence(question, retrieval, ranked);

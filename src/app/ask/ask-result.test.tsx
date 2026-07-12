@@ -86,6 +86,96 @@ describe("insufficient state", () => {
   });
 });
 
+describe("no-coverage callout (W1)", () => {
+  it("renders the distinct no-coverage callout when the window is entirely beyond currency", () => {
+    render(
+      <AskResult
+        result={baseResult({
+          state: "insufficient",
+          // neutral answer body so callout assertions don't collide with the answer text
+          answer: "The requested period is in the future.",
+          citedClaimIds: [],
+          evidenceCount: 0,
+          window: { from: "2026-07-13", to: "2026-07-20", matchedPhrase: "next week" },
+          dataCurrentThrough: "2026-07-11",
+        })}
+        cited={[]}
+        related={[]}
+        t={t}
+      />,
+    );
+    // full callout in one node (the window-echo line also carries the dates, so an
+    // over-broad date regex would match two elements — match the whole sentence).
+    expect(
+      screen.getByText(/No claims yet cover 2026-07-13.2026-07-20\. Data current through 2026-07-11\./),
+    ).toBeTruthy();
+    // the generic insufficient copy must NOT also render
+    expect(screen.queryByText(/covered corpus/)).toBeNull();
+  });
+
+  it("renders a single from-date (no range) when from == to", () => {
+    render(
+      <AskResult
+        result={baseResult({
+          state: "insufficient",
+          answer: "The requested day is in the future.",
+          citedClaimIds: [],
+          evidenceCount: 0,
+          window: { from: "2026-07-20", to: "2026-07-20", matchedPhrase: "on july 20" },
+          dataCurrentThrough: "2026-07-11",
+        })}
+        cited={[]}
+        related={[]}
+        t={t}
+      />,
+    );
+    expect(screen.getByText(/No claims yet cover 2026-07-20\. Data current through 2026-07-11\./)).toBeTruthy();
+  });
+
+  it("shows currency on a generic insufficient result too (window straddles / no window)", () => {
+    render(
+      <AskResult
+        result={baseResult({
+          state: "insufficient",
+          answer: "No matching evidence in the current dataset.",
+          citedClaimIds: [],
+          evidenceCount: 0,
+          window: null,
+          dataCurrentThrough: "2026-07-11",
+        })}
+        cited={[]}
+        related={[]}
+        t={t}
+      />,
+    );
+    // generic callout AND the freshness-honest currency line
+    expect(screen.getByText(/covered corpus.*Data current through 2026-07-11\./)).toBeTruthy();
+    expect(screen.queryByText(/No claims yet cover/)).toBeNull();
+  });
+
+  it("shows no currency line when dataCurrentThrough is absent (legacy shape)", () => {
+    render(
+      <AskResult
+        result={baseResult({
+          state: "insufficient",
+          answer: "No matching evidence in the current dataset.",
+          citedClaimIds: [],
+          evidenceCount: 0,
+        })}
+        cited={[]}
+        related={[]}
+        t={t}
+      />,
+    );
+    expect(
+      screen.getByText(
+        "No sufficient evidence in the covered corpus — try narrowing to a country, actor, or event type.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Data current through/)).toBeNull();
+  });
+});
+
 describe("refused state", () => {
   it("renders only the refusal callout, never the bare placeholder answer text", () => {
     render(
@@ -239,6 +329,33 @@ describe("related claims block", () => {
   it("omits the Related claims block on a legacy-shaped payload (no relatedClaimIds field)", () => {
     render(<AskResult result={baseResult()} cited={[claim(1, "claim one")]} related={[]} t={t} />);
     expect(screen.queryByRole("heading", { name: "Related claims" })).toBeNull();
+  });
+});
+
+describe("digest deep link (W3)", () => {
+  it("links straight to the claim anchor, not the top of the digest page", () => {
+    render(
+      <AskResult
+        result={baseResult()}
+        cited={[claim(123, "claim with a date", "2026-07-11")]}
+        related={[]}
+        t={t}
+      />,
+    );
+    const link = screen.getByRole("link", { name: "digest →" });
+    expect(link.getAttribute("href")).toBe("/digests/ru/2026-07-11#c123");
+  });
+
+  it("renders no digest link for an undated claim", () => {
+    render(
+      <AskResult
+        result={baseResult()}
+        cited={[claim(124, "claim with no date", null)]}
+        related={[]}
+        t={t}
+      />,
+    );
+    expect(screen.queryByRole("link", { name: "digest →" })).toBeNull();
   });
 });
 

@@ -278,6 +278,26 @@ export default async function Home() {
             entries={validationEntries}
             corroboratedShare={corroboratedShare}
           />
+          {/* Zero-JS entry point to /ask: a plain GET form. Landing on /ask only
+              prefills the input from ?q= (src/app/ask/page.tsx) — the paid pipeline
+              fires solely from that page's own form submission, so this box can never
+              trigger a billed call by itself (refresh/back-nav/prefetch-safe). */}
+          <section className="pb-10">
+            <div className="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
+              <h3 className="mb-2 font-semibold">{t("ask.title")}</h3>
+              <form action="/ask" method="get" className="flex flex-wrap gap-3">
+                <input
+                  type="text"
+                  name="q"
+                  placeholder={t("ask.placeholder")}
+                  className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+                />
+                <button type="submit" className={PRIMARY_CTA}>
+                  {t("ask.submit")}
+                </button>
+              </form>
+            </div>
+          </section>
         </>
       ) : (
         <section className="grid gap-6 py-10 sm:grid-cols-3">

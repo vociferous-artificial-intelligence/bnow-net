@@ -87,6 +87,7 @@ type RawAskResult = AskAnswer &
       | "candidatesCount"
       | "rerankModel"
       | "answerModel"
+      | "dataCurrentThrough"
     >
   >;
 
@@ -108,6 +109,9 @@ function normalizeV2(raw: RawAskResult): AskAnswerV2 {
     usage: raw.usage,
     usageByStage: raw.usageByStage,
     rerankUsed: raw.rerankUsed,
+    // additive (W1): surfaced to the UI so the insufficient/no-coverage callout can
+    // state data currency; undefined on the legacy path and when the read was null.
+    dataCurrentThrough: raw.dataCurrentThrough,
   };
 }
 

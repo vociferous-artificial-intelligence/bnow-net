@@ -57,3 +57,13 @@ export function askAnswerModel(): string {
 export function askRerankModel(): string {
   return envStr("ASK_RERANK_MODEL", "gpt-5-mini");
 }
+
+/** No-coverage short-circuit (W1): when a question's parsed time window falls
+ *  entirely AFTER the newest claim in the corpus, ask() returns a $0 deterministic
+ *  "no claims yet" answer instead of paying for embed + rerank + answer. Default ON.
+ *  Rollback: ASK_NO_COVERAGE_SHORTCIRCUIT=0 (also "false"/"off", trimmed +
+ *  case-insensitive) restores the always-run-the-pipeline behaviour. */
+export function askNoCoverageShortcircuit(): boolean {
+  const v = process.env.ASK_NO_COVERAGE_SHORTCIRCUIT?.trim().toLowerCase();
+  return !(v === "0" || v === "false" || v === "off");
+}
