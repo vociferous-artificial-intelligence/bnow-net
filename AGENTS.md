@@ -123,10 +123,15 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   Coverage avg ~17.5% (nonzero-day ~31%), median info-lead +14.7h (2026-07-05 backtest).
 - **Surface:** landing / countries / pricing / magic-link auth (Postmark LIVE, still on
   scenefiend sender domain) / digests+registry+entities behind FEATURE_AUTH_GATE /
-  signals / trade / datadark / critical-materials / ask (capped 20/user/day, $1/day
-  global) / i18n: en+uk full, de ar ja pl fr catalogs (landing wired; needs native
-  review before promotion).
-- **Tests:** 491 unit tests / 42 files green (`npm test`, ~3s) + Neon-branch
+  signals / trade / datadark / critical-materials / ask (**v2 pipeline LIVE 2026-07-12**:
+  hybrid vector+lexical retrieval, gpt-5-mini listwise rerank, gpt-5 answerer with
+  refusal handling; ~$0.011/query; capped 100/user/day + $10/day global
+  (`ASK_USER_DAILY_LIMIT`/`ASK_GLOBAL_DAILY_BUDGET_USD`) + guard caps
+  `ASK_USD_CAP_DAILY=2`/`EMBED_USD_CAP_DAILY=1`, all four in Production AND Preview;
+  rollback = `ASK_PIPELINE=legacy` plain env + redeploy) / i18n: en+uk full, de ar ja
+  pl fr catalogs (landing wired; needs native review before promotion; the 10 new
+  `ask.*` uk strings await native review).
+- **Tests:** 770 unit tests / 58 files green (`npm test`, ~3s) + Neon-branch
   integration suite (`npm run test:integration`). CI mirror: `.github/workflows/ci.yml`;
   the enforced gate is `.githooks/pre-push` (typecheck+lint+test).
 - **Crons (vercel.json):** ingest fast */15 · telegram :10 · x :20 · mtproto :35 ·
@@ -160,7 +165,8 @@ Invariants — absolute, each owned here:
    query level and HIDDEN entirely, never demo-labelled.
 4. **Spend:** every paid-provider call passes `SpendGuard.tryReserve()` first and FAILS
    CLOSED when its total-cap env is unset. Caps: `LLM_SPRINT_USD_CAP` (all-time
-   backstop), `LLM_DIGEST_USD_CAP` (daily), `MAP_USD_CAP_DAILY`, `X_SPRINT_USD_CAP` +
+   backstop), `LLM_DIGEST_USD_CAP` (daily), `MAP_USD_CAP_DAILY`, `ASK_USD_CAP_DAILY` +
+   `EMBED_USD_CAP_DAILY` (daily, ask v2 + embeddings), `X_SPRINT_USD_CAP` +
    `X_DAILY_USD_CAP`, `OPENSANCTIONS_CALL_CAP`. Set a new cap env in ALL Vercel envs
    BEFORE deploying the guard that reads it, or you stop that pipeline.
 5. **Migrations:** never edit or delete an applied migration; evolve forward with a new
@@ -367,6 +373,38 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   cost < $6 budget); a live `--apply` backfill still runs only from a box with the session + Telegram
   egress (not this WSL2 dev box) or via the accumulating `:35` crons. Workstream
   `.workstream/codex-ru-ua-mtproto-priority` closed out.
+- **2026-07-12 (MERGE 1: ASK Tier-2+ → main, migrations 0014+0015 on prod, v2 LIVE)** Attended
+  gated session; full account in `docs/reviews/MERGE1-ASK-DEPLOY-NOTE-2026-07-12.md`. Branch
+  `20260711-ask-tier2plus` merged `--no-ff` (`58ac262`, fork point `c49b79f`, 12 commits, zero
+  conflicts), pushed with the eslint fix `f74896c` (`.workstream/**` ignore — the design
+  worktree's `.next` was breaking main-checkout lint), deployed `bnow-j5lob1iu2` READY, project
+  domain serving. Migrations 0014 (claim_embeddings + HNSW + GIN FTS) + 0015 (18 ask_usage
+  columns) applied to prod and verified additive-only; trigger 9999 untouched; embedding
+  backfill 776/776 claims @ $0.0003. Cap envs set non-Sensitive in Production AND Preview
+  BEFORE the deploy and read back: `ASK_USD_CAP_DAILY=2`, `EMBED_USD_CAP_DAILY=1`,
+  `ASK_GLOBAL_DAILY_BUDGET_USD=10`, `ASK_USER_DAILY_LIMIT=100`. Answer model stays gpt-5
+  (operator R2); `ASK_PIPELINE` deliberately unset — v2 is code default, `legacy` is the
+  instant rollback. Smoke GREEN: 9 paid v2 answers, per-stage costs sum exactly to cost_usd
+  on every row, models recorded, temporal window echo parsed+rendered (07-05→07-12), negative
+  control declined honestly (operator-confirmed), unauth /api/ask 307s to /signin. **Process
+  incident, ratified:** the Phase-3 "dry-run" applied 0014+0015 to PROD instead of the Neon
+  branch — `scripts/migrate.ts` resolves `DATABASE_URL_UNPOOLED ?? DATABASE_URL`, and the
+  branch override set only `DATABASE_URL` while `.env.local`'s UNPOOLED var (loaded by the
+  script's own dotenv) silently won. Outcome was byte-identical to the gated plan (verified:
+  additive DDL only, zero data impact, snapshot branch pre-dated the write); operator ratified
+  as G2-done. **Standing trap: any branch-targeted migrate/scripts run MUST override BOTH
+  `DATABASE_URL` and `DATABASE_URL_UNPOOLED`.** New finding → OPEN-TASKS #48: /ask form has no
+  pending-disable, so slow answers get double-submitted and double-billed (observed 2-3× on
+  smoke questions; caps contain it). MERGE 2 handoff: Neon snapshot `premerge-20260712`
+  (`br-solitary-frost-at6wlzi1`) is KEPT until MERGE 2 completes; prod migration head = 0015
+  (snapshot id `af3e3af0-7331-4af8-9c45-40be65726334`) — the design branch's regenerated 0016
+  must chain prevId to exactly that id, journal idx 16; do NOT run `drizzle-kit generate` for
+  anything before MERGE 2 completes. Adversarial drizzle review (independent, read-only):
+  no blockers; noted migrate.ts applies statements non-transactionally without IF NOT EXISTS —
+  keep `DROP TABLE IF EXISTS claim_embeddings; DROP INDEX IF EXISTS claims_text_fts_idx;`
+  handy if a future 0014-class apply dies mid-file. Session OpenAI spend $0.121 of the $1.50
+  session cap (backfill $0.0003 + smoke $0.121). Branch backups: tag `pre-merge-ask-20260712`
+  + `~/bnow-branches-20260712.bundle` (both local, both branches).
 
 ## Conventions
 
@@ -386,7 +424,7 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
 |---|---|---|---|
 | Neon Postgres | `DATABASE_URL`, `NEON_API_KEY` | **live** | console.neon.tech |
 | Vercel deploy | CLI session (`VERCEL_TOKEN` expired) | **live (CLI)** | vercel.com/account/tokens |
-| OpenAI (analysis) | `OPENAI_API_KEY` + caps (ruling 4) | **live, spend-guarded** | platform.openai.com |
+| OpenAI (analysis + ask v2 + embeddings) | `OPENAI_API_KEY` + caps (ruling 4) | **live, spend-guarded** (openai_ask / openai_embed meter separately) | platform.openai.com |
 | LLM kill-switch | `LLM_DISABLE=1` | refuses every LLM call site (ruling 9) | (env only) |
 | Anthropic | `ANTHROPIC_API_KEY` | provider implemented; key absent | console.anthropic.com |
 | Postmark (auth email) | `POSTMARK_SERVER_TOKEN` | **live** (scenefiend sender domain — migrate) | postmarkapp.com |

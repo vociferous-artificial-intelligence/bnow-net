@@ -258,6 +258,15 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     the 3-day revalidation (TASK 5). Attacks #42 (X concentration) and the #11/#19
     coverage gap while X stays frozen (#38).
 
+48. **[Tier 2] /ask form double-submits — duplicate paid runs.** Observed live 2026-07-12
+    (MERGE 1 smoke): the `/ask` form is a bare server action with no pending/disabled
+    state, and at v2's ~10s answer latency an impatient second click fires a second full
+    paid pipeline run (2 of 3 operator questions billed twice; one billed 3×, ~$0.012
+    each). Caps contain the damage (`ASK_USER_DAILY_LIMIT=100`, `$10/day` global). Fix:
+    client-side pending-disable on the submit button (useFormStatus) + a test; consider
+    an idempotency window (same user+question within N seconds returns the in-flight
+    result) as belt-and-braces.
+
 ## Deferred by design (key-blocked — see BLOCKERS.md)
 
 X API (frozen at cap), OpenSanctions key, Companies House key, Comtrade key, zakupki

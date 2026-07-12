@@ -925,3 +925,17 @@ Vercel env done; NOT deployed (isolated worktree; no deploy per instructions).
 Operator on deploy: (a) deploy this branch; (b) correct AGENTS.md Current-state
 Ingestion line "top-75"→"top-120 ROCA-only"; (c) watch `ingest:mtproto` cron_runs
 (fetched>0 once TELEGRAM_SESSION live) + first ua-heavy map/digest cycle.
+
+## 2026-07-12 — MERGE 1: ASK Tier-2+ merged, migrated, backfilled, deployed (attended)
+
+1. `20260711-ask-tier2plus` → main `--no-ff` (`58ac262`) + eslint `.workstream/**`
+   ignore (`f74896c`); 770 tests / 58 files green; pushed and deployed
+   (`bnow-j5lob1iu2` READY).
+2. Migrations 0014+0015 applied to prod (verified additive, trigger untouched);
+   embedding backfill 776/776 @ $0.0003; cap envs set non-Sensitive in prod+preview
+   BEFORE deploy and read back.
+3. Smoke GREEN (9 v2 answers, exact stage-cost sums, window echo live, negative
+   declined honestly). New: OPEN-TASKS #48 (/ask double-submit).
+4. Incident ratified: dry-run migrate hit prod (`DATABASE_URL_UNPOOLED` precedence in
+   scripts/env.ts consumers) — trap recorded; details + MERGE 2 handoff in
+   `docs/reviews/MERGE1-ASK-DEPLOY-NOTE-2026-07-12.md`. Session spend $0.121/$1.50.
