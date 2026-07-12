@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   date,
@@ -270,6 +271,10 @@ export const claims = pgTable(
   (t) => [
     index("claims_country_date_idx").on(t.countryId, t.claimDate),
     index("claims_digest_idx").on(t.digestId),
+    // ASK Tier-2+ (workstream A): the lexical retrieval arm (workstream B) matches
+    // the question against claim text via full-text search. Claim text is English
+    // digest output. GIN over to_tsvector keeps that ranking cheap at query time.
+    index("claims_text_fts_idx").using("gin", sql`to_tsvector('english', ${t.text})`),
   ],
 );
 
@@ -533,10 +538,33 @@ export const askUsage = pgTable(
     userEmail: text("user_email").notNull(), // 'anonymous' only when the auth gate is off
     question: text("question").notNull(),
     provider: text("provider"), // openai:<model>|stub|none|error
-    promptTokens: integer("prompt_tokens"),
-    completionTokens: integer("completion_tokens"),
-    costUsd: doublePrecision("cost_usd").notNull().default(0),
+    promptTokens: integer("prompt_tokens"), // ANSWER-stage prompt tokens (historical meaning kept)
+    completionTokens: integer("completion_tokens"), // ANSWER-stage completion tokens (historical meaning kept)
+    costUsd: doublePrecision("cost_usd").notNull().default(0), // TOTAL cost across ALL stages (embed+rerank+answer)
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // ---- ASK v2 per-stage metering (Tier-2+ sprint, 2026-07-11) ----
+    // All additive + nullable. cost_usd above stays the whole-pipeline total (the
+    // daily-budget SUM(cost_usd) query must keep covering every stage); these
+    // columns break that total down for telemetry/billing. Absent when a legacy
+    // (pre-v2) /ask run produced the row.
+    retrievalMode: text("retrieval_mode"), // legacy | v2 | v2-lexical-only
+    state: text("state"), // answered | insufficient | refused | error | limit
+    rerankModel: text("rerank_model"),
+    answerModel: text("answer_model"),
+    rerankUsed: boolean("rerank_used"),
+    embedTokens: integer("embed_tokens"),
+    embedCostUsd: doublePrecision("embed_cost_usd"),
+    rerankPromptTokens: integer("rerank_prompt_tokens"),
+    rerankCompletionTokens: integer("rerank_completion_tokens"),
+    rerankCostUsd: doublePrecision("rerank_cost_usd"),
+    answerPromptTokens: integer("answer_prompt_tokens"),
+    answerCompletionTokens: integer("answer_completion_tokens"),
+    answerCostUsd: doublePrecision("answer_cost_usd"),
+    candidatesCount: integer("candidates_count"),
+    evidenceCount: integer("evidence_count"),
+    totalMatching: integer("total_matching"),
+    windowFrom: date("window_from"),
+    windowTo: date("window_to"),
   },
   (t) => [
     index("ask_usage_email_created_idx").on(t.userEmail, t.createdAt),
@@ -709,5 +737,41 @@ export const docMapState = pgTable(
   (t) => [
     primaryKey({ columns: [t.rawDocumentId, t.track, t.extractorVersion] }),
     index("doc_map_state_track_version_idx").on(t.track, t.extractorVersion),
+  ],
+);
+
+// ---------- ASK Tier-2+ embedding infrastructure (workstream A, 2026-07-11) ----------
+
+// Per-claim question-embedding store for the ASK v2 vector-retrieval arm. Claims
+// are DELETED and re-inserted with fresh ids on every digest regeneration
+// (digest-persist.ts `DELETE FROM claims WHERE digest_id`), so this table
+// cascade-deletes on claim_id and is re-filled by the digest persist hook (or the
+// scripts/backfill-embeddings.ts one-off). One row per (claim, model): a model
+// swap ADDS rows, never overwrites, and the vector arm filters to the active model.
+//
+// Vectors are 1536-dim (ASK_EMBED_MODEL default text-embedding-3-small). STUB
+// vectors (no OPENAI_API_KEY / ANALYSIS_PROVIDER=stub / LLM_DISABLE=1) are NEVER
+// written here — the truth-in-UI analog of standing ruling 3, enforced in
+// src/lib/embeddings/persist.ts (in-memory-only pseudo-vectors must not persist or
+// be queried as fact).
+export const claimEmbeddings = pgTable(
+  "claim_embeddings",
+  {
+    claimId: integer("claim_id")
+      .notNull()
+      .references(() => claims.id, { onDelete: "cascade" }),
+    model: text("model").notNull(),
+    dims: integer("dims").notNull(),
+    embedding: vector("embedding", { dimensions: 1536 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // natural key = UNIQUE (claim_id, model); the ON CONFLICT target of the persist path
+    primaryKey({ columns: [t.claimId, t.model] }),
+    // HNSW, not ivfflat: ivfflat needs list-training data (a representative row
+    // sample) and degenerates on a small/empty table — and this table STARTS empty
+    // and grows incrementally as digests regenerate. HNSW builds incrementally with
+    // no training step, so it is correct from the first inserted row.
+    index("claim_embeddings_hnsw_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
   ],
 );

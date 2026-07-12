@@ -16,6 +16,8 @@
 // variance measurement sees every roll).
 
 import type { Pool } from "@neondatabase/serverless";
+import { embedStubReason } from "../embeddings/client";
+import { embedAndStoreClaims } from "../embeddings/persist";
 import type { DigestAnalysis } from "./provider";
 import type { Track } from "./tracks";
 
@@ -125,6 +127,10 @@ export async function persistDigest(args: PersistDigestArgs): Promise<PersistOut
     );
 
     let claimCount = 0;
+    // ids+text of the claims inserted in THIS transaction, for the post-commit
+    // embedding hook (claims get fresh ids on every regeneration, so old vectors
+    // cascade-deleted with the old claim rows and these must be re-embedded).
+    const insertedClaims: { id: number; text: string }[] = [];
     for (const ev of events) {
       const eRes = await client.query(
         `INSERT INTO events (country_id, event_date, track, type, title, summary)
@@ -139,6 +145,7 @@ export async function persistDigest(args: PersistDigestArgs): Promise<PersistOut
           [countryId, digestId, eventId, c.text.slice(0, 500), c.claimType, c.hedging, date, null],
         );
         const claimId = cRes.rows[0].id;
+        insertedClaims.push({ id: claimId, text: c.text.slice(0, 500) });
         for (const docId of c.docIds) {
           await client.query(
             `INSERT INTO claim_sources (claim_id, raw_document_id) VALUES ($1, $2)
@@ -188,12 +195,45 @@ export async function persistDigest(args: PersistDigestArgs): Promise<PersistOut
     ]);
 
     await client.query("COMMIT");
+
+    // ASK Tier-2+ (workstream A): embed the just-committed claims for the vector
+    // retrieval arm. AFTER commit and awaited (serverless — no fire-and-forget),
+    // but fully FAIL-OPEN: the digest is already persisted, so nothing here may
+    // change persistDigest's return value or throw. See embedInsertedClaimsFailOpen.
+    await embedInsertedClaimsFailOpen(pool, insertedClaims, `${countryIso2} ${date} ${track}`);
+
     return { digestId, claimCount };
   } catch (e) {
     await client.query("ROLLBACK");
     throw e;
   } finally {
     client.release();
+  }
+}
+
+/** Embed and store the claims a persist just committed. Never throws and never
+ *  affects the caller: any failure (budget stop, provider error, DB error) is
+ *  swallowed with ONE warn. Skips silently (one warn) on the stub/no-key/disabled
+ *  path — no OpenAI call, no stub vectors written. */
+async function embedInsertedClaimsFailOpen(
+  pool: Pool,
+  insertedClaims: { id: number; text: string }[],
+  ctx: string,
+): Promise<void> {
+  if (insertedClaims.length === 0) return;
+  const stub = embedStubReason();
+  if (stub !== null) {
+    console.warn(
+      `digest ${ctx}: embedding skipped (${stub}) — ${insertedClaims.length} claims left unembedded`,
+    );
+    return;
+  }
+  try {
+    await embedAndStoreClaims(pool, insertedClaims);
+  } catch (e) {
+    console.warn(
+      `digest ${ctx}: embedding failed (fail-open, digest unaffected) — ${(e as Error).message}`,
+    );
   }
 }
 
