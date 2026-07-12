@@ -26,12 +26,11 @@ export async function requireAdmin(): Promise<void> {
   if (allow.length > 0 && !allow.includes(email)) redirect("/");
 }
 
-// ---------- role gate (additive; users.role ships in migration 0014, NOT YET
-// applied to the live DB as of this writing) ----------
+// ---------- role gate (additive; users.role ships in migration 0016) ----------
 //
 // Hierarchy user < analyst < admin. Role is looked up by session email, never
-// carried in the JWT (sessions are database-strategy). Until an operator runs
-// the migration, `users.role` does not exist in prod: every DB read below is
+// carried in the JWT (sessions are database-strategy). If `users.role` does not
+// exist in the target DB (migration not yet applied), every DB read below is
 // wrapped so it degrades to "user" rather than throwing.
 
 export type Role = "user" | "analyst" | "admin";
