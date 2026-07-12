@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Isolated worktrees checked out inside this repo (gitignored) — their
+    // build artifacts must never be linted from the main checkout.
+    ".workstream/**",
   ]),
 ]);
 
