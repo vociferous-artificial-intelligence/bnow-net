@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { rawSql } from "@/db";
+import { getLocale } from "@/i18n/server";
+import { makeT } from "@/i18n/dictionaries";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +30,9 @@ export default async function ValidationDetailPage({
   const { country, date } = await params;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^[a-z]{2}$/.test(country)) notFound();
 
+  const locale = await getLocale();
+  const t = makeT(locale);
+
   const rows = (await rawSql.query(
     `SELECT vr.*, d.digest_date, c.iso2, ir.url AS isw_url
      FROM validation_runs vr
@@ -50,7 +55,10 @@ export default async function ValidationDetailPage({
   return (
     <main className="mx-auto max-w-3xl p-6">
       <p className="mb-1 text-sm text-gray-500">
-        <Link href="/scoreboard" className="underline">scoreboard</Link> · divergence detail
+        <Link href="/scoreboard" className="underline">scoreboard</Link> · divergence detail ·{" "}
+        <Link href={`/digests/${country}/${date}`} className="underline">
+          {t("scoreboard.view_digest")}
+        </Link>
       </p>
       <h1 className="mb-2 text-2xl font-bold">
         {country.toUpperCase()} — {date}

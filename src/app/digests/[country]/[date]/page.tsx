@@ -3,6 +3,7 @@ import Link from "next/link";
 import { rawSql } from "@/db";
 import { getProfile, PROFILES } from "@/lib/profiles/config";
 import { rankEvents, type RankableEvent } from "@/lib/profiles/rank";
+import { feedbackMailto } from "@/lib/feedback";
 import { getLocale } from "@/i18n/server";
 import { makeT } from "@/i18n/dictionaries";
 import { ClaimSources, type ClaimSourceDoc } from "@/components/claim-sources";
@@ -46,10 +47,29 @@ const HEDGE_COLORS: Record<string, string> = {
   unknown: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
 };
 
-const TRACK_LABELS: Record<string, string> = {
-  military: "Military situation",
-  elite_politics: "Elite politics & prosecutions",
+const TRACK_LABEL_KEYS: Record<string, string> = {
+  military: "digest.track.military",
+  elite_politics: "digest.track.elite",
+  nuclear: "digest.track.nuclear",
 };
+
+/** Raw shape of the prev/next scalar-subquery row. */
+export interface NeighborDatesRow {
+  prev_date: string | null;
+  next_date: string | null;
+}
+
+/**
+ * Normalizes the neighbor-date query result into render-ready YYYY-MM-DD
+ * strings (or null when no neighbor digest exists in that direction). Pure
+ * so it's unit-testable without a DB.
+ */
+export function shapeNeighborDates(
+  row: NeighborDatesRow | undefined,
+): { prev: string | null; next: string | null } {
+  const norm = (v: string | null | undefined) => (v ? String(v).slice(0, 10) : null);
+  return { prev: norm(row?.prev_date), next: norm(row?.next_date) };
+}
 
 export default async function DigestPage({
   params,
@@ -64,6 +84,7 @@ export default async function DigestPage({
 
   const locale = await getLocale();
   const t = makeT(locale);
+  const digestMailto = feedbackMailto(`[BNOW digest] ${country} ${date}`);
 
   const digestRows = (await rawSql.query(
     `SELECT d.id, d.track, d.status, d.provider, c.name AS country_name
@@ -76,7 +97,7 @@ export default async function DigestPage({
   const trackByDigest = new Map(digestRows.map((d) => [d.id, d.track]));
 
   const digestIds = digestRows.map((d) => d.id);
-  const [rowsRaw, entityRowsRaw] = await Promise.all([
+  const [rowsRaw, entityRowsRaw, neighborRaw] = await Promise.all([
     rawSql.query(
       `SELECT cl.digest_id, cl.id AS claim_id, ev.id AS event_id, ev.title AS event_title,
               ev.type AS event_type, ev.summary AS event_summary,
@@ -100,9 +121,20 @@ export default async function DigestPage({
        WHERE ce.claim_id IN (SELECT id FROM claims WHERE digest_id = ANY($1::int[]))`,
       [digestIds],
     ),
+    rawSql.query(
+      `SELECT
+         (SELECT max(dd.digest_date) FROM digests dd JOIN countries cc ON cc.id = dd.country_id
+          WHERE cc.iso2 = $1 AND dd.digest_date < $2) AS prev_date,
+         (SELECT min(dd.digest_date) FROM digests dd JOIN countries cc ON cc.id = dd.country_id
+          WHERE cc.iso2 = $1 AND dd.digest_date > $2) AS next_date`,
+      [country, date],
+    ),
   ]);
   const rows = rowsRaw as ClaimRow[];
   const entityRows = entityRowsRaw as EntityRow[];
+  const { prev: prevDate, next: nextDate } = shapeNeighborDates(
+    (neighborRaw as NeighborDatesRow[])[0],
+  );
 
   const entitiesByClaim = new Map<number, EntityRow[]>();
   for (const e of entityRows)
@@ -179,8 +211,32 @@ export default async function DigestPage({
         {digestRows[0].country_name} — {date}
       </h1>
 
+      <nav className="mb-4 flex items-center gap-3 text-sm">
+        {prevDate && (
+          <Link
+            href={`/digests/${country}/${prevDate}`}
+            aria-label={t("digest.nav.prev")}
+            className="underline"
+          >
+            ← {prevDate}
+          </Link>
+        )}
+        <Link href={`/digests/${country}`} className="underline">
+          {t("digest.nav.archive")}
+        </Link>
+        {nextDate && (
+          <Link
+            href={`/digests/${country}/${nextDate}`}
+            aria-label={t("digest.nav.next")}
+            className="underline"
+          >
+            {nextDate} →
+          </Link>
+        )}
+      </nav>
+
       <div className="mb-6 flex flex-wrap items-center gap-1.5 text-xs">
-        <span className="mr-1 text-gray-400">view for:</span>
+        <span className="mr-1 text-gray-400">{t("digest.view_for")}</span>
         {PROFILES.map((p) => {
           const active = (profileKey ?? "balanced") === p.key;
           const qs = p.key === "balanced" ? "" : `?profile=${p.key}`;
@@ -204,10 +260,10 @@ export default async function DigestPage({
         return (
           <div key={digest.id} className="mb-10">
             <h2 className="mb-3 border-b border-gray-200 pb-1 text-lg font-semibold dark:border-gray-800">
-              {TRACK_LABELS[digest.track] ?? digest.track}{" "}
+              {TRACK_LABEL_KEYS[digest.track] ? t(TRACK_LABEL_KEYS[digest.track]) : digest.track}{" "}
               <span className="text-xs font-normal text-gray-400">· {digest.provider}</span>
             </h2>
-            {!events && <p className="text-sm text-gray-400">No events extracted.</p>}
+            {!events && <p className="text-sm text-gray-400">{t("digest.no_events")}</p>}
             {events &&
               orderedEvents.map((ev, i) => (
                 <section key={i} className="mb-5 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
@@ -272,6 +328,13 @@ export default async function DigestPage({
           </div>
         );
       })}
+      {digestMailto && (
+        <p className="mb-2 text-xs text-gray-400">
+          <a href={digestMailto} className="underline">
+            {t("feedback.flag_digest")}
+          </a>
+        </p>
+      )}
       <p className="text-xs text-gray-400">
         Every claim links to its source documents. Traceability is enforced at the
         database level. Factional interpretations are marked as assessments.
