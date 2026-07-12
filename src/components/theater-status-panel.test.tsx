@@ -15,6 +15,8 @@ const FIXTURE_ENTRIES: TheaterStatusEntry[] = [
     lastDigestAt: "2026-07-11T04:02:00.000Z",
     digestHref: "/digests/ru/2026-07-11",
     latestDate: "2026-07-11",
+    claimsToday: 42,
+    scoreboardHref: "/scoreboard/ru/2026-07-11",
   },
   {
     iso2: "ua",
@@ -24,6 +26,8 @@ const FIXTURE_ENTRIES: TheaterStatusEntry[] = [
     lastDigestAt: "2026-07-11T04:03:00.000Z",
     digestHref: "/digests/ua/2026-07-11",
     latestDate: "2026-07-11",
+    claimsToday: 0,
+    scoreboardHref: null,
   },
   {
     iso2: "ir",
@@ -33,6 +37,8 @@ const FIXTURE_ENTRIES: TheaterStatusEntry[] = [
     lastDigestAt: null,
     digestHref: "/countries#ir",
     latestDate: null,
+    claimsToday: 0,
+    scoreboardHref: null,
   },
 ];
 
@@ -59,13 +65,14 @@ describe("theater cards", () => {
     }
   });
 
-  it("renders the four label/value rows and a formatted ET timestamp per card", () => {
+  it("renders the five label/value rows and a formatted ET timestamp per card", () => {
     renderPanel();
     const heading = screen.getByRole("heading", { name: "Russia", level: 3 });
     const card = heading.closest("div")!;
     expect(within(card).getByText("Data current as of")).toBeTruthy();
     expect(within(card).getByText("Documents, last 24h")).toBeTruthy();
     expect(within(card).getByText("Digest generated")).toBeTruthy();
+    expect(within(card).getByText("Digest claims, today")).toBeTruthy();
     expect(within(card).getByText("Next update")).toBeTruthy();
     expect(within(card).getByText("1,572")).toBeTruthy();
     // Formatted with Intl in America/New_York and labeled ET — never a bare UTC string.
@@ -73,12 +80,25 @@ describe("theater cards", () => {
     expect(card.textContent).not.toContain("2026-07-11T09:45:00.000Z");
   });
 
-  it("links the digest row to digestHref", () => {
+  it("links the digest row to digestHref, leading with the digest date", () => {
     renderPanel();
     const heading = screen.getByRole("heading", { name: "Ukraine", level: 3 });
     const card = heading.closest("div")!;
+    // Ukraine's fixture has no scoreboardHref, so its card has exactly one link.
     const link = within(card).getByRole("link");
     expect(link.getAttribute("href")).toBe("/digests/ua/2026-07-11");
+    // Composed as "{date} · {HH:MM ET}" — the leading date plus a time (not a
+    // second copy of month/day, which formatEt's own output would duplicate).
+    expect(link.textContent).toMatch(/^2026-07-11 · \d{2}:\d{2} ET$/);
+    expect(within(card).getByText("0")).toBeTruthy(); // claimsToday: 0, rendered honestly
+  });
+
+  it("renders claimsToday per theater, including a true zero", () => {
+    renderPanel();
+    const ruCard = screen.getByRole("heading", { name: "Russia", level: 3 }).closest("div")!;
+    expect(within(ruCard).getByText("42")).toBeTruthy();
+    const uaCard = screen.getByRole("heading", { name: "Ukraine", level: 3 }).closest("div")!;
+    expect(within(uaCard).getByText("0")).toBeTruthy();
   });
 
   it("shows honest no-data fallbacks for a theater with nothing yet, instead of a bad date", () => {
@@ -88,6 +108,7 @@ describe("theater cards", () => {
     expect(within(card).getByText("no data yet")).toBeTruthy();
     expect(within(card).getByText("not yet generated")).toBeTruthy();
     expect(card.textContent).not.toContain("Invalid Date");
+    // Only the digest-row link — no scoreboard link, since Iran's fixture has none.
     const link = within(card).getByRole("link");
     expect(link.getAttribute("href")).toBe("/countries#ir");
   });
@@ -95,6 +116,21 @@ describe("theater cards", () => {
   it("renders the panel-global next-update label on every card", () => {
     renderPanel();
     expect(screen.getAllByText("~Jul 12, 02:00 ET")).toHaveLength(3);
+  });
+});
+
+describe("scoreboard link", () => {
+  it("renders when the theater has a validation run (scoreboardHref set)", () => {
+    renderPanel();
+    const card = screen.getByRole("heading", { name: "Russia", level: 3 }).closest("div")!;
+    const link = within(card).getByRole("link", { name: "scoreboard →" });
+    expect(link.getAttribute("href")).toBe("/scoreboard/ru/2026-07-11");
+  });
+
+  it("is omitted when the theater has no validation run yet (scoreboardHref null)", () => {
+    renderPanel();
+    const card = screen.getByRole("heading", { name: "Ukraine", level: 3 }).closest("div")!;
+    expect(within(card).queryByText("scoreboard →")).toBeNull();
   });
 });
 
@@ -111,12 +147,18 @@ describe("X-paused footnote", () => {
 });
 
 describe("no marketing copy", () => {
-  it("carries no CTA links, arrows, or sales language — only operational data", () => {
+  // W1 (2026-07-12) added the scoreboard deep link, whose pre-set dictionary string
+  // ("scoreboard →") carries the site's standard internal-nav arrow — the same
+  // convention as home.features.scored.link elsewhere on the page. That is still
+  // operational (a link to this theater's own validation run), not sales language,
+  // so the arrow-blanket assertion is narrowed to the sales-language/pricing checks
+  // that are still the actual intent of this test.
+  it("carries no sales language or pricing CTA — only operational links and data", () => {
     renderPanel();
     const section = screen.getByRole("region");
-    expect(section.textContent).not.toMatch(/→/);
     expect(section.textContent).not.toMatch(/subscribe|founding subscriber/i);
-    // Every link on the panel is a digest deep link, never a pricing/subscribe CTA.
+    // Every link on the panel is a digest or scoreboard deep link, never a
+    // pricing/subscribe CTA.
     for (const link of screen.getAllByRole("link")) {
       expect(link.getAttribute("href")).not.toBe("/pricing");
     }

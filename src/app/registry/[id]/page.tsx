@@ -4,8 +4,18 @@ import { rawSql } from "@/db";
 import { getT } from "@/i18n/server";
 import { currentRole } from "@/lib/gate";
 import { registryView } from "@/lib/registry/view-policy";
+import { feedbackMailto } from "@/lib/feedback";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Builds the flag-source mailto subject line: prefers the curated name,
+ * falling back to the canonical URL when the source has none. Pure so it's
+ * unit-testable without a DB.
+ */
+export function sourceFlagSubject(name: string | null, canonicalUrl: string, id: number): string {
+  return `[BNOW source] ${name ?? canonicalUrl} (id ${id})`;
+}
 
 const HEDGE_ORDER = ["confirmed", "assessed", "unknown", "claimed", "unverified"] as const;
 const HEDGE_BAR: Record<string, string> = {
@@ -39,6 +49,7 @@ export default async function SourceDetailPage({
   }>;
   if (srcRows.length === 0) notFound();
   const s = srcRows[0];
+  const mailto = feedbackMailto(sourceFlagSubject(s.name, s.canonical_url, s.id));
 
   const [byYearRaw, recentCitesRaw, recentDocsRaw, theaterRaw] = await Promise.all([
     rawSql.query(
@@ -94,6 +105,12 @@ export default async function SourceDetailPage({
     <main id="main" className="mx-auto max-w-3xl p-6">
       <p className="mb-1 text-sm text-gray-500">
         <Link href="/registry" className="underline">registry</Link> · source #{s.id}
+        {mailto && (
+          <>
+            {" "}
+            · <a href={mailto} className="underline">{t("feedback.flag_source")}</a>
+          </>
+        )}
       </p>
       <h1 className="mb-1 font-mono text-2xl font-bold">{s.canonical_url}</h1>
       <p className="mb-6 text-sm text-gray-500">

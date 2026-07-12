@@ -176,6 +176,25 @@ const en: Dict = {
   "home.validation.last_validated_label": "Last validated",
   "home.validation.corroborated_label": "Corroborated share, today",
   "home.validation.not_computed": "not yet computed",
+  // Signed-in analyst quick-strip additions (analyst-home sprint) — same
+  // placeholder-free convention as home.status.* above.
+  "home.status.claims_today": "Digest claims, today",
+  "home.status.scoreboard_link": "scoreboard →",
+  // Signed-in quick-links rail: compact known-destination links; digest dates
+  // are composed in JSX next to these labels.
+  "home.quicklinks.label": "Quick links",
+  "home.quicklinks.digest": "digest",
+  "home.quicklinks.scoreboard": "scoreboard",
+  "home.quicklinks.registry": "registry",
+  "home.quicklinks.signals": "signals",
+  "home.quicklinks.search": "claim search",
+  // Signed-in recent-asks list (links prefill /ask?q= — never auto-executes).
+  "home.recent_asks.label": "Your recent questions",
+  // Signed-out Iran/Gulf regional-coverage card (additive section; geography
+  // framing, not crisis, per the product brief).
+  "home.iran.title": "Iran / Gulf theater — live daily intelligence",
+  "home.iran.body": "Daily Iran coverage on three tracks — military situation, nuclear program, elite politics — from open news, Telegram and X sources, scored for reliability and validated against expert analysis every day.",
+  "home.iran.link": "explore Iran coverage →",
   "home.features.reliability.title": "Reliability, derived not asserted",
   "home.features.reliability.body": "{sources} sources rated from {citations} citations in 4+ years of expert reporting — how often each source is confirmed, merely claimed, or never verified.",
   "home.features.reliability.link": "explore the registry →",
@@ -268,6 +287,7 @@ const en: Dict = {
   "scoreboard.target_thin": "target < {n}%",
   "scoreboard.target_lead": "target within ±{n}h",
   "scoreboard.nonzero_day_mean": "nonzero days: {pct}% (n={days})",
+  "scoreboard.view_digest": "view this day's digest →",
 
   // digest page framing
   "digest.no_events": "No events extracted.",
@@ -276,6 +296,17 @@ const en: Dict = {
   "digest.confidence": "confidence",
   "digest.track.military": "Military situation",
   "digest.track.elite": "Elite politics & prosecutions",
+  "digest.track.nuclear": "Nuclear program",
+  // Digest archive + date navigation (analyst-home sprint). Dates are composed
+  // in JSX next to these fragments.
+  "digest.nav.prev": "previous",
+  "digest.nav.next": "next",
+  "digest.nav.archive": "digest archive",
+  "digest.archive.intro": "Every daily digest for this theater — newest first. Each claim links to its source documents.",
+  "digest.archive.empty": "No digests yet.",
+  "digest.archive.col.date": "date",
+  "digest.archive.col.tracks": "tracks",
+  "digest.archive.col.claims": "claims",
 
   // signals page framing. Evidence count-line strings are deliberately
   // {placeholder}-free (see home.status.* above for the same convention): the
@@ -319,6 +350,21 @@ const en: Dict = {
   // pending-state hint (W2: /ask double-submit fix, OPEN-TASKS #48) — shown only
   // while the paid pipeline is running.
   "ask.pending.hint": "Searching the claim database — usually ~10 seconds",
+
+  // Free claim search (/search) — deterministic lexical retrieval, no model
+  // calls, no per-query cost. The count line reuses already-established tokens.
+  "search.title": "Claim search",
+  "search.breadcrumb": "claim search",
+  "search.intro": "Free-text search over the claim database. Deterministic matching — no model calls, no query budget. Every result links to its digest and source documents.",
+  "search.placeholder": "e.g. Kharkiv drone strikes",
+  "search.submit": "Search",
+  "search.empty": "No claims match.",
+  "search.count": "showing {n} of {total} matching claims",
+
+  // Design-partner feedback affordances (mailto v1, zero backend; hidden
+  // entirely when FEEDBACK_EMAIL is unset — see src/lib/feedback.ts).
+  "feedback.flag_digest": "Flag an error in this digest",
+  "feedback.flag_source": "Suggest or flag a source",
 
   // auth labels
   "auth.signin": "Sign in",
@@ -404,6 +450,18 @@ const uk: Dict = {
   "home.validation.last_validated_label": "Востаннє перевірено",
   "home.validation.corroborated_label": "Частка підтверджених, сьогодні",
   "home.validation.not_computed": "ще не обчислено",
+  "home.status.claims_today": "Тверджень у дайджесті, сьогодні", // uk: needs native review
+  "home.status.scoreboard_link": "таблиця валідації →", // uk: needs native review
+  "home.quicklinks.label": "Швидкі посилання", // uk: needs native review
+  "home.quicklinks.digest": "дайджест", // uk: needs native review
+  "home.quicklinks.scoreboard": "таблиця валідації", // uk: needs native review
+  "home.quicklinks.registry": "реєстр", // uk: needs native review
+  "home.quicklinks.signals": "сигнали", // uk: needs native review
+  "home.quicklinks.search": "пошук тверджень", // uk: needs native review
+  "home.recent_asks.label": "Ваші останні запитання", // uk: needs native review
+  "home.iran.title": "Театр Іран / Затока — щоденна розвідка наживо", // uk: needs native review
+  "home.iran.body": "Щоденне охоплення Ірану за трьома напрямами — військова ситуація, ядерна програма, політика еліт — з відкритих новин, Telegram і X, з оцінкою надійності та щоденною валідацією проти експертного аналізу.", // uk: needs native review
+  "home.iran.link": "переглянути охоплення Ірану →", // uk: needs native review
   "home.features.reliability.title": "Надійність, виведена, а не заявлена",
   "home.features.reliability.body": "{sources} джерел оцінено з {citations} цитувань за понад 4 роки експертної звітності — як часто кожне джерело підтверджене, лише заявлене чи ніколи не перевірене.",
   "home.features.reliability.link": "переглянути реєстр →",
@@ -488,12 +546,22 @@ const uk: Dict = {
   "scoreboard.target_thin": "ціль < {n}%",
   "scoreboard.target_lead": "ціль у межах ±{n} год",
   "scoreboard.nonzero_day_mean": "дні з ненульовим покриттям: {pct}% (n={days})",
+  "scoreboard.view_digest": "переглянути дайджест цього дня →", // uk: needs native review
   "digest.no_events": "Подій не виявлено.",
   "digest.view_for": "перегляд для:",
   "digest.sources": "джерела",
   "digest.confidence": "впевненість",
   "digest.track.military": "Військова ситуація",
   "digest.track.elite": "Політика еліт і переслідування",
+  "digest.track.nuclear": "Ядерна програма", // uk: needs native review
+  "digest.nav.prev": "попередній", // uk: needs native review
+  "digest.nav.next": "наступний", // uk: needs native review
+  "digest.nav.archive": "архів дайджестів", // uk: needs native review
+  "digest.archive.intro": "Усі щоденні дайджести цього театру — від найновіших. Кожне твердження має посилання на джерельні документи.", // uk: needs native review
+  "digest.archive.empty": "Дайджестів поки немає.", // uk: needs native review
+  "digest.archive.col.date": "дата", // uk: needs native review
+  "digest.archive.col.tracks": "напрями", // uk: needs native review
+  "digest.archive.col.claims": "твердження", // uk: needs native review
   "signals.breadcrumb": "аналітичні сигнали",
   "signals.title": "Активні сигнали",
   "signals.intro": "Детерміновані наскрізні індикатори, обчислені на основі графа сутностей, закупівель, шарів прозорості даних і торгівлі. Кожен супроводжується доказами, що його спричинили — без чорної скриньки. Аналітичні судження, а не підтверджені факти.",
@@ -520,6 +588,15 @@ const uk: Dict = {
   "ask.nocoverage.prefix": "Ще немає тверджень, що охоплюють", // uk: needs native review
   "ask.nocoverage.currency": "Дані актуальні станом на", // uk: needs native review
   "ask.pending.hint": "Пошук у базі тверджень — зазвичай ~10 секунд", // uk: needs native review
+  "search.title": "Пошук тверджень", // uk: needs native review
+  "search.breadcrumb": "пошук тверджень", // uk: needs native review
+  "search.intro": "Повнотекстовий пошук у базі тверджень. Детермінований збіг — без викликів моделі, без бюджету на запити. Кожен результат має посилання на дайджест і джерельні документи.", // uk: needs native review
+  "search.placeholder": "напр., удари дронів по Харкову", // uk: needs native review
+  "search.submit": "Шукати", // uk: needs native review
+  "search.empty": "Збігів немає.", // uk: needs native review
+  "search.count": "показано {n} з {total} відповідних тверджень", // uk: needs native review
+  "feedback.flag_digest": "Повідомити про помилку в цьому дайджесті", // uk: needs native review
+  "feedback.flag_source": "Запропонувати або позначити джерело", // uk: needs native review
   "auth.signin": "Увійти",
   "auth.email_placeholder": "ви@приклад.ua",
   "auth.send_link": "Надіслати магічне посилання",

@@ -1,5 +1,5 @@
 import { Pool } from "@neondatabase/serverless";
-import type { CandidateClaim, RetrievalMode, RetrievalV2Result, StageUsage, TimeWindow } from "./types";
+import type { CandidateClaim, RetrievalMode, RetrievalV2Result, StageUsage } from "./types";
 import type { RetrievedEntity } from "./retrieve";
 import { extractTerms } from "./retrieve";
 import { parseTimeWindow } from "./window";
@@ -8,12 +8,16 @@ import { askCandidates, askLexicalTop, askVectorTop } from "./config";
 import { isLlmDisabled } from "../usage/llm-guard";
 import { embedModel, embedTexts } from "../embeddings/client";
 import { embedGuardFromEnv } from "../embeddings/guard";
+import { lexicalClaimSearch, windowClause } from "./lexical";
 
 // Retrieval v2: deterministic time-window parse + hybrid (vector union lexical)
 // candidate generation + composite pre-rank. Same anti-hallucination boundary as
 // the legacy retrieve.ts — this only widens/orders the evidence set; the answer
 // layer still cites strictly from it. Legacy retrieve.ts is left byte-identical
-// (D3); the entity-arm SQL below is DUPLICATED from it rather than shared.
+// (D3); the entity-arm SQL below is DUPLICATED from it rather than shared. The
+// lexical/tsvector arm itself lives in lexical.ts (shared with /search) — this
+// file calls it and keeps windowClause imported from there too, so both arms use
+// literally the same window-bound SQL fragment.
 
 /** Provider string embedTexts returns on the offline stub path (client.ts
  *  EMBED_STUB_PROVIDER). Stub vectors are throwaway, so a stub result is treated
@@ -50,23 +54,6 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** Append the window bound params and return the SQL fragment (" AND cl.claim_date
- *  >= $n AND cl.claim_date <= $n"). A set window naturally EXCLUDES null claim_date
- *  (a NULL comparison is never true); no window -> no clause -> nulls included. */
-function windowClause(window: TimeWindow | null, params: unknown[]): string {
-  if (!window) return "";
-  const parts: string[] = [];
-  if (window.from) {
-    params.push(window.from);
-    parts.push(`cl.claim_date >= $${params.length}`);
-  }
-  if (window.to) {
-    params.push(window.to);
-    parts.push(`cl.claim_date <= $${params.length}`);
-  }
-  return parts.length ? ` AND ${parts.join(" AND ")}` : "";
-}
-
 function toCandidate(r: ClaimRow, vectorHit: boolean): CandidateClaim {
   return {
     claimId: r.id,
@@ -97,8 +84,6 @@ export async function retrieveV2(
     : question;
   const terms = extractTerms(qStripped);
   const pattern = terms.map((t) => `%${t}%`);
-  const hasTsQuery = qStripped.length > 0;
-  const hasLexicalPredicate = hasTsQuery || terms.length > 0;
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
@@ -148,52 +133,15 @@ export async function retrieveV2(
     const mode: RetrievalMode = vectorArmScored ? "v2" : "v2-lexical-only";
 
     // ---- lexical arm --------------------------------------------------------
-    let lexicalRows: ClaimRow[] = [];
-    let lexicalMatchCount = 0;
-    if (hasLexicalPredicate) {
-      const params: unknown[] = [];
-      const ors: string[] = [];
-      let rankExpr = "0::float AS rank";
-      if (hasTsQuery) {
-        params.push(qStripped);
-        const qi = params.length;
-        rankExpr = `ts_rank(to_tsvector('english', cl.text), websearch_to_tsquery('english', $${qi})) AS rank`;
-        ors.push(`to_tsvector('english', cl.text) @@ websearch_to_tsquery('english', $${qi})`);
-      }
-      if (terms.length > 0) {
-        params.push(pattern);
-        const pi = params.length;
-        ors.push(`cl.text ILIKE ANY($${pi})`);
-        // Legacy entity-name subquery, DUPLICATED here (retrieve.ts stays byte-
-        // identical, D3). Keep in sync if the legacy version ever changes.
-        ors.push(
-          `cl.id IN (SELECT ce2.claim_id FROM claim_entities ce2 JOIN entities e ON e.id = ce2.entity_id WHERE e.name ILIKE ANY($${pi}))`,
-        );
-      }
-      const whereCore = `(${ors.join(" OR ")})`;
-      const wc = windowClause(window, params); // pushes the window params once, shared by both queries
-
-      // D9 sampled-evidence disclosure: full window-filtered match count, uncapped.
-      const countRes = await pool.query(
-        `SELECT count(*)::int AS n FROM claims cl WHERE ${whereCore}${wc}`,
-        params,
-      );
-      lexicalMatchCount = (countRes.rows[0]?.n as number) ?? 0;
-
-      params.push(askLexicalTop());
-      const { rows } = await pool.query(
-        `SELECT cl.id, cl.text, cl.hedging, cl.claim_date::text AS d, c.iso2, dg.track,
-                cl.confidence, ${rankExpr}
-         FROM claims cl
-         JOIN countries c ON c.id = cl.country_id
-         LEFT JOIN digests dg ON dg.id = cl.digest_id
-         WHERE ${whereCore}${wc}
-         ORDER BY rank DESC, cl.claim_date DESC NULLS LAST, cl.id DESC
-         LIMIT $${params.length}`,
-        params,
-      );
-      lexicalRows = rows as ClaimRow[];
-    }
+    // Delegated to lexical.ts (shared with /search): same SQL, params, ordering,
+    // caps, and the "no predicate -> no query at all" degraded path as before —
+    // only the pool.query calls moved module.
+    const { rows: lexicalRows, matchCount: lexicalMatchCount } = await lexicalClaimSearch(pool, {
+      qStripped,
+      terms,
+      window,
+      limit: askLexicalTop(),
+    });
 
     // ---- union (dedupe by claimId) ------------------------------------------
     const byId = new Map<number, CandidateClaim>();

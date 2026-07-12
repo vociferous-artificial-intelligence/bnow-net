@@ -22,6 +22,10 @@ export interface TheaterStatusEntry {
   lastDigestAt: string | null;
   digestHref: string;
   latestDate: string | null;
+  /** count(claims) for this theater where claim_date = today (honest 0, not "no data"). */
+  claimsToday: number;
+  /** `/scoreboard/{iso2}/{digestDate}` of the theater's latest validation run, or null when none exists yet. */
+  scoreboardHref: string | null;
 }
 
 export interface TheaterStatusPanelProps {
@@ -52,6 +56,22 @@ function formatEt(iso: string | null, locale: Locale): string | null {
   return `${formatted} ET`;
 }
 
+// Time-only companion to formatEt above, used solely to compose the digest row's
+// "{latestDate} · {HH:MM ET}" label — formatEt's own month/day would duplicate the
+// leading latestDate. Same null/invalid-safe contract.
+function formatEtTime(iso: string | null, locale: Locale): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const formatted = new Intl.DateTimeFormat(locale, {
+    timeZone: "America/New_York",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
+  return `${formatted} ET`;
+}
+
 export function TheaterStatusPanel({
   locale,
   t,
@@ -64,7 +84,12 @@ export function TheaterStatusPanel({
       <div className="grid gap-6 sm:grid-cols-3">
         {entries.map((entry) => {
           const current = formatEt(entry.lastFetch, locale);
-          const digestAt = formatEt(entry.lastDigestAt, locale);
+          // Digest date leads the label ("2026-07-12 · 09:12 ET") — latestDate and
+          // lastDigestAt come from the same GROUP BY row in page.tsx, so they're
+          // either both present or both null; either half missing falls back to
+          // the honest no_digest string rather than a half-composed label.
+          const digestTime = formatEtTime(entry.lastDigestAt, locale);
+          const digestLabel = entry.latestDate && digestTime ? `${entry.latestDate} · ${digestTime}` : null;
           return (
             <div
               key={entry.iso2}
@@ -90,9 +115,15 @@ export function TheaterStatusPanel({
                   </dt>
                   <dd className="text-right">
                     <Link href={entry.digestHref} className="underline hover:text-gray-600 dark:hover:text-gray-300">
-                      {digestAt ?? t("home.status.no_digest")}
+                      {digestLabel ?? t("home.status.no_digest")}
                     </Link>
                   </dd>
+                </div>
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="text-gray-500 dark:text-gray-400">
+                    {t("home.status.claims_today")}
+                  </dt>
+                  <dd className="text-right">{formatNumber(locale, entry.claimsToday)}</dd>
                 </div>
                 <div className="flex items-baseline justify-between gap-3">
                   <dt className="text-gray-500 dark:text-gray-400">
@@ -101,6 +132,14 @@ export function TheaterStatusPanel({
                   <dd className="text-right">{nextUpdateLabel}</dd>
                 </div>
               </dl>
+              {entry.scoreboardHref && (
+                <Link
+                  href={entry.scoreboardHref}
+                  className="mt-3 inline-block text-xs underline hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  {t("home.status.scoreboard_link")}
+                </Link>
+              )}
             </div>
           );
         })}

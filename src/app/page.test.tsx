@@ -40,15 +40,32 @@ afterEach(() => {
   emailMock.mockReset();
 });
 
+// Query order inside the signed-in try block's Promise.all (page.tsx): freshnessRows,
+// digestRows (ranked digest-date window query), validationRows, corroboratedRows,
+// claimsTodayRows, recentAskRows. Every signed-in test below must resolve all six, in
+// this order, after the top-level stats query.
+function mockSignedInQueries(overrides: {
+  freshness?: unknown[];
+  digest?: unknown[];
+  validation?: unknown[];
+  corroborated?: unknown[];
+  claimsToday?: unknown[];
+  recentAsks?: unknown[];
+} = {}) {
+  queryMock
+    .mockResolvedValueOnce([STATS_ROW]) // top stats query
+    .mockResolvedValueOnce(overrides.freshness ?? [])
+    .mockResolvedValueOnce(overrides.digest ?? [])
+    .mockResolvedValueOnce(overrides.validation ?? [])
+    .mockResolvedValueOnce(overrides.corroborated ?? [])
+    .mockResolvedValueOnce(overrides.claimsToday ?? [])
+    .mockResolvedValueOnce(overrides.recentAsks ?? []);
+}
+
 describe("signed-in home: Ask entry point (W5)", () => {
   it("renders a zero-JS GET form pointing at /ask under the validation tiles", async () => {
     emailMock.mockResolvedValue("user@example.com");
-    queryMock
-      .mockResolvedValueOnce([STATS_ROW]) // top stats query
-      .mockResolvedValueOnce([]) // freshnessRows
-      .mockResolvedValueOnce([]) // digestRows
-      .mockResolvedValueOnce([]) // validationRows
-      .mockResolvedValueOnce([]); // corroboratedRows
+    mockSignedInQueries();
 
     const element = await Home();
     const { container } = render(element);
@@ -58,6 +75,93 @@ describe("signed-in home: Ask entry point (W5)", () => {
     const input = form?.querySelector('input[name="q"]');
     expect(input).toBeTruthy();
     expect(form?.textContent).toContain("Ask");
+  });
+});
+
+describe("signed-in home: quick links rail (W2)", () => {
+  it("renders under the hero, above the theater status panel, with per-theater digest dates", async () => {
+    emailMock.mockResolvedValue("user@example.com");
+    mockSignedInQueries({
+      digest: [
+        { iso2: "ru", digest_date: "2026-07-12", rn: 1, last_digest: "2026-07-12T04:02:00.000Z" },
+        { iso2: "ru", digest_date: "2026-07-11", rn: 2, last_digest: "2026-07-12T04:02:00.000Z" },
+      ],
+    });
+
+    const element = await Home();
+    const { container } = render(element);
+
+    const railHref = (href: string) => container.querySelector(`a[href="${href}"]`);
+    expect(railHref("/digests/ru/2026-07-12")).toBeTruthy();
+    expect(railHref("/digests/ru/2026-07-11")).toBeTruthy();
+    expect(railHref("/scoreboard")).toBeTruthy();
+    expect(railHref("/registry")).toBeTruthy();
+    expect(railHref("/signals")).toBeTruthy();
+  });
+});
+
+describe("signed-in home: theater status panel extensions (W1)", () => {
+  it("wires claims-today counts and the scoreboard deep link through from the DB rows", async () => {
+    emailMock.mockResolvedValue("user@example.com");
+    mockSignedInQueries({
+      digest: [{ iso2: "ru", digest_date: "2026-07-12", rn: 1, last_digest: "2026-07-12T04:02:00.000Z" }],
+      validation: [
+        {
+          iso2: "ru",
+          coverage_pct: 25,
+          timeliness_hours: 14.7,
+          run_at: "2026-07-12T07:00:00.000Z",
+          digest_date: "2026-07-12",
+        },
+      ],
+      claimsToday: [{ iso2: "ru", n: 7 }],
+    });
+
+    const element = await Home();
+    const { container } = render(element);
+
+    expect(container.querySelector('a[href="/scoreboard/ru/2026-07-12"]')).toBeTruthy();
+    // Scope the claims-today assertion to that row's <dd> — a bare "7" substring
+    // check would trivially pass on the "2026-07-12" date text elsewhere on the page.
+    const claimsDt = Array.from(container.querySelectorAll("dt")).find(
+      (el) => el.textContent === "Digest claims, today",
+    );
+    expect(claimsDt?.nextElementSibling?.textContent).toBe("7");
+  });
+});
+
+describe("signed-in home: recent asks (W6)", () => {
+  it("renders up to 5 past questions as /ask?q= prefill links when the user has any", async () => {
+    emailMock.mockResolvedValue("user@example.com");
+    mockSignedInQueries({
+      recentAsks: [
+        { question: "What happened near Kupiansk?", last_at: "2026-07-12T01:00:00.000Z" },
+        { question: "Iran nuclear program status?", last_at: "2026-07-11T20:00:00.000Z" },
+      ],
+    });
+
+    const element = await Home();
+    const { container } = render(element);
+
+    const link1 = container.querySelector(
+      `a[href="/ask?q=${encodeURIComponent("What happened near Kupiansk?")}"]`,
+    );
+    expect(link1).toBeTruthy();
+    expect(link1?.textContent).toBe("What happened near Kupiansk?");
+    const link2 = container.querySelector(
+      `a[href="/ask?q=${encodeURIComponent("Iran nuclear program status?")}"]`,
+    );
+    expect(link2).toBeTruthy();
+  });
+
+  it("renders no recent-asks block at all when the user has no past questions", async () => {
+    emailMock.mockResolvedValue("user@example.com");
+    mockSignedInQueries();
+
+    const element = await Home();
+    const { container } = render(element);
+
+    expect(container.querySelector('a[href^="/ask?q="]')).toBeNull();
   });
 });
 
@@ -73,5 +177,25 @@ describe("signed-out home: untouched marketing sections", () => {
     // Marketing feature cards (signed-out only) still render, resolved through the
     // real en dictionary — proves the signed-out branch was left untouched.
     expect(screen.getByText("Reliability, derived not asserted")).toBeTruthy();
+  });
+});
+
+describe("signed-out home: additive Iran/Gulf card (W3)", () => {
+  it("renders the new card after the marketing grid without touching it", async () => {
+    emailMock.mockResolvedValue(null);
+    queryMock.mockResolvedValueOnce([STATS_ROW]); // only the top stats query runs
+
+    const element = await Home();
+    const { container } = render(element);
+
+    // Marketing cards (unchanged) still present.
+    expect(screen.getByText("Reliability, derived not asserted")).toBeTruthy();
+    // New additive card.
+    expect(
+      screen.getByRole("heading", { name: "Iran / Gulf theater — live daily intelligence" }),
+    ).toBeTruthy();
+    expect(container.querySelector('a[href="/countries#ir"]')).toBeTruthy();
+    // Still no /ask form and no paid-pipeline import surface for signed-out users.
+    expect(container.querySelector('form[action="/ask"]')).toBeNull();
   });
 });

@@ -87,3 +87,39 @@ paraphrased below; otherwise the row carries the generic flag.
 | `pricing.enterprise.feature.multiseat` | Multi-seat access | Багатомісний доступ | non-native translation, needs review |
 | `pricing.enterprise.feature.validation_reporting` | Validation reporting | Звітність з валідації | non-native translation, needs review |
 | `pricing.enterprise.feature.custom_theaters` | Custom theaters | Індивідуальні театри дій | non-native translation, needs review |
+
+## Appended 2026-07-12 (analyst-home & Iran prominence sprint): 31 new strings
+
+| key | en | uk (provisional) | status |
+|---|---|---|---|
+| `home.status.claims_today` | Digest claims, today | Тверджень у дайджесті, сьогодні | non-native translation, needs review |
+| `home.status.scoreboard_link` | scoreboard → | таблиця валідації → | non-native translation, needs review |
+| `home.quicklinks.label` | Quick links | Швидкі посилання | non-native translation, needs review |
+| `home.quicklinks.digest` | digest | дайджест | non-native translation, needs review |
+| `home.quicklinks.scoreboard` | scoreboard | таблиця валідації | non-native translation, needs review |
+| `home.quicklinks.registry` | registry | реєстр | non-native translation, needs review |
+| `home.quicklinks.signals` | signals | сигнали | non-native translation, needs review |
+| `home.quicklinks.search` | claim search | пошук тверджень | non-native translation, needs review |
+| `home.recent_asks.label` | Your recent questions | Ваші останні запитання | non-native translation, needs review |
+| `home.iran.title` | Iran / Gulf theater — live daily intelligence | Театр Іран / Затока — щоденна розвідка наживо | non-native translation, needs review |
+| `home.iran.body` | Daily Iran coverage on three tracks — military situation, nuclear program, elite politics — from open news, Telegram and X sources, scored for reliability and validated against expert analysis every day. | Щоденне охоплення Ірану за трьома напрямами — військова ситуація, ядерна програма, політика еліт — з відкритих новин, Telegram і X, з оцінкою надійності та щоденною валідацією проти експертного аналізу. | non-native translation, needs review |
+| `home.iran.link` | explore Iran coverage → | переглянути охоплення Ірану → | non-native translation, needs review |
+| `scoreboard.view_digest` | view this day's digest → | переглянути дайджест цього дня → | non-native translation, needs review |
+| `digest.track.nuclear` | Nuclear program | Ядерна програма | non-native translation, needs review |
+| `digest.nav.prev` | previous | попередній | non-native translation, needs review |
+| `digest.nav.next` | next | наступний | non-native translation, needs review |
+| `digest.nav.archive` | digest archive | архів дайджестів | non-native translation, needs review |
+| `digest.archive.intro` | Every daily digest for this theater — newest first. Each claim links to its source documents. | Усі щоденні дайджести цього театру — від найновіших. Кожне твердження має посилання на джерельні документи. | non-native translation, needs review |
+| `digest.archive.empty` | No digests yet. | Дайджестів поки немає. | non-native translation, needs review |
+| `digest.archive.col.date` | date | дата | non-native translation, needs review |
+| `digest.archive.col.tracks` | tracks | напрями | non-native translation, needs review |
+| `digest.archive.col.claims` | claims | твердження | non-native translation, needs review |
+| `search.title` | Claim search | Пошук тверджень | non-native translation, needs review |
+| `search.breadcrumb` | claim search | пошук тверджень | non-native translation, needs review |
+| `search.intro` | Free-text search over the claim database. Deterministic matching — no model calls, no query budget. Every result links to its digest and source documents. | Повнотекстовий пошук у базі тверджень. Детермінований збіг — без викликів моделі, без бюджету на запити. Кожен результат має посилання на дайджест і джерельні документи. | non-native translation, needs review |
+| `search.placeholder` | e.g. Kharkiv drone strikes | напр., удари дронів по Харкову | non-native translation, needs review |
+| `search.submit` | Search | Шукати | non-native translation, needs review |
+| `search.empty` | No claims match. | Збігів немає. | non-native translation, needs review |
+| `search.count` | showing {n} of {total} matching claims | показано {n} з {total} відповідних тверджень | non-native translation, needs review |
+| `feedback.flag_digest` | Flag an error in this digest | Повідомити про помилку в цьому дайджесті | non-native translation, needs review |
+| `feedback.flag_source` | Suggest or flag a source | Запропонувати або позначити джерело | non-native translation, needs review |

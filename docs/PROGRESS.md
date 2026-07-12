@@ -1009,3 +1009,24 @@ files, $0.106 OpenAI of $2.
 7. Docs: OPEN-TASKS #48 closed, +3 uk strings to the native-review inventory, AGENTS.md
    corrected in place + decision log. Morning note (incl. operator checklist):
    `docs/reviews/ASK-POLISH-NOTE-2026-07-12.md`.
+
+## 2026-07-12 (analyst-home & Iran prominence sprint, unattended) — plan
+
+Plan doc: `docs/BNOW-NEXT-FEATURES-PLAN-2026-07-12.md` · readback:
+`docs/reviews/ANALYST-HOME-READBACK-2026-07-12.md` (Iran quality gate PASS —
+daily 3-track ir digests, claims parity with ru/ua, 07-11 validation coverage
+ir 100%). Branch `20260712-analyst-home-iran`, tag `pre-analyst-home-20260712`.
+
+1. Task 0: preconditions (ASK-polish FULL SHIP absorbed), 4-agent recon, readback. DONE.
+2. Pre-stage: 31 i18n keys (en + provisional uk → native-review inventory),
+   `src/lib/feedback.ts` (fail-closed mailto helper), `FEEDBACK_EMAIL` in all
+   Vercel envs (plain, verified round-trip) + `.env.local`.
+3. W4+W5: digest archive index `/digests/[country]`, prev/next date nav,
+   scoreboard→digest cross-link, flag-digest + flag-source mailtos.
+4. W1+W2+W3+W6: signed-in quick-strip upgrade (visible digest date, claims-today,
+   per-theater scoreboard links), quick-links rail (latest+previous digests ×3
+   theaters), signed-out Iran/Gulf card (additive section), recent-asks list.
+5. W7: extract $0 lexical retrieval from retrieveV2 (byte-green existing tests),
+   gated /search page, money tests.
+6. Review every diff, full gate, deploy if green, signed-out smoke, morning note,
+   AGENTS.md decision log.
