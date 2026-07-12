@@ -18,6 +18,40 @@ export interface Signal {
   at: string; // ISO (caller-stamped)
 }
 
+// --- public projection: the teaser an unauthenticated visitor (and any crawler) may see ---
+//
+// A signal's `detail` string carries the specifics subscribers pay for — named individuals
+// (purge), suppressed-series labels (data_dark), reporter/flow lists (trade_divergence) —
+// and `evidenceClaimIds`/`evidenceRefs` back the drill-down. NONE of these may reach an
+// unauthenticated client. `toPublicSignal` drops them, keeping only the count-and-type
+// teaser (`headline`) plus an aggregate evidence count. The /signals page's signed-out
+// render path consumes ONLY this projection, so the sensitive strings never enter the
+// server-rendered HTML for anonymous visitors. This is the data-layer withholding required
+// by docs/reviews/IA-REFINEMENT-REVIEW.md TASK 3 — not a CSS/DOM hide.
+//
+// INVARIANT: `headline` must stay a count + type + theater + severity summary — never a
+// name, dollar figure, or target/flow list. Every detector below obeys this; a future
+// detector that embeds specifics in the headline would leak them through this projection.
+export interface PublicSignal {
+  key: string;
+  kind: string;
+  theater: string;
+  severity: Severity;
+  headline: string;
+  evidenceCount: number;
+}
+
+export function toPublicSignal(s: Signal): PublicSignal {
+  return {
+    key: s.key,
+    kind: s.kind,
+    theater: s.theater,
+    severity: s.severity,
+    headline: s.headline,
+    evidenceCount: s.evidenceClaimIds.length,
+  };
+}
+
 // --- purge pattern: clustered prosecutions of officials/siloviki in a short window ---
 export interface PressureClaim {
   claimId: number;
