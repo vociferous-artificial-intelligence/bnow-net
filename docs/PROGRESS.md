@@ -980,3 +980,32 @@ Ingestion line "top-75"→"top-120 ROCA-only"; (c) watch `ingest:mtproto` cron_r
    ledger, and adversarial review: `docs/reviews/MERGE2-DESIGN-DEPLOY-NOTE-2026-07-12.md`.
 7. AGENTS.md/OPEN-TASKS/PROGRESS correction-in-place pass (this entry);
    uk-string inventory for native review: `docs/reviews/UK-NATIVE-REVIEW-2026-07-12.md`.
+
+## 2026-07-12 — ASK polish sprint (unattended): five smoke findings fixed, deployed
+
+Plan executed (W0 diagnosis → W1+eval gate → W2 → W3 → W4 → W5 → verify/deploy/docs),
+sequential by design (shared checkout; dictionaries.ts/answer.ts overlap). Outcome:
+**FULL SHIP** — merge `0fe0bc6`, deploy `bnow-qdesocr6p` (rollback target
+`bnow-nqegy57dk` recorded pre-deploy), signed-out prod checks green, tests 902→956/74
+files, $0.106 OpenAI of $2.
+
+1. W0 (read-only): smoke questions' [today,today] windows were genuinely empty at ask
+   time (claims landed 04:01Z; asks 01:42Z) — but the "provide claim IDs" leakage came
+   from the entities-only path (short-circuit needed claims AND entities empty; gpt-5
+   answered from `CLAIMS: (none)` + 4–15 entity rows at $0.003–0.005/question).
+2. W1 `57c67a2`: SYSTEM_V2 end-user persona (legacy SYSTEM byte-preserved + frozen-
+   fixture test), corpus-currency context line, $0 no-coverage short-circuit
+   (`window.from > max(claim_date)`, `ASK_NO_COVERAGE_SHORTCIRCUIT` rollback), distinct
+   UI callout. Eval gate `88be4fb`: honesty 5/5, known-citations 5/5, first run.
+3. W2 `7c5d049`: paid pipeline moved into a useActionState server action; GET /ask?q=
+   prefills only (money test + live prod probe: no ask_usage row); pending state
+   (disable/spinner/aria-busy/hint). Closes OPEN-TASKS #48.
+4. W3 `b60fcc4`: digest claim anchors `id="c{claimId}"` + scroll-mt-24; ask citations
+   deep-link `#c{id}`.
+5. W4 `2080ea8`: related-claims vectorScore floor 0.5 (`ASK_RELATED_MIN_SCORE`,
+   replay-calibrated on a disposable branch, max junk 0.4547), null excluded, cap 5.
+6. W5 `8314bb6`: signed-in home zero-JS Ask GET-form under the validation tiles;
+   signed-out home byte-untouched.
+7. Docs: OPEN-TASKS #48 closed, +3 uk strings to the native-review inventory, AGENTS.md
+   corrected in place + decision log. Morning note (incl. operator checklist):
+   `docs/reviews/ASK-POLISH-NOTE-2026-07-12.md`.

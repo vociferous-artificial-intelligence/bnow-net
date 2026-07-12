@@ -260,14 +260,14 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     the 3-day revalidation (TASK 5). Attacks #42 (X concentration) and the #11/#19
     coverage gap while X stays frozen (#38).
 
-48. **[Tier 2] /ask form double-submits — duplicate paid runs.** Observed live 2026-07-12
-    (MERGE 1 smoke): the `/ask` form is a bare server action with no pending/disabled
-    state, and at v2's ~10s answer latency an impatient second click fires a second full
-    paid pipeline run (2 of 3 operator questions billed twice; one billed 3×, ~$0.012
-    each). Caps contain the damage (`ASK_USER_DAILY_LIMIT=100`, `$10/day` global). Fix:
-    client-side pending-disable on the submit button (useFormStatus) + a test; consider
-    an idempotency window (same user+question within N seconds returns the in-flight
-    result) as belt-and-braces.
+48. ~~**[Tier 2] /ask form double-submits — duplicate paid runs.**~~ ✅ SHIPPED
+    (ask-polish sprint, 2026-07-12, `docs/reviews/ASK-POLISH-NOTE-2026-07-12.md`):
+    pending-disable (useFormStatus: input+button disabled, spinner, aria-busy, ~10s
+    hint) PLUS the root cause removed — the paid pipeline moved out of the GET
+    render into a useActionState server action, so `/ask?q=` now only prefills and
+    refresh/back-nav/shared links/prefetch can no longer bill (money test pins it).
+    The belt-and-braces idempotency window (same user+question within N seconds
+    returns the in-flight result) stays PARKED — daily caps backstop it.
 
 ### New (from MERGE 2, the design/commercial-site branch — 2026-07-12)
 

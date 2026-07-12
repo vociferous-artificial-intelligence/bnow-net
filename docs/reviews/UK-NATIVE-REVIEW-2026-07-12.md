@@ -20,6 +20,9 @@ paraphrased below; otherwise the row carries the generic flag.
 | `ask.window.since` | since | з | non-native translation, needs review — same uk word as `ask.window.from` ("з"); check the two read distinctly in context |
 | `ask.window.through` | through | по | non-native translation, needs review — same uk word as `ask.window.to` ("по"); check the two read distinctly in context |
 | `ask.related.title` | Related claims | Пов'язані твердження | non-native translation, needs review |
+| `ask.nocoverage.prefix` | No claims yet cover | Ще немає тверджень, що охоплюють | non-native translation, needs review — fragment key: a date or date-range is appended in JSX (ask-polish sprint, 2026-07-12) |
+| `ask.nocoverage.currency` | Data current through | Дані актуальні станом на | non-native translation, needs review — fragment key: a yyyy-mm-dd date follows; compare with `home.status.data_current` ("Дані станом на") for consistency (ask-polish sprint, 2026-07-12) |
+| `ask.pending.hint` | Searching the claim database — usually ~10 seconds | Пошук у базі тверджень — зазвичай ~10 секунд | non-native translation, needs review (ask-polish sprint, 2026-07-12) |
 | `sources.more_summary` | +{n} more · {channels} channels · {platforms} platforms | +{n} ще · {channels} каналів · {platforms} платформ | uk pluralization: Ukrainian needs count-dependent noun forms ("каналів" vs "канали") that flat `{n}` interpolation cannot express; shipped the genitive-plural form as the least-wrong constant (design implementation note §4/§5) — canonical uncertainty note |
 | `home.status.panel_label` | Data freshness by theater | Актуальність даних за театрами | non-native translation, needs review |
 | `home.status.data_current` | Data current as of | Дані станом на | non-native translation, needs review |

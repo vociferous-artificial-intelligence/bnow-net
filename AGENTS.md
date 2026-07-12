@@ -136,7 +136,17 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   listwise rerank, gpt-5 answerer with refusal handling; ~$0.011/query; capped
   100/user/day + $10/day global (`ASK_USER_DAILY_LIMIT`/`ASK_GLOBAL_DAILY_BUDGET_USD`)
   + guard caps `ASK_USD_CAP_DAILY=2`/`EMBED_USD_CAP_DAILY=1`, all four in Production
-  AND Preview; rollback = `ASK_PIPELINE=legacy` plain env + redeploy). **Role model
+  AND Preview; rollback = `ASK_PIPELINE=legacy` plain env + redeploy. **Polished
+  2026-07-12 (ask-polish sprint):** paid pipeline runs ONLY from the form's server
+  action — GET /ask?q= prefills, never executes (closes OPEN-TASKS #48
+  double-billing); pending state (spinner/disable/aria-busy); end-user persona
+  SYSTEM_V2 (legacy SYSTEM byte-preserved); "data current through" context +
+  $0 no-coverage short-circuit when window.from > max(claim_date) (rollback
+  `ASK_NO_COVERAGE_SHORTCIRCUIT=0`); citation deep links to `#c{claimId}` digest
+  anchors; related claims floored at vectorScore ≥ 0.5 (`ASK_RELATED_MIN_SCORE`,
+  null excluded, cap 5, empty block omitted); signed-in home gets a zero-JS Ask
+  box; eval gate honesty 5/5 + known-citations 5/5 —
+  `docs/reviews/ASK-POLISH-NOTE-2026-07-12.md`). **Role model
   (2026-07-12):** `users.role` (`user`<`analyst`<`admin`, migration 0016) +
   `src/lib/gate.ts` helpers back the registry/signals gating above; `ADMIN_EMAILS`
   bootstraps admin pre-grant, live in Vercel **Production only** (absent
@@ -147,11 +157,11 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   mean + a true median info-lead (was silently a mean; closes OPEN-TASKS #11).
   Root error boundaries (`src/app/error.tsx` / `global-error.tsx`, 2026-07-12)
   never render raw error messages. i18n: en+uk full, de ar ja pl fr catalogs
-  (landing wired; needs native review before promotion; ~74 uk strings — 10
+  (landing wired; needs native review before promotion; ~77 uk strings — 10
   `ask.*` (MERGE 1) + ~64 design-branch strings (MERGE 2: pricing, home.status,
-  home.validation, signals, registry) — await native review, tracked in
-  `docs/reviews/UK-NATIVE-REVIEW-2026-07-12.md`).
-- **Tests:** 902 unit tests / 67 files green (`npm test`, ~3s) + Neon-branch
+  home.validation, signals, registry) + 3 ask-polish strings — await native
+  review, tracked in `docs/reviews/UK-NATIVE-REVIEW-2026-07-12.md`).
+- **Tests:** 956 unit tests / 74 files green (`npm test`, ~3s) + Neon-branch
   integration suite (`npm run test:integration`). CI mirror: `.github/workflows/ci.yml`;
   the enforced gate is `.githooks/pre-push` (typecheck+lint+test).
 - **Crons (vercel.json):** ingest fast */15 · telegram :10 · x :20 · mtproto :35 ·
@@ -453,6 +463,30 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   `?sort=reliability` ignore proven live. D5 weekly materializer cron stays PARKED.
   Neon snapshot branch `premerge-20260712` DELETED (green path); tags + bundle kept.
   $0.00 OpenAI. MERGE 1's "no drizzle-kit generate before MERGE 2" freeze is lifted.
+- **2026-07-12 (ASK polish sprint, unattended — FULL SHIP, deployed)** Five live-smoke
+  findings fixed on branch `20260712-ask-polish` (tag `pre-ask-polish-20260712`), merged
+  `0fe0bc6`, deployed **`bnow-qdesocr6p`** (rollback target recorded pre-deploy:
+  `bnow-nqegy57dk`); full account `docs/reviews/ASK-POLISH-NOTE-2026-07-12.md`.
+  **W0 diagnosis refined the ticket:** the day-of smoke questions' windows were genuinely
+  empty (first 07-12 claims landed 04:01Z, questions 01:42Z) BUT the "claim IDs" leakage
+  came from entities-only evidence — the no-evidence short-circuit required claims AND
+  entities empty, so gpt-5 was paid to answer from `CLAIMS: (none)` + entity rows.
+  **Architecture ruling (R3 hard rule, absorbed into W2):** GET /ask?q= previously
+  EXECUTED the paid pipeline (root cause of #48 double-billing + refresh/back-nav/
+  shared-link re-billing); execution moved into a useActionState server action (auth
+  re-checked inside), GET now only prefills — pinned by a money test AND a live prod-DB
+  probe (GET wrote no ask_usage row). Tradeoff accepted: answers are not URL-addressable.
+  **W1 gated per R1 on a disposable Neon branch** (both DATABASE_URL vars overridden +
+  asserted; first attempt correctly failed closed on unset LLM_SPRINT_USD_CAP): honesty
+  5/5, known-answer citations 5/5, first run, no metric edits (R2 clean). Legacy SYSTEM
+  byte-preserved under a frozen-fixture test; new knobs `ASK_NO_COVERAGE_SHORTCIRCUIT`
+  (default on) + `ASK_RELATED_MIN_SCORE` (default 0.5, calibrated: max observed junk
+  vectorScore 0.4547 → smallest excluding floor rounded up; null vectorScore excluded, so
+  v2-lexical-only mode renders no related block). W4 replay ran on its own disposable
+  branch because guard metering WRITES provider_usage — "SELECT-only prod" honored by
+  construction. Both branches deleted. OPEN-TASKS #48 closed (idempotency window stays
+  parked); 3 uk strings appended to the native-review inventory. Tests 902→956 (74
+  files). OpenAI spend $0.106 of $2. Operator checklist in the note §⑥.
 
 ## Conventions
 
