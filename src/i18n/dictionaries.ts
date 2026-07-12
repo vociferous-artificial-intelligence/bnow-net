@@ -316,6 +316,9 @@ const en: Dict = {
   // JSX so no new placeholder collides with i18n.test.ts's fixed vars fixture.
   "ask.nocoverage.prefix": "No claims yet cover",
   "ask.nocoverage.currency": "Data current through",
+  // pending-state hint (W2: /ask double-submit fix, OPEN-TASKS #48) — shown only
+  // while the paid pipeline is running.
+  "ask.pending.hint": "Searching the claim database — usually ~10 seconds",
 
   // auth labels
   "auth.signin": "Sign in",
@@ -516,6 +519,7 @@ const uk: Dict = {
   "ask.related.title": "Пов'язані твердження", // uk: needs native review
   "ask.nocoverage.prefix": "Ще немає тверджень, що охоплюють", // uk: needs native review
   "ask.nocoverage.currency": "Дані актуальні станом на", // uk: needs native review
+  "ask.pending.hint": "Пошук у базі тверджень — зазвичай ~10 секунд", // uk: needs native review
   "auth.signin": "Увійти",
   "auth.email_placeholder": "ви@приклад.ua",
   "auth.send_link": "Надіслати магічне посилання",
