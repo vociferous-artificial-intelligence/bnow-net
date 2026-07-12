@@ -290,7 +290,11 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     fail closed to the reduced registry/signals views for every account, including admin's.
     Correct fail-closed behavior, not a lock-out, but worth mirroring to Preview/Development
     if those environments need full-view testing.
-53. **MERGE 2's signed-in surfaces need an operator eyeball pass.** Home theater-status panel
+53. **MERGE 2's signed-in surfaces need an operator eyeball pass.** (Partially superseded
+    2026-07-12: the analyst-trust sprint fixed the signed-in home's digest-status bug and
+    reordered the page; the checklist in ANALYST-TRUST-NOTE-2026-07-12.md §⑥ is the
+    current eyeball list. /registry is now admin-only, not merely reduced.)
+    Original item: Home theater-status panel
     + validation tiles, `/signals` evidence `<details>` expansion, and `/registry` as a
     non-admin vs. an `ADMIN_EMAILS` account are unit-tested and JSX-reviewed but were only
     machine-checked signed-out; nobody has exercised them with a real magic-link session yet
@@ -305,6 +309,18 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
 55. **/search is not in the nav.** Reachable only from the signed-in home quick-links rail
     (analyst-home readback, decision 3 — nav carries frozen-URL + all-locale-label
     invariants). Add a `nav.item.search` Product-group entry once the surface proves itself.
+
+56. **Platform-level registry sources must be segmented (R8, 2026-07-12).** `facebook.com`,
+    `t.me` root, `x.com` root appear in the ISW-derived registry as single "sources" —
+    a platform is not a source. Segment to page/channel/account level in the ingestion
+    registry (the citation parser already sees the full URLs). Also a registry-credibility
+    blocker for ever un-hiding the registry (it went admin-only 2026-07-12, ruling R5) —
+    a top source of "facebook.com" reads as a data error to any analyst.
+57. **/pricing promises registry access the product no longer grants.** The Full-analyst
+    tier copy says "Source-registry explorer + reliability data", but /registry 404s for
+    everyone below admin since 2026-07-12 (R5). Either re-scope the tier copy or add an
+    entitlement that grants role=analyst registry access (operator decision — it's the
+    defensible-asset tradeoff, brief §6.2).
 
 ## Deferred by design (key-blocked — see BLOCKERS.md)
 

@@ -123,3 +123,26 @@ paraphrased below; otherwise the row carries the generic flag.
 | `search.count` | showing {n} of {total} matching claims | показано {n} з {total} відповідних тверджень | non-native translation, needs review |
 | `feedback.flag_digest` | Flag an error in this digest | Повідомити про помилку в цьому дайджесті | non-native translation, needs review |
 | `feedback.flag_source` | Suggest or flag a source | Запропонувати або позначити джерело | non-native translation, needs review |
+
+### Appended 2026-07-12 (analyst-trust sprint: time-model, home reorder, scoreboard explainer, dual coverage)
+
+| key | en | uk (provisional) | status |
+|---|---|---|---|
+| `home.status.latest_digest` | Latest digest | Останній дайджест | non-native translation, needs review |
+| `home.status.stage_intraday` | intraday | проміжний | non-native translation, needs review |
+| `home.status.stage_final` | final | фінальний | non-native translation, needs review |
+| `home.status.none_today` | no digest yet today | сьогодні дайджесту ще немає | non-native translation, needs review |
+| `home.status.claims_for` | Digest claims, {date} | Тверджень у дайджесті, {date} | non-native translation, needs review |
+| `home.status.no_digest` | none yet | ще немає | non-native translation, needs review |
+| `home.validation.corroborated_label` | Corroborated share, {date} | Частка підтверджених, {date} | non-native translation, needs review |
+| `home.validation.coverage_suffix` | final coverage | фінальне охоплення | non-native translation, needs review |
+| `home.headline` | Today's intelligence picture | Сьогоднішня розвідувальна картина | non-native translation, needs review |
+| `home.validation.caption` | (see dictionaries.ts — one-line scoreboard caption) | (див. dictionaries.ts) | non-native translation, needs review |
+| `scoreboard.explainer` | (long explainer paragraph — see dictionaries.ts) | (довгий абзац — див. dictionaries.ts) | non-native translation, needs review |
+| `scoreboard.how_to_read.summary` | How to read these numbers | Як читати ці цифри | non-native translation, needs review |
+| `scoreboard.how_to_read.coverage` | (coverage definition line — see dictionaries.ts) | (див. dictionaries.ts) | non-native translation, needs review |
+| `scoreboard.how_to_read.at_publish` | (at-publish definition line — see dictionaries.ts) | (див. dictionaries.ts) | non-native translation, needs review |
+| `scoreboard.how_to_read.lead` | (info-lead definition line — see dictionaries.ts) | (див. dictionaries.ts) | non-native translation, needs review |
+| `scoreboard.how_to_read.thin` | (thin-sourced definition line — see dictionaries.ts) | (див. dictionaries.ts) | non-native translation, needs review |
+| `scoreboard.how_to_read.divergence` | (divergence definition line — see dictionaries.ts) | (див. dictionaries.ts) | non-native translation, needs review |
+| `scoreboard.at_publish` | at ISW publish: {pct}% | на момент публікації ISW: {pct}% | non-native translation, needs review |
