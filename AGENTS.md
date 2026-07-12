@@ -543,6 +543,40 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   all 846 claims (latent coupling → OPEN-TASKS #54; /search nav entry deferred → #55).
   31 uk strings appended to the native-review inventory. LLM spend $0.00.
 
+- **2026-07-12 (analyst-trust sprint, unattended — FULL SHIP, deployed)** Prompt
+  `docs/prompts/2026-07-12-analyst-trust.md`; branch `20260712-analyst-trust` (tag
+  `pre-analyst-trust-20260712`) merged `2feb128`, deployed **`bnow-kw2t3dndf`**
+  (rollback target recorded pre-deploy: `bnow-jihmibgm6`); morning note
+  `docs/reviews/ANALYST-TRUST-NOTE-2026-07-12.md`. **W0 root cause of the operator's
+  "not yet generated beside 14 claims" screenshot: the home digest query's
+  `row_number() AS rn` comes back from the Neon driver as a STRING and the fold's
+  `=== 1` never matched** — latestDate folded null on every theater since the
+  analyst-home ship; unit tests passed because mocks used JS-number rn (now
+  driver-realistic + regression-pinned). Shipped: W1 time model (src/lib/time/*,
+  docs/TIME-MODEL.md, cadence-aware status naming bucket+stage, claims count keyed
+  to the displayed bucket = R2 contradiction structurally impossible, ET-day params
+  replace SQL current_date); W2 signed-in home reorder per R3 (compact headline, no
+  hero/CTAs, whole-card stretched links, tiles last) + R7 (magic-link lands on `/`,
+  was /account); W3 scoreboard explainer + per-metric how-to-read (definitions
+  verified against scoring code); W4 **at-publish dual coverage** — evidence-in-hand
+  (min fetched_at, NOT the source's publish claim) vs ISW's stored datePublished,
+  same denominator as coverage_pct, persisted scoring-time to details.atPublish
+  (jsonb, zero migration), deterministic 7-day backfill branch-rehearsed then prod
+  (15/18 decorated, 3 honest skips where digests regenerated post-scoring; NO
+  headline number changed; ir 07-11 = final 100% vs at-publish 0% — real), full
+  cutoff/snapshot design PARKED in docs/designs/ISW-CUTOFF-SCORING.md per R6(d);
+  W5 registry ADMIN-ONLY (requireAdminOr404 → 404 for analyst/user/anon, links
+  removed everywhere, source mailto → digest footer; ADMIN_EMAILS now readable-plain
+  in all three Vercel envs + .env.local = go@vociferous.nyc). **Vercel CLI trap
+  resolved: this team's policy stores Production/Preview env adds as Sensitive
+  (write-only) by default — `vercel env add NAME <env> --no-sensitive --value` is
+  the readable form** (explains every Sensitive-var episode since 07-09). Tests
+  996→1053 (84 files); spend $0.00 of $5. New OPEN-TASKS #56 (R8 platform-source
+  segmentation) + #57 (/pricing promises registry access the product no longer
+  grants — operator decision). 18 uk strings appended to the native-review
+  inventory. `data/embed-backfill-checkpoint.json` untracked + data/*.json ignored
+  (was swept into the merge by git add -A, then removed).
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).

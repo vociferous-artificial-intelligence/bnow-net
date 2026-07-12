@@ -6,7 +6,18 @@ tag `pre-analyst-trust-20260712`. Rollback deployment recorded pre-sprint:
 
 ## ① Outcome
 
-(filled in at the end of the sprint)
+**FULL SHIP.** All five build workstreams landed; nothing rolled back; one planned
+park (the W4 window restructure, by design — R6(d)). Branch
+`20260712-analyst-trust` merged `2feb128`, deployed **`bnow-kw2t3dndf`** (READY,
+project domain serving; rollback target recorded pre-sprint: `bnow-jihmibgm6`).
+Tests 996 → **1053** (84 files); typecheck/lint/`next build` green; route table
+unchanged (all dynamic, URLs frozen). Signed-out prod smoke green: hero intact
+with zero `/registry` hrefs, registry routes 404, scoreboard 200 with explainer +
+live at-publish sublines, /search + /digests still 307, /health 200. LLM spend
+**$0.00** of the $5 cap. The finding-1 contradiction is now structurally
+impossible (the claims count is keyed to and labeled with the digest bucket the
+card names — pinned by tests), and the underlying fold bug is fixed +
+regression-pinned.
 
 ## ② W0 readback — the contradiction, explained plainly
 
@@ -92,11 +103,23 @@ used only by /ask and /search. Dev-box wall clock is **ET** while Vercel is **UT
 so implicit-local date math diverges between dev and prod — one more reason R1's
 helper takes an explicit timezone.
 
-## ③ TIME-MODEL summary — buggy vs mislabeled
+## ③ TIME-MODEL summary — what was buggy vs mislabeled
 
-(filled in by W1; buggy = the `rn` fold bug + UTC "today" buckets on an ET page;
-mislabeled = "Digest generated", unlabeled "Next update", unlabeled corroborated
-"today")
+`docs/TIME-MODEL.md` is the standing document; `src/lib/time/` is the one
+sanctioned helper set (explicit-timezone day boundaries, ET formatters, the digest
+status state machine). **Genuinely buggy:** (a) the `rn` driver-string fold bug
+(fixed: `::int` cast + `Number()` fold + driver-realistic test mocks — the old
+mocks used JS numbers, kinder than the real driver, which is why 996 green tests
+missed a fully broken card); (b) "claims, today" and the corroborated tile
+bucketing on SQL `current_date` (the UTC session day) under ET labels — every
+evening 8 PM–midnight ET they silently pointed at a bucket with no digest yet
+(now: the bucket is computed in ET and passed as a parameter, and the claims count
+is keyed to the displayed bucket). **Mislabeled, now truthful:** "Digest
+generated" (created_at is last-writer-wins) → "Latest digest: {date} ·
+intraday/final {time} ET"; "Next update" → "~{next intraday} ET · final ~{time}
+ET" phrased per cadence stage; the corroborated tile now names its date; home
+coverage tiles say "final coverage". The X-paused banner semantics are untouched
+(R9). Dev-box ET vs Vercel UTC is documented as a standing trap.
 
 ## ④ W4 — audit verdict (R6(a), verbatim per the register)
 
@@ -143,16 +166,73 @@ change. LLM spend $0.
 
 ## ⑤ Registry gating
 
-(filled in by W5)
+Mechanism: the existing role model — `requireAdminOr404()` in
+`src/lib/gate.ts`, called from both `src/app/registry/layout.tsx` and
+`src/app/middle-east/layout.tsx`. Admin = `users.role='admin'` in the DB OR the
+`ADMIN_EMAILS` allowlist (bootstrap); everyone else — analyst, user, signed-out —
+gets `notFound()` (a 404, not a redirect: the gate doesn't advertise itself).
+Fail-closed: gate on + no admin evidence = 404; with `FEATURE_AUTH_GATE` off
+(local dev) everything stays open, matching the repo's standing dev-parity
+posture. Registry links removed everywhere (nav, quick-links rail, signed-out
+home line + reliability-card link); the "Suggest or flag a source" mailto moved
+to the digest footer (subject `[BNOW source] suggestion`). `ADMIN_EMAILS` is now
+**readable-plain in all three Vercel envs** + `.env.local`, value
+`go@vociferous.nyc`, round-trip-verified via `vercel env pull`. **How to grant
+someone admin (one line):** `UPDATE users SET role='admin' WHERE email='<email>'`
+(or append the email to `ADMIN_EMAILS` + redeploy). **CLI discovery worth
+keeping:** this team's Vercel policy stores Production/Preview env adds as
+Sensitive (write-only) by default — `vercel env add NAME <env> --no-sensitive
+--value '<v>'` is the readable form; my first two adds silently stored
+empty-pulling Sensitive values until re-added with the flag.
 
 ## ⑥ Gregory's interactive checklist
 
-(filled in at the end)
+1. **Reload the home page at a few different hours** (mid-morning, ~4 PM, ~10:30
+   PM, just after midnight ET) and confirm each theater card's story matches
+   reality: the digest row names a date + stage + ET time; the claims row carries
+   the SAME date; "next update" points at the true next run (intraday ~12 AM /
+   6 AM / 3:30 PM ET, final ~10 PM ET).
+2. **Click a theater panel anywhere on the card** — it should land on that
+   theater's latest digest; the inner "scoreboard →" link must still work
+   independently.
+3. **Read the scoreboard explainer cold** and judge whether a stranger-analyst
+   understands what's measured and why the misses are published. Check the "at
+   ISW publish" sublines — ir 07-11 reads final 100% / at-publish 0% (real: our
+   matched evidence was ingested after their 4:10 PM ET publish), ru 07-11 reads
+   57% both.
+4. **Registry:** incognito → bnow-net.vercel.app/registry should 404 (also
+   /middle-east); signed in as go@vociferous.nyc it should render fully. Confirm
+   no registry links anywhere in nav/home/rail.
+5. **Sign out, sign back in via magic link** — you should land on `/` (the
+   signed-in home), not /account.
+6. **Digest footer:** any digest page should show BOTH mailtos ("Flag an error…"
+   and "Suggest or flag a source").
 
 ## ⑦ Parked items + runbooks
 
-(filled in at the end)
+- **W4 full version PARKED (by design, R6(d)):** cutoff-anchored windows + digest
+  snapshots + true dual validation passes — complete design + revival runbook in
+  `docs/designs/ISW-CUTOFF-SCORING.md`. Nothing historical is lost by waiting
+  (snapshots can't exist retroactively).
+- **Three backfill skips (honest):** ir 07-07, ir 07-08, ua 07-08 have no
+  at-publish subline — their digests were regenerated after scoring, so the
+  matched claims are gone. They stay blank rather than guessed. Runbook: none
+  needed; new runs compute the metric at scoring time from tonight's validate
+  cron onward.
+- **OPEN-TASKS #56 (R8):** platform-level registry sources (facebook.com, t.me
+  root, x.com root) need page/channel/account segmentation — filed, not built.
+- **OPEN-TASKS #57 (new, from W5):** /pricing's Full-analyst tier still promises
+  "Source-registry explorer" — needs either copy re-scope or an
+  analyst-entitlement decision now that the registry is admin-only.
+- **Orphaned i18n keys** (nav.item.registry, nav.item.me_registry,
+  home.quicklinks.registry, home.features.reliability.link, home.cta.digest,
+  home.cta.coverage, home.live_label) left in catalogs — harmless, sweep anytime.
+- **Checkpoint file** `.analyst-trust-checkpoint.md` deleted post-ship (absorbed
+  by this note).
 
 ## ⑧ Spend
 
-(cap $5 — running total $0.00; W4 as designed spends $0)
+**$0.00 of the $5 cap.** The dual metric is deterministic (stored matches + durable
+document timestamps); the backfill never re-ran the matcher; no other workstream
+touches a paid provider. One disposable Neon branch (br-small-tooth-atqg0c7z) was
+created for the backfill rehearsal and deleted after verification.

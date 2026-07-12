@@ -1064,3 +1064,16 @@ Prompt: docs/prompts/2026-07-12-analyst-trust.md. Branch 20260712-analyst-trust.
    7-day backfill (Neon branch first), scoreboard display; design doc for the parked
    window restructure.
 6. W6 docs ride-along; assembled gate; deploy; prod smoke; morning note.
+
+## 2026-07-12 ~14:15 ET — analyst-trust sprint RESULTS (unattended, FULL SHIP)
+
+Deployed `bnow-kw2t3dndf` (rollback: `bnow-jihmibgm6`). Root cause of the
+contradiction: driver returns row_number() bigint as string; `=== 1` fold never
+matched → "not yet generated" on every card since analyst-home. Shipped: time
+model (src/lib/time/*, TIME-MODEL.md, cadence-aware cards, R2 invariant pinned),
+home reorder + magic-link→/, scoreboard explainer + at-publish dual coverage
+($0 deterministic, details.atPublish jsonb, 7-day backfill 15/18 + 3 honest
+skips, headline numbers untouched, snapshot design parked in
+docs/designs/ISW-CUTOFF-SCORING.md), registry admin-only (404 + links removed +
+ADMIN_EMAILS readable-plain ×3 envs). Tests 996→1053/84. Spend $0.00 of $5.
+Morning note: docs/reviews/ANALYST-TRUST-NOTE-2026-07-12.md.
