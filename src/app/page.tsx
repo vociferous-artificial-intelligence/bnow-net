@@ -6,6 +6,7 @@ import { formatNumber } from "@/i18n/format";
 import { currentUserEmail } from "@/lib/session";
 import { LIVE_THEATERS, latestDigestHref, theaterHref } from "@/lib/nav/site-nav";
 import { TheaterStatusPanel, type TheaterStatusEntry } from "@/components/theater-status-panel";
+import { QuickLinksRail, type QuickLinksTheaterEntry } from "@/components/quick-links-rail";
 import {
   HomeValidationTiles,
   type TheaterValidationEntry,
@@ -28,10 +29,16 @@ interface FreshnessRow {
   last_x: string | null;
 }
 
-interface DigestRow {
+// Ranked (not aggregated) digest-date row: up to two per theater (rn=1 latest,
+// rn=2 previous), from a window function over each theater's distinct digest_date
+// values. Feeds both TheaterStatusPanel (rn=1 only) and QuickLinksRail (rn 1+2) from
+// one query. last_digest is the theater's max(created_at) across ALL digest rows —
+// not scoped to the rn=1 date — repeated on every row for that iso2.
+interface DigestDateRow {
   iso2: string;
+  digest_date: string;
+  rn: number;
   last_digest: string | null;
-  latest_date: string | null;
 }
 
 interface ValidationRow {
@@ -39,11 +46,22 @@ interface ValidationRow {
   coverage_pct: number | string | null;
   timeliness_hours: number | string | null;
   run_at: string | null;
+  digest_date: string | null;
 }
 
 interface CorroboratedRow {
   corroborated: number;
   total: number;
+}
+
+interface ClaimsTodayRow {
+  iso2: string;
+  n: number;
+}
+
+interface RecentAskRow {
+  question: string;
+  last_at: string;
 }
 
 const PRIMARY_CTA =
@@ -84,9 +102,11 @@ export default async function Home() {
   let nextUpdateLabel = "";
   let validationEntries: TheaterValidationEntry[] = [];
   let corroboratedShare: CorroboratedShare | null = null;
+  let quickLinksTheaters: QuickLinksTheaterEntry[] = [];
+  let recentAsks: RecentAskRow[] = [];
   if (signedIn) {
     try {
-      const [freshnessRows, digestRows, validationRows, corroboratedRows] = (await Promise.all([
+      const [freshnessRows, digestRows, validationRows, corroboratedRows, claimsTodayRows, recentAskRows] = (await Promise.all([
         rawSql.query(
           `SELECT rd.country_iso2 AS iso2,
                   max(rd.fetched_at) AS last_fetch,
@@ -97,18 +117,41 @@ export default async function Home() {
            GROUP BY 1`,
           [],
         ),
+        // Top-two distinct digest_dates per theater (rn=1 latest, rn=2 previous),
+        // window-ranked so TheaterStatusPanel (rn=1) and QuickLinksRail (rn 1+2) share
+        // one query. last_digest (max(created_at) across ALL digest rows for the
+        // theater, not just the rn=1 date) is joined onto every ranked row.
         rawSql.query(
-          `SELECT c.iso2, max(d.created_at) AS last_digest, max(d.digest_date)::text AS latest_date
-           FROM digests d JOIN countries c ON c.id = d.country_id
-           WHERE c.iso2 IN ('ru','ua','ir')
-           GROUP BY 1`,
+          `WITH distinct_dates AS (
+             SELECT DISTINCT country_id, digest_date FROM digests
+           ),
+           ranked AS (
+             SELECT c.iso2, dd.digest_date,
+                    row_number() OVER (PARTITION BY c.iso2 ORDER BY dd.digest_date DESC) AS rn
+             FROM distinct_dates dd
+             JOIN countries c ON c.id = dd.country_id
+             WHERE c.iso2 IN ('ru','ua','ir')
+           ),
+           created AS (
+             SELECT c.iso2, max(d.created_at) AS last_digest
+             FROM digests d JOIN countries c ON c.id = d.country_id
+             WHERE c.iso2 IN ('ru','ua','ir')
+             GROUP BY 1
+           )
+           SELECT r.iso2, r.digest_date::text AS digest_date, r.rn, cr.last_digest
+           FROM ranked r
+           JOIN created cr ON cr.iso2 = r.iso2
+           WHERE r.rn <= 2
+           ORDER BY r.iso2, r.rn`,
           [],
         ),
         // Latest validation run per theater — DISTINCT ON picks the newest row per
         // iso2 (run_at DESC) instead of an aggregate, so coverage/timeliness stay a
         // matched pair from the same run rather than mixed maxima across runs.
+        // digest_date rides along so the panel can deep-link to that run's scoreboard.
         rawSql.query(
-          `SELECT DISTINCT ON (c.iso2) c.iso2 AS iso2, vr.coverage_pct, vr.timeliness_hours, vr.run_at
+          `SELECT DISTINCT ON (c.iso2) c.iso2 AS iso2, vr.coverage_pct, vr.timeliness_hours, vr.run_at,
+                  d.digest_date::text AS digest_date
            FROM validation_runs vr
            JOIN digests d ON d.id = vr.digest_id
            JOIN countries c ON c.id = d.country_id
@@ -132,11 +175,46 @@ export default async function Home() {
            ) claim_doc_counts`,
           [],
         ),
-      ])) as [FreshnessRow[], DigestRow[], ValidationRow[], CorroboratedRow[]];
+        // Claims-today per theater — `claims` holds only digest claims, so this is a
+        // cheap direct count, not a join through raw_documents.
+        rawSql.query(
+          `SELECT c.iso2, count(*)::int AS n
+           FROM claims cl JOIN countries c ON c.id = cl.country_id
+           WHERE cl.claim_date = current_date AND c.iso2 IN ('ru','ua','ir')
+           GROUP BY 1`,
+          [],
+        ),
+        // This user's past /ask questions, most recent first, deduped by question text.
+        // Links land on /ask?q=... which only PREFILLS the form — never re-executes the
+        // paid pipeline (ask-polish sprint's GET/action split; see the Ask box below).
+        rawSql.query(
+          `SELECT question, max(created_at) AS last_at
+           FROM ask_usage WHERE user_email = $1
+           GROUP BY question ORDER BY last_at DESC LIMIT 5`,
+          [email],
+        ),
+      ])) as [FreshnessRow[], DigestDateRow[], ValidationRow[], CorroboratedRow[], ClaimsTodayRow[], RecentAskRow[]];
 
       const freshnessByIso2 = new Map(freshnessRows.map((r) => [r.iso2, r]));
-      const digestByIso2 = new Map(digestRows.map((r) => [r.iso2, r]));
       const validationByIso2 = new Map(validationRows.map((r) => [r.iso2, r]));
+      const claimsTodayByIso2 = new Map(claimsTodayRows.map((r) => [r.iso2, r.n]));
+
+      // Fold the ranked digest-date rows into one entry per theater (latest + prev
+      // date, plus the theater-wide last_digest timestamp) for both theaterStatus and
+      // quickLinksTheaters below.
+      interface DigestDates {
+        latest: string | null;
+        prev: string | null;
+        lastDigestAt: string | null;
+      }
+      const digestByIso2 = new Map<string, DigestDates>();
+      for (const row of digestRows) {
+        const cur = digestByIso2.get(row.iso2) ?? { latest: null, prev: null, lastDigestAt: row.last_digest };
+        if (row.rn === 1) cur.latest = row.digest_date;
+        else if (row.rn === 2) cur.prev = row.digest_date;
+        cur.lastDigestAt = row.last_digest;
+        digestByIso2.set(row.iso2, cur);
+      }
 
       validationEntries = LIVE_THEATERS.map((th) => {
         const v = validationByIso2.get(th.iso2);
@@ -154,16 +232,31 @@ export default async function Home() {
       theaterStatus = LIVE_THEATERS.map((th) => {
         const f = freshnessByIso2.get(th.iso2);
         const d = digestByIso2.get(th.iso2);
+        const v = validationByIso2.get(th.iso2);
         return {
           iso2: th.iso2,
           name: t(th.labelKey),
           lastFetch: f?.last_fetch ?? null,
           docs24h: f?.docs_24h ?? 0,
-          lastDigestAt: d?.last_digest ?? null,
-          digestHref: latestDigestHref(th.iso2, d?.latest_date ?? null),
-          latestDate: d?.latest_date ?? null,
+          lastDigestAt: d?.lastDigestAt ?? null,
+          digestHref: latestDigestHref(th.iso2, d?.latest ?? null),
+          latestDate: d?.latest ?? null,
+          claimsToday: claimsTodayByIso2.get(th.iso2) ?? 0,
+          scoreboardHref: v?.digest_date ? `/scoreboard/${th.iso2}/${v.digest_date}` : null,
         };
       });
+
+      quickLinksTheaters = LIVE_THEATERS.map((th) => {
+        const d = digestByIso2.get(th.iso2);
+        return {
+          iso2: th.iso2,
+          name: t(th.labelKey),
+          latestDate: d?.latest ?? null,
+          prevDate: d?.prev ?? null,
+        };
+      });
+
+      recentAsks = recentAskRows;
 
       // xPaused reads the freshest x_api fetch across all three theaters, not per-card —
       // one adapter-health signal, not three (eval §1: a truthful footnote, not a claim
@@ -265,6 +358,7 @@ export default async function Home() {
 
       {signedIn ? (
         <>
+          <QuickLinksRail t={t} theaters={quickLinksTheaters} />
           <TheaterStatusPanel
             locale={locale}
             t={t}
@@ -298,40 +392,76 @@ export default async function Home() {
               </form>
             </div>
           </section>
+          {recentAsks.length > 0 && (
+            <section className="pb-10">
+              <p className="mb-2 text-sm font-semibold">{t("home.recent_asks.label")}</p>
+              <ul className="space-y-1 text-sm">
+                {recentAsks.map((a) => (
+                  <li key={a.question}>
+                    <Link
+                      href={`/ask?q=${encodeURIComponent(a.question)}`}
+                      className="block truncate underline hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      {a.question}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </>
       ) : (
-        <section className="grid gap-6 py-10 sm:grid-cols-3">
-          <div className="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
-            <h3 className="mb-2 font-semibold">{t("home.features.reliability.title")}</h3>
-            <p className="text-sm text-gray-500">
-              {t("home.features.reliability.body", {
-                sources: formatNumber(locale, stats.sources),
-                citations: formatNumber(locale, stats.citations),
-              })}
-            </p>
-            <Link href="/registry" className="mt-3 inline-block text-sm underline">
-              {t("home.features.reliability.link")}
-            </Link>
-          </div>
-          <div className="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
-            <h3 className="mb-2 font-semibold">{t("home.features.claims.title")}</h3>
-            <p className="text-sm text-gray-500">
-              {t("home.features.claims.body", { docs: formatNumber(locale, stats.docs) })}
-            </p>
-            <Link href="/countries" className="mt-3 inline-block text-sm underline">
-              {t("home.features.claims.link")}
-            </Link>
-          </div>
-          <div className="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
-            <h3 className="mb-2 font-semibold">{t("home.features.scored.title")}</h3>
-            <p className="text-sm text-gray-500">
-              {t("home.features.scored.body", { runs: formatNumber(locale, stats.runs) })}
-            </p>
-            <Link href="/scoreboard" className="mt-3 inline-block text-sm underline">
-              {t("home.features.scored.link")}
-            </Link>
-          </div>
-        </section>
+        <>
+          <section className="grid gap-6 py-10 sm:grid-cols-3">
+            <div className="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
+              <h3 className="mb-2 font-semibold">{t("home.features.reliability.title")}</h3>
+              <p className="text-sm text-gray-500">
+                {t("home.features.reliability.body", {
+                  sources: formatNumber(locale, stats.sources),
+                  citations: formatNumber(locale, stats.citations),
+                })}
+              </p>
+              <Link href="/registry" className="mt-3 inline-block text-sm underline">
+                {t("home.features.reliability.link")}
+              </Link>
+            </div>
+            <div className="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
+              <h3 className="mb-2 font-semibold">{t("home.features.claims.title")}</h3>
+              <p className="text-sm text-gray-500">
+                {t("home.features.claims.body", { docs: formatNumber(locale, stats.docs) })}
+              </p>
+              <Link href="/countries" className="mt-3 inline-block text-sm underline">
+                {t("home.features.claims.link")}
+              </Link>
+            </div>
+            <div className="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
+              <h3 className="mb-2 font-semibold">{t("home.features.scored.title")}</h3>
+              <p className="text-sm text-gray-500">
+                {t("home.features.scored.body", { runs: formatNumber(locale, stats.runs) })}
+              </p>
+              <Link href="/scoreboard" className="mt-3 inline-block text-sm underline">
+                {t("home.features.scored.link")}
+              </Link>
+            </div>
+          </section>
+          {/* Public Iran/Gulf card: additive, calm (no urgency styling), reuses the
+              marketing card border above it. Signed-out only — signed-in users get the
+              live theater status panel instead, which already covers Iran. */}
+          <section className="pb-10">
+            <div className="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
+              <h2 className="mb-2 font-semibold">{t("home.iran.title")}</h2>
+              <p className="text-sm text-gray-500">{t("home.iran.body")}</p>
+              <p className="mt-3 flex flex-wrap gap-4 text-sm">
+                <Link href="/countries#ir" className="underline hover:text-gray-600 dark:hover:text-gray-300">
+                  {t("home.iran.link")}
+                </Link>
+                <Link href="/scoreboard" className="underline hover:text-gray-600 dark:hover:text-gray-300">
+                  {t("home.features.scored.link")}
+                </Link>
+              </p>
+            </div>
+          </section>
+        </>
       )}
 
       <footer className="border-t border-gray-200 py-8 text-xs text-gray-400 dark:border-gray-800">

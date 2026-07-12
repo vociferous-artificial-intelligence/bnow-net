@@ -1,0 +1,61 @@
+// @vitest-environment jsdom
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
+import { QuickLinksRail, type QuickLinksTheaterEntry } from "./quick-links-rail";
+
+const t = (key: string) => key;
+
+afterEach(cleanup);
+
+const THEATERS: QuickLinksTheaterEntry[] = [
+  { iso2: "ru", name: "Russia", latestDate: "2026-07-12", prevDate: "2026-07-11" },
+  { iso2: "ua", name: "Ukraine", latestDate: "2026-07-12", prevDate: "2026-07-10" },
+  { iso2: "ir", name: "Iran", latestDate: null, prevDate: null },
+];
+
+describe("quick links rail", () => {
+  it("renders the label and each present theater's name", () => {
+    const { container } = render(<QuickLinksRail t={t} theaters={THEATERS} />);
+    expect(container.textContent).toContain("home.quicklinks.label");
+    expect(container.textContent).toContain("Russia");
+    expect(container.textContent).toContain("Ukraine");
+  });
+
+  it("renders latest and previous digest links per theater, in order, with correct hrefs", () => {
+    render(<QuickLinksRail t={t} theaters={THEATERS} />);
+    const links = screen.getAllByRole("link");
+    const hrefs = links.map((l) => l.getAttribute("href"));
+    expect(hrefs).toEqual([
+      "/digests/ru/2026-07-12",
+      "/digests/ru/2026-07-11",
+      "/digests/ua/2026-07-12",
+      "/digests/ua/2026-07-10",
+      "/scoreboard",
+      "/registry",
+      "/signals",
+      "/search",
+    ]);
+  });
+
+  it("omits a theater entirely when it has no digests at all", () => {
+    const { container } = render(<QuickLinksRail t={t} theaters={THEATERS} />);
+    expect(container.textContent).not.toContain("Iran");
+  });
+
+  it("omits the previous-date link when only a latest date exists, without dropping the theater", () => {
+    const oneDate: QuickLinksTheaterEntry[] = [
+      { iso2: "ru", name: "Russia", latestDate: "2026-07-12", prevDate: null },
+    ];
+    render(<QuickLinksRail t={t} theaters={oneDate} />);
+    const links = screen.getAllByRole("link");
+    const hrefs = links.map((l) => l.getAttribute("href"));
+    expect(hrefs).toEqual(["/digests/ru/2026-07-12", "/scoreboard", "/registry", "/signals", "/search"]);
+  });
+
+  it("always renders the scoreboard, registry, signals, and search links even with zero theaters", () => {
+    render(<QuickLinksRail t={t} theaters={[]} />);
+    const links = screen.getAllByRole("link");
+    const hrefs = links.map((l) => l.getAttribute("href"));
+    expect(hrefs).toEqual(["/scoreboard", "/registry", "/signals", "/search"]);
+  });
+});
