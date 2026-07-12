@@ -185,13 +185,15 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
 
 ## From the original-brief diff (2026-07-06 — reconstruction under-specified the original)
 
-11. **Track §8.7 Phase 2 targets explicitly.** Original brief targets: event coverage ≥80%
-    of ISW-reported events same-day, unsupported-claim rate <2%, timeliness within ±6h.
-    **Measured 2026-07-11 (49 validation_runs):** coverage ru 18.4 / ua 15.6 / ir 20.7% mean
-    (nonzero-day ~32%) — **59–64 pts short**; "unsupported" 45–56% but that column is the
-    *thin-sourced proxy* (docCount<2 AND hedged), not literal hallucination (see #45); median
-    info-lead +15h — favorable but outside the symmetric ±6h band (early side), and null on the
-    22/49 zero-match days. Surface targets-vs-actuals on /scoreboard; the coverage gap is the
+11. ~~**Track §8.7 Phase 2 targets explicitly.**~~ ✅ 2026-07-12 (MERGE 2, design branch
+    workstream G): targets-vs-actuals sublines + thin-sourced tile + nonzero-day mean now
+    surface live on `/scoreboard` (`src/lib/scoreboard/summary.ts`, +14 tests). Original
+    brief targets: event coverage ≥80% of ISW-reported events same-day, unsupported-claim
+    rate <2%, timeliness within ±6h. **Measured 2026-07-11 (49 validation_runs):** coverage
+    ru 18.4 / ua 15.6 / ir 20.7% mean (nonzero-day ~32%) — **59–64 pts short**; "unsupported"
+    45–56% but that column is the *thin-sourced proxy* (docCount<2 AND hedged), not literal
+    hallucination (see #45); median info-lead +15h — favorable but outside the symmetric ±6h
+    band (early side), and null on the 22/49 zero-match days. The coverage gap remains the
     headline quality metric to drive (corpus depth #19/#42 is the lever, not tuning).
 12. **Regional-bundle packaging (§6.5).** Original sells regional bundles as the SKU
     ("Gulf", not per-country): bundle $2–5K/mo, à-la-carte country ≈40% of bundle, global
@@ -266,6 +268,33 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     client-side pending-disable on the submit button (useFormStatus) + a test; consider
     an idempotency window (same user+question within N seconds returns the in-flight
     result) as belt-and-braces.
+
+### New (from MERGE 2, the design/commercial-site branch — 2026-07-12)
+
+49. **[low value] B4 cron-slot qualifier one-liner.** `vercel.json`'s three intraday digest
+    crons already pass `&slot=`, but `digest/route.ts:32`'s qualifier is still `group ?? mode`
+    (never `slot`). One-liner (`group ?? slot ?? mode`) + a test whenever it's worth doing;
+    parked in the design implementation note §4 as low-value now that the slot is at least
+    visible in the cron URL.
+50. **uk pluralization gap: flat `{n}` interpolation can't express Ukrainian noun forms.**
+    `sources.more_summary` ships a genitive-plural constant ("каналів") as the least-wrong
+    approximation because the catalog has no count-dependent plural mechanism (design
+    implementation note §4). Fine for now (see `docs/reviews/UK-NATIVE-REVIEW-2026-07-12.md`);
+    a real pluralization rule set becomes necessary if more count-driven uk strings ship.
+51. **D5: `scripts/registry-materialize.ts` should run on a schedule.** Recommended, not
+    built, in the design implementation note §5. The new registry "Scores as of" line is
+    stale (2026-07-03 as of the note; still parked per the MERGE 2 deploy note) until this
+    runs again — weekly cron or a scheduled operator run.
+52. **`ADMIN_EMAILS` is set in Vercel Production only.** Preview and Development are absent
+    (verified during MERGE 2) and `.env.local` has no readable copy, so non-prod environments
+    fail closed to the reduced registry/signals views for every account, including admin's.
+    Correct fail-closed behavior, not a lock-out, but worth mirroring to Preview/Development
+    if those environments need full-view testing.
+53. **MERGE 2's signed-in surfaces need an operator eyeball pass.** Home theater-status panel
+    + validation tiles, `/signals` evidence `<details>` expansion, and `/registry` as a
+    non-admin vs. an `ADMIN_EMAILS` account are unit-tested and JSX-reviewed but were only
+    machine-checked signed-out; nobody has exercised them with a real magic-link session yet
+    (design implementation note §5, item 6).
 
 ## Deferred by design (key-blocked — see BLOCKERS.md)
 

@@ -121,17 +121,37 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
 - **Validation vs ISW:** majority-vote LLM matching (k=5, 26/27 reproducible across
   reruns), keyword gazetteer as no-key fallback; ISW report auto-discovery by slug.
   Coverage avg ~17.5% (nonzero-day ~31%), median info-lead +14.7h (2026-07-05 backtest).
-- **Surface:** landing / countries / pricing / magic-link auth (Postmark LIVE, still on
-  scenefiend sender domain) / digests+registry+entities behind FEATURE_AUTH_GATE /
-  signals / trade / datadark / critical-materials / ask (**v2 pipeline LIVE 2026-07-12**:
-  hybrid vector+lexical retrieval, gpt-5-mini listwise rerank, gpt-5 answerer with
-  refusal handling; ~$0.011/query; capped 100/user/day + $10/day global
-  (`ASK_USER_DAILY_LIMIT`/`ASK_GLOBAL_DAILY_BUDGET_USD`) + guard caps
-  `ASK_USD_CAP_DAILY=2`/`EMBED_USD_CAP_DAILY=1`, all four in Production AND Preview;
-  rollback = `ASK_PIPELINE=legacy` plain env + redeploy) / i18n: en+uk full, de ar ja
-  pl fr catalogs (landing wired; needs native review before promotion; the 10 new
-  `ask.*` uk strings await native review).
-- **Tests:** 770 unit tests / 58 files green (`npm test`, ~3s) + Neon-branch
+- **Surface:** landing / countries (freshness line, **2026-07-12**) / pricing
+  (**rebuilt 2026-07-12**: DB-priced Standby + Full analyst tiers from
+  `src/lib/pricing/tiers.ts`, Regional bundles + Enterprise/API on request) /
+  magic-link auth (Postmark LIVE, still on scenefiend sender domain) / digests
+  (ClaimSources diversity-selected source collapse, **adopted 2026-07-12**) +
+  registry (**role-gated 2026-07-12**: `src/lib/registry/view-policy.ts` — reduced
+  view for `user`/anon, full for `analyst`/`admin`; `?sort=reliability` ignored
+  server-side for reduced; `/middle-east` splices the reliability CASE out of the
+  SQL for reduced roles) + entities behind FEATURE_AUTH_GATE / signals
+  (**evidence-gated 2026-07-12**: signed-in ClaimSources evidence in `<details>`,
+  signed-out count+sign-in-only) / trade / datadark / critical-materials / ask
+  (**v2 pipeline LIVE 2026-07-12**: hybrid vector+lexical retrieval, gpt-5-mini
+  listwise rerank, gpt-5 answerer with refusal handling; ~$0.011/query; capped
+  100/user/day + $10/day global (`ASK_USER_DAILY_LIMIT`/`ASK_GLOBAL_DAILY_BUDGET_USD`)
+  + guard caps `ASK_USD_CAP_DAILY=2`/`EMBED_USD_CAP_DAILY=1`, all four in Production
+  AND Preview; rollback = `ASK_PIPELINE=legacy` plain env + redeploy). **Role model
+  (2026-07-12):** `users.role` (`user`<`analyst`<`admin`, migration 0016) +
+  `src/lib/gate.ts` helpers back the registry/signals gating above; `ADMIN_EMAILS`
+  bootstraps admin pre-grant, live in Vercel **Production only** (absent
+  Preview/Development — fails closed to reduced views there). **Signed-in home
+  (2026-07-12):** theater status panel + validation-vs-ISW tiles replace the
+  marketing cards for signed-in users; signed-out cards unchanged. **Scoreboard
+  (2026-07-12):** targets-vs-actuals sublines + thin-sourced tile + nonzero-day
+  mean + a true median info-lead (was silently a mean; closes OPEN-TASKS #11).
+  Root error boundaries (`src/app/error.tsx` / `global-error.tsx`, 2026-07-12)
+  never render raw error messages. i18n: en+uk full, de ar ja pl fr catalogs
+  (landing wired; needs native review before promotion; ~74 uk strings — 10
+  `ask.*` (MERGE 1) + ~64 design-branch strings (MERGE 2: pricing, home.status,
+  home.validation, signals, registry) — await native review, tracked in
+  `docs/reviews/UK-NATIVE-REVIEW-2026-07-12.md`).
+- **Tests:** 902 unit tests / 67 files green (`npm test`, ~3s) + Neon-branch
   integration suite (`npm run test:integration`). CI mirror: `.github/workflows/ci.yml`;
   the enforced gate is `.githooks/pre-push` (typecheck+lint+test).
 - **Crons (vercel.json):** ingest fast */15 · telegram :10 · x :20 · mtproto :35 ·
@@ -150,7 +170,7 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   github.com resolves slowly/flakily: pushes work, but short-timeout git commands can
   fail — retry or wait ~30s+. api.gdeltproject.org DNS still fails locally (not
   pinned). TASS/RIA/Lenta RSS unreachable → covered via their Telegram channels.
-- **Git:** origin/main == local main as of 2026-07-09; there is no push blocker.
+- **Git:** origin/main == local main as of 2026-07-12; there is no push blocker.
 
 ## Standing rulings (distilled from the decision log; binding until a log entry supersedes)
 
@@ -405,6 +425,34 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   handy if a future 0014-class apply dies mid-file. Session OpenAI spend $0.121 of the $1.50
   session cap (backfill $0.0003 + smoke $0.121). Branch backups: tag `pre-merge-ask-20260712`
   + `~/bnow-branches-20260712.bundle` (both local, both branches).
+- **2026-07-12 (MERGE 2: design/site-structure → main, migration 0016 on prod, role
+  grants, DEPLOYED)** Unattended session; full account in
+  `docs/reviews/MERGE2-DESIGN-DEPLOY-NOTE-2026-07-12.md`. Branch
+  `20260711-design-commercial-site` merged `--no-ff` (`dc51cbd`, fork point `c49b79f`);
+  exactly two conflicts, both in the pre-authorized register set (journal + 0014
+  snapshot → main's ASK side; design's `0014_square_silver_centurion.sql` deleted).
+  Role migration **regenerated as `0016_charming_veda`** (`3e42d65`): journal idx 16,
+  snapshot prevId `af3e3af0-…` (0015's id), SQL byte-identical to design's original —
+  one additive ALTER; double-generate clean; Opus adversarial review PASS (zero
+  blockers, security posture confirmed: fail-closed roles, server-side sort ignore,
+  /middle-east SQL splice, signals currentUserEmail boundary, ASK surface untouched).
+  Dry-run on the Neon snapshot branch applied exactly 0016 — **BOTH `DATABASE_URL` and
+  `DATABASE_URL_UNPOOLED` overridden and verified through the real `scripts/env` loader
+  before running (the MERGE 1 trap did not recur)** — then prod migrate: head = 0016,
+  `users.role` live, 3 rows default 'user', count unchanged. **R4 grants executed:**
+  gregoryoconnor@gmail.com + jason@americanpoliticalservices.com → analyst;
+  go@vociferous.nyc → admin (defensive); go@vociferous.ai → admin (row CREATED, id
+  `63ec7e25-…` — did not exist; awaiting operator confirmation of the .ai/.nyc pair).
+  ADMIN_EMAILS: Production only (Sensitive/unreadable), absent Preview/Dev — proceeded
+  per register step 3 (fail-closed). Gate 902 tests/67 files green; deployed
+  `bnow-nqegy57dk`, 22/22 signed-out checks green after one adaptation: the check list
+  expected 200 from `/registry`+`/middle-east`, but those routes have been layout-gated
+  (`requireUser()`, commit `7e1f2c5`) since before the design branch — 307→/signin is
+  pre-existing behavior, so no A3 rollback; instead the 307 flight-data bodies were
+  audited (anon → reduced view, zero score values) and the server-side
+  `?sort=reliability` ignore proven live. D5 weekly materializer cron stays PARKED.
+  Neon snapshot branch `premerge-20260712` DELETED (green path); tags + bundle kept.
+  $0.00 OpenAI. MERGE 1's "no drizzle-kit generate before MERGE 2" freeze is lifted.
 
 ## Conventions
 

@@ -939,3 +939,44 @@ Ingestion line "top-75"→"top-120 ROCA-only"; (c) watch `ingest:mtproto` cron_r
 4. Incident ratified: dry-run migrate hit prod (`DATABASE_URL_UNPOOLED` precedence in
    scripts/env.ts consumers) — trap recorded; details + MERGE 2 handoff in
    `docs/reviews/MERGE1-ASK-DEPLOY-NOTE-2026-07-12.md`. Session spend $0.121/$1.50.
+
+## 2026-07-12 — MERGE 2: design/commercial-site merged, migrated, deployed (unattended)
+
+1. `20260711-design-commercial-site` (12 workstream commits, base `c49b79f`) → main
+   `--no-ff` as `dc51cbd`. Only real conflict: design's generated migration
+   `0014_square_silver_centurion.sql` collided with ASK's applied 0014/0015 chain —
+   deleted at merge and regenerated as `drizzle/0016_charming_veda.sql`
+   (`3e42d65`; journal idx 16, `prevId` chains to the MERGE 1 handoff snapshot id
+   `af3e3af0-7331-4af8-9c45-40be65726334`), a single additive
+   `ALTER TABLE "users" ADD COLUMN "role" text DEFAULT 'user' NOT NULL`.
+   `schema.ts` and `dictionaries.ts` auto-merged cleanly (both branches' additions,
+   no key collisions). A stray `0014`-era comment in `gate.ts` was fixed in a
+   follow-up commit (`991e4eb`).
+2. 0016 dry-run verified on a Neon snapshot branch (both `DATABASE_URL` and
+   `DATABASE_URL_UNPOOLED` overridden this time — the MERGE 1 trap did not
+   recur), then applied to prod; prod migration head is now 0016. 902 unit
+   tests / 67 files green; typecheck + lint clean.
+3. Deployed `bnow-nqegy57dk`, READY, project domain serving; 22/22 signed-out
+   automated checks green.
+4. Role grants executed on prod `users`: gregoryoconnor@gmail.com=analyst,
+   jason@americanpoliticalservices.com=analyst, go@vociferous.nyc=admin,
+   go@vociferous.ai=admin (row did not exist — inserted). `ADMIN_EMAILS` is set
+   in Vercel Production only (Sensitive, unreadable); absent Preview/Development,
+   which fail closed to the reduced registry/signals views (OPEN-TASKS #52).
+5. What shipped: `users.role` role model + `gate.ts` role helpers; root error
+   boundaries; ClaimSources collapse adopted on digest pages; signed-in home
+   theater-status panel + validation tiles; pricing rebuilt on DB-priced tiers;
+   scoreboard targets-vs-actuals + thin-sourced tile + nonzero-day mean + true
+   median info-lead (closes OPEN-TASKS #11); countries freshness line; signals
+   purge-dedupe fix + signed-in ClaimSources evidence + i18n chrome; registry
+   view-policy moat (reduced view for user/anon, full for analyst/admin,
+   `?sort=reliability` ignored server-side, `/middle-east` splices the
+   reliability CASE out of SQL); a11y sweep (skip link, `id="main"`,
+   overflow-x-auto); ~64 new en+uk i18n keys. Full inventory:
+   `docs/reviews/IMPLEMENTATION-NOTE-2026-07-11.md`.
+6. Not touched: `vercel.json` (D5 weekly registry-materializer cron stays
+   parked/open, OPEN-TASKS #51), the /ask surface, all MERGE 1 state.
+   $0.00 OpenAI spend this session. Full deploy account, conflict-resolution
+   ledger, and adversarial review: `docs/reviews/MERGE2-DESIGN-DEPLOY-NOTE-2026-07-12.md`.
+7. AGENTS.md/OPEN-TASKS/PROGRESS correction-in-place pass (this entry);
+   uk-string inventory for native review: `docs/reviews/UK-NATIVE-REVIEW-2026-07-12.md`.
