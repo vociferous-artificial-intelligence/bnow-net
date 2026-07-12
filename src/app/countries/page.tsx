@@ -1,22 +1,10 @@
 import Link from "next/link";
 import { rawSql } from "@/db";
 import { getLocale } from "@/i18n/server";
-import { makeT, type Locale } from "@/i18n/dictionaries";
-import { formatDateTime } from "@/i18n/format";
+import { makeT } from "@/i18n/dictionaries";
+import { formatEtDateTime } from "@/lib/time/format-et";
 
 export const dynamic = "force-dynamic";
-
-// Freshness is labeled "ET" (not the DST-varying EDT/EST abbreviation) because that's the
-// stable label the product uses for its US-analyst audience; the IANA zone name still
-// drives correct DST math under the hood via formatDateTime, so no offset is ever hardcoded.
-function freshnessLabel(locale: Locale, lastFetch: string): string {
-  const formatted = formatDateTime(locale, lastFetch, {
-    timeZone: "America/New_York",
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-  return `${formatted} ET`;
-}
 
 export default async function CountriesPage() {
   const locale = await getLocale();
@@ -67,9 +55,11 @@ export default async function CountriesPage() {
             </div>
             {c.status === "active" ? (
               <div className="mt-3 space-y-1 text-sm">
-                {c.last_fetch && (
+                {c.last_fetch && formatEtDateTime(c.last_fetch, locale) && (
                   <p className="text-gray-600 dark:text-gray-300">
-                    {t("countries.data_current", { time: freshnessLabel(locale, c.last_fetch) })}
+                    {t("countries.data_current", {
+                      time: formatEtDateTime(c.last_fetch, locale)!,
+                    })}
                   </p>
                 )}
                 <p className="text-gray-500">{c.docs.toLocaleString()} documents ingested</p>

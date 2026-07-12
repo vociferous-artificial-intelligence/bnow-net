@@ -42,14 +42,19 @@ afterEach(() => {
 
 // Query order inside the signed-in try block's Promise.all (page.tsx): freshnessRows,
 // digestRows (ranked digest-date window query), validationRows, corroboratedRows,
-// claimsTodayRows, recentAskRows. Every signed-in test below must resolve all six, in
+// claimsByDateRows, recentAskRows. Every signed-in test below must resolve all six, in
 // this order, after the top-level stats query.
+//
+// Fixture rows are DRIVER-REALISTIC on purpose: the Neon HTTP driver returns uncast
+// bigint (e.g. row_number()) as a STRING and timestamptz as a Date instance. A
+// friendlier-than-reality mock (rn as a JS number) masked the 2026-07-12 prod bug
+// where `row.rn === 1` never matched — keep these shapes ugly.
 function mockSignedInQueries(overrides: {
   freshness?: unknown[];
   digest?: unknown[];
   validation?: unknown[];
   corroborated?: unknown[];
-  claimsToday?: unknown[];
+  claimsByDate?: unknown[];
   recentAsks?: unknown[];
 } = {}) {
   queryMock
@@ -58,7 +63,7 @@ function mockSignedInQueries(overrides: {
     .mockResolvedValueOnce(overrides.digest ?? [])
     .mockResolvedValueOnce(overrides.validation ?? [])
     .mockResolvedValueOnce(overrides.corroborated ?? [])
-    .mockResolvedValueOnce(overrides.claimsToday ?? [])
+    .mockResolvedValueOnce(overrides.claimsByDate ?? [])
     .mockResolvedValueOnce(overrides.recentAsks ?? []);
 }
 
@@ -83,8 +88,9 @@ describe("signed-in home: quick links rail (W2)", () => {
     emailMock.mockResolvedValue("user@example.com");
     mockSignedInQueries({
       digest: [
-        { iso2: "ru", digest_date: "2026-07-12", rn: 1, last_digest: "2026-07-12T04:02:00.000Z" },
-        { iso2: "ru", digest_date: "2026-07-11", rn: 2, last_digest: "2026-07-12T04:02:00.000Z" },
+        // rn as STRING + last_generated as Date: exactly what the driver delivers.
+        { iso2: "ru", digest_date: "2026-07-12", rn: "1", last_generated: new Date("2026-07-12T04:02:00.000Z") },
+        { iso2: "ru", digest_date: "2026-07-11", rn: "2", last_generated: new Date("2026-07-12T02:02:00.000Z") },
       ],
     });
 
@@ -101,10 +107,12 @@ describe("signed-in home: quick links rail (W2)", () => {
 });
 
 describe("signed-in home: theater status panel extensions (W1)", () => {
-  it("wires claims-today counts and the scoreboard deep link through from the DB rows", async () => {
+  it("wires bucket-keyed claims counts and the scoreboard deep link through from the DB rows", async () => {
     emailMock.mockResolvedValue("user@example.com");
     mockSignedInQueries({
-      digest: [{ iso2: "ru", digest_date: "2026-07-12", rn: 1, last_digest: "2026-07-12T04:02:00.000Z" }],
+      digest: [
+        { iso2: "ru", digest_date: "2026-07-12", rn: "1", last_generated: new Date("2026-07-12T04:02:00.000Z") },
+      ],
       validation: [
         {
           iso2: "ru",
@@ -114,19 +122,43 @@ describe("signed-in home: theater status panel extensions (W1)", () => {
           digest_date: "2026-07-12",
         },
       ],
-      claimsToday: [{ iso2: "ru", n: 7 }],
+      claimsByDate: [
+        { iso2: "ru", d: "2026-07-12", n: 7 },
+        // A different bucket's count must NOT leak into the displayed row.
+        { iso2: "ru", d: "2026-07-11", n: 99 },
+      ],
     });
 
     const element = await Home();
     const { container } = render(element);
 
     expect(container.querySelector('a[href="/scoreboard/ru/2026-07-12"]')).toBeTruthy();
-    // Scope the claims-today assertion to that row's <dd> — a bare "7" substring
-    // check would trivially pass on the "2026-07-12" date text elsewhere on the page.
+    // The claims row is labeled with the displayed bucket's date (the R2 invariant)
+    // and carries that bucket's count — scoped to the row's <dd>, not a substring.
     const claimsDt = Array.from(container.querySelectorAll("dt")).find(
-      (el) => el.textContent === "Digest claims, today",
+      (el) => el.textContent === "Digest claims, 2026-07-12",
     );
     expect(claimsDt?.nextElementSibling?.textContent).toBe("7");
+  });
+
+  it("regression: the digest fold survives the driver's string rn (2026-07-12 prod bug)", async () => {
+    emailMock.mockResolvedValue("user@example.com");
+    mockSignedInQueries({
+      digest: [
+        { iso2: "ru", digest_date: "2026-07-12", rn: "1", last_generated: new Date("2026-07-12T10:05:00.000Z") },
+      ],
+    });
+
+    const element = await Home();
+    const { container } = render(element);
+
+    // Before the fix, string rn made latestDate fold to null and this label fell
+    // back to "none yet" ("not yet generated") with digests present.
+    const digestDt = Array.from(container.querySelectorAll("dt")).find(
+      (el) => el.textContent === "Latest digest",
+    );
+    expect(digestDt?.nextElementSibling?.textContent).toContain("2026-07-12");
+    expect(digestDt?.nextElementSibling?.textContent).not.toContain("none yet");
   });
 });
 

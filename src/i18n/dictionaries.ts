@@ -162,10 +162,17 @@ const en: Dict = {
   "home.status.panel_label": "Data freshness by theater",
   "home.status.data_current": "Data current as of",
   "home.status.docs_24h": "Documents, last 24h",
-  "home.status.digest_generated": "Digest generated",
+  // Cadence-aware digest status (analyst-trust sprint, docs/TIME-MODEL.md): the
+  // card names the digest bucket it describes and labels its stage; the claims row
+  // is keyed to that same bucket via {date}, so it can never contradict the status.
+  "home.status.latest_digest": "Latest digest",
+  "home.status.stage_intraday": "intraday",
+  "home.status.stage_final": "final",
+  "home.status.none_today": "no digest yet today",
+  "home.status.claims_for": "Digest claims, {date}",
   "home.status.next_update": "Next update",
   "home.status.no_data": "no data yet",
-  "home.status.no_digest": "not yet generated",
+  "home.status.no_digest": "none yet",
   "home.status.x_paused": "X ingestion paused (spend cap reached) — RSS and Telegram continue updating",
   // Signed-in validation snapshot tiles (below the theater status panel). Same
   // placeholder-free convention as home.status.* above.
@@ -174,11 +181,9 @@ const en: Dict = {
   "home.validation.not_validated": "not yet validated",
   "home.validation.median_lead_label": "Median info lead vs ISW",
   "home.validation.last_validated_label": "Last validated",
-  "home.validation.corroborated_label": "Corroborated share, today",
+  "home.validation.corroborated_label": "Corroborated share, {date}",
   "home.validation.not_computed": "not yet computed",
-  // Signed-in analyst quick-strip additions (analyst-home sprint) — same
-  // placeholder-free convention as home.status.* above.
-  "home.status.claims_today": "Digest claims, today",
+  // Signed-in analyst quick-strip additions (analyst-home sprint).
   "home.status.scoreboard_link": "scoreboard →",
   // Signed-in quick-links rail: compact known-destination links; digest dates
   // are composed in JSX next to these labels.
@@ -438,19 +443,22 @@ const uk: Dict = {
   "home.status.panel_label": "Актуальність даних за театрами",
   "home.status.data_current": "Дані станом на",
   "home.status.docs_24h": "Документів за останні 24 год",
-  "home.status.digest_generated": "Дайджест згенеровано",
+  "home.status.latest_digest": "Останній дайджест", // uk: needs native review
+  "home.status.stage_intraday": "проміжний", // uk: needs native review
+  "home.status.stage_final": "фінальний", // uk: needs native review
+  "home.status.none_today": "сьогодні дайджесту ще немає", // uk: needs native review
+  "home.status.claims_for": "Тверджень у дайджесті, {date}", // uk: needs native review
   "home.status.next_update": "Наступне оновлення",
   "home.status.no_data": "даних поки немає",
-  "home.status.no_digest": "ще не згенеровано",
+  "home.status.no_digest": "ще немає", // uk: needs native review
   "home.status.x_paused": "Прийом даних з X призупинено (ліміт витрат вичерпано) — RSS і Telegram продовжують оновлюватися",
   "home.validation.panel_label": "Валідація проти ISW",
   "home.validation.coverage_suffix": "охоплення",
   "home.validation.not_validated": "ще не перевірено",
   "home.validation.median_lead_label": "Медіанне випередження ISW",
   "home.validation.last_validated_label": "Востаннє перевірено",
-  "home.validation.corroborated_label": "Частка підтверджених, сьогодні",
+  "home.validation.corroborated_label": "Частка підтверджених, {date}", // uk: needs native review
   "home.validation.not_computed": "ще не обчислено",
-  "home.status.claims_today": "Тверджень у дайджесті, сьогодні", // uk: needs native review
   "home.status.scoreboard_link": "таблиця валідації →", // uk: needs native review
   "home.quicklinks.label": "Швидкі посилання", // uk: needs native review
   "home.quicklinks.digest": "дайджест", // uk: needs native review

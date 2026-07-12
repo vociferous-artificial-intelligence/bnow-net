@@ -27,6 +27,7 @@ function renderTiles(overrides: Partial<Parameters<typeof HomeValidationTiles>[0
       t={t}
       entries={FIXTURE_ENTRIES}
       corroboratedShare={{ corroborated: 25, total: 49 }}
+      corroboratedDate="2026-07-12"
       {...overrides}
     />,
   );
