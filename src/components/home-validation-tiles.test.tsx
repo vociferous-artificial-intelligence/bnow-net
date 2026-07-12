@@ -8,10 +8,9 @@ import {
 
 afterEach(cleanup);
 
-// Test-local translator: the home.validation.* keys aren't merged into
-// src/i18n/dictionaries.ts yet (that's the supervisor's job — see house style in
-// claim-sources.test.tsx), so we assert on which KEY renders, not on real dictionary
-// prose. Identity fallback matches makeT's own key-as-last-resort behavior.
+// Test-local translator: asserts on which KEY renders rather than real dictionary
+// prose (house style — see claim-sources.test.tsx), so this test stays stable as
+// copy changes. Identity fallback matches makeT's own key-as-last-resort behavior.
 const t = (key: string) => key;
 
 const FIXTURE_ENTRIES: TheaterValidationEntry[] = [
@@ -130,6 +129,20 @@ describe("scoreboard link", () => {
     const link = screen.getByRole("link");
     expect(link.getAttribute("href")).toBe("/scoreboard");
     expect(link.textContent).toBe("home.cta.scoreboard");
+  });
+});
+
+describe("caption (W3 scoreboard-explainer sprint)", () => {
+  it("renders the caption above the tile grid", () => {
+    const { container } = renderTiles();
+    const caption = screen.getByText("home.validation.caption");
+    const grid = container.querySelector(".grid");
+    expect(caption).toBeTruthy();
+    expect(grid).toBeTruthy();
+    // DOCUMENT_POSITION_FOLLOWING on grid (relative to caption) means caption comes first.
+    expect(
+      caption.compareDocumentPosition(grid!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });
 

@@ -86,6 +86,9 @@ export function HomeValidationTiles({
 
   return (
     <section aria-label={t("home.validation.panel_label")} className="pb-10">
+      <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+        {t("home.validation.caption")}
+      </p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {entries.map((entry) => (
           <div key={entry.iso2} className={TILE}>

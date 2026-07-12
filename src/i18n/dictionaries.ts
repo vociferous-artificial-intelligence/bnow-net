@@ -187,6 +187,10 @@ const en: Dict = {
   "home.validation.last_validated_label": "Last validated",
   "home.validation.corroborated_label": "Corroborated share, {date}",
   "home.validation.not_computed": "not yet computed",
+  // One-line caption above the tile grid (scoreboard-explainer sprint, W3): sets
+  // expectations before the numbers, same voice as scoreboard.explainer below.
+  "home.validation.caption":
+    "We score our own digests against expert analysis daily — including the misses.",
   // Signed-in analyst quick-strip additions (analyst-home sprint).
   "home.status.scoreboard_link": "scoreboard →",
   // Signed-in quick-links rail: compact known-destination links; digest dates
@@ -297,6 +301,31 @@ const en: Dict = {
   "scoreboard.target_lead": "target within ±{n}h",
   "scoreboard.nonzero_day_mean": "nonzero days: {pct}% (n={days})",
   "scoreboard.view_digest": "view this day's digest →",
+  // Explainer block (scoreboard-explainer sprint, W3): replaces the old one-line
+  // targets note near the top of the page. Substance verified against
+  // src/lib/validation/score.ts + src/lib/scoreboard/summary.ts — see the
+  // how_to_read.* lines below for the per-metric definitions this must stay
+  // consistent with. Per-metric numeric targets stay in the target_* tile
+  // sublines above, unchanged by this block.
+  "scoreboard.explainer":
+    "We score our own output. Every day we compare this system's digest against expert human analysis — ISW's Russian Offensive Campaign Assessment and other baselines — measuring whether we surfaced the same events, how early, and how much of what we published rests on more than one source. We publish the results, including the misses, because analysts should know exactly how much to trust an automated feed. Unlike a finished prose report, every claim here links back to its source document, is searchable, and can land hours earlier — this page shows what that speed costs in coverage.",
+  "scoreboard.how_to_read.summary": "How to read these numbers",
+  // Coverage: matched / matchable ISW same-day takeaways (score.ts coveragePct).
+  "scoreboard.how_to_read.coverage":
+    "Coverage % — the share of ISW's same-day takeaways our digest also matched.",
+  // Lead: median hours across matched pairs of (ISW publish time − earliest
+  // supporting doc's published_at, fallback fetched_at) — score.ts timelinessHours,
+  // run.ts earliest_doc_at query.
+  "scoreboard.how_to_read.lead":
+    "Information lead — median hours between our earliest supporting source document and ISW's publish time, across matched events; positive means we had it first.",
+  // Thin-sourced: docCount<2 AND hedging in (claimed, unverified) — score.ts thin
+  // filter. NOT literal "unsupported"; every claim keeps >=1 source (ruling 2).
+  "scoreboard.how_to_read.thin":
+    "Thin-sourced % — the share of our claims resting on a single source while still hedged as claimed or unverified, never stated as settled fact. Lower is better.",
+  // Divergence kinds: agreement / isw_only (our miss) / ours_only (potential lead) —
+  // score.ts DivergenceEntry.kind.
+  "scoreboard.how_to_read.divergence":
+    "Agreement / ISW-only / ours-only — events both sides reported, events ISW reported that we missed, and events we reported that ISW didn't carry (a potential lead).",
 
   // digest page framing
   "digest.no_events": "No events extracted.",
@@ -464,6 +493,8 @@ const uk: Dict = {
   "home.validation.last_validated_label": "Востаннє перевірено",
   "home.validation.corroborated_label": "Частка підтверджених, {date}", // uk: needs native review
   "home.validation.not_computed": "ще не обчислено",
+  "home.validation.caption":
+    "Ми щодня оцінюємо власні дайджести проти експертного аналізу — включно з промахами.", // uk: needs native review
   "home.status.scoreboard_link": "таблиця валідації →", // uk: needs native review
   "home.quicklinks.label": "Швидкі посилання", // uk: needs native review
   "home.quicklinks.digest": "дайджест", // uk: needs native review
@@ -560,6 +591,17 @@ const uk: Dict = {
   "scoreboard.target_lead": "ціль у межах ±{n} год",
   "scoreboard.nonzero_day_mean": "дні з ненульовим покриттям: {pct}% (n={days})",
   "scoreboard.view_digest": "переглянути дайджест цього дня →", // uk: needs native review
+  "scoreboard.explainer":
+    "Ми оцінюємо власний результат. Щодня ми порівнюємо дайджест цієї системи з експертним аналізом людей — Russian Offensive Campaign Assessment від ISW та іншими базовими джерелами — і перевіряємо, чи ми зафіксували ті самі події, наскільки рано, і яка частка опублікованого спирається більш ніж на одне джерело. Ми публікуємо результати, включно з промахами, бо аналітики повинні точно знати, наскільки довіряти автоматизованій стрічці. На відміну від готового текстового звіту, кожне твердження тут посилається на вихідний документ, доступне для пошуку і може з'явитися на години раніше — ця сторінка показує, чого коштує ця швидкість у покритті.", // uk: needs native review
+  "scoreboard.how_to_read.summary": "Як читати ці цифри", // uk: needs native review
+  "scoreboard.how_to_read.coverage":
+    "Покриття % — частка тез ISW за той самий день, які також збіглися з нашим дайджестом.", // uk: needs native review
+  "scoreboard.how_to_read.lead":
+    "Інформаційне випередження — медіана годин між нашим найранішим підтверджувальним документом-джерелом і часом публікації ISW серед подій, що збіглися; додатне значення означає, що ми дізналися першими.", // uk: needs native review
+  "scoreboard.how_to_read.thin":
+    "Слабко підкріплені % — частка наших тверджень, що спираються лише на одне джерело і при цьому позначені як заявлені чи неперевірені, а не подані як встановлений факт. Менше — краще.", // uk: needs native review
+  "scoreboard.how_to_read.divergence":
+    "Збіг / лише ISW / лише ми — події, які повідомили обидві сторони, події, які повідомив ISW, а ми пропустили, і події, які повідомили ми, а ISW не згадав (можливе випередження).", // uk: needs native review
   "digest.no_events": "Подій не виявлено.",
   "digest.view_for": "перегляд для:",
   "digest.sources": "джерела",
