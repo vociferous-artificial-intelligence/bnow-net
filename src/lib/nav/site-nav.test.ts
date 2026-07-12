@@ -79,21 +79,19 @@ describe("nav shape", () => {
 });
 
 describe("label → route mapping (URLs are frozen)", () => {
-  it("Product points at the feeds index, ask, both registries and signals", () => {
-    expect(hrefsOf(group(signedOut, "product"))).toEqual([
-      "/countries",
-      "/ask",
-      "/registry",
-      "/middle-east",
-      "/signals",
-    ]);
+  it("Product points at the feeds index, ask, and signals", () => {
+    expect(hrefsOf(group(signedOut, "product"))).toEqual(["/countries", "/ask", "/signals"]);
   });
 
-  it("surfaces the ME registry inside Product rather than as a second top-level registry", () => {
+  // R5 (2026-07-12, operator ruling): the source registry is admin-only now.
+  // Both registries' nav entries are dropped everywhere — admins reach
+  // /registry and /middle-east directly by URL, not via nav.
+  it("advertises neither registry anywhere in nav", () => {
     const ids = group(signedOut, "product").items.map((i) => i.id);
-    expect(ids).toContain("registry");
-    expect(ids).toContain("me_registry");
-    expect(signedOut.entries.some((e) => e.kind === "link" && e.href === "/middle-east")).toBe(false);
+    expect(ids).not.toContain("registry");
+    expect(ids).not.toContain("me_registry");
+    expect(navHrefs(signedOut)).not.toContain("/registry");
+    expect(navHrefs(signedOut)).not.toContain("/middle-east");
   });
 
   it("Coverage lists only the live theaters, then the index", () => {
@@ -208,9 +206,6 @@ describe("current-section resolution", () => {
     ["/digests/ru/2026-07-09", "coverage"],
     ["/scoreboard", "validation"],
     ["/scoreboard/ru/2026-07-09", "validation"],
-    ["/registry", "product"],
-    ["/registry/123", "product"],
-    ["/middle-east", "product"],
     ["/ask", "product"],
     ["/signals", "product"],
     ["/entities/5", "product"],
@@ -226,6 +221,14 @@ describe("current-section resolution", () => {
     for (const p of ["/", "/signin", "/account", "/health"]) expect(canonicalSection(p)).toBeNull();
   });
 
+  // R5 (2026-07-12): /registry and /middle-east dropped from SECTION_ROUTES along
+  // with their nav entries — neither route has a trigger left to light up.
+  it("claims no section for the now-unlisted registry routes", () => {
+    for (const p of ["/registry", "/registry/123", "/registry/", "/middle-east"]) {
+      expect(canonicalSection(p)).toBeNull();
+    }
+  });
+
   it("assigns each route to exactly one section, so two triggers never both light up", () => {
     // /countries and /signals each appear under two groups; only one may own them.
     expect(canonicalSection("/countries")).toBe("coverage");
@@ -234,7 +237,7 @@ describe("current-section resolution", () => {
 
   it("ignores query strings and trailing slashes", () => {
     expect(canonicalSection("/digests/ru/2026-07-09?profile=frontline")).toBe("coverage");
-    expect(canonicalSection("/registry/")).toBe("product");
+    expect(canonicalSection("/trade/")).toBe("solutions");
   });
 });
 

@@ -101,8 +101,10 @@ describe("signed-in home: quick links rail (W2)", () => {
     expect(railHref("/digests/ru/2026-07-12")).toBeTruthy();
     expect(railHref("/digests/ru/2026-07-11")).toBeTruthy();
     expect(railHref("/scoreboard")).toBeTruthy();
-    expect(railHref("/registry")).toBeTruthy();
     expect(railHref("/signals")).toBeTruthy();
+    // R5 (2026-07-12): the source registry is admin-only now, so its rail link
+    // (formerly asserted present here) is gone.
+    expect(railHref("/registry")).toBeNull();
   });
 });
 
@@ -209,6 +211,9 @@ describe("signed-out home: untouched marketing sections", () => {
     // Marketing feature cards (signed-out only) still render, resolved through the
     // real en dictionary — proves the signed-out branch was left untouched.
     expect(screen.getByText("Reliability, derived not asserted")).toBeTruthy();
+    // R5 (2026-07-12): the tertiary proof line's and the reliability card's
+    // /registry links are both gone — the source registry is admin-only now.
+    expect(container.querySelector('a[href="/registry"]')).toBeNull();
   });
 });
 

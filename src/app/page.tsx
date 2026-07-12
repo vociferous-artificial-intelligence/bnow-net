@@ -351,14 +351,12 @@ export default async function Home() {
                 {t("home.cta.scoreboard")}
               </Link>
             </div>
-            {/* Buyer journey tertiary line: proof (registry) -> coverage -> validation ->
-                request access. Reuses existing dictionary keys throughout — no new i18n
-                surface — and stays a single muted line, not a new section. */}
+            {/* Buyer journey tertiary line: coverage -> validation -> request access.
+                Reuses existing dictionary keys throughout — no new i18n surface —
+                and stays a single muted line, not a new section. The registry link
+                that used to lead this line was removed (R5, 2026-07-12): the source
+                registry is admin-only now. */}
             <p className="mt-3 text-xs text-gray-400">
-              <Link href="/registry" className="underline hover:text-gray-600 dark:hover:text-gray-300">
-                {t("home.features.reliability.link")}
-              </Link>
-              {" · "}
               <Link href="/countries" className="underline hover:text-gray-600 dark:hover:text-gray-300">
                 {t("home.cta.coverage")}
               </Link>
@@ -444,9 +442,8 @@ export default async function Home() {
                   citations: formatNumber(locale, stats.citations),
                 })}
               </p>
-              <Link href="/registry" className="mt-3 inline-block text-sm underline">
-                {t("home.features.reliability.link")}
-              </Link>
+              {/* "explore the registry →" link removed (R5, 2026-07-12): the source
+                  registry is admin-only now; the card keeps its title/body copy. */}
             </div>
             <div className="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
               <h3 className="mb-2 font-semibold">{t("home.features.claims.title")}</h3>

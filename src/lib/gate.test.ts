@@ -1,16 +1,25 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// next/navigation's real redirect() throws a special NEXT_REDIRECT error inside
-// a request context that doesn't exist in vitest. Mock it as a throw so
-// requireRole's redirect calls are observable without a Next.js runtime.
+// next/navigation's real redirect()/notFound() each throw a special NEXT_*
+// error inside a request context that doesn't exist in vitest. Mock both as
+// throws so requireRole's redirects and requireAdminOr404's 404 are
+// observable without a Next.js runtime.
 class RedirectSignal extends Error {
   constructor(readonly to: string) {
     super(`redirect:${to}`);
   }
 }
+class NotFoundSignal extends Error {
+  constructor() {
+    super("notFound");
+  }
+}
 vi.mock("next/navigation", () => ({
   redirect: (to: string) => {
     throw new RedirectSignal(to);
+  },
+  notFound: () => {
+    throw new NotFoundSignal();
   },
 }));
 
@@ -24,7 +33,7 @@ vi.mock("@/db", () => ({
   rawSql: { query: (sql: string, params: unknown[]) => queryMock(sql, params) },
 }));
 
-const { roleAtLeast, currentRole, requireRole } = await import("./gate");
+const { roleAtLeast, currentRole, requireRole, requireAdminOr404 } = await import("./gate");
 
 function session(email: string | null) {
   authMock.mockResolvedValue(email ? { user: { email } } : null);
@@ -163,5 +172,52 @@ describe("requireRole", () => {
     vi.stubEnv("ADMIN_EMAILS", "boss@example.com");
     session("boss@example.com");
     await expect(requireRole("user")).resolves.toBeUndefined();
+  });
+});
+
+// R5 (2026-07-12, operator ruling): the source registry is admin-only. Non-admins —
+// any lower role, or signed out — get a 404, never a redirect, so the gate doesn't
+// advertise what it's hiding.
+describe("requireAdminOr404", () => {
+  it("passes through for an admin resolved via ADMIN_EMAILS", async () => {
+    vi.stubEnv("ADMIN_EMAILS", "boss@example.com");
+    session("boss@example.com");
+    await expect(requireAdminOr404()).resolves.toBeUndefined();
+  });
+
+  it("passes through for an admin resolved via the users.role DB row", async () => {
+    session("db-admin@example.com");
+    queryMock.mockResolvedValue([{ role: "admin" }]);
+    await expect(requireAdminOr404()).resolves.toBeUndefined();
+  });
+
+  it("404s a signed-in user role", async () => {
+    session("plain@example.com");
+    queryMock.mockResolvedValue([{ role: "user" }]);
+    await expect(requireAdminOr404()).rejects.toBeInstanceOf(NotFoundSignal);
+  });
+
+  it("404s a signed-in analyst role", async () => {
+    session("an@example.com");
+    queryMock.mockResolvedValue([{ role: "analyst" }]);
+    await expect(requireAdminOr404()).rejects.toBeInstanceOf(NotFoundSignal);
+  });
+
+  it("404s an anonymous (signed-out) visitor — never a redirect to /signin", async () => {
+    session(null);
+    await expect(requireAdminOr404()).rejects.toBeInstanceOf(NotFoundSignal);
+  });
+
+  it("gate off: passes through without calling auth or the DB (dev parity)", async () => {
+    vi.stubEnv("FEATURE_AUTH_GATE", "false");
+    await expect(requireAdminOr404()).resolves.toBeUndefined();
+    expect(authMock).not.toHaveBeenCalled();
+    expect(queryMock).not.toHaveBeenCalled();
+  });
+
+  it("fails closed to 404 when ADMIN_EMAILS is unset and the DB role lookup errors", async () => {
+    session("nobody@example.com");
+    queryMock.mockRejectedValue(new Error('column "role" does not exist'));
+    await expect(requireAdminOr404()).rejects.toBeInstanceOf(NotFoundSignal);
   });
 });

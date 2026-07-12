@@ -96,24 +96,19 @@ describe("pricing treatment", () => {
 });
 
 describe("dropdown contents", () => {
+  // R5 (2026-07-12): the source registry went admin-only and its nav entries
+  // (both /registry and /middle-east) were dropped — Product now lists only
+  // feeds, ask, and signals.
   it("reveals the Product group's destinations", async () => {
     const user = userEvent.setup();
     renderHeader();
     await user.click(within(mainNav()).getByRole("button", { name: "Product" }));
 
     const items = within(screen.getByRole("menu", { name: "Product" })).getAllByRole("menuitem");
-    expect(items.map((i) => i.getAttribute("href"))).toEqual([
-      "/countries",
-      "/ask",
-      "/registry",
-      "/middle-east",
-      "/signals",
-    ]);
+    expect(items.map((i) => i.getAttribute("href"))).toEqual(["/countries", "/ask", "/signals"]);
     expect(items.map((i) => i.textContent)).toEqual([
       "Daily intelligence feeds",
       "Ask the data",
-      "Source reliability registry",
-      "Middle East registry",
       "Analyst signals",
     ]);
   });

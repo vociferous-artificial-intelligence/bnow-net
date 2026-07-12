@@ -85,6 +85,10 @@ export default async function DigestPage({
   const locale = await getLocale();
   const t = makeT(locale);
   const digestMailto = feedbackMailto(`[BNOW digest] ${country} ${date}`);
+  // Relocated from the (now admin-only) registry detail page, R5 (2026-07-12):
+  // a general "suggest or flag a source" affordance, not tied to one source row,
+  // so the subject is a fixed string rather than a per-source one.
+  const sourceMailto = feedbackMailto("[BNOW source] suggestion");
 
   const digestRows = (await rawSql.query(
     `SELECT d.id, d.track, d.status, d.provider, c.name AS country_name
@@ -332,6 +336,13 @@ export default async function DigestPage({
         <p className="mb-2 text-xs text-gray-400">
           <a href={digestMailto} className="underline">
             {t("feedback.flag_digest")}
+          </a>
+        </p>
+      )}
+      {sourceMailto && (
+        <p className="mb-2 text-xs text-gray-400">
+          <a href={sourceMailto} className="underline">
+            {t("feedback.flag_source")}
           </a>
         </p>
       )}

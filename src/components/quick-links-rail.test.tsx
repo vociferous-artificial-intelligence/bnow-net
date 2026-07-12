@@ -25,13 +25,13 @@ describe("quick links rail", () => {
     render(<QuickLinksRail t={t} theaters={THEATERS} />);
     const links = screen.getAllByRole("link");
     const hrefs = links.map((l) => l.getAttribute("href"));
+    // R5 (2026-07-12): no /registry link — the source registry is admin-only now.
     expect(hrefs).toEqual([
       "/digests/ru/2026-07-12",
       "/digests/ru/2026-07-11",
       "/digests/ua/2026-07-12",
       "/digests/ua/2026-07-10",
       "/scoreboard",
-      "/registry",
       "/signals",
       "/search",
     ]);
@@ -49,13 +49,14 @@ describe("quick links rail", () => {
     render(<QuickLinksRail t={t} theaters={oneDate} />);
     const links = screen.getAllByRole("link");
     const hrefs = links.map((l) => l.getAttribute("href"));
-    expect(hrefs).toEqual(["/digests/ru/2026-07-12", "/scoreboard", "/registry", "/signals", "/search"]);
+    expect(hrefs).toEqual(["/digests/ru/2026-07-12", "/scoreboard", "/signals", "/search"]);
   });
 
-  it("always renders the scoreboard, registry, signals, and search links even with zero theaters", () => {
+  it("always renders the scoreboard, signals, and search links even with zero theaters, and never a registry link (R5)", () => {
     render(<QuickLinksRail t={t} theaters={[]} />);
     const links = screen.getAllByRole("link");
     const hrefs = links.map((l) => l.getAttribute("href"));
-    expect(hrefs).toEqual(["/scoreboard", "/registry", "/signals", "/search"]);
+    expect(hrefs).toEqual(["/scoreboard", "/signals", "/search"]);
+    expect(hrefs).not.toContain("/registry");
   });
 });
