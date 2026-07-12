@@ -30,7 +30,7 @@ vi.mock("@/lib/session", () => ({
 
 const queryMock = vi.fn();
 
-const STATS_ROW = { sources: 10, citations: 20, docs: 30, runs: 5 };
+const STATS_ROW = { sources: 10, citations: 20, docs: 30, runs: 5, activeTheaters: 8 };
 
 const Home = (await import("./page")).default;
 
@@ -231,7 +231,7 @@ describe("signed-out home: additive Iran/Gulf card (W3)", () => {
     expect(
       screen.getByRole("heading", { name: "Iran / Gulf theater — live daily intelligence" }),
     ).toBeTruthy();
-    expect(container.querySelector('a[href="/countries#ir"]')).toBeTruthy();
+    expect(container.querySelector('a[href="/countries/ir"]')).toBeTruthy();
     // Still no /ask form and no paid-pipeline import surface for signed-out users.
     expect(container.querySelector('form[action="/ask"]')).toBeNull();
   });
@@ -305,6 +305,8 @@ describe("signed-out home: CTA + hero untouched (regression guard)", () => {
     ).toBeTruthy();
     const subscribeLink = container.querySelector('a[href="/pricing"]');
     expect(subscribeLink?.textContent).toBe("Become a founding subscriber");
-    expect(screen.getByText(/^Live now/)).toBeTruthy();
+    // Live-now count is driven from the DB active-theater count (n=8 in STATS_ROW),
+    // not a hardcoded three (IA refinement 2026-07-12: the 3-vs-8 fix).
+    expect(screen.getByText(/^Live now: 8 theaters/)).toBeTruthy();
   });
 });

@@ -7,10 +7,19 @@
 //  2. No hardcoded English. Every user-visible string is a `labelKey` resolved
 //     through `makeT`, so a missing translation is a test failure, not a stray
 //     English word in an Arabic page.
+//
+// IA refinement (2026-07-12, docs/reviews/IA-REFINEMENT-REVIEW.md): the "Product"
+// group was retired because its three children duplicated destinations reachable
+// elsewhere (feeds = Coverage, signals = the new top-level Signals, ask = the new
+// top-level Ask). Coverage's theater items now point at real per-country pages
+// (/countries/[iso2]) instead of #anchors on one page, so no single route is the
+// destination of five nav paths. Signals has exactly one nav path now: the
+// Solutions>political_risk duplicate was dropped (a top-level Signals item makes a
+// second path to /signals pure redundancy).
 
 export type Translate = (key: string, vars?: Record<string, string | number>) => string;
 
-export const SECTION_IDS = ["product", "coverage", "validation", "solutions", "pricing"] as const;
+export const SECTION_IDS = ["coverage", "signals", "ask", "solutions", "validation", "pricing"] as const;
 export type SectionId = (typeof SECTION_IDS)[number];
 
 export interface NavLink {
@@ -40,9 +49,10 @@ export interface SiteNav {
 
 /**
  * Theaters promoted to the nav. `countries.status = 'active'` currently holds eight
- * rows, but il/sa/ae/om/qa carry 2–5 digests each against ru/ua/ir's 27/20/19 — so
- * only the flagship three are advertised here, matching the long-standing `home.live`
- * copy ("Live now: Russia · Ukraine · Iran"). The rest stay reachable from /countries.
+ * rows, but il/sa/ae/om/qa carry 6–9 digests each against ru/ua/ir's 34/23/28 — so
+ * only the flagship three are advertised in the Coverage dropdown (standing ruling 15:
+ * promoting shallow theaters overstates depth). The other five stay reachable from the
+ * /countries index and each has its own /countries/[iso2] page; they are not promoted.
  */
 export const LIVE_THEATERS = [
   { iso2: "ru", labelKey: "home.theater.ru" },
@@ -52,39 +62,42 @@ export const LIVE_THEATERS = [
 
 export type TheaterIso2 = (typeof LIVE_THEATERS)[number]["iso2"];
 
-/** Ungated per-theater destination: the coverage index, anchored at that theater's card. */
+/**
+ * Ungated per-theater destination: the public per-country coverage page. This is a real
+ * indexable landing page (src/app/countries/[iso2]/page.tsx), not a #anchor on the index —
+ * that is the fix for the "country links scroll instead of navigating" problem. Old
+ * `/countries#ru` bookmarks still resolve: the index keeps its `id={iso2}` card anchors.
+ */
 export function theaterHref(iso2: string): string {
-  return `/countries#${iso2}`;
+  return `/countries/${iso2}`;
 }
 
 /**
- * Deep link to a theater's freshest digest, falling back to the (ungated) coverage
- * anchor when no digest exists yet. `/digests/*` is behind FEATURE_AUTH_GATE, so only
- * offer this to signed-in users.
+ * Deep link to a theater's freshest digest, falling back to the (ungated) per-country
+ * coverage page when no digest exists yet. `/digests/*` is behind FEATURE_AUTH_GATE, so
+ * only offer this to signed-in users.
  */
 export function latestDigestHref(iso2: string, latestDate: string | null | undefined): string {
   return latestDate ? `/digests/${iso2}/${latestDate}` : theaterHref(iso2);
 }
 
 /**
- * Which nav section owns a given path. `/countries` and `/signals` are each reachable
- * from two groups by design (dual discovery paths); this picks the single group whose
- * trigger lights up, so no two triggers ever claim the same page.
+ * Which nav section owns a given path, so exactly one trigger lights up. Every route maps
+ * to at most one section — no page is claimed by two triggers.
  */
 const SECTION_ROUTES: ReadonlyArray<readonly [string, SectionId]> = [
   ["/countries", "coverage"],
   ["/digests", "coverage"],
   ["/scoreboard", "validation"],
   // /registry and /middle-east deliberately absent: R5 (2026-07-12) made the source
-  // registry admin-only and dropped its nav entries below, so neither route has a
-  // trigger left to light up.
-  ["/ask", "product"],
-  ["/signals", "product"],
-  ["/entities", "product"],
+  // registry admin-only and dropped its nav entries, so neither route has a trigger.
+  ["/signals", "signals"],
+  ["/ask", "ask"],
   ["/trade", "solutions"],
   ["/critical-materials", "solutions"],
   ["/datadark", "solutions"],
   ["/pricing", "pricing"],
+  // /entities is gated and not in nav (Product retired) — it owns no trigger (returns null).
 ];
 
 export function canonicalSection(pathname: string): SectionId | null {
@@ -95,7 +108,7 @@ export function canonicalSection(pathname: string): SectionId | null {
   return null;
 }
 
-/** `aria-current="page"` test: an anchored link (/countries#ru) is not "the page". */
+/** `aria-current="page"` test. Kept `#`-defensive even though theater links are now real pages. */
 export function isCurrentPage(pathname: string, href: string): boolean {
   if (href.includes("#")) return false;
   const path = pathname.split(/[?#]/)[0].replace(/\/+$/, "") || "/";
@@ -127,34 +140,33 @@ export function buildSiteNav(
   const entries: NavEntry[] = [
     {
       kind: "group",
-      id: "product",
-      labelKey: "nav.group.product",
-      label: t("nav.group.product"),
-      items: [
-        // /registry and /middle-east links removed (R5, 2026-07-12): the source
-        // registry is admin-only now, so it's not advertised in nav — admins
-        // reach it by URL.
-        link("feeds", "nav.item.feeds", "/countries"),
-        link("ask", "nav.item.ask", "/ask"),
-        link("signals", "nav.item.signals", "/signals"),
-      ],
-    },
-    {
-      kind: "group",
       id: "coverage",
       labelKey: "nav.group.coverage",
       label: t("nav.group.coverage"),
       items: [
+        // Real per-country pages, not #anchors (IA refinement 2026-07-12).
         ...LIVE_THEATERS.map((th) => link(`theater_${th.iso2}`, th.labelKey, theaterHref(th.iso2))),
         link("all_theaters", "nav.item.all_theaters", "/countries"),
       ],
     },
     {
+      // Promoted from the retired Product group to its own top-level item — the analyst
+      // signals engine is a distinct destination, not a menu entry that lives elsewhere.
       kind: "link",
-      id: "validation",
-      labelKey: "nav.group.validation",
-      label: t("nav.group.validation"),
-      href: "/scoreboard",
+      id: "signals",
+      labelKey: "nav.group.signals",
+      label: t("nav.group.signals"),
+      href: "/signals",
+      cta: false,
+    },
+    {
+      // Likewise promoted from Product. /ask is gated (requireUser); signed-out clicks
+      // land on /signin, same as the old Product>ask entry did.
+      kind: "link",
+      id: "ask",
+      labelKey: "nav.group.ask",
+      label: t("nav.group.ask"),
+      href: "/ask",
       cta: false,
     },
     {
@@ -165,12 +177,21 @@ export function buildSiteNav(
       items: [
         // Mapping corrected against page content, see docs/reviews/NAV-RESTRUCTURE-REVIEW.md:
         // /trade is the sanctions-circumvention surface; /datadark tracks Russia
-        // suppressing its own statistics and is not a compliance tool.
+        // suppressing its own statistics and is not a compliance tool. The
+        // political_risk>/signals duplicate was dropped (IA refinement 2026-07-12):
+        // Signals is now its own top-level item, so a second path here is pure redundancy.
         link("sanctions", "nav.item.sanctions", "/trade"),
         link("commodity", "nav.item.commodity", "/critical-materials"),
         link("opacity", "nav.item.opacity", "/datadark"),
-        link("political_risk", "nav.item.political_risk", "/signals"),
       ],
+    },
+    {
+      kind: "link",
+      id: "validation",
+      labelKey: "nav.group.validation",
+      label: t("nav.group.validation"),
+      href: "/scoreboard",
+      cta: false,
     },
     {
       kind: "link",

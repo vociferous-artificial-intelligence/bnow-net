@@ -42,14 +42,20 @@ export default async function CountriesPage() {
             }`}
           >
             <div className="flex items-center justify-between">
-              <h2 className="font-semibold">{c.name}</h2>
+              {/* The theater name links to its own per-country page (real destination,
+                  not just this card's #anchor) — IA refinement 2026-07-12. */}
+              <h2 className="font-semibold">
+                <Link href={`/countries/${c.iso2}`} className="hover:underline">
+                  {c.name}
+                </Link>
+              </h2>
               {c.status === "active" ? (
                 <span className="rounded bg-green-100 px-2 py-0.5 text-xs text-green-800 dark:bg-green-900 dark:text-green-200">
-                  live
+                  {t("countries.badge.live")}
                 </span>
               ) : (
                 <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800">
-                  coverage launching
+                  {t("countries.badge.launching")}
                 </span>
               )}
             </div>

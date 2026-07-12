@@ -48,7 +48,7 @@ function link(nav: typeof signedOut, id: string) {
 }
 const hrefsOf = (entry: NavEntry) => (entry.kind === "group" ? entry.items.map((i) => i.href) : [entry.href]);
 
-/** Every static route that has a page.tsx under src/app. */
+/** Every route that has a page.tsx under src/app (dynamic segments kept as `[seg]`). */
 function staticRoutes(): Set<string> {
   const appDir = fileURLToPath(new URL("../../app", import.meta.url));
   const routes = new Set<string>();
@@ -62,43 +62,69 @@ function staticRoutes(): Set<string> {
   return routes;
 }
 
+/**
+ * True if a concrete href resolves to a page under src/app — matching a dynamic segment
+ * (`/countries/[iso2]`) against a concrete one (`/countries/ru`). The Coverage dropdown
+ * now points at real per-country pages served by a `[iso2]` route.
+ */
+function routeExists(href: string, routes: Set<string>): boolean {
+  const target = href.split("#")[0].replace(/\/+$/, "") || "/";
+  for (const route of routes) {
+    const rSegs = route.split("/");
+    const tSegs = target.split("/");
+    if (rSegs.length !== tSegs.length) continue;
+    const ok = rSegs.every((r, i) => r === tSegs[i] || /^\[.+\]$/.test(r));
+    if (ok) return true;
+  }
+  return false;
+}
+
 describe("nav shape", () => {
-  it("reads left-to-right as Product | Coverage | Validation | Solutions | Pricing", () => {
+  it("reads left-to-right as Coverage | Signals | Ask | Solutions | Validation | Pricing", () => {
+    // IA refinement 2026-07-12: Product retired; Signals + Ask promoted to top-level.
     expect(signedOut.entries.map((e) => e.id)).toEqual([
-      "product",
       "coverage",
-      "validation",
+      "signals",
+      "ask",
       "solutions",
+      "validation",
       "pricing",
     ]);
   });
 
-  it("makes Product, Coverage and Solutions dropdowns; Validation and Pricing direct links", () => {
-    expect(signedOut.entries.map((e) => e.kind)).toEqual(["group", "group", "link", "group", "link"]);
+  it("makes Coverage and Solutions dropdowns; Signals, Ask, Validation and Pricing direct links", () => {
+    expect(signedOut.entries.map((e) => e.kind)).toEqual([
+      "group",
+      "link",
+      "link",
+      "group",
+      "link",
+      "link",
+    ]);
   });
 });
 
 describe("label → route mapping (URLs are frozen)", () => {
-  it("Product points at the feeds index, ask, and signals", () => {
-    expect(hrefsOf(group(signedOut, "product"))).toEqual(["/countries", "/ask", "/signals"]);
+  it("Signals and Ask are their own top-level destinations (no Product container)", () => {
+    expect(signedOut.entries.find((e) => (e.id as string) === "product")).toBeUndefined();
+    expect(link(signedOut, "signals").href).toBe("/signals");
+    expect(link(signedOut, "ask").href).toBe("/ask");
   });
 
   // R5 (2026-07-12, operator ruling): the source registry is admin-only now.
   // Both registries' nav entries are dropped everywhere — admins reach
   // /registry and /middle-east directly by URL, not via nav.
   it("advertises neither registry anywhere in nav", () => {
-    const ids = group(signedOut, "product").items.map((i) => i.id);
-    expect(ids).not.toContain("registry");
-    expect(ids).not.toContain("me_registry");
     expect(navHrefs(signedOut)).not.toContain("/registry");
     expect(navHrefs(signedOut)).not.toContain("/middle-east");
   });
 
-  it("Coverage lists only the live theaters, then the index", () => {
+  it("Coverage lists the live theaters as real per-country pages, then the index", () => {
+    // Was #anchors on one page (read as broken); now distinct destinations.
     expect(hrefsOf(group(signedOut, "coverage"))).toEqual([
-      "/countries#ru",
-      "/countries#ua",
-      "/countries#ir",
+      "/countries/ru",
+      "/countries/ua",
+      "/countries/ir",
       "/countries",
     ]);
   });
@@ -107,31 +133,35 @@ describe("label → route mapping (URLs are frozen)", () => {
     expect(link(signedOut, "validation").href).toBe("/scoreboard");
   });
 
-  it("Solutions maps sanctions to /trade and data suppression to /datadark", () => {
+  it("Solutions is the three distinct vertical modules — signals is NOT duplicated here", () => {
     // Deliberate correction of the original brief, which paired "Sanctions compliance"
     // with /datadark. /datadark tracks Russia classifying its own statistics; /trade is
-    // the mirror-trade & evasion watch. See NAV-RESTRUCTURE-REVIEW.md.
+    // the mirror-trade & evasion watch. See NAV-RESTRUCTURE-REVIEW.md. The old
+    // political_risk>/signals item was dropped (IA refinement): Signals is top-level now.
     const items = group(signedOut, "solutions").items;
     expect(Object.fromEntries(items.map((i) => [i.id, i.href]))).toEqual({
       sanctions: "/trade",
       commodity: "/critical-materials",
       opacity: "/datadark",
-      political_risk: "/signals",
     });
+    expect(items.map((i) => i.href)).not.toContain("/signals");
   });
 
-  it("gives /signals two discovery paths with one destination", () => {
-    const product = group(signedOut, "product").items.find((i) => i.id === "signals");
-    const solutions = group(signedOut, "solutions").items.find((i) => i.id === "political_risk");
-    expect(product?.href).toBe("/signals");
-    expect(solutions?.href).toBe("/signals");
-    expect(product?.labelKey).not.toBe(solutions?.labelKey);
+  it("gives every route exactly one nav path — no many-to-one redundancy", () => {
+    // The whole point of the sprint: /countries was the target of five nav paths and
+    // /signals of two. Now each distinct destination appears exactly once.
+    const hrefs = navHrefs(signedOut).filter((h) => h !== "/signin" && h !== "/account");
+    const seen = new Map<string, number>();
+    for (const h of hrefs) seen.set(h, (seen.get(h) ?? 0) + 1);
+    for (const [href, count] of seen) {
+      expect(count, `route ${href} is the destination of ${count} nav paths`).toBe(1);
+    }
   });
 
   it("has no dead links — every href resolves to a page under src/app", () => {
     const routes = staticRoutes();
     for (const href of navHrefs(signedOut)) {
-      expect(routes, `dead nav link: ${href}`).toContain(href.split("#")[0]);
+      expect(routeExists(href, routes), `dead nav link: ${href}`).toBe(true);
     }
   });
 });
@@ -203,12 +233,12 @@ describe("i18n", () => {
 describe("current-section resolution", () => {
   it.each([
     ["/countries", "coverage"],
+    ["/countries/ru", "coverage"],
     ["/digests/ru/2026-07-09", "coverage"],
     ["/scoreboard", "validation"],
     ["/scoreboard/ru/2026-07-09", "validation"],
-    ["/ask", "product"],
-    ["/signals", "product"],
-    ["/entities/5", "product"],
+    ["/ask", "ask"],
+    ["/signals", "signals"],
     ["/trade", "solutions"],
     ["/critical-materials", "solutions"],
     ["/datadark", "solutions"],
@@ -217,8 +247,11 @@ describe("current-section resolution", () => {
     expect(canonicalSection(path)).toBe(section);
   });
 
-  it("claims no section for the home, auth and health pages", () => {
-    for (const p of ["/", "/signin", "/account", "/health"]) expect(canonicalSection(p)).toBeNull();
+  it("claims no section for the home, auth, health and (unlisted) entities pages", () => {
+    // /entities is gated and no longer under any nav group (Product retired).
+    for (const p of ["/", "/signin", "/account", "/health", "/entities/5"]) {
+      expect(canonicalSection(p)).toBeNull();
+    }
   });
 
   // R5 (2026-07-12): /registry and /middle-east dropped from SECTION_ROUTES along
@@ -229,10 +262,10 @@ describe("current-section resolution", () => {
     }
   });
 
-  it("assigns each route to exactly one section, so two triggers never both light up", () => {
-    // /countries and /signals each appear under two groups; only one may own them.
+  it("assigns each route to exactly one section — Signals and Ask now own their own", () => {
     expect(canonicalSection("/countries")).toBe("coverage");
-    expect(canonicalSection("/signals")).toBe("product");
+    expect(canonicalSection("/signals")).toBe("signals");
+    expect(canonicalSection("/ask")).toBe("ask");
   });
 
   it("ignores query strings and trailing slashes", () => {
@@ -246,9 +279,13 @@ describe("isCurrentPage", () => {
     expect(isCurrentPage("/scoreboard", "/scoreboard")).toBe(true);
     expect(isCurrentPage("/scoreboard/ru/2026-07-09", "/scoreboard")).toBe(false);
   });
-  it("never marks an anchored theater link as the current page", () => {
+  it("marks the per-country page current when on it, not the index", () => {
+    expect(isCurrentPage("/countries/ru", "/countries/ru")).toBe(true);
+    expect(isCurrentPage("/countries", "/countries/ru")).toBe(false);
+    expect(isCurrentPage("/countries/ru", "/countries")).toBe(false);
+  });
+  it("stays defensive against a stray anchor href", () => {
     expect(isCurrentPage("/countries", "/countries#ru")).toBe(false);
-    expect(isCurrentPage("/countries", "/countries")).toBe(true);
   });
   it("ignores query strings", () => {
     expect(isCurrentPage("/pricing?plan=team", "/pricing")).toBe(true);
@@ -256,12 +293,12 @@ describe("isCurrentPage", () => {
 });
 
 describe("destinations", () => {
-  it("anchors theater links at the ungated coverage index", () => {
-    expect(theaterHref("ru")).toBe("/countries#ru");
+  it("points theater links at real per-country pages", () => {
+    expect(theaterHref("ru")).toBe("/countries/ru");
   });
-  it("deep-links the freshest digest, falling back to coverage when none exists", () => {
+  it("deep-links the freshest digest, falling back to the per-country page when none exists", () => {
     expect(latestDigestHref("ru", "2026-07-09")).toBe("/digests/ru/2026-07-09");
-    expect(latestDigestHref("ru", null)).toBe("/countries#ru");
+    expect(latestDigestHref("ru", null)).toBe("/countries/ru");
   });
   it("switches locale without an explicit return path, so /api/locale keeps the query via Referer", () => {
     expect(localeSwitchHref("de")).toBe("/api/locale?set=de");

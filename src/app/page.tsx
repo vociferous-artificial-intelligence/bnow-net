@@ -80,17 +80,24 @@ export default async function Home() {
   const email = await currentUserEmail();
   const signedIn = email !== null;
 
-  let stats = { sources: 0, citations: 0, docs: 0, runs: 0 };
+  let stats = { sources: 0, citations: 0, docs: 0, runs: 0, activeTheaters: 0 };
   try {
     const [r] = (await rawSql.query(
       `SELECT
         (SELECT count(*) FROM sources WHERE citation_count > 0)::int AS sources,
         (SELECT count(*) FROM source_citations)::int AS citations,
         (SELECT count(*) FROM raw_documents)::int AS docs,
-        (SELECT count(*) FROM validation_runs)::int AS runs`,
+        (SELECT count(*) FROM validation_runs)::int AS runs,
+        (SELECT count(*) FROM countries WHERE status = 'active')::int AS "activeTheaters"`,
       [],
     )) as Array<typeof stats>;
-    stats = { sources: r.sources, citations: r.citations, docs: r.docs, runs: r.runs };
+    stats = {
+      sources: r.sources, citations: r.citations, docs: r.docs, runs: r.runs,
+      // The signed-out "Live now" count is driven from the authoritative live-theater
+      // list (countries.status='active'), not a hardcoded three, so it can't drift
+      // (IA refinement 2026-07-12: fixes the 3-vs-8 undersell).
+      activeTheaters: r.activeTheaters,
+    };
   } catch {
     // health page shows details
   }
@@ -346,7 +353,7 @@ export default async function Home() {
                 {t("pricing.cta.request")}
               </Link>
             </p>
-            <p className="mt-4 text-sm text-gray-400">{t("home.live")}</p>
+            <p className="mt-4 text-sm text-gray-400">{t("home.live", { n: stats.activeTheaters })}</p>
           </>
         )}
       </section>
@@ -452,7 +459,7 @@ export default async function Home() {
               <h2 className="mb-2 font-semibold">{t("home.iran.title")}</h2>
               <p className="text-sm text-gray-500">{t("home.iran.body")}</p>
               <p className="mt-3 flex flex-wrap gap-4 text-sm">
-                <Link href="/countries#ir" className="underline hover:text-gray-600 dark:hover:text-gray-300">
+                <Link href="/countries/ir" className="underline hover:text-gray-600 dark:hover:text-gray-300">
                   {t("home.iran.link")}
                 </Link>
                 <Link href="/scoreboard" className="underline hover:text-gray-600 dark:hover:text-gray-300">
