@@ -332,6 +332,33 @@ describe("related claims block", () => {
   });
 });
 
+describe("digest deep link (W3)", () => {
+  it("links straight to the claim anchor, not the top of the digest page", () => {
+    render(
+      <AskResult
+        result={baseResult()}
+        cited={[claim(123, "claim with a date", "2026-07-11")]}
+        related={[]}
+        t={t}
+      />,
+    );
+    const link = screen.getByRole("link", { name: "digest →" });
+    expect(link.getAttribute("href")).toBe("/digests/ru/2026-07-11#c123");
+  });
+
+  it("renders no digest link for an undated claim", () => {
+    render(
+      <AskResult
+        result={baseResult()}
+        cited={[claim(124, "claim with no date", null)]}
+        related={[]}
+        t={t}
+      />,
+    );
+    expect(screen.queryByRole("link", { name: "digest →" })).toBeNull();
+  });
+});
+
 describe("legacy-shape input", () => {
   it("renders exactly like today when no v2 fields are present at all", () => {
     // A bare object matching today's AskAnswer (answer/citedClaimIds/evidenceCount/

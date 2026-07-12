@@ -220,7 +220,10 @@ export default async function DigestPage({
                   <p className="mb-3 text-sm text-gray-500">{ev.summary}</p>
                   <ul className="space-y-3">
                     {[...ev.claims.entries()].map(([claimId, c]) => (
-                      <li key={claimId} className="text-sm">
+                      // scroll-mt-24 clears the sticky site header (site-header-view.tsx,
+                      // `sticky top-0 z-40`) when /ask links straight to #c<claimId> — same
+                      // value as the header's other named anchor target (countries/page.tsx).
+                      <li key={claimId} id={`c${claimId}`} className="scroll-mt-24 text-sm">
                         <span className={`mr-2 rounded px-1.5 py-0.5 text-xs ${HEDGE_COLORS[c.hedging] ?? HEDGE_COLORS.unknown}`}>
                           {c.hedging}
                         </span>

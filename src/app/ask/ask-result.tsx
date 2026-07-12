@@ -75,7 +75,10 @@ function ClaimItems({ items }: { items: ResolvedClaim[] }) {
           <span className="mr-2 font-mono text-xs text-gray-400">c{c.id}</span>
           {c.text}{" "}
           {c.date && (
-            <Link href={`/digests/${c.iso2}/${c.date.slice(0, 10)}`} className="text-xs underline">
+            <Link
+              href={`/digests/${c.iso2}/${c.date.slice(0, 10)}#c${c.id}`}
+              className="text-xs underline"
+            >
               digest →
             </Link>
           )}
