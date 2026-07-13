@@ -1120,8 +1120,10 @@ rollback: `bnow-kw2t3dndf`). Review gate: `docs/reviews/IA-REFINEMENT-REVIEW.md`
 
 ## 2026-07-12 (legal acceptance sprint) — results
 
-**FULL SHIP (code); NOT deployed** (per prompt). No merge/deploy — main branch, clean tree
-at start. Review note: `docs/reviews/LEGAL-ACCEPTANCE-NOTE-2026-07-12.md`.
+**FULL SHIP + DEPLOYED 2026-07-13** (`dpl_tuo9SdmYMNBhYJiG7A6uVMHBVbfh`, aliased bnow.net;
+rollback `bnow-iqaszhc0d`). Merged `--no-ff` to main (`7da22db`); migrate-before-deploy;
+independent adversarial review passed (minor fixes applied `e62c14e`). Review note:
+`docs/reviews/LEGAL-ACCEPTANCE-NOTE-2026-07-12.md`.
 
 1. Public `/privacy` + `/terms` (Privacy Notice v1.0 + Terms of Use v1.0, effective
    2026-07-12; supplied copy verbatim). Shared `src/components/legal-document.tsx`, DB-free,

@@ -224,8 +224,11 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   both `requireAdminOr404` (registry/middle-east) and `requireAdmin` (the /admin console) redirect
   a confirmed admin who hasn't accepted (non-admins still 404 / redirect-to-/ respectively, so the
   admin gates are unweakened). Anonymous dev/demo parity (FEATURE_AUTH_GATE off) preserved;
-  no acceptance record is ever manufactured for an anonymous visitor. Note:
-  `docs/reviews/LEGAL-ACCEPTANCE-NOTE-2026-07-12.md`.
+  no acceptance record is ever manufactured for an anonymous visitor. **DEPLOYED 2026-07-13**
+  (`dpl_tuo9SdmYMNBhYJiG7A6uVMHBVbfh`, READY, aliased bnow.net); migration 0017 applied to prod
+  and verified (correct columns, `accepted_at DEFAULT now()`, unique version-triple, FK cascade,
+  0 rows); anon prod smoke green (legal pages 200 with v1.0 copy, gated routes 307, /signals 0
+  leaks, robots/sitemap correct). Note: `docs/reviews/LEGAL-ACCEPTANCE-NOTE-2026-07-12.md`.
 - **Tests:** 1143 unit tests / 97 files green (`npm test`, ~3s) + Neon-branch
   integration suite (`npm run test:integration`, +5 real-Postgres acceptance tests). CI mirror:
   `.github/workflows/ci.yml`; the enforced gate is `.githooks/pre-push` (typecheck+lint+test).
@@ -702,6 +705,29 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   0017 via the gated migrate flow (override BOTH `DATABASE_URL` + `DATABASE_URL_UNPOOLED` for any
   branch-targeted run — the MERGE 1 trap) before/with the deploy. Note:
   `docs/reviews/LEGAL-ACCEPTANCE-NOTE-2026-07-12.md`.
+
+- **2026-07-13 (legal acceptance — adversarial review + migration applied + deploy EXECUTED;
+  supersedes the "NOT deployed" header of the entry above)** Branch `20260712-legal-acceptance`
+  merged `--no-ff` to main (`7da22db`) and pushed (pre-push gate green). Order followed
+  migrate-before-deploy (additive/expand migration: the new code reads `policy_acceptances` every
+  gated request, so deploy-first would fail-closed-lock-out every subscriber). **Independent
+  read-only adversarial review** (a second agent, full route/gate topology) returned **no
+  blocker/major**; its minor findings were applied on a second commit (`e62c14e`): `requireAdmin`
+  (the /admin console) now also holds a confirmed admin to acceptance (consistency with
+  requireAdminOr404); `/ask` page uses `requireAcceptedUser` (was requireUser) so no gated render
+  drops to auth-only; `recordAcceptance` refuses a non-attesting row (`invalid_attestation`,
+  defense-in-depth). **Migration**: verified the target = prod (`ep-jolly-glitter…`, head 0016),
+  then `npm run db:migrate` applied ONLY 0017; post-verified the table (9 cols, `accepted_at`
+  DEFAULT now(), unique `policy_acceptances_user_versions_uq`, FK delrule=c, 0 rows,
+  `_migrations` has 0017). **Deploy** `dpl_tuo9SdmYMNBhYJiG7A6uVMHBVbfh` READY, aliased bnow.net
+  (rollback = `bnow-iqaszhc0d`). **Anon prod smoke green**: /privacy + /terms 200 (v1.0, effective
+  July 12 2026, "questions stored", no false-anonymity), global footer live, /signin 18+ notice,
+  robots disallows /welcome/ + allows /privacy//terms, sitemap lists both, gated
+  ask/account/search/digests/entities + /welcome/legal all 307→/signin, /pricing//scoreboard 200,
+  /signals 200 with 0 leak markers, /admin 404. Tests 1147/97, typecheck/lint/`next build` clean.
+  No new env vars; invariants 1–5 untouched. (WSL2 note: bnow.net isn't DNS-pinned so local curl
+  intermittently 000'd; the DNS-pinned `bnow-net.vercel.app` project domain is the reliable
+  local check.)
 
 ## Conventions
 

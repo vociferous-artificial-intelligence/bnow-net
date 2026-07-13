@@ -2,8 +2,10 @@
 
 Versioned Privacy Notice + Terms of Use, a first-authenticated-login clickwrap acceptance
 flow, an append-only acceptance record, and server-side enforcement across every subscriber
-surface. **Code complete; NOT deployed** (per prompt). Branch: `main` (tree was clean at start;
-no dirty-worktree changes to preserve).
+surface. **SHIPPED + DEPLOYED 2026-07-13** — merged `--no-ff` to main (`7da22db`), migration 0017
+applied to prod (verified), deploy `dpl_tuo9SdmYMNBhYJiG7A6uVMHBVbfh` (aliased bnow.net, rollback
+`bnow-iqaszhc0d`), anon prod smoke green. An independent adversarial review passed with no
+blocker/major; its minor hardenings were applied (`e62c14e`) — see the "Adversarial review" section.
 
 ## What shipped
 
@@ -85,19 +87,38 @@ no dirty-worktree changes to preserve).
 ## Verification
 - `npm run typecheck` — clean. `npm run lint` — clean. `npm run build` — clean (all new routes
   compile: `/privacy`, `/terms`, `/welcome/legal`).
-- `npm test` — **1143 unit tests / 97 files green** (was 1053/84; +57). New: safe-next, acceptance
-  library (idempotency/flags/DB-timestamp/version check), migration shape, welcome page + form,
-  privacy/terms pages, footer view, account page, plus updated ask/home/signals/signin/gate/seo
-  mocks for the new gate.
+- `npm test` — **1147 unit tests / 97 files green** (was 1053/84; +after the review fixes). New:
+  safe-next, acceptance library (idempotency/flags/DB-timestamp/version check/self-assert),
+  migration shape, welcome page + form, privacy/terms pages, footer view, account page, requireAdmin
+  acceptance paths, plus updated ask/home/signals/signin/gate/seo mocks for the new gate.
 - `npm run test:integration` — **green on a disposable Neon branch**, including **5 new
   real-Postgres tests** (`src/integration/legal-acceptance.itest.ts`) that apply 0017 and prove the
   DB-generated `accepted_at`, idempotency (ON CONFLICT → one row, same timestamp), append-only
   version bump, the unique constraint, and FK cascade. Ran DNS-pinned; branch auto-deleted.
 
+## Adversarial review (independent, read-only)
+A second agent reviewed the full route/gate topology for acceptance bypass, /signals leak, open
+redirect, redirect loops, SQL correctness, fail-open, dev parity, and auth-architecture drift.
+**No blocker, no major.** Minor findings applied (`e62c14e`): (1) `requireAdmin` (the `/admin`
+console) now also holds a confirmed admin to acceptance; (2) `/ask` page uses `requireAcceptedUser`
+so no gated render is auth-only; (3) `recordAcceptance` refuses a non-attesting row
+(`invalid_attestation`). Findings left as-is: `/trade` + `/critical-materials` are intentionally
+public teasers (pre-existing); the "fails fully closed if 0017 unapplied" note is correct behavior
+and is handled by migrate-before-deploy.
+
+## Deploy (executed 2026-07-13)
+- **Order = migrate → deploy** (additive/expand migration; deploy-first would fail-closed-lock-out
+  every subscriber until the table existed).
+- Verified the migrate target = prod (`ep-jolly-glitter…`, head 0016), then `npm run db:migrate`
+  applied only 0017; post-verified the table shape/constraints (0 rows).
+- Deploy `dpl_tuo9SdmYMNBhYJiG7A6uVMHBVbfh` READY, aliased bnow.net. Rollback target
+  `bnow-iqaszhc0d`. Anon prod smoke green (legal pages 200 with v1.0 copy; gated routes 307;
+  /signals 0 leaks; robots/sitemap correct; /admin 404; public 200).
+
 ## Debt / follow-ups
-- **Deploy**: operator applies migration 0017 via the gated migrate flow **before/with** the deploy
-  — override BOTH `DATABASE_URL` and `DATABASE_URL_UNPOOLED` for any branch-targeted run (the MERGE 1
-  trap). Rollback of the app code is a normal redeploy; the additive table can stay.
+- **Deploy DONE.** For a future version bump: edit `src/lib/legal/policies.ts` + the copy, generate
+  the next forward migration only if the schema changes (a version bump alone needs no migration —
+  it just makes existing rows non-current), and keep migrate-before-deploy.
 - **i18n**: 4 English-only chrome keys (`footer.privacy/terms/contact`, `signals.evidence.accept_prompt`)
   fall back to English for all locales — fold into the native-review inventory (OPEN-TASKS #59). The
   legal document bodies and the `/welcome/legal` copy are intentionally English-first content.
