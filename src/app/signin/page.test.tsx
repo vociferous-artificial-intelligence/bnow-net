@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-// R7 (analyst-home-v2 sprint): the signed-in home is the landing surface now, so
-// both post-auth redirect targets moved from /account to /. This test pins the
-// two call sites directly — no DOM render needed, since SignInPage is an async
-// server component and `requestLink` is a plain function reference reachable by
-// walking the returned React element tree (findFormAction below), which is a
-// more direct pin than simulating a form submission through React 19's form
-// Actions machinery in a bare jsdom environment (no Next.js request context).
+// R7 (analyst-home-v2 sprint): an already-signed-in visitor on /signin lands on "/".
+// The magic-link callback, however, now routes through the legal-acceptance screen
+// (/welcome/legal?next=/) — the authoritative clickwrap step — before the signed-in home.
+// This test pins the two call sites directly — no DOM render needed, since SignInPage is an
+// async server component and `requestLink` is a plain function reference reachable by walking
+// the returned React element tree (findFormAction below), which is a more direct pin than
+// simulating a form submission through React 19's form Actions machinery in a bare jsdom
+// environment (no Next.js request context).
 
 class RedirectSignal extends Error {
   constructor(readonly to: string) {
@@ -63,6 +64,24 @@ async function expectRedirect(fn: () => Promise<unknown>): Promise<string> {
   throw new Error("expected a redirect, got none");
 }
 
+/** Collect all string text and every `href` prop from a React element tree (no render). */
+function collect(node: unknown, hrefs: string[], texts: string[]): void {
+  if (node == null || typeof node === "boolean") return;
+  if (typeof node === "string" || typeof node === "number") {
+    texts.push(String(node));
+    return;
+  }
+  if (Array.isArray(node)) {
+    for (const n of node) collect(n, hrefs, texts);
+    return;
+  }
+  if (typeof node === "object") {
+    const el = node as { props?: { href?: unknown; children?: unknown } };
+    if (typeof el.props?.href === "string") hrefs.push(el.props.href);
+    collect(el.props?.children, hrefs, texts);
+  }
+}
+
 describe("post-auth redirect (R7): signed-in home is the landing surface", () => {
   it("redirects an already-signed-in visitor to / (not /account)", async () => {
     authMock.mockResolvedValue({ user: { email: "a@example.com" } });
@@ -70,7 +89,7 @@ describe("post-auth redirect (R7): signed-in home is the landing surface", () =>
     expect(to).toBe("/");
   });
 
-  it("requests the magic link with redirectTo: '/' (not /account)", async () => {
+  it("requests the magic link with redirectTo: '/welcome/legal?next=/' (acceptance first)", async () => {
     authMock.mockResolvedValue(null);
     signInMock.mockResolvedValue(undefined);
 
@@ -85,9 +104,38 @@ describe("post-auth redirect (R7): signed-in home is the landing surface", () =>
     expect(signInMock).toHaveBeenCalledWith("email", {
       email: "user@example.com",
       redirect: false,
-      redirectTo: "/",
+      redirectTo: "/welcome/legal?next=/",
     });
     // Unchanged: the form itself still lands back on the confirmation screen.
     expect(to).toBe("/signin?sent=1");
+  });
+});
+
+describe("pre-auth disclosure on /signin", () => {
+  it("shows the 18+ notice and links to the public Terms and Privacy documents", async () => {
+    authMock.mockResolvedValue(null);
+    const element = await SignInPage({ searchParams: Promise.resolve({}) });
+    const hrefs: string[] = [];
+    const texts: string[] = [];
+    collect(element, hrefs, texts);
+    const text = texts.join(" ");
+
+    expect(text).toContain("BNOW.NET is for users 18 and older");
+    expect(text).toContain("agree to the");
+    expect(text).toContain("acknowledge the");
+    expect(hrefs).toContain("/terms");
+    expect(hrefs).toContain("/privacy");
+  });
+
+  it("requesting a magic link does NOT record legal acceptance (only sign-in is called)", async () => {
+    authMock.mockResolvedValue(null);
+    signInMock.mockResolvedValue(undefined);
+    const element = await SignInPage({ searchParams: Promise.resolve({}) });
+    const requestLink = findFormAction(element);
+    const fd = new FormData();
+    fd.set("email", "user@example.com");
+    await expectRedirect(() => requestLink!(fd));
+    // The sign-in module has no acceptance-recording surface; the only effect is signIn().
+    expect(signInMock).toHaveBeenCalledTimes(1);
   });
 });

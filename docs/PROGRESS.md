@@ -1117,3 +1117,30 @@ rollback: `bnow-kw2t3dndf`). Review gate: `docs/reviews/IA-REFINEMENT-REVIEW.md`
    GREEN incl. anon `curl /signals` = 0 leaked names; nav bar shows no Product;
    /countries/ru 200; robots/sitemap correct; gated 307 / admin 404 unchanged.
    New OPEN-TASKS #58 (legal), #59 (native i18n review), #60 (dead nav keys). LLM $0.00.
+
+## 2026-07-12 (legal acceptance sprint) — results
+
+**FULL SHIP (code); NOT deployed** (per prompt). No merge/deploy — main branch, clean tree
+at start. Review note: `docs/reviews/LEGAL-ACCEPTANCE-NOTE-2026-07-12.md`.
+
+1. Public `/privacy` + `/terms` (Privacy Notice v1.0 + Terms of Use v1.0, effective
+   2026-07-12; supplied copy verbatim). Shared `src/components/legal-document.tsx`, DB-free,
+   `id="main"`, cross-linked, contact mailto, in sitemap + crawlable.
+2. Global `SiteFooter` (Privacy · Terms · Status · Contact) in the root layout; home-only
+   footer removed (no duplicate on `/`); hidden on `/admin`.
+3. First-login acceptance `/welcome/legal` (magic-link `redirectTo=/welcome/legal?next=/`):
+   two required unchecked checkboxes, doc links open new tab, server action re-validates
+   both + session, DB-`now()` timestamp, idempotent insert, `safeInternalPath` guard.
+4. Append-only `policy_acceptances` (migration **0017_flashy_photon**, forward of 0016,
+   9999 still last; FK→users cascade, unique version-triple; no IP/UA/birth-date/token).
+   Central versions in `src/lib/legal/policies.ts` — a bump forces re-acceptance.
+5. Enforcement: `requireAcceptedUser()` on ask/search/entities/digests layouts + the ask
+   action + `/api/ask` independently; home redirects pre-query; /signals detail gated on
+   acceptance (teaser public); /account shows accepted versions+timestamp (no id/method) and
+   redirects if unaccepted; `requireAdminOr404` redirects an unaccepted admin (non-admins
+   still 404). Dev/demo anon parity preserved; no acceptance manufactured for anon.
+6. Tests 1053→1143 (97 files), typecheck/lint/`next build` clean. Integration suite green on
+   a disposable Neon branch incl. **5 new real-Postgres tests** (0017 apply, DB timestamp,
+   idempotency, append-only bump, unique constraint, FK cascade). No new env vars, LLM $0.00.
+   4 English-only chrome keys (footer.* + signals.evidence.accept_prompt) fall back for all
+   locales → fold into the native-review inventory (OPEN-TASKS #59).

@@ -5,8 +5,10 @@ import type { AskAnswerV2 } from "@/lib/ask/types";
 // bundling) it's just a plain async function — importable and unit-testable like
 // any other module, per the workstream brief.
 
+// actions.ts uses requireAcceptedUser (auth + current legal acceptance) rather than requireUser;
+// mocked to a valid accepted user so these tests focus on the money-path guard.
 vi.mock("@/lib/gate", () => ({
-  requireUser: vi.fn().mockResolvedValue({ email: "user@example.com" }),
+  requireAcceptedUser: vi.fn().mockResolvedValue({ email: "user@example.com" }),
 }));
 
 const askWithLimitsMock = vi.fn();

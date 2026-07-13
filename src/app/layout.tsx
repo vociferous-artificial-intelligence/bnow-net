@@ -4,6 +4,7 @@ import "./globals.css";
 import { getLocale, dirFor } from "@/i18n/server";
 import { makeT } from "@/i18n/dictionaries";
 import { SiteHeader } from "@/components/site-header";
+import { SiteFooter } from "@/components/site-footer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -42,6 +43,7 @@ export default async function RootLayout({
         </a>
         <SiteHeader />
         {children}
+        <SiteFooter />
       </body>
     </html>
   );

@@ -33,7 +33,15 @@ vi.mock("@/db", () => ({
   rawSql: { query: (sql: string, params: unknown[]) => queryMock(sql, params) },
 }));
 
-const { roleAtLeast, currentRole, requireRole, requireAdminOr404 } = await import("./gate");
+// Legal-acceptance check is a separate module; mock it so requireAdminOr404's admin passthrough
+// (and the new admin-not-accepted redirect) don't depend on the role queryMock.
+const acceptMock = vi.fn<() => Promise<boolean>>();
+vi.mock("@/lib/legal/acceptance", () => ({
+  hasCurrentAcceptanceByEmail: () => acceptMock(),
+}));
+
+const { roleAtLeast, currentRole, requireRole, requireAdminOr404, requireAcceptedUser } =
+  await import("./gate");
 
 function session(email: string | null) {
   authMock.mockResolvedValue(email ? { user: { email } } : null);
@@ -53,6 +61,8 @@ async function redirectedTo(fn: () => Promise<unknown>): Promise<string> {
 beforeEach(() => {
   authMock.mockReset();
   queryMock.mockReset();
+  acceptMock.mockReset();
+  acceptMock.mockResolvedValue(true); // default: confirmed admins have accepted current policies
   vi.stubEnv("FEATURE_AUTH_GATE", "true");
   vi.stubEnv("ADMIN_EMAILS", "");
 });
@@ -208,6 +218,13 @@ describe("requireAdminOr404", () => {
     await expect(requireAdminOr404()).rejects.toBeInstanceOf(NotFoundSignal);
   });
 
+  it("redirects a confirmed admin who has not accepted current policies to /welcome/legal", async () => {
+    vi.stubEnv("ADMIN_EMAILS", "boss@example.com");
+    session("boss@example.com");
+    acceptMock.mockResolvedValue(false); // admin, but no current acceptance
+    expect(await redirectedTo(() => requireAdminOr404())).toBe("/welcome/legal");
+  });
+
   it("gate off: passes through without calling auth or the DB (dev parity)", async () => {
     vi.stubEnv("FEATURE_AUTH_GATE", "false");
     await expect(requireAdminOr404()).resolves.toBeUndefined();
@@ -219,5 +236,41 @@ describe("requireAdminOr404", () => {
     session("nobody@example.com");
     queryMock.mockRejectedValue(new Error('column "role" does not exist'));
     await expect(requireAdminOr404()).rejects.toBeInstanceOf(NotFoundSignal);
+  });
+});
+
+// Subscriber-feature gate = authentication + current legal acceptance. Used by the ask/search/
+// entities/digests layouts and the ask action + API route.
+describe("requireAcceptedUser", () => {
+  it("gate on, anonymous → redirects to /signin (no acceptance to check)", async () => {
+    session(null);
+    expect(await redirectedTo(() => requireAcceptedUser())).toBe("/signin");
+    expect(acceptMock).not.toHaveBeenCalled();
+  });
+
+  it("gate on, signed in and accepted → returns the email, no redirect", async () => {
+    session("user@example.com");
+    acceptMock.mockResolvedValue(true);
+    await expect(requireAcceptedUser()).resolves.toEqual({ email: "user@example.com" });
+  });
+
+  it("gate on, signed in but NOT accepted → redirects to /welcome/legal", async () => {
+    session("user@example.com");
+    acceptMock.mockResolvedValue(false);
+    expect(await redirectedTo(() => requireAcceptedUser())).toBe("/welcome/legal");
+  });
+
+  it("gate off, anonymous → returns null and enforces nothing (dev/demo parity)", async () => {
+    vi.stubEnv("FEATURE_AUTH_GATE", "false");
+    session(null);
+    await expect(requireAcceptedUser()).resolves.toBeNull();
+    expect(acceptMock).not.toHaveBeenCalled();
+  });
+
+  it("gate off, a REAL signed-in user is still held to acceptance", async () => {
+    vi.stubEnv("FEATURE_AUTH_GATE", "false");
+    session("real@example.com");
+    acceptMock.mockResolvedValue(false);
+    expect(await redirectedTo(() => requireAcceptedUser())).toBe("/welcome/legal");
   });
 });

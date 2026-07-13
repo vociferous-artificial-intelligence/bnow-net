@@ -20,6 +20,7 @@ export default function robots(): MetadataRoute.Robots {
         "/admin/",
         "/account",
         "/signin",
+        "/welcome/", // authenticated legal-acceptance flow (noindex too)
         "/digests/", // FEATURE_AUTH_GATE (requireUser)
         "/ask", // gated
         "/search", // gated

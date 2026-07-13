@@ -1,16 +1,40 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { hasCurrentAcceptanceByEmail } from "@/lib/legal/acceptance";
 
 // Core-content gate. Enabled with FEATURE_AUTH_GATE=true (production).
 // Public surface stays open (marketing): landing, pricing, scoreboard, datadark,
-// health. Gated (have a layout.tsx calling requireUser): digests, registry,
-// entities. /admin additionally requires an allowlisted email (ADMIN_EMAILS).
+// health. Gated (have a layout.tsx calling requireAcceptedUser): digests, ask,
+// search, entities. /admin additionally requires an allowlisted email (ADMIN_EMAILS).
 
 export async function requireUser(): Promise<{ email: string } | null> {
   if (process.env.FEATURE_AUTH_GATE !== "true") return null; // gate off
   const session = await auth();
   const email = session?.user?.email;
   if (!email) redirect("/signin");
+  return { email };
+}
+
+// Subscriber-feature gate = authentication PLUS current legal acceptance. This is the gate
+// every subscriber layout / action / API route should use (not requireUser alone), so a user
+// cannot reach a subscriber surface by direct navigation before accepting the current Terms and
+// Privacy Notice.
+//
+// FEATURE_AUTH_GATE semantics are preserved for the ANONYMOUS case (local/demo parity): with the
+// gate off and no session, this returns null and enforces nothing — exactly like requireUser.
+// But a REAL authenticated user is always held to acceptance, independent of the flag: acceptance
+// is a property of a real identity, not of the public-surface gate, and no acceptance record is
+// ever manufactured for an anonymous visitor. Acceptance is read from the database on every call
+// (fail-closed) — there is no session "accepted" flag to spoof.
+export async function requireAcceptedUser(): Promise<{ email: string } | null> {
+  const gated = process.env.FEATURE_AUTH_GATE === "true";
+  const session = await auth();
+  const email = session?.user?.email ?? null;
+  if (!email) {
+    if (gated) redirect("/signin");
+    return null; // gate off + anonymous → dev/demo parity (matches requireUser)
+  }
+  if (!(await hasCurrentAcceptanceByEmail(email))) redirect("/welcome/legal");
   return { email };
 }
 
@@ -96,4 +120,10 @@ export async function requireRole(min: Role): Promise<void> {
 export async function requireAdminOr404(): Promise<void> {
   if (process.env.FEATURE_AUTH_GATE !== "true") return; // gate off (dev parity)
   if ((await currentRole()) !== "admin") notFound();
+  // Admin confirmed. A confirmed admin who has not accepted the current policies is redirected to
+  // acceptance (not 404'd) — non-admins already returned notFound() above, so the registry's
+  // admin-only/404 posture is unchanged for everyone else.
+  const session = await auth();
+  const email = session?.user?.email;
+  if (email && !(await hasCurrentAcceptanceByEmail(email))) redirect("/welcome/legal");
 }

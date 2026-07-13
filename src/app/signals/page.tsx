@@ -6,6 +6,7 @@ import {
   type EvidenceClaim, type SignalEvidenceRow,
 } from "@/lib/analyst/signals";
 import { currentUserEmail } from "@/lib/session";
+import { hasCurrentAcceptanceByEmail } from "@/lib/legal/acceptance";
 import { getLocale } from "@/i18n/server";
 import { makeT } from "@/i18n/dictionaries";
 import { ClaimSources } from "@/components/claim-sources";
@@ -43,8 +44,12 @@ export default async function SignalsPage() {
   // purpose: requireUser()'s dev-mode FEATURE_AUTH_GATE bypass would leak the gated
   // fields to anonymous visitors whenever the gate flag is off, which is fine for the
   // *gated* pages (their layout redirects instead) but wrong for a page that has no
-  // redirect at all. `signedIn` gates both the evidence query below and the render.
-  const signedIn = (await currentUserEmail()) !== null;
+  // redirect at all. The gated specifics require CURRENT legal acceptance, not merely a
+  // session — `accepted` gates both the evidence query below and the render, so a
+  // signed-in user who has not accepted sees the same safe teaser as an anonymous one.
+  const email = await currentUserEmail();
+  const signedIn = email !== null;
+  const accepted = email ? await hasCurrentAcceptanceByEmail(email) : false;
 
   let signals: Awaited<ReturnType<typeof computeSignals>> = [];
   try {
@@ -55,7 +60,7 @@ export default async function SignalsPage() {
 
   // One evidence query for every signal's claim ids combined (spec cap: ids <= ~60).
   let evidenceByClaim = new Map<number, EvidenceClaim>();
-  if (signedIn) {
+  if (accepted) {
     const ids = collectSignalEvidenceIds(signals);
     if (ids.length > 0) {
       try {
@@ -101,7 +106,7 @@ export default async function SignalsPage() {
             // never enter the server-rendered HTML for anonymous clients (data-layer
             // withholding; IA-REFINEMENT-REVIEW.md TASK 3). Signals never share a claim id.
             const pub = toPublicSignal(s);
-            const claims = signedIn && s.evidenceClaimIds.length > 0 ? evidenceForSignal(s, evidenceByClaim) : [];
+            const claims = accepted && s.evidenceClaimIds.length > 0 ? evidenceForSignal(s, evidenceByClaim) : [];
             return (
               <div key={pub.key} className={`rounded-lg border-2 p-4 ${SEV_STYLE[pub.severity]}`}>
                 <div className="mb-1 flex items-center gap-2">
@@ -114,7 +119,7 @@ export default async function SignalsPage() {
                   <h2 className="font-semibold">{pub.headline}</h2>
                 </div>
 
-                {signedIn ? (
+                {accepted ? (
                   <>
                     <p className="text-sm text-gray-600 dark:text-gray-300">{s.detail}</p>
                     {pub.evidenceCount > 0 && (
@@ -143,8 +148,12 @@ export default async function SignalsPage() {
                         {pub.evidenceCount} {t("signals.evidence.public")} ·{" "}
                       </>
                     )}
-                    <Link href="/signin" className="underline">
-                      {t("signals.evidence.signin_prompt")}
+                    {/* Anonymous → sign in; signed-in-but-not-accepted → accept the Terms. Both
+                        land the specifics behind the same gate, so neither leaks. */}
+                    <Link href={signedIn ? "/welcome/legal" : "/signin"} className="underline">
+                      {signedIn
+                        ? t("signals.evidence.accept_prompt")
+                        : t("signals.evidence.signin_prompt")}
                     </Link>
                   </p>
                 )}

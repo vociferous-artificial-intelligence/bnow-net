@@ -493,6 +493,41 @@ export const verificationTokens = pgTable(
   (t) => [primaryKey({ columns: [t.identifier, t.token] })],
 );
 
+// ---------- legal acceptance (append-only clickwrap record) ----------
+
+// One row per (user, terms_version, privacy_version) the user has accepted. APPEND-ONLY:
+// a policy version bump inserts a NEW row, it never updates an old one, so the table is a
+// full acceptance history. The unique index makes the first-login insert idempotent. Only
+// the minimum evidence is stored — NO IP, user-agent, session/verification token, question
+// content, birth date, or physical address (src/lib/legal/acceptance.ts enforces this).
+export const policyAcceptances = pgTable(
+  "policy_acceptances",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    termsVersion: text("terms_version").notNull(),
+    privacyVersion: text("privacy_version").notNull(),
+    // Server/DB-generated acceptance instant — the browser clock never sets this.
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
+    adultAttested: boolean("adult_attested").notNull(),
+    privacyAcknowledged: boolean("privacy_acknowledged").notNull(),
+    acceptanceMethod: text("acceptance_method").notNull().default("first_login_clickwrap"),
+    locale: text("locale"),
+  },
+  (t) => [
+    // Idempotency + the current-version lookup (its leftmost prefix is user_id).
+    uniqueIndex("policy_acceptances_user_versions_uq").on(
+      t.userId,
+      t.termsVersion,
+      t.privacyVersion,
+    ),
+    // History listing by user (a user's full acceptance timeline).
+    index("policy_acceptances_user_idx").on(t.userId),
+  ],
+);
+
 // ---------- billing ----------
 
 export const plans = pgTable("plans", {

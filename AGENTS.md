@@ -51,7 +51,8 @@ primitives (e.g. `src/components/nav-dropdown.tsx`) are hand-rolled to WAI-ARIA 
         pipeline untouched by it                        coverage, divergence, timeliness,
                                                         unsupported-claim rate)
  Product surface: landing / countries / digests+archive+scoreboard / registry / entities /
-                  signals / trade / datadark / critical-materials / ask / search / pricing / auth
+                  signals / trade / datadark / critical-materials / ask / search / pricing / auth /
+                  privacy + terms (public legal docs) / welcome/legal (first-login acceptance)
 ```
 
 Directory map (correct in place as it changes):
@@ -72,7 +73,8 @@ src/lib/validation/ ISW scoreboard: keyword gazetteer + majority-vote LLM matche
 src/lib/usage/      SpendGuard, llm-guard (caps + kill-switch), cron-run bookkeeping
 src/lib/…           ask, entities, enrich, datadark, trade, materials, profiles, email,
                     nav, ingest, time (ET/UTC day + format + digest-status helpers),
-                    gate/session/auth
+                    legal (policies=version constants + acceptance record + safe-next redirect
+                    guard), gate/session/auth
 scripts/            local runners (idempotent + resumable): backfills, seed, digest,
                     validate, map-backfill, sqlq, pin-dns.cjs, test-integration.sh
 fixtures/           saved HTML/JSON for tests
@@ -202,9 +204,30 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   home.validation, signals, registry) + 3 ask-polish strings + 31 analyst-home
   strings + 18 analyst-trust strings — await native review, tracked in
   `docs/reviews/UK-NATIVE-REVIEW-2026-07-12.md`).
-- **Tests:** 1053 unit tests / 84 files green (`npm test`, ~3s) + Neon-branch
-  integration suite (`npm run test:integration`). CI mirror: `.github/workflows/ci.yml`;
-  the enforced gate is `.githooks/pre-push` (typecheck+lint+test).
+- **Legal acceptance (versioned clickwrap, shipped 2026-07-12):** public `/privacy` +
+  `/terms` (Privacy Notice v1.0 + Terms of Use v1.0, effective 2026-07-12;
+  `src/components/legal-document.tsx` shared layout, DB-free, indexable, in sitemap);
+  a **global `SiteFooter`** in the root layout (Privacy · Terms · Status · Contact) replaced
+  the home-only footer (hidden on `/admin`); a first-login acceptance screen
+  **`/welcome/legal`** (magic-link now lands there via `redirectTo=/welcome/legal?next=/`;
+  two required unchecked checkboxes, links open in a new tab, server action re-validates,
+  DB-generated `accepted_at`, idempotent insert, safe-next open-redirect guard). Central
+  version constants live in **`src/lib/legal/policies.ts`** (`CURRENT_TERMS_VERSION` /
+  `CURRENT_PRIVACY_VERSION`, operator = Vociferous.ai / New York, contact go@vociferous.nyc);
+  a version bump there forces re-acceptance. **Append-only record** `policy_acceptances`
+  (migration 0017, FK→users cascade, unique (user_id, terms_version, privacy_version); NO IP,
+  UA, birth date, or token stored). **Enforcement:** `requireAcceptedUser()` (gate.ts) = auth
+  + current acceptance, used by the ask/search/entities/digests **layouts** AND the ask
+  **action + API route** independently; the signed-in **home** redirects before any subscriber
+  query; **/signals** gates its detail on acceptance (teaser stays public); **/account** shows
+  the accepted versions + timestamp (no id/method leaked) and redirects if unaccepted;
+  `requireAdminOr404` redirects a confirmed admin who hasn't accepted (non-admins still 404, so
+  the registry gate is unweakened). Anonymous dev/demo parity (FEATURE_AUTH_GATE off) preserved;
+  no acceptance record is ever manufactured for an anonymous visitor. Note:
+  `docs/reviews/LEGAL-ACCEPTANCE-NOTE-2026-07-12.md`.
+- **Tests:** 1143 unit tests / 97 files green (`npm test`, ~3s) + Neon-branch
+  integration suite (`npm run test:integration`, +5 real-Postgres acceptance tests). CI mirror:
+  `.github/workflows/ci.yml`; the enforced gate is `.githooks/pre-push` (typecheck+lint+test).
 - **Crons (vercel.json):** ingest fast */15 · telegram :10 · x :20 · mtproto :35 ·
   map :40 (hourly) · digest 02:00 (D+1 finalize) + 04:00/10:00/19:30 (intraday, rolling window,
   delta-framed) · validate 07:00 (scores yesterday = the finalized digest) ·
@@ -634,6 +657,50 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   clean; LLM spend $0.00. New OPEN-TASKS #58 (legal review of named individuals on the signed-in
   /signals view), #59 (native review of the new i18n strings), #60 (dead nav i18n keys cleanup).
   Standing ruling 15 + the Surface/directory sections corrected in place.
+
+- **2026-07-12 (legal acceptance sprint — versioned Privacy/Terms + first-login clickwrap +
+  server-side enforcement, FULL SHIP, NOT deployed)** Added public `/privacy` + `/terms`
+  (Privacy Notice v1.0 + Terms of Use v1.0, effective 2026-07-12, copy supplied verbatim; shared
+  `src/components/legal-document.tsx`, DB-free, indexable + in sitemap), a global `SiteFooter`
+  (Privacy · Terms · Status · Contact) in the root layout that replaced the home-only footer
+  (removed to avoid a duplicate on `/`; hidden on `/admin`), a pre-auth 18+ disclosure on
+  `/signin`, and a first-login acceptance screen `/welcome/legal`. **Central version config**
+  `src/lib/legal/policies.ts` (bump `CURRENT_TERMS_VERSION`/`CURRENT_PRIVACY_VERSION` + the copy →
+  users lacking the new pair re-accept); operator identity kept there (Vociferous.ai / New York /
+  go@vociferous.nyc) so the future Delaware entity is a one-line change — no invented LLC.
+  **Append-only record** `policy_acceptances` (migration **0017_flashy_photon**, forward of 0016,
+  9999 still last; FK→users cascade, unique (user_id, terms_version, privacy_version); columns:
+  user_id, terms/privacy version, DB-`DEFAULT now()` accepted_at, adult_attested,
+  privacy_acknowledged, acceptance_method=`first_login_clickwrap`, nullable locale — and
+  deliberately NO IP / user-agent / birth-date / token). The insert is idempotent (ON CONFLICT DO
+  NOTHING) and reads back the DB timestamp; the server action re-validates BOTH checkboxes and the
+  session (a forged/incomplete POST is rejected); `safeInternalPath` collapses any external/open-
+  redirect `next` to `/`; acceptance is DB-derived, never a session flag, so it can't be marked
+  before the insert lands. **Enforcement:** new `requireAcceptedUser()` (auth + current acceptance,
+  fail-closed) wired into the ask/search/entities/digests **layouts** and — independently — the ask
+  **server action** + **`/api/ask`** route; the signed-in **home** redirects before any subscriber
+  query or recent-Ask render; **/signals** gates its `detail`/evidence on acceptance (anonymous +
+  signed-in-unaccepted both see only the safe teaser); **/account** shows accepted versions +
+  server timestamp (no id/method leaked) and redirects if unaccepted; `requireAdminOr404` redirects
+  a confirmed admin who hasn't accepted while non-admins keep the 404 (registry gate unweakened).
+  Magic-link `redirectTo` moved `/` → `/welcome/legal?next=/`; requesting a link is NOT the
+  persisted acceptance (only the authenticated clickwrap is). **Truth-in-UI / factual constraints
+  honored:** Privacy Notice states plainly that Ask questions are STORED (email + usage metadata,
+  sent to OpenAI), never anonymous/ephemeral; no certifications, deletion-schedule, security or
+  compliance guarantees; Stripe described conditionally; no analytics/cookie-consent added; no
+  question storage changed and no retention job added. **Dev/demo parity:** with FEATURE_AUTH_GATE
+  off, anonymous visitors are unaffected and no acceptance is manufactured for them, but a REAL
+  authenticated user is still held to acceptance (identity-scoped, not gate-scoped). **Verified:**
+  typecheck + lint clean; `next build` clean (all new routes compile); **1143 unit tests / 97 files**
+  green (was 1053/84 — +57 legal + updated ask/home/signals/signin/gate/seo mocks); **integration
+  suite green on a disposable Neon branch incl. 5 NEW real-Postgres tests** that apply 0017 and
+  prove DB-generated timestamp, idempotency, append-only version bump, the unique constraint, and
+  FK cascade. No new env vars, no paid-provider calls (ruling 4 N/A), invariants 1–5 untouched
+  (migration additive; trigger 9999 unchanged; `migrations.test.ts` + new
+  `policy-acceptances.migration.test.ts` both green). **NOT deployed** (per prompt); operator applies
+  0017 via the gated migrate flow (override BOTH `DATABASE_URL` + `DATABASE_URL_UNPOOLED` for any
+  branch-targeted run — the MERGE 1 trap) before/with the deploy. Note:
+  `docs/reviews/LEGAL-ACCEPTANCE-NOTE-2026-07-12.md`.
 
 ## Conventions
 
