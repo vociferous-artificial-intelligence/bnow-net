@@ -558,12 +558,21 @@ export const subscriptions = pgTable(
   (t) => [index("subscriptions_user_idx").on(t.userId)],
 );
 
-// captures interest while Stripe is feature-flagged off
+// Access requests: originally pricing-page interest capture, extended 2026-07-13 for
+// private-beta access requests (structured fields, not data packed into `note`).
+// linkedin_url is stored exactly as volunteered — never fetched, scraped, or enriched.
+// request_status drives the operator review flow ('new' → 'approved'/'declined'); an
+// approved row is one of the SIGNIN_MODE=invite eligibility sources. plan_code stays
+// NULL for beta requests.
 export const subscribeIntents = pgTable("subscribe_intents", {
   id: serial("id").primaryKey(),
   email: text("email").notNull(),
   planCode: text("plan_code").references(() => plans.code),
   note: text("note"),
+  linkedinUrl: text("linkedin_url"),
+  useCase: text("use_case"),
+  requestStatus: text("request_status").notNull().default("new"),
+  source: text("source"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
