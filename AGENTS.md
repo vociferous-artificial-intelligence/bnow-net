@@ -330,14 +330,19 @@ Operational rulings:
     re-running the gate (scripts/ab-mapreduce.ts + ab-report.ts). Every doc_claims
     consumer goes through src/lib/analysis/map-versions.ts (superseded extractor
     versions double-count otherwise).
-19. **Publication safety (2026-07-13):** every digest persist passes
-    `guardPublishedEvents` (`src/lib/analysis/publication-guard.ts`) BEFORE the
-    overwrite verdict — single-doc disputed reputational person-allegations drop;
-    disputed named-person allegations always carry attribution and their events get
-    deterministic copy (model prose never survives there); corroboration promotion
-    never confirms a person-allegation on its own; the scoreboard labels
-    non-confirmed unmatched claims "BNOW-only reported item" with the hedge shown.
-    Do not bypass the guard or weaken these rules without a decision-log entry.
+19. **Publication safety (2026-07-13; strengthened same-day by the remediation):**
+    every digest persist passes `guardPublishedEvents`
+    (`src/lib/analysis/publication-guard.ts`) BEFORE the overwrite verdict —
+    single-doc disputed reputational person-allegations drop AND their event
+    title/summary is rebuilt from the retained claims (a dropped allegation's prose
+    never survives, even beside a safe confirmed subclaim); disputed named-person
+    allegations carry attribution that GOVERNS the allegation (an attribution word
+    trailing the assertion — "X died, with reports suggesting…" — does not qualify
+    it); allegation-bearing events get deterministic copy for title AND summary
+    (model prose never survives there); corroboration promotion never confirms a
+    person-allegation on its own; the scoreboard labels non-confirmed unmatched
+    claims "BNOW-only reported item" with the hedge shown. Do not bypass the guard
+    or weaken these rules without a decision-log entry.
 
 ## Decision log (append-only, dated)
 
@@ -818,6 +823,43 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   entity plan apply, Graham digest-row repair (#62), Postmark sender domain, THEN the X
   historical catch-up (B/E readiness satisfied: B deployed, E code deployed with the
   merge plan pending) and the OpenSanctions rescore LAST.
+
+- **2026-07-13 (post-sprint remediation — seven code-review findings fixed, NOT deployed)**
+  Review of the private-beta sprint surfaced seven defects; all seven reproduced by focused
+  tests first, then fixed. **(1) Digest mail privacy:** `scripts/email-digest.ts` UNION-selected
+  every `subscribe_intents` address — a /access beta REQUEST (or any legacy pricing intent)
+  would have received a production digest on the next manual run, and zero recipients fell back
+  to mailing `demo@bnow.net`. Recipient policy extracted to
+  `src/lib/email/digest-recipients.ts`: users⋈subscriptions with status active/pending ONLY,
+  never subscribe_intents (no documented opt-in ever existed — the UNION was one early-demo
+  commit), zero eligible → send nothing (`--to=` = explicit operator test override).
+  **(2+3) Ruling 19 strengthened (corrected in place):** an R1-dropped allegation now forces the
+  event's title/summary rebuild (previously a safe subclaim kept the original prose, allegation
+  included); event copy on allegation-bearing events is REBUILT for title AND summary, never
+  prefix-patched; new `hasGoverningAttribution` — attribution must PRECEDE the allegation
+  content, so the production-shaped Graham title ("died unexpectedly, with reports suggesting…")
+  no longer passes as "attributed" (the old fixture's simplified title had not pinned that
+  shape; note corrected). **(4) Ask honesty:** the post-answer denial correction replaced only
+  metadata — the model's citing tail ([cN] markers + irrelevant claim summaries) stayed VISIBLE
+  while the evaluator scored it honest off citedClaimIds=0. Now the answer text itself is
+  replaced with the deterministic `insufficientEvidenceCopy` (shared with the relevance
+  boundary), and `isNegativeAnswerHonest` rejects surviving citation syntax in the text.
+  **(5) Datadark granularity:** `parsePeriodLabel` returns a RANGE aged from its END — a bare
+  "2026" no longer maps to Jan 1 (which would have falsely staled cbr-statistics ~2026-04-01
+  under 2× its 45-day cadence); impossible dates (31.02) rejected instead of rolling over.
+  **(6) Entity durability:** the cleanup plan's "future persists fold at source" claim was
+  WRONG — reduce-time folding can't help when evidence carries a single raw variant, and
+  `persistDigest` matched entities by exact (kind, name). Persist now resolves by canonical
+  identity (kind + `canonicalKey`, per-transaction cache, raw spellings appended to aliases);
+  OPEN-TASKS #61 gains a hard sequencing rule: deploy this before applying the cleanup plan.
+  **(7) /trade provenance:** `latestTradeFetch` had no flow filter, so the materials job's US
+  import rows (flow M, partner 643) could stamp the export page's "last fetched" date; replaced
+  by `tradeFetchWindow` sharing ONE cohort SQL fragment with `getDivergence`, rendered as a
+  range ("fetched between A and B") when reporters refreshed at different times. Tests
+  1279/105 → **1321/107**; typecheck/lint/`next build` green; no deploy, no prod writes, no
+  paid calls, no migrations. Docs corrected: ruling 19 (in place), ENTITY-CLEANUP-PLAN §4,
+  PRIVATE-BETA-READINESS-NOTE §B/§D annotations, OPEN-TASKS #61. Full account:
+  `docs/reviews/REMEDIATION-NOTE-2026-07-13.md`.
 
 ## Conventions
 

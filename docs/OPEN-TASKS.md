@@ -374,7 +374,11 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     prod: 763 → 578 entities (80 drops, 105 merges incl. the Vorobyov triple and the
     Dembitsky surname fold). Plan + apply/integrity procedure:
     docs/reviews/ENTITY-CLEANUP-PLAN-2026-07-13.md. Apply BEFORE the OpenSanctions
-    fixed-cutoff rescore (it changes the scored population).
+    fixed-cutoff rescore (it changes the scored population). **Sequencing added by the
+    2026-07-13 remediation: DEPLOY the canonical-identity persist fix
+    (digest-persist.ts `resolveEntityId`) before applying — the pre-remediation
+    exact-name get-or-create would recreate merged spellings on the next digest
+    persist, immediately regressing the plan.**
 62. **[operator] Graham digest rows repair.** Event 4008 + claims 4413/4414 (ru
     07-12/07-13) carry the pre-guard unsafe copy. Options: regenerate those digest days
     post-deploy (guard active; caps + thin-overwrite rules apply; compare before

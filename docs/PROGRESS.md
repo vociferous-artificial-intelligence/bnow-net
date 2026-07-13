@@ -1190,3 +1190,19 @@ routes), materials partner names (193-code M49 map + partner_name column) + data
 latest-period correctness + provenance links. Migrations 0018 + 0019 (additive).
 Tests 1147/97 → 1279/105; integration + build green. Full account:
 docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md.
+
+## 2026-07-13 — post-sprint remediation (seven code-review findings)
+
+All seven findings from the private-beta sprint review reproduced with focused tests,
+then fixed: digest-mailer recipient policy (subscribe_intents/access requests never
+mailed; no demo fallback; new src/lib/email/digest-recipients.ts), publication guard
+strengthened (dropped allegations force event-prose rebuild; governing attribution —
+the production-shaped Graham title now pinned; ruling 19 corrected in place), ask
+denial answers deterministically REPLACED (not metadata-stripped) + evaluator rejects
+surviving [cN] syntax, datadark granularity-aware period ranges (bare "2026" no longer
+falsely stale mid-year; impossible dates rejected), entity persistence by canonical
+identity (cleanup plan durable only behind this deploy — OPEN-TASKS #61 sequencing),
+/trade provenance shares getDivergence's cohort SQL (materials-job fetch dates can no
+longer stamp the export page; range wording). Tests 1279/105 → 1321/107; typecheck,
+lint, build green. Nothing deployed; no prod writes; no paid calls. Full account:
+docs/reviews/REMEDIATION-NOTE-2026-07-13.md.

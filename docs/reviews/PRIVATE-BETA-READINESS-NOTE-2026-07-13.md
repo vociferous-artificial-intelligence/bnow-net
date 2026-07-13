@@ -98,7 +98,20 @@ one get deterministic copy (attributed title, summary REPLACED by the representa
 claim text — freeform model prose, where speculative causation lives, never survives);
 wholly-disputed events can't read as unqualified declaratives (attributed prose
 passes); a confirmed subclaim never washes a disputed allegation; confirmed events
-pass byte-identical. `finalizeEvents` recomputes the hedging ladder on NATIVE
+pass byte-identical.
+
+> **Corrected by the 2026-07-13 remediation** (`REMEDIATION-NOTE-2026-07-13.md`).
+> Three of this section's claims were inaccurate as shipped: (a) "fixtures reproduce
+> the Graham defect verbatim" — the fixture title was the simplified "…dies amid
+> corruption scandal", NOT the production title "…died unexpectedly, with reports
+> suggesting…", whose trailing attribution words the shipped `hasAttribution`
+> accepted as attribution, leaving the exact production title untouched; the
+> production-shaped fixture is now in the suite and `hasGoverningAttribution`
+> requires attribution to PRECEDE the allegation. (b) "attributed title" — titles on
+> allegation-bearing events are now REBUILT from retained claims, not prefixed.
+> (c) An R1-dropped allegation beside a safe confirmed claim previously left the
+> event's original title/summary — allegation included — fully intact; dropped
+> allegations now force the event-prose rebuild. `finalizeEvents` recomputes the hedging ladder on NATIVE
 (pre-promotion) values for person allegations — repetition ≠ confirmation for
 defamation-grade content. Prompts strengthened on both engines (prompt = request,
 guard = enforcement). Scoreboard: `ours_only` divergences freeze `hedging` at scoring
@@ -148,6 +161,14 @@ noting "no reports of casualties" mid-text are untouched; provider refusals keep
 covered theaters/topics generically. Evaluator recalibrated: negative honesty now
 requires zero surviving citations (the Venezuela cite-while-denying fixture
 deliberately flips — that leniency hid the Antarctic defect; documented in the test).
+
+> **Corrected by the 2026-07-13 remediation** (`REMEDIATION-NOTE-2026-07-13.md`).
+> "Citations stripped" as shipped cleared only METADATA (`citedClaimIds`, related):
+> the model's answer text — literal `[cN]` markers and its summary of irrelevant
+> claims — remained visible to the user, while the evaluator scored the empty
+> metadata as honest. The correction now REPLACES the answer text with the
+> deterministic insufficient-evidence copy (shared with the relevance boundary),
+> and `isNegativeAnswerHonest` rejects citation syntax surviving in the text.
 **No paid eval run — operator authorization absent.** Unit fixtures cover the exact
 Antarctic control, a second out-of-domain control, the Moscow known-answer shape, the
 temporal window path, rollback (`ASK_RELEVANCE_BOUNDARY=0`), and fail-open. If the
