@@ -10,7 +10,17 @@
 // last_tweets (always returns the newest ~20, all billed) is reserved for
 // backfill. Every request passes the SpendGuard first; guard refusal stops the
 // run cleanly (fail-closed, partial results still returned for insertion).
+//
+// Watermark rule (OPEN-TASKS #38): lastPollAt is INSERT-GATED — fetchLatest()
+// only prepares a pending watermark on a globally COMPLETE pass (every batch
+// exhausted its cursors, zero request/parser failures, no budget stop, no page
+// truncation); runIngest persists it via commitMarks() strictly AFTER
+// insertDocs() succeeded. Anything else leaves the old watermark so the next
+// poll re-covers the window (content-hash dedupe absorbs the overlap). Paid X
+// work is single-writer via the x_api_lease (src/lib/usage/x-lease.ts): a poll
+// that finds the lease held (historical recovery running) makes zero paid calls.
 
+import { randomUUID } from "node:crypto";
 import { sql as dsql } from "drizzle-orm";
 import { db } from "@/db";
 import { detectLang, type Lang } from "../analysis/lang";
@@ -23,6 +33,12 @@ import {
   pgUsageStore,
   saveProviderState,
 } from "../usage/spend-guard";
+import {
+  X_LEASE_TTL_MS,
+  acquireXLease,
+  pgXLeaseDriver,
+  type XLeaseDriver,
+} from "../usage/x-lease";
 import type { BackfillRange, RawDoc, SourceAdapter } from "./types";
 
 const BASE = "https://api.twitterapi.io";
@@ -104,6 +120,17 @@ export function tweetsFromResponse(json: unknown): XApiTweet[] {
   return (arr as XApiTweet[]).filter((t) => t && typeof t.id === "string" && !!t.text);
 }
 
+/** Structurally valid search payload: a tweets array (possibly empty) at either
+ *  response shape. A 200 with a junk/error body must NOT read as an exhausted
+ *  page — treating it as empty would let a failed pass advance the watermark. */
+export function isSearchPayload(json: unknown): boolean {
+  if (!json || typeof json !== "object") return false;
+  const o = json as Record<string, unknown>;
+  if (Array.isArray(o.tweets)) return true;
+  const d = o.data;
+  return !!d && typeof d === "object" && Array.isArray((d as Record<string, unknown>).tweets);
+}
+
 /** Twitter classic format: "Tue Jul 07 17:50:06 +0000 2026". V8 parses it. */
 export function parseTwitterDate(s: string | null | undefined): Date | null {
   if (!s) return null;
@@ -171,6 +198,27 @@ export function xGuardFromEnv(): SpendGuard {
   );
 }
 
+/** One twitterapi.io GET. Returns parsed JSON, or null on a non-2xx status
+ *  (network/timeout errors propagate). Logs path + status only — never the key
+ *  or authorization headers. Shared by the adapter and the gap-recovery driver. */
+export async function xApiRequest(
+  path: string,
+  params: Record<string, string>,
+  apiKey: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<unknown | null> {
+  const qs = new URLSearchParams(params).toString();
+  const res = await fetchImpl(`${BASE}${path}?${qs}`, {
+    headers: { "X-API-Key": apiKey },
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) {
+    console.warn(`${X_PROVIDER} ${path}: HTTP ${res.status}`);
+    return null;
+  }
+  return res.json();
+}
+
 // -- adapter ---------------------------------------------------------------------
 
 interface XAdapterOpts {
@@ -182,115 +230,206 @@ interface XAdapterOpts {
   maxPagesPerAccount?: number; // backfill depth
 }
 
+/** Injectable seams (pg/fetch in prod, in-memory in tests). */
+export interface XApiDeps {
+  loadState: typeof loadProviderState;
+  saveState: typeof saveProviderState;
+  fetchImpl: typeof fetch;
+  leaseDriver: XLeaseDriver;
+}
+
+function defaultXApiDeps(): XApiDeps {
+  return {
+    loadState: loadProviderState,
+    saveState: saveProviderState,
+    fetchImpl: fetch,
+    leaseDriver: pgXLeaseDriver,
+  };
+}
+
 export class XApiAdapter implements SourceAdapter {
   readonly name = X_PROVIDER;
   readonly live = true;
+
+  /** Prepared only by a globally COMPLETE fetchLatest pass; persisted by
+   *  commitMarks() strictly after runIngest inserted the docs it covers. */
+  private pendingLastPollAt: number | null = null;
+  /** Per-run tallies, surfaced through cron_runs.counts.x_api (runIngest detail). */
+  runStats: Record<string, number> = {};
+  private deps: XApiDeps;
 
   constructor(
     private accounts: XAccount[],
     private guard: SpendGuard,
     private opts: XAdapterOpts = {},
-  ) {}
+    deps: Partial<XApiDeps> = {},
+  ) {
+    this.deps = { ...defaultXApiDeps(), ...deps };
+  }
 
   private get apiKey(): string | null {
     return process.env.X_API_KEY || null;
   }
 
-  private async request(path: string, params: Record<string, string>): Promise<unknown | null> {
-    const qs = new URLSearchParams(params).toString();
-    const res = await fetch(`${BASE}${path}?${qs}`, {
-      headers: { "X-API-Key": this.apiKey! },
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (!res.ok) {
-      console.warn(`${X_PROVIDER} ${path}: HTTP ${res.status}`);
-      return null;
-    }
-    return res.json();
+  private request(path: string, params: Record<string, string>): Promise<unknown | null> {
+    return xApiRequest(path, params, this.apiKey!, this.deps.fetchImpl);
   }
 
   /** Incremental poll via advanced_search: batched from: OR-queries since the
-   *  persisted watermark. Watermark only advances after a complete pass, so an
-   *  interrupted (or budget-stopped) run re-covers the window next time and the
-   *  content-hash dedupe absorbs the overlap. */
+   *  persisted watermark. A pass is COMPLETE only when every batch exhausted its
+   *  cursors with zero failures — anything else (budget stop, HTTP/parser error,
+   *  page ceiling with another cursor pending) returns partial docs for
+   *  idempotent insertion but leaves the watermark alone, so the next poll
+   *  re-covers the window and the content-hash dedupe absorbs the overlap. */
   async fetchLatest(): Promise<RawDoc[]> {
+    this.pendingLastPollAt = null;
+    this.runStats = {
+      requests: 0,
+      units: 0,
+      budgetStops: 0,
+      pageTruncations: 0,
+      requestFailures: 0,
+      lockSkips: 0,
+      incomplete: 0,
+    };
     if (this.accounts.length === 0) return [];
     if (!this.apiKey) {
       console.warn(`${X_PROVIDER}: X_API_KEY unset — skipping (fail-closed)`);
       return [];
     }
-    await this.guard.init();
 
-    const {
-      spacingMs = 300,
-      batchSize = 20,
-      maxPagesPerBatch = 5,
-      overlapSec = 1800,
-      defaultLookbackSec = 24 * 3600,
-    } = this.opts;
-
-    const state = await loadProviderState<{ lastPollAt?: number }>(X_PROVIDER);
-    const pollStartedUnix = Math.floor(Date.now() / 1000);
-    const sinceUnix = Math.max(
-      (state?.lastPollAt ?? pollStartedUnix - defaultLookbackSec) - overlapSec,
-      pollStartedUnix - 7 * 24 * 3600, // never search further back than a week
+    // Paid X work is single-writer: if the historical-recovery driver (or another
+    // poll) holds the lease, make ZERO paid calls and leave the watermark alone —
+    // the next scheduled poll re-covers the window.
+    const lease = await acquireXLease(
+      `x-poll-${randomUUID()}`,
+      X_LEASE_TTL_MS,
+      this.deps.leaseDriver,
     );
-
-    const byUser = new Map(this.accounts.map((a) => [a.userName.toLowerCase(), a]));
-    const docs: RawDoc[] = [];
-    const seenIds = new Set<string>();
-    let complete = true;
-
-    outer: for (const batch of chunk(this.accounts, batchSize)) {
-      const query = buildSearchQuery(batch, sinceUnix);
-      let cursor = "";
-      for (let page = 0; page < maxPagesPerBatch; page++) {
-        const r = this.guard.tryReserve();
-        if (!r.ok) {
-          console.warn(`${X_PROVIDER}: budget stop — ${r.reason}`);
-          complete = false;
-          break outer;
-        }
-        let json: unknown | null = null;
-        try {
-          json = await this.request("/twitter/tweet/advanced_search", {
-            query,
-            queryType: "Latest",
-            cursor,
-          });
-        } catch (e) {
-          console.warn(`${X_PROVIDER} search: ${e instanceof Error ? e.message : e}`);
-        }
-        if (json === null) {
-          complete = false;
-          break;
-        }
-        const tweets = tweetsFromResponse(json);
-        await this.guard.record(
-          1,
-          tweets.length,
-          Math.max(tweets.length * X_USD_PER_TWEET, X_MIN_USD_PER_REQUEST),
-        );
-        for (const t of tweets) {
-          if (seenIds.has(t.id)) continue;
-          seenIds.add(t.id);
-          const account = byUser.get((t.author?.userName ?? "").toLowerCase());
-          if (!account) continue; // defensive: only registry-attributed docs
-          docs.push(tweetToRawDoc(t, account));
-        }
-        const o = json as { has_next_page?: boolean; next_cursor?: string };
-        if (!o.has_next_page || !o.next_cursor) break;
-        cursor = o.next_cursor;
-        await new Promise((r2) => setTimeout(r2, spacingMs));
-      }
-      await new Promise((r2) => setTimeout(r2, spacingMs));
+    if (!lease) {
+      this.runStats.lockSkips = 1;
+      this.runStats.incomplete = 1;
+      console.warn(`${X_PROVIDER}: provider lease held — skipping poll (no paid calls)`);
+      return [];
     }
 
-    if (complete) await saveProviderState(X_PROVIDER, { lastPollAt: pollStartedUnix });
-    console.log(
-      `${X_PROVIDER}: ${docs.length} docs, run usage ${JSON.stringify(this.guard.runStats)}`,
-    );
-    return docs;
+    try {
+      await this.guard.init();
+
+      const {
+        spacingMs = 300,
+        batchSize = 20,
+        maxPagesPerBatch = 5,
+        overlapSec = 1800,
+        defaultLookbackSec = 24 * 3600,
+      } = this.opts;
+
+      const state = await this.deps.loadState<{ lastPollAt?: number }>(X_PROVIDER);
+      const pollStartedUnix = Math.floor(Date.now() / 1000);
+      const sinceUnix = Math.max(
+        (state?.lastPollAt ?? pollStartedUnix - defaultLookbackSec) - overlapSec,
+        pollStartedUnix - 7 * 24 * 3600, // never search further back than a week
+      );
+
+      const byUser = new Map(this.accounts.map((a) => [a.userName.toLowerCase(), a]));
+      const docs: RawDoc[] = [];
+      const seenIds = new Set<string>();
+      let complete = true;
+
+      outer: for (const batch of chunk(this.accounts, batchSize)) {
+        const query = buildSearchQuery(batch, sinceUnix);
+        let cursor = "";
+        for (let page = 1; ; page++) {
+          const r = this.guard.tryReserve();
+          if (!r.ok) {
+            console.warn(`${X_PROVIDER}: budget stop — ${r.reason}`);
+            this.runStats.budgetStops += 1;
+            complete = false;
+            break outer;
+          }
+          if (!(await lease.renew())) {
+            // lost to a takeover (only possible after a >TTL stall): another job
+            // may be spending — stop paid calls immediately, pass is incomplete
+            console.warn(`${X_PROVIDER}: lease lost mid-poll — stopping paid calls`);
+            this.runStats.lockSkips += 1;
+            complete = false;
+            break outer;
+          }
+          let json: unknown | null = null;
+          try {
+            json = await this.request("/twitter/tweet/advanced_search", {
+              query,
+              queryType: "Latest",
+              cursor,
+            });
+          } catch (e) {
+            console.warn(`${X_PROVIDER} search: ${e instanceof Error ? e.message : e}`);
+          }
+          if (json === null) {
+            this.runStats.requestFailures += 1;
+            complete = false;
+            break;
+          }
+          if (!isSearchPayload(json)) {
+            // 200 with a junk body: record the per-request minimum (the provider
+            // bills the request) and fail the pass — a junk "empty" page must not
+            // read as an exhausted batch.
+            await this.guard.record(1, 0, X_MIN_USD_PER_REQUEST);
+            this.runStats.requests += 1;
+            this.runStats.requestFailures += 1;
+            complete = false;
+            break;
+          }
+          const tweets = tweetsFromResponse(json);
+          await this.guard.record(
+            1,
+            tweets.length,
+            Math.max(tweets.length * X_USD_PER_TWEET, X_MIN_USD_PER_REQUEST),
+          );
+          this.runStats.requests += 1;
+          this.runStats.units += tweets.length;
+          for (const t of tweets) {
+            if (seenIds.has(t.id)) continue;
+            seenIds.add(t.id);
+            const account = byUser.get((t.author?.userName ?? "").toLowerCase());
+            if (!account) continue; // defensive: only registry-attributed docs
+            docs.push(tweetToRawDoc(t, account));
+          }
+          const o = json as { has_next_page?: boolean; next_cursor?: string };
+          if (!o.has_next_page || !o.next_cursor) break; // batch genuinely exhausted
+          if (page >= maxPagesPerBatch) {
+            // steady-state page ceiling reached with another cursor pending:
+            // visible (counted) and the pass is incomplete, so the watermark
+            // cannot advance past the un-fetched tail (the old silent loss).
+            this.runStats.pageTruncations += 1;
+            complete = false;
+            break;
+          }
+          cursor = o.next_cursor;
+          await new Promise((r2) => setTimeout(r2, spacingMs));
+        }
+        await new Promise((r2) => setTimeout(r2, spacingMs));
+      }
+
+      // Never persisted here: runIngest calls commitMarks() after insertDocs().
+      if (complete) this.pendingLastPollAt = pollStartedUnix;
+      this.runStats.incomplete = complete ? 0 : 1;
+      this.runStats.docs = docs.length;
+      console.log(
+        `${X_PROVIDER}: ${docs.length} docs, run usage ${JSON.stringify(this.guard.runStats)}, complete=${complete}`,
+      );
+      return docs;
+    } finally {
+      await lease.release();
+    }
+  }
+
+  /** Persist the pending watermark — runIngest calls this only AFTER insertDocs
+   *  succeeded, so a pass whose docs never landed re-covers its window next run. */
+  async commitMarks(): Promise<void> {
+    if (this.pendingLastPollAt === null) return;
+    await this.deps.saveState(X_PROVIDER, { lastPollAt: this.pendingLastPollAt });
+    this.pendingLastPollAt = null;
   }
 
   /** Backfill via last_tweets pagination (newest first), stopping per account
@@ -301,6 +440,28 @@ export class XApiAdapter implements SourceAdapter {
       console.warn(`${X_PROVIDER}: X_API_KEY unset — skipping backfill (fail-closed)`);
       return [];
     }
+    // same single-writer rule as fetchLatest: paid work only under the lease
+    const lease = await acquireXLease(
+      `x-backfill-${randomUUID()}`,
+      X_LEASE_TTL_MS,
+      this.deps.leaseDriver,
+    );
+    if (!lease) {
+      this.runStats.lockSkips = (this.runStats.lockSkips ?? 0) + 1;
+      console.warn(`${X_PROVIDER}: provider lease held — skipping backfill (no paid calls)`);
+      return [];
+    }
+    try {
+      return await this.backfillUnderLease(range, lease);
+    } finally {
+      await lease.release();
+    }
+  }
+
+  private async backfillUnderLease(
+    range: BackfillRange,
+    lease: { renew(): Promise<boolean> },
+  ): Promise<RawDoc[]> {
     await this.guard.init();
     const { spacingMs = 300, maxPagesPerAccount = 6 } = this.opts;
     const docs: RawDoc[] = [];
@@ -312,6 +473,11 @@ export class XApiAdapter implements SourceAdapter {
         const r = this.guard.tryReserve();
         if (!r.ok) {
           console.warn(`${X_PROVIDER}: budget stop — ${r.reason}`);
+          break outer;
+        }
+        if (!(await lease.renew())) {
+          console.warn(`${X_PROVIDER}: lease lost mid-backfill — stopping paid calls`);
+          this.runStats.lockSkips = (this.runStats.lockSkips ?? 0) + 1;
           break outer;
         }
         let json: unknown | null = null;
