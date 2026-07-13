@@ -23,7 +23,7 @@ afterEach(() => {
 });
 
 // The public marketing/teaser surface that must stay crawlable + in the sitemap.
-const PUBLIC = ["/", "/countries", "/scoreboard", "/pricing", "/signals", "/trade", "/critical-materials", "/datadark", "/privacy", "/terms"];
+const PUBLIC = ["/", "/countries", "/scoreboard", "/access", "/pricing", "/signals", "/trade", "/critical-materials", "/datadark", "/privacy", "/terms"];
 // Routes that must be disallowed AND never appear in the sitemap.
 const GATED = ["/api/", "/admin/", "/account", "/signin", "/welcome/", "/digests/", "/ask", "/search", "/entities/", "/registry", "/middle-east", "/health"];
 
