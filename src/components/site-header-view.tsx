@@ -99,7 +99,8 @@ export function SiteHeaderView({
 
   if (isChromeless(pathname)) return null;
 
-  const pricingCta = nav.entries.find((e) => e.kind === "link" && e.id === "pricing" && e.cta);
+  // The one CTA entry (signed-out "Request access"; absent entirely when signed in).
+  const ctaEntry = nav.entries.find((e): e is Extract<NavEntry, { kind: "link" }> => e.kind === "link" && e.cta);
 
   return (
     <>
@@ -135,11 +136,13 @@ export function SiteHeaderView({
           </button>
         </div>
 
-        {/* Signed-out mobile users still see the commercial anchor without opening the sheet. */}
-        {pricingCta && (
+        {/* Signed-out mobile users still see the access-request CTA without opening the
+            sheet. The href comes from the nav entry itself so a future route change
+            cannot drift from the rendered label. */}
+        {ctaEntry && (
           <div className="border-t border-gray-100 px-6 py-2 text-center md:hidden dark:border-gray-900">
-            <Link href="/pricing" className={`text-sm font-semibold text-blue-600 ${FOCUS_RING}`}>
-              {pricingCta.kind === "link" ? pricingCta.label : null}
+            <Link href={ctaEntry.href} className={`text-sm font-semibold text-blue-600 ${FOCUS_RING}`}>
+              {ctaEntry.label}
             </Link>
           </div>
         )}

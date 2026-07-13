@@ -39,6 +39,10 @@ export interface DivergenceEntry {
   claimId?: number;
   claimText?: string;
   score?: number;
+  /** ours_only: the claim's hedging at scoring time, so the scoreboard can show
+   *  the hedge and avoid framing a non-confirmed claim as an endorsed lead
+   *  (absent on runs scored before 2026-07-13). */
+  hedging?: string;
   /** Agreements only: the matched claim's earliest ingest instant (audit trail for atPublish). */
   earliestFetchedAt?: string | null;
 }
@@ -107,7 +111,15 @@ export function scoreDigestWithMatches(
   }
   for (const c of claims) {
     if (!matchedClaims.has(c.claimId))
-      divergences.push({ kind: "ours_only", claimId: c.claimId, claimText: c.text.slice(0, 200) });
+      divergences.push({
+        kind: "ours_only",
+        claimId: c.claimId,
+        claimText: c.text.slice(0, 200),
+        // Hedging rides along so the scoreboard can label a non-confirmed
+        // unmatched claim as a reported item, not an endorsed "lead"
+        // (publication-safety, 2026-07-13).
+        hedging: c.hedging,
+      });
   }
 
   const thin = claims.filter(
@@ -205,6 +217,7 @@ export function scoreDigest(
       kind: "ours_only",
       claimId: claim.claimId,
       claimText: claim.text.slice(0, 200),
+      hedging: claim.hedging,
     });
   }
 

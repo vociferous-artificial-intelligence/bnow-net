@@ -17,6 +17,10 @@ export default async function CriticalMaterialsPage() {
     // trade_flows may be empty until first pull
   }
   const withData = materials.filter((m) => m.latest);
+  const newestFetch = materials.reduce<string | null>(
+    (acc, m) => (m.fetchedAt && (!acc || m.fetchedAt > acc) ? m.fetchedAt : acc),
+    null,
+  );
   const concentrated = withData.filter((m) => m.latest?.concentrated).length;
 
   return (
@@ -93,8 +97,28 @@ export default async function CriticalMaterialsPage() {
       )}
 
       <p className="mt-6 text-xs text-gray-400">
-        Source: UN Comtrade, US import breakdown by partner (latest reported year). Dependency
-        data is global; the live geopolitical-stress overlay deepens with theater coverage.
+        Source:{" "}
+        <a
+          href="https://comtradeplus.un.org/"
+          rel="noopener noreferrer nofollow"
+          target="_blank"
+          className="underline"
+        >
+          UN Comtrade
+        </a>{" "}
+        (official database) — US goods imports (reporter M49 842, flow M), partner breakdown
+        per HS code, latest reported year shown on each card
+        {newestFetch ? <> · last fetched {newestFetch.slice(0, 10)}</> : null}. Query shape:{" "}
+        <a
+          href="https://uncomtrade.org/docs/"
+          rel="noopener noreferrer nofollow"
+          target="_blank"
+          className="underline"
+        >
+          Comtrade documentation
+        </a>
+        . Dependency data is global; the live geopolitical-stress overlay deepens with
+        theater coverage.
       </p>
     </main>
   );

@@ -322,16 +322,21 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     registry (the citation parser already sees the full URLs). Also a registry-credibility
     blocker for ever un-hiding the registry (it went admin-only 2026-07-12, ruling R5) —
     a top source of "facebook.com" reads as a data error to any analyst.
-57. **/pricing promises registry access the product no longer grants.** The Full-analyst
-    tier copy says "Source-registry explorer + reliability data", but /registry 404s for
-    everyone below admin since 2026-07-12 (R5). Either re-scope the tier copy or add an
-    entitlement that grants role=analyst registry access (operator decision — it's the
-    defensible-asset tradeoff, brief §6.2).
+57. ~~**/pricing promises registry access the product no longer grants.**~~ ✅ CLOSED
+    (private-beta sprint, 2026-07-13): the public pricing page is retired — /pricing
+    308-redirects to /access (beta request), all price cards and the registry-promise
+    copy are deleted, and no signed-in surface advertises registry access. The
+    underlying entitlement question (should role=analyst ever regain /registry) remains
+    an operator decision but no public copy over-promises anymore.
 
 ### New (from the IA-refinement sprint — 2026-07-12, docs/reviews/IA-REFINEMENT-REVIEW.md)
 
 58. **[Tier 1 — legal, operator] /signals names living individuals as under "possible
-    purge/prosecution."** The IA-refinement gating (2026-07-12) withholds the named-individual
+    purge/prosecution."** *(ADVANCED 2026-07-13, private-beta sprint Workstream C: the
+    signed-in `detail` no longer names anyone or concludes "purge" — role/count language
+    + "Analyst review required"; names now appear ONLY inside the accepted-user evidence
+    disclosure as claim quotes with hedge + sources. Remaining counsel question: whether
+    those evidence quotes may keep names, and disclaimer prominence.)* The IA-refinement gating (2026-07-12) withholds the named-individual
     specifics (`Signal.detail`) from anonymous /signals HTML — server-side via `toPublicSignal`,
     plus robots.txt Disallow — closing the pre-auth/indexable exposure (crawlers see only a
     count-and-type teaser). But the **signed-in** page still renders names framed as analytical
@@ -361,3 +366,30 @@ The user explicitly asked to progress "before API keys are set up," so these wai
 ## Just completed (was open)
 
 - ✅ Full ISW Iran Update corpus loaded (1,066 reports / 3,647 ME sources / 98k citations).
+
+### New (from the private-beta readiness sprint — 2026-07-13,
+docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
+
+61. **[operator] Entity cleanup plan awaiting approval.** Deterministic dry run against
+    prod: 763 → 578 entities (80 drops, 105 merges incl. the Vorobyov triple and the
+    Dembitsky surname fold). Plan + apply/integrity procedure:
+    docs/reviews/ENTITY-CLEANUP-PLAN-2026-07-13.md. Apply BEFORE the OpenSanctions
+    fixed-cutoff rescore (it changes the scored population).
+62. **[operator] Graham digest rows repair.** Event 4008 + claims 4413/4414 (ru
+    07-12/07-13) carry the pre-guard unsafe copy. Options: regenerate those digest days
+    post-deploy (guard active; caps + thin-overwrite rules apply; compare before
+    replacing) or leave standing now that the scoreboard labels unmatched non-confirmed
+    claims "BNOW-only reported item" with hedges. Coordinate with the X historical
+    catch-up (which regenerates the same days anyway).
+63. **[watch] Comtrade includeDesc verification.** Both fetchers now request
+    includeDesc=true and persist partner_name, but Comtrade is unreachable from the dev
+    box and the Vercel build host — the next monthly trade (2nd) / materials (3rd) cron
+    is the live verification. If desc fields still don't arrive, the deterministic M49
+    map keeps every observed code named; the column simply stays NULL.
+64. **[i18n] Native review: private-beta strings.** ~31 machine-translated keys
+    (nav.group.access, home.beta.*, home.cta.request_beta, access.* ×6 catalogs, the
+    reworded scoreboard divergence explainer). Inventory appended to
+    UK-NATIVE-REVIEW-2026-07-12.md; same launch gate as #20/#21/#59.
+65. **[low] Signed-in home 390px operator eyeball.** Browser verification covered 17
+    routes but the signed-in home needs a real session (dev parity renders the
+    signed-out branch). Components are class-pinned; one phone-viewport eyeball closes it.

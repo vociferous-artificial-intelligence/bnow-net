@@ -219,3 +219,26 @@ describe("ClaimSources rendering", () => {
     expect(summary!.textContent).toContain("platforms");
   });
 });
+
+describe("chip width containment (390px audit, 2026-07-13)", () => {
+  it("bounds and truncates the sourceKey (an unbroken canonical URL) inside the chip", () => {
+    const doc = {
+      docId: 42,
+      url: "https://example.com/x",
+      sourceId: 1,
+      sourceKey: "https://www.understandingwar.org/backgrounder/russian-offensive-campaign-assessment-very-long-canonical-url",
+      adapter: "rss",
+      platform: "web",
+      reliability: 0.7,
+      publishedAt: null,
+      title: null,
+    };
+    render(<ClaimSources docs={[doc]} showScores={false} t={(k) => k} />);
+    const chip = screen.getByRole("link");
+    // The chip itself is width-bounded; the key truncates; the #docId stays visible.
+    expect(chip.className).toContain("max-w-");
+    const keySpan = chip.querySelector("span.truncate");
+    expect(keySpan?.textContent).toContain("understandingwar.org");
+    expect(chip.textContent).toContain("#42");
+  });
+});

@@ -23,7 +23,8 @@ afterEach(() => {
 });
 
 // The public marketing/teaser surface that must stay crawlable + in the sitemap.
-const PUBLIC = ["/", "/countries", "/scoreboard", "/pricing", "/signals", "/trade", "/critical-materials", "/datadark", "/privacy", "/terms"];
+// /pricing is deliberately absent: it only 308-redirects to /access now.
+const PUBLIC = ["/", "/countries", "/scoreboard", "/access", "/signals", "/trade", "/critical-materials", "/datadark", "/privacy", "/terms"];
 // Routes that must be disallowed AND never appear in the sitemap.
 const GATED = ["/api/", "/admin/", "/account", "/signin", "/welcome/", "/digests/", "/ask", "/search", "/entities/", "/registry", "/middle-east", "/health"];
 
@@ -62,9 +63,9 @@ describe("robots.txt policy", () => {
 
   it("does NOT disallow the public teaser / legal pages (they carry only safe content)", () => {
     const disallow = rules().disallow as string[];
-    // /signals is public teaser; /countries, /scoreboard, /pricing are marketing; the legal
+    // /signals is public teaser; /countries, /scoreboard, /access are marketing; the legal
     // documents (/privacy, /terms) are public and indexable.
-    for (const p of ["/signals", "/countries", "/scoreboard", "/pricing", "/privacy", "/terms"]) {
+    for (const p of ["/signals", "/countries", "/scoreboard", "/access", "/privacy", "/terms"]) {
       expect(disallow).not.toContain(p);
     }
   });

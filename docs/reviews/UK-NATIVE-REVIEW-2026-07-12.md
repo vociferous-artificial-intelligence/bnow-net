@@ -146,3 +146,8 @@ paraphrased below; otherwise the row carries the generic flag.
 | `scoreboard.how_to_read.thin` | (thin-sourced definition line — see dictionaries.ts) | (див. dictionaries.ts) | non-native translation, needs review |
 | `scoreboard.how_to_read.divergence` | (divergence definition line — see dictionaries.ts) | (див. dictionaries.ts) | non-native translation, needs review |
 | `scoreboard.at_publish` | at ISW publish: {pct}% | на момент публікації ISW: {pct}% | non-native translation, needs review |
+| `nav.group.access` | Request access | Запросити доступ | non-native translation, needs review (private-beta sprint 2026-07-13; de/ar/ja/pl/fr also machine-translated) |
+| `home.beta.badge` | Private analyst beta | Закрита бета для аналітиків | non-native translation, needs review |
+| `home.beta.line` | (collaborative-beta hero line — see dictionaries.ts) | (див. dictionaries.ts) | non-native translation, needs review |
+| `home.cta.request_beta` | Request beta access | Запросити доступ до бети | non-native translation, needs review |
+| `access.*` (22 keys) | (/access request page — see dictionaries.ts) | (див. dictionaries.ts) | non-native translation, needs review (all 6 non-en catalogs) |

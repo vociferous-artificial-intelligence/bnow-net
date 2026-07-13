@@ -18,6 +18,7 @@
 import type { Pool } from "@neondatabase/serverless";
 import { embedStubReason } from "../embeddings/client";
 import { embedAndStoreClaims } from "../embeddings/persist";
+import { guardPublishedEvents } from "./publication-guard";
 import type { DigestAnalysis } from "./provider";
 import type { Track } from "./tracks";
 
@@ -73,7 +74,20 @@ export function overwriteVerdict(
 }
 
 export async function persistDigest(args: PersistDigestArgs): Promise<PersistOutcome> {
-  const { pool, countryId, countryIso2, date, track, events } = args;
+  const { pool, countryId, countryIso2, date, track } = args;
+
+  // Publication-safety guard (publication-guard.ts) runs FIRST, on the exact
+  // shape being published — this single choke point covers both engines and any
+  // script persisting through the shared path. The overwrite verdict below then
+  // judges the FINAL (guarded) claim count, so a guard-shrunk regeneration is
+  // refused as thin rather than silently replacing a richer digest (ordering
+  // pinned by test). Guard telemetry rides in structured.stats.publicationGuard.
+  const { events, stats: guardStats } = guardPublishedEvents(args.events);
+  const priorStats = (args.structured?.stats ?? {}) as Record<string, unknown>;
+  const structured = {
+    ...args.structured,
+    stats: { ...priorStats, publicationGuard: guardStats },
+  };
   const newClaims = events.reduce((s, ev) => s + ev.claims.length, 0);
 
   const { rows: prev } = await pool.query(
@@ -111,7 +125,7 @@ export async function persistDigest(args: PersistDigestArgs): Promise<PersistOut
        ON CONFLICT (country_id, digest_date, track)
        DO UPDATE SET status='generated', structured=$4, provider=$5, created_at=now()
        RETURNING id`,
-      [countryId, date, track, JSON.stringify(args.structured), args.provider],
+      [countryId, date, track, JSON.stringify(structured), args.provider],
     );
     const digestId: number = dRes.rows[0].id;
 

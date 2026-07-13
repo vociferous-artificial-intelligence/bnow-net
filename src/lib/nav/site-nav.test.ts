@@ -80,19 +80,34 @@ function routeExists(href: string, routes: Set<string>): boolean {
 }
 
 describe("nav shape", () => {
-  it("reads left-to-right as Coverage | Signals | Ask | Solutions | Validation | Pricing", () => {
+  it("reads left-to-right as Coverage | Signals | Ask | Solutions | Validation | Request access when signed out", () => {
     // IA refinement 2026-07-12: Product retired; Signals + Ask promoted to top-level.
+    // Private-beta repositioning 2026-07-13: Pricing became Request access -> /access.
     expect(signedOut.entries.map((e) => e.id)).toEqual([
       "coverage",
       "signals",
       "ask",
       "solutions",
       "validation",
-      "pricing",
+      "access",
     ]);
   });
 
-  it("makes Coverage and Solutions dropdowns; Signals, Ask, Validation and Pricing direct links", () => {
+  it("carries NO commercial entry at all when signed in", () => {
+    // The signed-in product is the analyst's workbench, not a sales funnel: no
+    // pricing, no request-access — desktop and mobile render from this same tree.
+    expect(signedIn.entries.map((e) => e.id)).toEqual([
+      "coverage",
+      "signals",
+      "ask",
+      "solutions",
+      "validation",
+    ]);
+    expect(navHrefs(signedIn)).not.toContain("/access");
+    expect(navHrefs(signedIn)).not.toContain("/pricing");
+  });
+
+  it("makes Coverage and Solutions dropdowns; Signals, Ask, Validation and Request access direct links", () => {
     expect(signedOut.entries.map((e) => e.kind)).toEqual([
       "group",
       "link",
@@ -166,13 +181,15 @@ describe("label → route mapping (URLs are frozen)", () => {
   });
 });
 
-describe("pricing is the commercial anchor only until you buy", () => {
-  it("treats pricing as a CTA for signed-out visitors", () => {
-    expect(link(signedOut, "pricing").cta).toBe(true);
+describe("request access is the only commercial entry, signed-out only", () => {
+  it("treats Request access as a CTA for signed-out visitors", () => {
+    expect(link(signedOut, "access").cta).toBe(true);
+    expect(link(signedOut, "access").href).toBe("/access");
+    expect(link(signedOut, "access").labelKey).toBe("nav.group.access");
   });
-  it("drops the CTA treatment once signed in, keeping the link", () => {
-    expect(link(signedIn, "pricing").cta).toBe(false);
-    expect(link(signedIn, "pricing").href).toBe("/pricing");
+  it("never renders any price copy path — /pricing only redirects and owns no entry", () => {
+    expect(navHrefs(signedOut)).not.toContain("/pricing");
+    expect(navHrefs(signedIn)).not.toContain("/pricing");
   });
 });
 
@@ -242,14 +259,15 @@ describe("current-section resolution", () => {
     ["/trade", "solutions"],
     ["/critical-materials", "solutions"],
     ["/datadark", "solutions"],
-    ["/pricing", "pricing"],
+    ["/access", "access"],
   ])("%s belongs to %s", (path, section) => {
     expect(canonicalSection(path)).toBe(section);
   });
 
-  it("claims no section for the home, auth, health and (unlisted) entities pages", () => {
-    // /entities is gated and no longer under any nav group (Product retired).
-    for (const p of ["/", "/signin", "/account", "/health", "/entities/5"]) {
+  it("claims no section for the home, auth, health, redirecting and (unlisted) entities pages", () => {
+    // /entities is gated and no longer under any nav group (Product retired);
+    // /pricing only 308-redirects to /access, so it owns no trigger.
+    for (const p of ["/", "/signin", "/account", "/health", "/entities/5", "/pricing"]) {
       expect(canonicalSection(p)).toBeNull();
     }
   });
@@ -288,7 +306,7 @@ describe("isCurrentPage", () => {
     expect(isCurrentPage("/countries", "/countries#ru")).toBe(false);
   });
   it("ignores query strings", () => {
-    expect(isCurrentPage("/pricing?plan=team", "/pricing")).toBe(true);
+    expect(isCurrentPage("/access?src=hero", "/access")).toBe(true);
   });
 });
 

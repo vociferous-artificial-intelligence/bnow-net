@@ -22,6 +22,7 @@ import {
 } from "../usage/llm-guard";
 import type { SpendGuard } from "../usage/spend-guard";
 import { isSkipped, persistDigest, type DigestSkipped, type PersistEvent } from "./digest-persist";
+import { isPersonAllegation } from "./publication-guard";
 import { summarizeLlmCalls, type DigestResult } from "./digest";
 import { MAP_MODEL } from "./map-prompts";
 import { loadReduceClaims } from "./reduce-io";
@@ -75,7 +76,10 @@ HARD RULES:
 1. Cite only gids that appear in the input. Never invent gids.
 2. Never merge unrelated assertions into one claim; never editorialize beyond the evidence.
 3. Prefer corroborated (sources>=2) and high-confidence groups for leading events; a single low-confidence group does not lead an event.
-4. Do not repeat the same gid as separate claims of the same event.`;
+4. Do not repeat the same gid as separate claims of the same event.
+5. Preserve attribution and hedging in ALL prose — titles and summaries included. State as fact only what a confirmed group supports; for claimed/unverified/unknown groups write attributed wording ("X claims ...", "reportedly ..."), never a declarative.
+6. Never add causation, motive, or speculation that is not present in the cited group text.
+7. An allegation about a named person (death, crime, corruption, prosecution, sanctions, dismissal, health) must carry its attribution in the wording itself and must never read as established fact.`;
 }
 
 const DEFAULT_MILITARY_FOCUS = `Military-security developments: strikes, advances, air defense, losses,
@@ -347,9 +351,6 @@ export function finalizeEvents(
       if (groups.length === 0) continue;
       const docIds = [...new Set(groups.flatMap((g) => g.docIds))].sort((a, b) => a - b);
       const allAssessment = groups.every((g) => g.claimType === "assessment");
-      const hedging = allAssessment
-        ? "assessed"
-        : (LADDER.find((h) => groups.some((g) => g.hedging === h)) ?? "unknown");
       const entities = [
         ...new Map(
           groups
@@ -358,6 +359,20 @@ export function finalizeEvents(
             .map((e) => [`${e.kind}:${e.name}`, e] as const),
         ).values(),
       ];
+      let hedging = allAssessment
+        ? ("assessed" as Hedging)
+        : (LADDER.find((h) => groups.some((g) => g.hedging === h)) ?? "unknown");
+      // Corroboration promotion (reduce.ts: 'claimed' -> 'confirmed' on >=2
+      // independent source classes) must never confirm a reputational allegation
+      // about a named person on its own — two outlets repeating the same story
+      // is repetition, not confirmation, for defamation-grade content
+      // (publication-guard rule R3's finalize-side twin). Recompute the ladder
+      // on NATIVE (pre-promotion) hedging for such claims; a group whose map
+      // extraction was genuinely 'confirmed' still confirms.
+      if (hedging === "confirmed" && !allAssessment && isPersonAllegation(c.text, entities)) {
+        const native = groups.map((g) => (g.promoted ? ("claimed" as Hedging) : g.hedging));
+        hedging = LADDER.find((h) => native.includes(h)) ?? "unknown";
+      }
       claims.push({
         text: c.text.slice(0, 200),
         claimType: allAssessment ? "assessment" : "factual",

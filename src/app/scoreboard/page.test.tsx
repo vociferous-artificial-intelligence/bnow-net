@@ -72,7 +72,7 @@ describe("explainer block", () => {
       "Thin-sourced % — the share of our claims resting on a single source while still hedged as claimed or unverified, never stated as settled fact. Lower is better.",
     );
     expect(container.textContent).toContain(
-      "Agreement / ISW-only / ours-only — events both sides reported, events ISW reported that we missed, and events we reported that ISW didn't carry (a potential lead).",
+      "Agreement / ISW-only / ours-only — events both sides reported, events ISW reported that we missed, and events we reported that ISW didn't carry. An ours-only item counts as a potential lead only when confirmed; unconfirmed items are labeled with their hedge.",
     );
   });
 

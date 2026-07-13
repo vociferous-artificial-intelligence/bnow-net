@@ -1,0 +1,17 @@
+PASS / status=200 scrollWidth=390 clientWidth=390
+PASS /access status=200 scrollWidth=390 clientWidth=390
+PASS /signals status=200 scrollWidth=390 clientWidth=390
+PASS /trade status=200 scrollWidth=390 clientWidth=390
+PASS /critical-materials status=200 scrollWidth=390 clientWidth=390
+PASS /datadark status=200 scrollWidth=390 clientWidth=390
+PASS /scoreboard status=200 scrollWidth=390 clientWidth=390
+PASS /countries status=200 scrollWidth=390 clientWidth=390
+PASS /countries/ru status=200 scrollWidth=390 clientWidth=390
+PASS /signin status=200 scrollWidth=390 clientWidth=390
+PASS /ask status=200 scrollWidth=390 clientWidth=390
+PASS /search status=200 scrollWidth=390 clientWidth=390
+PASS /digests/ru status=200 scrollWidth=390 clientWidth=390
+PASS /digests/ru/2026-07-12 status=200 scrollWidth=390 clientWidth=390
+PASS /welcome/legal status=200 scrollWidth=390 clientWidth=390
+PASS /privacy status=200 scrollWidth=390 clientWidth=390
+PASS /terms status=200 scrollWidth=390 clientWidth=390

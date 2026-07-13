@@ -10,8 +10,13 @@ import {
   askCandidates,
   askNoCoverageShortcircuit,
   askPipeline,
+  askRelevanceBoundaryEnabled,
+  askRelevantEvidenceFloor,
   askRerankModel,
 } from "./config";
+// Pure/deterministic evaluator constants — the pipeline and evaluator share the
+// definition of denial language ON PURPOSE (ask.test.ts pins the coupling).
+import { DENIAL_LANGUAGE_PATTERN, NEGATIVE_DENIAL_LEAD_CHARS } from "./eval-run";
 import { chatParamsForModel } from "./llm-params";
 import { dataCurrentThrough } from "./currency";
 import { parseTimeWindow } from "./window";
@@ -72,11 +77,23 @@ export const SYSTEM_V2 = `You answer questions about geopolitical/OSINT intellig
 1. Use ONLY the evidence provided. Never use outside knowledge or invent facts.
 2. Cite the claim ids you rely on inline as [c<ID>] (e.g. [c1438]). Every factual sentence needs a citation. Those bracketed ids are rendered by the interface — they are NOT a request to the reader.
 3. You are writing for an end user, NOT an API caller. Never ask the reader to provide, supply, paste, or share claim ids, "the provided claims", datasets, or any pipeline internals — they cannot and should not, and such a request is a product failure.
-4. If the evidence is insufficient to answer, say so plainly and LEAD with a denial — begin with wording like "No claims in the covered data address …" or "The evidence is insufficient to …". Then, if anything adjacent was retrieved, briefly note what it DOES cover; if a data-currency date is provided and the question reaches beyond it, state that the data is current only through that date; and suggest widening the time window or rephrasing toward covered topics (Russia/Ukraine/Iran; strikes, prosecutions, sanctions, trade). Do not speculate.
+4. If the evidence is insufficient to answer, say so plainly and LEAD with a denial — begin with wording like "No claims in the covered data address …" or "The evidence is insufficient to …". An insufficient answer cites NOTHING: never summarize, quote, or cite retrieved claims that do not address the question's subject — you may only name the covered theaters and topic categories in generic terms (Russia/Ukraine/Iran; strikes, prosecutions, sanctions, trade). If a data-currency date is provided and the question reaches beyond it, state that the data is current only through that date; suggest widening the time window or rephrasing toward covered topics. Do not speculate.
 5. Insufficient evidence is NOT a refusal: give the honest "we don't have this yet" answer, never decline the phrasing.
 6. Be concise (<= 180 words). Note hedging where relevant ("reportedly", "unverified").
 7. These are open-source-derived claims of varying reliability, not confirmed truth — reflect that.
 8. When a "Data current through" date is provided in the context, you may state it as a fact.`;
+
+/** True when a v2 model reply BEGINS with the product's recognized
+ *  insufficient-evidence language (the evaluator's own denial families, anchored
+ *  near the start — a mid-answer "no reports of casualties" in a genuine answer
+ *  must NOT trip this). Drives the deterministic post-answer state correction:
+ *  a denial-led reply is an insufficient outcome regardless of what the model
+ *  went on to cite. Exported for tests. */
+export function beginsWithDenial(text: string): boolean {
+  const lead = text.trimStart().slice(0, NEGATIVE_DENIAL_LEAD_CHARS);
+  const m = lead.match(DENIAL_LANGUAGE_PATTERN);
+  return m !== null && (m.index ?? 0) <= 30;
+}
 
 /** Shared no-evidence message — byte-identical string on the legacy and v2 paths. */
 const NO_EVIDENCE_MESSAGE =
@@ -321,6 +338,56 @@ function noEvidenceV2(retrieval: RetrievalV2Result, currency: string | null): As
   };
 }
 
+/** Relevance-boundary short-circuit payload (Workstream D, 2026-07-13): a paid
+ *  rerank ran and judged NONE of the candidates relevant, so the expensive
+ *  answer model is never called and no irrelevant evidence reaches the user —
+ *  zero citations, zero related claims, an honest denial-led answer. The billed
+ *  embed + rerank usage is preserved (usageByStage) and rerankModel recorded,
+ *  mirroring assembleV2, so the ledger's stage columns stay truthful. */
+function noRelevantEvidenceV2(
+  retrieval: RetrievalV2Result,
+  ranked: RankedEvidence,
+  currency: string | null,
+): AskAnswerV2 {
+  return {
+    answer:
+      `No claims in the covered data address this question. The corpus covers ` +
+      `Russia/Ukraine/Iran (strikes, prosecutions, sanctions, trade)` +
+      (currency != null ? ` and is current through ${currency} (UTC)` : "") +
+      `. Try rephrasing toward a covered theater or topic.`,
+    citedClaimIds: [],
+    evidenceCount: 0,
+    terms: retrieval.terms,
+    provider: "none",
+    state: "insufficient",
+    relatedClaimIds: [],
+    window: retrieval.window,
+    totalMatching: retrieval.totalMatching,
+    sampled: retrieval.totalMatching > askCandidates(),
+    retrievalMode: retrieval.mode,
+    usageByStage: { embed: retrieval.embedUsage, rerank: ranked.rerankUsage },
+    rerankUsed: ranked.rerankUsed,
+    candidatesCount: retrieval.claims.length,
+    relevantCount: 0,
+    ...(ranked.rerankUsage ? { rerankModel: askRerankModel() } : {}),
+    ...(currency != null ? { dataCurrentThrough: currency } : {}),
+  };
+}
+
+/** Requirement D5: when the reranker reports a positive relevance boundary, only
+ *  the relevant prefix reaches the answer stage — floored at
+ *  askRelevantEvidenceFloor() (a guard against reranker underestimation on
+ *  genuinely answerable questions), never widened beyond the ranked pool. No-op
+ *  when the boundary is off, the rerank fell back, or the count is unknown. */
+export function trimToRelevantPrefix(ranked: RankedEvidence): RankedEvidence {
+  if (!askRelevanceBoundaryEnabled()) return ranked;
+  const rc = ranked.relevantCount;
+  if (!ranked.rerankUsed || rc === undefined || rc <= 0) return ranked;
+  const keep = Math.min(ranked.claims.length, Math.max(rc, askRelevantEvidenceFloor()));
+  if (keep >= ranked.claims.length) return ranked;
+  return { ...ranked, claims: ranked.claims.slice(0, keep) };
+}
+
 /** Assemble the final AskAnswerV2 from the answer-stage outcome. Centralizes the
  *  SACRED citation filter (ids parsed from the answer, kept only if present in
  *  ranked.claims — the evidence actually shown to the model — deduped) and the
@@ -343,10 +410,21 @@ function assembleV2(
   dataCurrentThrough: string | null,
 ): AskAnswerV2 {
   const validIds = new Set(ranked.claims.map((c) => c.claimId));
-  const citedClaimIds = [...new Set(rawCitedIds)].filter((id) => validIds.has(id));
+  let citedClaimIds = [...new Set(rawCitedIds)].filter((id) => validIds.has(id));
+  // Deterministic post-answer state correction (Workstream D): a paid reply that
+  // BEGINS with the recognized insufficient-evidence language is an insufficient
+  // outcome — persist and render it as such, with citations stripped and the
+  // related-claims block omitted (an insufficient answer shows no adjacent
+  // evidence). A provider safety refusal never reaches this branch: the refusal
+  // field routes to state "refused" before content is parsed.
+  if (state === "answered" && beginsWithDenial(answer)) {
+    state = "insufficient";
+    citedClaimIds = [];
+  }
   const citedSet = new Set(citedClaimIds);
   // relevance-floored, capped RELATED_MAX (W4) — see related.ts for the calibration.
-  const relatedClaimIds = selectRelatedClaimIds(ranked.claims, citedSet);
+  const relatedClaimIds =
+    state === "insufficient" ? [] : selectRelatedClaimIds(ranked.claims, citedSet);
   const rerankModel = ranked.rerankUsage ? askRerankModel() : undefined;
   return {
     answer,
@@ -364,6 +442,7 @@ function assembleV2(
     usageByStage: { embed: retrieval.embedUsage, rerank: ranked.rerankUsage, answer: answerUsage },
     rerankUsed: ranked.rerankUsed,
     candidatesCount: retrieval.claims.length,
+    ...(ranked.relevantCount !== undefined ? { relevantCount: ranked.relevantCount } : {}),
     // omit the model keys entirely (not undefined) when the stage ran no paid call
     ...(rerankModel !== undefined ? { rerankModel } : {}),
     ...(answerModel !== undefined ? { answerModel } : {}),
@@ -388,6 +467,20 @@ export async function answerFromEvidence(
   if (ranked.claims.length === 0 && retrieval.entities.length === 0) {
     return noEvidenceV2(retrieval, currency);
   }
+
+  // Relevance boundary (Workstream D): a successful paid rerank that judged NO
+  // candidate relevant stops HERE — before the expensive answer model — instead
+  // of paying gpt-5 to summarize unrelated evidence. Lives in this function (not
+  // only ask()) so the eval runner's direct retrieveV2→rerank→answerFromEvidence
+  // composition gets the identical behavior. Fail-open: an unknown relevantCount
+  // (fallback/offline rerank) never triggers. Rollback: ASK_RELEVANCE_BOUNDARY=0.
+  if (askRelevanceBoundaryEnabled() && ranked.rerankUsed && ranked.relevantCount === 0) {
+    return noRelevantEvidenceV2(retrieval, ranked, currency);
+  }
+
+  // D5: with a positive boundary, only the relevant prefix (floored) reaches the
+  // model, the citation filter, and the related-claims selection below.
+  ranked = trimToRelevantPrefix(ranked);
 
   // Offline / deterministic: an honest answer from real claims, provider "stub" (§9).
   // No paid answer call, so answerModel stays absent.

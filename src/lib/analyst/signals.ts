@@ -3,6 +3,7 @@
 // triggered it — the moat is that nothing is asserted without traceable support.
 
 import type { ClaimSourceDoc } from "@/components/claim-sources";
+import { canonicalKey } from "../entities/canonicalize";
 
 export type Severity = "info" | "watch" | "elevated";
 
@@ -53,12 +54,61 @@ export function toPublicSignal(s: Signal): PublicSignal {
 }
 
 // --- purge pattern: clustered prosecutions of officials/siloviki in a short window ---
+//
+// Semantic integrity rework (2026-07-13, private-beta sprint Workstream C). The
+// old detector counted every entity with role defendant/target/dismissed — but
+// `role` is free text and 'target' is emitted by the nuclear/military tracks for
+// STRIKE targets, so the live ir signal was built of air bases, NATO, whole
+// countries and the Supreme Court of Israel, and the ru signal absorbed drone
+// strikes and the Graham state-media death story. The rework: candidates must be
+// PEOPLE (filtered at the query boundary in run.ts AND rechecked here in pure
+// logic), qualification is the audited `isPressureClaim` predicate, unique
+// people are counted by canonical entity identity, and the evidence list carries
+// ONLY qualifying claims.
 export interface PressureClaim {
   claimId: number;
+  /** entities.id — stable row identity (aliases still have distinct ids; canonicalKey folds those) */
+  entityId: number;
   entityName: string;
   entityKind: string;
   role: string;
   claimDate: string | null; // yyyy-mm-dd
+  /** claim text — English by pipeline construction; the semantic qualifier input */
+  text: string;
+  hedging: string;
+}
+
+/** Roles the extraction uses reliably for the SUBJECT of elite pressure. */
+const PRESSURE_ROLES: ReadonlySet<string> = new Set([
+  "defendant",
+  "dismissed",
+  "accused",
+  "suspect",
+]);
+
+/** Roles that may qualify when the claim text itself carries pressure semantics.
+ *  'target' alone is NOT evidence of prosecution/dismissal — the same role tags
+ *  military strike targets. Every other role (prosecutor, patron, appointee,
+ *  free-text position titles, …) marks an acting or incidental party and never
+ *  qualifies, however the text reads. */
+const TEXT_QUALIFIABLE_ROLES: ReadonlySet<string> = new Set(["target", "subject", "other"]);
+
+/** Procedural elite-pressure semantics: actual detention, investigation,
+ *  prosecution, dismissal, removal, or sanction. Deliberately verbs/procedures,
+ *  NOT topic nouns — "corruption" alone does not qualify (the Graham death story
+ *  mentions corruption schemes but reports no proceeding), and battlefield
+ *  vocabulary is absent (a strike "targeting" someone is not elite pressure). */
+export const PRESSURE_ACTION_RE =
+  /\b(arrest\w*|detain\w*|detention|charg(?:ed|es)|indict\w*|prosecut\w*|convict\w*|sentenc\w*|criminal case|treason case|investigat\w*|under investigation|dismiss\w*|removed from (?:office|post|command)|relieved of (?:duty|command|post)|ousted|suspended from|sanction\w*|asset (?:seizure|freeze)|confiscat\w*)\b/i;
+
+/** Pure, audited qualifier: does this claim-entity edge evidence elite pressure
+ *  on a named person? Conservative by design — ambiguous items must not create
+ *  a signal. */
+export function isPressureClaim(c: PressureClaim): boolean {
+  if (c.entityKind !== "person") return false;
+  if (PRESSURE_ROLES.has(c.role)) return true;
+  if (!TEXT_QUALIFIABLE_ROLES.has(c.role)) return false;
+  return PRESSURE_ACTION_RE.test(c.text);
 }
 
 export function detectPurge(
@@ -66,24 +116,35 @@ export function detectPurge(
   opts: { windowDays: number; minCount: number; theater: string; nowIso: string },
 ): Signal | null {
   const cutoff = Date.parse(opts.nowIso) - opts.windowDays * 86400e3;
-  const recent = claims.filter((c) => {
-    if (c.role !== "defendant" && c.role !== "target" && c.role !== "dismissed") return false;
+  const qualifying = claims.filter((c) => {
     const t = c.claimDate ? Date.parse(c.claimDate) : NaN;
-    return isFinite(t) && t >= cutoff;
+    return isFinite(t) && t >= cutoff && isPressureClaim(c);
   });
-  const uniqueTargets = new Set(recent.map((c) => c.entityName.toLowerCase()));
-  if (uniqueTargets.size < opts.minCount) return null;
-  const names = [...uniqueTargets].slice(0, 6);
+  // Canonical person identity (the entity layer's own fold: case, honorifics,
+  // Cyrillic/transliteration variants, curated alias groups) — duplicate
+  // spellings of one person cannot inflate the count.
+  const uniquePersons = new Set(qualifying.map((c) => canonicalKey(c.entityName)));
+  uniquePersons.delete("");
+  if (uniquePersons.size < opts.minCount) return null;
+  // one claim can name >1 watched entity (claim_entities is an edge table) — dedupe
+  // to distinct claim ids or the public evidence count overstates support (B1).
+  const evidenceClaimIds = [...new Set(qualifying.map((c) => c.claimId))];
   return {
     key: `purge:${opts.theater}:${opts.windowDays}d`,
     kind: "purge",
     theater: opts.theater,
-    severity: uniqueTargets.size >= opts.minCount * 2 ? "elevated" : "watch",
-    headline: `${uniqueTargets.size} officials under prosecution/dismissal in ${opts.windowDays}d`,
-    detail: `Clustered elite pressure — possible factional purge. Targets incl.: ${names.join(", ")}.`,
-    // one claim can name >1 watched entity (claim_entities is an edge table) — dedupe
-    // to distinct claim ids or the public evidence count overstates support (B1).
-    evidenceClaimIds: [...new Set(recent.map((c) => c.claimId))],
+    severity: uniquePersons.size >= opts.minCount * 2 ? "elevated" : "watch",
+    headline: `${uniquePersons.size} officials under prosecution/dismissal in ${opts.windowDays}d`,
+    // Role/count language only — no names and no "purge" conclusion in prose: the
+    // detector has a count, not evidence of a coordinated campaign, and named-person
+    // framing awaits counsel review (OPEN-TASKS #58). Exact claim texts remain in the
+    // accepted-user evidence disclosure below, each with its hedge and sources.
+    detail:
+      `Cluster of recent reported prosecutions/dismissals: ${uniquePersons.size} named officials ` +
+      `across ${evidenceClaimIds.length} claims in ${opts.windowDays}d. Analyst review required — ` +
+      `this is an automated pattern, not a confirmed campaign; see the evidence below for exact ` +
+      `claims with hedging and sources.`,
+    evidenceClaimIds,
     evidenceRefs: [],
     at: opts.nowIso,
   };

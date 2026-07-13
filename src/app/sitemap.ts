@@ -14,7 +14,7 @@ const STATIC_PATHS = [
   "/",
   "/countries",
   "/scoreboard",
-  "/pricing",
+  "/access",
   "/signals",
   "/trade",
   "/critical-materials",

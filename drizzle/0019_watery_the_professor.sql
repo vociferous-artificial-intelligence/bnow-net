@@ -1,0 +1,1 @@
+ALTER TABLE "trade_flows" ADD COLUMN "partner_name" text;

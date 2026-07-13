@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { rawSql } from "@/db";
 import { getLocale } from "@/i18n/server";
 import { makeT } from "@/i18n/dictionaries";
+import { oursOnlyPresentation } from "@/lib/validation/ours-only";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,8 @@ interface Divergence {
   claimId?: number;
   claimText?: string;
   score?: number;
+  /** ours_only, runs scored 2026-07-13+: hedging frozen at scoring time. */
+  hedging?: string;
 }
 
 const KIND_STYLE: Record<string, { label: string; cls: string }> = {
@@ -21,6 +24,7 @@ const KIND_STYLE: Record<string, { label: string; cls: string }> = {
   isw_only: { label: "ISW only (our miss)", cls: "border-red-300 dark:border-red-800" },
   ours_only: { label: "ours only (potential lead)", cls: "border-blue-300 dark:border-blue-800" },
 };
+
 
 export default async function ValidationDetailPage({
   params,
@@ -52,6 +56,26 @@ export default async function ValidationDetailPage({
   if (rows.length === 0) notFound();
   const run = rows[0];
 
+  // Hedging for ours_only cards: prefer the value frozen at scoring time; for
+  // runs scored before 2026-07-13 fall back to the live claim row (the claim may
+  // have been regenerated since — a missing row degrades to the safe label).
+  const oursOnly = (run.divergences ?? []).filter((d) => d.kind === "ours_only");
+  const needLookup = oursOnly
+    .filter((d) => d.hedging === undefined && d.claimId !== undefined)
+    .map((d) => d.claimId as number);
+  const hedgeByClaimId = new Map<number, string>();
+  if (needLookup.length > 0) {
+    try {
+      const hedgeRows = (await rawSql.query(
+        `SELECT id, hedging FROM claims WHERE id = ANY($1)`,
+        [needLookup],
+      )) as Array<{ id: number; hedging: string }>;
+      for (const r of hedgeRows) hedgeByClaimId.set(Number(r.id), r.hedging);
+    } catch {
+      // degrade to the safe non-endorsing label
+    }
+  }
+
   return (
     <main className="mx-auto max-w-3xl p-6">
       <p className="mb-1 text-sm text-gray-500">
@@ -76,13 +100,20 @@ export default async function ValidationDetailPage({
       <div className="space-y-3">
         {(run.divergences ?? []).map((d, i) => {
           const style = KIND_STYLE[d.kind] ?? KIND_STYLE.agreement;
+          const ours =
+            d.kind === "ours_only"
+              ? oursOnlyPresentation(
+                  d.hedging ?? (d.claimId !== undefined ? hedgeByClaimId.get(d.claimId) : undefined),
+                )
+              : null;
           return (
             <div key={i} className={`rounded-lg border-2 p-3 text-sm ${style.cls}`}>
               <div className="mb-1 flex items-center justify-between">
-                <span className="font-semibold">{style.label}</span>
-                {d.score !== undefined && (
-                  <span className="text-xs text-gray-400">match {d.score}</span>
-                )}
+                <span className="font-semibold">{ours ? ours.label : style.label}</span>
+                <span className="text-xs text-gray-400">
+                  {ours && <span className="me-2 rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">{ours.hedge}</span>}
+                  {d.score !== undefined && <>match {d.score}</>}
+                </span>
               </div>
               {d.iswIndex !== undefined && (
                 <p className="text-xs text-gray-500">

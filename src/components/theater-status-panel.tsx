@@ -117,19 +117,19 @@ export function TheaterStatusPanel({
             >
               <h3 className="mb-3 font-semibold">{entry.name}</h3>
               <dl className="space-y-2">
-                <div className="flex items-baseline justify-between gap-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                   <dt className="text-gray-500 dark:text-gray-400">
                     {t("home.status.data_current")}
                   </dt>
                   <dd className="text-right">{current ?? t("home.status.no_data")}</dd>
                 </div>
-                <div className="flex items-baseline justify-between gap-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                   <dt className="text-gray-500 dark:text-gray-400">
                     {t("home.status.docs_24h")}
                   </dt>
                   <dd className="text-right">{formatNumber(locale, entry.docs24h)}</dd>
                 </div>
-                <div className="flex items-baseline justify-between gap-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                   <dt className="text-gray-500 dark:text-gray-400">
                     {t("home.status.latest_digest")}
                   </dt>
@@ -148,14 +148,14 @@ export function TheaterStatusPanel({
                   </dd>
                 </div>
                 {status.kind !== "none" && (
-                  <div className="flex items-baseline justify-between gap-3">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                     <dt className="text-gray-500 dark:text-gray-400">
                       {t("home.status.claims_for", { date: status.date })}
                     </dt>
                     <dd className="text-right">{formatNumber(locale, entry.claimsForLatest)}</dd>
                   </div>
                 )}
-                <div className="flex items-baseline justify-between gap-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                   <dt className="text-gray-500 dark:text-gray-400">
                     {t("home.status.next_update")}
                   </dt>

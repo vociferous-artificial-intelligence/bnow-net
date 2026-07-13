@@ -64,6 +64,12 @@ export interface RankedEvidence {
    *  disabled, or the candidate pool was already ≤ K) */
   rerankUsed: boolean;
   rerankUsage?: StageUsage;
+  /** How many leading `claims` the reranker judged actually relevant to the
+   *  question (0..k, validated). Present ONLY when a rerank call succeeded with
+   *  the relevance-boundary schema; absent on every fallback path — consumers
+   *  must fail OPEN (treat the whole list as potentially relevant) when absent
+   *  (Workstream D, 2026-07-13). */
+  relevantCount?: number;
 }
 
 export type AnswerState = "answered" | "insufficient" | "refused" | "error" | "limit";
@@ -97,6 +103,10 @@ export interface AskAnswerV2 {
   rerankUsed?: boolean;
   /** pre-rerank candidate pool size (ask_usage.candidates_count) */
   candidatesCount?: number;
+  /** OPTIONAL (additive, Workstream D 2026-07-13): the reranker's validated
+   *  count of genuinely relevant evidence rows; 0 = the relevance boundary
+   *  stopped the answer stage. Not persisted (no ask_usage column). */
+  relevantCount?: number;
   /** models the paid stages actually used (ask_usage.rerank_model/answer_model);
    *  absent when the stage didn't run a paid call */
   rerankModel?: string;

@@ -318,7 +318,7 @@ export default async function Home() {
   }
 
   return (
-    <main id="main" className="mx-auto max-w-5xl px-6">
+    <main id="main" className="mx-auto w-full min-w-0 max-w-5xl px-6">
       <section className={signedIn ? "py-6 text-center" : "py-20 text-center"}>
         {signedIn ? (
           // Working home: a one-line headline, nothing else. No subtitle, no CTA
@@ -331,22 +331,30 @@ export default async function Home() {
           </h1>
         ) : (
           <>
+            {/* Private analyst beta marker: restrained badge, not urgency styling
+                (private-beta repositioning 2026-07-13). */}
+            <p className="mb-4">
+              <span className="rounded-full border border-gray-300 px-3 py-1 text-xs font-medium tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                {t("home.beta.badge")}
+              </span>
+            </p>
             <h1 className="mx-auto max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl">
               {t("home.tagline")}
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-lg text-gray-500">{t("home.sub")}</p>
             <div className="mt-8 flex justify-center gap-4">
-              <Link href="/pricing" className={PRIMARY_CTA}>
-                {t("home.cta.subscribe")}
+              <Link href="/access" className={PRIMARY_CTA}>
+                {t("home.cta.request_beta")}
               </Link>
               <Link href="/scoreboard" className={SECONDARY_CTA}>
                 {t("home.cta.scoreboard")}
               </Link>
             </div>
-            {/* Buyer journey tertiary line: coverage -> validation -> request access.
-                Reuses existing dictionary keys throughout — no new i18n surface —
-                and stays a single muted line, not a new section. The registry link
-                that used to lead this line was removed (R5, 2026-07-12): the source
+            {/* One short collaborative-beta line — analyst-centered, no inflation. */}
+            <p className="mx-auto mt-5 max-w-xl text-sm text-gray-500">{t("home.beta.line")}</p>
+            {/* Visitor journey tertiary line: coverage -> validation -> request access.
+                Stays a single muted line, not a new section. The registry link that
+                used to lead this line was removed (R5, 2026-07-12): the source
                 registry is admin-only now. */}
             <p className="mt-3 text-xs text-gray-400">
               <Link href="/countries" className="underline hover:text-gray-600 dark:hover:text-gray-300">
@@ -357,8 +365,8 @@ export default async function Home() {
                 {t("home.cta.scoreboard")}
               </Link>
               {" · "}
-              <Link href="/pricing" className="underline hover:text-gray-600 dark:hover:text-gray-300">
-                {t("pricing.cta.request")}
+              <Link href="/access" className="underline hover:text-gray-600 dark:hover:text-gray-300">
+                {t("nav.group.access")}
               </Link>
             </p>
             {/* Only assert a live-theater count we actually have. On a DB failure the

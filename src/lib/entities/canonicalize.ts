@@ -83,12 +83,15 @@ const HONORIFICS = new Set([
   "general", "colonel", "grand",
 ]);
 
-// cyrillic->latin fold for mixed-script names ("Magomet Muцolgov")
+// cyrillic->latin fold for mixed-script names ("Magomet Muцolgov").
+// ё folds to "e" (not "yo"): Russian orthography interchanges е/ё freely, so
+// "Воробьёв" and "Воробьев" must produce one identity key (2026-07-13 fix — ё
+// used to survive the fold and split one person into distinct keys).
 const CYR: Record<string, string> = {
-  а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ж: "zh", з: "z", и: "i", й: "i",
-  к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u",
-  ф: "f", х: "kh", ц: "ts", ч: "ch", ш: "sh", щ: "shch", ы: "y", э: "e", ю: "yu",
-  я: "ya", ь: "", ъ: "",
+  а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i",
+  й: "i", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t",
+  у: "u", ф: "f", х: "kh", ц: "ts", ч: "ch", ш: "sh", щ: "shch", ы: "y", э: "e",
+  ю: "yu", я: "ya", ь: "", ъ: "",
 };
 
 // curated cluster map: observed alias families that pure normalization can't fold.
@@ -110,6 +113,13 @@ const ALIAS_GROUPS: Record<string, string> = {
   "un": "united nations",
   "russian ministry of defense": "russian mod",
   "russian defense ministry": "russian mod",
+  // Moscow Oblast governor observed in prod as three entities (2026-07-13):
+  // "Andrey Vorobyov" / "Андрей Воробьев" / "Андрей Воробьёв". With the ё fold
+  // above, both Cyrillic spellings normalize to "andrei vorobev"; this single
+  // entry folds them into the Latin transliteration's key. Deliberately
+  // conservative — only the OBSERVED family, no universal Cyrillic-person merge
+  // (unseen variants like "Vorobyev"/"Vorobiev" are not covered by design).
+  "andrei vorobev": "andrei vorobyov",
 };
 
 /** Normalize for identity comparison: lowercase, cyrillic fold, punctuation

@@ -109,7 +109,7 @@ export default async function SignalsPage() {
             const claims = accepted && s.evidenceClaimIds.length > 0 ? evidenceForSignal(s, evidenceByClaim) : [];
             return (
               <div key={pub.key} className={`rounded-lg border-2 p-4 ${SEV_STYLE[pub.severity]}`}>
-                <div className="mb-1 flex items-center gap-2">
+                <div className="mb-1 flex flex-wrap items-center gap-2">
                   <span className={`rounded px-1.5 py-0.5 text-xs font-semibold uppercase ${SEV_BADGE[pub.severity]}`}>
                     {pub.severity}
                   </span>

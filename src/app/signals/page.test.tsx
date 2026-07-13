@@ -35,19 +35,43 @@ vi.mock("@/db", () => ({ rawSql: { query: (...a: unknown[]) => queryMock(...a) }
 
 const SignalsPage = (await import("./page")).default;
 
-// A purge signal whose detail names living individuals (the crown-jewels leak).
+// A purge signal in the post-2026-07-13 shape: `detail` carries role/count
+// language only; names appear ONLY inside the accepted-user evidence rows
+// (claim texts with hedge + sources). The auth boundary must hold for both.
 const PURGE: Signal = {
   key: "purge:ru:14d",
   kind: "purge",
   theater: "ru",
   severity: "elevated",
   headline: "6 officials under prosecution/dismissal in 14d",
-  detail: "Clustered elite pressure — possible factional purge. Targets incl.: Ivanov, Petrov, Sidorov.",
+  detail:
+    "Cluster of recent reported prosecutions/dismissals: 6 named officials across 3 claims in 14d. " +
+    "Analyst review required — this is an automated pattern, not a confirmed campaign; see the " +
+    "evidence below for exact claims with hedging and sources.",
   evidenceClaimIds: [11, 12, 13],
   evidenceRefs: [],
   at: "2026-07-12T00:00:00Z",
 };
 const NAMES = ["Ivanov", "Petrov", "Sidorov"];
+// Evidence rows (the accepted-user drill-down): claim text names an individual,
+// with hedging and a source doc — this is where names are ALLOWED to appear.
+const EVIDENCE_ROWS = [
+  {
+    claim_id: 11,
+    text: "Ivanov was arrested on embezzlement charges",
+    hedging: "claimed",
+    claim_date: "2026-07-10",
+    doc_id: 900,
+    doc_url: "https://t.me/example/1",
+    doc_title: "post",
+    adapter: "telegram_mtproto",
+    source_id: 5,
+    source_key: "t.me/example",
+    reliability: "0.62",
+    source_platform: "telegram",
+    doc_at: "2026-07-10T08:00:00Z",
+  },
+];
 
 afterEach(cleanup);
 afterEach(() => {
@@ -78,18 +102,24 @@ describe("/signals auth boundary", () => {
     expect(queryMock).not.toHaveBeenCalled();
   });
 
-  it("shows the detail specifics to a signed-in visitor who has accepted the current policies", async () => {
+  it("shows an accepted analyst the review-qualified detail plus evidence with hedge and sources", async () => {
     emailMock.mockResolvedValue("analyst@example.com");
     acceptMock.mockResolvedValue(true); // current legal acceptance on record
     computeMock.mockResolvedValue([PURGE]);
-    queryMock.mockResolvedValue([]); // evidence drill-down query (no rows needed for this assertion)
+    queryMock.mockResolvedValue(EVIDENCE_ROWS); // evidence drill-down query
 
     const { container } = render(await SignalsPage());
     const html = container.innerHTML;
 
     expect(html).toContain("6 officials under prosecution/dismissal"); // teaser still there
-    expect(html).toContain("Targets incl.");
-    for (const name of NAMES) expect(html).toContain(name);
+    // Detail is role/count language with the review qualification — no name list.
+    expect(container.textContent).toContain("Analyst review required");
+    expect(html).not.toContain("Targets incl.");
+    expect(html).not.toContain("factional purge");
+    // Names surface ONLY through the evidence claim texts, with hedge + traceable source.
+    expect(container.textContent).toContain("Ivanov was arrested on embezzlement charges");
+    expect(container.textContent).toContain("claimed"); // the hedging chip
+    expect(html).toContain("t.me/example"); // the source chip
   });
 
   it("withholds detail from a signed-in visitor who has NOT accepted, nudging to /welcome/legal", async () => {

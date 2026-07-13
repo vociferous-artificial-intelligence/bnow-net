@@ -113,7 +113,7 @@ export function AskResult({ result, cited, related, t }: AskResultProps) {
         {/* refused: never fall through to a bare answer string (may literally be the
             provider's "(no answer)" placeholder) — the callout below is the whole story */}
         {state !== "refused" && (
-          <div className="whitespace-pre-wrap text-sm leading-relaxed">{result.answer}</div>
+          <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">{result.answer}</div>
         )}
 
         {state === "insufficient" &&

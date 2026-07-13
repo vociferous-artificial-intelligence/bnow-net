@@ -16,10 +16,15 @@
 // destination of five nav paths. Signals has exactly one nav path now: the
 // Solutions>political_risk duplicate was dropped (a top-level Signals item makes a
 // second path to /signals pure redundancy).
+//
+// Private-beta repositioning (2026-07-13): the public Pricing entry became
+// "Request access" → /access (the beta request page; /pricing redirects there).
+// Signed-in navigation carries NO commercial entry at all — desktop, mobile
+// sheet, or CTA strip.
 
 export type Translate = (key: string, vars?: Record<string, string | number>) => string;
 
-export const SECTION_IDS = ["coverage", "signals", "ask", "solutions", "validation", "pricing"] as const;
+export const SECTION_IDS = ["coverage", "signals", "ask", "solutions", "validation", "access"] as const;
 export type SectionId = (typeof SECTION_IDS)[number];
 
 export interface NavLink {
@@ -96,7 +101,9 @@ const SECTION_ROUTES: ReadonlyArray<readonly [string, SectionId]> = [
   ["/trade", "solutions"],
   ["/critical-materials", "solutions"],
   ["/datadark", "solutions"],
-  ["/pricing", "pricing"],
+  // /access is the beta request page (private-beta repositioning 2026-07-13);
+  // /pricing now only redirects there, so it owns no trigger.
+  ["/access", "access"],
   // /entities is gated and not in nav (Product retired) — it owns no trigger (returns null).
 ];
 
@@ -193,16 +200,22 @@ export function buildSiteNav(
       href: "/scoreboard",
       cta: false,
     },
-    {
-      kind: "link",
-      id: "pricing",
-      labelKey: "nav.group.pricing",
-      label: t("nav.group.pricing"),
-      href: "/pricing",
-      // The commercial anchor only reads as a CTA to someone who hasn't bought yet.
-      cta: !opts.signedIn,
-    },
   ];
+
+  // Private analyst beta (2026-07-13): the only commercial entry is the access
+  // request, and it exists for signed-out visitors ONLY — signed-in navigation
+  // carries no pricing/access entry at all (the product is their workbench, not
+  // a sales funnel).
+  if (!opts.signedIn) {
+    entries.push({
+      kind: "link",
+      id: "access",
+      labelKey: "nav.group.access",
+      label: t("nav.group.access"),
+      href: "/access",
+      cta: true,
+    });
+  }
 
   const email = opts.email ?? null;
   return {

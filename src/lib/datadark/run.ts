@@ -70,6 +70,7 @@ export async function pollSeries(nowIso: string): Promise<DarkStats> {
           prevPeriod: row.last_seen_period,
           lastChangeDaysAgo,
           cadenceDays: row.cadence_days,
+          nowMs: Date.parse(nowIso),
         },
         row.status as SeriesStatus,
       );
@@ -78,6 +79,10 @@ export async function pollSeries(nowIso: string): Promise<DarkStats> {
       if (result.changed) {
         history.push({ at: nowIso, status: result.status, period: result.period, reason: result.reason });
         stats.changed++;
+      } else if (result.anomaly) {
+        // Anomalous older parses are audit-worthy even when nothing else changed —
+        // but they never bump last_changed_at (nothing actually moved).
+        history.push({ at: nowIso, status: result.status, period: result.period, reason: result.anomaly });
       }
 
       await pool.query(
