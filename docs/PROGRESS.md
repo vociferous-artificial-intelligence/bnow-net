@@ -1096,3 +1096,24 @@ Prompt: information-architecture refinement (nav many-to-one, anchor-not-destina
 5. TASK 4 independent architecture review (subagent, read-only): gating real not cosmetic,
    no dead links/collisions, render modes, i18n/a11y/SEO. Fix confirmed issues.
 6. TASK 5 verify (tests/typecheck/lint/build), deploy, review gate, AGENTS.md + PROGRESS.md.
+
+## 2026-07-12 (IA refinement & architecture review sprint) — results
+
+**FULL SHIP.** Merge to main + deploy **`bnow-iqaszhc0d`** (aliased https://bnow.net;
+rollback: `bnow-kw2t3dndf`). Review gate: `docs/reviews/IA-REFINEMENT-REVIEW.md`.
+
+1. TASK 1 nav (`0678aa8`): Product group retired; Signals + Ask promoted top-level;
+   Solutions>signals duplicate dropped → every route has exactly one nav path
+   (`/countries` was 5, `/signals` was 2). Coverage → real per-country links.
+2. TASK 2 (`0678aa8`): public `/countries/[iso2]` per-theater pages (localized metadata,
+   public-safe aggregates); old `#ru` anchors kept; "Live now" count driven from
+   `countries.status='active'` (=8) — fixes the 3-vs-8 undersell.
+3. TASK 3 (`0ab09d5`): `toPublicSignal()` withholds signal `detail` (names/figures/lists)
+   + evidence from anonymous HTML server-side; robots.txt + sitemap.xml added.
+4. TASK 4: independent read-only architecture review PASSED all 7 checks (gating
+   real-not-cosmetic verified, no leak path). One low CONCERN (DB-failure "0 theaters"
+   copy) fixed `cb5d081` + siteBaseUrl tracks the Vercel prod host.
+5. TASK 5: tests 1053→1075 (87 files), typecheck/lint/`next build` clean. Prod smoke
+   GREEN incl. anon `curl /signals` = 0 leaked names; nav bar shows no Product;
+   /countries/ru 200; robots/sitemap correct; gated 307 / admin 404 unchanged.
+   New OPEN-TASKS #58 (legal), #59 (native i18n review), #60 (dead nav keys). LLM $0.00.

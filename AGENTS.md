@@ -123,7 +123,14 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
 - **Validation vs ISW:** majority-vote LLM matching (k=5, 26/27 reproducible across
   reruns), keyword gazetteer as no-key fallback; ISW report auto-discovery by slug.
   Coverage avg ~17.5% (nonzero-day ~31%), median info-lead +14.7h (2026-07-05 backtest).
-- **Surface:** landing / countries (freshness line, **2026-07-12**) / pricing
+- **Surface:** landing (**nav restructured 2026-07-12 IA refinement: Coverage ▾ | Signals |
+  Ask | Solutions ▾ | Validation | Pricing — Product group retired, Signals+Ask promoted
+  top-level, Solutions>signals duplicate dropped; every route has exactly one nav path; robots.txt
+  + sitemap.xml added, `src/app/robots.ts`/`sitemap.ts`, `siteBaseUrl()` = bnow.net /
+  VERCEL_PROJECT_PRODUCTION_URL**) / countries (freshness line + **public per-theater pages
+  `/countries/[iso2]` with localized metadata, IA refinement 2026-07-12; Coverage links land
+  there, old `#<iso2>` anchors kept; signed-out home "Live now" count driven from
+  `countries.status='active'`**) / pricing
   (**rebuilt 2026-07-12**: DB-priced Standby + Full analyst tiers from
   `src/lib/pricing/tiers.ts`, Regional bundles + Enterprise/API on request) /
   magic-link auth (Postmark LIVE, still on scenefiend sender domain) / digests
@@ -133,8 +140,13 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   404, replacing the old requireUser 307; registry links removed from nav, rail and
   all pages; `view-policy.ts` still shapes what an admin sees; "suggest a source"
   mailto moved to digest footers) + entities behind FEATURE_AUTH_GATE / signals
-  (**evidence-gated 2026-07-12**: signed-in ClaimSources evidence in `<details>`,
-  signed-out count+sign-in-only) / trade / datadark / critical-materials / ask
+  (**teaser-public / specifics-gated, IA refinement 2026-07-12**: `toPublicSignal()`
+  withholds the signal `detail` — named individuals, dollar figures, target/flow lists —
+  AND the ClaimSources evidence from anonymous server-rendered HTML at the data layer;
+  signed-out sees only the headline count + a sign-in nudge, signed-in gets detail +
+  `<details>` evidence; PROVEN in prod by anon `curl` — 0 leaked names. robots.txt disallows
+  the gated routes; /signals stays crawlable as the safe teaser) / trade / datadark /
+  critical-materials / ask
   (**v2 pipeline LIVE 2026-07-12**: hybrid vector+lexical retrieval, gpt-5-mini
   listwise rerank, gpt-5 answerer with refusal handling; ~$0.011/query; capped
   100/user/day + $10/day global (`ASK_USER_DAILY_LIMIT`/`ASK_GLOBAL_DAILY_BUDGET_USD`)
@@ -258,9 +270,13 @@ Operational rulings:
     bumps need their own remap path (OPEN-TASKS #33).
 14. Digest corpora are strictly per-theater (`rd.country_iso2`), reliability-ordered,
     with the ~40% source-mix cap on gather window and LLM batch.
-15. Nav promotes only ru/ua/ir (promoting 2-digest theaters overstates depth); coverage
-    links go to `/countries#<iso2>` (theater pages don't exist; digests are gated);
-    locale links carry no `?to=` (Referer round-trips path+query, `?to=` drops query).
+15. Nav promotes only ru/ua/ir in the Coverage dropdown (promoting the shallow 6–9-digest
+    theaters overstates depth); coverage links go to the real per-country pages
+    `/countries/<iso2>` (public, indexable; the old `#<iso2>` anchors on the /countries
+    index are kept so bookmarks still scroll — corrected 2026-07-12 IA refinement, when the
+    per-country pages replaced the anchors and Signals+Ask were promoted out of a retired
+    Product group); locale links carry no `?to=` (Referer round-trips path+query, `?to=`
+    drops query).
 16. Unhedged ISW declaratives stay `hedging='unknown'` (mid-trust 0.5) — forcing the 4
     classes would corrupt the reliability signal.
 17. Don't trust a lone digest regeneration: extraction yield varies wildly between
@@ -576,6 +592,48 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   grants — operator decision). 18 uk strings appended to the native-review
   inventory. `data/embed-backfill-checkpoint.json` untracked + data/*.json ignored
   (was swept into the merge by git add -A, then removed).
+
+- **2026-07-12 (IA-refinement sprint, unattended — FULL SHIP, deployed)** Prompt: information-
+  architecture refinement (four residual problems a live review found). Branch
+  `20260712-ia-refinement` (tag `pre-ia-refinement-20260712`) merged `--no-ff` to main and
+  deployed **`bnow-iqaszhc0d`** (`dpl_85zESfEja8Zt992u3o4c1DqHaa5C`, READY, **aliased
+  https://bnow.net** — the custom domain is now the production alias; rollback target recorded
+  pre-deploy: `bnow-kw2t3dndf`). Review gate: `docs/reviews/IA-REFINEMENT-REVIEW.md`.
+  **Shipped: (1) Nav** — retired the Product dropdown (its three children duplicated
+  destinations reachable elsewhere), promoted **Signals** + **Ask** to top-level links, dropped
+  the Solutions>political_risk duplicate of /signals → **every route now has exactly one nav
+  path** (`/countries` was the target of five, `/signals` of two). `src/lib/nav/site-nav.ts`
+  SECTION_IDS = coverage/signals/ask/solutions/validation/pricing. **(2) Per-country pages** —
+  new public, indexable `/countries/[iso2]` (one dynamic route, all non-deferred theaters,
+  localized `generateMetadata`, public-safe aggregates only); Coverage dropdown + the
+  `latestDigestHref` fallback point there via `theaterHref()`=`/countries/<iso2>` (was `#`
+  anchors); the /countries index cards link onward and keep their `id={iso2}` anchors so old
+  `/countries#ru` bookmarks still scroll (fragments can't be server-redirected — documented).
+  **3-vs-8 undersell fixed:** signed-out `home.live` is now `"Live now: {n} theaters — daily
+  depth in Russia, Ukraine and Iran"` with `{n}` from `count(*) countries WHERE
+  status='active'` (=8), rendered only when >0 (truth-in-UI on DB failure). **(3) /signals
+  gating** — `toPublicSignal()` (`src/lib/analyst/signals.ts`) projects a signal to its safe
+  teaser (severity/theater/kind/headline-count/evidence-count) and drops `detail` (named
+  individuals, dollar figures, target/flow lists), `evidenceClaimIds`, `evidenceRefs`; the
+  page renders `detail`+evidence ONLY inside the `signedIn` branch, so the specifics never
+  enter the anonymous server-rendered HTML (data-layer withholding, not CSS/DOM — no
+  `/api/signals`, `computeSignals` server-only, `ClaimSources` server+signed-in-only).
+  **(4) Crawl policy** — `src/app/robots.ts` (disallow gated/admin/API, allow teasers) +
+  `sitemap.ts` (public surface + active theaters, DB-driven, degrades) + `siteBaseUrl()`
+  (`src/lib/site-url.ts`, NEXT_PUBLIC_SITE_URL → VERCEL_PROJECT_PRODUCTION_URL → bnow.net).
+  **Independent read-only architecture review PASSED all 7 checks** (gating real-not-cosmetic
+  the highest, verified no leak path; no dead links/collisions; render modes preserved; i18n/
+  a11y/SEO complete) with one low CONCERN (the "0 theaters" DB-failure copy) fixed in the same
+  sprint. **Post-deploy prod smoke GREEN incl. the security-critical one: anon `curl
+  https://bnow.net/signals` shows the teaser but ZERO occurrences of `Targets incl.`/`factional
+  purge`/`Suppressed:` — names genuinely withheld in production**; home nav = the new bar with
+  no Product; `/countries/ru` 200; robots.txt/sitemap.xml correct (8 active theaters, no gated
+  leaks); public routes 200, gated 307, admin 404 — all unchanged. No migrations, no new env
+  vars, no paid-provider calls (ruling 4 N/A), no invariant changes (ruling 15 corrected in
+  place: theater pages now exist). Tests 1053→1075 (87 files); typecheck/lint/`next build`
+  clean; LLM spend $0.00. New OPEN-TASKS #58 (legal review of named individuals on the signed-in
+  /signals view), #59 (native review of the new i18n strings), #60 (dead nav i18n keys cleanup).
+  Standing ruling 15 + the Surface/directory sections corrected in place.
 
 ## Conventions
 
