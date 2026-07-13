@@ -1,12 +1,26 @@
 import "./env";
 
-// Render + "send" the latest digests to subscribed users (file outbox until
-// RESEND_API_KEY exists). Usage: tsx scripts/email-digest.ts [yyyy-mm-dd]
+// Render + send the latest digests to eligible subscribers through the email
+// seam (Postmark when POSTMARK_SERVER_TOKEN is set, file outbox otherwise).
+// Usage: tsx scripts/email-digest.ts [yyyy-mm-dd] [--to=addr]
+//
+// Recipient policy lives in src/lib/email/digest-recipients.ts: subscribers in
+// an eligible status ONLY. subscribe_intents rows (pricing-era interest capture
+// and, since 2026-07-13, private-beta access requests) are NOT recipients — a
+// beta access request is not a digest subscription, approved or not. With zero
+// eligible recipients the script sends nothing; --to=addr is the explicit
+// operator override for a test delivery to a single address.
 
 async function main() {
-  const date = process.argv[2] ?? new Date().toISOString().slice(0, 10);
+  const args = process.argv.slice(2);
+  const toOverride = args.find((a) => a.startsWith("--to="))?.slice(5) || null;
+  const date =
+    args.find((a) => !a.startsWith("--")) ?? new Date().toISOString().slice(0, 10);
   const { neon } = await import("@neondatabase/serverless");
   const { sendEmail } = await import("../src/lib/email/send");
+  const { DIGEST_RECIPIENTS_SQL, eligibleRecipients } = await import(
+    "../src/lib/email/digest-recipients"
+  );
   const sql = neon(process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL!);
 
   const digests = (await sql`
@@ -20,18 +34,20 @@ async function main() {
     return;
   }
 
-  // recipients: active/pending subscribers + subscribe intents (dedup)
-  const recipients = (await sql`
-    SELECT DISTINCT email FROM (
-      SELECT u.email FROM users u JOIN subscriptions s ON s.user_id = u.id
-      UNION SELECT email FROM subscribe_intents
-    ) e WHERE email IS NOT NULL`) as Array<{ email: string }>;
+  const rows = (await sql.query(DIGEST_RECIPIENTS_SQL)) as Array<{
+    email: string | null;
+    status: string | null;
+  }>;
+  const targets = toOverride ? [toOverride] : eligibleRecipients(rows);
+  if (targets.length === 0) {
+    console.log(`no eligible recipients for ${date} — nothing sent`);
+    return;
+  }
 
   const body = digests
     .map((d) => `${d.rendered_md}\n\n---\nFull detail: https://bnow.net/digests/${d.iso2}/${date}`)
     .join("\n\n\n");
 
-  const targets = recipients.length > 0 ? recipients.map((r) => r.email) : ["demo@bnow.net"];
   for (const to of targets) {
     const res = await sendEmail({
       to,
