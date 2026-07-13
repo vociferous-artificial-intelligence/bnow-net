@@ -338,6 +338,20 @@ function noEvidenceV2(retrieval: RetrievalV2Result, currency: string | null): As
   };
 }
 
+/** Deterministic insufficient-evidence copy — the ONLY prose an insufficient
+ *  outcome may show (SYSTEM_V2 rule 4: generic covered theaters/topics and data
+ *  currency, never a summary of retrieved claims). Shared by the relevance
+ *  boundary below and the post-answer denial correction in assembleV2 so the
+ *  two paths cannot drift. Contains no citation syntax by construction. */
+function insufficientEvidenceCopy(currency: string | null): string {
+  return (
+    `No claims in the covered data address this question. The corpus covers ` +
+    `Russia/Ukraine/Iran (strikes, prosecutions, sanctions, trade)` +
+    (currency != null ? ` and is current through ${currency} (UTC)` : "") +
+    `. Try rephrasing toward a covered theater or topic.`
+  );
+}
+
 /** Relevance-boundary short-circuit payload (Workstream D, 2026-07-13): a paid
  *  rerank ran and judged NONE of the candidates relevant, so the expensive
  *  answer model is never called and no irrelevant evidence reaches the user —
@@ -350,11 +364,7 @@ function noRelevantEvidenceV2(
   currency: string | null,
 ): AskAnswerV2 {
   return {
-    answer:
-      `No claims in the covered data address this question. The corpus covers ` +
-      `Russia/Ukraine/Iran (strikes, prosecutions, sanctions, trade)` +
-      (currency != null ? ` and is current through ${currency} (UTC)` : "") +
-      `. Try rephrasing toward a covered theater or topic.`,
+    answer: insufficientEvidenceCopy(currency),
     citedClaimIds: [],
     evidenceCount: 0,
     terms: retrieval.terms,
@@ -415,11 +425,18 @@ function assembleV2(
   // BEGINS with the recognized insufficient-evidence language is an insufficient
   // outcome — persist and render it as such, with citations stripped and the
   // related-claims block omitted (an insufficient answer shows no adjacent
-  // evidence). A provider safety refusal never reaches this branch: the refusal
-  // field routes to state "refused" before content is parsed.
+  // evidence). The ANSWER TEXT is replaced too (2026-07-13 remediation): the
+  // model's own denial may go on to summarize and cite unrelated retrieved
+  // claims (the Antarctic defect), and clearing citedClaimIds alone left that
+  // prose — literal [cN] markers included — visible in the rendered answer.
+  // Deterministic replacement is the guarantee; provider/usage/model fields
+  // stay truthful (the call was billed). A provider safety refusal never
+  // reaches this branch: the refusal field routes to state "refused" before
+  // content is parsed.
   if (state === "answered" && beginsWithDenial(answer)) {
     state = "insufficient";
     citedClaimIds = [];
+    answer = insufficientEvidenceCopy(dataCurrentThrough);
   }
   const citedSet = new Set(citedClaimIds);
   // relevance-floored, capped RELATED_MAX (W4) — see related.ts for the calibration.

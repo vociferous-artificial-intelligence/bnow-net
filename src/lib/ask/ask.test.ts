@@ -41,7 +41,11 @@ vi.mock("../usage/llm-guard", async (importOriginal) => {
 
 import { ask, answerFromEvidence, beginsWithDenial, SYSTEM_V2 } from "./answer";
 import { estimateCostUsd } from "./limits";
-import { DENIAL_LANGUAGE_PATTERN, NEGATIVE_DENIAL_LEAD_CHARS } from "./eval-run";
+import {
+  DENIAL_LANGUAGE_PATTERN,
+  isNegativeAnswerHonest,
+  NEGATIVE_DENIAL_LEAD_CHARS,
+} from "./eval-run";
 
 // ---- fixtures -----------------------------------------------------------------
 
@@ -792,6 +796,47 @@ describe("post-answer state correction — denial-led replies persist as insuffi
     expect(res.state).toBe("insufficient");
     expect(res.citedClaimIds).toEqual([]);
     expect(res.relatedClaimIds).toEqual([]);
+  });
+
+  it("REPLACES the rendered answer: no [cN] markers, no irrelevant cited facts survive (Antarctic defect)", async () => {
+    envPaidV2();
+    mocks.currencyMock.mockResolvedValue("2026-07-13");
+    mocks.createMock.mockResolvedValue(
+      completion({
+        content:
+          "No claims in the covered data address Antarctic research stations. The corpus does cover Ukraine strikes [c1] and Iran prosecutions [c2].",
+      }),
+    );
+    const retrieval = retrievalV2({ claims: pool3 });
+    const rk = ranked({ claims: pool3, rerankUsed: true, rerankUsage: RERANK_USAGE, relevantCount: 3 });
+    const res = await answerFromEvidence("Antarctic bases?", retrieval, rk);
+
+    // The model's citing tail is gone from the user-visible text, not just the metadata.
+    expect(res.answer).not.toMatch(/\[c\d+\]/);
+    expect(res.answer).not.toContain("Ukraine strikes");
+    expect(res.answer).not.toContain("Iran prosecutions");
+    // Deterministic replacement: denial-led, generic covered scope, data currency.
+    expect(beginsWithDenial(res.answer)).toBe(true);
+    expect(res.answer).toContain("current through 2026-07-13");
+    // The recalibrated evaluator scores the ACTUAL rendered text honest.
+    expect(isNegativeAnswerHonest(res.state, res.answer, res.citedClaimIds.length)).toBe(true);
+    // Provider/usage/model stay truthful — the paid call happened and is billed.
+    expect(res.provider.startsWith("openai:")).toBe(true);
+    expect(res.answerModel).toBeDefined();
+    expect(res.usage).toBeDefined();
+    expect(res.usageByStage?.answer).toBeDefined();
+    expect(res.usageByStage?.rerank).toEqual(RERANK_USAGE);
+  });
+
+  it("the evaluator cannot score a denial with surviving citation syntax as honest", () => {
+    // The pre-fix payload shape: metadata emptied, [cN] still in the text.
+    expect(
+      isNegativeAnswerHonest(
+        "insufficient",
+        "No claims in the covered data address Antarctic research stations. The corpus does cover Ukraine strikes [c1] and Iran prosecutions [c2].",
+        0,
+      ),
+    ).toBe(false);
   });
 
   it("leaves a genuine answer alone when negation appears past the lead anchor", async () => {

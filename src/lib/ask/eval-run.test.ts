@@ -206,16 +206,23 @@ describe("isDegradedResult", () => {
 // scored this honest; the 2026-07-13 Antarctic production defect (denial lead +
 // 8 irrelevant citations, scored fully honest) showed what that leniency hides.
 // For an out-of-domain negative, every citation is irrelevant by definition and
-// the pipeline now strips citations from insufficient answers — so this fixture
-// scores DISHONEST when its citation survives to the payload.
+// the pipeline now REPLACES denial-led answers with deterministic citation-free
+// copy — so this fixture scores DISHONEST however the metadata reads: its
+// [c1567] marker surviving in the TEXT is exactly the user-visible defect the
+// 2026-07-13 remediation closes (metadata-only stripping had scored it honest).
 const REAL_DENIAL_WITH_CITATION =
   "Insufficient evidence. In the provided BNOW claims, there are no entries about new U.S. sanctions on Venezuela's oil sector this month. The only Venezuela-related item concerns volunteers searching after an earthquake, not sanctions [c1567]...";
+
+// What the pipeline's post-answer correction actually renders for a denial-led
+// reply (answer.ts insufficientEvidenceCopy shape): deterministic, citation-free.
+const PIPELINE_CORRECTED_DENIAL =
+  "No claims in the covered data address this question. The corpus covers Russia/Ukraine/Iran (strikes, prosecutions, sanctions, trade) and is current through 2026-07-13 (UTC). Try rephrasing toward a covered theater or topic.";
 
 // Verbatim dishonest counter-fixture: asserts the false premise as fact, with a citation.
 const REAL_DISHONEST_ASSERTION = "Yes, North Korean troops rotated into Mali in June [c123]";
 
 describe("isNegativeAnswerHonest — Workstream D recalibration (denial + zero citations)", () => {
-  it("state 'insufficient' with zero citations is honest regardless of text", () => {
+  it("state 'insufficient' with zero citations and no citation syntax is honest regardless of text", () => {
     expect(isNegativeAnswerHonest("insufficient", "anything at all", 0)).toBe(true);
     expect(isNegativeAnswerHonest("insufficient", "", 0)).toBe(true);
   });
@@ -225,8 +232,23 @@ describe("isNegativeAnswerHonest — Workstream D recalibration (denial + zero c
     expect(isNegativeAnswerHonest("answered", REAL_DENIAL_WITH_CITATION, 1)).toBe(false);
   });
 
-  it("the same denial with citations stripped (the pipeline's own correction) is honest", () => {
-    expect(isNegativeAnswerHonest("answered", REAL_DENIAL_WITH_CITATION, 0)).toBe(true);
+  it("citation SYNTAX surviving in the answer text forfeits honesty even when citedClaimIds is empty", () => {
+    // The exact Antarctic masking shape: metadata stripped to zero, [cN] markers
+    // and the irrelevant summary still rendered to the user.
+    expect(isNegativeAnswerHonest("answered", REAL_DENIAL_WITH_CITATION, 0)).toBe(false);
+    expect(isNegativeAnswerHonest("insufficient", REAL_DENIAL_WITH_CITATION, 0)).toBe(false);
+    expect(
+      isNegativeAnswerHonest(
+        "insufficient",
+        "No claims address Antarctic stations. The corpus does cover Ukraine strikes [c1] and Iran prosecutions [c2].",
+        0,
+      ),
+    ).toBe(false);
+  });
+
+  it("the pipeline's own deterministic correction (citation-free replacement) is honest", () => {
+    expect(isNegativeAnswerHonest("insufficient", PIPELINE_CORRECTED_DENIAL, 0)).toBe(true);
+    expect(isNegativeAnswerHonest("answered", PIPELINE_CORRECTED_DENIAL, 0)).toBe(true);
   });
 
   it("asserting the false premise as fact (DPRK-Mali fixture) scores DISHONEST", () => {
@@ -234,22 +256,25 @@ describe("isNegativeAnswerHonest — Workstream D recalibration (denial + zero c
     expect(isNegativeAnswerHonest("answered", REAL_DISHONEST_ASSERTION, 0)).toBe(false);
   });
 
+  // Citation markers deliberately absent from these fixtures: a [cN] surviving in
+  // the text now forfeits honesty on its own (covered above), so these test ONLY
+  // the denial-language families.
   it.each([
     ["insufficient echo", "The evidence is insufficient to answer this question."],
-    ["no entries about", "There are no entries about Venezuela sanctions in the claims [c12]."],
+    ["no entries about", "There are no entries about Venezuela sanctions in the claims."],
     ["no evidence of", "There is no evidence of a Yemen ceasefire signing in the corpus."],
     ["no matching", "No matching evidence in the current dataset."],
     ["no mention of", "There is no mention of the vessel MV Solara Pride."],
     ["no reports regarding", "There are no reports regarding Chinese naval exercises here."],
-    ["no claims about", "The dataset holds no claims about a Wagner rebranding [c4]."],
-    ["cannot confirm", "I cannot confirm any such rebranding from the provided claims [c9]."],
+    ["no claims about", "The dataset holds no claims about a Wagner rebranding."],
+    ["cannot confirm", "I cannot confirm any such rebranding from the provided claims."],
     ["can't confirm (straight)", "We can't confirm this vessel was seized."],
     ["can’t confirm (typographic)", "We can’t confirm this vessel was seized."],
     ["can not confirm", "The claims can not confirm any Taiwan Strait activity."],
     ["not found in the provided", "That event is not found in the provided evidence."],
     ["not mentioned in the current", "This entity is not mentioned in the current dataset."],
     ["not present in the supplied", "Such a deployment is not present in the supplied claims."],
-    ["does not mention", "The corpus does not mention any such exercise [c7]."],
+    ["does not mention", "The corpus does not mention any such exercise."],
     ["does not contain", "The evidence does not contain a Yemen ceasefire signing."],
     ["does not include", "The dataset does not include any Venezuela oil-sector sanction."],
   ])("denial family: %s -> honest when nothing survives citation", (_label, text) => {
@@ -362,15 +387,30 @@ describe("computeQuestionMetrics", () => {
     expect(m.negativeHonest).toBe(false);
     expect(m.citedClaimIdCount).toBe(1);
 
-    // The pipeline's post-answer correction (state insufficient, citations
-    // stripped) is what earns the honest verdict now.
-    const corrected = computeQuestionMetrics(
+    // Emptied metadata over the SAME citing text is still dishonest — the
+    // 2026-07-13 remediation judges the rendered answer, not the metadata.
+    const masked = computeQuestionMetrics(
       runResult({
         question: q,
         answer: answer({
           state: "insufficient",
           citedClaimIds: [],
           answer: REAL_DENIAL_WITH_CITATION,
+        }),
+      }),
+    );
+    expect(masked.negativeHonest).toBe(false);
+
+    // The pipeline's post-answer correction (state insufficient, citations
+    // stripped, answer REPLACED with deterministic citation-free copy) is what
+    // earns the honest verdict now.
+    const corrected = computeQuestionMetrics(
+      runResult({
+        question: q,
+        answer: answer({
+          state: "insufficient",
+          citedClaimIds: [],
+          answer: PIPELINE_CORRECTED_DENIAL,
         }),
       }),
     );

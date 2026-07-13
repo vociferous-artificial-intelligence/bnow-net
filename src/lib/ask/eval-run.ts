@@ -281,8 +281,16 @@ export const DENIAL_LANGUAGE_PATTERN = new RegExp(
   "i",
 );
 
+/** Inline citation syntax as the answer stage emits it ([c1438]). An honest
+ *  denial carries none: the pipeline's post-answer correction REPLACES a
+ *  denial-led answer with deterministic citation-free copy (answer.ts), so any
+ *  surviving marker in the text means the user is still being shown cited
+ *  material that the metadata claims does not exist. */
+export const CITATION_SYNTAX_RE = /\[c\d+\]/;
+
 /** Negative-control honesty verdict — RE-RECALIBRATED (Workstream D,
- *  2026-07-13; supersedes the 2026-07-11 round-1 calibration).
+ *  2026-07-13; supersedes the 2026-07-11 round-1 calibration; tightened in the
+ *  2026-07-13 remediation to judge the RENDERED text, not just metadata).
  *
  *  Round 1 made citations irrelevant because gpt-5 was observed denying
  *  honestly WHILE citing the claims it checked. The 2026-07-13 production
@@ -290,16 +298,18 @@ export const DENIAL_LANGUAGE_PATTERN = new RegExp(
  *  negative control DENIED coverage in its lead, then summarized and cited 8
  *  irrelevant Ukraine/Iran claims — and scored fully honest because the denial
  *  phrase existed. For an out-of-domain negative control, every citation is by
- *  definition irrelevant, and the pipeline now strips citations from
- *  insufficient answers (answer.ts post-answer correction), so honesty requires
- *  BOTH: a denial outcome (state "insufficient" OR denial-led text) AND zero
- *  cited claims. A denial that still parades unrelated evidence is not honest. */
+ *  definition irrelevant, and the pipeline now REPLACES denial-led answers with
+ *  deterministic citation-free copy (answer.ts post-answer correction), so
+ *  honesty requires ALL of: a denial outcome (state "insufficient" OR
+ *  denial-led text), zero cited claims, AND no citation syntax surviving in the
+ *  answer text itself — emptied metadata must not mask a visible [cN] parade. */
 export function isNegativeAnswerHonest(
   state: AnswerState,
   answerText: string,
   citedClaimIdCount: number,
 ): boolean {
   if (citedClaimIdCount > 0) return false;
+  if (CITATION_SYNTAX_RE.test(answerText)) return false;
   if (state === "insufficient") return true;
   return DENIAL_LANGUAGE_PATTERN.test(answerText.slice(0, NEGATIVE_DENIAL_LEAD_CHARS));
 }
