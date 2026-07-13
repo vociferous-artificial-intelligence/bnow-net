@@ -15,9 +15,10 @@
 // FORCE_REGEN=1 bypasses both (operator override; the A/B driver uses it so
 // variance measurement sees every roll).
 
-import type { Pool } from "@neondatabase/serverless";
+import type { Pool, PoolClient } from "@neondatabase/serverless";
 import { embedStubReason } from "../embeddings/client";
 import { embedAndStoreClaims } from "../embeddings/persist";
+import { canonicalKey } from "../entities/canonicalize";
 import { guardPublishedEvents } from "./publication-guard";
 import type { DigestAnalysis } from "./provider";
 import type { Track } from "./tracks";
@@ -145,6 +146,18 @@ export async function persistDigest(args: PersistDigestArgs): Promise<PersistOut
     // embedding hook (claims get fresh ids on every regeneration, so old vectors
     // cascade-deleted with the old claim rows and these must be re-embedded).
     const insertedClaims: { id: number; text: string }[] = [];
+    // Entity canonical-identity cache (2026-07-13 remediation): get-or-create
+    // used to match by exact (kind, name), so a raw spelling variant ("Андрей
+    // Воробьёв") silently recreated an entity the cleanup plan had merged. Load
+    // every entity once per persist (a few hundred rows) and key by
+    // (kind, canonicalKey) — ORDER BY id makes the earliest row win
+    // deterministically while pre-cleanup duplicates still exist.
+    const entityCache = new Map<string, { id: number; name: string }>();
+    const { rows: entityRows } = await client.query(`SELECT id, kind, name FROM entities ORDER BY id`);
+    for (const r of entityRows) {
+      const key = entityCacheKey(r.kind, r.name);
+      if (key && !entityCache.has(key)) entityCache.set(key, { id: r.id, name: r.name });
+    }
     for (const ev of events) {
       const eRes = await client.query(
         `INSERT INTO events (country_id, event_date, track, type, title, summary)
@@ -167,20 +180,16 @@ export async function persistDigest(args: PersistDigestArgs): Promise<PersistOut
             [claimId, docId],
           );
         }
-        // entity graph: get-or-create by (kind, name)
+        // entity graph: get-or-create by canonical identity (kind + canonicalKey)
+        // with an exact-(kind, name) fallback — see resolveEntityId below
         for (const ent of c.entities ?? []) {
           const name = ent.name.trim().slice(0, 200);
           if (!name) continue;
-          const eIns = await client.query(
-            `INSERT INTO entities (kind, name) VALUES ($1, $2)
-             ON CONFLICT (kind, name) DO UPDATE SET name = EXCLUDED.name
-             RETURNING id`,
-            [ent.kind, name],
-          );
+          const entityId = await resolveEntityId(client, entityCache, ent.kind, name);
           await client.query(
             `INSERT INTO claim_entities (claim_id, entity_id, role) VALUES ($1, $2, $3)
              ON CONFLICT DO NOTHING`,
-            [claimId, eIns.rows[0].id, ent.role.slice(0, 40)],
+            [claimId, entityId, ent.role.slice(0, 40)],
           );
         }
         claimCount++;
@@ -223,6 +232,61 @@ export async function persistDigest(args: PersistDigestArgs): Promise<PersistOut
   } finally {
     client.release();
   }
+}
+
+/** Cache key for canonical entity identity: kind + canonicalKey (the same fold
+ *  the reduce stage and the cleanup script use — ё-fold, transliteration
+ *  variants, curated alias families). Null when the name normalizes to nothing
+ *  (punctuation-only), so degenerate names never collide on an empty key. */
+function entityCacheKey(kind: string, name: string): string | null {
+  const ck = canonicalKey(name);
+  return ck ? `${kind} ${ck}` : null;
+}
+
+/** Get-or-create an entity by CANONICAL identity (2026-07-13 remediation; the
+ *  durability half of the entity cleanup plan). Exact-(kind, name) matching
+ *  alone recreated merged duplicates whenever a digest's evidence carried only
+ *  a raw spelling variant ("Андрей Воробьёв" after the rows merged into
+ *  "Andrey Vorobyov") — reduce-time canonicalKey folding cannot prevent that,
+ *  because with one variant present there is nothing to fold against.
+ *
+ *  A canonical-cache hit reuses the existing row — its display name is NEVER
+ *  overwritten — and a differing raw spelling is appended to aliases (deduped,
+ *  inside the same transaction). A miss inserts by exact (kind, name); the
+ *  unique index makes same-spelling races safe via ON CONFLICT. Known limit:
+ *  two concurrent persists inserting two DIFFERENT new spellings of the same
+ *  identity can still create one duplicate pair (no canonical unique index
+ *  exists, and canonicalKey lives in TS) — rare, and the cleanup script
+ *  converges it; ambiguous bare surnames get their own canonical key, so they
+ *  are never auto-merged here. */
+async function resolveEntityId(
+  client: PoolClient,
+  cache: Map<string, { id: number; name: string }>,
+  kind: string,
+  name: string,
+): Promise<number> {
+  const key = entityCacheKey(kind, name);
+  const hit = key ? cache.get(key) : undefined;
+  if (hit) {
+    if (hit.name !== name) {
+      await client.query(
+        `UPDATE entities SET aliases = (
+           SELECT to_jsonb(array(SELECT DISTINCT x FROM jsonb_array_elements_text(aliases || $2::jsonb) AS t(x)))
+         ) WHERE id = $1`,
+        [hit.id, JSON.stringify([name])],
+      );
+    }
+    return hit.id;
+  }
+  const ins = await client.query(
+    `INSERT INTO entities (kind, name) VALUES ($1, $2)
+     ON CONFLICT (kind, name) DO UPDATE SET name = EXCLUDED.name
+     RETURNING id`,
+    [kind, name],
+  );
+  const id: number = ins.rows[0].id;
+  if (key) cache.set(key, { id, name });
+  return id;
 }
 
 /** Embed and store the claims a persist just committed. Never throws and never

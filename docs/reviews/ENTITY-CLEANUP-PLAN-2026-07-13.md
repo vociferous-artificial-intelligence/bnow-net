@@ -21,9 +21,21 @@ double-count (signals inflation) also folds via the surname rule (2348 → 20).
      traceability ruling 2 structurally unaffected).
    - `SELECT count(*) FROM claim_entities WHERE entity_id NOT IN (SELECT id FROM entities)` = 0.
    - entities count matches the SUMMARY projection below.
-4. Note: the digest get-or-create path can resurrect a merged spelling only until the
-   reduce-time canonicalKey fold (already shipped in this sprint) stops emitting it —
-   future persists fold at source.
+4. **Durability (corrected 2026-07-13 remediation; the original note here was wrong).**
+   The reduce-time canonicalKey fold alone did NOT stop future persists from
+   resurrecting merged spellings: it folds only within one reduce batch, so a digest
+   whose evidence carries a single raw variant ("Андрей Воробьёв" alone), or whose
+   representative-spelling vote picks the non-canonical variant, still emitted the raw
+   spelling — and `persistDigest`'s old exact-`(kind, name)` get-or-create would have
+   recreated the duplicate row. Durable now: `persistDigest` resolves entities by
+   canonical identity (`kind` + `canonicalKey`), reuses the existing row, and appends
+   differing raw spellings to `aliases` (src/lib/analysis/digest-persist.ts,
+   `resolveEntityId`; regression-pinned in digest-persist.test.ts). **Sequencing: that
+   code must be DEPLOYED before this plan is applied** — applying the merges against
+   the old exact-name persist path would regress on the next digest persist. Known
+   residual: two concurrent persists inserting two DIFFERENT new spellings of one new
+   identity can still race one duplicate pair (no canonical unique index; canonicalKey
+   lives in TS) — rare, and a later run of this script converges it.
 
 ## Dry-run output (verbatim)
 

@@ -17,8 +17,9 @@ const { persistDigest } = await import("./digest-persist");
 
 /** Fake pool/client covering the persistDigest query sequence. INSERT ... RETURNING
  *  id hands back deterministic ids; the prior-claims SELECT returns empty so the
- *  overwrite guard proceeds (priorClaims = 0). */
-function fakePool() {
+ *  overwrite guard proceeds (priorClaims = 0). `entitySeed` populates the
+ *  canonical-identity cache SELECT. */
+function fakePool(entitySeed: Array<{ id: number; kind: string; name: string }> = []) {
   let ev = 200;
   let cl = 300;
   let ent = 400;
@@ -27,6 +28,7 @@ function fakePool() {
       if (/INSERT INTO digests/.test(sql)) return { rows: [{ id: 100 }] };
       if (/INSERT INTO events/.test(sql)) return { rows: [{ id: ++ev }] };
       if (/INSERT INTO claims/.test(sql) && /RETURNING id/.test(sql)) return { rows: [{ id: ++cl }] };
+      if (/SELECT id, kind, name FROM entities/.test(sql)) return { rows: entitySeed };
       if (/INSERT INTO entities/.test(sql)) return { rows: [{ id: ++ent }] };
       return { rows: [] };
     }),
@@ -109,6 +111,122 @@ describe("persistDigest embedding hook", () => {
     expect(out).toEqual({ digestId: 100, claimCount: 1 });
     expect(embedAndStoreClaimsMock).not.toHaveBeenCalled(); // no OpenAI, no stub vectors written
     expect(warn).toHaveBeenCalledOnce();
+  });
+});
+
+// ---- entity canonical identity (2026-07-13 remediation) ------------------------
+
+describe("persistDigest entity get-or-create resolves canonical identity", () => {
+  const VOROBYOV = { id: 42, kind: "person", name: "Andrey Vorobyov" };
+
+  type EntityKind = NonNullable<PersistEvent["claims"][number]["entities"]>[number]["kind"];
+
+  function eventsWithEntities(
+    ...entities: Array<{ name: string; kind: EntityKind }>
+  ): PersistEvent[] {
+    return [
+      {
+        title: "Event",
+        type: "political",
+        summary: "Summary",
+        claims: entities.map((e, i) => ({
+          text: `claim ${i}`,
+          claimType: "factual" as const,
+          hedging: "confirmed",
+          docIds: [1],
+          entities: [{ name: e.name, kind: e.kind, role: "subject" }],
+        })),
+      },
+    ];
+  }
+
+  function callsOf(client: { query: ReturnType<typeof vi.fn> }) {
+    return client.query.mock.calls as unknown as Array<[string, unknown[]?]>;
+  }
+
+  it("a Cyrillic raw spelling reuses the canonical row and appends itself to aliases", async () => {
+    const { pool, client } = fakePool([VOROBYOV]);
+    const out = await persistDigest({
+      ...argsFor(pool),
+      events: eventsWithEntities({ name: "Андрей Воробьёв", kind: "person" }),
+    });
+    expect(out).toMatchObject({ digestId: 100 });
+
+    const calls = callsOf(client);
+    // No duplicate entity row is created…
+    expect(calls.some((c) => /INSERT INTO entities/.test(c[0]))).toBe(false);
+    // …the claim links to the CANONICAL row…
+    const link = calls.find((c) => /INSERT INTO claim_entities/.test(c[0]))!;
+    expect(link[1]![1]).toBe(42);
+    // …and the raw spelling is retained as an alias on it.
+    const alias = calls.find((c) => /UPDATE entities SET aliases/.test(c[0]))!;
+    expect(alias[1]).toEqual([42, JSON.stringify(["Андрей Воробьёв"])]);
+  });
+
+  it("both Cyrillic ё/е variants resolve to the same canonical entity", async () => {
+    const { pool, client } = fakePool([VOROBYOV]);
+    await persistDigest({
+      ...argsFor(pool),
+      events: eventsWithEntities(
+        { name: "Андрей Воробьёв", kind: "person" },
+        { name: "Андрей Воробьев", kind: "person" },
+      ),
+    });
+    const calls = callsOf(client);
+    const links = calls.filter((c) => /INSERT INTO claim_entities/.test(c[0]));
+    expect(links).toHaveLength(2);
+    expect(links.map((c) => c[1]![1])).toEqual([42, 42]);
+    expect(calls.some((c) => /INSERT INTO entities/.test(c[0]))).toBe(false);
+  });
+
+  it("repeated persistence with the stored spelling is idempotent: reuse, no alias write, no insert", async () => {
+    const { pool, client } = fakePool([VOROBYOV]);
+    await persistDigest({
+      ...argsFor(pool),
+      events: eventsWithEntities({ name: "Andrey Vorobyov", kind: "person" }),
+    });
+    const calls = callsOf(client);
+    expect(calls.some((c) => /INSERT INTO entities/.test(c[0]))).toBe(false);
+    expect(calls.some((c) => /UPDATE entities SET aliases/.test(c[0]))).toBe(false);
+    expect(calls.find((c) => /INSERT INTO claim_entities/.test(c[0]))![1]![1]).toBe(42);
+  });
+
+  it("an unrelated same-surname person does NOT merge — it gets its own row", async () => {
+    const { pool, client } = fakePool([VOROBYOV]);
+    await persistDigest({
+      ...argsFor(pool),
+      events: eventsWithEntities({ name: "Pavel Vorobyov", kind: "person" }),
+    });
+    const calls = callsOf(client);
+    const ins = calls.find((c) => /INSERT INTO entities/.test(c[0]))!;
+    expect(ins[1]).toEqual(["person", "Pavel Vorobyov"]);
+    expect(calls.some((c) => /UPDATE entities SET aliases/.test(c[0]))).toBe(false);
+  });
+
+  it("an ambiguous bare surname does NOT auto-merge into the full-name entity", async () => {
+    const { pool, client } = fakePool([VOROBYOV]);
+    await persistDigest({
+      ...argsFor(pool),
+      events: eventsWithEntities({ name: "Vorobyov", kind: "person" }),
+    });
+    const calls = callsOf(client);
+    expect(calls.find((c) => /INSERT INTO entities/.test(c[0]))![1]).toEqual([
+      "person",
+      "Vorobyov",
+    ]);
+  });
+
+  it("entity kind is part of the identity: same name, different kind, separate row", async () => {
+    const { pool, client } = fakePool([VOROBYOV]);
+    await persistDigest({
+      ...argsFor(pool),
+      events: eventsWithEntities({ name: "Andrey Vorobyov", kind: "org" }),
+    });
+    const calls = callsOf(client);
+    expect(calls.find((c) => /INSERT INTO entities/.test(c[0]))![1]).toEqual([
+      "org",
+      "Andrey Vorobyov",
+    ]);
   });
 });
 
