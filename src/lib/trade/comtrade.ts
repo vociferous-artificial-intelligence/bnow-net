@@ -8,6 +8,9 @@ export interface ComtradeRow {
   reporterCode: number;
   reporterName: string;
   partnerCode: number;
+  /** Upstream partnerDesc when the response carries it; null otherwise (the
+   *  read path then falls back to the deterministic M49 map in partners.ts). */
+  partnerName: string | null;
   flowCode: string;
   hsCode: string;
   period: string;
@@ -19,6 +22,7 @@ interface RawComtradeRecord {
   reporterCode: number;
   reporterDesc?: string | null;
   partnerCode: number;
+  partnerDesc?: string | null;
   flowCode: string;
   cmdCode: string;
   period: string;
@@ -36,6 +40,7 @@ export function parseComtrade(json: unknown, reporterName: string): ComtradeRow[
       reporterCode: r.reporterCode,
       reporterName: r.reporterDesc ?? reporterName,
       partnerCode: r.partnerCode,
+      partnerName: r.partnerDesc?.trim() || null,
       flowCode: r.flowCode,
       hsCode: r.cmdCode,
       period: r.period,
@@ -57,6 +62,7 @@ export function parseComtradeBreakdown(json: unknown): ComtradeRow[] {
       reporterCode: r.reporterCode,
       reporterName: r.reporterDesc ?? String(r.reporterCode),
       partnerCode: r.partnerCode,
+      partnerName: r.partnerDesc?.trim() || null,
       flowCode: r.flowCode,
       hsCode: r.cmdCode,
       period: r.period,
@@ -87,6 +93,10 @@ export async function fetchBreakdown(
     period: year, // keyless preview: one period per call
     cmdCode: hsCode,
     flowCode,
+    // Ask Comtrade+ to include reporterDesc/partnerDesc. Live preview responses
+    // historically omitted them (every stored reporter_name is "842"); the parser
+    // treats the fields as optional either way. Verifiable only from Vercel egress.
+    includeDesc: "true",
     ...(process.env.COMTRADE_API_KEY ? { "subscription-key": process.env.COMTRADE_API_KEY } : {}),
   });
   const url = `${baseUrl()}/C/A/HS?${params.toString()}`;
@@ -125,6 +135,7 @@ export async function fetchReporterYear(
     period: year, // keyless preview: ONE period per call
     cmdCode: hsCodes.join(","), // multiple commodities OK
     flowCode,
+    includeDesc: "true", // see fetchBreakdown note — optional-field tolerant either way
     ...(process.env.COMTRADE_API_KEY
       ? { "subscription-key": process.env.COMTRADE_API_KEY }
       : {}),

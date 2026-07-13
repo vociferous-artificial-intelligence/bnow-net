@@ -1,6 +1,7 @@
 import { Pool } from "@neondatabase/serverless";
 import { fetchBreakdown } from "../trade/comtrade";
 import { computeConcentration, riskScore, type Concentration, type SupplierFlow } from "./concentration";
+import { partnerDisplayName } from "../trade/partners";
 import { CRITICAL_MATERIALS, MATERIALS_YEARS, US_REPORTER } from "./config";
 
 // Pull US per-partner import breakdown for each critical HS into trade_flows
@@ -30,11 +31,13 @@ export async function pullMaterials(): Promise<MaterialsPullStats> {
         for (const r of rows) {
           await pool.query(
             `INSERT INTO trade_flows
-               (reporter_code, reporter_name, partner_code, flow_code, hs_code, period, value_usd, net_weight_kg)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+               (reporter_code, reporter_name, partner_code, partner_name, flow_code, hs_code, period, value_usd, net_weight_kg)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
              ON CONFLICT (reporter_code, partner_code, flow_code, hs_code, period)
-             DO UPDATE SET value_usd = EXCLUDED.value_usd, fetched_at = now()`,
-            [r.reporterCode, r.reporterName, r.partnerCode, r.flowCode, r.hsCode, r.period, r.valueUsd, r.netWeightKg],
+             DO UPDATE SET value_usd = EXCLUDED.value_usd,
+                           partner_name = COALESCE(EXCLUDED.partner_name, trade_flows.partner_name),
+                           fetched_at = now()`,
+            [r.reporterCode, r.reporterName, r.partnerCode, r.partnerName, r.flowCode, r.hsCode, r.period, r.valueUsd, r.netWeightKg],
           );
           stats.rowsUpserted++;
         }
@@ -54,6 +57,8 @@ export interface MaterialView {
   chokepoint: string;
   latest: Concentration | null;
   risk: number;
+  /** newest fetched_at across the material's rows (provenance display) */
+  fetchedAt: string | null;
 }
 
 /** Latest-year concentration per critical material, ranked by risk. */
@@ -63,7 +68,8 @@ export async function getMaterials(): Promise<MaterialView[]> {
     const out: MaterialView[] = [];
     for (const mat of CRITICAL_MATERIALS) {
       const { rows } = await pool.query(
-        `SELECT partner_code, value_usd, period
+        `SELECT partner_code, partner_name, value_usd, period,
+                max(fetched_at) OVER ()::text AS latest_fetch
          FROM trade_flows
          WHERE reporter_code = $1 AND flow_code = 'M' AND hs_code = $2`,
         [US_REPORTER, mat.hsCode],
@@ -77,7 +83,9 @@ export async function getMaterials(): Promise<MaterialView[]> {
           .filter((r) => r.period === latestYear)
           .map((r) => ({
             partnerCode: r.partner_code,
-            partnerName: partnerName(r.partner_code),
+            // stored upstream description first; deterministic M49 map for
+            // legacy rows; explicit "Partner code N" last resort — never "#N"
+            partnerName: partnerDisplayName(r.partner_code, r.partner_name),
             valueUsd: Number(r.value_usd),
           }));
         latest = computeConcentration(mat.hsCode, latestYear, flows, mat.sensitiveSuppliers);
@@ -85,6 +93,7 @@ export async function getMaterials(): Promise<MaterialView[]> {
       out.push({
         hsCode: mat.hsCode, label: mat.label, category: mat.category,
         chokepoint: mat.chokepoint, latest, risk: latest ? riskScore(latest) : 0,
+        fetchedAt: (rows[0]?.latest_fetch as string | undefined) ?? null,
       });
     }
     return out.sort((a, b) => b.risk - a.risk);
@@ -93,14 +102,4 @@ export async function getMaterials(): Promise<MaterialView[]> {
   }
 }
 
-// Minimal M49 → name for display (covers the sensitive suppliers + common partners).
-const NAMES: Record<number, string> = {
-  156: "China", 490: "Taiwan", 410: "South Korea", 392: "Japan", 458: "Malaysia",
-  704: "Vietnam", 764: "Thailand", 124: "Canada", 398: "Kazakhstan", 643: "Russia",
-  356: "India", 276: "Germany", 528: "Netherlands", 484: "Mexico", 826: "United Kingdom",
-  250: "France", 380: "Italy", 372: "Ireland", 702: "Singapore", 344: "Hong Kong",
-  36: "Australia", 76: "Brazil", 152: "Chile", 710: "South Africa",
-};
-function partnerName(code: number): string {
-  return NAMES[code] ?? `#${code}`;
-}
+

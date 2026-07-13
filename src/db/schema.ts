@@ -391,6 +391,10 @@ export const tradeFlows = pgTable(
     reporterCode: integer("reporter_code").notNull(), // UN M49, the reporting country
     reporterName: text("reporter_name").notNull(),
     partnerCode: integer("partner_code").notNull(), // 643 = Russia
+    // Upstream Comtrade partnerDesc when supplied (2026-07-13, migration 0019);
+    // read path falls back to the deterministic M49 map for legacy/missing rows
+    // (src/lib/trade/partners.ts).
+    partnerName: text("partner_name"),
     flowCode: text("flow_code").notNull(), // X=export, M=import (reporter's perspective)
     hsCode: text("hs_code").notNull(), // "TOTAL" or HS chapter/heading
     period: text("period").notNull(), // "2023" (annual) or "202312" (monthly)

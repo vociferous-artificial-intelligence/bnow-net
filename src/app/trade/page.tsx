@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getDivergence } from "@/lib/trade/run";
+import { getDivergence, latestTradeFetch } from "@/lib/trade/run";
 import { fmtM } from "@/lib/trade/divergence";
 import { WATCHED_HS } from "@/lib/trade/config";
 
@@ -9,8 +9,10 @@ const HS_LABEL = new Map(WATCHED_HS.map((h) => [h.code, h.label]));
 
 export default async function TradePage() {
   let rows: Awaited<ReturnType<typeof getDivergence>> = [];
+  let newestFetch: string | null = null;
   try {
     rows = await getDivergence("X");
+    newestFetch = await latestTradeFetch();
   } catch {
     // table empty until first pull
   }
@@ -104,9 +106,29 @@ export default async function TradePage() {
       )}
 
       <p className="mt-6 text-xs text-gray-400">
-        Source: UN Comtrade partner-reported data (reporter exports to Russia). Mirror data
-        lags ~2–3 months and only ~30% of country-pairs mirror cleanly; figures are
-        estimates of actual flows, not exact. Methodology after S&amp;P Global, CEPR, KSE.
+        Source:{" "}
+        <a
+          href="https://comtradeplus.un.org/"
+          rel="noopener noreferrer nofollow"
+          target="_blank"
+          className="underline"
+        >
+          UN Comtrade
+        </a>{" "}
+        (official database) — partner-reported goods exports (flow X) from each listed hub
+        (reporter) to Russia (partner M49 643), annual HS-code series {"2021\u20132024"}
+        {newestFetch ? <> · last fetched {newestFetch.slice(0, 10)}</> : null}. Query shape:{" "}
+        <a
+          href="https://uncomtrade.org/docs/"
+          rel="noopener noreferrer nofollow"
+          target="_blank"
+          className="underline"
+        >
+          Comtrade documentation
+        </a>
+        . Mirror data lags ~2–3 months and only ~30% of country-pairs mirror cleanly;
+        figures are estimates of actual flows, not exact — the standard mirror-statistics
+        approach used in public sanctions research.
       </p>
     </main>
   );

@@ -46,3 +46,14 @@ describe("subscribe_intents beta-request migration (0018)", () => {
     }
   });
 });
+
+describe("trade_flows partner_name migration (0019)", () => {
+  const { sql } = migrationFor("0019_");
+
+  it("adds only the nullable partner_name column", () => {
+    expect(sql).toMatch(/ALTER\s+TABLE\s+"trade_flows"\s+ADD\s+COLUMN\s+"partner_name"\s+text/i);
+    expect(sql).not.toMatch(/NOT\s+NULL/i);
+    expect(sql).not.toMatch(/DROP/i);
+    expect(sql).not.toMatch(/UPDATE\s/i);
+  });
+});

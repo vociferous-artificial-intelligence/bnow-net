@@ -35,8 +35,8 @@ export default async function DataDarkPage() {
       <h1 className="mb-1 text-2xl font-bold">Data-dark tracker</h1>
       <p className="mb-6 max-w-2xl text-sm text-gray-500">
         Russia has classified 400+ statistical indicators since early 2025. When a series
-        stops publishing — demographics, fuel output, customs detail — the suppression is
-        itself a signal: series tend to go dark just before the numbers turn bad.{" "}
+        stops publishing — demographics, fuel output, customs detail — the suppression can be
+        an analytical signal in itself, and should be corroborated with other evidence.{" "}
         <strong>{dark}</strong> of {rows.length} tracked series are currently classified or gone.
       </p>
 

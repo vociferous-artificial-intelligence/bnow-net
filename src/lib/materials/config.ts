@@ -20,7 +20,7 @@ export const US_REPORTER = 842;
 export const CRITICAL_MATERIALS: CriticalMaterial[] = [
   {
     hsCode: "8542", label: "Integrated circuits (chips)", category: "semiconductors",
-    chokepoint: "Advanced-node fabrication concentrated in Taiwan (TSMC >90% of <10nm); back-end packaging in Malaysia/Vietnam.",
+    chokepoint: "Advanced-node fabrication is heavily concentrated in Taiwan; back-end packaging clusters in Malaysia/Vietnam.",
     sensitiveSuppliers: [M49.taiwan, M49.china, M49.malaysia, M49.southKorea],
   },
   {
@@ -35,7 +35,7 @@ export const CRITICAL_MATERIALS: CriticalMaterial[] = [
   },
   {
     hsCode: "2846", label: "Rare-earth compounds", category: "rare_earths",
-    chokepoint: "China controls ~70% of REE production, ~90% of processing.",
+    chokepoint: "Rare-earth production and especially processing are heavily concentrated in China.",
     sensitiveSuppliers: [M49.china],
   },
   {
@@ -45,7 +45,7 @@ export const CRITICAL_MATERIALS: CriticalMaterial[] = [
   },
   {
     hsCode: "8505", label: "Permanent magnets (NdFeB)", category: "rare_earths",
-    chokepoint: "China supplies ~90% of rare-earth magnets — motors, defense, wind.",
+    chokepoint: "Rare-earth magnet supply (motors, defense, wind) is dominated by China.",
     sensitiveSuppliers: [M49.china],
   },
   {
@@ -60,7 +60,7 @@ export const CRITICAL_MATERIALS: CriticalMaterial[] = [
   },
   {
     hsCode: "2709", label: "Crude oil", category: "energy",
-    chokepoint: "Canada is the largest single foreign crude supplier (>50% of US crude imports), pipeline-hardwired.",
+    chokepoint: "Canada is the largest single foreign crude supplier to the US, pipeline-hardwired — see the measured share below.",
     sensitiveSuppliers: [M49.canada],
   },
   {

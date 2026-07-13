@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseComtrade } from "./comtrade";
+import { parseComtrade, parseComtradeBreakdown } from "./comtrade";
 import { computeDivergence, fmtM, type FlowPoint } from "./divergence";
 
 describe("parseComtrade", () => {
@@ -22,6 +22,38 @@ describe("parseComtrade", () => {
   it("handles empty/malformed input", () => {
     expect(parseComtrade({}, "X")).toEqual([]);
     expect(parseComtrade(null, "X")).toEqual([]);
+  });
+
+  it("carries partnerDesc when present, null when absent — and never swaps reporter/partner", () => {
+    const json = {
+      data: [
+        { reporterCode: 51, reporterDesc: "Armenia", partnerCode: 643, partnerDesc: "Russian Federation", flowCode: "X", cmdCode: "8542", period: "2023", primaryValue: 1000 },
+        { reporterCode: 51, reporterDesc: "Armenia", partnerCode: 643, flowCode: "X", cmdCode: "8541", period: "2023", primaryValue: 1000 },
+      ],
+    };
+    const rows = parseComtrade(json, "Armenia");
+    // Reporter stays the filing country; partner stays Russia — codes never swap.
+    expect(rows[0].reporterCode).toBe(51);
+    expect(rows[0].reporterName).toBe("Armenia");
+    expect(rows[0].partnerCode).toBe(643);
+    expect(rows[0].partnerName).toBe("Russian Federation");
+    expect(rows[1].partnerName).toBeNull();
+  });
+});
+
+describe("parseComtradeBreakdown partner names", () => {
+  it("maps partnerDesc per partner row (US imports breakdown)", () => {
+    const json = {
+      data: [
+        { reporterCode: 842, partnerCode: 682, partnerDesc: "Saudi Arabia", flowCode: "M", cmdCode: "2709", period: "2024", primaryValue: 5000 },
+        { reporterCode: 842, partnerCode: 170, flowCode: "M", cmdCode: "2709", period: "2024", primaryValue: 4000 },
+        { reporterCode: 842, partnerCode: 0, partnerDesc: "World", flowCode: "M", cmdCode: "2709", period: "2024", primaryValue: 9000 }, // aggregate -> drop
+      ],
+    };
+    const rows = parseComtradeBreakdown(json);
+    expect(rows).toHaveLength(2);
+    expect(rows[0].partnerName).toBe("Saudi Arabia");
+    expect(rows[1].partnerName).toBeNull(); // read path falls back to the M49 map
   });
 });
 

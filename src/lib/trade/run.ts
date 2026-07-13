@@ -1,7 +1,7 @@
 import { Pool } from "@neondatabase/serverless";
 import { fetchReporterFlows } from "./comtrade";
 import { computeDivergence, type DivergenceRow, type FlowPoint } from "./divergence";
-import { TRANSIT_PARTNERS, WATCHED_HS, WATCH_YEARS } from "./config";
+import { RUSSIA_CODE, TRANSIT_PARTNERS, WATCHED_HS, WATCH_YEARS } from "./config";
 
 // Pull partner→Russia flows into trade_flows (idempotent upsert), then expose
 // divergence over what's stored. Runs from Vercel (Comtrade reachable there).
@@ -30,18 +30,33 @@ export async function pullTrade(): Promise<TradePullStats> {
       for (const r of rows) {
         await pool.query(
           `INSERT INTO trade_flows
-             (reporter_code, reporter_name, partner_code, flow_code, hs_code, period, value_usd, net_weight_kg)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+             (reporter_code, reporter_name, partner_code, partner_name, flow_code, hs_code, period, value_usd, net_weight_kg)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
            ON CONFLICT (reporter_code, partner_code, flow_code, hs_code, period)
            DO UPDATE SET value_usd = EXCLUDED.value_usd, net_weight_kg = EXCLUDED.net_weight_kg,
+                         partner_name = COALESCE(EXCLUDED.partner_name, trade_flows.partner_name),
                          fetched_at = now()`,
-          [r.reporterCode, r.reporterName, r.partnerCode, r.flowCode, r.hsCode, r.period, r.valueUsd, r.netWeightKg],
+          [r.reporterCode, r.reporterName, r.partnerCode, r.partnerName, r.flowCode, r.hsCode, r.period, r.valueUsd, r.netWeightKg],
         );
         stats.rowsUpserted++;
       }
       await sleep(2500); // polite; well under Comtrade's keyless limit
     }
     return stats;
+  } finally {
+    await pool.end();
+  }
+}
+
+/** Newest fetched_at across the RU bilateral rows — provenance display only. */
+export async function latestTradeFetch(): Promise<string | null> {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  try {
+    const { rows } = await pool.query(
+      `SELECT max(fetched_at)::text AS latest FROM trade_flows WHERE partner_code = $1`,
+      [RUSSIA_CODE],
+    );
+    return (rows[0]?.latest as string | null) ?? null;
   } finally {
     await pool.end();
   }
