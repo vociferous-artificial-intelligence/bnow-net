@@ -42,3 +42,15 @@ export function etToday(now: Date): string {
 export function utcDay(instant: Date): string {
   return dayString(instant, "UTC");
 }
+
+/** Inclusive list of UTC days from `fromIso` through `toIso` (both YYYY-MM-DD).
+ *  Empty when the range is inverted or either date is malformed. */
+export function utcDayRange(fromIso: string, toIso: string): string[] {
+  const out: string[] = [];
+  const start = new Date(`${fromIso}T00:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(Date.parse(`${toIso}T00:00:00Z`))) return out;
+  for (const d = start; d.toISOString().slice(0, 10) <= toIso; d.setUTCDate(d.getUTCDate() + 1)) {
+    out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}

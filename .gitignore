@@ -9,6 +9,8 @@ node_modules/
 .cache/
 data/cache/
 data/raw/
+# operator artifacts (x-gap-rescore snapshots, rendered emails) — never committed
+data/outbox/
 coverage/
 .DS_Store
 
