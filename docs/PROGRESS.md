@@ -1077,3 +1077,22 @@ skips, headline numbers untouched, snapshot design parked in
 docs/designs/ISW-CUTOFF-SCORING.md), registry admin-only (404 + links removed +
 ADMIN_EMAILS readable-plain ×3 envs). Tests 996→1053/84. Spend $0.00 of $5.
 Morning note: docs/reviews/ANALYST-TRUST-NOTE-2026-07-12.md.
+
+## 2026-07-12 (IA refinement & architecture review sprint) — plan
+
+Prompt: information-architecture refinement (nav many-to-one, anchor-not-destination,
+3-vs-8 undersell, /signals public-leak). Branch `20260712-ia-refinement`
+(tag `pre-ia-refinement-20260712`). Review gate: docs/reviews/IA-REFINEMENT-REVIEW.md.
+
+1. TASK 0 recon (DONE): nav map, theater ground truth (8 active/2 scaffolded/1 deferred),
+   /signals data path (detail leaks names; evidence already gated; no /api/signals),
+   SEO baseline (no robots/sitemap/noindex), render modes (all force-dynamic), i18n contract.
+2. TASK 1 nav: retire Product group; promote Signals + Ask top-level; drop Solutions
+   political_risk duplicate; Coverage → real /countries/[iso2] links. site-nav.ts + tests + i18n.
+3. TASK 2 per-country pages: /countries/[iso2] public landing (DB-driven, localized metadata);
+   Coverage dropdown real links; #anchors stay functional; 3-vs-8 fixed from countries.status='active'.
+4. TASK 3 signals gating: toPublicSignal() projection (headline public / detail gated,
+   server-side); robots.ts + sitemap.ts; legal note. Auth-boundary test.
+5. TASK 4 independent architecture review (subagent, read-only): gating real not cosmetic,
+   no dead links/collisions, render modes, i18n/a11y/SEO. Fix confirmed issues.
+6. TASK 5 verify (tests/typecheck/lint/build), deploy, review gate, AGENTS.md + PROGRESS.md.
