@@ -48,7 +48,7 @@ const FIXTURE_ENTRIES: TheaterStatusEntry[] = [
     latestDate: null,
     lastGeneratedAt: null,
     claimsForLatest: 0,
-    digestHref: "/countries#ir",
+    digestHref: "/countries/ir",
     scoreboardHref: null,
   },
 ];
@@ -158,7 +158,7 @@ describe("theater cards", () => {
     // the inner row link (the overlay renders last in DOM; see "whole-card
     // stretched link" below for its own coverage).
     const link = within(ir).getAllByRole("link")[0];
-    expect(link.getAttribute("href")).toBe("/countries#ir");
+    expect(link.getAttribute("href")).toBe("/countries/ir");
   });
 
   it("renders an honest dash when neither next-fire instant is derivable", () => {

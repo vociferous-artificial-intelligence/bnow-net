@@ -95,39 +95,33 @@ describe("pricing treatment", () => {
   });
 });
 
-describe("dropdown contents", () => {
-  // R5 (2026-07-12): the source registry went admin-only and its nav entries
-  // (both /registry and /middle-east) were dropped — Product now lists only
-  // feeds, ask, and signals.
-  it("reveals the Product group's destinations", async () => {
-    const user = userEvent.setup();
+describe("top-level links (IA refinement 2026-07-12: Product retired)", () => {
+  it("surfaces Signals and Ask as their own top-level links, not a Product dropdown", () => {
     renderHeader();
-    await user.click(within(mainNav()).getByRole("button", { name: "Product" }));
-
-    const items = within(screen.getByRole("menu", { name: "Product" })).getAllByRole("menuitem");
-    expect(items.map((i) => i.getAttribute("href"))).toEqual(["/countries", "/ask", "/signals"]);
-    expect(items.map((i) => i.textContent)).toEqual([
-      "Daily intelligence feeds",
-      "Ask the data",
-      "Analyst signals",
-    ]);
+    // No Product trigger exists anymore.
+    expect(within(mainNav()).queryByRole("button", { name: "Product" })).toBeNull();
+    // Signals and Ask are plain links straight to their destinations.
+    expect(within(mainNav()).getByRole("link", { name: "Signals" }).getAttribute("href")).toBe("/signals");
+    expect(within(mainNav()).getByRole("link", { name: "Ask" }).getAttribute("href")).toBe("/ask");
   });
+});
 
-  it("lists only live theaters plus the index under Coverage", async () => {
+describe("dropdown contents", () => {
+  it("lists the live theaters as real per-country pages, then the index, under Coverage", async () => {
     const user = userEvent.setup();
     renderHeader();
     await user.click(within(mainNav()).getByRole("button", { name: "Coverage" }));
 
     const items = within(screen.getByRole("menu", { name: "Coverage" })).getAllByRole("menuitem");
     expect(items.map((i) => i.getAttribute("href"))).toEqual([
-      "/countries#ru",
-      "/countries#ua",
-      "/countries#ir",
+      "/countries/ru",
+      "/countries/ua",
+      "/countries/ir",
       "/countries",
     ]);
   });
 
-  it("routes Solutions personas at the truthful pages", async () => {
+  it("routes Solutions personas at the truthful pages, with signals no longer duplicated", async () => {
     const user = userEvent.setup();
     renderHeader();
     await user.click(within(mainNav()).getByRole("button", { name: "Solutions" }));
@@ -139,16 +133,18 @@ describe("dropdown contents", () => {
       "Sanctions & trade evasion": "/trade",
       "Commodity & supply-chain risk": "/critical-materials",
       "Economic data suppression": "/datadark",
-      "Political risk & signals": "/signals",
     });
+    // The old Political-risk>/signals duplicate is gone.
+    expect(items.map((i) => i.getAttribute("href"))).not.toContain("/signals");
   });
 });
 
 describe("dropdown accessibility", () => {
+  // Coverage is the representative dropdown (Product was retired 2026-07-12).
   it("keeps aria-expanded in sync", async () => {
     const user = userEvent.setup();
     renderHeader();
-    const trigger = within(mainNav()).getByRole("button", { name: "Product" });
+    const trigger = within(mainNav()).getByRole("button", { name: "Coverage" });
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
     await user.click(trigger);
     expect(trigger.getAttribute("aria-expanded")).toBe("true");
@@ -158,19 +154,19 @@ describe("dropdown accessibility", () => {
   it("opens onto the first item with ArrowDown", async () => {
     const user = userEvent.setup();
     renderHeader();
-    within(mainNav()).getByRole("button", { name: "Product" }).focus();
+    within(mainNav()).getByRole("button", { name: "Coverage" }).focus();
     await user.keyboard("{ArrowDown}");
 
-    const items = within(screen.getByRole("menu", { name: "Product" })).getAllByRole("menuitem");
+    const items = within(screen.getByRole("menu", { name: "Coverage" })).getAllByRole("menuitem");
     expect(document.activeElement).toBe(items[0]);
   });
 
   it("cycles items with the arrow keys", async () => {
     const user = userEvent.setup();
     renderHeader();
-    within(mainNav()).getByRole("button", { name: "Product" }).focus();
+    within(mainNav()).getByRole("button", { name: "Coverage" }).focus();
     await user.keyboard("{ArrowDown}");
-    const items = within(screen.getByRole("menu", { name: "Product" })).getAllByRole("menuitem");
+    const items = within(screen.getByRole("menu", { name: "Coverage" })).getAllByRole("menuitem");
 
     await user.keyboard("{ArrowDown}");
     expect(document.activeElement).toBe(items[1]);
@@ -185,18 +181,18 @@ describe("dropdown accessibility", () => {
   it("closes on Escape and returns focus to the trigger", async () => {
     const user = userEvent.setup();
     renderHeader();
-    const trigger = within(mainNav()).getByRole("button", { name: "Product" });
+    const trigger = within(mainNav()).getByRole("button", { name: "Coverage" });
 
     // Open with the keyboard, so focus really leaves the trigger and lands on an item.
     // Opening by click would leave focus on the trigger and make the assertion below
     // pass even if focus were never restored.
     trigger.focus();
     await user.keyboard("{ArrowDown}");
-    const items = within(screen.getByRole("menu", { name: "Product" })).getAllByRole("menuitem");
+    const items = within(screen.getByRole("menu", { name: "Coverage" })).getAllByRole("menuitem");
     expect(document.activeElement).toBe(items[0]);
 
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("menu", { name: "Product" })).toBeNull();
+    expect(screen.queryByRole("menu", { name: "Coverage" })).toBeNull();
     expect(document.activeElement).toBe(trigger);
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
   });
@@ -204,16 +200,16 @@ describe("dropdown accessibility", () => {
   it("stays closed when the user navigates back to the path it was opened on", async () => {
     const user = userEvent.setup();
     const { navigate } = renderHeader({ pathname: "/pricing" });
-    const trigger = within(mainNav()).getByRole("button", { name: "Product" });
+    const trigger = within(mainNav()).getByRole("button", { name: "Coverage" });
 
     await user.click(trigger); // opened while on /pricing
-    expect(screen.getByRole("menu", { name: "Product" })).toBeTruthy();
+    expect(screen.getByRole("menu", { name: "Coverage" })).toBeTruthy();
 
-    navigate("/ask"); // followed a menu link
-    expect(screen.queryByRole("menu", { name: "Product" })).toBeNull();
+    navigate("/countries/ru"); // followed a menu link
+    expect(screen.queryByRole("menu", { name: "Coverage" })).toBeNull();
 
     navigate("/pricing"); // browser Back — no pointer or key event at all
-    expect(screen.queryByRole("menu", { name: "Product" })).toBeNull();
+    expect(screen.queryByRole("menu", { name: "Coverage" })).toBeNull();
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
   });
 
@@ -221,16 +217,16 @@ describe("dropdown accessibility", () => {
     const user = userEvent.setup();
     renderHeader();
     const nav = within(mainNav());
-    const product = nav.getByRole("button", { name: "Product" });
+    const coverage = nav.getByRole("button", { name: "Coverage" });
 
-    product.focus();
-    await user.keyboard("{ArrowDown}"); // opens Product, focus lands on its first item
-    expect(screen.getByRole("menu", { name: "Product" })).toBeTruthy();
+    coverage.focus();
+    await user.keyboard("{ArrowDown}"); // opens Coverage, focus lands on its first item
+    expect(screen.getByRole("menu", { name: "Coverage" })).toBeTruthy();
 
-    // Move focus away without ever touching the panel's own Tab handler.
-    await act(async () => nav.getByRole("button", { name: "Coverage" }).focus());
-    expect(screen.queryByRole("menu", { name: "Product" })).toBeNull();
-    expect(product.getAttribute("aria-expanded")).toBe("false");
+    // Move focus away to the other dropdown without touching the panel's own Tab handler.
+    await act(async () => nav.getByRole("button", { name: "Solutions" }).focus());
+    expect(screen.queryByRole("menu", { name: "Coverage" })).toBeNull();
+    expect(coverage.getAttribute("aria-expanded")).toBe("false");
   });
 });
 
@@ -275,15 +271,21 @@ describe("current section", () => {
     renderHeader({ pathname: "/datadark" });
     const nav = within(mainNav());
     expect(nav.getByRole("button", { name: "Solutions" }).getAttribute("data-current")).toBe("true");
-    expect(nav.getByRole("button", { name: "Product" }).getAttribute("data-current")).toBeNull();
     expect(nav.getByRole("button", { name: "Coverage" }).getAttribute("data-current")).toBeNull();
   });
 
-  it("lets Coverage own /countries even though Product also links there", () => {
-    renderHeader({ pathname: "/countries" });
+  it("marks Coverage current on a per-country page, and only Coverage", () => {
+    renderHeader({ pathname: "/countries/ru" });
     const nav = within(mainNav());
     expect(nav.getByRole("button", { name: "Coverage" }).getAttribute("data-current")).toBe("true");
-    expect(nav.getByRole("button", { name: "Product" }).getAttribute("data-current")).toBeNull();
+    expect(nav.getByRole("button", { name: "Solutions" }).getAttribute("data-current")).toBeNull();
+  });
+
+  it("marks the top-level Signals link current on /signals", () => {
+    renderHeader({ pathname: "/signals" });
+    expect(
+      within(mainNav()).getByRole("link", { name: "Signals" }).getAttribute("aria-current"),
+    ).toBe("page");
   });
 });
 
@@ -294,10 +296,12 @@ describe("mobile sheet", () => {
     await user.click(screen.getByRole("button", { name: "Menu" }));
 
     const sheet = screen.getByRole("dialog", { name: "Menu" });
-    for (const heading of ["Product", "Coverage", "Solutions"]) {
+    // Only the two remaining groups render as sections; Signals/Ask are top-level links.
+    for (const heading of ["Coverage", "Solutions"]) {
       expect(within(sheet).getByRole("heading", { name: heading })).toBeTruthy();
     }
-    expect(within(sheet).getByRole("link", { name: "Ask the data" }).getAttribute("href")).toBe("/ask");
+    expect(within(sheet).getByRole("link", { name: "Ask" }).getAttribute("href")).toBe("/ask");
+    expect(within(sheet).getByRole("link", { name: "Signals" }).getAttribute("href")).toBe("/signals");
     expect(within(sheet).getByRole("link", { name: "Sign in" })).toBeTruthy();
   });
 

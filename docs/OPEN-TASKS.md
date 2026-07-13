@@ -322,6 +322,29 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     entitlement that grants role=analyst registry access (operator decision — it's the
     defensible-asset tradeoff, brief §6.2).
 
+### New (from the IA-refinement sprint — 2026-07-12, docs/reviews/IA-REFINEMENT-REVIEW.md)
+
+58. **[Tier 1 — legal, operator] /signals names living individuals as under "possible
+    purge/prosecution."** The IA-refinement gating (2026-07-12) withholds the named-individual
+    specifics (`Signal.detail`) from anonymous /signals HTML — server-side via `toPublicSignal`,
+    plus robots.txt Disallow — closing the pre-auth/indexable exposure (crawlers see only a
+    count-and-type teaser). But the **signed-in** page still renders names framed as analytical
+    judgments ("Clustered elite pressure — possible factional purge. Targets incl.: …"). Counsel
+    review recommended: (a) disclaimer placement/prominence on the signed-in view; (b) whether
+    specific names should appear at all vs. role/count descriptors. Operator/legal action, not
+    code (IA-REFINEMENT-REVIEW.md TASK 3.4).
+59. **[i18n] Native review of the IA-refinement strings.** New/changed machine-translated keys
+    need a native pass before market launch: nav labels `nav.group.signals`/`nav.group.ask`
+    (all 7 catalogs); the reworded, count-driven `home.live` with the `{n}` token (all 7);
+    `countries.detail.*` (en + provisional uk only — de/ar/ja/pl/fr fall back to English). Same
+    gate as #20/#21; es/he/ko still ship no catalog (#21). Append to
+    docs/reviews/UK-NATIVE-REVIEW-2026-07-12.md.
+60. **[low] Dead nav i18n keys after the Product-group retirement.** `nav.group.product` and
+    `nav.item.{feeds,registry,me_registry,political_risk,ask,signals}` are defined-but-unused
+    across all 7 catalogs. Harmless (English fallback intact, all tests green); remove in a
+    cleanup pass when convenient — 7-catalog edit; watch the namespace-coverage test so you
+    don't drop the last key of a required namespace.
+
 ## Deferred by design (key-blocked — see BLOCKERS.md)
 
 X API (frozen at cap), OpenSanctions key, Companies House key, Comtrade key, zakupki

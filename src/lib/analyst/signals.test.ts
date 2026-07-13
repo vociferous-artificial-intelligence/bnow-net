@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   collectSignalEvidenceIds, detectDataDark, detectPurge, detectTradeDivergence,
-  evidenceForSignal, groupEvidenceRows, rankSignals,
+  evidenceForSignal, groupEvidenceRows, rankSignals, toPublicSignal,
   type PressureClaim, type Signal, type SignalEvidenceRow,
 } from "./signals";
 
@@ -155,5 +155,54 @@ describe("groupEvidenceRows + evidenceForSignal", () => {
       evidenceRefs: [], at: NOW,
     };
     expect(evidenceForSignal(signal, byClaim).map((c) => c.claimId)).toEqual([2, 5]);
+  });
+});
+
+describe("toPublicSignal — the teaser withheld of specifics (IA refinement TASK 3)", () => {
+  // A realistic purge signal whose detail names living individuals.
+  const purge = detectPurge(
+    [
+      { claimId: 11, entityName: "Ivanov", entityKind: "person", role: "defendant", claimDate: "2026-07-01" },
+      { claimId: 12, entityName: "Petrov", entityKind: "person", role: "dismissed", claimDate: "2026-07-03" },
+      { claimId: 13, entityName: "Sidorov", entityKind: "person", role: "target", claimDate: "2026-07-05" },
+    ],
+    { windowDays: 14, minCount: 3, theater: "ru", nowIso: NOW },
+  )!;
+
+  it("keeps only the safe teaser fields and an aggregate evidence count", () => {
+    const pub = toPublicSignal(purge);
+    expect(pub).toEqual({
+      key: purge.key,
+      kind: "purge",
+      theater: "ru",
+      severity: purge.severity,
+      headline: purge.headline,
+      evidenceCount: 3,
+    });
+  });
+
+  it("drops `detail`, `evidenceClaimIds` and `evidenceRefs` entirely", () => {
+    const pub = toPublicSignal(purge) as unknown as Record<string, unknown>;
+    expect("detail" in pub).toBe(false);
+    expect("evidenceClaimIds" in pub).toBe(false);
+    expect("evidenceRefs" in pub).toBe(false);
+  });
+
+  it("leaks no named individual — the projection's serialized JSON contains no target name", () => {
+    // detail names the targets (detectPurge lower-cases them); the projection must not,
+    // at any depth or case.
+    expect(purge.detail.toLowerCase()).toContain("ivanov");
+    const json = JSON.stringify(toPublicSignal(purge)).toLowerCase();
+    for (const name of ["ivanov", "petrov", "sidorov"]) {
+      expect(json).not.toContain(name);
+    }
+  });
+
+  it("headline itself is a count-only teaser (no target name)", () => {
+    const pub = toPublicSignal(purge);
+    for (const name of ["ivanov", "petrov", "sidorov"]) {
+      expect(pub.headline.toLowerCase()).not.toContain(name);
+    }
+    expect(pub.headline).toMatch(/officials under prosecution\/dismissal/);
   });
 });

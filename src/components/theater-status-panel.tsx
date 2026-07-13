@@ -176,8 +176,8 @@ export function TheaterStatusPanel({
                   so it never shifts the tab/query order of the two links above it,
                   and z-0 (implicit, below the z-10 links) keeps them independently
                   clickable on top of it. Points at the same digestHref the "Latest
-                  digest" row already links to (including its honest /countries#..
-                  fallback when no digest exists yet), so the whole-card target is
+                  digest" row already links to (including its honest /countries/<iso2>
+                  per-country-page fallback when no digest exists yet), so the whole-card target is
                   never a lie the row link doesn't already tell. */}
               <Link
                 href={entry.digestHref}

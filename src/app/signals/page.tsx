@@ -2,7 +2,7 @@ import Link from "next/link";
 import { rawSql } from "@/db";
 import { computeSignals } from "@/lib/analyst/run";
 import {
-  collectSignalEvidenceIds, evidenceForSignal, groupEvidenceRows,
+  collectSignalEvidenceIds, evidenceForSignal, groupEvidenceRows, toPublicSignal,
   type EvidenceClaim, type SignalEvidenceRow,
 } from "@/lib/analyst/signals";
 import { currentUserEmail } from "@/lib/session";
@@ -36,11 +36,14 @@ export default async function SignalsPage() {
   const locale = await getLocale();
   const t = makeT(locale);
   // /signals is a PUBLIC page (docs/reviews/DESIGN-FUNCTION-EVAL-2026-07-11.md §0.5,
-  // D3) — claim text and source URLs are a gated benefit. currentUserEmail() (not
-  // requireUser()) is the boundary check here on purpose: requireUser()'s dev-mode
-  // FEATURE_AUTH_GATE bypass would leak evidence to anonymous visitors whenever the
-  // gate flag is off, which is fine for the *gated* pages (their layout redirects
-  // instead) but wrong for a page that has no redirect at all.
+  // D3) with a teaser-public / specifics-gated split (IA-REFINEMENT-REVIEW.md TASK 3):
+  // the headline count + type is public; the `detail` specifics (named individuals,
+  // suppressed-series labels, flow lists), claim text and source URLs are a gated
+  // benefit. currentUserEmail() (not requireUser()) is the boundary check here on
+  // purpose: requireUser()'s dev-mode FEATURE_AUTH_GATE bypass would leak the gated
+  // fields to anonymous visitors whenever the gate flag is off, which is fine for the
+  // *gated* pages (their layout redirects instead) but wrong for a page that has no
+  // redirect at all. `signedIn` gates both the evidence query below and the render.
   const signedIn = (await currentUserEmail()) !== null;
 
   let signals: Awaited<ReturnType<typeof computeSignals>> = [];
@@ -91,46 +94,59 @@ export default async function SignalsPage() {
       ) : (
         <div className="space-y-3">
           {signals.map((s) => {
-            const claims = s.evidenceClaimIds.length > 0 ? evidenceForSignal(s, evidenceByClaim) : [];
+            // The public projection carries only the safe teaser (severity, theater, kind,
+            // headline count, evidence count). For signed-out visitors we render ONLY these
+            // fields — `s.detail` (names / suppressed-series labels / flow lists) and the
+            // per-claim evidence are referenced solely inside the `signedIn` branch, so they
+            // never enter the server-rendered HTML for anonymous clients (data-layer
+            // withholding; IA-REFINEMENT-REVIEW.md TASK 3). Signals never share a claim id.
+            const pub = toPublicSignal(s);
+            const claims = signedIn && s.evidenceClaimIds.length > 0 ? evidenceForSignal(s, evidenceByClaim) : [];
             return (
-              <div key={s.key} className={`rounded-lg border-2 p-4 ${SEV_STYLE[s.severity]}`}>
+              <div key={pub.key} className={`rounded-lg border-2 p-4 ${SEV_STYLE[pub.severity]}`}>
                 <div className="mb-1 flex items-center gap-2">
-                  <span className={`rounded px-1.5 py-0.5 text-xs font-semibold uppercase ${SEV_BADGE[s.severity]}`}>
-                    {s.severity}
+                  <span className={`rounded px-1.5 py-0.5 text-xs font-semibold uppercase ${SEV_BADGE[pub.severity]}`}>
+                    {pub.severity}
                   </span>
                   <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-gray-800">
-                    {s.theater.toUpperCase()} · {s.kind}
+                    {pub.theater.toUpperCase()} · {pub.kind}
                   </span>
-                  <h2 className="font-semibold">{s.headline}</h2>
+                  <h2 className="font-semibold">{pub.headline}</h2>
                 </div>
-                <p className="text-sm text-gray-600 dark:text-gray-300">{s.detail}</p>
 
-                {s.evidenceClaimIds.length > 0 && (
-                  signedIn ? (
-                    <details className="mt-1">
-                      <summary className="cursor-pointer text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                        {s.evidenceClaimIds.length} {t("signals.evidence.summary")}
-                      </summary>
-                      <ul className="mt-2 space-y-3 border-l border-gray-200 pl-3 dark:border-gray-800">
-                        {claims.map((c) => (
-                          <li key={c.claimId} className="text-sm">
-                            <span className={`mr-2 rounded px-1.5 py-0.5 text-xs ${HEDGE_COLORS[c.hedging] ?? HEDGE_COLORS.unknown}`}>
-                              {c.hedging}
-                            </span>
-                            {c.text}
-                            <ClaimSources docs={c.docs} showScores={false} t={t} />
-                          </li>
-                        ))}
-                      </ul>
-                    </details>
-                  ) : (
-                    <p className="mt-1 text-xs text-gray-400">
-                      {s.evidenceClaimIds.length} {t("signals.evidence.public")} ·{" "}
-                      <Link href="/signin" className="underline">
-                        {t("signals.evidence.signin_prompt")}
-                      </Link>
-                    </p>
-                  )
+                {signedIn ? (
+                  <>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">{s.detail}</p>
+                    {pub.evidenceCount > 0 && (
+                      <details className="mt-1">
+                        <summary className="cursor-pointer text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                          {pub.evidenceCount} {t("signals.evidence.summary")}
+                        </summary>
+                        <ul className="mt-2 space-y-3 border-l border-gray-200 pl-3 dark:border-gray-800">
+                          {claims.map((c) => (
+                            <li key={c.claimId} className="text-sm">
+                              <span className={`mr-2 rounded px-1.5 py-0.5 text-xs ${HEDGE_COLORS[c.hedging] ?? HEDGE_COLORS.unknown}`}>
+                                {c.hedging}
+                              </span>
+                              {c.text}
+                              <ClaimSources docs={c.docs} showScores={false} t={t} />
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </>
+                ) : (
+                  <p className="mt-1 text-xs text-gray-400">
+                    {pub.evidenceCount > 0 && (
+                      <>
+                        {pub.evidenceCount} {t("signals.evidence.public")} ·{" "}
+                      </>
+                    )}
+                    <Link href="/signin" className="underline">
+                      {t("signals.evidence.signin_prompt")}
+                    </Link>
+                  </p>
                 )}
               </div>
             );

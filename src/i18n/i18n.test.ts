@@ -243,7 +243,9 @@ describe("no regression for existing en / uk", () => {
     expect(t("nav.pricing")).toBe("тарифи");
     expect(t("nav.scoreboard")).toBe("таблиця оцінок");
     expect(t("home.cta.scoreboard")).toBe("Переглянути таблицю");
-    expect(t("home.live")).toBe("У прямому ефірі: Росія · Україна · Іран");
+    expect(t("home.live", { n: 8 })).toBe(
+      "У прямому ефірі: 8 театрів — щоденна глибина в Росії, Україні та Ірані",
+    );
     expect(t("common.status")).toBe("стан");
   });
 });
