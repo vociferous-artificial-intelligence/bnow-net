@@ -18,21 +18,27 @@ export async function computeSignals(nowIso: string): Promise<Signal[]> {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const signals: Signal[] = [];
   try {
-    // purge pattern per validated-elite theater (ru, ir)
+    // purge pattern per validated-elite theater (ru, ir). Candidates are PEOPLE
+    // only, filtered at the query boundary (e.kind = 'person') AND rechecked in
+    // the pure predicate (isPressureClaim) — Workstream C, 2026-07-13. Text and
+    // hedging ride along as the predicate's semantic inputs.
     for (const theater of ["ru", "ir"]) {
       const { rows } = await pool.query(
-        `SELECT cl.id AS claim_id, e.name AS entity_name, e.kind AS entity_kind,
-                ce.role, cl.claim_date::text AS claim_date
+        `SELECT cl.id AS claim_id, e.id AS entity_id, e.name AS entity_name,
+                e.kind AS entity_kind, ce.role, cl.claim_date::text AS claim_date,
+                cl.text, cl.hedging
          FROM claims cl
          JOIN claim_entities ce ON ce.claim_id = cl.id
          JOIN entities e ON e.id = ce.entity_id
          JOIN countries c ON c.id = cl.country_id
-         WHERE c.iso2 = $1 AND cl.claim_date > (CURRENT_DATE - INTERVAL '30 days')`,
+         WHERE c.iso2 = $1 AND e.kind = 'person'
+           AND cl.claim_date > (CURRENT_DATE - INTERVAL '30 days')`,
         [theater],
       );
       const claims: PressureClaim[] = rows.map((r) => ({
-        claimId: r.claim_id, entityName: r.entity_name, entityKind: r.entity_kind,
-        role: r.role, claimDate: r.claim_date,
+        claimId: r.claim_id, entityId: r.entity_id, entityName: r.entity_name,
+        entityKind: r.entity_kind, role: r.role, claimDate: r.claim_date,
+        text: r.text, hedging: r.hedging,
       }));
       const purge = detectPurge(claims, { windowDays: 14, minCount: 3, theater, nowIso });
       if (purge) signals.push(purge);

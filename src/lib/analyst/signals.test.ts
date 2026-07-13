@@ -1,44 +1,119 @@
 import { describe, expect, it } from "vitest";
 import {
   collectSignalEvidenceIds, detectDataDark, detectPurge, detectTradeDivergence,
-  evidenceForSignal, groupEvidenceRows, rankSignals, toPublicSignal,
+  evidenceForSignal, groupEvidenceRows, isPressureClaim, rankSignals, toPublicSignal,
   type PressureClaim, type Signal, type SignalEvidenceRow,
 } from "./signals";
 
 const NOW = "2026-07-06T12:00:00Z";
 
-describe("detectPurge", () => {
-  const mk = (id: number, name: string, role: string, date: string): PressureClaim => ({
-    claimId: id, entityName: name, entityKind: "person", role, claimDate: date,
+// Factory: defaults model the common qualifying case (person, defendant role,
+// prosecution text). Overrides drive every negative below.
+const mk = (
+  id: number,
+  name: string,
+  role: string,
+  date: string,
+  over: Partial<PressureClaim> = {},
+): PressureClaim => ({
+  claimId: id, entityId: id * 100, entityName: name, entityKind: "person", role,
+  claimDate: date, text: `${name} was arrested pending trial`, hedging: "claimed",
+  ...over,
+});
+
+describe("isPressureClaim (the audited qualifier)", () => {
+  it("qualifies a prosecution defendant and a dismissed official by role alone", () => {
+    expect(isPressureClaim(mk(1, "Ivanov", "defendant", "2026-07-01", { text: "unrelated text" }))).toBe(true);
+    expect(isPressureClaim(mk(2, "Petrov", "dismissed", "2026-07-01", { text: "unrelated text" }))).toBe(true);
   });
-  it("fires on >=3 distinct targets in window", () => {
+
+  it("never qualifies organizations, governments, courts, agencies or countries — whatever the role", () => {
+    for (const [name, kind] of [
+      ["NATO", "org"],
+      ["Israeli government", "agency"],
+      ["Supreme Court of Israel", "org"],
+      ["Iran", "org"],
+      ["Al Udeid Air Base", "org"],
+      ["Freedom of Russia Legion", "faction"],
+    ] as const) {
+      expect(
+        isPressureClaim(mk(1, name, "target", "2026-07-01", { entityKind: kind })),
+        `${kind}:${name} must not qualify`,
+      ).toBe(false);
+      expect(
+        isPressureClaim(mk(1, name, "defendant", "2026-07-01", { entityKind: kind })),
+      ).toBe(false);
+    }
+  });
+
+  it("role='target' alone is not evidence — a military strike target never qualifies", () => {
+    expect(
+      isPressureClaim(
+        mk(1, "Oleg Sidorov", "target", "2026-07-01", {
+          text: "Drone strike targeted the command post where Oleg Sidorov was located",
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("role='target' qualifies only when the text carries procedural pressure semantics", () => {
+    expect(
+      isPressureClaim(
+        mk(1, "Ivan Petrov", "target", "2026-07-01", {
+          text: "Ivan Petrov was detained on embezzlement charges",
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("topic nouns without a proceeding do not qualify (the Graham death story)", () => {
+    expect(
+      isPressureClaim(
+        mk(1, "Lindsey Graham", "target", "2026-07-01", {
+          text: "US Senator Lindsey Graham died unexpectedly amid reports of corruption schemes",
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("acting parties (prosecutor, patron, appointee, free-text titles) never qualify even with pressure text", () => {
+    for (const role of ["prosecutor", "beneficiary", "patron", "appointee", "President of Ukraine"]) {
+      expect(
+        isPressureClaim(mk(1, "A", role, "2026-07-01", { text: "announced the arrest of three officials" })),
+        `role ${role} must not qualify`,
+      ).toBe(false);
+    }
+  });
+});
+
+describe("detectPurge", () => {
+  it("fires on >=3 distinct qualifying people in window", () => {
     const claims = [
       mk(1, "Ivanov", "defendant", "2026-07-01"),
       mk(2, "Petrov", "dismissed", "2026-07-03"),
-      mk(3, "Sidorov", "target", "2026-07-05"),
+      mk(3, "Sidorov", "target", "2026-07-05", { text: "Sidorov charged with fraud" }),
     ];
     const s = detectPurge(claims, { windowDays: 14, minCount: 3, theater: "ru", nowIso: NOW });
     expect(s).not.toBeNull();
     expect(s!.kind).toBe("purge");
     expect(s!.evidenceClaimIds).toEqual([1, 2, 3]);
   });
+
   it("dedupes evidenceClaimIds when one claim names >1 watched entity (B1)", () => {
-    // mirrors the live shape: 32 (claim, entity, role) edges over 30 distinct claims —
-    // scaled down here to 2 claims each carrying 2 entity edges among 4 single-edge
-    // claims, so 8 edges collapse to 6 distinct ids.
     const claims = [
       mk(1, "Ivanov", "defendant", "2026-07-01"),
       mk(1, "Sidorov", "defendant", "2026-07-01"), // same claim, second watched entity
       mk(2, "Petrov", "dismissed", "2026-07-02"),
-      mk(2, "Orlova", "target", "2026-07-02"), // same claim, second watched entity
+      mk(2, "Orlova", "defendant", "2026-07-02"), // same claim, second watched entity
       mk(3, "Volkov", "defendant", "2026-07-03"),
-      mk(4, "Zaitsev", "target", "2026-07-04"),
+      mk(4, "Zaitsev", "defendant", "2026-07-04"),
     ];
     const s = detectPurge(claims, { windowDays: 14, minCount: 3, theater: "ru", nowIso: NOW });
     expect(s).not.toBeNull();
     expect(s!.evidenceClaimIds).toEqual([1, 2, 3, 4]); // 6 edges -> 4 distinct claim ids
     expect(s!.evidenceClaimIds).toHaveLength(new Set(s!.evidenceClaimIds).size);
   });
+
   it("does not fire below threshold or outside window", () => {
     const claims = [
       mk(1, "Ivanov", "defendant", "2026-07-01"),
@@ -46,19 +121,68 @@ describe("detectPurge", () => {
     ];
     expect(detectPurge(claims, { windowDays: 14, minCount: 3, theater: "ru", nowIso: NOW })).toBeNull();
   });
+
+  it("counts canonical people — alias spellings and honorifics do not inflate the count", () => {
+    // Three spellings of one person (the live ir triple-count) + one other person = 2 people.
+    const claims = [
+      mk(1, "Ali Khamenei", "defendant", "2026-07-01"),
+      mk(2, "Ayatollah Ali Khamenei", "defendant", "2026-07-02"),
+      mk(3, "Ayatollah Seyyed Ali Khamenei", "defendant", "2026-07-03"),
+      mk(4, "Hossein Salami", "defendant", "2026-07-04"),
+    ];
+    expect(detectPurge(claims, { windowDays: 14, minCount: 3, theater: "ir", nowIso: NOW })).toBeNull();
+    const s = detectPurge(claims, { windowDays: 14, minCount: 2, theater: "ir", nowIso: NOW });
+    expect(s!.headline).toMatch(/^2 officials/);
+  });
+
+  it("evidence list contains ONLY qualifying claims — strike/junk edges never ride along", () => {
+    const claims = [
+      mk(1, "Ivanov", "defendant", "2026-07-01"),
+      mk(2, "Petrov", "dismissed", "2026-07-02"),
+      mk(3, "Volkov", "defendant", "2026-07-03"),
+      // Non-qualifying edges that share the window:
+      mk(50, "Oleg Sidorov", "target", "2026-07-04", {
+        text: "Drone strike targeted the command post where Oleg Sidorov was located",
+      }),
+      mk(51, "NATO", "target", "2026-07-04", { entityKind: "org" }),
+      mk(52, "Lindsey Graham", "target", "2026-07-05", {
+        text: "US Senator Lindsey Graham died unexpectedly amid reports of corruption schemes",
+      }),
+    ];
+    const s = detectPurge(claims, { windowDays: 14, minCount: 3, theater: "ru", nowIso: NOW });
+    expect(s!.evidenceClaimIds).toEqual([1, 2, 3]);
+  });
+
   it("ignores non-pressure roles", () => {
     const claims = [
-      mk(1, "A", "prosecutor", "2026-07-01"),
-      mk(2, "B", "beneficiary", "2026-07-02"),
-      mk(3, "C", "other", "2026-07-03"),
+      mk(1, "A", "prosecutor", "2026-07-01", { text: "no proceeding text" }),
+      mk(2, "B", "beneficiary", "2026-07-02", { text: "no proceeding text" }),
+      mk(3, "C", "other", "2026-07-03", { text: "no proceeding text" }),
     ];
     expect(detectPurge(claims, { windowDays: 14, minCount: 3, theater: "ru", nowIso: NOW })).toBeNull();
   });
+
   it("escalates severity when doubled", () => {
     const claims = Array.from({ length: 6 }, (_, i) =>
-      mk(i + 1, `P${i}`, "defendant", "2026-07-02"));
+      mk(i + 1, `Person${i}`, "defendant", "2026-07-02"));
     const s = detectPurge(claims, { windowDays: 14, minCount: 3, theater: "ru", nowIso: NOW });
     expect(s!.severity).toBe("elevated");
+  });
+
+  it("detail carries role/count language + review qualification — never names, never 'purge' as a conclusion", () => {
+    const claims = [
+      mk(1, "Ivanov", "defendant", "2026-07-01"),
+      mk(2, "Petrov", "dismissed", "2026-07-03"),
+      mk(3, "Volkov", "defendant", "2026-07-05"),
+    ];
+    const s = detectPurge(claims, { windowDays: 14, minCount: 3, theater: "ru", nowIso: NOW })!;
+    expect(s.detail).toContain("Analyst review required");
+    expect(s.detail).toContain("prosecutions/dismissals");
+    expect(s.detail.toLowerCase()).not.toContain("purge");
+    expect(s.detail).not.toContain("Targets incl.");
+    for (const name of ["Ivanov", "Petrov", "Volkov"]) {
+      expect(s.detail.toLowerCase()).not.toContain(name.toLowerCase());
+    }
   });
 });
 
@@ -159,12 +283,15 @@ describe("groupEvidenceRows + evidenceForSignal", () => {
 });
 
 describe("toPublicSignal — the teaser withheld of specifics (IA refinement TASK 3)", () => {
-  // A realistic purge signal whose detail names living individuals.
+  const pc = (claimId: number, name: string, role: string, date: string): PressureClaim => ({
+    claimId, entityId: claimId, entityName: name, entityKind: "person", role,
+    claimDate: date, text: `${name} was arrested pending trial`, hedging: "claimed",
+  });
   const purge = detectPurge(
     [
-      { claimId: 11, entityName: "Ivanov", entityKind: "person", role: "defendant", claimDate: "2026-07-01" },
-      { claimId: 12, entityName: "Petrov", entityKind: "person", role: "dismissed", claimDate: "2026-07-03" },
-      { claimId: 13, entityName: "Sidorov", entityKind: "person", role: "target", claimDate: "2026-07-05" },
+      pc(11, "Ivanov", "defendant", "2026-07-01"),
+      pc(12, "Petrov", "dismissed", "2026-07-03"),
+      pc(13, "Sidorov", "defendant", "2026-07-05"),
     ],
     { windowDays: 14, minCount: 3, theater: "ru", nowIso: NOW },
   )!;
@@ -188,13 +315,14 @@ describe("toPublicSignal — the teaser withheld of specifics (IA refinement TAS
     expect("evidenceRefs" in pub).toBe(false);
   });
 
-  it("leaks no named individual — the projection's serialized JSON contains no target name", () => {
-    // detail names the targets (detectPurge lower-cases them); the projection must not,
-    // at any depth or case.
-    expect(purge.detail.toLowerCase()).toContain("ivanov");
-    const json = JSON.stringify(toPublicSignal(purge)).toLowerCase();
+  it("leaks no named individual at any layer — since 2026-07-13 even `detail` carries no names", () => {
+    const signalJson = JSON.stringify(purge).toLowerCase();
+    const publicJson = JSON.stringify(toPublicSignal(purge)).toLowerCase();
     for (const name of ["ivanov", "petrov", "sidorov"]) {
-      expect(json).not.toContain(name);
+      // Names live ONLY in the evidence claim texts fetched separately for
+      // accepted users — not in the signal object, not in the projection.
+      expect(publicJson).not.toContain(name);
+      expect(signalJson.replace(/"evidenceclaimids":\[[^\]]*\]/, "")).not.toContain(name);
     }
   });
 
