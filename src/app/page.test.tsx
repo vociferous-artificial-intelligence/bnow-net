@@ -1,6 +1,23 @@
 // @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+
+// The signed-in home is a subscriber surface: it redirects a signed-in user who has not accepted
+// the current policies to /welcome/legal before running any subscriber query. Mock the acceptance
+// check (default: accepted) and next/navigation's redirect (as a throwable signal).
+class RedirectSignal extends Error {
+  constructor(readonly to: string) {
+    super(`redirect:${to}`);
+  }
+}
+vi.mock("next/navigation", () => ({
+  redirect: (to: string) => {
+    throw new RedirectSignal(to);
+  },
+}));
+
+const acceptMock = vi.fn<() => Promise<boolean>>();
+vi.mock("@/lib/legal/acceptance", () => ({ hasCurrentAcceptanceByEmail: () => acceptMock() }));
 
 // The home page is an async server component doing rawSql queries directly (no
 // drizzle schema) and reading the session via @/lib/session — mocked wholesale so
@@ -34,6 +51,10 @@ const STATS_ROW = { sources: 10, citations: 20, docs: 30, runs: 5, activeTheater
 
 const Home = (await import("./page")).default;
 
+beforeEach(() => {
+  acceptMock.mockReset();
+  acceptMock.mockResolvedValue(true); // default: signed-in users have accepted the current policies
+});
 afterEach(cleanup);
 afterEach(() => {
   queryMock.mockReset();
@@ -308,5 +329,32 @@ describe("signed-out home: CTA + hero untouched (regression guard)", () => {
     // Live-now count is driven from the DB active-theater count (n=8 in STATS_ROW),
     // not a hardcoded three (IA refinement 2026-07-12: the 3-vs-8 fix).
     expect(screen.getByText(/^Live now: 8 theaters/)).toBeTruthy();
+  });
+});
+
+describe("legal acceptance gate on the signed-in home", () => {
+  it("redirects a signed-in user without current acceptance to /welcome/legal before any subscriber query", async () => {
+    emailMock.mockResolvedValue("user@example.com");
+    acceptMock.mockResolvedValue(false); // no current acceptance
+    // No queryMock setup: the redirect must fire BEFORE the stats/subscriber queries run.
+
+    let redirected: string | null = null;
+    try {
+      await Home();
+    } catch (e) {
+      if (e instanceof RedirectSignal) redirected = e.to;
+      else throw e;
+    }
+    expect(redirected).toBe("/welcome/legal");
+    expect(queryMock).not.toHaveBeenCalled();
+  });
+
+  it("does not touch acceptance or redirect for a signed-out visitor", async () => {
+    emailMock.mockResolvedValue(null);
+    queryMock.mockResolvedValueOnce([STATS_ROW]);
+
+    const element = await Home();
+    render(element);
+    expect(acceptMock).not.toHaveBeenCalled();
   });
 });

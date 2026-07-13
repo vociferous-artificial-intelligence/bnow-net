@@ -22,6 +22,11 @@ vi.mock("@/i18n/server", () => ({ getLocale: async () => "en" }));
 const emailMock = vi.fn<() => Promise<string | null>>();
 vi.mock("@/lib/session", () => ({ currentUserEmail: () => emailMock() }));
 
+// The gated specifics require CURRENT legal acceptance, not merely a session — mock the
+// acceptance check so a signed-in-but-not-accepted visitor is exercised too.
+const acceptMock = vi.fn<() => Promise<boolean>>();
+vi.mock("@/lib/legal/acceptance", () => ({ hasCurrentAcceptanceByEmail: () => acceptMock() }));
+
 const computeMock = vi.fn<() => Promise<Signal[]>>();
 vi.mock("@/lib/analyst/run", () => ({ computeSignals: () => computeMock() }));
 
@@ -49,6 +54,7 @@ afterEach(() => {
   emailMock.mockReset();
   computeMock.mockReset();
   queryMock.mockReset();
+  acceptMock.mockReset();
 });
 
 describe("/signals auth boundary", () => {
@@ -72,8 +78,9 @@ describe("/signals auth boundary", () => {
     expect(queryMock).not.toHaveBeenCalled();
   });
 
-  it("shows the detail specifics to a signed-in visitor", async () => {
+  it("shows the detail specifics to a signed-in visitor who has accepted the current policies", async () => {
     emailMock.mockResolvedValue("analyst@example.com");
+    acceptMock.mockResolvedValue(true); // current legal acceptance on record
     computeMock.mockResolvedValue([PURGE]);
     queryMock.mockResolvedValue([]); // evidence drill-down query (no rows needed for this assertion)
 
@@ -83,5 +90,24 @@ describe("/signals auth boundary", () => {
     expect(html).toContain("6 officials under prosecution/dismissal"); // teaser still there
     expect(html).toContain("Targets incl.");
     for (const name of NAMES) expect(html).toContain(name);
+  });
+
+  it("withholds detail from a signed-in visitor who has NOT accepted, nudging to /welcome/legal", async () => {
+    emailMock.mockResolvedValue("analyst@example.com");
+    acceptMock.mockResolvedValue(false); // signed in, but no current acceptance
+    computeMock.mockResolvedValue([PURGE]);
+
+    const { container } = render(await SignalsPage());
+    const html = container.innerHTML;
+
+    // Teaser present; specifics absent — same protection as the anonymous case.
+    expect(html).toContain("6 officials under prosecution/dismissal");
+    for (const name of NAMES) expect(html).not.toContain(name);
+    expect(html).not.toContain("Targets incl.");
+    // The nudge points at acceptance (not sign-in — the user is already signed in).
+    expect(container.textContent).toContain("accept the Terms to inspect the evidence");
+    expect(container.querySelector('a[href="/welcome/legal"]')).toBeTruthy();
+    // The gated evidence query never ran for the un-accepted request.
+    expect(queryMock).not.toHaveBeenCalled();
   });
 });

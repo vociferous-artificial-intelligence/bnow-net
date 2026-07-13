@@ -1,6 +1,6 @@
 "use server";
 
-import { requireUser } from "@/lib/gate";
+import { requireAcceptedUser } from "@/lib/gate";
 import { askWithLimits } from "@/lib/ask/limits";
 import { rawSql } from "@/db";
 import type { AskResultLike, ResolvedClaim } from "./ask-result";
@@ -22,7 +22,7 @@ export async function askAction(
   prevState: AskActionState | null,
   formData: FormData,
 ): Promise<AskActionState | null> {
-  const user = await requireUser();
+  const user = await requireAcceptedUser(); // gated: subscriber tool, requires acceptance too
   const question = String(formData.get("question") ?? "").trim().slice(0, 400);
   // Too short to be a real question: return the previous state unchanged — no
   // pipeline call, no charge, no error page (mirrors the API route's floor).

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireUser } from "@/lib/gate";
+import { requireAcceptedUser } from "@/lib/gate";
 import { getT } from "@/i18n/server";
 import { dict } from "@/i18n/dictionaries";
 import { AskForm } from "./ask-form";
@@ -18,7 +18,7 @@ export default async function AskPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
-  await requireUser();
+  await requireAcceptedUser(); // page gate matches the layout + action + API (acceptance too)
   const t = await getT();
   const { q } = await searchParams;
   const initialQuestion = q?.slice(0, 400) ?? "";

@@ -1,6 +1,6 @@
-import { requireUser } from "@/lib/gate";
+import { requireAcceptedUser } from "@/lib/gate";
 
 export default async function GatedLayout({ children }: { children: React.ReactNode }) {
-  await requireUser();
+  await requireAcceptedUser();
   return <>{children}</>;
 }

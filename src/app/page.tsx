@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { rawSql } from "@/db";
+import { hasCurrentAcceptanceByEmail } from "@/lib/legal/acceptance";
 import { getLocale } from "@/i18n/server";
 import { makeT } from "@/i18n/dictionaries";
 import { formatNumber } from "@/i18n/format";
@@ -79,6 +81,12 @@ export default async function Home() {
   const t = makeT(locale);
   const email = await currentUserEmail();
   const signedIn = email !== null;
+
+  // A signed-in user who has not accepted the current policies is routed to the acceptance
+  // screen BEFORE any subscriber-specific query runs or any recent-Ask question renders below
+  // (the signed-in home is a subscriber surface). Signed-out visitors are untouched: the public
+  // marketing home stays fully open.
+  if (email && !(await hasCurrentAcceptanceByEmail(email))) redirect("/welcome/legal");
 
   let stats = { sources: 0, citations: 0, docs: 0, runs: 0, activeTheaters: 0 };
   try {
@@ -476,11 +484,8 @@ export default async function Home() {
           </section>
         </>
       )}
-
-      <footer className="border-t border-gray-200 py-8 text-xs text-gray-400 dark:border-gray-800">
-        BNOW.NET · {t("home.footer")}
-        <Link href="/health" className="ms-2 underline">{t("common.status")}</Link>
-      </footer>
+      {/* The footer moved to the global SiteFooter (root layout), so it renders once site-wide
+          — including its Privacy Notice, Terms of Use, status, and contact links. */}
     </main>
   );
 }

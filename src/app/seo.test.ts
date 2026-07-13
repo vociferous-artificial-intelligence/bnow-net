@@ -23,9 +23,9 @@ afterEach(() => {
 });
 
 // The public marketing/teaser surface that must stay crawlable + in the sitemap.
-const PUBLIC = ["/", "/countries", "/scoreboard", "/pricing", "/signals", "/trade", "/critical-materials", "/datadark"];
+const PUBLIC = ["/", "/countries", "/scoreboard", "/pricing", "/signals", "/trade", "/critical-materials", "/datadark", "/privacy", "/terms"];
 // Routes that must be disallowed AND never appear in the sitemap.
-const GATED = ["/api/", "/admin/", "/account", "/signin", "/digests/", "/ask", "/search", "/entities/", "/registry", "/middle-east", "/health"];
+const GATED = ["/api/", "/admin/", "/account", "/signin", "/welcome/", "/digests/", "/ask", "/search", "/entities/", "/registry", "/middle-east", "/health"];
 
 describe("siteBaseUrl", () => {
   it("defaults to the brand host, honoring NEXT_PUBLIC_SITE_URL and trimming a trailing slash", () => {
@@ -60,10 +60,11 @@ describe("robots.txt policy", () => {
     for (const g of GATED) expect(disallow, `robots must disallow ${g}`).toContain(g);
   });
 
-  it("does NOT disallow the public teaser pages (they carry only safe content)", () => {
+  it("does NOT disallow the public teaser / legal pages (they carry only safe content)", () => {
     const disallow = rules().disallow as string[];
-    // /signals is public teaser; /countries, /scoreboard, /pricing are marketing.
-    for (const p of ["/signals", "/countries", "/scoreboard", "/pricing"]) {
+    // /signals is public teaser; /countries, /scoreboard, /pricing are marketing; the legal
+    // documents (/privacy, /terms) are public and indexable.
+    for (const p of ["/signals", "/countries", "/scoreboard", "/pricing", "/privacy", "/terms"]) {
       expect(disallow).not.toContain(p);
     }
   });

@@ -19,6 +19,8 @@ const STATIC_PATHS = [
   "/trade",
   "/critical-materials",
   "/datadark",
+  "/privacy",
+  "/terms",
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

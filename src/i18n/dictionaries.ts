@@ -380,6 +380,7 @@ const en: Dict = {
   "signals.evidence.summary": "supporting claim(s) — expand to inspect",
   "signals.evidence.public": "supporting claim(s) · traceable to sources",
   "signals.evidence.signin_prompt": "sign in to inspect the evidence",
+  "signals.evidence.accept_prompt": "accept the Terms to inspect the evidence",
 
   // Claim-source disclosure strip (shared by the digest page and signals evidence).
   "sources.more_summary": "+{n} more · {channels} channels · {platforms} platforms",
@@ -432,6 +433,12 @@ const en: Dict = {
   "auth.email_placeholder": "you@example.com",
   "auth.send_link": "Send magic link",
   "auth.sent": "Check your email for a sign-in link.",
+
+  // global footer (SiteFooter) — legal + status links on every ordinary page
+  "footer.nav_label": "Legal and site links",
+  "footer.privacy": "Privacy Notice",
+  "footer.terms": "Terms of Use",
+  "footer.contact": "Contact",
 
   // common loading / empty / error states
   "common.status": "status",
