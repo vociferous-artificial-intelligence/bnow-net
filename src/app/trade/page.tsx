@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getDivergence, latestTradeFetch } from "@/lib/trade/run";
+import { fetchWindowLabel, getDivergence, tradeFetchWindow } from "@/lib/trade/run";
 import { fmtM } from "@/lib/trade/divergence";
 import { WATCHED_HS } from "@/lib/trade/config";
 
@@ -9,10 +9,12 @@ const HS_LABEL = new Map(WATCHED_HS.map((h) => [h.code, h.label]));
 
 export default async function TradePage() {
   let rows: Awaited<ReturnType<typeof getDivergence>> = [];
-  let newestFetch: string | null = null;
+  let fetchLabel: string | null = null;
   try {
     rows = await getDivergence("X");
-    newestFetch = await latestTradeFetch();
+    // Provenance shares the data query's cohort (flow X, partner Russia) — the
+    // materials job's newer import rows can never claim this page's fetch date.
+    fetchLabel = fetchWindowLabel(await tradeFetchWindow("X"));
   } catch {
     // table empty until first pull
   }
@@ -117,7 +119,7 @@ export default async function TradePage() {
         </a>{" "}
         (official database) — partner-reported goods exports (flow X) from each listed hub
         (reporter) to Russia (partner M49 643), annual HS-code series {"2021\u20132024"}
-        {newestFetch ? <> · last fetched {newestFetch.slice(0, 10)}</> : null}. Query shape:{" "}
+        {fetchLabel ? <> · {fetchLabel}</> : null}. Query shape:{" "}
         <a
           href="https://uncomtrade.org/docs/"
           rel="noopener noreferrer nofollow"

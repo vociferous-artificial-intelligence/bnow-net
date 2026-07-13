@@ -48,18 +48,45 @@ export async function pullTrade(): Promise<TradePullStats> {
   }
 }
 
-/** Newest fetched_at across the RU bilateral rows — provenance display only. */
-export async function latestTradeFetch(): Promise<string | null> {
+/** The /trade page's displayed cohort: partner-reported flows to Russia in ONE
+ *  flow direction. SHARED by the data query (getDivergence) and the provenance
+ *  query (tradeFetchWindow) so the displayed fetch date can never come from
+ *  rows the page does not show — the materials job writes US IMPORT rows
+ *  (flow 'M') into the same table, and Russia can appear among its partners
+ *  with a newer fetched_at (2026-07-13 remediation). Bind $1 = RUSSIA_CODE,
+ *  $2 = flow. */
+export const TRADE_COHORT_SQL = `FROM trade_flows WHERE partner_code = $1 AND flow_code = $2`;
+
+export interface TradeFetchWindow {
+  oldest: string;
+  newest: string;
+}
+
+/** fetched_at range across the displayed cohort — provenance display only.
+ *  Null when the cohort is empty (never a date borrowed from another job). */
+export async function tradeFetchWindow(flow: "X" | "M" = "X"): Promise<TradeFetchWindow | null> {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
     const { rows } = await pool.query(
-      `SELECT max(fetched_at)::text AS latest FROM trade_flows WHERE partner_code = $1`,
-      [RUSSIA_CODE],
+      `SELECT min(fetched_at)::text AS oldest, max(fetched_at)::text AS newest ${TRADE_COHORT_SQL}`,
+      [RUSSIA_CODE, flow],
     );
-    return (rows[0]?.latest as string | null) ?? null;
+    const r = rows[0] as { oldest: string | null; newest: string | null } | undefined;
+    if (!r?.oldest || !r?.newest) return null;
+    return { oldest: r.oldest, newest: r.newest };
   } finally {
     await pool.end();
   }
+}
+
+/** Provenance wording for the fetch window: a single date only when the whole
+ *  cohort was fetched on the same day; an explicit range otherwise, so a lone
+ *  refreshed reporter never overstates the rest of the dataset's freshness. */
+export function fetchWindowLabel(w: TradeFetchWindow | null): string | null {
+  if (!w) return null;
+  const oldest = w.oldest.slice(0, 10);
+  const newest = w.newest.slice(0, 10);
+  return oldest === newest ? `last fetched ${oldest}` : `fetched between ${oldest} and ${newest}`;
 }
 
 export async function getDivergence(flow: "X" | "M" = "X"): Promise<DivergenceRow[]> {
@@ -67,8 +94,8 @@ export async function getDivergence(flow: "X" | "M" = "X"): Promise<DivergenceRo
   try {
     const { rows } = await pool.query(
       `SELECT reporter_code, reporter_name, hs_code, period, value_usd
-       FROM trade_flows WHERE partner_code = 643 AND flow_code = $1`,
-      [flow],
+       ${TRADE_COHORT_SQL}`,
+      [RUSSIA_CODE, flow],
     );
     const flows: FlowPoint[] = rows.map((r) => ({
       reporterCode: r.reporter_code,
