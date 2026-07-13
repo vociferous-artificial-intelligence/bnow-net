@@ -56,7 +56,7 @@ function AskFormFields({
           placeholder={t("ask.placeholder")}
           disabled={pending}
           // a disabled input also suppresses an Enter-key resubmit while pending
-          className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+          className="min-w-0 flex-1 rounded border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
         />
         <button
           type="submit"

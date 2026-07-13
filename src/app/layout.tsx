@@ -42,7 +42,15 @@ export default async function RootLayout({
           {t("common.skip_to_content")}
         </a>
         <SiteHeader />
-        {children}
+        {/* Shared width boundary (390px audit, 2026-07-13): every page's <main> was a
+            direct flex item of the flex-col body, and Chromium floors a stretched flex
+            item at its min-content width — one wide table made the whole document
+            ~600px+ at a 390px viewport (measured live on /trade, /scoreboard,
+            /datadark). This plain block wrapper (w-full min-w-0, flex-1 keeps the
+            footer pinned) releases that floor for ALL pages at once; wide content then
+            scrolls inside its local overflow-x-auto container, never the document.
+            Deliberately NOT overflow-x-hidden: clipping would hide layout bugs. */}
+        <div className="w-full min-w-0 flex-1">{children}</div>
         <SiteFooter />
       </body>
     </html>

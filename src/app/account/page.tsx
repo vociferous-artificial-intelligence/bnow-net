@@ -62,7 +62,7 @@ export default async function AccountPage() {
       <p className="mb-1 text-sm text-gray-500">
         <Link href="/" className="underline">BNOW.NET</Link> · account
       </p>
-      <h1 className="mb-4 text-xl font-bold">{email}</h1>
+      <h1 className="mb-4 break-all text-xl font-bold">{email}</h1>
       {subs.length > 0 ? (
         !stripeEnabled && hasActiveAccess ? (
           <p className="mb-6 text-sm font-medium">

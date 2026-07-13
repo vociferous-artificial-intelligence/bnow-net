@@ -318,7 +318,7 @@ export default async function Home() {
   }
 
   return (
-    <main id="main" className="mx-auto max-w-5xl px-6">
+    <main id="main" className="mx-auto w-full min-w-0 max-w-5xl px-6">
       <section className={signedIn ? "py-6 text-center" : "py-20 text-center"}>
         {signedIn ? (
           // Working home: a one-line headline, nothing else. No subtitle, no CTA

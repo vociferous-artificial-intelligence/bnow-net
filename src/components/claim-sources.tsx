@@ -140,8 +140,11 @@ export function selectClaimDocs(
   };
 }
 
+// max-w + truncate: sourceKey is a canonical URL — an unbroken mono string that
+// otherwise forces page-level horizontal scroll at mobile widths (390px audit,
+// 2026-07-13). The full value stays reachable via the title tooltip + href.
 const CHIP_CLASS =
-  "rounded border border-gray-300 px-1.5 py-0.5 font-mono text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800";
+  "inline-flex max-w-[260px] items-baseline rounded border border-gray-300 px-1.5 py-0.5 font-mono text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800";
 
 function Chip({ doc, showScores }: { doc: ClaimSourceDoc; showScores: boolean }) {
   return (
@@ -152,8 +155,11 @@ function Chip({ doc, showScores }: { doc: ClaimSourceDoc; showScores: boolean })
       className={CHIP_CLASS}
       title={doc.title ?? undefined}
     >
-      {doc.sourceKey ?? doc.adapter}#{doc.docId}
-      {showScores && doc.reliability !== null && ` · ${doc.reliability.toFixed(2)}`}
+      <span className="truncate">{doc.sourceKey ?? doc.adapter}</span>
+      <span className="shrink-0">
+        #{doc.docId}
+        {showScores && doc.reliability !== null && ` · ${doc.reliability.toFixed(2)}`}
+      </span>
     </a>
   );
 }

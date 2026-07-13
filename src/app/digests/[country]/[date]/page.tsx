@@ -271,7 +271,7 @@ export default async function DigestPage({
             {events &&
               orderedEvents.map((ev, i) => (
                 <section key={i} className="mb-5 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
-                  <div className="mb-1 flex items-center gap-2">
+                  <div className="mb-1 flex flex-wrap items-center gap-2">
                     <span className="rounded bg-gray-200 px-1.5 py-0.5 text-xs uppercase dark:bg-gray-700">
                       {ev.type}
                     </span>

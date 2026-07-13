@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { localesByPriority, makeT } from "@/i18n/dictionaries";
@@ -239,6 +239,52 @@ describe("dropdown accessibility", () => {
     await act(async () => nav.getByRole("button", { name: "Solutions" }).focus());
     expect(screen.queryByRole("menu", { name: "Coverage" })).toBeNull();
     expect(coverage.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  // F2 (2026-07-13): the production finding "two dropdowns open at once" came from a
+  // synthetic HTMLElement.click() probe. Real user input cannot reproduce it — a
+  // trusted pointer sequence fires pointerdown first (the outside-pointerdown
+  // listener closes the other menu before the click toggles this one), and the
+  // keyboard path moves focus (the focusout handler closes it). Both are pinned
+  // here with trusted-event simulation.
+  it("REAL pointer input on a second trigger closes the first menu — never two open", async () => {
+    const user = userEvent.setup(); // fires pointerdown -> mousedown -> click, like a real pointer
+    renderHeader();
+    const nav = within(mainNav());
+
+    await user.click(nav.getByRole("button", { name: "Coverage" }));
+    expect(screen.getByRole("menu", { name: "Coverage" })).toBeTruthy();
+
+    await user.click(nav.getByRole("button", { name: "Solutions" }));
+    expect(screen.getAllByRole("menu")).toHaveLength(1);
+    expect(screen.getByRole("menu", { name: "Solutions" })).toBeTruthy();
+    expect(screen.queryByRole("menu", { name: "Coverage" })).toBeNull();
+  });
+
+  it("real pointer input keeps account/language menus exclusive with nav dropdowns too", async () => {
+    const user = userEvent.setup();
+    renderHeader({ signedIn: true });
+    const nav = within(mainNav());
+
+    await user.click(nav.getByRole("button", { name: "Coverage" }));
+    await user.click(screen.getByRole("button", { name: "Language" }));
+    expect(screen.getAllByRole("menu")).toHaveLength(1);
+    expect(screen.getByRole("menu", { name: "Language" })).toBeTruthy();
+  });
+
+  it("documents the synthetic-.click() gap: a click with NO pointerdown and NO focus move bypasses both close paths", () => {
+    // fireEvent.click models HTMLElement.click(): no pointerdown, no focus change.
+    // This is the ONLY input shape that yields two open menus, and it is not a
+    // shape real pointers, keyboards, or (in practice) screen readers emit —
+    // NVDA/VoiceOver activations move focus, which the focusout handler catches.
+    // Per the sprint ruling we document the repro instead of adding cross-instance
+    // global state for an input no user can produce.
+    renderHeader();
+    const nav = within(mainNav());
+
+    fireEvent.click(nav.getByRole("button", { name: "Coverage" }));
+    fireEvent.click(nav.getByRole("button", { name: "Solutions" }));
+    expect(screen.getAllByRole("menu")).toHaveLength(2); // the synthetic-only artifact
   });
 });
 

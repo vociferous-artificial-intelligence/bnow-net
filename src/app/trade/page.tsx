@@ -38,7 +38,10 @@ export default async function TradePage() {
       ) : (
         <>
           <h2 className="mb-2 text-sm font-semibold">Flagged dual-use flows (rerouting suspects)</h2>
-          <table className="mb-8 w-full text-sm">
+          {/* Wide data tables scroll inside their own container — the document must
+              never scroll horizontally at mobile widths (390px audit, 2026-07-13). */}
+          <div className="mb-8 overflow-x-auto">
+          <table className="w-full min-w-[560px] text-sm">
             <thead>
               <tr className="border-b-2 border-gray-300 text-left dark:border-gray-700">
                 <th className="py-2">transit hub</th>
@@ -68,9 +71,11 @@ export default async function TradePage() {
               ))}
             </tbody>
           </table>
+          </div>
 
           <h2 className="mb-2 text-sm font-semibold">Total reconstructed exports to Russia</h2>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[480px] text-sm">
             <thead>
               <tr className="border-b-2 border-gray-300 text-left dark:border-gray-700">
                 <th className="py-2">transit hub</th>
@@ -94,6 +99,7 @@ export default async function TradePage() {
               ))}
             </tbody>
           </table>
+          </div>
         </>
       )}
 

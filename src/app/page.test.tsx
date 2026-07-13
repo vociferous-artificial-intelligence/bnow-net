@@ -372,3 +372,14 @@ describe("legal acceptance gate on the signed-in home", () => {
     expect(acceptMock).not.toHaveBeenCalled();
   });
 });
+
+describe("main container width guard (390px audit, 2026-07-13)", () => {
+  it("the home <main> carries w-full min-w-0 so no flex/grid context can widen it", async () => {
+    emailMock.mockResolvedValue(null);
+    queryMock.mockResolvedValueOnce([STATS_ROW]);
+    const { container } = render(await Home());
+    const main = container.querySelector("main#main")!;
+    expect(main.className).toContain("min-w-0");
+    expect(main.className).toContain("w-full");
+  });
+});

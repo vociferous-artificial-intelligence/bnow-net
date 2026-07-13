@@ -379,3 +379,15 @@ describe("legacy-shape input", () => {
     expect(screen.queryByText(/covered corpus/)).toBeNull();
   });
 });
+
+describe("answer body word wrapping (390px audit, 2026-07-13)", () => {
+  it("breaks long unbroken tokens so the answer can never widen the document", () => {
+    const { container } = render(
+      <AskResult result={baseResult({ answer: "See https://example.com/" + "a".repeat(300) })} cited={[]} related={[]} t={t} />,
+    );
+    const body = Array.from(container.querySelectorAll("div")).find((d) =>
+      d.className.includes("whitespace-pre-wrap"),
+    );
+    expect(body?.className).toContain("break-words");
+  });
+});
