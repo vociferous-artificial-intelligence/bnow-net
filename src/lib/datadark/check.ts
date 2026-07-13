@@ -10,6 +10,11 @@
 //      The old unchanged-across-polls rule remains for unparseable labels.
 //   3. A parse that is OLDER than a credible stored period does not overwrite it;
 //      the anomaly is surfaced (ProbeResult.anomaly) and recorded in history.
+//   4. (remediation, same day) Period age respects label GRANULARITY: a parsed
+//      period is a range, aged from its END. A bare "2026" on a hub page used to
+//      map to Jan 1 and go falsely stale mid-year (cbr-statistics, cadence 45,
+//      would have flipped ~2026-04-01 under fix 2). Impossible calendar dates
+//      (31.02.…) are rejected instead of rolling into the next month.
 
 export type SeriesStatus = "ok" | "stale" | "gone" | "classified" | "unreachable" | "unknown";
 
@@ -40,17 +45,40 @@ const RU_MONTHS = [
   "июл", "август", "сентябр", "октябр", "ноябр", "декабр",
 ];
 
-/** Parse a period label to a comparable UTC instant (epoch ms); null when the
- *  label has no recognizable date shape. Supported shapes (the configured
- *  periodRe outputs): "dd.mm.yyyy", "<russian month> yyyy", bare "yyyy". */
-export function parsePeriodLabel(label: string): number | null {
+export type PeriodGranularity = "day" | "month" | "year";
+
+/** A parsed period label as a RANGE, not an instant (2026-07-13 remediation):
+ *  a bare "2026" used to map to Jan 1 and read as ~193 days old in mid-2026,
+ *  falsely staling the CBR statistics hub. Ordering compares startMs; AGE is
+ *  measured from endMs — a period is only as old as the newest instant its
+ *  label can still denote. */
+export interface ParsedPeriod {
+  startMs: number;
+  /** exclusive end: the first instant AFTER the labeled period */
+  endMs: number;
+  granularity: PeriodGranularity;
+}
+
+/** Parse a period label to a comparable UTC range; null when the label has no
+ *  recognizable date shape or names an impossible calendar date (31.02.…).
+ *  Supported shapes (the configured periodRe outputs): "dd.mm.yyyy",
+ *  "<russian month> yyyy", bare "yyyy". */
+export function parsePeriodLabel(label: string): ParsedPeriod | null {
   const s = label.trim().toLowerCase();
   const dmy = s.match(/^(\d{2})\.(\d{2})\.(20\d\d)$/);
   if (dmy) {
-    const [, d, m, y] = dmy;
-    const mi = Number(m) - 1;
-    if (mi < 0 || mi > 11 || Number(d) < 1 || Number(d) > 31) return null;
-    return Date.UTC(Number(y), mi, Number(d));
+    const day = Number(dmy[1]);
+    const mi = Number(dmy[2]) - 1;
+    const year = Number(dmy[3]);
+    if (mi < 0 || mi > 11 || day < 1 || day > 31) return null;
+    const startMs = Date.UTC(year, mi, day);
+    const dt = new Date(startMs);
+    // Reject calendar rollovers (Date.UTC folds 31.02 into March): an impossible
+    // date is a bad parse, not a period.
+    if (dt.getUTCFullYear() !== year || dt.getUTCMonth() !== mi || dt.getUTCDate() !== day) {
+      return null;
+    }
+    return { startMs, endMs: Date.UTC(year, mi, day + 1), granularity: "day" };
   }
   const monthYear = s.match(/^([а-яё]+)\s+(20\d\d)$/);
   if (monthYear) {
@@ -65,12 +93,29 @@ export function parsePeriodLabel(label: string): number | null {
         bestLen = stem.length;
       }
     });
-    if (best >= 0) return Date.UTC(Number(monthYear[2]), best, 1);
+    if (best >= 0) {
+      const year = Number(monthYear[2]);
+      return {
+        startMs: Date.UTC(year, best, 1),
+        endMs: Date.UTC(year, best + 1, 1),
+        granularity: "month",
+      };
+    }
     return null;
   }
   const year = s.match(/^(20\d\d)$/);
-  if (year) return Date.UTC(Number(year[1]), 0, 1);
+  if (year) {
+    const y = Number(year[1]);
+    return { startMs: Date.UTC(y, 0, 1), endMs: Date.UTC(y + 1, 0, 1), granularity: "year" };
+  }
   return null;
+}
+
+/** Age in days of a parsed period at the poll instant, measured from the period
+ *  END: a label that can still denote the present (e.g. "2026" mid-2026) has a
+ *  non-positive age and can never be stale, whatever its granularity. */
+export function periodAgeDays(p: ParsedPeriod, nowMs: number): number {
+  return (nowMs - p.endMs) / 86400e3;
 }
 
 /** Decide a series' status from a fetch outcome. */
@@ -98,8 +143,8 @@ export function evaluate(input: ProbeInput, prevStatus: SeriesStatus): ProbeResu
     // Anomaly guard: never let an obviously older parse replace a credible newer
     // stored period silently. Keep the stored one, judge freshness by IT, and
     // surface the anomaly for the history trail.
-    if (parsed !== null && prevParsed !== null && parsed < prevParsed) {
-      const ageDays = (input.nowMs - prevParsed) / 86400e3;
+    if (parsed !== null && prevParsed !== null && parsed.startMs < prevParsed.startMs) {
+      const ageDays = periodAgeDays(prevParsed, input.nowMs);
       const stale = ageDays > input.cadenceDays * 2;
       const res = mk(
         stale ? "stale" : "ok",
@@ -118,8 +163,10 @@ export function evaluate(input: ProbeInput, prevStatus: SeriesStatus): ProbeResu
 
     if (parsed !== null) {
       // Period-age staleness: the poll instant, not poll-to-poll sameness, is the
-      // reference. A freshly-first-seen ancient period is stale immediately.
-      const ageDays = (input.nowMs - parsed) / 86400e3;
+      // reference. A freshly-first-seen ancient period is stale immediately; age
+      // respects label granularity (periodAgeDays measures from the period END,
+      // so a current-year bare label is never stale mid-year).
+      const ageDays = periodAgeDays(parsed, input.nowMs);
       const stale = ageDays > input.cadenceDays * 2;
       return mk(
         stale ? "stale" : "ok",
@@ -174,9 +221,9 @@ export function extractPeriod(html: string, periodRe?: string): string | null {
     let best: string | null = null;
     let bestMs = -Infinity;
     for (const label of labels) {
-      const ms = parsePeriodLabel(label);
-      if (ms !== null && ms > bestMs) {
-        bestMs = ms;
+      const p = parsePeriodLabel(label);
+      if (p !== null && p.startMs > bestMs) {
+        bestMs = p.startMs;
         best = label;
       }
     }

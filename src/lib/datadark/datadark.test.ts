@@ -74,17 +74,89 @@ describe("data-dark evaluate", () => {
   });
 });
 
-describe("parsePeriodLabel", () => {
-  it("parses dd.mm.yyyy, russian month-year, and bare year", () => {
-    expect(parsePeriodLabel("17.09.2013")).toBe(Date.UTC(2013, 8, 17));
-    expect(parsePeriodLabel("июнь 2026")).toBe(Date.UTC(2026, 5, 1));
-    expect(parsePeriodLabel("май 2026")).toBe(Date.UTC(2026, 4, 1));
-    expect(parsePeriodLabel("март 2026")).toBe(Date.UTC(2026, 2, 1)); // longest-stem: not "ма"(й)
-    expect(parsePeriodLabel("2026")).toBe(Date.UTC(2026, 0, 1));
+describe("parsePeriodLabel — granularity-aware ranges", () => {
+  it("parses dd.mm.yyyy, russian month-year, and bare year with start/end/granularity", () => {
+    expect(parsePeriodLabel("17.09.2013")).toEqual({
+      startMs: Date.UTC(2013, 8, 17),
+      endMs: Date.UTC(2013, 8, 18),
+      granularity: "day",
+    });
+    expect(parsePeriodLabel("июнь 2026")).toEqual({
+      startMs: Date.UTC(2026, 5, 1),
+      endMs: Date.UTC(2026, 6, 1),
+      granularity: "month",
+    });
+    expect(parsePeriodLabel("май 2026")?.startMs).toBe(Date.UTC(2026, 4, 1));
+    expect(parsePeriodLabel("март 2026")?.startMs).toBe(Date.UTC(2026, 2, 1)); // longest-stem: not "ма"(й)
+    expect(parsePeriodLabel("2026")).toEqual({
+      startMs: Date.UTC(2026, 0, 1),
+      endMs: Date.UTC(2027, 0, 1),
+      granularity: "year",
+    });
   });
+
+  it("December and year-end labels roll their exclusive end into the next year", () => {
+    expect(parsePeriodLabel("декабрь 2025")?.endMs).toBe(Date.UTC(2026, 0, 1));
+    expect(parsePeriodLabel("31.12.2025")?.endMs).toBe(Date.UTC(2026, 0, 1));
+  });
+
   it("returns null for shapes it cannot compare", () => {
     expect(parsePeriodLabel("квартал II")).toBeNull();
     expect(parsePeriodLabel("32.13.2026")).toBeNull();
+  });
+
+  it("rejects impossible calendar dates instead of rolling them over", () => {
+    expect(parsePeriodLabel("31.02.2026")).toBeNull(); // Date.UTC would fold into March
+    expect(parsePeriodLabel("30.02.2026")).toBeNull();
+    expect(parsePeriodLabel("31.04.2026")).toBeNull(); // April has 30 days
+    expect(parsePeriodLabel("29.02.2026")).toBeNull(); // 2026 is not a leap year
+    expect(parsePeriodLabel("29.02.2024")).not.toBeNull(); // 2024 was
+  });
+});
+
+describe("year-only labels are aged from the period END (the cbr-statistics hub regression)", () => {
+  // cbr-statistics config: periodRe "(20\\d\\d)", cadenceDays 45. On 2026-07-13 a
+  // current "2026" label is ~193 days past Jan 1 — the old instant-based age
+  // marked it stale even though the hub carries current July 2026 publications.
+  const hub = {
+    baselineStatus: "live" as const,
+    httpStatus: 200,
+    bytes: 50000,
+    prevPeriod: null,
+    lastChangeDaysAgo: null,
+    cadenceDays: 45,
+    nowMs: NOW,
+  };
+
+  it("a current-year bare label is NOT stale mid-year", () => {
+    const r = evaluate({ ...hub, period: "2026" }, "ok");
+    expect(r.status).toBe("ok");
+  });
+
+  it("stays correct next year: '2027' polled mid-2027 is fresh", () => {
+    const r = evaluate({ ...hub, period: "2027", nowMs: Date.UTC(2027, 6, 13) }, "ok");
+    expect(r.status).toBe("ok");
+  });
+
+  it("a previous-year label goes stale once the year end is beyond 2x cadence", () => {
+    // "2025" ends 2026-01-01; on 2026-07-13 that is ~193 days > 90 -> stale.
+    const r = evaluate({ ...hub, period: "2025" }, "ok");
+    expect(r.status).toBe("stale");
+    expect(r.reason).toContain("2x cadence");
+    // ...but early in the following year it is still within cadence slack.
+    expect(evaluate({ ...hub, period: "2025", nowMs: Date.UTC(2026, 1, 1) }, "ok").status).toBe("ok");
+  });
+
+  it("a current dated CBR key-rate publication stays ok; 17.09.2013 stays stale", () => {
+    expect(evaluate({ ...hub, period: "11.07.2026" }, "ok").status).toBe("ok");
+    expect(evaluate({ ...hub, period: "17.09.2013" }, "unknown").status).toBe("stale");
+  });
+
+  it("an older bare-year parse cannot overwrite a credible newer stored period", () => {
+    const r = evaluate({ ...hub, period: "2019", prevPeriod: "2026" }, "ok");
+    expect(r.period).toBe("2026");
+    expect(r.status).toBe("ok");
+    expect(r.anomaly).toContain("older than stored");
   });
 });
 
