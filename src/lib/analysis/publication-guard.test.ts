@@ -4,6 +4,7 @@ import {
   ATTRIBUTION_LABEL,
   guardPublishedEvents,
   hasAttribution,
+  hasGoverningAttribution,
   isPersonAllegation,
 } from "./publication-guard";
 import type { DigestAnalysis } from "./provider";
@@ -56,15 +57,14 @@ function grahamEvent(docIds = [11, 12]): GuardEvent {
 }
 
 describe("Graham regression: declarative death+corruption copy cannot survive", () => {
-  it("replaces the speculative summary with the labeled claim text and attributes the title", () => {
+  it("replaces BOTH title and summary with the labeled claim text (model prose never survives)", () => {
     const { events, stats } = guardPublishedEvents([grahamEvent()]);
     expect(events).toHaveLength(1);
     const ev = events[0];
 
-    // Title is no longer an unqualified declarative.
-    expect(ev.title).toBe(
-      "Sources claim: US Senator Lindsey Graham dies amid corruption scandal",
-    );
+    // Title is REBUILT from the retained claim — the freeform declarative is gone.
+    expect(ev.title).toBe(`Sources claim: ${GRAHAM_CLAIM_TEXT}`);
+    expect(ev.title).not.toContain("dies amid corruption scandal");
     // The freeform model summary — where the speculative causation lived — is gone.
     expect(ev.summary).not.toContain("may have influenced");
     expect(ev.summary).not.toContain("circumstances of his death");
@@ -75,6 +75,47 @@ describe("Graham regression: declarative death+corruption copy cannot survive", 
     expect(stats.retitledEvents).toBe(1);
     expect(stats.replacedSummaries).toBe(1);
     expect(stats.attributedClaims).toBe(1);
+  });
+
+  it("the exact production-shaped title/summary (incidental 'reports suggesting' does not exempt it)", () => {
+    // Event 4008's real prose: the leading death assertion is declarative; the
+    // attribution words appear only AFTER it. The old hasAttribution accepted
+    // this whole sentence as "attributed" and left title and summary untouched.
+    const productionProse =
+      "US Senator Lindsey Graham died unexpectedly, with reports suggesting his involvement in corruption schemes may have influenced the circumstances of his death";
+    const ev = event({
+      title: productionProse,
+      summary: productionProse,
+      claims: [
+        claim({
+          text: GRAHAM_CLAIM_TEXT, // the claim-4413 shape: unattributed death+corruption framing
+          hedging: "claimed",
+          docIds: [11, 12],
+          entities: [person("Lindsey Graham")],
+        }),
+      ],
+    });
+    const { events, stats } = guardPublishedEvents([ev]);
+    const g = events[0];
+
+    // The unsafe declarative title does not survive; the speculative causation
+    // ("may have influenced…") does not survive; everything remaining is
+    // explicitly attributed.
+    expect(g.title).toBe(`Sources claim: ${GRAHAM_CLAIM_TEXT}`);
+    expect(g.summary).toBe(`Sources claim: ${GRAHAM_CLAIM_TEXT}`);
+    expect(g.claims[0].text).toBe(`Sources claim: ${GRAHAM_CLAIM_TEXT}`);
+    expect(g.title).not.toContain("may have influenced");
+    expect(g.summary).not.toContain("may have influenced");
+    expect(g.title.startsWith("US Senator")).toBe(false);
+    expect(stats.attributedClaims).toBe(1);
+    expect(stats.retitledEvents).toBe(1);
+    expect(stats.replacedSummaries).toBe(1);
+
+    // Idempotent on the production shape too.
+    const twice = guardPublishedEvents(events);
+    expect(twice.events).toEqual(events);
+    expect(twice.stats.retitledEvents).toBe(0);
+    expect(twice.stats.attributedClaims).toBe(0);
   });
 
   it("drops the claim (and the then-empty event) entirely when a reputational allegation cites a single document", () => {
@@ -96,6 +137,155 @@ describe("Graham regression: declarative death+corruption copy cannot survive", 
       retitledEvents: 0,
       replacedSummaries: 0,
     });
+  });
+});
+
+describe("a dropped allegation cannot survive in the event's title/summary", () => {
+  const confirmed = () =>
+    claim({
+      text: "Geolocated footage confirms a strike on the refinery's distillation unit",
+      hedging: "confirmed",
+      docIds: [1, 2, 3],
+    });
+  const singleDocAllegation = () =>
+    claim({
+      text: "Governor Ivan Petrov was arrested for corruption",
+      hedging: "claimed",
+      docIds: [9], // below ALLEGATION_MIN_DOCS -> R1 drop
+      entities: [person("Ivan Petrov")],
+    });
+  const mixedEvent = () =>
+    event({
+      title: "Refinery struck; governor arrested for corruption",
+      summary:
+        "A refinery was struck overnight while governor Ivan Petrov was arrested for corruption.",
+      claims: [confirmed(), singleDocAllegation()],
+    });
+
+  it("drops the claim AND rebuilds title/summary from the retained safe claim", () => {
+    const { events, stats } = guardPublishedEvents([mixedEvent()]);
+    expect(events).toHaveLength(1);
+    const g = events[0];
+
+    expect(stats.droppedClaims).toBe(1);
+    // The confirmed claim survives with its text and source links untouched.
+    expect(g.claims).toHaveLength(1);
+    expect(g.claims[0].text).toBe(confirmed().text);
+    expect(g.claims[0].docIds).toEqual([1, 2, 3]);
+    // No allegation language survives anywhere in the event prose.
+    for (const prose of [g.title, g.summary]) {
+      expect(prose).not.toContain("arrested");
+      expect(prose).not.toContain("corruption");
+      expect(prose).not.toContain("Ivan Petrov");
+    }
+    // The rebuilt copy is the confirmed claim's own text, unlabeled (it is confirmed).
+    expect(g.title).toBe(confirmed().text);
+    expect(g.summary).toBe(confirmed().text);
+    // Telemetry reports the changes.
+    expect(stats.retitledEvents).toBe(1);
+    expect(stats.replacedSummaries).toBe(1);
+  });
+
+  it("is idempotent: a second guard pass is a no-op", () => {
+    const once = guardPublishedEvents([mixedEvent()]);
+    const twice = guardPublishedEvents(once.events);
+    expect(twice.events).toEqual(once.events);
+    expect(twice.events[0]).toBe(once.events[0]); // reference-equal: untouched
+    expect(twice.stats).toEqual({
+      attributedClaims: 0,
+      droppedClaims: 0,
+      droppedEvents: 0,
+      retitledEvents: 0,
+      replacedSummaries: 0,
+    });
+  });
+
+  it("a wholly unsafe event (every claim dropped) is dropped entirely", () => {
+    const ev = event({
+      title: "Governor arrested for corruption",
+      summary: "The governor was arrested for corruption.",
+      claims: [singleDocAllegation()],
+    });
+    const { events, stats } = guardPublishedEvents([ev]);
+    expect(events).toHaveLength(0);
+    expect(stats.droppedClaims).toBe(1);
+    expect(stats.droppedEvents).toBe(1);
+  });
+
+  it("rebuilt copy from a retained DISPUTED non-allegation claim carries the hedging label", () => {
+    const ev = event({
+      title: "Refinery output halted; governor arrested for corruption",
+      summary: "Output halted while the governor was arrested.",
+      claims: [
+        claim({ text: "Refinery output halted for a week", hedging: "claimed", docIds: [1, 2] }),
+        singleDocAllegation(),
+      ],
+    });
+    const { events } = guardPublishedEvents([ev]);
+    const g = events[0];
+    expect(g.title).toBe("Sources claim: Refinery output halted for a week");
+    expect(g.summary).toBe("Sources claim: Refinery output halted for a week");
+    expect(g.title).not.toContain("arrested");
+  });
+});
+
+describe("governing attribution: trailing attribution words do not qualify a leading allegation", () => {
+  it("hasGoverningAttribution requires the attribution to precede the allegation content", () => {
+    // Governs: attribution leads.
+    expect(hasGoverningAttribution("Russian state media claims the senator died in custody")).toBe(true);
+    expect(hasGoverningAttribution("Sources claim: Governor Ivan Petrov was arrested")).toBe(true);
+    expect(hasGoverningAttribution("According to Reuters, the minister was dismissed")).toBe(true);
+    // Does not govern: the allegation leads, attribution trails.
+    expect(
+      hasGoverningAttribution(
+        "US Senator Lindsey Graham died unexpectedly, with reports suggesting corruption influenced his death",
+      ),
+    ).toBe(false);
+    expect(
+      hasGoverningAttribution("Governor Ivan Petrov was arrested for embezzlement; officials denied the charges"),
+    ).toBe(false);
+    // No allegation content: degrades to plain attribution detection.
+    expect(hasGoverningAttribution("Peskov said the talks continue")).toBe(true);
+    expect(hasGoverningAttribution("The unit withdrew")).toBe(false);
+  });
+
+  it("prefixes an allegation claim whose only attribution is a trailing denial clause", () => {
+    const text =
+      "Governor Ivan Petrov was arrested for embezzlement; officials denied the charges";
+    const ev = event({
+      title: "Governor arrested",
+      summary: "The governor was arrested; officials denied it.",
+      claims: [
+        claim({ text, hedging: "claimed", docIds: [3, 4], entities: [person("Ivan Petrov")] }),
+      ],
+    });
+    const { events, stats } = guardPublishedEvents([ev]);
+    expect(events[0].claims[0].text).toBe(`Sources claim: ${text}`);
+    expect(stats.attributedClaims).toBe(1);
+    // Idempotent: the label now governs, so a second pass adds nothing.
+    const twice = guardPublishedEvents(events);
+    expect(twice.stats.attributedClaims).toBe(0);
+    expect(twice.events).toEqual(events);
+  });
+
+  it("does not double-prefix already deterministic guard labels", () => {
+    const labeled = `Sources claim: ${GRAHAM_CLAIM_TEXT}`;
+    const ev = event({
+      title: labeled,
+      summary: labeled,
+      claims: [
+        claim({
+          text: labeled,
+          hedging: "claimed",
+          docIds: [11, 12],
+          entities: [person("Lindsey Graham")],
+        }),
+      ],
+    });
+    const { events, stats } = guardPublishedEvents([ev]);
+    expect(events[0]).toBe(ev); // reference-equal: nothing to change
+    expect(stats.attributedClaims).toBe(0);
+    expect(stats.retitledEvents).toBe(0);
   });
 });
 

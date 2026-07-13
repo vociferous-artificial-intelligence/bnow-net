@@ -7,8 +7,8 @@ import type { DigestAnalysis } from "./provider";
 // inside persistDigest on the exact event shape being published, BEFORE the
 // thin-overwrite verdict, so it covers BOTH engines (mapreduce, legacy) and any
 // script that persists through the shared path. It never invents content: every
-// transformation is a prefix from a fixed label set, a summary replaced by a
-// cited claim's own text, or a drop.
+// transformation is a prefix from a fixed label set, a title/summary replaced
+// by a cited claim's own text, or a drop.
 //
 // Production defect this pins (2026-07-13 analyst-session test): a Russia digest
 // published "US Senator Lindsey Graham died unexpectedly, with reports suggesting
@@ -20,12 +20,19 @@ import type { DigestAnalysis } from "./provider";
 // Explicit calibration (each rule unit-tested in publication-guard.test.ts):
 //  R1 DROP    a disputed reputational allegation about a named person citing
 //             fewer than ALLEGATION_MIN_DOCS documents is dropped, not polished.
-//  R2 CLAIM   a disputed named-person allegation claim must carry attribution in
-//             its own text (prefixed with the hedging's label if absent).
-//  R3 EVENT   an event containing any disputed named-person allegation gets
-//             deterministic copy: attributed title + summary REPLACED by the
-//             representative claim text (freeform model prose — where speculative
-//             causation lives — never survives on these events).
+//             The event prose derived from it must not survive either (R3).
+//  R2 CLAIM   a disputed named-person allegation claim must carry attribution
+//             GOVERNING its allegation — an attribution word occurring only
+//             AFTER the allegation content ("X died, with reports suggesting…",
+//             a trailing "officials denied…") does not qualify the leading
+//             assertion; such text is prefixed with the hedging's label.
+//  R3 EVENT   an event containing any disputed named-person allegation — kept
+//             OR dropped by R1 — gets deterministic copy: title AND summary are
+//             REPLACED by the representative retained claim's own text (labeled
+//             per its hedging when unattributed). Freeform model prose — where
+//             speculative causation lives and where a dropped allegation could
+//             linger — never survives on these events, and is never accepted
+//             merely because an attribution word occurs somewhere in it.
 //  R4 EVENT   an event supported ONLY by disputed groups must not carry an
 //             unqualified declarative title/summary: attributed model prose
 //             passes untouched; unattributed prose gets the label treatment.
@@ -113,6 +120,22 @@ export function hasAttribution(text: string): boolean {
   return ATTRIBUTED_RE.test(text);
 }
 
+/** Attribution that GOVERNS the text's allegation content: the first attribution
+ *  marker must precede the first allegation-lexicon match. "Russian state media
+ *  claims X died" qualifies; "X died, with reports suggesting…" and a trailing
+ *  "officials denied…" do not — the leading assertion stands unattributed
+ *  (the exact production Graham title shape, 2026-07-13). Text without
+ *  allegation content degrades to plain hasAttribution. Conservative by design:
+ *  a false positive adds a redundant label; a false negative publishes an
+ *  unqualified allegation. */
+export function hasGoverningAttribution(text: string): boolean {
+  const attr = text.match(ATTRIBUTED_RE);
+  if (!attr) return false;
+  const alleg = text.match(ALLEGATION_RE);
+  if (!alleg) return true;
+  return (attr.index ?? 0) < (alleg.index ?? 0);
+}
+
 /** Named-person allegation (broad lexicon) — requires a person entity derived
  *  from the claim's own groups (mapreduce) or provided by the extraction
  *  (legacy); a claim with no person entity is never treated as an allegation. */
@@ -138,6 +161,17 @@ function eventLabel(claims: GuardClaim[]): string {
   return claims.some((c) => c.hedging === "claimed")
     ? ATTRIBUTION_LABEL.claimed
     : ATTRIBUTION_LABEL.unknown;
+}
+
+/** R3 deterministic event copy: the representative (longest) retained claim's
+ *  own text — labeled per its hedging when it is disputed and lacks governing
+ *  attribution; a confirmed representative passes plainly (never mislabeled as
+ *  source-claimed). Idempotent: retained allegation claims already carry
+ *  governing attribution after R2, so a second application reproduces itself. */
+function deterministicCopy(claims: GuardClaim[]): string {
+  const rep = claims.reduce((a, b) => (b.text.length > a.text.length ? b : a));
+  if (!isDisputed(rep.hedging) || hasGoverningAttribution(rep.text)) return rep.text;
+  return `${labelFor(rep.hedging)} ${rep.text}`;
 }
 
 export interface PublicationGuardStats {
@@ -170,22 +204,27 @@ export function guardPublishedEvents(events: GuardEvent[]): GuardResult {
   for (const ev of events) {
     const claims: GuardClaim[] = [];
     let hasDisputedAllegation = false;
+    let droppedAllegation = false;
 
     for (const c of ev.claims) {
       const disputed = isDisputed(c.hedging);
       const allegation = disputed && isPersonAllegation(c.text, c.entities);
 
-      // R1: drop weakly-corroborated reputational allegations outright.
+      // R1: drop weakly-corroborated reputational allegations outright. The
+      // event prose derived from this claim must not survive either — even if
+      // a safe confirmed subclaim keeps the event alive (R3 below).
       if (allegation && isReputational(c.text) && c.docIds.length < ALLEGATION_MIN_DOCS) {
         stats.droppedClaims++;
+        droppedAllegation = true;
         continue;
       }
 
       let text = c.text;
       if (allegation) {
         hasDisputedAllegation = true;
-        // R2: the allegation claim itself must carry attribution.
-        if (!hasAttribution(text)) {
+        // R2: the allegation claim itself must carry GOVERNING attribution —
+        // an attribution word trailing the allegation does not qualify it.
+        if (!hasGoverningAttribution(text)) {
           text = `${labelFor(c.hedging)} ${text}`;
           stats.attributedClaims++;
         }
@@ -202,18 +241,19 @@ export function guardPublishedEvents(events: GuardEvent[]): GuardResult {
     let title = ev.title;
     let summary = ev.summary;
 
-    if (hasDisputedAllegation) {
+    if (hasDisputedAllegation || droppedAllegation) {
       // R3: deterministic copy — freeform model prose never survives on an
-      // event carrying a disputed named-person allegation. The summary becomes
-      // the representative (longest) published claim's own text; the title is
-      // attributed if it wasn't already.
-      const label = eventLabel(claims);
-      if (!hasAttribution(title)) {
-        title = `${label} ${title}`;
+      // event that carries (or carried, before an R1 drop) a disputed
+      // named-person allegation. Title AND summary are REBUILT from the
+      // retained claims' own text: prefix-patching the original title is not
+      // safe, both because an incidental attribution word anywhere in it would
+      // exempt it (the production Graham title) and because a dropped
+      // allegation's content would survive under a mere label.
+      const replacement = deterministicCopy(claims);
+      if (title !== replacement) {
+        title = replacement;
         stats.retitledEvents++;
       }
-      const rep = claims.reduce((a, b) => (b.text.length > a.text.length ? b : a));
-      const replacement = hasAttribution(rep.text) ? rep.text : `${label} ${rep.text}`;
       if (summary !== replacement) {
         summary = replacement;
         stats.replacedSummaries++;
