@@ -2,20 +2,11 @@ import NextAuth from "next-auth";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { db, schema } from "@/db";
 import { senderAddress } from "./email/from";
-import { buildMagicLinkEmail } from "./email/magic-link";
+import { deliverMagicLink } from "./auth-delivery";
 
 // Magic-link auth, delivered through the shared email seam (Postmark live as of
 // 2026-07-05; Resend supported; server-log fallback when neither key exists).
-
-async function deliverMagicLink(params: { identifier: string; url: string }) {
-  const { identifier, url } = params;
-  const { sendEmail } = await import("./email/send");
-  const res = await sendEmail(buildMagicLinkEmail({ to: identifier, url }));
-  if (!res.delivered) {
-    // outbox/console fallback: surface the link in server logs for demo mode
-    console.log(`[auth] magic link for ${identifier}: ${url}`);
-  }
-}
+// Delivery — including the SIGNIN_MODE invite gate — lives in auth-delivery.ts.
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: DrizzleAdapter(db, {

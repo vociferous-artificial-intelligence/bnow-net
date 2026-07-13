@@ -23,7 +23,7 @@ resume point for a successor session: read `AGENTS.md`, the prompt, this file, t
 |----|--------|-------|
 | A1+A2 pricing→/access + beta copy | DONE | nav access entry (signed-out only, CTA), /pricing 308→/access (page-level permanentRedirect, force-dynamic), src/lib/pricing DELETED, pricing.* i18n keys DELETED (ns swap pricing→access), hero badge+line+request CTA, account beta framing (both FEATURE_STRIPE branches tested), sitemap/seo swapped |
 | A3 /access form + migration 0018 + notify | DONE | /access page+form+action (honeypot, 1h dedupe, LinkedIn https+linkedin.com-host-only validation, no raw errors), operator email via after() + FEEDBACK_EMAIL, /admin/access review list, access.* i18n ×7 catalogs (native review pending, inventory updated) |
-| A4 SIGNIN_MODE invite gate | not started | NEXT |
+| A4 SIGNIN_MODE invite gate | DONE | src/lib/auth-delivery.ts: open (default, pinned byte-identical, zero DB) / invite (users row OR ADMIN_EMAILS OR approved subscribe_intents; fail-closed on DB error; courtesy email w/o link; identical outward resolution). SIGNIN_MODE=open added to .env.local (both checkouts); Vercel envs at deploy time (H). Flip = operator decision. |
 | B publication safety guard | not started | |
 | C Signals semantics | not started | |
 | D Ask relevance boundary | not started | |
@@ -32,7 +32,8 @@ resume point for a successor session: read `AGENTS.md`, the prompt, this file, t
 | G materials/datadark/provenance | not started | |
 | H gates/browser/docs/merge | not started | |
 
-**Next step:** A4 — SIGNIN_MODE=open/invite gate at the deliverMagicLink seam.
+**Next step:** Workstream B — publication safety guard (synthesize.ts + scoreboard).
+Gates at A4 completion: typecheck/lint clean, 1195 tests / 101 files green.
 
 ## Migrations generated so far
 
@@ -40,8 +41,9 @@ resume point for a successor session: read `AGENTS.md`, the prompt, this file, t
 
 ## Env vars added so far
 
-(none) — planned: `SIGNIN_MODE=open` (plain/readable, all Vercel envs + .env.local)
-before deploying A4 code.
+- `SIGNIN_MODE=open` added to `.env.local` (primary + worktree). NOT yet in Vercel —
+  add plain/readable (`--no-sensitive`) to all three Vercel envs BEFORE deploy (H).
+  Default-open in code means a missing env changes nothing.
 
 ## Pending operator decisions encountered
 
