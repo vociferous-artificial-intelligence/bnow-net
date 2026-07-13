@@ -63,6 +63,53 @@ describe("normalization", () => {
     expect(canonicalKey("IRGC")).toBe(canonicalKey("Islamic Revolutionary Guard Corps"));
     expect(canonicalKey("Russian Military")).toBe(canonicalKey("Russian Armed Forces"));
   });
+
+  it("folds Cyrillic ё to е — one identity for interchangeable orthography (2026-07-13)", () => {
+    expect(normalize("Андрей Воробьёв")).toBe(normalize("Андрей Воробьев"));
+    expect(normalize("Андрей Воробьёв")).toBe("andrei vorobev");
+  });
+
+  it("resolves all three observed Vorobyov spellings to ONE canonical key", () => {
+    const key = canonicalKey("Andrey Vorobyov");
+    expect(key).toBe("andrei vorobyov");
+    expect(canonicalKey("Андрей Воробьев")).toBe(key);
+    expect(canonicalKey("Андрей Воробьёв")).toBe(key);
+    // The fixture spelling variant folds too (ey/ei transliteration).
+    expect(canonicalKey("Andrei Vorobyov")).toBe(key);
+  });
+
+  it("does NOT merge an unrelated person with a similar name", () => {
+    expect(canonicalKey("Pavel Vorobyov")).not.toBe(canonicalKey("Andrey Vorobyov"));
+    expect(canonicalKey("Ivan Vorobyov")).not.toBe(canonicalKey("Андрей Воробьёв"));
+  });
+});
+
+describe("planCleanup — Vorobyov family (production 2026-07-13 finding)", () => {
+  const rows: EntityRow[] = [
+    { id: 1, kind: "person", name: "Andrey Vorobyov", claims: 5 },
+    { id: 2, kind: "person", name: "Андрей Воробьев", claims: 3 },
+    { id: 3, kind: "person", name: "Андрей Воробьёв", claims: 1 },
+    // An unrelated person sharing the surname must survive untouched…
+    { id: 4, kind: "person", name: "Ivan Vorobyov", claims: 2 },
+  ];
+  const plan = planCleanup(rows);
+
+  it("merges the two Cyrillic spellings into the most-claimed Latin row", () => {
+    const targets = new Map(plan.merges.map((m) => [m.fromId, m.intoId]));
+    expect(targets.get(2)).toBe(1);
+    expect(targets.get(3)).toBe(1);
+    expect(plan.merges).toHaveLength(2);
+    expect(plan.drops).toHaveLength(0);
+  });
+
+  it("leaves the unrelated Vorobyov alone", () => {
+    expect(plan.merges.some((m) => m.fromId === 4 || m.intoId === 4)).toBe(false);
+  });
+
+  it("leaves a bare surname alone when TWO full-name people share it (ambiguous)", () => {
+    const withSurname = planCleanup([...rows, { id: 5, kind: "person", name: "Vorobyov", claims: 1 }]);
+    expect(withSurname.merges.some((m) => m.fromId === 5)).toBe(false);
+  });
 });
 
 describe("planCleanup", () => {

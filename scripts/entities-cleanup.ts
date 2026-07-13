@@ -63,6 +63,24 @@ async function main() {
     for (const m of plan.merges)
       console.log(`  ${m.fromId} "${m.fromName}" -> ${m.intoId} "${m.intoName}" (${m.reason})`);
 
+    // Affected-count summary (Workstream E requirement: the operator reviews
+    // entity AND claim-edge impact before authorizing --apply). Repointed edges
+    // are an upper bound: ON CONFLICT DO NOTHING collapses (claim, entity) pairs
+    // both spellings tagged. claims/claim_sources are never touched — the
+    // traceability invariant (ruling 2) is structurally unaffected.
+    const claimsById = new Map((rows as EntityRow[]).map((r) => [r.id, r.claims]));
+    const dropEdges = plan.drops.reduce((s, d) => s + (claimsById.get(d.id) ?? 0), 0);
+    const mergeEdges = plan.merges.reduce((s, m) => s + (claimsById.get(m.fromId) ?? 0), 0);
+    const { rows: edgeCount } = await client.query(
+      `SELECT count(*)::int AS n FROM claim_entities`,
+    );
+    console.log(
+      `\nSUMMARY: ${rows.length} entities -> ${rows.length - plan.drops.length - plan.merges.length} ` +
+        `after (${plan.drops.length} drops, ${plan.merges.length} merges); ` +
+        `claim_entities ${edgeCount[0].n} total — ${dropEdges} edges deleted with drops, ` +
+        `<= ${mergeEdges} edges repointed by merges (claims/claim_sources untouched)`,
+    );
+
     if (!APPLY) {
       console.log("\ndry run — pass --apply to execute");
       return;
