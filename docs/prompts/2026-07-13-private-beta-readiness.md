@@ -14,11 +14,82 @@ Do not begin by rewriting the product. Preserve the existing architecture, appli
 
 Start with:
 
-1. `git status --short` and preserve any user changes.
-2. Read `AGENTS.md`, `docs/PRODUCT-BRIEF.md`, `docs/OPEN-TASKS.md`, `docs/TIME-MODEL.md`, and the recent analyst-trust/legal notes under `docs/reviews/`.
-3. Run the baseline gates: `npm run typecheck`, `npm run lint`, `npm test`.
-4. Record the baseline commit and test counts in the implementation note.
-5. Work in small commits or clearly separated patches. Do not deploy until all local gates and the browser acceptance story pass.
+1. `git status --short` in the primary checkout and preserve any user changes.
+2. Set up the isolated branch + worktree (next section) and do ALL subsequent work inside it.
+3. Read `AGENTS.md`, `docs/PRODUCT-BRIEF.md`, `docs/OPEN-TASKS.md`, `docs/TIME-MODEL.md`, and the recent analyst-trust/legal notes under `docs/reviews/`.
+4. Run the baseline gates inside the worktree: `npm run typecheck`, `npm run lint`, `npm test`.
+5. Record the baseline commit and test counts in the checkpoint file (below) and, later, the implementation note.
+6. Work in small commits or clearly separated patches. Do not deploy until all local gates and the browser acceptance story pass.
+
+### Isolation: dedicated branch and worktree (mandatory)
+
+The primary checkout at `/home/go/code/bnow.net` is shared — other agents may be working
+there concurrently (this is a known hazard in this repo). Do not edit, build, or run
+long-lived processes in it beyond the initial status check and the final merge.
+
+- Branch: `20260713-private-beta-readiness`, created from current `main`. Tag the fork
+  point `pre-private-beta-20260713` (repo convention).
+- Worktree: `git worktree add .workstream/20260713-private-beta-readiness
+  20260713-private-beta-readiness` — `.workstream/` is already gitignored and
+  eslint-ignored for exactly this purpose. Work only inside that directory.
+- Run `npm install` inside the worktree (`node_modules` is per-worktree) and copy
+  `.env.local` from the primary checkout if local scripts need it (it is gitignored;
+  never commit it).
+- If you need `npm run dev`, use a non-default port (e.g. `PORT=3013`) so you cannot
+  collide with another agent's dev server.
+- Do not touch the other `.workstream/` checkouts or the `bnow.net-i18n` worktree.
+- Migration coordination across agents: this sprint generates forward migrations (A3, G1).
+  If another concurrently running branch also generates migrations, the journal `prevId`
+  chain will conflict at merge time — resolve by regenerating this branch's migrations on
+  top of merged `main` (the MERGE 2 entry in `AGENTS.md` is the worked example). Never
+  renumber an applied migration.
+- Merge to `main` happens from the primary checkout, `--no-ff`, only after all gates are
+  green and `main` has been merged/rebased into the branch first if it moved. Remove the
+  worktree (`git worktree remove`) after the branch is merged.
+
+### Checkpointing and resumability (mandatory)
+
+Assume the session can be cut off at any time (token/context limit). Work so that a fresh
+agent with empty context can resume from the committed state alone.
+
+- Maintain a checkpoint file on the branch: `docs/reviews/PRIVATE-BETA-CHECKPOINT-2026-07-13.md`.
+  It records, at minimum: workstream status (done / in progress / not started, with the
+  in-progress one's exact next step), last known-green commit, gates last run and their
+  counts, migrations generated so far, env vars added and where, pending operator
+  decisions encountered, and any deviation from this prompt. Update it at every commit —
+  the checkpoint update rides in the same commit as the work it describes.
+- Commit at every completed atomic unit with gates green for the touched area; never
+  batch multiple workstreams into one commit. If a hard stop approaches mid-unit, commit
+  what exists with a `wip:` prefix plus a checkpoint entry stating precisely what is
+  unfinished — losing context is acceptable, losing work or leaving ambiguous state is not.
+  `wip:` commits must be made green (or squashed) before merge to `main`.
+- Resume protocol for a successor session: read `AGENTS.md`, this prompt, the checkpoint
+  file, and `git log` on the branch — in that order — then continue from the checkpoint's
+  next step. Do not redo completed workstreams; verify their state by running the gates,
+  not by re-implementing.
+- Before the merge, the final implementation note under `docs/reviews/` absorbs the
+  checkpoint file's content; delete the checkpoint file in the same commit so the merged
+  branch leaves one authoritative record.
+
+### Coordination with provider recovery work (binding)
+
+This sprint runs **before** the separately planned historical X recovery and OpenSanctions
+fixed-cutoff rescore. It must not absorb either provider operation into this branch.
+
+- X steady-state ingestion is live again, but the July 9–13 historical interval is not proven
+  cursor-complete. The separate handoff is
+  `docs/prompts/2026-07-13-x-gap-catchup-rescore.md`.
+- Workstream B's deterministic publication guard must be implemented, deployed, and verified
+  before the X handoff regenerates historical digests. Do not regenerate those digests here.
+- Workstream E must be complete before either historical rescore: X regeneration can create
+  entities, and canonicalization can change the population OpenSanctions should score.
+- After this sprint is deployed, run the X recovery first. Establish the resulting stable entity
+  population, then run
+  `docs/prompts/2026-07-13-opensanctions-monthly-rescore.md` last.
+- Do not change X/OpenSanctions caps, checkpoints, watermarks, accounting periods, or provider
+  state in this sprint. Do not make paid recovery/evaluation calls merely to verify this work.
+- Workstream H's handoff must report whether Workstreams B and E are deployed and ready for the
+  later provider runbooks; it must not claim either provider recovery is complete.
 
 ## Product decision already made for this sprint
 
@@ -37,6 +108,7 @@ Implement these positioning rules:
 - Do not restore analyst access to the admin-only source registry merely to satisfy old pricing copy.
 - Do not enable Stripe.
 - Do not describe current access as a purchase, subscription commitment, founding rate, or locked-in commercial offer.
+- Make the beta private in fact, not only in copy: sign-in must be invite-gateable (Workstream A4). Today `src/lib/auth.ts` issues a magic link to any email address with no allowlist or invitation check, so relabeling the nav alone leaves the full gated product — including the paid Ask pipeline — open to anyone.
 - Recommended beta commercial policy: no charge, no card, and no purchase obligation for the initial invited cohort. Before publishing the explicit words “no charge,” confirm this policy with the operator. If it is not confirmed, use the neutral wording “No self-service purchase or card is required to request access.”
 
 Suggested public copy, subject to ordinary i18n treatment:
@@ -167,9 +239,52 @@ Server-action requirements:
 - On failure, do not leak raw DB/provider errors.
 - Keep the form accessible: labels, autocomplete attributes, described optional fields, focusable error summary, and success status.
 
+Access requests must reach a human. Today nothing reads `subscribe_intents`; without a
+notification path, beta requests are write-only rows nobody sees. On successful insert, send an
+internal notification email to the operator (reuse `src/lib/email/send.ts` and the existing
+operator/`FEEDBACK_EMAIL` address), fire-and-forget: a notification failure must not fail, slow,
+or alter the requester's response. Include only the submitted fields. Additionally give the
+operator a review surface: a minimal newest-first `subscribe_intents` list in the existing
+admin console is preferred; at minimum, document the exact `sqlq` query in the implementation
+note. The dedupe window must not suppress the operator notification for a genuinely new address.
+
 The current Privacy Notice already covers information provided in subscription-interest forms and other voluntarily supplied information. Do not casually bump the policy version and force every analyst through reacceptance. Record in the implementation note that no new purpose, processor, or automated LinkedIn collection was introduced. Escalate to the operator/counsel if the implementation would do more than store the volunteered fields.
 
 Add unit/component tests for valid submission, invalid email, LinkedIn lookalikes, optional LinkedIn, length bounds, honeypot, dedupe, DB insert shape, redirects/success state, and raw-error suppression. Add a real-Postgres integration test if the migration/test harness makes that proportionate.
+
+### A4. Invite-gated sign-in (the actual "private" in private beta)
+
+Verified current behavior: the magic-link provider in `src/lib/auth.ts` (`deliverMagicLink`,
+`sendVerificationRequest`) issues a sign-in link to **any** email address. There is no
+allowlist, invitation check, or role requirement at sign-in; `requireAcceptedUser()` enforces
+authentication plus legal acceptance only. Renaming the nav to `Request access` therefore does
+not make the beta private: any visitor can sign in, click through acceptance, and use the full
+gated product — including the paid Ask pipeline, contained only by the per-user/global daily
+caps.
+
+Build the gate now behind a config switch; the operator decides when to flip it:
+
+- Add a mode env such as `SIGNIN_MODE` with values `open` (default) and `invite`. Default
+  `open` preserves current behavior byte-for-byte so the deploy itself changes nothing.
+- In `invite` mode, issue a magic link only when the address is (a) an existing `users` row
+  (grandfathers every current account), (b) on `ADMIN_EMAILS`, or (c) an approved beta
+  request — recommended: `request_status='approved'` on the requester's `subscribe_intents`
+  row, so the journey composes end-to-end: request via `/access` → operator approves with a
+  one-field update → magic link works.
+- Enforce server-side at the link-issuance seam (`deliverMagicLink` or a guard immediately
+  around it), never in page UI.
+- The sign-in UI must show the same generic “check your email” confirmation regardless of
+  eligibility — do not create an oracle for whether an address is invited or registered. For
+  an uninvited address, either deliver nothing or deliver a short courtesy email pointing to
+  `/access`; never deliver a sign-in link.
+- In `invite` mode the check fails closed (DB error → no link, generic UI); in `open` mode it
+  adds no latency, queries, or failure modes.
+- Tests: `open` mode unchanged (pin it); `invite` mode allows existing user / admin / approved
+  requester and denies unknown addresses; allowed and denied produce identical UI responses;
+  courtesy email (if implemented) contains no sign-in link and no eligibility detail.
+- Set the env in all Vercel environments and `.env.local` (readable/plain, `--no-sensitive`)
+  before deploying the code that reads it. Do not flip production to `invite` without the
+  operator (stop condition below).
 
 ## Workstream B — publication safety for digests and scoreboard
 
@@ -256,8 +371,8 @@ The current listwise reranker must return exactly K IDs, which forces irrelevant
 Recommended design:
 
 1. Extend the strict rerank schema to return:
-   - `ids`: exactly K candidate IDs, still ordered and constrained as today;
-   - `relevant_count`: integer from 0 through K, indicating how many IDs at the front are actually relevant to answering the question.
+   - `ids`: exactly K candidate IDs, still ordered and constrained as today (keep standing ruling 7's pinned `minItems`/`maxItems`);
+   - `relevant_count`: integer from 0 through K, indicating how many IDs at the front are actually relevant to answering the question. Mark it required in the strict schema (strict structured outputs reject optional properties) and bound it with `minimum`/`maximum`.
 2. Update the rerank prompt: relevant items must be first; `relevant_count=0` when none address the subject. This keeps the constrained-decoding underfill fix while allowing a genuine no-match result.
 3. Validate and clamp/reject malformed counts. Unknown/duplicate ID protections remain.
 4. If a paid rerank returns `relevant_count=0`, stop before the expensive answer model and return `state='insufficient'`, no citations, no related claims, and no user-visible irrelevant evidence. Preserve and log the already incurred embed/rerank usage.
@@ -309,7 +424,7 @@ Requirements:
 - Where wide data tables genuinely need horizontal scrolling, wrap the table locally in an accessible overflow container rather than widening the whole document.
 - Keep the mobile sheet and focus trap behavior intact.
 
-Unit tests should pin important class/layout contracts, but complete this work with a real browser viewport test and screenshots.
+Unit tests should pin important class/layout contracts, but complete this work with a real browser viewport test and screenshots. Note the repo has no browser-automation harness today (Vitest + jsdom only): use a headless browser if the environment provides one (a dev-only Playwright install against `npm run dev` or a preview deploy is acceptable). If no browser is available, say so honestly in the implementation note, pin the layout contract at the DOM/class level, and hand the operator an explicit manual viewport checklist — do not claim visual verification that did not happen.
 
 ### F2. Dropdown exclusivity
 
@@ -335,7 +450,7 @@ Do not solve this by adding only the three currently visible magic numbers if th
 
 Preferred fix:
 
-- Add a nullable `partner_name` field to `trade_flows` through a forward migration.
+- Add a nullable `partner_name` field to `trade_flows` through a forward migration. Coordinate numbering with Workstream A3's `subscribe_intents` migration: generate both via `drizzle-kit` in the order they are actually created so journal `prevId`s chain correctly, and `9999_claim_source_trigger.sql` stays last.
 - Persist and update the upstream Comtrade partner description during pull.
 - Prefer the stored partner name on read; retain a deterministic M49 fallback map only for legacy/missing rows.
 - Backfill known existing partner codes deterministically, with an explicit unknown label such as `Partner code 699` only as a last resort.
@@ -400,25 +515,30 @@ Browser acceptance matrix, authenticated and anonymous where applicable:
    - Invalid/lookalike LinkedIn rejected.
    - Honeypot/dedupe behavior.
    - No raw errors or sensitive echo.
-4. Signed-in analyst:
+   - Operator notification sent on a genuine request (assert via the email transport seam in tests; a real delivery only with operator authorization).
+4. Sign-in gating:
+   - `open` mode byte-identical to today's behavior (pinned by test).
+   - `invite` mode: existing user, admin, and approved requester each receive a working link; an unknown address receives no sign-in link; allowed and denied addresses see identical confirmation UI.
+   - Verify on preview/local only — do not flip production `SIGNIN_MODE` without the operator.
+5. Signed-in analyst:
    - No pricing/request-access link in header or mobile sheet.
    - Account shows analyst beta wording only under the intended feature/config condition.
    - Home, digest, Signals, Ask, Search, scoreboard, and account remain reachable after legal acceptance.
-5. Digest safety fixtures and a non-paid production readback:
+6. Digest safety fixtures and a non-paid production readback:
    - Existing unsafe wording is identified in an audit report.
    - New generation code cannot reproduce it from the regression fixture.
    - Do not spend or regenerate without explicit caps/authorization.
-6. Signals:
+7. Signals:
    - No organization/country/strike-target contamination.
    - Evidence list is a true subset of qualifying claims.
-7. Ask:
+8. Ask:
    - Antarctic negative control is insufficient with zero irrelevant citations/related claims.
    - Known/temporal controls still work.
-8. Solution pages:
+9. Solution pages:
    - No `#NNN` partner labels in the tested current dataset.
    - CBR key-rate period/status no longer contradict each other.
    - Official source links work.
-9. Console/network:
+10. Console/network:
    - No uncaught exceptions, hydration errors, failed same-origin requests, or auth loops.
 
 ## Documentation and handoff requirements
@@ -436,13 +556,34 @@ Create a dated implementation note under `docs/reviews/` containing:
 - an updated `docs/OPEN-TASKS.md` status for existing items such as #57 and #58 plus newly discovered defects;
 - corrections to standing `AGENTS.md` state if and only if deployment actually changes it, with an append-only decision-log entry.
 
-Do not mark this sprint complete merely because the UI says beta. Completion means the commercial mismatch is removed, the request journey works, the mobile overflow is fixed, the negative control is clean, Signals evidence is semantically constrained, and disputed digest content cannot be promoted into declarative BNOW prose by the regression fixture.
+Do not mark this sprint complete merely because the UI says beta. Completion means the commercial mismatch is removed, the request journey works end-to-end (request → operator sees it → approval → sign-in), the mobile overflow is fixed, the negative control is clean, Signals evidence is semantically constrained, and disputed digest content cannot be promoted into declarative BNOW prose by the regression fixture.
+
+## Operator checklist (non-code beta-readiness, surface in the handoff note)
+
+These are not code changes in this sprint, but they gate a credible first impression for
+invited analysts. The implementation note must list them with current status:
+
+1. **Postmark sender domain is still the scenefiend domain.** The magic-link email is the
+   first thing an invited analyst receives; migrate the sender domain (SETUP-NEXT-WEEK) before
+   or at the start of invitations.
+2. **X steady-state ingestion resumed 2026-07-13, but historical completeness remains open.**
+   The restart fetched 1,889 documents and the next scheduled poll advanced normally, but the
+   July 9–13 gap was traversed by the old page-limited poller and is not proven cursor-complete.
+   Do not run recovery from this sprint; surface the separate X catch-up/rescore handoff as a
+   pre-invitation operational dependency.
+3. **Confirm the beta commercial-policy wording** — explicit “no charge” vs the neutral
+   fallback (see positioning rules).
+4. **Decide when to flip `SIGNIN_MODE=invite`** and confirm existing accounts are the intended
+   grandfather set (Workstream A4).
+5. **Set the response-window promise** on the `/access` confirmation to something that will
+   actually be met, or promise none.
 
 ## Stop conditions requiring operator or counsel input
 
 Stop and request a decision before:
 
 - publishing an explicit promise that beta access is free if that policy has not been confirmed;
+- flipping `SIGNIN_MODE=invite` in production (build and test the mechanism now; the flip and the grandfather set are operator decisions);
 - re-enabling analyst registry access;
 - applying production entity merges or destructive data repairs;
 - regenerating/replacing production digests;
@@ -451,4 +592,3 @@ Stop and request a decision before:
 - adding LinkedIn scraping/enrichment;
 - enabling Stripe, recurring billing, or new provider spend;
 - deciding whether named-person purge signals may remain visible to signed-in users.
-

@@ -85,7 +85,7 @@ drizzle/            migrations 0000–00NN + 9999_claim_source_trigger.sql (appl
 data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails)
 ```
 
-## Current state — snapshot (verified 2026-07-09; correct in place when it changes)
+## Current state — snapshot (verified through 2026-07-13; correct in place when it changes)
 
 Live at **https://bnow-net.vercel.app** (Vercel project `bnow-net`, team `vociferous`;
 deployment URLs are SSO-walled — always use the project domain). History/narrative:
@@ -102,9 +102,13 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   (`isw_reports.theater='ru'`) vs the scraper's top-50 pan-theater — RU/UA-priority
   roster deployed 2026-07-11, env-tunable, rollback via
   `REGISTRY_TELEGRAM_MTPROTO_REPORT_THEATER=all`**), X via api.twitterapi.io (383
-  ISW-cited accounts — **wired but FROZEN since 2026-07-09 20:21Z: `X_SPRINT_USD_CAP`
-  reached ($5.00 all-time), `ingest:x` runs green but fetched=0; resumes only when the
-  operator raises the cap — OPEN-TASKS #38**), GDELT (wired, upstream-flaky), zakupki
+  ISW-cited accounts — **LIVE again 2026-07-13** after `X_SPRINT_USD_CAP` was raised
+  $5→$75 and `X_DAILY_USD_CAP` set to $2.50 in all Vercel envs; post-deploy proof run
+  fetched+inserted 1,889 docs with 0 errors, and the next scheduled :20 run fetched 222 /
+  inserted 42 and advanced the watermark to 14:20Z. **Historical July 9–13 completeness is
+  NOT proven** because the old poller could exhaust its five-page batch ceiling and still advance
+  the watermark; #38 retains the audited catch-up + missing green-but-empty monitor), GDELT
+  (wired, upstream-flaky), zakupki
   procurement (wired, blocked — needs proxy).
 - **Map stage:** all eligible ru/ua/ir docs since 06-29 mapped once per
   (track, extractor_version) → `doc_claims` (~19K claims), persistent dedup verdicts
@@ -729,6 +733,31 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   intermittently 000'd; the DNS-pinned `bnow-net.vercel.app` project domain is the reliable
   local check.)
 
+- **2026-07-13 (provider caps raised + production restart)** Operator confirmed the
+  OpenSanctions account dashboard has exactly 300 `/match/default` requests in its 90-day view
+  (200 on 07-07, 91 on 07-08, 9 on 07-09) against a 2,000-request/month allowance. Cap vars were
+  made explicit in **all three Vercel environments** before deploy: OpenSanctions
+  `OPENSANCTIONS_CALL_CAP=2000`, daily calls 200, run calls 120, daily estimated-USD ledger 40;
+  X `X_SPRINT_USD_CAP=75`, `X_DAILY_USD_CAP=2.50`. Deploy
+  `dpl_9CzgfnFhVDkLv6KJriBaa5oXhkmV` READY + aliased bnow.net; project-domain `/health` 200.
+  Runtime proof: manual `ingest:x` fetched+inserted 1,889 docs, 0 errors in 193s, moving the
+  x_api ledger $5.0000→$5.2834; manual **non-refresh** OpenSanctions gap-fill checked 120/120,
+  matched 92, sanctioned 22, failed 0, no budget stop, moving live coverage 300→420 and ledger
+  300→420. The unsafe `refresh=1` path was deliberately NOT called. Current code still sums the
+  OpenSanctions cap across all history and refresh batches repeat the same priority prefix; prompt
+  `docs/prompts/2026-07-13-opensanctions-monthly-rescore.md` specifies calendar-month accounting +
+  a fixed-cutoff resumable rescore. Until that patch ships, the raised 2,000 behaves as an all-time
+  cap; ordinary unchecked gap-fill is live, full rescore is held. No application code changed.
+
+- **2026-07-13 (X restart follow-up; standing state corrected)** The first normal scheduled
+  `ingest:x` after the 1,889-document restart proof ran at 14:20Z: fetched 222, inserted 42,
+  errors 0, and advanced `provider_state.x_api.lastPollAt` to 14:20:09Z. This proves current
+  steady-state polling resumed, but does **not** prove the July 9–13 history is complete: the
+  restart used the existing five-page batch ceiling, whose loop can end with another cursor and
+  still save the new watermark. The historical gap remains an explicit audited-recovery task;
+  prompt `docs/prompts/2026-07-13-x-gap-catchup-rescore.md`. Current-state text and #38 were
+  corrected in place to distinguish live-now health from historical completeness.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).
@@ -753,8 +782,8 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
 | Postmark (auth email) | `POSTMARK_SERVER_TOKEN` | **live** (scenefiend sender domain — migrate) | postmarkapp.com |
 | Cron auth | `CRON_SECRET` | **live** | (already set) |
 | Auth.js | `AUTH_SECRET` | **live** (hashes magic-link tokens: rotating it invalidates every unclicked link) | (already set) |
-| X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live but FROZEN** (x_api; sprint cap $5.00 reached 2026-07-09 → fetched=0, #38) | api.twitterapi.io |
-| OpenSanctions | `OPENSANCTIONS_API_KEY` + `OPENSANCTIONS_CALL_CAP` | **live but FROZEN** (300-call lifetime cap reached 2026-07-09; licensing gate before badges ship) | opensanctions.org |
+| X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live** (`$75` sprint / `$2.50` daily; 1,889-doc proof run 2026-07-13; missing empty-run monitor remains #38) | api.twitterapi.io |
+| OpenSanctions | `OPENSANCTIONS_API_KEY` + caps | **live gap-fill** (420 checked; 2,000 cap currently all-time until monthly-window patch; full rescore held) | opensanctions.org |
 | Telegram MTProto | `TELEGRAM_API_ID/HASH` + `TELEGRAM_SESSION` (all in prod env) | **wired; `TELEGRAM_SESSION` present in production** (added 2026-07-11 as a Sensitive var, minted via `scripts/telegram-login.ts`; first live fetch pending `:35` cron verification) | my.telegram.org |
 | ACLED | `ACLED_API_KEY`, `ACLED_EMAIL` | stubbed | acleddata.com |
 | Stripe | `STRIPE_SECRET_KEY`, … | flagged off | dashboard.stripe.com |

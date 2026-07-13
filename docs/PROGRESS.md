@@ -1146,3 +1146,32 @@ independent adversarial review passed (minor fixes applied `e62c14e`). Review no
    idempotency, append-only bump, unique constraint, FK cascade). No new env vars, LLM $0.00.
    4 English-only chrome keys (footer.* + signals.evidence.accept_prompt) fall back for all
    locales → fold into the native-review inventory (OPEN-TASKS #59).
+
+## 2026-07-13 13:58 UTC — provider-cap restart (plan)
+
+1. Write the coding-agent handoff for calendar-month OpenSanctions accounting and a fixed-cutoff,
+   resumable rescore; no application code in this session.
+2. Set explicit OpenSanctions caps in all Vercel environments: 2,000 requests/month,
+   200 requests/day, 120 requests/run, $40/day conservative estimated-cost ledger ceiling.
+3. Raise X caps in all Vercel environments to `$75` sprint / `$2.50` daily.
+4. Deploy production, verify READY + project-domain health, then verify X with one narrow live
+   ingest. Do not start the OpenSanctions rescore until the fixed-cutoff paging patch ships.
+5. Correct standing state in place and append the decision record with observed evidence.
+
+### Result
+
+- Prompt written: `docs/prompts/2026-07-13-opensanctions-monthly-rescore.md`.
+- All six explicit provider-limit values set in Production, Preview, and Development.
+- Production deploy `dpl_9CzgfnFhVDkLv6KJriBaa5oXhkmV` READY, aliased bnow.net; `/health` 200.
+- X proof: 1,889 fetched + 1,889 inserted, 0 errors; latest fetch 2026-07-13 14:15Z;
+  all-time x_api ledger now $5.2834.
+- The next scheduled 14:20Z X poll fetched 222, inserted 42, errors 0, and advanced the live
+  watermark to 14:20:09Z. This proves steady-state resumed, not that the page-limited July 9–13
+  traversal was historically complete.
+- OpenSanctions non-refresh proof: 120 scanned/checked, 92 matched, 22 sanctioned, 0 failed,
+  no budget stop; live checked coverage 300→420 and request ledger 300→420.
+- Full rescore held until the prompt's fixed-cutoff batching and calendar-month accounting ship.
+- Historical X completeness is held until private-beta publication safety + canonicalization ship;
+  handoff: `docs/prompts/2026-07-13-x-gap-catchup-rescore.md`. Sequencing is private beta → X →
+  OpenSanctions.
+- Vercel build passed (`next build`, including TypeScript). No application source changed.

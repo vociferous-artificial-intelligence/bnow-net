@@ -210,13 +210,15 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
 
 ## New (from the 2026-07-10/11 state recon — docs/reviews/STATE-2026-07-10.md)
 
-38. **[Tier 1] X ingestion is frozen, and a green cron is masking it.** `X_SPRINT_USD_CAP` is
-    exhausted at exactly $5.0001; `ingest:x` has fired 39× since 2026-07-09 20:21Z, all `ok=true`
-    but `counts.fetched=0` — ~32h of zero new X docs while docs/AGENTS still list X as "live"
-    (DRIFT; corrected in AGENTS.md). X is ~27–29% of digest citations (#42), so this is material.
-    Two-part fix: (a) operator raises `X_SPRINT_USD_CAP` (+ verify `X_DAILY_USD_CAP`) to resume;
-    (b) add a monitor so a budget-frozen ingest cron does not read as healthy (e.g. alert when a
-    fast/hourly ingest run posts fetched=0 N times running).
+38. **[Tier 1] X historical catch-up + green-but-empty monitor (ingestion RESUMED 2026-07-13).** The original
+    freeze was real: `X_SPRINT_USD_CAP` exhausted at $5 and hourly runs stayed `ok=true` with zero
+    fetched. Operator raised the caps to `$75` sprint / `$2.50` daily in all Vercel envs; production
+    proof fetched+inserted 1,889 docs with zero errors, and the next scheduled poll advanced normally.
+    That restart does not prove the July 9–13 interval is cursor-complete: the old poller can hit its
+    five-page batch ceiling and still save the watermark. Implement and run the bounded handoff in
+    `docs/prompts/2026-07-13-x-gap-catchup-rescore.md` after private-beta Workstreams B/E deploy.
+    Also alert when an hourly ingest posts fetched=0 N times or reports budget/page truncation, so
+    the next freeze cannot masquerade as health.
 39. **[Tier 1] No git→Vercel deploy integration.** `git push` does not deploy — after the 07-09
     auth fix, prod served the stale build ~20 min (`AUTH-EMAIL-2026-07-09.md`). Wire the Vercel Git
     integration, or codify "push then `npx vercel@latest deploy --prod`" in a release checklist so a
@@ -226,13 +228,17 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     `/api/auth/error?error=Verification` (`AUTH-EMAIL-2026-07-09.md`). The 07-09 Postmark tracking
     fix (`9b5b368`) addressed a real but *secondary* defect, not this. Decide: change the token model
     (multi-use within TTL, or device-agnostic) or document the constraint on the sign-in page.
-41. **[Tier 2] OpenSanctions enrichment is frozen at its 300-call lifetime cap.** `OPENSANCTIONS_CALL_CAP=300`
-    reached 2026-07-09 (confirmed live: `cron_runs` id 253 `budgetStopped="…300 >= cap 300"`); zero new
-    sanctions checks since. Fail-closed is working as designed; raising the cap is gated on the
-    licensing review (credentials table / BLOCKERS). Relates to #17 (match hygiene before spending).
+41. **[Tier 2] OpenSanctions monthly accounting + resumable rescore (gap-fill RESUMED 2026-07-13).**
+    Operator confirmed 300 actual calls against 2,000 requests/month and raised the configured cap
+    to 2,000 with 200/day + 120/run bounds. A live proof checked 120 new entities (92 matched,
+    22 sanctioned, 0 failed), so coverage is now 420. Remaining defects: SpendGuard still sums the
+    cap across all historical usage (no monthly reset), and repeated `refresh=1` batches select the
+    same priority prefix. Implement the fixed-cutoff/calendar-month handoff in
+    `docs/prompts/2026-07-13-opensanctions-monthly-rescore.md`, then rescore all eligible entities.
+    Relates to #17 (match hygiene before spending).
 42. **[Tier 2] X single-platform citation dependency (~27–29%).** ~1 in 3.4 cited docs is from X
-    (twitterapi.io). Concentration risk + validation contamination (§8.6 risks 1–2), sharpened by the
-    fact that X is currently the *frozen* adapter (#38). Diversify corpus (MTProto, more RSS/Telegram)
+    (twitterapi.io). Concentration risk + validation contamination (§8.6 risks 1–2) persist even
+    though the adapter resumed on 2026-07-13. Diversify corpus (MTProto, more RSS/Telegram)
     — the same lever that closes the coverage gap (#11/#19).
 43. **[maintenance] AGENTS.md is over its own ~300-line budget (323).** Sprint-3/cutover log entries
     accreted past the "under ~300 lines" rule. Do an archive pass — move the oldest current-cycle
