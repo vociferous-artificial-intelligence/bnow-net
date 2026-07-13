@@ -210,15 +210,23 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
 
 ## New (from the 2026-07-10/11 state recon — docs/reviews/STATE-2026-07-10.md)
 
-38. **[Tier 1] X historical catch-up + green-but-empty monitor (ingestion RESUMED 2026-07-13).** The original
-    freeze was real: `X_SPRINT_USD_CAP` exhausted at $5 and hourly runs stayed `ok=true` with zero
-    fetched. Operator raised the caps to `$75` sprint / `$2.50` daily in all Vercel envs; production
-    proof fetched+inserted 1,889 docs with zero errors, and the next scheduled poll advanced normally.
-    That restart does not prove the July 9–13 interval is cursor-complete: the old poller can hit its
-    five-page batch ceiling and still save the watermark. Implement and run the bounded handoff in
-    `docs/prompts/2026-07-13-x-gap-catchup-rescore.md` after private-beta Workstreams B/E deploy.
-    Also alert when an hourly ingest posts fetched=0 N times or reports budget/page truncation, so
-    the next freeze cannot masquerade as health.
+38. **[Tier 1] X historical catch-up + green-but-empty monitor (code SHIPPED 2026-07-13 PM; production
+    run PENDING operator approval).** The original freeze was real: `X_SPRINT_USD_CAP` exhausted at $5
+    and hourly runs stayed `ok=true` with zero fetched. Operator raised the caps to `$75` sprint /
+    `$2.50` daily in all Vercel envs; production proof fetched+inserted 1,889 docs with zero errors,
+    and the next scheduled poll advanced normally. That restart does not prove the July 9–13 interval
+    is cursor-complete: the old poller could hit its five-page batch ceiling and still save the
+    watermark. **Implementation of `docs/prompts/2026-07-13-x-gap-catchup-rescore.md` is now on main:**
+    insert-gated truncation-safe watermark (`commitMarks`), X provider lease (`x_api_lease`), exact
+    cursor-complete recovery driver (`scripts/x-gap-backfill.ts`, checkpoint/resume), bounded rescore
+    operator (`scripts/x-gap-rescore.ts`, gated on a complete recovery checkpoint +
+    `--ack-workstreams-be`). Dry runs verified the gap: X docs on 07-10/11/12 ≈ 31/18/27 vs thousands
+    on the edges. **Remaining: deploy main (the :20 poller must be the lease-aware build), then the
+    operator runbook `docs/reviews/X-GAP-RECOVERY-RUNBOOK-2026-07-13.md` top to bottom (recovery →
+    map → regen → validate, all paid steps approval-gated).** The green-but-empty ALERT half is still
+    open, but its raw signal now exists: every `ingest:x` run writes `cron_runs.counts.x_api`
+    (`incomplete`, `pageTruncations`, `budgetStops`, `lockSkips`, …) — alert when fetched=0 repeats or
+    truncation/incomplete fires, so the next freeze cannot masquerade as health.
 39. **[Tier 1] No git→Vercel deploy integration.** `git push` does not deploy — after the 07-09
     auth fix, prod served the stale build ~20 min (`AUTH-EMAIL-2026-07-09.md`). Wire the Vercel Git
     integration, or codify "push then `npx vercel@latest deploy --prod`" in a release checklist so a

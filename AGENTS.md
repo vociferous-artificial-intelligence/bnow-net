@@ -861,6 +861,40 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   PRIVATE-BETA-READINESS-NOTE §B/§D annotations, OPEN-TASKS #61. Full account:
   `docs/reviews/REMEDIATION-NOTE-2026-07-13.md`.
 
+- **2026-07-13 (X gap recovery + bounded rescore — IMPLEMENTED and tested, NOT run, NOT
+  deployed)** Prompt `docs/prompts/2026-07-13-x-gap-catchup-rescore.md` (sequencing gate met:
+  Workstream B deployed, E on main). Zero paid calls / prod mutations / deploys / env changes —
+  production contact was read-only SQL only. **(1) Steady-state watermark is now INSERT-GATED
+  and truncation-safe:** `XApiAdapter.fetchLatest()` never writes `x_api.lastPollAt`; a globally
+  complete pass prepares a pending mark that `runIngest` persists via `commitMarks()` only after
+  `insertDocs()` succeeds; junk-200 bodies are parser failures (`isSearchPayload`), and hitting
+  the preserved 5-page ceiling with a live cursor is a counted `pageTruncation` that fails the
+  pass — the silent-loss mode behind the unproven July 9–13 window is structurally closed. Every
+  `ingest:x` run now writes numeric `cron_runs.counts.x_api` (`requests/units/budgetStops/
+  pageTruncations/requestFailures/lockSkips/incomplete/docs`) — the raw signal for the still-open
+  #38 alert. **(2) Paid X work is single-writer** via `src/lib/usage/x-lease.ts`: an atomic
+  `provider_state` lease row `x_api_lease` (never the `x_api` watermark row) with owner/TTL/
+  renewal/owner-checked-release/expiry-takeover; a poll finding it held makes zero paid calls
+  (`lockSkips=1`). SQL covered by a new Neon-branch itest. **(3) Recovery driver**
+  `scripts/x-gap-backfill.ts` (engine `src/lib/adapters/x-gap-backfill.ts`, 14 tests): exact
+  since/until window, NO page ceiling, insert-before-checkpoint, resumable deterministic
+  checkpoint `provider_state.x_gap_backfill:<key>` keyed to range+roster-hash+batch-size
+  (mismatch refuses; complete rerun is a free no-op), SpendGuard + command budget cumulative
+  across resumes, plan mode default. **(4) Rescore operator** `scripts/x-gap-rescore.ts` (gates
+  `src/lib/analysis/gap-rescore.ts`): read-only default; `--apply` refused without a COMPLETE
+  covering checkpoint + `--ack-workstreams-be`; drives DEPLOYED routes serially — map drain
+  (`scripts/map-backfill.ts` gained bounded `--to`, importable `driveMapBackfill`), digest regen
+  for exactly ru(mil+elite)/ua(mil)/ir(mil+elite+nuclear) with FORCE_REGEN never set (refusals
+  reported per rulings 17/19), military-only validation with missing-ISW = pending; snapshots +
+  result.md under `data/outbox/` (now actually in .gitignore — the directory map had claimed it).
+  Dry runs against prod proved the scripts AND the gap: X docs 07-10/11/12 ≈ 31/18/27 vs ~5.4K
+  (07-09) / ~3.7K (07-13). Tests 1321/107 → **1364/111**; typecheck/lint/build green. Standing
+  #38/state text deliberately NOT closed/corrected — that waits for the authorized production
+  run (cursor exhaustion + map + regen + validation + two healthy polls). Operator handoff:
+  `docs/reviews/X-GAP-RECOVERY-RUNBOOK-2026-07-13.md` — **deploy main first**: the :20 poller
+  must be the lease-aware insert-gated build before recovery, and the rescore's `--ack` attests
+  the remediation (ruling-19 guard + canonical entity persist) is live.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).

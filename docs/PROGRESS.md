@@ -1206,3 +1206,32 @@ identity (cleanup plan durable only behind this deploy — OPEN-TASKS #61 sequen
 longer stamp the export page; range wording). Tests 1279/105 → 1321/107; typecheck,
 lint, build green. Nothing deployed; no prod writes; no paid calls. Full account:
 docs/reviews/REMEDIATION-NOTE-2026-07-13.md.
+
+## 2026-07-13 — X gap recovery + bounded rescore IMPLEMENTED (not run; no deploy)
+
+Block plan (docs/prompts/2026-07-13-x-gap-catchup-rescore.md, sequencing gate satisfied —
+private-beta B deployed, E on main): 1. insert-gated truncation-safe X watermark +
+runStats; 2. X provider lease; 3. cursor-complete recovery driver; 4. bounded
+map/regen/revalidate operator; 5. docs + runbook; 6. verify + commit.
+
+All shipped. `XApiAdapter.fetchLatest()` never writes `x_api.lastPollAt` — a complete
+pass prepares a pending watermark, `commitMarks()` persists it post-insert; junk-200
+payloads are parser failures; the 5-page ceiling with a live cursor is a counted
+`pageTruncation` that fails the pass (the silent-loss mode that made July 9–13
+unprovable). Paid X work is single-writer via an atomic `provider_state` lease
+(`x_api_lease`; TTL/renew/owner-checked release/expiry takeover; unit + Neon-branch
+integration tests). `scripts/x-gap-backfill.ts` (engine in src/lib/adapters/) recovers
+an exact since/until window with NO page ceiling, insert-before-checkpoint, a
+deterministic resumable provider_state checkpoint keyed by range+roster-hash, a
+command-scoped budget on top of SpendGuard, and totals output; plan mode is the
+default. `scripts/x-gap-rescore.ts` (gates in src/lib/analysis/gap-rescore.ts) is
+read-only by default, refuses --apply without a complete recovery checkpoint +
+--ack-workstreams-be, then drives the DEPLOYED routes serially: map drain (map-backfill
+gained --to and became importable), digest regen for exactly ru(mil+elite)/ua(mil)/
+ir(mil+elite+nuclear) with no FORCE_REGEN (refusals reported), military-only validation
+(missing ISW report = pending). Snapshots + result.md land in data/outbox/ (now actually
+gitignored). Dry runs against prod (read-only) verified both scripts and the gap itself:
+X docs 07-10/11/12 ≈ 31/18/27 vs ~5.4K/3.7K at the edges. Tests 1321/107 → 1364/111;
+typecheck/lint/build green. Zero paid calls, zero prod mutations, zero deploys, zero env
+changes. Operator handoff: docs/reviews/X-GAP-RECOVERY-RUNBOOK-2026-07-13.md (deploy
+main FIRST — the :20 poller must be lease-aware before recovery runs).
