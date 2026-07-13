@@ -39,7 +39,7 @@ vi.mock("../usage/llm-guard", async (importOriginal) => {
   return { ...actual, askGuardFromEnv: () => mocks.guard };
 });
 
-import { ask, answerFromEvidence, SYSTEM_V2 } from "./answer";
+import { ask, answerFromEvidence, beginsWithDenial, SYSTEM_V2 } from "./answer";
 import { estimateCostUsd } from "./limits";
 import { DENIAL_LANGUAGE_PATTERN, NEGATIVE_DENIAL_LEAD_CHARS } from "./eval-run";
 
@@ -74,7 +74,12 @@ function retrievalV2(o: Partial<RetrievalV2Result> = {}): RetrievalV2Result {
 }
 
 function ranked(o: Partial<RankedEvidence> = {}): RankedEvidence {
-  return { claims: o.claims ?? [], rerankUsed: o.rerankUsed ?? false, rerankUsage: o.rerankUsage };
+  return {
+    claims: o.claims ?? [],
+    rerankUsed: o.rerankUsed ?? false,
+    rerankUsage: o.rerankUsage,
+    ...(o.relevantCount !== undefined ? { relevantCount: o.relevantCount } : {}),
+  };
 }
 
 function completion(o: {
@@ -671,5 +676,158 @@ describe("denial-language compatibility (W1)", () => {
 
     expect(res.answer.startsWith("No claims yet cover")).toBe(true);
     expect(DENIAL_LANGUAGE_PATTERN.test(res.answer.slice(0, NEGATIVE_DENIAL_LEAD_CHARS))).toBe(true);
+  });
+});
+
+// ---- Workstream D (2026-07-13): relevance boundary + negative-control honesty ------
+
+describe("relevance boundary — negative controls stop before the answer model", () => {
+  const pool = (n: number) =>
+    Array.from({ length: n }, (_, i) =>
+      candidate({ claimId: i + 1, text: `Ukraine/Iran evidence row ${i + 1}`, vectorScore: 0.7 }),
+    );
+
+  function offTopicScenario(question: string) {
+    envPaidV2();
+    mocks.currencyMock.mockResolvedValue("2026-07-13");
+    const retrieval = retrievalV2({ claims: pool(5), entities: [], totalMatching: 156 });
+    const rk = ranked({
+      claims: pool(5),
+      rerankUsed: true,
+      rerankUsage: RERANK_USAGE,
+      relevantCount: 0,
+    });
+    return answerFromEvidence(question, retrieval, rk);
+  }
+
+  it("Antarctic negative control: insufficient, zero citations, zero related, no paid answer call", async () => {
+    const res = await offTopicScenario(
+      "What significant operational changes occurred at Antarctic research stations since July 9, 2026?",
+    );
+    expect(res.state).toBe("insufficient");
+    expect(res.citedClaimIds).toEqual([]);
+    expect(res.relatedClaimIds).toEqual([]);
+    expect(res.evidenceCount).toBe(0);
+    expect(res.provider).toBe("none");
+    expect(res.relevantCount).toBe(0);
+    // The expensive answer model was never called.
+    expect(mocks.createMock).not.toHaveBeenCalled();
+    // No Ukraine/Iran event summary leaks into the answer.
+    expect(res.answer).not.toContain("evidence row");
+    // Denial leads within the evaluator's window.
+    expect(DENIAL_LANGUAGE_PATTERN.test(res.answer.slice(0, NEGATIVE_DENIAL_LEAD_CHARS))).toBe(true);
+    // The already-incurred embed/rerank usage is preserved for the ledger.
+    expect(res.usageByStage?.rerank).toEqual(RERANK_USAGE);
+    expect(res.rerankModel).toBeTruthy();
+    expect(res.dataCurrentThrough).toBe("2026-07-13");
+    expect(res.candidatesCount).toBe(5);
+  });
+
+  it("second out-of-domain control behaves identically", async () => {
+    const res = await offTopicScenario(
+      "Which coral-reef restoration grants did Australia announce since July 9, 2026?",
+    );
+    expect(res.state).toBe("insufficient");
+    expect(res.citedClaimIds).toEqual([]);
+    expect(res.relatedClaimIds).toEqual([]);
+    expect(mocks.createMock).not.toHaveBeenCalled();
+  });
+
+  it("fails OPEN when the rerank fell back (relevantCount unknown): the answer stage still runs", async () => {
+    envPaidV2();
+    mocks.createMock.mockResolvedValue(completion({ content: "Answer [c1]" }));
+    const retrieval = retrievalV2({ claims: pool(3) });
+    const rk = ranked({ claims: pool(3), rerankUsed: false }); // fallback path, no count
+    const res = await answerFromEvidence("q", retrieval, rk);
+    expect(mocks.createMock).toHaveBeenCalledTimes(1);
+    expect(res.state).toBe("answered");
+  });
+
+  it("rollback: ASK_RELEVANCE_BOUNDARY=0 disables the stop", async () => {
+    envPaidV2();
+    vi.stubEnv("ASK_RELEVANCE_BOUNDARY", "0");
+    mocks.createMock.mockResolvedValue(completion({ content: "Answer [c1]" }));
+    const retrieval = retrievalV2({ claims: pool(3) });
+    const rk = ranked({ claims: pool(3), rerankUsed: true, relevantCount: 0 });
+    const res = await answerFromEvidence("q", retrieval, rk);
+    expect(mocks.createMock).toHaveBeenCalledTimes(1);
+    expect(res.state).toBe("answered");
+  });
+
+  it("passes only the relevant prefix (floored at 8) to the answer stage when relevant_count > 0", async () => {
+    envPaidV2();
+    mocks.createMock.mockResolvedValue(completion({ content: "Focused answer [c1] [c2]" }));
+    const retrieval = retrievalV2({ claims: pool(12) });
+    const rk = ranked({ claims: pool(12), rerankUsed: true, relevantCount: 2 });
+    const res = await answerFromEvidence("q", retrieval, rk);
+
+    const userMsg = mocks.createMock.mock.calls[0][0].messages[1].content as string;
+    // Floor of 8 protects against reranker underestimation; the tail is trimmed.
+    for (let id = 1; id <= 8; id++) expect(userMsg).toContain(`[c${id}]`);
+    for (let id = 9; id <= 12; id++) expect(userMsg).not.toContain(`[c${id}]`);
+    expect(res.evidenceCount).toBe(8); // what the model actually saw
+    expect(res.state).toBe("answered");
+    expect(res.citedClaimIds).toEqual([1, 2]);
+  });
+});
+
+describe("post-answer state correction — denial-led replies persist as insufficient", () => {
+  const pool3 = [
+    candidate({ claimId: 1, vectorScore: 0.8 }),
+    candidate({ claimId: 2, vectorScore: 0.7 }),
+    candidate({ claimId: 3, vectorScore: 0.6 }),
+  ];
+
+  it("corrects an 'answered' reply that leads with denial language: state insufficient, citations stripped, related omitted", async () => {
+    envPaidV2();
+    mocks.createMock.mockResolvedValue(
+      completion({
+        content:
+          "No claims in the covered data address Antarctic research stations. The corpus does cover Ukraine strikes [c1] and Iran prosecutions [c2].",
+      }),
+    );
+    const retrieval = retrievalV2({ claims: pool3 });
+    const rk = ranked({ claims: pool3, rerankUsed: true, relevantCount: 3 });
+    const res = await answerFromEvidence("Antarctic bases?", retrieval, rk);
+    expect(res.state).toBe("insufficient");
+    expect(res.citedClaimIds).toEqual([]);
+    expect(res.relatedClaimIds).toEqual([]);
+  });
+
+  it("leaves a genuine answer alone when negation appears past the lead anchor", async () => {
+    envPaidV2();
+    mocks.createMock.mockResolvedValue(
+      completion({
+        content:
+          "Ukrainian drones struck the Moscow region on July 13 [c1]; officials say there are no reports of casualties so far [c2].",
+      }),
+    );
+    const retrieval = retrievalV2({ claims: pool3 });
+    const rk = ranked({ claims: pool3, rerankUsed: true, relevantCount: 3 });
+    const res = await answerFromEvidence("Moscow strikes?", retrieval, rk);
+    expect(res.state).toBe("answered");
+    expect(res.citedClaimIds).toEqual([1, 2]);
+  });
+
+  it("never reclassifies a provider safety refusal as insufficient", async () => {
+    envPaidV2();
+    mocks.createMock.mockResolvedValue(completion({ refusal: "I can't help with that." }));
+    const retrieval = retrievalV2({ claims: pool3 });
+    const rk = ranked({ claims: pool3, rerankUsed: true, relevantCount: 3 });
+    const res = await answerFromEvidence("q", retrieval, rk);
+    expect(res.state).toBe("refused");
+  });
+});
+
+describe("beginsWithDenial anchor", () => {
+  it("recognizes denial families at or near the start only", () => {
+    expect(beginsWithDenial("No claims in the covered data address this.")).toBe(true);
+    expect(beginsWithDenial("  The evidence is insufficient to answer.")).toBe(true);
+    expect(beginsWithDenial("Based on the evidence, no claims address this.")).toBe(true);
+    expect(
+      beginsWithDenial(
+        "Ukrainian drones struck the Moscow region overnight; there are no reports of casualties.",
+      ),
+    ).toBe(false);
   });
 });

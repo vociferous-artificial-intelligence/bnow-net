@@ -54,7 +54,14 @@ export function serializeCandidates(candidates: CandidateClaim[]): string {
  *  decoding is the under-fill fix, prompt wording is not — a min-1 schema let
  *  gpt-5-mini return 0–24 ids on most live k=60/k=100 calls, billing a ranking
  *  the < ceil(k/2) gate then discarded). A paid call only happens when
- *  candidates.length > k, so k ids always exist to return. */
+ *  candidates.length > k, so k ids always exist to return.
+ *
+ *  relevant_count (Workstream D, 2026-07-13): the exact-K constraint FORCES
+ *  irrelevant padding into the tail on off-topic questions, so the schema also
+ *  requires an explicit relevance boundary — how many LEADING ids actually
+ *  address the question (0..k, bounded; required because strict structured
+ *  outputs reject optional properties). This keeps the constrained-decoding
+ *  under-fill fix while giving the model a genuine "none of these" channel. */
 export function rerankResponseSchema(k: number) {
   return {
     type: "object",
@@ -66,8 +73,13 @@ export function rerankResponseSchema(k: number) {
         maxItems: k,
         items: { type: "integer" },
       },
+      relevant_count: {
+        type: "integer",
+        minimum: 0,
+        maximum: k,
+      },
     },
-    required: ["ids"],
+    required: ["ids", "relevant_count"],
   };
 }
 
@@ -76,13 +88,20 @@ export function rerankSystemPrompt(k: number): string {
 You are given a question and a list of candidate claims, one per line, tab-separated
 with columns: id, date, iso2, text.
 
-Return STRICT JSON of the form {"ids": [<int>, ...]}: EXACTLY the ${k} most relevant
-claim ids for answering the question, in order, most relevant first.
+Return STRICT JSON of the form {"ids": [<int>, ...], "relevant_count": <int>}: EXACTLY
+the ${k} most relevant claim ids for answering the question, in order, most relevant
+first, plus relevant_count — how many ids at the FRONT of the list genuinely address
+the question's subject.
 
 HARD RULES:
 1. Use ONLY ids that appear in the candidate list. Never invent ids.
-2. Return EXACTLY ${k} ids, most relevant first, no duplicates.
-3. Output the JSON object only — no prose, no explanation, no code fences.`;
+2. Return EXACTLY ${k} ids, most relevant first, no duplicates. Every genuinely
+   relevant id must come before every irrelevant one.
+3. relevant_count is the number of leading ids that actually bear on the question's
+   subject. Set relevant_count to 0 when NONE of the candidates address it — the ids
+   array is then pure filler ordering, and that is the correct, expected output for
+   an off-topic question.
+4. Output the JSON object only — no prose, no explanation, no code fences.`;
 }
 
 export function rerankUserMessage(question: string, candidates: CandidateClaim[]): string {
@@ -93,11 +112,17 @@ ${serializeCandidates(candidates)}`;
 }
 
 /** Parse a rerank response defensively. Tolerates the wrapper object
- *  {"ids":[...]} OR a bare array [...] (a model ignoring the wrapper). Coerces
- *  numeric strings and floats to integers; drops non-numeric entries. Returns
- *  null when the payload is missing/empty/unparseable or carries no id array —
- *  every null routes to the composite fallback. */
-export function parseRerankIds(raw: string | null | undefined): number[] | null {
+ *  {"ids":[...], "relevant_count": n} OR a bare array [...] (a model ignoring
+ *  the wrapper). Coerces numeric strings and floats to integers; drops
+ *  non-numeric id entries. Returns null when the payload is missing/empty/
+ *  unparseable or carries no id array — every null routes to the composite
+ *  fallback. relevantCount is null when absent/malformed/out-of-range — a null
+ *  count means "unknown", and every consumer fails OPEN on unknown (the
+ *  boundary never fires from a malformed count). */
+export function parseRerankResponse(
+  raw: string | null | undefined,
+  k: number,
+): { ids: number[]; relevantCount: number | null } | null {
   if (raw == null || raw.trim() === "") return null;
   let parsed: unknown;
   try {
@@ -105,20 +130,28 @@ export function parseRerankIds(raw: string | null | undefined): number[] | null 
   } catch {
     return null;
   }
-  const arr = Array.isArray(parsed)
-    ? parsed
-    : parsed !== null &&
-        typeof parsed === "object" &&
-        Array.isArray((parsed as { ids?: unknown }).ids)
-      ? (parsed as { ids: unknown[] }).ids
+  const obj =
+    parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as { ids?: unknown; relevant_count?: unknown })
       : null;
+  const arr = Array.isArray(parsed) ? parsed : Array.isArray(obj?.ids) ? (obj!.ids as unknown[]) : null;
   if (arr === null) return null;
   const ids: number[] = [];
   for (const v of arr) {
     const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
     if (Number.isFinite(n)) ids.push(Math.trunc(n));
   }
-  return ids;
+  const rcRaw = obj?.relevant_count;
+  const relevantCount =
+    typeof rcRaw === "number" && Number.isInteger(rcRaw) && rcRaw >= 0 && rcRaw <= k
+      ? rcRaw
+      : null;
+  return { ids, relevantCount };
+}
+
+/** Back-compat id-only view of parseRerankResponse (k irrelevant for ids). */
+export function parseRerankIds(raw: string | null | undefined): number[] | null {
+  return parseRerankResponse(raw, Number.MAX_SAFE_INTEGER)?.ids ?? null;
 }
 
 /** Deterministic composite-order top-K fallback. Candidates arrive in composite
@@ -206,11 +239,12 @@ export async function rerankCandidates(
     rerankUsage = { promptTokens, completionTokens, costUsd };
 
     const choice = completion.choices?.[0];
-    const ids = parseRerankIds(choice?.message?.content);
-    if (ids === null) {
+    const parsed = parseRerankResponse(choice?.message?.content, k);
+    if (parsed === null) {
       console.warn("ask rerank: unparseable/empty response; composite fallback (usage recorded)");
       return compositeFallback(candidates, k, rerankUsage);
     }
+    const { ids, relevantCount: rawRelevantCount } = parsed;
 
     // Validate ids against the candidate set: unknown dropped, dupes deduped
     // keeping first occurrence (the citation-filter invariant, extended to rerank).
@@ -222,6 +256,22 @@ export async function rerankCandidates(
       if (c === undefined || seen.has(id)) continue;
       seen.add(id);
       ordered.push(c);
+    }
+
+    // relevant_count refers to positions in the model's OWN list; ids dropped by
+    // validation inside that prefix shrink the surviving count. null (malformed)
+    // stays unknown — the relevance boundary then never fires (fail-open).
+    let relevantCount: number | undefined;
+    if (rawRelevantCount !== null) {
+      const prefixSeen = new Set<number>();
+      let valid = 0;
+      for (const id of ids.slice(0, rawRelevantCount)) {
+        if (byId.has(id) && !prefixSeen.has(id)) {
+          prefixSeen.add(id);
+          valid++;
+        }
+      }
+      relevantCount = Math.min(valid, k);
     }
 
     if (ordered.length < minValid) {
@@ -241,7 +291,12 @@ export async function rerankCandidates(
         }
       }
     }
-    return { claims: ordered.slice(0, k), rerankUsed: true, rerankUsage };
+    return {
+      claims: ordered.slice(0, k),
+      rerankUsed: true,
+      rerankUsage,
+      ...(relevantCount !== undefined ? { relevantCount } : {}),
+    };
   } catch (e) {
     // Provider error or any unexpected throw. If a call already returned and was
     // metered, rerankUsage carries the billed usage; if it threw before that, no

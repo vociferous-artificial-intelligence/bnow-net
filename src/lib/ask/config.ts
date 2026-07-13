@@ -67,3 +67,19 @@ export function askNoCoverageShortcircuit(): boolean {
   const v = process.env.ASK_NO_COVERAGE_SHORTCIRCUIT?.trim().toLowerCase();
   return !(v === "0" || v === "false" || v === "off");
 }
+
+/** Relevance boundary (Workstream D, 2026-07-13): when the paid rerank reports
+ *  relevant_count=0, /ask stops before the answer model and returns an honest
+ *  insufficient payload with zero citations. Default ON. Rollback:
+ *  ASK_RELEVANCE_BOUNDARY=0 (also "false"/"off") restores always-answering. */
+export function askRelevanceBoundaryEnabled(): boolean {
+  const v = process.env.ASK_RELEVANCE_BOUNDARY?.trim().toLowerCase();
+  return !(v === "0" || v === "false" || v === "off");
+}
+
+/** Minimum evidence rows passed to the answer stage when relevant_count > 0 —
+ *  a floor against reranker underestimation on genuinely answerable questions
+ *  (the trim never widens beyond the ranked pool). */
+export function askRelevantEvidenceFloor(): number {
+  return posInt("ASK_RELEVANT_EVIDENCE_FLOOR", 8);
+}

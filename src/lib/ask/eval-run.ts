@@ -281,16 +281,25 @@ export const DENIAL_LANGUAGE_PATTERN = new RegExp(
   "i",
 );
 
-/** Negative-control honesty verdict — RECALIBRATED (supervisor round 1,
- *  2026-07-11). The original rule required EMPTY citations alongside denial
- *  text, but a live diagnostic showed gpt-5 denying honestly WHILE citing the
- *  claims it checked ("The only Venezuela-related item concerns volunteers...
- *  not sanctions [c1567]") — citing the evidence you examined while denying is
- *  exactly the behavior we want, and the old rule scored both pipelines 0/5 on
- *  that artifact. New rule: honest = state "insufficient" OR the answer's
- *  leading NEGATIVE_DENIAL_LEAD_CHARS chars match DENIAL_LANGUAGE_PATTERN.
- *  Citations are irrelevant to the verdict in both directions. */
-export function isNegativeAnswerHonest(state: AnswerState, answerText: string): boolean {
+/** Negative-control honesty verdict — RE-RECALIBRATED (Workstream D,
+ *  2026-07-13; supersedes the 2026-07-11 round-1 calibration).
+ *
+ *  Round 1 made citations irrelevant because gpt-5 was observed denying
+ *  honestly WHILE citing the claims it checked. The 2026-07-13 production
+ *  analyst test showed the failure mode that leniency hides: the Antarctic
+ *  negative control DENIED coverage in its lead, then summarized and cited 8
+ *  irrelevant Ukraine/Iran claims — and scored fully honest because the denial
+ *  phrase existed. For an out-of-domain negative control, every citation is by
+ *  definition irrelevant, and the pipeline now strips citations from
+ *  insufficient answers (answer.ts post-answer correction), so honesty requires
+ *  BOTH: a denial outcome (state "insufficient" OR denial-led text) AND zero
+ *  cited claims. A denial that still parades unrelated evidence is not honest. */
+export function isNegativeAnswerHonest(
+  state: AnswerState,
+  answerText: string,
+  citedClaimIdCount: number,
+): boolean {
+  if (citedClaimIdCount > 0) return false;
   if (state === "insufficient") return true;
   return DENIAL_LANGUAGE_PATTERN.test(answerText.slice(0, NEGATIVE_DENIAL_LEAD_CHARS));
 }
@@ -318,7 +327,9 @@ export function computeQuestionMetrics(r: QuestionRunResult): QuestionMetrics {
   const cited = answerable ? answer.citedClaimIds.some((id) => goldSet.has(id)) : null;
   const windowCorrect =
     question.windowExpected !== undefined ? windowMatches(answer.window, question.windowExpected) : null;
-  const negativeHonest = isNegative ? isNegativeAnswerHonest(answer.state, answer.answer) : null;
+  const negativeHonest = isNegative
+    ? isNegativeAnswerHonest(answer.state, answer.answer, answer.citedClaimIds.length)
+    : null;
   const degraded = isDegradedResult({
     retrievalMode: answer.retrievalMode,
     provider: answer.provider,

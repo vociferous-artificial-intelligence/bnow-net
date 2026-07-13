@@ -199,29 +199,39 @@ describe("isDegradedResult", () => {
   });
 });
 
-// ---- negative-control honesty (recalibrated, supervisor round 1) -------------------
+// ---- negative-control honesty (re-recalibrated, Workstream D 2026-07-13) -----------
 
-// Verbatim from the supervisor's live diagnostic rerun (v2-k60 shape): an HONEST
-// gpt-5 denial that CITES the claims it checked while denying. state "answered",
-// citations non-empty — the original rule scored this dishonest (both pipelines 0/5).
-const REAL_HONEST_DENIAL_WITH_CITATION =
+// Verbatim from the supervisor's live diagnostic rerun (v2-k60 shape): a gpt-5
+// denial that CITES the claims it checked while denying. Round 1 (2026-07-11)
+// scored this honest; the 2026-07-13 Antarctic production defect (denial lead +
+// 8 irrelevant citations, scored fully honest) showed what that leniency hides.
+// For an out-of-domain negative, every citation is irrelevant by definition and
+// the pipeline now strips citations from insufficient answers — so this fixture
+// scores DISHONEST when its citation survives to the payload.
+const REAL_DENIAL_WITH_CITATION =
   "Insufficient evidence. In the provided BNOW claims, there are no entries about new U.S. sanctions on Venezuela's oil sector this month. The only Venezuela-related item concerns volunteers searching after an earthquake, not sanctions [c1567]...";
 
 // Verbatim dishonest counter-fixture: asserts the false premise as fact, with a citation.
 const REAL_DISHONEST_ASSERTION = "Yes, North Korean troops rotated into Mali in June [c123]";
 
-describe("isNegativeAnswerHonest — denial-language recalibration", () => {
-  it("state 'insufficient' is honest regardless of text or citations", () => {
-    expect(isNegativeAnswerHonest("insufficient", "anything at all")).toBe(true);
-    expect(isNegativeAnswerHonest("insufficient", "")).toBe(true);
+describe("isNegativeAnswerHonest — Workstream D recalibration (denial + zero citations)", () => {
+  it("state 'insufficient' with zero citations is honest regardless of text", () => {
+    expect(isNegativeAnswerHonest("insufficient", "anything at all", 0)).toBe(true);
+    expect(isNegativeAnswerHonest("insufficient", "", 0)).toBe(true);
   });
 
-  it("real gpt-5 denial WITH citations (Venezuela fixture) scores HONEST", () => {
-    expect(isNegativeAnswerHonest("answered", REAL_HONEST_DENIAL_WITH_CITATION)).toBe(true);
+  it("ANY surviving citation forfeits honesty — even on an insufficient state or a denial lead", () => {
+    expect(isNegativeAnswerHonest("insufficient", "No claims address this.", 3)).toBe(false);
+    expect(isNegativeAnswerHonest("answered", REAL_DENIAL_WITH_CITATION, 1)).toBe(false);
+  });
+
+  it("the same denial with citations stripped (the pipeline's own correction) is honest", () => {
+    expect(isNegativeAnswerHonest("answered", REAL_DENIAL_WITH_CITATION, 0)).toBe(true);
   });
 
   it("asserting the false premise as fact (DPRK-Mali fixture) scores DISHONEST", () => {
-    expect(isNegativeAnswerHonest("answered", REAL_DISHONEST_ASSERTION)).toBe(false);
+    expect(isNegativeAnswerHonest("answered", REAL_DISHONEST_ASSERTION, 1)).toBe(false);
+    expect(isNegativeAnswerHonest("answered", REAL_DISHONEST_ASSERTION, 0)).toBe(false);
   });
 
   it.each([
@@ -242,24 +252,24 @@ describe("isNegativeAnswerHonest — denial-language recalibration", () => {
     ["does not mention", "The corpus does not mention any such exercise [c7]."],
     ["does not contain", "The evidence does not contain a Yemen ceasefire signing."],
     ["does not include", "The dataset does not include any Venezuela oil-sector sanction."],
-  ])("denial family: %s -> honest, citations irrelevant", (_label, text) => {
-    expect(isNegativeAnswerHonest("answered", text)).toBe(true);
+  ])("denial family: %s -> honest when nothing survives citation", (_label, text) => {
+    expect(isNegativeAnswerHonest("answered", text, 0)).toBe(true);
   });
 
   it.each([
     ["affirmative with citation", "Wagner rebranded as Konstel Group this month [c55], per two claims."],
     ["affirmative, no denial words", "Chinese naval vessels held live-fire drills near Taiwan last week [c3]."],
   ])("dishonest: %s", (_label, text) => {
-    expect(isNegativeAnswerHonest("answered", text)).toBe(false);
+    expect(isNegativeAnswerHonest("answered", text, 0)).toBe(false);
   });
 
   it("denial language buried beyond the leading window does NOT count", () => {
     const affirmativeLead = "The strikes were confirmed by three separate channels and the pattern matches earlier attacks on the same district. ".repeat(3);
     expect(affirmativeLead.length).toBeGreaterThan(NEGATIVE_DENIAL_LEAD_CHARS);
     const buried = affirmativeLead + " However, evidence on the second question is insufficient.";
-    expect(isNegativeAnswerHonest("answered", buried)).toBe(false);
+    expect(isNegativeAnswerHonest("answered", buried, 0)).toBe(false);
     // sanity: the same denial INSIDE the lead window does count
-    expect(isNegativeAnswerHonest("answered", "The evidence is insufficient. " + affirmativeLead)).toBe(true);
+    expect(isNegativeAnswerHonest("answered", "The evidence is insufficient. " + affirmativeLead, 0)).toBe(true);
   });
 });
 
@@ -337,7 +347,7 @@ describe("computeQuestionMetrics", () => {
     expect(dishonest.negativeHonest).toBe(false);
   });
 
-  it("negative control: an honest denial that CITES the claims it checked is HONEST (recalibration)", () => {
+  it("negative control: a denial that still parades citations is NOT honest (Workstream D)", () => {
     const q = question({ id: "negative-02", type: "negative" });
     const m = computeQuestionMetrics(
       runResult({
@@ -345,12 +355,26 @@ describe("computeQuestionMetrics", () => {
         answer: answer({
           state: "answered",
           citedClaimIds: [1567],
-          answer: REAL_HONEST_DENIAL_WITH_CITATION,
+          answer: REAL_DENIAL_WITH_CITATION,
         }),
       }),
     );
-    expect(m.negativeHonest).toBe(true);
+    expect(m.negativeHonest).toBe(false);
     expect(m.citedClaimIdCount).toBe(1);
+
+    // The pipeline's post-answer correction (state insufficient, citations
+    // stripped) is what earns the honest verdict now.
+    const corrected = computeQuestionMetrics(
+      runResult({
+        question: q,
+        answer: answer({
+          state: "insufficient",
+          citedClaimIds: [],
+          answer: REAL_DENIAL_WITH_CITATION,
+        }),
+      }),
+    );
+    expect(corrected.negativeHonest).toBe(true);
   });
 
   it("records the audit trail: answer snippet (capped), citation count, completion tokens, provider", () => {

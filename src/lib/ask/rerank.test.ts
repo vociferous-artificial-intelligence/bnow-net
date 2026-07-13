@@ -37,6 +37,7 @@ import {
   serializeCandidate,
   serializeCandidates,
   parseRerankIds,
+  parseRerankResponse,
   rerankResponseSchema,
   rerankOfflineReason,
   RERANK_SNIPPET_CHARS,
@@ -76,7 +77,8 @@ function completion(
 ): Completion {
   return { choices: [{ message: { content }, finish_reason: "stop" }], usage };
 }
-const idsResponse = (ids: number[]) => completion(JSON.stringify({ ids }));
+const idsResponse = (ids: number[], relevantCount?: number) =>
+  completion(JSON.stringify(relevantCount === undefined ? { ids } : { ids, relevant_count: relevantCount }));
 
 interface CreateArg {
   model: string;
@@ -170,7 +172,42 @@ describe("rerankResponseSchema", () => {
     expect(s.properties.ids.minItems).toBe(7);
     expect(s.properties.ids.maxItems).toBe(7);
     expect(s.properties.ids.items).toEqual({ type: "integer" });
-    expect(s.required).toEqual(["ids"]);
+  });
+
+  it("requires a bounded relevant_count (Workstream D relevance boundary)", () => {
+    const s = rerankResponseSchema(7);
+    // Strict structured outputs reject optional properties, so relevant_count is
+    // REQUIRED and bounded — the model always states its relevance boundary.
+    expect(s.properties.relevant_count).toEqual({ type: "integer", minimum: 0, maximum: 7 });
+    expect(s.required).toEqual(["ids", "relevant_count"]);
+    expect(s.additionalProperties).toBe(false);
+  });
+});
+
+describe("parseRerankResponse — relevant_count validation", () => {
+  it("accepts an in-range integer count", () => {
+    expect(parseRerankResponse('{"ids":[3,1,2],"relevant_count":2}', 3)).toEqual({
+      ids: [3, 1, 2],
+      relevantCount: 2,
+    });
+  });
+  it("accepts zero — the genuine none-relevant outcome", () => {
+    expect(parseRerankResponse('{"ids":[3,1,2],"relevant_count":0}', 3)!.relevantCount).toBe(0);
+  });
+  it.each([
+    ['{"ids":[1,2],"relevant_count":-1}'],
+    ['{"ids":[1,2],"relevant_count":99}'],
+    ['{"ids":[1,2],"relevant_count":1.5}'],
+    ['{"ids":[1,2],"relevant_count":"2"}'],
+    ['{"ids":[1,2]}'],
+  ])("maps malformed/absent count to null (fail-open) for %s", (raw) => {
+    const out = parseRerankResponse(raw, 2);
+    expect(out).not.toBeNull();
+    expect(out!.relevantCount).toBeNull();
+  });
+  it("keeps the null-on-garbage contract for the whole payload", () => {
+    expect(parseRerankResponse("not json{{", 5)).toBeNull();
+    expect(parseRerankResponse('{"nope":1}', 5)).toBeNull();
   });
 });
 
@@ -260,6 +297,33 @@ describe("rerankCandidates — happy path", () => {
       completionTokens: 50,
       costUsd: estimateCostUsd("gpt-5-mini", 1000, 50),
     });
+  });
+
+  it("propagates a validated relevant count (Workstream D)", async () => {
+    completionResult = idsResponse([8, 6, 4, 2], 2);
+    const res = await rerankCandidates("q", pool([1, 2, 3, 4, 5, 6, 7, 8]), 4);
+    expect(res.relevantCount).toBe(2);
+    expect(ids(res)).toEqual([8, 6, 4, 2]);
+  });
+
+  it("propagates relevant_count=0 — the genuine none-relevant outcome", async () => {
+    completionResult = idsResponse([8, 6, 4, 2], 0);
+    const res = await rerankCandidates("q", pool([1, 2, 3, 4, 5, 6, 7, 8]), 4);
+    expect(res.relevantCount).toBe(0);
+    expect(res.rerankUsed).toBe(true); // the ranking itself is still used
+  });
+
+  it("shrinks the relevant count when validation drops an id inside the prefix", async () => {
+    // Model says the first 3 are relevant, but 999 is hallucinated: 2 survive.
+    completionResult = idsResponse([8, 999, 6, 4], 3);
+    const res = await rerankCandidates("q", pool([1, 2, 3, 4, 5, 6, 7, 8]), 4);
+    expect(res.relevantCount).toBe(2);
+  });
+
+  it("leaves relevantCount undefined when the model omitted/malformed it (fail-open)", async () => {
+    completionResult = idsResponse([8, 6, 4, 2]); // no relevant_count key
+    const res = await rerankCandidates("q", pool([1, 2, 3, 4, 5, 6, 7, 8]), 4);
+    expect(res.relevantCount).toBeUndefined();
   });
 
   it("trims to k when the model overproduces", async () => {
