@@ -51,8 +51,9 @@ primitives (e.g. `src/components/nav-dropdown.tsx`) are hand-rolled to WAI-ARIA 
         pipeline untouched by it                        coverage, divergence, timeliness,
                                                         unsupported-claim rate)
  Product surface: landing / countries / digests+archive+scoreboard / registry / entities /
-                  signals / trade / datadark / critical-materials / ask / search / pricing / auth /
-                  privacy + terms (public legal docs) / welcome/legal (first-login acceptance)
+                  signals / trade / datadark / critical-materials / ask / search / access (beta
+                  request; /pricing 308-redirects here) / auth / privacy + terms (public legal
+                  docs) / welcome/legal (first-login acceptance)
 ```
 
 Directory map (correct in place as it changes):
@@ -71,7 +72,9 @@ src/lib/analysis/   AnalysisProvider (openai/anthropic/stub), digest, tracks, so
 src/lib/isw/        crawler, endnote parser, hedging classifier, registry materializer
 src/lib/validation/ ISW scoreboard: keyword gazetteer + majority-vote LLM matcher
 src/lib/usage/      SpendGuard, llm-guard (caps + kill-switch), cron-run bookkeeping
-src/lib/…           ask, entities, enrich, datadark, trade, materials, profiles, email,
+src/lib/…           ask, entities, enrich, datadark, trade (incl. partners.ts M49 names),
+                    materials, profiles, email, access (beta-request validation),
+                    auth-delivery (magic-link + SIGNIN_MODE invite gate),
                     nav, ingest, time (ET/UTC day + format + digest-status helpers),
                     legal (policies=version constants + acceptance record + safe-next redirect
                     guard), gate/session/auth
@@ -125,7 +128,9 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   variance 6.9 vs 8.0; `docs/reviews/MR3-REDUCE-RESULTS.md`). Gulf theaters have no
   doc_claims, so they fall back to legacy automatically. Both engines persist
   through ONE shared path (`digest-persist.ts`) whose overwrite guard refuses empty
-  AND thin (<50% prior claims) regenerations (#32 closed; FORCE_REGEN=1 override).
+  AND thin (<50% prior claims) regenerations (#32 closed; FORCE_REGEN=1 override),
+  and which now runs the deterministic **publication-safety guard**
+  (`publication-guard.ts`, 2026-07-13 — ruling 19) before that verdict.
 - **Validation vs ISW:** majority-vote LLM matching (k=5, 26/27 reproducible across
   reruns), keyword gazetteer as no-key fallback; ISW report auto-discovery by slug.
   Coverage avg ~17.5% (nonzero-day ~31%), median info-lead +14.7h (2026-07-05 backtest).
@@ -136,9 +141,14 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   VERCEL_PROJECT_PRODUCTION_URL**) / countries (freshness line + **public per-theater pages
   `/countries/[iso2]` with localized metadata, IA refinement 2026-07-12; Coverage links land
   there, old `#<iso2>` anchors kept; signed-out home "Live now" count driven from
-  `countries.status='active'`**) / pricing
-  (**rebuilt 2026-07-12**: DB-priced Standby + Full analyst tiers from
-  `src/lib/pricing/tiers.ts`, Regional bundles + Enterprise/API on request) /
+  `countries.status='active'`**) / **access (private analyst beta, 2026-07-13)**:
+  public `/access` beta-request page (email + optional LinkedIn URL stored-never-fetched +
+  use-case; honeypot, 1h dedupe, operator email via after()+FEEDBACK_EMAIL, review list at
+  `/admin/access`); `/pricing` 308-redirects there — price cards, dollar amounts and
+  `src/lib/pricing/` are deleted; nav shows "Request access" signed-out ONLY (signed-in nav
+  carries no commercial entry); hero has a restrained beta badge; sign-in is invite-gateable
+  via `SIGNIN_MODE` (open=default/live; invite = users row OR ADMIN_EMAILS OR approved
+  subscribe_intents — flip is an operator decision) /
   magic-link auth (Postmark LIVE, still on scenefiend sender domain) / digests
   (ClaimSources diversity-selected source collapse, **adopted 2026-07-12**) +
   registry (**ADMIN-ONLY since 2026-07-12** analyst-trust R5:
@@ -233,7 +243,7 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   and verified (correct columns, `accepted_at DEFAULT now()`, unique version-triple, FK cascade,
   0 rows); anon prod smoke green (legal pages 200 with v1.0 copy, gated routes 307, /signals 0
   leaks, robots/sitemap correct). Note: `docs/reviews/LEGAL-ACCEPTANCE-NOTE-2026-07-12.md`.
-- **Tests:** 1143 unit tests / 97 files green (`npm test`, ~3s) + Neon-branch
+- **Tests:** 1279 unit tests / 105 files green (`npm test`, ~4s) + Neon-branch
   integration suite (`npm run test:integration`, +5 real-Postgres acceptance tests). CI mirror:
   `.github/workflows/ci.yml`; the enforced gate is `.githooks/pre-push` (typecheck+lint+test).
 - **Crons (vercel.json):** ingest fast */15 · telegram :10 · x :20 · mtproto :35 ·
@@ -320,6 +330,14 @@ Operational rulings:
     re-running the gate (scripts/ab-mapreduce.ts + ab-report.ts). Every doc_claims
     consumer goes through src/lib/analysis/map-versions.ts (superseded extractor
     versions double-count otherwise).
+19. **Publication safety (2026-07-13):** every digest persist passes
+    `guardPublishedEvents` (`src/lib/analysis/publication-guard.ts`) BEFORE the
+    overwrite verdict — single-doc disputed reputational person-allegations drop;
+    disputed named-person allegations always carry attribution and their events get
+    deterministic copy (model prose never survives there); corroboration promotion
+    never confirms a person-allegation on its own; the scoreboard labels
+    non-confirmed unmatched claims "BNOW-only reported item" with the hedge shown.
+    Do not bypass the guard or weaken these rules without a decision-log entry.
 
 ## Decision log (append-only, dated)
 
@@ -757,6 +775,49 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   still save the new watermark. The historical gap remains an explicit audited-recovery task;
   prompt `docs/prompts/2026-07-13-x-gap-catchup-rescore.md`. Current-state text and #38 were
   corrected in place to distinguish live-now health from historical completeness.
+
+
+- **2026-07-13 (private-beta readiness sprint — FULL SHIP, deployed)** Prompt:
+  `docs/prompts/2026-07-13-private-beta-readiness.md`; branch
+  `20260713-private-beta-readiness` (tag `pre-private-beta-20260713`, isolated
+  worktree), merged `--no-ff` `86ef6ef`, pushed (pre-push green), **migrations 0018
+  (subscribe_intents beta-request columns) + 0019 (trade_flows.partner_name) applied to
+  prod BEFORE deploy and post-verified**; `SIGNIN_MODE=open` added readable-plain to all
+  three Vercel envs and READ BACK before deploy. Deploy
+  **`dpl_6ML79nJiEpNzASBszH6TNvLYaGvf`** READY (rollback target:
+  `dpl_9CzgfnFhVDkLv6KJriBaa5oXhkmV`). Full account:
+  `docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md`. Ship list: public offer
+  repositioned as a **private analyst beta** (/access request form + honeypot + dedupe +
+  operator email + /admin/access review list; /pricing 308→/access; price cards, dollar
+  amounts, founding-subscriber copy and src/lib/pricing DELETED; signed-in nav carries no
+  commercial entry; invite-gateable sign-in at the deliverMagicLink seam — **prod stays
+  `open`; flip is an operator decision**); **publication-safety guard** (new standing
+  ruling 19) + scoreboard "BNOW-only reported item" framing; signals purge detector
+  reworked (person-only, procedural-text qualifier, canonical counting, no names/"purge"
+  in detail — expect the junk-built ir signal to disappear); ask relevance boundary
+  (required bounded relevant_count in the rerank schema, insufficient stop before the
+  answer model, post-answer denial correction, evaluator now requires zero citations for
+  negative honesty); entity ё-fold + Vorobyov alias family (prod dry run 763→578,
+  **cleanup plan awaiting operator approval** — ENTITY-CLEANUP-PLAN-2026-07-13.md, apply
+  before the OpenSanctions rescore); 390px overflow ROOT-CAUSED in a real browser
+  (Chromium floors flex-item <main> at min-content; root-layout block wrapper fixes all
+  pages; 17 routes measured scrollWidth==390) + dropdown exclusivity proven under
+  trusted input (synthetic-click gap documented, no global state); critical-materials
+  partner names (193-code M49 map + partnerDesc persistence + includeDesc=true —
+  live-verify on the next monthly pulls), datadark latest-period correctness (matchAll +
+  latest date + age-based staleness + anomaly guard; prod cbr-key-rate 17.09.2013/ok row
+  self-corrects on the next 09:00Z cron) + UN Comtrade provenance links (S&P/CEPR/KSE
+  name-drops removed). Tests 1147/97 → **1279/105**; integration (Neon branch, 3/14) +
+  `next build` green. **Anon prod smoke 36/36** (one initial FAIL was framework CSS hex
+  matching the #NNN grep — real supplier labels verified named, e.g. Israel 10.4% was
+  #376): /access 200 + neutral no-purchase wording, /pricing 308, gated 307, /admin 404,
+  home badge + zero founding/pricing copy, signals zero leak markers, trade/materials
+  provenance live, sitemap swapped. OPEN-TASKS: #57 closed, #58 advanced, +#61–#65.
+  LLM spend $0.00 (no paid eval run — not operator-authorized). Operator items: beta
+  wording confirmation, SIGNIN_MODE flip + grandfather set, /access response window,
+  entity plan apply, Graham digest-row repair (#62), Postmark sender domain, THEN the X
+  historical catch-up (B/E readiness satisfied: B deployed, E code deployed with the
+  merge plan pending) and the OpenSanctions rescore LAST.
 
 ## Conventions
 
