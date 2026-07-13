@@ -21,22 +21,22 @@ resume point for a successor session: read `AGENTS.md`, the prompt, this file, t
 
 | WS | Status | Notes |
 |----|--------|-------|
-| A1+A2 pricing→/access + beta copy | not started | |
-| A3 /access form + migration 0018 + notify | not started | |
-| A4 SIGNIN_MODE invite gate | not started | |
+| A1+A2 pricing→/access + beta copy | DONE | nav access entry (signed-out only, CTA), /pricing 308→/access (page-level permanentRedirect, force-dynamic), src/lib/pricing DELETED, pricing.* i18n keys DELETED (ns swap pricing→access), hero badge+line+request CTA, account beta framing (both FEATURE_STRIPE branches tested), sitemap/seo swapped |
+| A3 /access form + migration 0018 + notify | DONE | /access page+form+action (honeypot, 1h dedupe, LinkedIn https+linkedin.com-host-only validation, no raw errors), operator email via after() + FEEDBACK_EMAIL, /admin/access review list, access.* i18n ×7 catalogs (native review pending, inventory updated) |
+| A4 SIGNIN_MODE invite gate | not started | NEXT |
 | B publication safety guard | not started | |
 | C Signals semantics | not started | |
 | D Ask relevance boundary | not started | |
 | E entity canonicalization | not started | |
-| F responsive 390px + dropdown repro | not started | |
-| G materials/datadark/provenance | not started | G1 migration numbered AFTER A3's |
+| F responsive 390px + dropdown repro | not started | G1 migration numbered AFTER A3's (done: 0018) |
+| G materials/datadark/provenance | not started | |
 | H gates/browser/docs/merge | not started | |
 
-**Next step:** implement A1/A2 (nav + /access page + /pricing redirect + hero copy).
+**Next step:** A4 — SIGNIN_MODE=open/invite gate at the deliverMagicLink seam.
 
 ## Migrations generated so far
 
-(none)
+- `drizzle/0018_messy_lilith.sql` — subscribe_intents + linkedin_url/use_case/request_status/source (additive; journal idx 18, prevId chains 0017). NOT yet applied to prod.
 
 ## Env vars added so far
 

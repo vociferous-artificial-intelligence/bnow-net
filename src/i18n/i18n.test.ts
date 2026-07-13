@@ -235,7 +235,9 @@ describe("no regression for existing en / uk", () => {
     const t = makeT("en");
     expect(t("nav.pricing")).toBe("pricing");
     expect(t("nav.signin")).toBe("sign in");
-    expect(t("home.cta.subscribe")).toBe("Become a founding subscriber");
+    // Private-beta repositioning (2026-07-13): the founding-subscriber CTA is gone;
+    // the beta request CTA is the pinned replacement.
+    expect(t("home.cta.request_beta")).toBe("Request beta access");
     expect(t("common.status")).toBe("status");
   });
   it("Ukrainian chrome values are unchanged (original five keys preserved)", () => {

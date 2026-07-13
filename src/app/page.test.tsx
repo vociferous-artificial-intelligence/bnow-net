@@ -304,30 +304,44 @@ describe("signed-in home: compact headline, no marketing CTAs (R3)", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Today's intelligence picture" })).toBeTruthy();
     expect(screen.queryByText("Read today's digest")).toBeNull();
     expect(container.querySelector('a[href="/pricing"]')).toBeNull();
+    // Private-beta rule: the signed-in home carries no commercial entry either.
+    expect(container.querySelector('a[href="/access"]')).toBeNull();
+    expect(screen.queryByText("Private analyst beta")).toBeNull();
     expect(screen.queryByText(/^Live now/)).toBeNull();
     // The old marketing subtitle must not leak into the signed-in render either.
     expect(screen.queryByText(/Per-country intelligence feeds from open news/)).toBeNull();
   });
 });
 
-describe("signed-out home: CTA + hero untouched (regression guard)", () => {
-  it("still renders the marketing headline, subtitle, subscribe CTA and Live-now line", async () => {
+describe("signed-out home: private-beta hero (repositioning 2026-07-13)", () => {
+  it("renders the beta badge, headline, request-access CTA and Live-now line — no pricing path, no dollar amounts", async () => {
     emailMock.mockResolvedValue(null);
     queryMock.mockResolvedValueOnce([STATS_ROW]); // only the top stats query runs
 
     const element = await Home();
     const { container } = render(element);
 
+    // Restrained beta marker sits above the unchanged headline.
+    expect(screen.getByText("Private analyst beta")).toBeTruthy();
     expect(
       screen.getByRole("heading", {
         level: 1,
         name: "Transparent source reliability ratings for conflict-zone OSINT",
       }),
     ).toBeTruthy();
-    const subscribeLink = container.querySelector('a[href="/pricing"]');
-    expect(subscribeLink?.textContent).toBe("Become a founding subscriber");
-    // Live-now count is driven from the DB active-theater count (n=8 in STATS_ROW),
-    // not a hardcoded three (IA refinement 2026-07-12: the 3-vs-8 fix).
+
+    // The founding-subscriber CTA is gone; the primary CTA requests beta access.
+    const accessLinks = Array.from(container.querySelectorAll('a[href="/access"]'));
+    expect(accessLinks.some((a) => a.textContent === "Request beta access")).toBe(true);
+    expect(container.querySelector('a[href="/pricing"]')).toBeNull();
+    expect(container.textContent).not.toMatch(/founding subscriber/i);
+    expect(container.textContent).not.toMatch(/\$\d/);
+
+    // One short collaborative-beta line, analyst-centered.
+    expect(screen.getByText(/Built with working analysts/)).toBeTruthy();
+
+    // Scoreboard CTA and the DB-driven live-coverage truth are retained.
+    expect(screen.getAllByRole("link", { name: "See the scoreboard" }).length).toBeGreaterThan(0);
     expect(screen.getByText(/^Live now: 8 theaters/)).toBeTruthy();
   });
 });

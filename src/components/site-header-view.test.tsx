@@ -80,18 +80,30 @@ describe("auth slot", () => {
   });
 });
 
-describe("pricing treatment", () => {
-  it("renders pricing as a button-styled CTA when signed out", () => {
+describe("commercial entry (private analyst beta)", () => {
+  it("renders Request access as a button-styled CTA -> /access when signed out", () => {
     renderHeader({ signedIn: false });
-    const pricing = within(mainNav()).getByRole("link", { name: "Pricing" });
-    expect(pricing.className).toContain("bg-blue-600");
+    const access = within(mainNav()).getByRole("link", { name: "Request access" });
+    expect(access.className).toContain("bg-blue-600");
+    expect(access.getAttribute("href")).toBe("/access");
   });
 
-  it("demotes pricing to a plain link once signed in", () => {
-    renderHeader({ signedIn: true });
-    const pricing = within(mainNav()).getByRole("link", { name: "Pricing" });
-    expect(pricing.className).not.toContain("bg-blue-600");
-    expect(pricing.getAttribute("href")).toBe("/pricing");
+  it("renders the signed-out mobile CTA strip from the entry href, not a hardcoded route", () => {
+    const { container } = renderHeader({ signedIn: false });
+    // The md:hidden strip under the bar: same label, same /access destination.
+    const strips = Array.from(container.querySelectorAll('a[href="/access"]')).filter(
+      (a) => a.textContent === "Request access",
+    );
+    expect(strips.length).toBeGreaterThanOrEqual(2); // desktop CTA + mobile strip
+    expect(container.querySelector('a[href="/pricing"]')).toBeNull();
+  });
+
+  it("shows NO commercial entry at all once signed in — no pricing, no request access", () => {
+    const { container } = renderHeader({ signedIn: true });
+    expect(within(mainNav()).queryByRole("link", { name: "Request access" })).toBeNull();
+    expect(within(mainNav()).queryByRole("link", { name: "Pricing" })).toBeNull();
+    expect(container.querySelector('a[href="/pricing"]')).toBeNull();
+    expect(container.querySelector('a[href="/access"]')).toBeNull();
   });
 });
 
@@ -199,7 +211,7 @@ describe("dropdown accessibility", () => {
 
   it("stays closed when the user navigates back to the path it was opened on", async () => {
     const user = userEvent.setup();
-    const { navigate } = renderHeader({ pathname: "/pricing" });
+    const { navigate } = renderHeader({ pathname: "/access" });
     const trigger = within(mainNav()).getByRole("button", { name: "Coverage" });
 
     await user.click(trigger); // opened while on /pricing
@@ -208,7 +220,7 @@ describe("dropdown accessibility", () => {
     navigate("/countries/ru"); // followed a menu link
     expect(screen.queryByRole("menu", { name: "Coverage" })).toBeNull();
 
-    navigate("/pricing"); // browser Back — no pointer or key event at all
+    navigate("/access"); // browser Back — no pointer or key event at all
     expect(screen.queryByRole("menu", { name: "Coverage" })).toBeNull();
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
   });
@@ -358,14 +370,14 @@ describe("mobile sheet", () => {
 
   it("stays closed when the user navigates back to the path it was opened on", async () => {
     const user = userEvent.setup();
-    const { navigate } = renderHeader({ pathname: "/pricing" });
+    const { navigate } = renderHeader({ pathname: "/access" });
     await user.click(screen.getByRole("button", { name: "Menu" }));
     expect(screen.getByRole("dialog", { name: "Menu" })).toBeTruthy();
 
     navigate("/ask");
     expect(screen.queryByRole("dialog", { name: "Menu" })).toBeNull();
 
-    navigate("/pricing"); // browser Back must not resurrect the overlay
+    navigate("/access"); // browser Back must not resurrect the overlay
     expect(screen.queryByRole("dialog", { name: "Menu" })).toBeNull();
   });
 

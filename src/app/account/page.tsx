@@ -49,6 +49,14 @@ export default async function AccountPage() {
     [email],
   )) as Array<{ plan_code: string; status: string; name: string }>;
 
+  // While checkout is disabled the account frames access as the private analyst
+  // beta — but the "active" claim is still DERIVED from the real subscription
+  // state, never inferred from missing Stripe IDs or asserted unconditionally.
+  // With Stripe enabled the original plan/status rows render unchanged. Read at
+  // render (not module scope) so both branches are testable.
+  const stripeEnabled = process.env.FEATURE_STRIPE === "true";
+  const hasActiveAccess = subs.some((s) => s.status === "active");
+
   return (
     <main id="main" className="mx-auto max-w-md p-6 pt-24">
       <p className="mb-1 text-sm text-gray-500">
@@ -56,17 +64,23 @@ export default async function AccountPage() {
       </p>
       <h1 className="mb-4 text-xl font-bold">{email}</h1>
       {subs.length > 0 ? (
-        <ul className="mb-6 space-y-1 text-sm">
-          {subs.map((s, i) => (
-            <li key={i}>
-              {s.name} — <span className="text-gray-500">{s.status}</span>
-            </li>
-          ))}
-        </ul>
+        !stripeEnabled && hasActiveAccess ? (
+          <p className="mb-6 text-sm font-medium">
+            Private analyst beta — <span className="text-green-700 dark:text-green-400">active</span>
+          </p>
+        ) : (
+          <ul className="mb-6 space-y-1 text-sm">
+            {subs.map((s, i) => (
+              <li key={i}>
+                {s.name} — <span className="text-gray-500">{s.status}</span>
+              </li>
+            ))}
+          </ul>
+        )
       ) : (
         <p className="mb-6 text-sm text-gray-500">
-          No subscription yet. <Link href="/pricing" className="underline">See pricing</Link> —
-          founding-subscriber onboarding is manual while checkout is offline.
+          No access on this account yet.{" "}
+          <Link href="/access" className="underline">Request beta access</Link>.
         </p>
       )}
 

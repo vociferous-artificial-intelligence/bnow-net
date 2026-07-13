@@ -36,9 +36,11 @@ const AccountPage = (await import("./page")).default;
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllEnvs();
   authMock.mockReset();
   acceptanceMock.mockReset();
   queryMock.mockClear();
+  queryMock.mockResolvedValue([]);
 });
 
 async function redirectOf(): Promise<string> {
@@ -83,5 +85,69 @@ describe("/account legal section", () => {
     expect(text).toMatch(/2026.*ET/);
     // No internal method string or raw acceptance id leaks to the user.
     expect(text).not.toContain("first_login_clickwrap");
+  });
+});
+
+// Private-beta repositioning (2026-07-13): while checkout is disabled the account
+// frames access as the analyst beta, but the "active" claim is DERIVED from real
+// subscription state (never inferred from missing Stripe IDs alone), and the
+// Stripe-enabled branch keeps the factual plan/status rows. Both flag branches
+// are exercised per the sprint rule.
+const ACCEPTED = {
+  termsVersion: "1.0",
+  privacyVersion: "1.0",
+  acceptedAt: "2026-07-12T14:00:00.000Z",
+};
+const ACTIVE_SUB = { plan_code: "full_annual", status: "active", name: "Full analyst (annual)" };
+
+function signInAccepted() {
+  authMock.mockResolvedValue({ user: { email: "analyst@example.com" } });
+  acceptanceMock.mockResolvedValue(ACCEPTED);
+}
+
+describe("/account access framing — checkout disabled (FEATURE_STRIPE unset)", () => {
+  it("shows 'Private analyst beta — active' derived from a real active subscription, without plan framing", async () => {
+    vi.stubEnv("FEATURE_STRIPE", "");
+    signInAccepted();
+    queryMock.mockResolvedValue([ACTIVE_SUB]);
+    const { container } = render(await AccountPage());
+    const text = container.textContent ?? "";
+    expect(text).toContain("Private analyst beta");
+    expect(text).toContain("active");
+    expect(text).not.toContain("Full analyst (annual)");
+  });
+
+  it("does NOT claim beta-active from a non-active subscription row", async () => {
+    vi.stubEnv("FEATURE_STRIPE", "");
+    signInAccepted();
+    queryMock.mockResolvedValue([{ ...ACTIVE_SUB, status: "canceled" }]);
+    const { container } = render(await AccountPage());
+    const text = container.textContent ?? "";
+    expect(text).not.toContain("Private analyst beta");
+    expect(text).toContain("Full analyst (annual)");
+    expect(text).toContain("canceled");
+  });
+
+  it("points an account with no rows at /access with no founding/pricing copy", async () => {
+    vi.stubEnv("FEATURE_STRIPE", "");
+    signInAccepted();
+    const { container } = render(await AccountPage());
+    const link = container.querySelector('a[href="/access"]');
+    expect(link?.textContent).toBe("Request beta access");
+    expect(container.textContent).not.toMatch(/founding/i);
+    expect(container.querySelector('a[href="/pricing"]')).toBeNull();
+  });
+});
+
+describe("/account access framing — checkout enabled (FEATURE_STRIPE=true)", () => {
+  it("renders the factual plan/status rows, not the beta wording", async () => {
+    vi.stubEnv("FEATURE_STRIPE", "true");
+    signInAccepted();
+    queryMock.mockResolvedValue([ACTIVE_SUB]);
+    const { container } = render(await AccountPage());
+    const text = container.textContent ?? "";
+    expect(text).not.toContain("Private analyst beta");
+    expect(text).toContain("Full analyst (annual)");
+    expect(text).toContain("active");
   });
 });
