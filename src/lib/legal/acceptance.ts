@@ -111,7 +111,7 @@ export interface RecordAcceptanceInput {
 
 export type RecordAcceptanceResult =
   | { ok: true; acceptedAt: string }
-  | { ok: false; error: "no_user" | "db_error" };
+  | { ok: false; error: "no_user" | "db_error" | "invalid_attestation" };
 
 /**
  * Insert one append-only acceptance row for the CURRENT version pair. Idempotent: a repeat for
@@ -123,6 +123,10 @@ export async function recordAcceptance(
   input: RecordAcceptanceInput,
 ): Promise<RecordAcceptanceResult> {
   const { email, adultAttested, privacyAcknowledged, locale } = input;
+  // Record-integrity invariant: an acceptance row MUST attest both. The only caller
+  // (acceptAction) already validates this, but assert here so no future caller can persist a
+  // row with a false attestation — an acceptance record that doesn't attest isn't an acceptance.
+  if (!adultAttested || !privacyAcknowledged) return { ok: false, error: "invalid_attestation" };
   try {
     const sql = await rawSql();
     const userRows = (await sql.query(`SELECT id FROM users WHERE email = $1`, [email])) as Array<{

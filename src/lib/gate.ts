@@ -40,7 +40,8 @@ export async function requireAcceptedUser(): Promise<{ email: string } | null> {
 
 export async function requireAdmin(): Promise<void> {
   const session = await auth();
-  const email = session?.user?.email?.toLowerCase();
+  const rawEmail = session?.user?.email ?? null;
+  const email = rawEmail?.toLowerCase();
   const allow = (process.env.ADMIN_EMAILS ?? "")
     .split(",")
     .map((s) => s.trim().toLowerCase())
@@ -48,6 +49,11 @@ export async function requireAdmin(): Promise<void> {
   if (process.env.FEATURE_AUTH_GATE !== "true" && allow.length === 0) return;
   if (!email) redirect("/signin");
   if (allow.length > 0 && !allow.includes(email)) redirect("/");
+  // Admin confirmed. A confirmed admin (a real authenticated user) is still held to current
+  // legal acceptance — same posture as requireAdminOr404. Use the RAW session email so the
+  // lookup matches the stored users.email exactly (the allowlist compare is lowercased, the
+  // acceptance row is keyed to the real user).
+  if (rawEmail && !(await hasCurrentAcceptanceByEmail(rawEmail))) redirect("/welcome/legal");
 }
 
 // ---------- role gate (additive; users.role ships in migration 0016) ----------

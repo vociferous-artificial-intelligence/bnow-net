@@ -221,8 +221,9 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   **action + API route** independently; the signed-in **home** redirects before any subscriber
   query; **/signals** gates its detail on acceptance (teaser stays public); **/account** shows
   the accepted versions + timestamp (no id/method leaked) and redirects if unaccepted;
-  `requireAdminOr404` redirects a confirmed admin who hasn't accepted (non-admins still 404, so
-  the registry gate is unweakened). Anonymous dev/demo parity (FEATURE_AUTH_GATE off) preserved;
+  both `requireAdminOr404` (registry/middle-east) and `requireAdmin` (the /admin console) redirect
+  a confirmed admin who hasn't accepted (non-admins still 404 / redirect-to-/ respectively, so the
+  admin gates are unweakened). Anonymous dev/demo parity (FEATURE_AUTH_GATE off) preserved;
   no acceptance record is ever manufactured for an anonymous visitor. Note:
   `docs/reviews/LEGAL-ACCEPTANCE-NOTE-2026-07-12.md`.
 - **Tests:** 1143 unit tests / 97 files green (`npm test`, ~3s) + Neon-branch

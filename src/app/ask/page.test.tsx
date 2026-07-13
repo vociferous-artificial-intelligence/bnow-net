@@ -18,7 +18,7 @@ vi.mock("next/link", () => ({
 }));
 
 vi.mock("@/lib/gate", () => ({
-  requireUser: vi.fn().mockResolvedValue({ email: "user@example.com" }),
+  requireAcceptedUser: vi.fn().mockResolvedValue({ email: "user@example.com" }),
 }));
 
 vi.mock("@/i18n/server", async () => {
@@ -67,14 +67,14 @@ describe("GET /ask?q=... never executes the paid pipeline", () => {
     expect(input.value).toBe("");
   });
 
-  it("still calls requireUser (the page stays gated) but never askWithLimits", async () => {
-    const { requireUser } = await import("@/lib/gate");
+  it("still calls requireAcceptedUser (the page stays gated on auth + acceptance) but never askWithLimits", async () => {
+    const { requireAcceptedUser } = await import("@/lib/gate");
     const element = await AskPage({
       searchParams: Promise.resolve({ q: "some question" }),
     });
     render(element);
 
-    expect(requireUser).toHaveBeenCalled();
+    expect(requireAcceptedUser).toHaveBeenCalled();
     expect(askWithLimitsMock).not.toHaveBeenCalled();
   });
 });

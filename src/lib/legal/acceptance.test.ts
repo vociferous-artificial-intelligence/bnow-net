@@ -91,6 +91,22 @@ describe("recordAcceptance", () => {
     expect(insert[0]).toMatch(/ON CONFLICT[\s\S]*DO NOTHING/i);
   });
 
+  it("refuses to persist a row that does not attest both (defense in depth, no DB touched)", async () => {
+    const missingAdult = await recordAcceptance({
+      email: "a@b.com",
+      adultAttested: false,
+      privacyAcknowledged: true,
+    });
+    expect(missingAdult).toEqual({ ok: false, error: "invalid_attestation" });
+    const missingPrivacy = await recordAcceptance({
+      email: "a@b.com",
+      adultAttested: true,
+      privacyAcknowledged: false,
+    });
+    expect(missingPrivacy).toEqual({ ok: false, error: "invalid_attestation" });
+    expect(queryMock).not.toHaveBeenCalled();
+  });
+
   it("returns no_user when the email has no users row (never inserts)", async () => {
     wireHappyPath({ userId: null });
     const res = await recordAcceptance({ email: "ghost@b.com", adultAttested: true, privacyAcknowledged: true });

@@ -40,7 +40,7 @@ vi.mock("@/lib/legal/acceptance", () => ({
   hasCurrentAcceptanceByEmail: () => acceptMock(),
 }));
 
-const { roleAtLeast, currentRole, requireRole, requireAdminOr404, requireAcceptedUser } =
+const { roleAtLeast, currentRole, requireRole, requireAdmin, requireAdminOr404, requireAcceptedUser } =
   await import("./gate");
 
 function session(email: string | null) {
@@ -272,5 +272,29 @@ describe("requireAcceptedUser", () => {
     session("real@example.com");
     acceptMock.mockResolvedValue(false);
     expect(await redirectedTo(() => requireAcceptedUser())).toBe("/welcome/legal");
+  });
+});
+
+// The /admin console gate: allowlist AND current acceptance (consistency with requireAdminOr404).
+describe("requireAdmin", () => {
+  it("passes an allowlisted admin who has accepted", async () => {
+    vi.stubEnv("ADMIN_EMAILS", "boss@example.com");
+    session("boss@example.com");
+    acceptMock.mockResolvedValue(true);
+    await expect(requireAdmin()).resolves.toBeUndefined();
+  });
+
+  it("redirects an allowlisted admin who has NOT accepted to /welcome/legal", async () => {
+    vi.stubEnv("ADMIN_EMAILS", "boss@example.com");
+    session("boss@example.com");
+    acceptMock.mockResolvedValue(false);
+    expect(await redirectedTo(() => requireAdmin())).toBe("/welcome/legal");
+  });
+
+  it("still redirects a non-allowlisted signed-in user to / (unchanged, before any acceptance check)", async () => {
+    vi.stubEnv("ADMIN_EMAILS", "boss@example.com");
+    session("intruder@example.com");
+    expect(await redirectedTo(() => requireAdmin())).toBe("/");
+    expect(acceptMock).not.toHaveBeenCalled();
   });
 });
