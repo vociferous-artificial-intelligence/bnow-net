@@ -106,6 +106,11 @@ HARD RULES:
 5. Weigh source reliability: low-reliability sources need corroboration before their
    claims lead an event.
 6. 5-12 events, most significant first. Do not editorialize beyond the evidence.
+7. Preserve attribution and hedging in titles and summaries: state as fact only what is
+   'confirmed'; write attributed wording for everything else. Never add causation or
+   speculation absent from the documents. An allegation about a named person (death,
+   crime, corruption, prosecution, sanctions, dismissal, health) must carry its
+   attribution in the wording and must never read as established fact.
 
 ${ENTITY_RULES}`;
 

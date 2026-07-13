@@ -282,3 +282,73 @@ function baseGroup() {
     eventHint: null, claimDate: "2026-07-08", latestPublishedAt: null, size: 1,
   };
 }
+// ---- publication safety: promotion never confirms a person allegation ---------
+
+describe("finalizeEvents: corroboration promotion vs named-person allegations", () => {
+  const mergedFor = (text: string) => [
+    {
+      title: "t",
+      type: "political",
+      summary: "s",
+      claims: [{ text, gids: [1] }],
+      votes: 3,
+      meanRank: 0,
+      majorityGids: [1],
+    },
+  ];
+
+  it("demotes a promoted 'confirmed' back to native hedging for a reputational person allegation", () => {
+    const groups = new Map([
+      [
+        1,
+        group({
+          key: 1,
+          hedging: "confirmed",
+          promoted: true, // reduce promoted claimed -> confirmed on 2 source classes
+          entities: [{ name: "Ivan Petrov", kind: "person", role: "subject" }],
+        }),
+      ],
+    ]);
+    const events = finalizeEvents(
+      mergedFor("Governor Ivan Petrov was arrested for corruption"),
+      groups,
+    );
+    expect(events[0].claims[0].hedging).toBe("claimed");
+  });
+
+  it("keeps a NATIVELY confirmed allegation confirmed (map extraction said so, not promotion)", () => {
+    const groups = new Map([
+      [
+        1,
+        group({
+          key: 1,
+          hedging: "confirmed",
+          promoted: false,
+          entities: [{ name: "Ivan Petrov", kind: "person", role: "subject" }],
+        }),
+      ],
+    ]);
+    const events = finalizeEvents(
+      mergedFor("Governor Ivan Petrov was arrested for corruption"),
+      groups,
+    );
+    expect(events[0].claims[0].hedging).toBe("confirmed");
+  });
+
+  it("keeps promotion for non-allegation claims (battlefield corroboration is real)", () => {
+    const groups = new Map([
+      [1, group({ key: 1, hedging: "confirmed", promoted: true })],
+    ]);
+    const events = finalizeEvents(mergedFor("Eight tankers struck in port"), groups);
+    expect(events[0].claims[0].hedging).toBe("confirmed");
+  });
+});
+
+describe("synthesis prompt carries the attribution hard rules", () => {
+  it("instructs attributed wording and bans added speculation", () => {
+    const p = synthesisSystemPrompt("military", "ru");
+    expect(p).toContain("Preserve attribution and hedging in ALL prose");
+    expect(p).toContain("Never add causation, motive, or speculation");
+    expect(p).toContain("allegation about a named person");
+  });
+});

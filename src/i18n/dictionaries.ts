@@ -330,7 +330,7 @@ const en: Dict = {
   // Divergence kinds: agreement / isw_only (our miss) / ours_only (potential lead) —
   // score.ts DivergenceEntry.kind.
   "scoreboard.how_to_read.divergence":
-    "Agreement / ISW-only / ours-only — events both sides reported, events ISW reported that we missed, and events we reported that ISW didn't carry (a potential lead).",
+    "Agreement / ISW-only / ours-only — events both sides reported, events ISW reported that we missed, and events we reported that ISW didn't carry. An ours-only item counts as a potential lead only when confirmed; unconfirmed items are labeled with their hedge.",
 
   // digest page framing
   "digest.no_events": "No events extracted.",
@@ -611,7 +611,7 @@ const uk: Dict = {
   "scoreboard.how_to_read.thin":
     "Слабко підкріплені % — частка наших тверджень, що спираються лише на одне джерело і при цьому позначені як заявлені чи неперевірені, а не подані як встановлений факт. Менше — краще.", // uk: needs native review
   "scoreboard.how_to_read.divergence":
-    "Збіг / лише ISW / лише ми — події, які повідомили обидві сторони, події, які повідомив ISW, а ми пропустили, і події, які повідомили ми, а ISW не згадав (можливе випередження).", // uk: needs native review
+    "Збіг / лише ISW / лише ми — події, які повідомили обидві сторони, події, які повідомив ISW, а ми пропустили, і події, які повідомили ми, а ISW не згадав. Пункт «лише ми» вважається можливим випередженням лише якщо він підтверджений; непідтверджені позначаються своїм ступенем достовірності.", // uk: needs native review
   "digest.no_events": "Подій не виявлено.",
   "digest.view_for": "перегляд для:",
   "digest.sources": "джерела",

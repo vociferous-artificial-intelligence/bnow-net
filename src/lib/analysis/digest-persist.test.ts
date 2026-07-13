@@ -111,3 +111,71 @@ describe("persistDigest embedding hook", () => {
     expect(warn).toHaveBeenCalledOnce();
   });
 });
+
+// ---- publication guard wiring (Workstream B, 2026-07-13) -----------------------
+
+describe("persistDigest publication-guard wiring", () => {
+  const grahamEvents: PersistEvent[] = [
+    {
+      title: "US Senator Lindsey Graham dies amid corruption scandal",
+      type: "political",
+      summary: "Reports suggest corruption may have influenced the circumstances of his death.",
+      claims: [
+        {
+          text: "US Senator Lindsey Graham died amid corruption allegations",
+          claimType: "factual",
+          hedging: "claimed",
+          docIds: [1, 2],
+          entities: [{ name: "Lindsey Graham", kind: "person", role: "subject" }],
+        },
+      ],
+    },
+  ];
+
+  it("persists the GUARDED shape (attributed title/claims) and records guard stats in structured", async () => {
+    embedAndStoreClaimsMock.mockResolvedValue({ embedded: 1, inserted: 1, costUsd: 0, tokens: 5, provider: "openai:m" });
+    const { pool, client } = fakePool();
+    const out = await persistDigest({ ...argsFor(pool), events: grahamEvents });
+    expect(out).toEqual({ digestId: 100, claimCount: 1 });
+
+    const calls = client.query.mock.calls as unknown as Array<[string, unknown[]?]>;
+    const evInsert = calls.find((c) => /INSERT INTO events/.test(c[0]))!;
+    const evParams = evInsert[1] ?? [];
+    expect(evParams.some((p) => typeof p === "string" && p.startsWith("Sources claim:"))).toBe(true);
+
+    const clInsert = calls.find((c) => /INSERT INTO claims/.test(c[0]))!;
+    const clParams = clInsert[1] ?? [];
+    expect(clParams.some((p) => typeof p === "string" && p.startsWith("Sources claim:"))).toBe(true);
+
+    const dInsert = calls.find((c) => /INSERT INTO digests/.test(c[0]))!;
+    const structured = JSON.parse(dInsert[1]![3] as string) as {
+      stats: { publicationGuard: { attributedClaims: number } };
+    };
+    expect(structured.stats.publicationGuard.attributedClaims).toBe(1);
+  });
+
+  it("runs the guard BEFORE the overwrite verdict: a guard-emptied regeneration is refused, keeping the prior digest", async () => {
+    const singleDocReputational: PersistEvent[] = [
+      {
+        title: "Governor arrested",
+        type: "political",
+        summary: "The governor was arrested for embezzlement.",
+        claims: [
+          {
+            text: "Governor Ivan Petrov was arrested for embezzlement",
+            claimType: "factual",
+            hedging: "claimed",
+            docIds: [7], // below ALLEGATION_MIN_DOCS -> guard drops it
+            entities: [{ name: "Ivan Petrov", kind: "person", role: "subject" }],
+          },
+        ],
+      },
+    ];
+    const { pool, client } = fakePool();
+    // Prior digest has 3 claims; the guard leaves ZERO events -> empty-regen refusal.
+    (pool.query as ReturnType<typeof vi.fn>).mockResolvedValue({ rows: [{ claims: 3 }] });
+    const out = await persistDigest({ ...argsFor(pool), events: singleDocReputational });
+    expect(out).toMatchObject({ skipped: "empty-regen", priorClaims: 3, newClaims: 0 });
+    expect(client.query).not.toHaveBeenCalled(); // no transaction ever opened
+  });
+});
