@@ -1175,3 +1175,18 @@ independent adversarial review passed (minor fixes applied `e62c14e`). Review no
   handoff: `docs/prompts/2026-07-13-x-gap-catchup-rescore.md`. Sequencing is private beta → X →
   OpenSanctions.
 - Vercel build passed (`next build`, including TypeScript). No application source changed.
+
+## 2026-07-13 — private-beta readiness sprint (branch 20260713-private-beta-readiness)
+
+All eight workstreams of docs/prompts/2026-07-13-private-beta-readiness.md shipped in
+the isolated worktree: public offer repositioned as a private analyst beta (/access
+journey + invite-gateable SIGNIN_MODE, default open), deterministic digest publication
+guard (Graham regression pinned), signals purge-detector semantics (person-only,
+procedural text qualifier, canonical counting, no names in detail), ask relevance
+boundary (relevant_count schema + insufficient stop + post-answer correction +
+evaluator recalibration), entity ё-fold + Vorobyov alias family (prod cleanup plan
+awaiting operator approval), 390px overflow root-cause fix (browser-verified, 17
+routes), materials partner names (193-code M49 map + partner_name column) + datadark
+latest-period correctness + provenance links. Migrations 0018 + 0019 (additive).
+Tests 1147/97 → 1279/105; integration + build green. Full account:
+docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md.
