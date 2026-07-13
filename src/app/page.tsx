@@ -353,7 +353,13 @@ export default async function Home() {
                 {t("pricing.cta.request")}
               </Link>
             </p>
-            <p className="mt-4 text-sm text-gray-400">{t("home.live", { n: stats.activeTheaters })}</p>
+            {/* Only assert a live-theater count we actually have. On a DB failure the
+                catch above leaves activeTheaters at 0; omit the line rather than claim
+                "0 theaters" (truth-in-UI, ruling 3) — the rest of the degraded hero
+                already shows zeros. */}
+            {stats.activeTheaters > 0 && (
+              <p className="mt-4 text-sm text-gray-400">{t("home.live", { n: stats.activeTheaters })}</p>
+            )}
           </>
         )}
       </section>

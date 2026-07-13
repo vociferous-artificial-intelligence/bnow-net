@@ -8,13 +8,18 @@ import sitemap from "./sitemap";
 import { siteBaseUrl } from "@/lib/site-url";
 
 const ORIG = process.env.NEXT_PUBLIC_SITE_URL;
+const ORIG_PROD = process.env.VERCEL_PROJECT_PRODUCTION_URL;
 beforeEach(() => {
+  // Hermetic: neither env source is set, so siteBaseUrl() falls through to the brand host.
   delete process.env.NEXT_PUBLIC_SITE_URL;
+  delete process.env.VERCEL_PROJECT_PRODUCTION_URL;
   queryMock.mockReset();
 });
 afterEach(() => {
   if (ORIG === undefined) delete process.env.NEXT_PUBLIC_SITE_URL;
   else process.env.NEXT_PUBLIC_SITE_URL = ORIG;
+  if (ORIG_PROD === undefined) delete process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  else process.env.VERCEL_PROJECT_PRODUCTION_URL = ORIG_PROD;
 });
 
 // The public marketing/teaser surface that must stay crawlable + in the sitemap.
@@ -27,6 +32,14 @@ describe("siteBaseUrl", () => {
     expect(siteBaseUrl()).toBe("https://bnow.net");
     process.env.NEXT_PUBLIC_SITE_URL = "https://preview.example.com/";
     expect(siteBaseUrl()).toBe("https://preview.example.com");
+  });
+
+  it("tracks the Vercel production domain when no explicit override is set", () => {
+    process.env.VERCEL_PROJECT_PRODUCTION_URL = "bnow-net.vercel.app";
+    expect(siteBaseUrl()).toBe("https://bnow-net.vercel.app");
+    // explicit override still wins over the Vercel-injected host
+    process.env.NEXT_PUBLIC_SITE_URL = "https://bnow.net";
+    expect(siteBaseUrl()).toBe("https://bnow.net");
   });
 });
 

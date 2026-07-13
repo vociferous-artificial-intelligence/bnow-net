@@ -4,7 +4,12 @@
 // domain the operator is attaching (SETUP-NEXT-WEEK). Overridable per environment via
 // NEXT_PUBLIC_SITE_URL (e.g. a preview origin) without a code change.
 export function siteBaseUrl(): string {
-  const raw = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-  if (raw) return raw.replace(/\/+$/, "");
+  const explicit = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (explicit) return explicit.replace(/\/+$/, "");
+  // Vercel injects the production domain (the custom domain once attached, else the
+  // .vercel.app host) — track it so robots/sitemap advertise the real serving origin,
+  // and switch to bnow.net automatically when it becomes the production domain.
+  const prod = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (prod) return `https://${prod.replace(/^https?:\/\//, "").replace(/\/+$/, "")}`;
   return "https://bnow.net";
 }
