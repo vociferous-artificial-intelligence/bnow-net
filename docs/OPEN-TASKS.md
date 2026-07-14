@@ -210,23 +210,20 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
 
 ## New (from the 2026-07-10/11 state recon — docs/reviews/STATE-2026-07-10.md)
 
-38. **[Tier 1] X historical catch-up + green-but-empty monitor (code SHIPPED 2026-07-13 PM; production
-    run PENDING operator approval).** The original freeze was real: `X_SPRINT_USD_CAP` exhausted at $5
-    and hourly runs stayed `ok=true` with zero fetched. Operator raised the caps to `$75` sprint /
-    `$2.50` daily in all Vercel envs; production proof fetched+inserted 1,889 docs with zero errors,
-    and the next scheduled poll advanced normally. That restart does not prove the July 9–13 interval
-    is cursor-complete: the old poller could hit its five-page batch ceiling and still save the
-    watermark. **Implementation of `docs/prompts/2026-07-13-x-gap-catchup-rescore.md` is now on main:**
-    insert-gated truncation-safe watermark (`commitMarks`), X provider lease (`x_api_lease`), exact
-    cursor-complete recovery driver (`scripts/x-gap-backfill.ts`, checkpoint/resume), bounded rescore
-    operator (`scripts/x-gap-rescore.ts`, gated on a complete recovery checkpoint +
-    `--ack-workstreams-be`). Dry runs verified the gap: X docs on 07-10/11/12 ≈ 31/18/27 vs thousands
-    on the edges. **Remaining: deploy main (the :20 poller must be the lease-aware build), then the
-    operator runbook `docs/reviews/X-GAP-RECOVERY-RUNBOOK-2026-07-13.md` top to bottom (recovery →
-    map → regen → validate, all paid steps approval-gated).** The green-but-empty ALERT half is still
-    open, but its raw signal now exists: every `ingest:x` run writes `cron_runs.counts.x_api`
-    (`incomplete`, `pageTruncations`, `budgetStops`, `lockSkips`, …) — alert when fetched=0 repeats or
-    truncation/incomplete fires, so the next freeze cannot masquerade as health.
+38. **[Tier 1 → alert half only] X historical catch-up ✅ EXECUTED 2026-07-14; green-but-empty
+    monitor still open.** The July 9–13 recovery ran to cursor exhaustion on the deployed
+    lease-aware build (deploy `dpl_8DVZK3ac8ja1wi3xW9ALSaPGXJRJ`, main `a38a882`): checkpoint
+    `x_gap_backfill:2026-07-09_2026-07-14` complete=true — 19/19 batches, 1,335 pages, 26,090
+    returned, **16,007 inserted**, $3.9164, provider balance delta reconciled to the ledger to
+    $0.00003, live watermark untouched. Gap days 07-10/11/12: 31/18/27 → 4,559/4,134/5,587 docs.
+    Downstream rescore mapped ($0.4963), regenerated 28/30 digests (2 thin-regen refusals kept
+    priors), revalidated 15/15 with 0 pending. Two consecutive healthy scheduled polls proven
+    (cron 1141 + 1149, all failure counters 0). Full account: AGENTS decision log 2026-07-14 +
+    `docs/reviews/X-GAP-RECOVERY-RUNBOOK-2026-07-13.md` §Execution results. **Still open — the
+    ALERT:** every `ingest:x` run now writes `cron_runs.counts.x_api` (`incomplete`,
+    `pageTruncations`, `budgetStops`, `lockSkips`, …) but nothing yet ALERTS on fetched=0 repeats
+    or truncation/incomplete — build the alert so the next freeze cannot masquerade as health.
+    See also #66 (the park-vs-ceiling stall this run discovered).
 39. **[Tier 1] No git→Vercel deploy integration.** `git push` does not deploy — after the 07-09
     auth fix, prod served the stale build ~20 min (`AUTH-EMAIL-2026-07-09.md`). Wire the Vercel Git
     integration, or codify "push then `npx vercel@latest deploy --prod`" in a release checklist so a
@@ -405,3 +402,20 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
 65. **[low] Signed-in home 390px operator eyeball.** Browser verification covered 17
     routes but the signed-in home needs a real session (dev parity renders the
     signed-out branch). Components are class-pinned; one phone-viewport eyeball closes it.
+
+### New (from the X gap recovery execution — 2026-07-14)
+
+66. **[Tier 1] Steady X poller cannot self-recover from a watermark park longer than
+    ~4–8h.** Observed live 2026-07-14 09:20Z: after an ~8h daily-cap pause, the fixed
+    5-page/batch ceiling truncated 6 dense batches (`pageTruncations=6`, incomplete),
+    the watermark held (correct, non-lossy), and every hourly retry re-billed the same
+    backlog (~$0.20/h) without converging — backlog accrual for the densest batches
+    (~19 tweets/h) outruns what a 100-tweet/batch pass can drain when parked >~5h.
+    Manual remedy (twice-proven this run): bounded `x-gap-backfill` drain over the
+    parked window + operator watermark advance to the drained boundary (compare-and-set,
+    lease free; the poller's 30-min overlap guarantees continuity). Proper fix needs a
+    reviewed code path: env-tunable page ceiling, or a bounded self-catch-up mode that
+    drains cursor-complete under an explicit budget when it detects a long park. Also
+    noted: registry roster hash drifts at MINUTES scale, so a stopped drain must resume
+    immediately or restart under a fresh checkpoint key (observed: a 502-stopped run
+    refused resume 3 minutes later).

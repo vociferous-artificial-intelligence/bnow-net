@@ -1,10 +1,11 @@
 # X gap recovery + bounded rescore — implementation note & operator runbook (2026-07-13)
 
-Prompt: `docs/prompts/2026-07-13-x-gap-catchup-rescore.md`. Status: **IMPLEMENTED AND TESTED,
-NOT RUN.** This session made **no paid calls, no production mutations, no deployments, and no
-environment changes** — the only production contact was read-only SQL (plan/dry modes) and the
-routine test/lint/build gate. OPEN-TASKS #38's recovery itself is still pending; every paid or
-mutating command below is marked **DO NOT RUN WITHOUT OPERATOR APPROVAL**.
+Prompt: `docs/prompts/2026-07-13-x-gap-catchup-rescore.md`. Status: **EXECUTED 2026-07-14**
+(operator-authorized: $50 X / $10 map / $10 reduce) — see **§ Execution results (2026-07-14)**
+at the end of this document for the measured outcome; the sections between here and there are
+the original implementation-time runbook, kept for the command reference. OPEN-TASKS #38's
+historical-recovery half is CLOSED; the green-but-empty ALERT half remains open, plus new #66
+(park-vs-ceiling stall) discovered during execution.
 
 ## What shipped
 
@@ -190,3 +191,55 @@ minutes each). Review `result.md`: overwrite/publication-guard refusals are deli
   drained what the API exposes for the window, not that the API indexes every historical tweet.
 - The green-but-empty ALERT (#38 second half) is still open — the counters now exist in
   `cron_runs.counts.x_api`; the alerting itself is a follow-up.
+
+## Execution results (2026-07-14)
+
+Everything below is measured, not planned. Operator ceilings: $50 X / $10 map / $10 reduce.
+
+1. **Preflight + gate:** clean tree, exactly the four expected commits, no migrations/secrets
+   in the diff; typecheck/lint clean, 1364/111 unit, `next build` clean, 16/16 Neon-branch
+   integration. Pushed: origin/main == `a38a882194a0a9082dba51308acbd4bdbdd28257`.
+2. **Deploy:** `dpl_8DVZK3ac8ja1wi3xW9ALSaPGXJRJ` (bnow-8vc19jjed) READY, aliased bnow.net;
+   rollback recorded `dpl_6ML79nJiEpNzASBszH6TNvLYaGvf`. Anon smoke green.
+3. **Lease-aware build proof:** scheduled 01:20Z poll (cron 977): new `counts.x_api` shape,
+   requests 35 / docs 141 / all failure counters 0; watermark 1783988440→1783992003 committed
+   post-insert; lease acquired and released.
+4. **Recovery:** balance re-read live via `GET /oapi/my/info` = $35.32 funded (< the $50
+   approval → command budget $25; authorization treated as a ceiling). Command:
+   `X_SPRINT_USD_CAP=32 X_DAILY_USD_CAP=26 X_RUN_REQUEST_CAP=4000 npx tsx
+   scripts/x-gap-backfill.ts --from 2026-07-09T00:00:00Z --to 2026-07-14T00:00:00Z
+   --budget-usd 25 --checkpoint-key 2026-07-09_2026-07-14 --apply`. Result: 19/19 batches,
+   1,335 pages, 26,090 returned, 0 unattributed, **16,007 inserted**, 10,083 duplicates,
+   **$3.9164**, checkpoint complete=true, watermark untouched. Balance delta 391,635 credits
+   = $3.91635 = script total exactly; provider_usage day delta identical. Gap days
+   07-10/11/12: 31/18/27 → 4,559/4,134/5,587 docs (Σ +16,007 exact).
+5. **Rescore:** needs `NODE_OPTIONS="--require ./scripts/pin-dns.cjs"` on this box (the
+   unpinned first attempt died pre-spend on the vercel.app fetch). Map modelled $0.7894 /
+   actual **$0.4963**; digests **28/30 regenerated**, thin-regen refusals kept priors for
+   07-12 ru/elite_politics + 07-12 ir/military (ruling 17, deliberate); reduce **$0.2382**;
+   validation **15/15, 0 pending**. Coverage mixed (12 re-scored cells mean 42.3→33.9 —
+   extraction-noise scale); thin-sourced rate improved broadly. Ruling-19 verified on prod
+   rows (defect event 4008 + claims 4413/4414 gone; deterministic "Sources claim:" copy on
+   the regenerated event; zero corruption-causation residue). Workstream E verified (43 new
+   entities, 0 canonicalKey collisions). Artifacts:
+   `data/outbox/x-gap-rescore-2026-07-09_2026-07-13-2026-07-14T02-12-18-035Z/` (gitignored).
+6. **Steady-state, including a discovery:** budget-stopped polls proven safe (cron 995:
+   requests=0, budgetStops=1, watermark held). Operator authorized a temporary
+   `X_DAILY_USD_CAP=8` (deploy `dpl_7hLdoTZ6b3jmziNnP3G3pJKhaJxK`); the 09:20Z resume then
+   truncated 6 dense batches (`pageTruncations=6`) — **an ~8h watermark park exceeds what the
+   fixed 5-page/batch ceiling can drain, and hourly retries re-bill without converging**
+   (OPEN-TASKS #66). Remedy executed: bounded drain `[2026-07-14T00:00Z..09:20Z]` to
+   cursor-complete (key `stall-drain-0714T00-0714T0920-b`; $0.4438 total across a 502-stopped
+   attempt and a fresh key forced by minutes-scale roster drift) + compare-and-set watermark
+   advance `1783992003→1784020800` (lease free, justified by the completed checkpoint; the
+   poller's 30-min overlap guarantees continuity). Then the gate: **cron 1141 (10:20Z,
+   47 req/399 docs) and cron 1149 (11:20Z, 52 req/441 docs) — consecutive scheduled polls,
+   ok=true, incomplete=0, budgetStops=0, pageTruncations=0, requestFailures=0, lockSkips=0,
+   watermark committing post-insert.** Cap then restored to `2.50` (readable-plain, verified
+   via env pull) and redeployed: `dpl_33XREqVT41j9Fo3cbzzHSZjqYGk2`, health 200. The restored
+   cap re-parks the watermark ~13h (day ledger $4.73 > $2.50), so one preventive drain
+   `[11:00Z..2026-07-15T00:00:00Z]` + advance to `1784073600` runs at the UTC reset; its
+   evidence is appended below as an addendum when done.
+7. **Spend by stage (actual vs authorized):** recovery $3.9164 + stall drains $0.4438 +
+   healthy-poll billing ≈ **$4.66 of $50** (X); map **$0.5207 of $10** (provider delta incl.
+   the hourly cron's share); reduce **$0.2382 of $10**. OpenSanctions was **not** run.

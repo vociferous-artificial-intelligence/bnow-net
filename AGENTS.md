@@ -88,7 +88,7 @@ drizzle/            migrations 0000–00NN + 9999_claim_source_trigger.sql (appl
 data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails)
 ```
 
-## Current state — snapshot (verified through 2026-07-13; correct in place when it changes)
+## Current state — snapshot (verified through 2026-07-14; correct in place when it changes)
 
 Live at **https://bnow-net.vercel.app** (Vercel project `bnow-net`, team `vociferous`;
 deployment URLs are SSO-walled — always use the project domain). History/narrative:
@@ -104,13 +104,20 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   PROVEN on Vercel tcp+wss; reads registry **top-120 ROCA-only**
   (`isw_reports.theater='ru'`) vs the scraper's top-50 pan-theater — RU/UA-priority
   roster deployed 2026-07-11, env-tunable, rollback via
-  `REGISTRY_TELEGRAM_MTPROTO_REPORT_THEATER=all`**), X via api.twitterapi.io (383
-  ISW-cited accounts — **LIVE again 2026-07-13** after `X_SPRINT_USD_CAP` was raised
-  $5→$75 and `X_DAILY_USD_CAP` set to $2.50 in all Vercel envs; post-deploy proof run
-  fetched+inserted 1,889 docs with 0 errors, and the next scheduled :20 run fetched 222 /
-  inserted 42 and advanced the watermark to 14:20Z. **Historical July 9–13 completeness is
-  NOT proven** because the old poller could exhaust its five-page batch ceiling and still advance
-  the watermark; #38 retains the audited catch-up + missing green-but-empty monitor), GDELT
+  `REGISTRY_TELEGRAM_MTPROTO_REPORT_THEATER=all`**), X via api.twitterapi.io (364
+  registry accounts — **lease-aware insert-gated poller DEPLOYED 2026-07-14**
+  (`dpl_8DVZK3ac8ja1wi3xW9ALSaPGXJRJ`, main `a38a882`; every `ingest:x` run writes
+  numeric `cron_runs.counts.x_api`), and the **July 9–13 historical gap is RECOVERED
+  cursor-complete** (checkpoint `x_gap_backfill:2026-07-09_2026-07-14` complete=true:
+  19/19 batches, 1,335 pages, 26,090 returned, 16,007 inserted, $3.9164; gap days
+  31/18/27 → 4,559/4,134/5,587 docs; balance delta reconciled to the ledger to
+  $0.00003). Post-recovery rescore mapped + regenerated + revalidated the window
+  (2026-07-14 decision-log entry). **Operational caveat: the steady poller cannot
+  self-recover from a watermark park longer than ~4–8h** — its fixed 5-page/batch
+  ceiling truncates on dense batches and each hourly retry re-bills the backlog
+  without advancing (observed live 09:20Z 07-14: pageTruncations=6); remedy = bounded
+  x-gap-backfill drain + operator watermark advance to the drained boundary
+  (OPEN-TASKS #66); #38 retains only the green-but-empty ALERT half), GDELT
   (wired, upstream-flaky), zakupki
   procurement (wired, blocked — needs proxy).
 - **Map stage:** all eligible ru/ua/ir docs since 06-29 mapped once per
@@ -243,7 +250,7 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   and verified (correct columns, `accepted_at DEFAULT now()`, unique version-triple, FK cascade,
   0 rows); anon prod smoke green (legal pages 200 with v1.0 copy, gated routes 307, /signals 0
   leaks, robots/sitemap correct). Note: `docs/reviews/LEGAL-ACCEPTANCE-NOTE-2026-07-12.md`.
-- **Tests:** 1279 unit tests / 105 files green (`npm test`, ~4s) + Neon-branch
+- **Tests:** 1364 unit tests / 111 files green (`npm test`, ~4s) + Neon-branch
   integration suite (`npm run test:integration`, +5 real-Postgres acceptance tests). CI mirror:
   `.github/workflows/ci.yml`; the enforced gate is `.githooks/pre-push` (typecheck+lint+test).
 - **Crons (vercel.json):** ingest fast */15 · telegram :10 · x :20 · mtproto :35 ·
@@ -262,7 +269,7 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   github.com resolves slowly/flakily: pushes work, but short-timeout git commands can
   fail — retry or wait ~30s+. api.gdeltproject.org DNS still fails locally (not
   pinned). TASS/RIA/Lenta RSS unreachable → covered via their Telegram channels.
-- **Git:** origin/main == local main as of 2026-07-12; there is no push blocker.
+- **Git:** origin/main == local main as of 2026-07-14; there is no push blocker.
 
 ## Standing rulings (distilled from the decision log; binding until a log entry supersedes)
 
@@ -895,6 +902,48 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   must be the lease-aware insert-gated build before recovery, and the rescore's `--ack` attests
   the remediation (ruling-19 guard + canonical entity persist) is live.
 
+- **2026-07-14 (X gap recovery EXECUTED — push, deploy, recovery, rescore, steady-state;
+  closes the "NOT run" headers of the two entries above)** Operator authorized $50 X / $10 map
+  / $10 reduce. Full account: runbook §Execution results + PROGRESS 2026-07-14. **Push+deploy:**
+  the four X commits pushed (origin/main `a38a882`), gates green (1364/111 unit, 16/16 itest,
+  typecheck/lint/build), deployed `dpl_8DVZK3ac8ja1wi3xW9ALSaPGXJRJ` (rollback
+  `dpl_6ML79nJiEpNzASBszH6TNvLYaGvf`), anon smoke green. **Build proof:** scheduled 01:20Z poll
+  (cron 977) emitted the new `counts.x_api` shape, all failure counters 0, watermark advanced,
+  lease acquired+released. **Recovery:** funded balance read via `/oapi/my/info` was $35.32 —
+  BELOW the $50 approval, so the command budget was set to $25 (authorization is a ceiling);
+  actual spend **$3.9164** for 19/19 batches / 1,335 pages / 26,090 returned / **16,007
+  inserted** (10,083 dupes, 0 unattributed); checkpoint complete; live watermark untouched;
+  provider balance delta = ledger delta to $0.00003. Gap days 07-10/11/12: 31/18/27 → **4,559 /
+  4,134 / 5,587** docs. **Rescore** (map $0.4963 actual of $10; reduce $0.2382 of $10; DNS pin
+  required for the vercel.app route calls on this box): 28/30 digests regenerated through the
+  deployed guard, 2 thin-regen refusals preserved priors (07-12 ru/elite + 07-12 ir/military,
+  ruling 17); validation 15/15 scored, 0 pending — coverage mixed (12 re-scored cells mean
+  42.3→33.9, extraction-noise scale) while unsupported/thin-sourced improved broadly (ir 07-11
+  0.30→0.07, ru 07-12 0.36→0). **Ruling-19 verified live:** defect rows (event 4008, claims
+  4413/4414) gone; regenerated Graham event carries deterministic "Sources claim:" title+summary;
+  zero corruption-causation residue; the one surviving pre-guard Graham event (3919, in the
+  refused cell) carries no allegation. **Workstream E verified live:** 43 rescore-created
+  entities, 0 canonicalKey collisions with existing rows. **Steady-state + structural finding:**
+  recovery spend tripped the $2.50 daily cap → polls budget-stopped SAFELY (cron 995: requests=0,
+  budgetStops=1, watermark held — the non-lossy pause working). Operator then authorized a
+  temporary `X_DAILY_USD_CAP=8` (deploy `dpl_7hLdoTZ6b3jmziNnP3G3pJKhaJxK`); the resumed 09:20Z
+  poll exposed a REAL limit: after an ~8h park the fixed 5-page/batch ceiling truncated 6 dense
+  batches (`pageTruncations=6`, incomplete, watermark held) and each hourly retry re-bills the
+  backlog without converging. Remedy executed: bounded drain `[07-14T00:00Z..09:20Z]`
+  (cursor-complete key `stall-drain-0714T00-0714T0920-b`, $0.4438 total across a 502-stopped
+  first attempt + a fresh key after a minutes-scale roster-drift refusal — drift is real, resume
+  promptly) + **operator watermark advance 1783992003→1784020800** (compare-and-set, lease free,
+  justified by the completed drain; the poller's 30-min overlap guarantees continuity). Then two
+  consecutive healthy scheduled polls: **cron 1141 (10:20Z, 47 req/399 docs) and 1149 (11:20Z,
+  52 req/441 docs), all failure counters 0, watermark committing post-insert.** Cap restored to
+  `2.50` readable-plain + redeployed (`dpl_33XREqVT41j9Fo3cbzzHSZjqYGk2`, health 200). Because
+  the restored cap re-parks the watermark ~13h (today's ledger $4.73), one preventive drain
+  `[07-14T11:00Z..07-15T00:00Z]` + advance to 1784073600 runs at the UTC reset so the 07-15
+  polls don't re-stall; its evidence lands as a same-day addendum. New OPEN-TASKS #66 (ceiling
+  vs park interaction — needs a reviewed code path, e.g. env-tunable ceiling or bounded
+  self-catch-up). X spend this operation $4.66 all-in (of $50); OpenSanctions NOT run (still
+  LAST, after entity cleanup #61).
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).
@@ -919,7 +968,7 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
 | Postmark (auth email) | `POSTMARK_SERVER_TOKEN` | **live** (scenefiend sender domain — migrate) | postmarkapp.com |
 | Cron auth | `CRON_SECRET` | **live** | (already set) |
 | Auth.js | `AUTH_SECRET` | **live** (hashes magic-link tokens: rotating it invalidates every unclicked link) | (already set) |
-| X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live** (`$75` sprint / `$2.50` daily; 1,889-doc proof run 2026-07-13; missing empty-run monitor remains #38) | api.twitterapi.io |
+| X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live, gap-recovered** (`$75` sprint / `$2.50` daily; Jul 9–13 recovered cursor-complete 2026-07-14; watermark-park >4–8h needs a drain+advance, #66; empty-run monitor remains #38) | api.twitterapi.io |
 | OpenSanctions | `OPENSANCTIONS_API_KEY` + caps | **live gap-fill** (420 checked; 2,000 cap currently all-time until monthly-window patch; full rescore held) | opensanctions.org |
 | Telegram MTProto | `TELEGRAM_API_ID/HASH` + `TELEGRAM_SESSION` (all in prod env) | **wired; `TELEGRAM_SESSION` present in production** (added 2026-07-11 as a Sensitive var, minted via `scripts/telegram-login.ts`; first live fetch pending `:35` cron verification) | my.telegram.org |
 | ACLED | `ACLED_API_KEY`, `ACLED_EMAIL` | stubbed | acleddata.com |

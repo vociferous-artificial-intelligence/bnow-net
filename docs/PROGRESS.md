@@ -1235,3 +1235,56 @@ X docs 07-10/11/12 ≈ 31/18/27 vs ~5.4K/3.7K at the edges. Tests 1321/107 → 1
 typecheck/lint/build green. Zero paid calls, zero prod mutations, zero deploys, zero env
 changes. Operator handoff: docs/reviews/X-GAP-RECOVERY-RUNBOOK-2026-07-13.md (deploy
 main FIRST — the :20 poller must be lease-aware before recovery runs).
+
+## 2026-07-14 — X gap recovery EXECUTED (deploy → recover → rescore → steady-state)
+
+Operator authorization: $50 X recovery / $10 map / $10 reduce. Plan: 1. push the four
+X commits + full local gate; 2. deploy prod; 3. prove the lease-aware build on a
+scheduled poll; 4. recover July 9–13 to cursor exhaustion; 5. map + regenerate +
+revalidate; 6. two healthy scheduled polls; 7. document.
+
+### Result (all numbers measured)
+
+- Gate: typecheck/lint clean, 1364/111 unit, `next build` clean, 16/16 Neon itest.
+  Pushed `a38a882` (origin/main == local). Deploy `dpl_8DVZK3ac8ja1wi3xW9ALSaPGXJRJ`
+  READY aliased bnow.net (rollback `dpl_6ML79nJiEpNzASBszH6TNvLYaGvf`); anon smoke
+  green (health/legal/308/307/404/0 signal leaks).
+- Build proof: scheduled 01:20Z `ingest:x` (cron 977) wrote the new `counts.x_api`
+  shape — requests 35, docs 141, all failure counters 0 — watermark advanced,
+  lease acquired+released.
+- Recovery: funded balance $35.32 (read live via `/oapi/my/info`) < the $50 approval
+  → command budget set to $25. Actual: **$3.9164** — 19/19 batches, 1,335
+  pages/requests, 26,090 returned (0 unattributed), **16,007 inserted**, 10,083
+  duplicates; checkpoint `2026-07-09_2026-07-14` complete=true; watermark untouched
+  (1783992003 before and after); provider-balance delta 391,635 credits = $3.91635 =
+  script spend exactly; ledger day-row delta matched byte-for-byte. X docs by
+  published day: 07-09 5,364→5,916 · **07-10 31→4,559 · 07-11 18→4,134 ·
+  07-12 27→5,587** · 07-13 4,969→6,220 (Σ +16,007 exact).
+- Rescore (DNS pin needed for route calls from this box; first attempt died pre-spend
+  on the unpinned fetch): map drain modelled $0.7894 / actual **$0.4963** (41
+  map:backfill crons, 0 batchErrors, 0 omitted, 0 wrongDocIds); digests **28/30
+  regenerated**, 2 thin-regen refusals preserved priors (07-12 ru/elite_politics,
+  07-12 ir/military — ruling 17); reduce delta **$0.2382**; legacy engine $0.0000;
+  validation **15/15 ok, 0 pending**. Coverage mixed (12 re-scored cells mean
+  42.3→33.9 — extraction-noise scale, no improvement claimed); unsupported/
+  thin-sourced improved broadly (ir 07-11 0.30→0.07, ru 07-12 0.36→0, ua 07-09
+  0.50→0). Ruling-19 verified in prod data: event 4008 + claims 4413/4414 GONE,
+  regenerated Graham event 4202 is deterministic "Sources claim:" copy, zero
+  Graham+corruption residue; refused-cell survivor 3919 carries no allegation.
+  Workstream E verified: 43 new entities, 0 canonicalKey collisions.
+- Steady-state: recovery tripped the $2.50 daily cap → budget-stopped polls proven
+  SAFE (cron 995: requests=0, budgetStops=1, watermark held). Operator authorized a
+  temporary `X_DAILY_USD_CAP=8` (deploy `dpl_7hLdoTZ6b3jmziNnP3G3pJKhaJxK`); the
+  09:20Z resume exposed the park-vs-ceiling stall (pageTruncations=6, non-converging
+  re-billing — new OPEN-TASKS #66). Remedy: bounded drain [00:00Z..09:20Z]
+  cursor-complete ($0.4438 total; one 502 stop + one minutes-scale roster-drift
+  refusal → fresh key) + compare-and-set watermark advance 1783992003→1784020800.
+  Then **two consecutive healthy scheduled polls: cron 1141 (10:20Z, 47 req / 399
+  docs) + cron 1149 (11:20Z, 52 req / 441 docs), all failure counters 0, watermark
+  committing post-insert.** Cap restored `2.50` (readable-plain, verified by env
+  pull), redeploy `dpl_33XREqVT41j9Fo3cbzzHSZjqYGk2`, health 200. One preventive
+  drain [11:00Z..07-15T00:00Z] + advance to 1784073600 runs at the UTC reset so the
+  restored cap's ~13h park does not re-stall the 07-15 polls (addendum will record it).
+- Spend: X $4.66 all-in this operation (recovery $3.92 + drains $0.44 + healthy polls;
+  of $50 authorized); map $0.52 provider-delta (of $10); reduce $0.24 (of $10).
+  OpenSanctions NOT run (stays last, after entity cleanup #61).
