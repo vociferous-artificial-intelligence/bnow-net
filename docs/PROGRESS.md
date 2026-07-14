@@ -1326,3 +1326,18 @@ drilldowns separate. Reframe ISW as external QA/trust evidence around an analyst
 evidence workbench whose core jobs are awareness, triage, investigation/recall,
 entity/theme continuity, source intelligence, and decision lenses. No code, DB, env,
 provider, or deployment changes.
+
+## 2026-07-14 — low-hanging analyst-value review (documentation only)
+
+Result: `docs/reviews/ANALYST-LOW-HANGING-VALUE-2026-07-14.md`. The complete
+`claim_sources` set is already queried and server-rendered under each digest claim;
+the current collapse merely hides the remainder as unsorted URL-like chips. Recent
+14-day evidence: 920 claims / 2,379 source edges, median 1 and max 34 docs per claim,
+121 claims with ≥5 docs, and provider publication timestamps present on 95.3% of
+edges. Recommended first slice: evolve the shared disclosure into a compact summary
+plus sortable evidence trail with distinct source-published and BNOW-first-seen times,
+human source identity, platform, reliability, title when present, and external link.
+Then reuse it in free claim search and entity timelines; expose the already-stable
+claim anchor as a copy link. No new schema, LLM, ingestion, embedding, or API is
+needed. Digest-wide indexes, exports, and general graphs deferred until beta usage
+proves demand. No application code or runtime changes.
