@@ -9,6 +9,7 @@ import { makeClaimEvidenceLabels } from "@/components/claim-evidence-labels";
 import { ClaimCopyActions } from "@/components/claim-copy-actions";
 import { claimCopyLabels } from "@/components/claim-copy-model";
 import { brandSiteBaseUrl } from "@/lib/site-url";
+import { summarizeClaimEvidence } from "@/components/claim-evidence-model";
 
 export const dynamic = "force-dynamic";
 
@@ -223,6 +224,12 @@ export default async function EntityDetailPage({
               locale={locale}
               labels={evidenceLabels}
               showScores
+              analytics={{
+                surface: "entity",
+                theater: c.iso2,
+                hedgingClass: c.hedging,
+                sourceCount: summarizeClaimEvidence(docs).channels,
+              }}
             />
             <ClaimCopyActions
               payload={{

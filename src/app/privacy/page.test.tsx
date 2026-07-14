@@ -25,8 +25,8 @@ describe("/privacy (public Privacy Notice)", () => {
   it("shows the version and effective date prominently", () => {
     const { container } = render(PrivacyPage());
     const text = container.textContent ?? "";
-    expect(text).toContain("Version 1.0");
-    expect(text).toContain("July 12, 2026");
+    expect(text).toContain("Version 1.1");
+    expect(text).toContain("July 14, 2026");
   });
 
   it("explicitly states that Ask questions are STORED", () => {
@@ -39,6 +39,15 @@ describe("/privacy (public Privacy Notice)", () => {
     for (const forbidden of ["anonymous", "pseudonymous", "ephemeral"]) {
       expect(text).not.toContain(forbidden);
     }
+  });
+
+  it("documents identified opt-in PostHog analytics and its strict exclusions", () => {
+    const text = render(PrivacyPage()).container.textContent ?? "";
+    expect(text).toContain("explicitly grants permission");
+    expect(text).toContain("internal random account UUID");
+    expect(text).toContain("does not send Ask or Search text");
+    expect(text).toContain("Session replay, heatmaps, broad autocapture");
+    expect(text).toContain("activation is pending");
   });
 
   it("links to the Terms of Use and exposes the legal contact as a mailto", () => {

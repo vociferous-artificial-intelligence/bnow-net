@@ -16,6 +16,7 @@ import type { AskResultLike, ResolvedClaim } from "./ask-result";
 // page render that happened to render the form.
 
 export interface AskActionState {
+  analyticsCompletionKey: string;
   question: string;
   result: AskResultLike;
   cited: ResolvedClaim[];
@@ -140,5 +141,5 @@ export async function askAction(
     related = relatedIds.map((id) => byId.get(id)).filter((c): c is ResolvedClaim => !!c);
   }
 
-  return { question, result, cited, related };
+  return { analyticsCompletionKey: crypto.randomUUID(), question, result, cited, related };
 }

@@ -3,6 +3,9 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const captureMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/analytics/client", () => ({ captureProductEvent: captureMock }));
+
 // Money test: /search's ONLY DB-touching dependency should be the $0 deterministic
 // lexical.ts arm. Every module that sits on the paid ASK path is mocked to THROW
 // the instant it's called — then the page is executed for real (a real ?q=,
@@ -167,6 +170,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  captureMock.mockReset();
 });
 
 describe("/search never touches the paid ASK pipeline surface", () => {
@@ -199,6 +203,12 @@ describe("/search never touches the paid ASK pipeline surface", () => {
     expect(embedGuardFromEnvMock).not.toHaveBeenCalled();
     expect(queryMock).toHaveBeenCalledTimes(3); // count, capped result page, one evidence batch
     expect(endMock).toHaveBeenCalledTimes(1); // pool closed even on the happy path
+    expect(captureMock).toHaveBeenCalledWith("search_completed", {
+      has_results: true,
+      result_count_bucket: "1-5",
+      window_present: false,
+    });
+    expect(JSON.stringify(captureMock.mock.calls)).not.toContain("kharkiv");
   });
 
   it("no ?q= renders only the intro + form — no DB query, no pipeline call", async () => {
@@ -211,6 +221,7 @@ describe("/search never touches the paid ASK pipeline surface", () => {
     expect(endMock).not.toHaveBeenCalled();
     expect(askWithLimitsMock).not.toHaveBeenCalled();
     expect(embedTextsMock).not.toHaveBeenCalled();
+    expect(captureMock).not.toHaveBeenCalled();
   });
 
   it("zero matches renders the empty state, not the count line", async () => {
@@ -225,5 +236,10 @@ describe("/search never touches the paid ASK pipeline surface", () => {
     expect(screen.queryByText(/showing/)).toBeNull();
     expect(queryMock).toHaveBeenCalledTimes(2); // no evidence query for zero result rows
     expect(askWithLimitsMock).not.toHaveBeenCalled();
+    expect(captureMock).toHaveBeenCalledWith("search_completed", {
+      has_results: false,
+      result_count_bucket: "0",
+      window_present: false,
+    });
   });
 });

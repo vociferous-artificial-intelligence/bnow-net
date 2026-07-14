@@ -7,11 +7,12 @@ import { parseTimeWindow } from "@/lib/ask/window";
 import { extractTerms } from "@/lib/ask/retrieve";
 import { lexicalClaimSearch, stripWindowPhrase, type LexicalClaimRow } from "@/lib/ask/lexical";
 import { brandSiteBaseUrl } from "@/lib/site-url";
-import type { ClaimSourceDoc } from "@/components/claim-evidence-model";
+import { summarizeClaimEvidence, type ClaimSourceDoc } from "@/components/claim-evidence-model";
 import { makeClaimEvidenceLabels } from "@/components/claim-evidence-labels";
 import { ClaimSources } from "@/components/claim-sources";
 import { ClaimCopyActions } from "@/components/claim-copy-actions";
 import { claimCopyLabels } from "@/components/claim-copy-model";
+import { SearchCompletedMarker } from "@/components/analytics/product-event-markers";
 
 export const dynamic = "force-dynamic";
 
@@ -107,12 +108,13 @@ export default async function SearchPage({
   const question = (q ?? "").slice(0, 400);
   const trimmed = question.trim();
   const hasQuery = trimmed.length > 0;
+  const parsedWindow = hasQuery ? parseTimeWindow(trimmed) : null;
 
   let rows: LexicalClaimRow[] = [];
   let totalMatching = 0;
   let evidenceByClaim = new Map<number, SearchEvidence>();
   if (hasQuery) {
-    const window = parseTimeWindow(trimmed);
+    const window = parsedWindow;
     const qStripped = stripWindowPhrase(trimmed, window);
     const terms = extractTerms(qStripped);
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -149,6 +151,13 @@ export default async function SearchPage({
 
   return (
     <main id="main" className="mx-auto max-w-3xl p-6">
+      {hasQuery && (
+        <SearchCompletedMarker
+          completionKey={crypto.randomUUID()}
+          resultCount={rows.length}
+          windowPresent={parsedWindow !== null}
+        />
+      )}
       <p className="mb-1 text-sm text-gray-500">
         <Link href="/" className="underline">BNOW.NET</Link> · {t("search.breadcrumb")}
       </p>
@@ -216,6 +225,12 @@ export default async function SearchPage({
                       showScores
                       locale={locale}
                       labels={evidenceLabels}
+                      analytics={{
+                        surface: "search",
+                        theater: countryIso2,
+                        hedgingClass: r.hedging,
+                        sourceCount: summarizeClaimEvidence(copyPayload.docs).channels,
+                      }}
                     />
                     <ClaimCopyActions
                       payload={copyPayload}

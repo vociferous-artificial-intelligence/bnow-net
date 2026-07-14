@@ -5,6 +5,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ClaimCopyActions } from "./claim-copy-actions";
 import type { ClaimCopyLabels, ClaimCopyPayload } from "./claim-copy-model";
 
+const captureMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/analytics/client", () => ({ captureProductEvent: captureMock }));
+
 const labels: ClaimCopyLabels = {
   copyForReport: "Copy for report", moreCopyOptions: "More copy options", copyLink: "Copy link",
   copyWithEvidence: "Copy with evidence", copyTextOnly: "Copy text only", copying: "Copying…",
@@ -37,6 +40,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   Reflect.deleteProperty(globalThis, "ClipboardItem");
   Reflect.deleteProperty(navigator, "clipboard");
+  captureMock.mockReset();
 });
 
 describe("ClaimCopyActions", () => {
@@ -59,6 +63,13 @@ describe("ClaimCopyActions", () => {
     expect(screen.getByRole("button", { name: "Copying…" }).getAttribute("aria-busy")).toBe("true");
     resolve();
     expect(await screen.findByText("Report copied")).toBeTruthy();
+    expect(captureMock).toHaveBeenCalledWith("claim_copied", {
+      surface: "digest",
+      copy_mode: "report",
+      theater: "ru",
+      hedging_class: "claimed",
+      evidence_count_bucket: "1",
+    });
   });
 
   it("falls back to the exact plain report when ClipboardItem is unavailable", async () => {
@@ -123,6 +134,7 @@ describe("ClaimCopyActions", () => {
     render(<ClaimCopyActions payload={payload} surface="digest" locale="en" labels={labels} />);
     await user.click(screen.getByRole("button", { name: "Copy for report" }));
     expect(await screen.findByText("Copy failed")).toBeTruthy();
+    expect(captureMock).not.toHaveBeenCalled();
     expect(screen.getByText("More copy options")).toBeTruthy();
   });
 

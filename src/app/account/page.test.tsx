@@ -27,9 +27,17 @@ const queryMock = vi.fn().mockResolvedValue([]);
 vi.mock("@/db", () => ({ rawSql: { query: (...a: unknown[]) => queryMock(...a) } }));
 
 vi.mock("@/i18n/server", () => ({ getLocale: async () => "en" }));
+vi.mock("@/lib/analytics/client", () => ({ resetAnalyticsClient: vi.fn() }));
 
 const acceptanceMock =
-  vi.fn<() => Promise<{ termsVersion: string; privacyVersion: string; acceptedAt: string } | null>>();
+  vi.fn<
+    () => Promise<{
+      termsVersion: string;
+      privacyVersion: string;
+      acceptedAt: string;
+      analyticsPreference: "unset" | "granted" | "denied";
+    } | null>
+  >();
 vi.mock("@/lib/legal/acceptance", () => ({ currentAcceptanceForEmail: () => acceptanceMock() }));
 
 const AccountPage = (await import("./page")).default;
@@ -69,18 +77,20 @@ describe("/account legal section", () => {
     authMock.mockResolvedValue({ user: { email: "user@example.com" } });
     acceptanceMock.mockResolvedValue({
       termsVersion: "1.0",
-      privacyVersion: "1.0",
+      privacyVersion: "1.1",
       acceptedAt: "2026-07-12T14:00:00.000Z",
+      analyticsPreference: "denied",
     });
 
     const { container } = render(await AccountPage());
     const text = container.textContent ?? "";
 
     expect(text).toContain("Legal");
-    // Two "Version 1.0" links (terms + privacy).
+    // Terms remains 1.0 while Privacy has advanced independently.
     expect(container.querySelectorAll('a[href="/terms"]').length).toBeGreaterThan(0);
     expect(container.querySelectorAll('a[href="/privacy"]').length).toBeGreaterThan(0);
     expect(text).toContain("Version 1.0");
+    expect(text).toContain("Version 1.1");
     // The server-generated timestamp renders in ET.
     expect(text).toMatch(/2026.*ET/);
     // No internal method string or raw acceptance id leaks to the user.
@@ -95,8 +105,9 @@ describe("/account legal section", () => {
 // are exercised per the sprint rule.
 const ACCEPTED = {
   termsVersion: "1.0",
-  privacyVersion: "1.0",
+  privacyVersion: "1.1",
   acceptedAt: "2026-07-12T14:00:00.000Z",
+  analyticsPreference: "denied" as const,
 };
 const ACTIVE_SUB = { plan_code: "full_annual", status: "active", name: "Full analyst (annual)" };
 

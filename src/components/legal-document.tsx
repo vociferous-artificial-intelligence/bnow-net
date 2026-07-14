@@ -14,12 +14,15 @@ const CONTACT_HREF = `mailto:${OPERATOR.legalContact}`;
 export function LegalDocument({
   title,
   version,
+  effectiveDate = POLICY_EFFECTIVE_DATE_DISPLAY,
   intro,
   crossLink,
   children,
 }: {
   title: string;
   version: string;
+  /** Per-document effective date; defaults to the unchanged Terms v1.0 date. */
+  effectiveDate?: string;
   /** One-line lede shown under the header (optional). */
   intro?: string;
   /** The sibling legal document to cross-link to. */
@@ -37,7 +40,7 @@ export function LegalDocument({
       <article className="text-[15px] leading-relaxed text-gray-800 dark:text-gray-200">
         <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">{title}</h1>
         <p className="mt-2 text-sm font-semibold text-gray-600 dark:text-gray-400">
-          Version {version} · Effective date: {POLICY_EFFECTIVE_DATE_DISPLAY}
+          Version {version} · Effective date: {effectiveDate}
         </p>
         {intro && <p className="mt-4 text-gray-600 dark:text-gray-300">{intro}</p>}
         <div className="mt-8 space-y-6">{children}</div>

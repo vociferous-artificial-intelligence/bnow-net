@@ -12,6 +12,7 @@ import {
   claimSourceLabel,
   evidencePlatform,
   safeHttpUrl,
+  summarizeClaimEvidence,
   type ClaimSourceDoc,
 } from "@/components/claim-evidence-model";
 import { makeClaimEvidenceLabels } from "@/components/claim-evidence-labels";
@@ -21,6 +22,9 @@ import { DigestPrintActions } from "@/components/digest-print-actions";
 import { brandSiteBaseUrl } from "@/lib/site-url";
 import { digestStage } from "@/lib/time/digest-status";
 import { formatEtDateTime } from "@/lib/time/format-et";
+import { DigestViewedMarker } from "@/components/analytics/product-event-markers";
+import { digestAgeBucket } from "@/components/analytics/product-event-model";
+import { TrackedFeedbackLink } from "@/components/analytics/tracked-feedback-link";
 
 export const dynamic = "force-dynamic";
 
@@ -261,6 +265,7 @@ export default async function DigestPage({
 
   // order the track SECTIONS by the profile's track weight (military default first)
   const profile = getProfile(profileKey);
+  const digestAge = digestAgeBucket(date);
   const orderedDigests = [...digestRows].sort(
     (a, b) =>
       (profile.trackWeights[b.track] ?? 1) - (profile.trackWeights[a.track] ?? 1) ||
@@ -269,6 +274,12 @@ export default async function DigestPage({
 
   return (
     <main id="main" data-print="digest" className="mx-auto max-w-3xl p-6">
+      <DigestViewedMarker
+        navigationKey={`${country}:${date}:${profile.key}`}
+        theater={country}
+        digestAge={digestAge}
+        trackCount={digestRows.length}
+      />
       <header data-print-only data-print="metadata">
         <p className="text-sm font-semibold tracking-wide">BNOW.NET</p>
         <h1 className="mt-1 text-2xl font-bold">
@@ -301,6 +312,8 @@ export default async function DigestPage({
       </h1>
 
       <DigestPrintActions
+        theater={country}
+        digestAge={digestAge}
         labels={{
           actions: t("digest.print.actions"),
           brief: t("digest.print.brief"),
@@ -424,6 +437,12 @@ export default async function DigestPage({
                           showScores
                           locale={locale}
                           labels={evidenceLabels}
+                          analytics={{
+                            surface: "digest",
+                            theater: country,
+                            hedgingClass: c.hedging,
+                            sourceCount: summarizeClaimEvidence(claimDocs).channels,
+                          }}
                         />
                         <p data-print-only data-print="claim-url" className="mt-1 text-xs">
                           {canonicalDigestUrl}#c{claimId}
@@ -495,16 +514,26 @@ export default async function DigestPage({
       </section>
       {digestMailto && (
         <p data-print="hide" className="mb-2 text-xs text-gray-400">
-          <a href={digestMailto} className="underline">
+          <TrackedFeedbackLink
+            href={digestMailto}
+            surface="digest_error"
+            theater={country}
+            className="underline"
+          >
             {t("feedback.flag_digest")}
-          </a>
+          </TrackedFeedbackLink>
         </p>
       )}
       {sourceMailto && (
         <p data-print="hide" className="mb-2 text-xs text-gray-400">
-          <a href={sourceMailto} className="underline">
+          <TrackedFeedbackLink
+            href={sourceMailto}
+            surface="source_suggestion"
+            theater={country}
+            className="underline"
+          >
             {t("feedback.flag_source")}
-          </a>
+          </TrackedFeedbackLink>
         </p>
       )}
       <p className="text-xs text-gray-400">

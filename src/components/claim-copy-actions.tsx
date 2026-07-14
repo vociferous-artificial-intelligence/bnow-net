@@ -2,6 +2,12 @@
 
 import { useRef, useState } from "react";
 import type { Locale } from "@/i18n/dictionaries";
+import { captureProductEvent } from "@/lib/analytics/client";
+import {
+  analyticsHedging,
+  analyticsTheater,
+  evidenceCountBucket,
+} from "./analytics/product-event-model";
 import {
   buildClaimCopyContent,
   canCopyClaimCitation,
@@ -70,6 +76,13 @@ export function ClaimCopyActions({ payload, surface, locale, labels }: ClaimCopy
     setStatus("");
     try {
       await writeClipboard(mode, content.plain, content.html);
+      captureProductEvent("claim_copied", {
+        surface,
+        copy_mode: mode,
+        theater: analyticsTheater(payload.countryIso2),
+        hedging_class: analyticsHedging(payload.hedging),
+        evidence_count_bucket: evidenceCountBucket(payload.docs.length),
+      });
       setStatus(successMessage(mode, labels));
     } catch {
       setStatus(labels.copyFailed);

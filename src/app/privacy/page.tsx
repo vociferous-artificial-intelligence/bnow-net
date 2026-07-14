@@ -8,7 +8,11 @@ import {
   LegalSubheading,
   LegalUL,
 } from "@/components/legal-document";
-import { CURRENT_PRIVACY_VERSION, OPERATOR } from "@/lib/legal/policies";
+import {
+  CURRENT_PRIVACY_VERSION,
+  OPERATOR,
+  PRIVACY_EFFECTIVE_DATE_DISPLAY,
+} from "@/lib/legal/policies";
 
 // Public, unauthenticated, DB-free. Authoritative English legal copy (content, not chrome) —
 // see src/components/legal-document.tsx.
@@ -33,6 +37,7 @@ export default function PrivacyPage() {
     <LegalDocument
       title="Privacy Notice"
       version={CURRENT_PRIVACY_VERSION}
+      effectiveDate={PRIVACY_EFFECTIVE_DATE_DISPLAY}
       intro="Your privacy matters to us. This Privacy Notice explains how BNOW.NET collects, uses, stores, and shares information when you visit the site, create an account, submit questions, or use our intelligence services."
       crossLink={{ href: "/terms", label: "See also our Terms of Use" }}
     >
@@ -73,6 +78,11 @@ export default function PrivacyPage() {
             messages.
           </li>
           <li>
+            For beta access requests, allowlisted campaign tokens, the fixed internal landing path,
+            and the referring hostname when available. BNOW does not store the referrer path, query,
+            fragment, or credentials for this purpose.
+          </li>
+          <li>
             Subscription and billing information if paid checkout is enabled. Payment-card details
             are processed by the payment provider and are not intended to be stored directly by
             BNOW.NET.
@@ -104,6 +114,11 @@ export default function PrivacyPage() {
             maintain service reliability.
           </li>
           <li>Language preference.</li>
+          <li>
+            If you explicitly allow optional product analytics, an internal random account UUID,
+            coarse account role and beta cohort, account-creation date, and limited product-event
+            categories such as digest, evidence, Search, Ask, Signals, and feedback-control use.
+          </li>
           <li>
             Ordinary technical request and security-log information that may be processed by our
             hosting and infrastructure providers, such as IP address, browser or device
@@ -223,6 +238,11 @@ export default function PrivacyPage() {
             Postmark, or a configured email-delivery provider such as Resend, for sign-in and
             service email.
           </li>
+          <li>
+            PostHog, if optional product analytics is enabled for your account, to process the
+            minimized product events described below. BNOW will use a dedicated project and an
+            internal random account UUID, never your email address, as the analytics identity.
+          </li>
           <li>Stripe or another disclosed payment provider if paid checkout is enabled.</li>
           <li>
             Professional advisers and contractors who need limited access to support, secure, or
@@ -252,9 +272,26 @@ export default function PrivacyPage() {
           so the site can remember your selected locale.
         </LegalP>
         <LegalP>
-          BNOW does not currently use third-party behavioral-advertising cookies. If we introduce
-          nonessential analytics or advertising technologies, we will update this notice and provide
-          any notice or choice required by applicable law.
+          BNOW does not use third-party behavioral-advertising cookies. Optional PostHog product
+          analytics is default-off and begins only after a signed-in adult user explicitly grants
+          permission. You may decline without losing product access and may change the preference
+          from the Account page. As of this notice&apos;s effective date, activation is pending a
+          dedicated BNOW PostHog project and key; BNOW will not activate collection before those
+          controls are configured.
+        </LegalP>
+        <LegalP>
+          If enabled with your permission, BNOW sends only allowlisted, coarse events about product
+          sessions and use of digests, evidence controls, source follow-through, Search outcomes,
+          Ask outcomes, gated Signals, and feedback controls. BNOW does not send Ask or Search text,
+          claim or source text, source URLs, email addresses, LinkedIn URLs, authentication material,
+          broad click activity, advertising identifiers, or full referrers to PostHog. Session
+          replay, heatmaps, broad autocapture, surveys, advertising tracking, and automatic error
+          capture are disabled for this integration.
+        </LegalP>
+        <LegalP>
+          Activation remains pending creation of a dedicated BNOW project and key. BNOW will
+          select and record the project&apos;s processing region and analytics-event retention period
+          before enabling collection rather than claiming settings that have not been verified.
         </LegalP>
       </LegalSection>
 
@@ -274,6 +311,11 @@ export default function PrivacyPage() {
           Authentication sessions and verification tokens expire according to the service’s
           authentication settings, although related operational records may remain for security or
           legal purposes.
+        </LegalP>
+        <LegalP>
+          If optional analytics is enabled, PostHog events are retained according to the dedicated
+          project&apos;s configured retention setting. Withdrawing permission stops future collection;
+          you may also request deletion of associated analytics data by contacting us.
         </LegalP>
         <LegalP>
           If you make a verified deletion request, we will delete or deidentify information when
@@ -297,6 +339,10 @@ export default function PrivacyPage() {
           <li>Object to or request restriction of certain processing.</li>
           <li>Request portability of information you provided.</li>
           <li>Withdraw consent where processing relies on consent.</li>
+          <li>
+            Grant or withdraw optional product-analytics permission from the Account page without
+            affecting access to subscriber features.
+          </li>
           <li>Appeal or complain to an applicable privacy regulator.</li>
         </LegalUL>
         <LegalP>

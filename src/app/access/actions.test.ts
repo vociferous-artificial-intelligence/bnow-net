@@ -63,8 +63,9 @@ describe("requestAccess — valid submissions", () => {
 
     const insert = queryMock.mock.calls.find(([sql]) => /INSERT INTO subscribe_intents/i.test(sql))!;
     expect(insert[0]).toMatch(/plan_code, linkedin_url, use_case, source/);
+    expect(insert[0]).toMatch(/utm_source, utm_medium, utm_campaign, landing_path, referrer_host/);
     expect(insert[0]).toMatch(/'access_form'/);
-    expect(insert[1]).toEqual(["analyst@example.com", null, null]);
+    expect(insert[1]).toEqual(["analyst@example.com", null, null, null, null, null, null, null]);
 
     await flushAfter();
     expect(sendMock).toHaveBeenCalledTimes(1);
@@ -91,6 +92,11 @@ describe("requestAccess — valid submissions", () => {
       "a@b.co",
       "https://linkedin.com/in/some-analyst",
       "Russian procurement channels",
+      null,
+      null,
+      null,
+      null,
+      null,
     ]);
 
     await flushAfter();
@@ -104,6 +110,45 @@ describe("requestAccess — valid submissions", () => {
     await requestAccess(IDLE, form({ email: "a@b.co", usecase: "x".repeat(5000) }));
     const insert = queryMock.mock.calls.find(([sql]) => /INSERT INTO/i.test(sql))!;
     expect((insert[1][2] as string).length).toBe(1000);
+  });
+
+  it("stores only revalidated first-party attribution fields", async () => {
+    dbHappyPath();
+    await requestAccess(
+      IDLE,
+      form({
+        email: "a@b.co",
+        utm_source: " LinkedIn ",
+        utm_medium: "Paid-Social",
+        utm_campaign: "private-beta_01",
+        landing_path: "/access",
+        referrer_host: "News.Example.COM",
+      }),
+    );
+    const insert = queryMock.mock.calls.find(([sql]) => /INSERT INTO/i.test(sql))!;
+    expect(insert[1].slice(3)).toEqual([
+      "linkedin",
+      "paid-social",
+      "private-beta_01",
+      "/access",
+      "news.example.com",
+    ]);
+  });
+
+  it("nulls malformed hidden attribution without rejecting a valid request", async () => {
+    dbHappyPath();
+    const state = await requestAccess(
+      IDLE,
+      form({
+        email: "a@b.co",
+        utm_source: "contains private words",
+        landing_path: "/ask?q=secret",
+        referrer_host: "https://example.com/path?q=secret",
+      }),
+    );
+    expect(state).toEqual({ status: "success" });
+    const insert = queryMock.mock.calls.find(([sql]) => /INSERT INTO/i.test(sql))!;
+    expect(insert[1].slice(3)).toEqual([null, null, null, null, null]);
   });
 });
 

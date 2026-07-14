@@ -65,6 +65,34 @@ describe("AccessForm", () => {
     expect((wrapper as HTMLElement).className).toContain("-left-[9999px]");
   });
 
+  it("carries only the normalized attribution fields as hidden values", () => {
+    const { container } = render(
+      <AccessForm
+        labels={LABELS}
+        attribution={{
+          utmSource: "newsletter",
+          utmMedium: "email",
+          utmCampaign: "private-beta_01",
+          landingPath: "/access",
+          referrerHost: "publisher.example",
+        }}
+      />,
+    );
+    const values = Object.fromEntries(
+      [...container.querySelectorAll<HTMLInputElement>('input[type="hidden"]')].map((input) => [
+        input.name,
+        input.value,
+      ]),
+    );
+    expect(values).toEqual({
+      utm_source: "newsletter",
+      utm_medium: "email",
+      utm_campaign: "private-beta_01",
+      landing_path: "/access",
+      referrer_host: "publisher.example",
+    });
+  });
+
   it("submit button carries the CTA copy and no error/success chrome renders initially", () => {
     render(<AccessForm labels={LABELS} />);
     expect(screen.getByRole("button", { name: LABELS.submit })).toBeTruthy();

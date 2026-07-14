@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from "@/lib/legal/policies";
+import { resetAnalyticsClient } from "@/lib/analytics/client";
 import { acceptAction, type AcceptState } from "./actions";
 
 // Two REQUIRED, initially-UNCHECKED attestations — no dark patterns, nothing pre-checked. The
@@ -20,10 +21,19 @@ export function LegalAcceptanceForm({ next }: { next: string }) {
   );
   const [adult, setAdult] = useState(false);
   const [privacy, setPrivacy] = useState(false);
+  const [analytics, setAnalytics] = useState(false);
   const canSubmit = adult && privacy && !pending;
 
   return (
-    <form action={formAction} className="space-y-5">
+    <form
+      action={formAction}
+      className="space-y-5"
+      onSubmit={() => {
+        // A Privacy-version reacceptance with this optional box unchecked is an immediate local
+        // revocation as well as an atomic server-side denial. Stop the current tab before navigation.
+        if (!analytics) resetAnalyticsClient();
+      }}
+    >
       <input type="hidden" name="next" value={next} />
 
       <div className="flex gap-3">
@@ -81,6 +91,29 @@ export function LegalAcceptanceForm({ next }: { next: string }) {
             (version {CURRENT_PRIVACY_VERSION}), including that BNOW.NET stores my submitted
             questions and uses service providers to process them.
           </label>
+        </div>
+      </div>
+
+      <div className="flex gap-3 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+        <input
+          id="analytics_preference"
+          name="analytics_preference"
+          type="checkbox"
+          value="granted"
+          checked={analytics}
+          onChange={(event) => setAnalytics(event.target.checked)}
+          className="mt-1 h-4 w-4 shrink-0"
+        />
+        <div className="text-sm text-gray-700 dark:text-gray-300">
+          <label htmlFor="analytics_preference" className="font-medium">
+            Allow optional product analytics
+          </label>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Optional and initially off. If enabled, BNOW uses a random internal account ID and
+            coarse product events to understand whether beta analysts find useful evidence. We do
+            not send Ask or Search text, claim text, source URLs, email addresses, or session
+            replay. You can change this at any time from Account without affecting access.
+          </p>
         </div>
       </div>
 

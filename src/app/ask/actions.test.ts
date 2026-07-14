@@ -62,7 +62,13 @@ describe("askAction — the money-path guard's server half", () => {
   });
 
   it("passes the previous state through unchanged (not just null) on a short question", async () => {
-    const prevState = { question: "old", result: fullAnswer(), cited: [], related: [] };
+    const prevState = {
+      analyticsCompletionKey: "previous",
+      question: "old",
+      result: fullAnswer(),
+      cited: [],
+      related: [],
+    };
     const result = await askAction(prevState, formWith("  ab  "));
     expect(result).toBe(prevState);
     expect(askWithLimitsMock).not.toHaveBeenCalled();

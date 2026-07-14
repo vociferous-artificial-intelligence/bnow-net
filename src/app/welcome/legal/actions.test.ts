@@ -78,7 +78,26 @@ describe("acceptAction — the authoritative clickwrap", () => {
       adultAttested: true,
       privacyAcknowledged: true,
       locale: "en",
+      analyticsPreference: "denied",
     });
+  });
+
+  it("records optional analytics only when the unchecked-by-default control is granted", async () => {
+    authMock.mockResolvedValue(SIGNED_IN);
+    recordMock.mockResolvedValue({ ok: true, acceptedAt: "2026-07-14T10:00:00.000Z" });
+    await runExpectingRedirect(form({ ...BOTH, analytics_preference: "granted" }));
+    expect(recordMock).toHaveBeenCalledWith(
+      expect.objectContaining({ analyticsPreference: "granted" }),
+    );
+  });
+
+  it("fails closed to denied for a malformed optional analytics value", async () => {
+    authMock.mockResolvedValue(SIGNED_IN);
+    recordMock.mockResolvedValue({ ok: true, acceptedAt: "2026-07-14T10:00:00.000Z" });
+    await runExpectingRedirect(form({ ...BOTH, analytics_preference: "yes-please" }));
+    expect(recordMock).toHaveBeenCalledWith(
+      expect.objectContaining({ analyticsPreference: "denied" }),
+    );
   });
 
   it("rejects an external next destination, collapsing it to '/'", async () => {

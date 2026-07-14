@@ -8,12 +8,13 @@ import {
   USE_CASE_MAX,
   validateLinkedinUrl,
 } from "@/lib/access/validate";
+import { accessAttributionFromForm } from "@/lib/access/attribution";
 
-// Beta access-request action. Stores ONLY what the requester volunteered (email,
-// optional LinkedIn URL, optional use-case text) — no IP, no user agent, no page
-// contents, no inferred profile data. plan_code stays NULL: a beta request is not
-// a plan selection. Server actions are their own HTTP entry points, so every
-// check here is authoritative regardless of what the client rendered.
+// Beta access-request action. Stores the fields the requester volunteered plus a small,
+// explicitly allowlisted first-party attribution tuple (campaign tokens, fixed landing path,
+// hostname-only referrer) — never IP, user agent, arbitrary query/referrer URL, page contents,
+// or inferred profile data. plan_code stays NULL: a beta request is not a plan selection.
+// Server actions are their own HTTP entry points, so every check here is authoritative.
 
 export interface AccessFormState {
   status: "idle" | "success" | "error";
@@ -43,6 +44,7 @@ export async function requestAccess(
 
   const useCase =
     String(formData.get("usecase") ?? "").trim().slice(0, USE_CASE_MAX) || null;
+  const attribution = accessAttributionFromForm(formData);
 
   try {
     const dupes = (await rawSql.query(
@@ -57,9 +59,20 @@ export async function requestAccess(
     if (dupes.length > 0) return { status: "success" };
 
     await rawSql.query(
-      `INSERT INTO subscribe_intents (email, plan_code, linkedin_url, use_case, source)
-       VALUES ($1, NULL, $2, $3, 'access_form')`,
-      [email, linkedin, useCase],
+      `INSERT INTO subscribe_intents
+         (email, plan_code, linkedin_url, use_case, source,
+          utm_source, utm_medium, utm_campaign, landing_path, referrer_host)
+       VALUES ($1, NULL, $2, $3, 'access_form', $4, $5, $6, $7, $8)`,
+      [
+        email,
+        linkedin,
+        useCase,
+        attribution.utmSource,
+        attribution.utmMedium,
+        attribution.utmCampaign,
+        attribution.landingPath,
+        attribution.referrerHost,
+      ],
     );
   } catch {
     // Never leak raw DB/provider errors to the requester.

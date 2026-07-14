@@ -10,18 +10,25 @@
 /** Bump when the Terms document changes materially. Returning users then re-accept. */
 export const CURRENT_TERMS_VERSION = "1.0";
 /** Bump when the Privacy Notice changes materially. Returning users then re-acknowledge. */
-export const CURRENT_PRIVACY_VERSION = "1.0";
+export const CURRENT_PRIVACY_VERSION = "1.1";
 
 /** The acceptance clickwrap event kind stored on every record. */
 export const ACCEPTANCE_METHOD = "first_login_clickwrap";
 
 /**
- * Effective date of the v1.0 documents. This is the implementation/deployment-ready date;
- * update it (and the version) whenever the copy changes. ISO for machines, `display` for UI —
- * kept together so the two never drift.
+ * Per-document effective dates. Terms remains v1.0 while Privacy advances independently;
+ * changing one must never make the other document appear newly effective.
  */
-export const POLICY_EFFECTIVE_DATE = "2026-07-12";
-export const POLICY_EFFECTIVE_DATE_DISPLAY = "July 12, 2026";
+export const TERMS_EFFECTIVE_DATE = "2026-07-12";
+export const TERMS_EFFECTIVE_DATE_DISPLAY = "July 12, 2026";
+export const PRIVACY_EFFECTIVE_DATE = "2026-07-14";
+export const PRIVACY_EFFECTIVE_DATE_DISPLAY = "July 14, 2026";
+
+// Backward-compatible aliases for the unchanged Terms document. Privacy passes its own
+// effective date to the shared document chrome so a Privacy-only revision never makes the
+// Terms appear to have changed.
+export const POLICY_EFFECTIVE_DATE = TERMS_EFFECTIVE_DATE;
+export const POLICY_EFFECTIVE_DATE_DISPLAY = TERMS_EFFECTIVE_DATE_DISPLAY;
 
 /**
  * Operator identity. Kept here (not scattered through copy) so it is easy to update centrally

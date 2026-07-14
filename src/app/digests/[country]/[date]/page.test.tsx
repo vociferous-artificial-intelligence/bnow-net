@@ -8,9 +8,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 // (cookies/headers), which has no request context in a bare render — mocked too.
 
 const queryMock = vi.fn();
+const captureMock = vi.hoisted(() => vi.fn());
 vi.mock("@/db", () => ({
   rawSql: { query: (...args: unknown[]) => queryMock(...args) },
 }));
+vi.mock("@/lib/analytics/client", () => ({ captureProductEvent: captureMock }));
 
 vi.mock("@/i18n/server", () => ({
   getLocale: async () => "en",
@@ -21,7 +23,10 @@ const DigestPage = pageModule.default;
 const { shapeNeighborDates } = pageModule;
 
 afterEach(cleanup);
-afterEach(() => queryMock.mockReset());
+afterEach(() => {
+  queryMock.mockReset();
+  captureMock.mockReset();
+});
 
 const DIGEST_ROW = {
   id: 1,
@@ -302,6 +307,12 @@ describe("digest page feedback mailtos", () => {
     );
     expect(digestLink?.textContent).toBe("Flag an error in this digest");
     expect(sourceLink?.textContent).toBe("Suggest or flag a source");
+    fireEvent.click(digestLink!);
+    expect(captureMock).toHaveBeenCalledWith("feedback_initiated", {
+      surface: "digest_error",
+      theater: "ru",
+    });
+    expect(JSON.stringify(captureMock.mock.calls)).not.toContain("ops@example.com");
   });
 
   it("hides both mailtos when FEEDBACK_EMAIL is unset", async () => {
