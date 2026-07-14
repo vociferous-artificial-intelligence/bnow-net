@@ -3,6 +3,8 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { dict, makeT } from "@/i18n/dictionaries";
+import { makeClaimEvidenceLabels } from "@/components/claim-evidence-labels";
+import { claimCopyLabels } from "@/components/claim-copy-model";
 import type { AskActionState } from "./actions";
 
 // AskForm imports ./actions (a "use server" module reaching for @/db + LLM
@@ -34,6 +36,12 @@ const strings: Record<string, string> = Object.fromEntries(
 );
 
 const HINT = strings["ask.pending.hint"];
+const formProps = {
+  strings,
+  locale: "en" as const,
+  evidenceLabels: makeClaimEvidenceLabels(t),
+  copyLabels: claimCopyLabels(t),
+};
 
 function fakeState(question: string): AskActionState {
   return {
@@ -51,7 +59,7 @@ function fakeState(question: string): AskActionState {
 
 describe("AskForm", () => {
   it("idle: input and submit enabled, no pending hint", () => {
-    render(<AskForm strings={strings} />);
+    render(<AskForm {...formProps} />);
     const input = screen.getByPlaceholderText(strings["ask.placeholder"]) as HTMLInputElement;
     const button = screen.getByRole("button", { name: strings["ask.submit"] });
     expect(input.disabled).toBe(false);
@@ -60,7 +68,7 @@ describe("AskForm", () => {
   });
 
   it("prefills from initialQuestion (the GET ?q= prefill path)", () => {
-    render(<AskForm initialQuestion="did russia strike kyiv today" strings={strings} />);
+    render(<AskForm initialQuestion="did russia strike kyiv today" {...formProps} />);
     const input = screen.getByPlaceholderText(strings["ask.placeholder"]) as HTMLInputElement;
     expect(input.value).toBe("did russia strike kyiv today");
   });
@@ -75,7 +83,7 @@ describe("AskForm", () => {
     );
 
     const user = userEvent.setup();
-    render(<AskForm strings={strings} />);
+    render(<AskForm {...formProps} />);
     const input = screen.getByPlaceholderText(strings["ask.placeholder"]) as HTMLInputElement;
 
     await user.type(input, "did russia strike kyiv today");

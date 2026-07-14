@@ -61,15 +61,21 @@ const EVIDENCE_ROWS = [
     text: "Ivanov was arrested on embezzlement charges",
     hedging: "claimed",
     claim_date: "2026-07-10",
+    country_iso2: "ru",
+    country_name: "Russia",
+    digest_date: "2026-07-10",
     doc_id: 900,
     doc_url: "https://t.me/example/1",
     doc_title: "post",
     adapter: "telegram_mtproto",
     source_id: 5,
+    source_name: "Example channel",
     source_key: "t.me/example",
+    source_domain: "t.me",
     reliability: "0.62",
     source_platform: "telegram",
-    doc_at: "2026-07-10T08:00:00Z",
+    published_at: "2026-07-10T08:00:00Z",
+    fetched_at: "2026-07-10T08:03:00Z",
   },
 ];
 
@@ -98,6 +104,7 @@ describe("/signals auth boundary", () => {
     for (const name of NAMES) expect(html).not.toContain(name);
     expect(html).not.toContain("Targets incl.");
     expect(html).not.toContain("factional purge");
+    expect(html).not.toContain("data-copy-surface");
     // The gated evidence query never ran for the anonymous request.
     expect(queryMock).not.toHaveBeenCalled();
   });
@@ -119,7 +126,9 @@ describe("/signals auth boundary", () => {
     // Names surface ONLY through the evidence claim texts, with hedge + traceable source.
     expect(container.textContent).toContain("Ivanov was arrested on embezzlement charges");
     expect(container.textContent).toContain("claimed"); // the hedging chip
-    expect(html).toContain("t.me/example"); // the source chip
+    expect(html).toContain("Example channel"); // the human-readable source chip
+    expect(html).not.toContain("0.62"); // score policy: Signals never renders reliability
+    expect(container.querySelector('[data-copy-surface="signal"]')).toBeTruthy();
   });
 
   it("withholds detail from a signed-in visitor who has NOT accepted, nudging to /welcome/legal", async () => {
@@ -137,6 +146,7 @@ describe("/signals auth boundary", () => {
     // The nudge points at acceptance (not sign-in — the user is already signed in).
     expect(container.textContent).toContain("accept the Terms to inspect the evidence");
     expect(container.querySelector('a[href="/welcome/legal"]')).toBeTruthy();
+    expect(html).not.toContain("data-copy-surface");
     // The gated evidence query never ran for the un-accepted request.
     expect(queryMock).not.toHaveBeenCalled();
   });

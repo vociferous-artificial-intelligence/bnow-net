@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { requireAcceptedUser } from "@/lib/gate";
-import { getT } from "@/i18n/server";
-import { dict } from "@/i18n/dictionaries";
+import { getLocale } from "@/i18n/server";
+import { dict, makeT } from "@/i18n/dictionaries";
+import { makeClaimEvidenceLabels } from "@/components/claim-evidence-labels";
+import { claimCopyLabels } from "@/components/claim-copy-model";
 import { AskForm } from "./ask-form";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +21,8 @@ export default async function AskPage({
   searchParams: Promise<{ q?: string }>;
 }) {
   await requireAcceptedUser(); // page gate matches the layout + action + API (acceptance too)
-  const t = await getT();
+  const locale = await getLocale();
+  const t = makeT(locale);
   const { q } = await searchParams;
   const initialQuestion = q?.slice(0, 400) ?? "";
 
@@ -44,7 +47,13 @@ export default async function AskPage({
         no speculation.
       </p>
 
-      <AskForm initialQuestion={initialQuestion} strings={askStrings} />
+      <AskForm
+        initialQuestion={initialQuestion}
+        strings={askStrings}
+        locale={locale}
+        evidenceLabels={makeClaimEvidenceLabels(t)}
+        copyLabels={claimCopyLabels(t)}
+      />
     </main>
   );
 }

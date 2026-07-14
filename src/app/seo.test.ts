@@ -5,7 +5,7 @@ vi.mock("@/db", () => ({ rawSql: { query: (...a: unknown[]) => queryMock(...a) }
 
 import robots from "./robots";
 import sitemap from "./sitemap";
-import { siteBaseUrl } from "@/lib/site-url";
+import { brandSiteBaseUrl, siteBaseUrl } from "@/lib/site-url";
 
 const ORIG = process.env.NEXT_PUBLIC_SITE_URL;
 const ORIG_PROD = process.env.VERCEL_PROJECT_PRODUCTION_URL;
@@ -41,6 +41,14 @@ describe("siteBaseUrl", () => {
     // explicit override still wins over the Vercel-injected host
     process.env.NEXT_PUBLIC_SITE_URL = "https://bnow.net";
     expect(siteBaseUrl()).toBe("https://bnow.net");
+  });
+});
+
+describe("brandSiteBaseUrl", () => {
+  it("stays on the durable brand origin even when preview origins are configured", () => {
+    process.env.NEXT_PUBLIC_SITE_URL = "https://preview.example.com";
+    process.env.VERCEL_PROJECT_PRODUCTION_URL = "bnow-net.vercel.app";
+    expect(brandSiteBaseUrl()).toBe("https://bnow.net");
   });
 });
 

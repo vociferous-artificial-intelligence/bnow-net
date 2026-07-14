@@ -2,9 +2,17 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { makeT } from "@/i18n/dictionaries";
+import type { ClaimSourceDoc } from "@/components/claim-evidence-model";
+import { makeClaimEvidenceLabels } from "@/components/claim-evidence-labels";
+import { claimCopyLabels } from "@/components/claim-copy-model";
 import { AskResult, type AskResultLike, type ResolvedClaim } from "./ask-result";
 
 const t = makeT("en");
+const chromeProps = {
+  locale: "en" as const,
+  evidenceLabels: makeClaimEvidenceLabels(t),
+  copyLabels: claimCopyLabels(t),
+};
 
 afterEach(cleanup);
 
@@ -18,11 +26,39 @@ function baseResult(overrides: Partial<AskResultLike> = {}): AskResultLike {
   };
 }
 
-const claim = (id: number, text: string, date: string | null = "2026-07-01"): ResolvedClaim => ({
+const evidenceDoc: ClaimSourceDoc = {
+  docId: 101,
+  url: "https://example.com/report",
+  title: "Source report",
+  adapter: "rss",
+  sourceId: 11,
+  sourceName: "Example News",
+  sourceKey: "example.com",
+  sourceDomain: "example.com",
+  platform: "news",
+  reliability: 0.84,
+  publishedAt: "2026-06-30T22:00:00Z",
+  firstSeenAt: "2026-06-30T22:05:00Z",
+};
+
+const claim = (id: number, text: string, digestDate: string | null = "2026-07-01"): ResolvedClaim => ({
   id,
   text,
+  hedging: "assessed",
   iso2: "ru",
-  date,
+  countryName: "Russia",
+  digestDate,
+  copyPayload: {
+    claimId: id,
+    text,
+    hedging: "assessed",
+    asOf: digestDate ? "Jul 1, 2026" : null,
+    countryName: "Russia",
+    countryIso2: "ru",
+    claimUrl: digestDate ? `https://bnow.net/digests/ru/${digestDate}#c${id}` : null,
+    docs: [evidenceDoc],
+    showScores: true,
+  },
 });
 
 describe("answered state", () => {
@@ -32,7 +68,7 @@ describe("answered state", () => {
         result={baseResult()}
         cited={[claim(1, "claim one"), claim(2, "claim two", null)]}
         related={[]}
-        t={t}
+        t={t} {...chromeProps}
       />,
     );
     expect(screen.getByText(/Some answer citing evidence/)).toBeTruthy();
@@ -41,6 +77,11 @@ describe("answered state", () => {
     expect(screen.getByText("claim two")).toBeTruthy();
     expect(screen.getByText("c1")).toBeTruthy();
     expect(screen.getByText("c2")).toBeTruthy();
+    expect(screen.getAllByText("View evidence trail (1)")).toHaveLength(2);
+    // The second claim has no owning digest, so it deliberately offers text-only
+    // copy rather than fabricating a canonical citation.
+    expect(screen.getAllByRole("button", { name: "Copy for report" })).toHaveLength(1);
+    expect(document.querySelectorAll('[data-copy-surface="ask_cited"]')).toHaveLength(2);
     // no v2 chrome for a plain answered result
     expect(screen.queryByRole("heading", { name: "Related claims" })).toBeNull();
   });
@@ -58,7 +99,7 @@ describe("insufficient state", () => {
         })}
         cited={[]}
         related={[]}
-        t={t}
+        t={t} {...chromeProps}
       />,
     );
     expect(screen.getByText("No matching evidence in the current dataset.")).toBeTruthy();
@@ -75,7 +116,7 @@ describe("insufficient state", () => {
         result={baseResult({ citedClaimIds: [], evidenceCount: 0 })}
         cited={[]}
         related={[]}
-        t={t}
+        t={t} {...chromeProps}
       />,
     );
     expect(
@@ -101,7 +142,7 @@ describe("no-coverage callout (W1)", () => {
         })}
         cited={[]}
         related={[]}
-        t={t}
+        t={t} {...chromeProps}
       />,
     );
     // full callout in one node (the window-echo line also carries the dates, so an
@@ -126,7 +167,7 @@ describe("no-coverage callout (W1)", () => {
         })}
         cited={[]}
         related={[]}
-        t={t}
+        t={t} {...chromeProps}
       />,
     );
     expect(screen.getByText(/No claims yet cover 2026-07-20\. Data current through 2026-07-11\./)).toBeTruthy();
@@ -145,7 +186,7 @@ describe("no-coverage callout (W1)", () => {
         })}
         cited={[]}
         related={[]}
-        t={t}
+        t={t} {...chromeProps}
       />,
     );
     // generic callout AND the freshness-honest currency line
@@ -164,7 +205,7 @@ describe("no-coverage callout (W1)", () => {
         })}
         cited={[]}
         related={[]}
-        t={t}
+        t={t} {...chromeProps}
       />,
     );
     expect(
@@ -183,7 +224,7 @@ describe("refused state", () => {
         result={baseResult({ state: "refused", answer: "(no answer)", citedClaimIds: [], evidenceCount: 5 })}
         cited={[]}
         related={[]}
-        t={t}
+        t={t} {...chromeProps}
       />,
     );
     expect(
@@ -205,7 +246,7 @@ describe("limit and error states", () => {
         })}
         cited={[]}
         related={[]}
-        t={t}
+        t={t} {...chromeProps}
       />,
     );
     expect(screen.getByText("Daily question limit reached (20/day).")).toBeTruthy();
@@ -218,7 +259,7 @@ describe("limit and error states", () => {
         result={baseResult({ state: "error", answer: "Query failed: timeout. Evidence was retrieved; try again." })}
         cited={[]}
         related={[]}
-        t={t}
+        t={t} {...chromeProps}
       />,
     );
     expect(screen.getByText(/Query failed: timeout/)).toBeTruthy();
@@ -234,7 +275,7 @@ describe("sampled disclosure", () => {
         result={baseResult({ sampled: true, totalMatching: 137 })}
         cited={[]}
         related={[]}
-        t={t}
+        t={t} {...chromeProps}
       />,
     );
     expect(screen.getByText(/Evidence sampled from/)).toBeTruthy();
@@ -243,7 +284,7 @@ describe("sampled disclosure", () => {
   });
 
   it("shows nothing when sampled is absent (legacy shape)", () => {
-    render(<AskResult result={baseResult()} cited={[]} related={[]} t={t} />);
+    render(<AskResult result={baseResult()} cited={[]} related={[]} t={t} {...chromeProps} />);
     expect(screen.queryByText(/Evidence sampled from/)).toBeNull();
   });
 });
@@ -257,7 +298,7 @@ describe("window echo", () => {
         })}
         cited={[]}
         related={[]}
-        t={t}
+        t={t} {...chromeProps}
       />,
     );
     expect(screen.getByText("Searched claims from 2026-07-01 to 2026-07-10")).toBeTruthy();
@@ -271,7 +312,7 @@ describe("window echo", () => {
         })}
         cited={[]}
         related={[]}
-        t={t}
+        t={t} {...chromeProps}
       />,
     );
     expect(screen.getByText("Searched claims since 2026-07-01")).toBeTruthy();
@@ -286,14 +327,14 @@ describe("window echo", () => {
         })}
         cited={[]}
         related={[]}
-        t={t}
+        t={t} {...chromeProps}
       />,
     );
     expect(screen.getByText("Searched claims through 2026-07-10")).toBeTruthy();
   });
 
   it("renders no echo when window is null (legacy shape)", () => {
-    render(<AskResult result={baseResult({ window: null })} cited={[]} related={[]} t={t} />);
+    render(<AskResult result={baseResult({ window: null })} cited={[]} related={[]} t={t} {...chromeProps} />);
     expect(screen.queryByText(/Searched claims/)).toBeNull();
   });
 });
@@ -305,7 +346,7 @@ describe("related claims block", () => {
         result={baseResult({ relatedClaimIds: [3, 4] })}
         cited={[claim(1, "claim one"), claim(2, "claim two")]}
         related={[claim(3, "related one"), claim(4, "related two")]}
-        t={t}
+        t={t} {...chromeProps}
       />,
     );
     const heading = screen.getByRole("heading", { name: "Related claims" });
@@ -320,14 +361,14 @@ describe("related claims block", () => {
         result={baseResult({ relatedClaimIds: [] })}
         cited={[claim(1, "claim one")]}
         related={[]}
-        t={t}
+        t={t} {...chromeProps}
       />,
     );
     expect(screen.queryByRole("heading", { name: "Related claims" })).toBeNull();
   });
 
   it("omits the Related claims block on a legacy-shaped payload (no relatedClaimIds field)", () => {
-    render(<AskResult result={baseResult()} cited={[claim(1, "claim one")]} related={[]} t={t} />);
+    render(<AskResult result={baseResult()} cited={[claim(1, "claim one")]} related={[]} t={t} {...chromeProps} />);
     expect(screen.queryByRole("heading", { name: "Related claims" })).toBeNull();
   });
 });
@@ -339,7 +380,7 @@ describe("digest deep link (W3)", () => {
         result={baseResult()}
         cited={[claim(123, "claim with a date", "2026-07-11")]}
         related={[]}
-        t={t}
+        t={t} {...chromeProps}
       />,
     );
     const link = screen.getByRole("link", { name: "digest →" });
@@ -352,10 +393,13 @@ describe("digest deep link (W3)", () => {
         result={baseResult()}
         cited={[claim(124, "claim with no date", null)]}
         related={[]}
-        t={t}
+        t={t} {...chromeProps}
       />,
     );
     expect(screen.queryByRole("link", { name: "digest →" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Copy for report" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Copy link" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Copy text only", hidden: true })).toBeTruthy();
   });
 });
 
@@ -369,7 +413,7 @@ describe("legacy-shape input", () => {
       evidenceCount: 3,
       provider: "stub",
     };
-    render(<AskResult result={legacy} cited={[claim(1, "claim one")]} related={[]} t={t} />);
+    render(<AskResult result={legacy} cited={[claim(1, "claim one")]} related={[]} t={t} {...chromeProps} />);
     expect(screen.getByText(/Top matching evidence/)).toBeTruthy();
     expect(screen.getByText("3 evidence rows · 1 cited · stub")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Cited evidence" })).toBeTruthy();
@@ -383,7 +427,7 @@ describe("legacy-shape input", () => {
 describe("answer body word wrapping (390px audit, 2026-07-13)", () => {
   it("breaks long unbroken tokens so the answer can never widen the document", () => {
     const { container } = render(
-      <AskResult result={baseResult({ answer: "See https://example.com/" + "a".repeat(300) })} cited={[]} related={[]} t={t} />,
+      <AskResult result={baseResult({ answer: "See https://example.com/" + "a".repeat(300) })} cited={[]} related={[]} t={t} {...chromeProps} />,
     );
     const body = Array.from(container.querySelectorAll("div")).find((d) =>
       d.className.includes("whitespace-pre-wrap"),

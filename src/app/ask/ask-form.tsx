@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useActionState, useEffect, useRef, type RefObject } from "react";
 import { useFormStatus } from "react-dom";
 import { Loader2 } from "lucide-react";
+import type { Locale } from "@/i18n/dictionaries";
+import type { ClaimEvidenceLabels } from "@/components/claim-evidence-model";
+import type { ClaimCopyLabels } from "@/components/claim-copy-model";
 import { askAction, type AskActionState } from "./actions";
 import { AskResult, type Translate } from "./ask-result";
 
@@ -19,6 +22,9 @@ export interface AskFormProps {
   /** Resolved `ask.*` translations for the active locale — a client component
    *  can't receive a function prop from the server component that renders it. */
   strings: Record<string, string>;
+  locale: Locale;
+  evidenceLabels: ClaimEvidenceLabels;
+  copyLabels: ClaimCopyLabels;
 }
 
 /**
@@ -75,7 +81,13 @@ function AskFormFields({
   );
 }
 
-export function AskForm({ initialQuestion = "", strings }: AskFormProps) {
+export function AskForm({
+  initialQuestion = "",
+  strings,
+  locale,
+  evidenceLabels,
+  copyLabels,
+}: AskFormProps) {
   const t: Translate = (key) => strings[key] ?? key;
   const [state, formAction] = useActionState<AskActionState | null, FormData>(askAction, null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -101,7 +113,15 @@ export function AskForm({ initialQuestion = "", strings }: AskFormProps) {
       )}
 
       {state && (
-        <AskResult result={state.result} cited={state.cited} related={state.related} t={t} />
+        <AskResult
+          result={state.result}
+          cited={state.cited}
+          related={state.related}
+          t={t}
+          locale={locale}
+          evidenceLabels={evidenceLabels}
+          copyLabels={copyLabels}
+        />
       )}
     </div>
   );

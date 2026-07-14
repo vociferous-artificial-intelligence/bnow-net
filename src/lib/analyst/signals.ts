@@ -221,15 +221,21 @@ export interface SignalEvidenceRow {
   text: string;
   hedging: string;
   claim_date: string | null;
+  country_iso2: string;
+  country_name: string;
+  digest_date: string | null;
   doc_id: number;
   doc_url: string | null;
   doc_title: string | null;
   adapter: string;
   source_id: number | null;
+  source_name: string | null;
   source_key: string | null;
+  source_domain: string | null;
   reliability: number | string | null; // numeric columns arrive as strings over the wire
   source_platform: string | null;
-  doc_at: string | null;
+  published_at: string | null;
+  fetched_at: string;
 }
 
 export interface EvidenceClaim {
@@ -237,6 +243,9 @@ export interface EvidenceClaim {
   text: string;
   hedging: string;
   claimDate: string | null;
+  countryIso2: string;
+  countryName: string;
+  digestDate: string | null;
   docs: ClaimSourceDoc[];
 }
 
@@ -259,6 +268,9 @@ export function groupEvidenceRows(rows: SignalEvidenceRow[]): Map<number, Eviden
         text: r.text,
         hedging: r.hedging,
         claimDate: r.claim_date,
+        countryIso2: r.country_iso2,
+        countryName: r.country_name,
+        digestDate: r.digest_date,
         docs: [],
       });
     }
@@ -266,11 +278,14 @@ export function groupEvidenceRows(rows: SignalEvidenceRow[]): Map<number, Eviden
       docId: r.doc_id,
       url: r.doc_url,
       sourceId: r.source_id,
+      sourceName: r.source_name,
       sourceKey: r.source_key,
+      sourceDomain: r.source_domain,
       adapter: r.adapter,
       platform: r.source_platform,
       reliability: r.reliability === null ? null : Number(r.reliability),
-      publishedAt: r.doc_at,
+      publishedAt: r.published_at,
+      firstSeenAt: r.fetched_at,
       title: r.doc_title,
     });
   }

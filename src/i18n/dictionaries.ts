@@ -366,6 +366,75 @@ const en: Dict = {
 
   // Claim-source disclosure strip (shared by the digest page and signals evidence).
   "sources.more_summary": "+{n} more · {channels} channels · {platforms} platforms",
+  "sources.summary": "{docs} documents · {channels} channels · {platforms} platforms",
+  "sources.earliest_published": "Earliest published",
+  "sources.first_seen": "First seen by BNOW",
+  "sources.unknown": "Unknown",
+  "sources.view_trail": "View evidence trail ({n})",
+  "sources.sort.label": "Sort evidence",
+  "sources.sort.oldest": "Oldest published",
+  "sources.sort.newest": "Newest published",
+  "sources.sort.first_seen": "First seen by BNOW",
+  "sources.sort.reliability": "Reliability",
+  "sources.sort.source": "Source/channel",
+  "sources.col.published": "Published",
+  "sources.col.first_seen": "First seen",
+  "sources.col.source": "Source",
+  "sources.col.platform": "Platform",
+  "sources.col.reliability": "Reliability",
+  "sources.col.title": "Title/link",
+  "sources.open_document": "Open source document",
+  "sources.platform.rss_news": "RSS/news",
+  "sources.platform.gdelt": "GDELT",
+  "sources.platform.telegram": "Telegram",
+  "sources.platform.x": "X",
+  "sources.platform.procurement": "Procurement",
+
+  // Attribution-safe claim handoff actions. Source/claim data itself remains
+  // untranslated; these are chrome labels used by the pure copy builders.
+  "copy.for_report": "Copy for report",
+  "copy.more_actions": "More copy options",
+  "copy.link": "Copy link",
+  "copy.with_evidence": "Copy with evidence",
+  "copy.text_only": "Copy text only",
+  "copy.report_copied": "Report copied",
+  "copy.link_copied": "Link copied",
+  "copy.evidence_copied": "Evidence copied",
+  "copy.text_copied": "Text copied",
+  "copy.failed": "Copy failed",
+  "copy.status": "Status",
+  "copy.as_of": "As of",
+  "copy.evidence": "Evidence",
+  "copy.source": "Source",
+  "copy.linked_documents": "linked documents",
+  "copy.channels": "channels",
+  "copy.platforms": "platforms",
+  "copy.published": "Published",
+  "copy.first_seen": "First seen by BNOW",
+  "copy.pending": "Copying…",
+  "copy.source_value": "BNOW.NET, {country} Daily Digest, claim c{claimId}",
+  "copy.linked_summary": "{docs} linked documents · {channels} channels · {platforms} platforms",
+  "copy.evidence_list": "Evidence list",
+  "copy.platform": "Platform",
+  "copy.reliability": "Reliability",
+  "copy.unknown": "Unknown",
+  "copy.status_confirmed": "Confirmed",
+  "copy.status_assessed": "Assessed",
+  "copy.status_claimed": "Claimed",
+  "copy.status_unverified": "Unverified",
+  "copy.status_unknown": "Unknown",
+
+  // Browser-native print/PDF workflow for digest handoff.
+  "digest.print.actions": "Print / Save PDF",
+  "digest.print.brief": "Print brief",
+  "digest.print.evidence": "Print with evidence",
+  "digest.print.failed": "Printing could not be started",
+  "digest.print.selected_note": "Selected evidence shown; complete evidence is available at each claim link.",
+  "digest.print.appendix": "Complete evidence appendix",
+  "digest.print.canonical_url": "Canonical digest URL",
+  "digest.print.generated": "Generated",
+  "digest.print.stage": "Stage",
+  "digest.print.status": "Status",
 
   // ask page framing
   "ask.title": "Interrogate the intelligence",
@@ -635,6 +704,70 @@ const uk: Dict = {
   "signals.evidence.public": "підтверджувальних тверджень · простежуються до джерел",
   "signals.evidence.signin_prompt": "увійдіть, щоб переглянути докази",
   "sources.more_summary": "+{n} ще · {channels} каналів · {platforms} платформ",
+  "sources.summary": "{docs} документів · {channels} каналів · {platforms} платформ", // uk: needs native review
+  "sources.earliest_published": "Найраніша публікація", // uk: needs native review
+  "sources.first_seen": "Уперше отримано BNOW", // uk: needs native review
+  "sources.unknown": "Невідомо", // uk: needs native review
+  "sources.view_trail": "Переглянути ланцюжок доказів ({n})", // uk: needs native review
+  "sources.sort.label": "Сортувати докази", // uk: needs native review
+  "sources.sort.oldest": "Найстаріші публікації", // uk: needs native review
+  "sources.sort.newest": "Найновіші публікації", // uk: needs native review
+  "sources.sort.first_seen": "Уперше отримані BNOW", // uk: needs native review
+  "sources.sort.reliability": "Надійність", // uk: needs native review
+  "sources.sort.source": "Джерело/канал", // uk: needs native review
+  "sources.col.published": "Опубліковано", // uk: needs native review
+  "sources.col.first_seen": "Уперше отримано", // uk: needs native review
+  "sources.col.source": "Джерело", // uk: needs native review
+  "sources.col.platform": "Платформа", // uk: needs native review
+  "sources.col.reliability": "Надійність", // uk: needs native review
+  "sources.col.title": "Назва/посилання", // uk: needs native review
+  "sources.open_document": "Відкрити джерельний документ", // uk: needs native review
+  "sources.platform.rss_news": "RSS/новини", // uk: needs native review
+  "sources.platform.gdelt": "GDELT",
+  "sources.platform.telegram": "Telegram",
+  "sources.platform.x": "X",
+  "sources.platform.procurement": "Закупівлі", // uk: needs native review
+  "copy.for_report": "Копіювати для звіту", // uk: needs native review
+  "copy.more_actions": "Інші варіанти копіювання", // uk: needs native review
+  "copy.link": "Копіювати посилання", // uk: needs native review
+  "copy.with_evidence": "Копіювати з доказами", // uk: needs native review
+  "copy.text_only": "Копіювати лише текст", // uk: needs native review
+  "copy.report_copied": "Матеріал для звіту скопійовано", // uk: needs native review
+  "copy.link_copied": "Посилання скопійовано", // uk: needs native review
+  "copy.evidence_copied": "Докази скопійовано", // uk: needs native review
+  "copy.text_copied": "Текст скопійовано", // uk: needs native review
+  "copy.failed": "Не вдалося скопіювати", // uk: needs native review
+  "copy.status": "Статус", // uk: needs native review
+  "copy.as_of": "Станом на", // uk: needs native review
+  "copy.evidence": "Докази", // uk: needs native review
+  "copy.source": "Джерело", // uk: needs native review
+  "copy.linked_documents": "пов'язаних документів", // uk: needs native review
+  "copy.channels": "каналів", // uk: needs native review
+  "copy.platforms": "платформ", // uk: needs native review
+  "copy.published": "Опубліковано", // uk: needs native review
+  "copy.first_seen": "Уперше отримано BNOW", // uk: needs native review
+  "copy.pending": "Копіювання…", // uk: needs native review
+  "copy.source_value": "BNOW.NET, щоденний дайджест «{country}», твердження c{claimId}", // uk: needs native review
+  "copy.linked_summary": "{docs} пов'язаних документів · {channels} каналів · {platforms} платформ", // uk: needs native review
+  "copy.evidence_list": "Перелік доказів", // uk: needs native review
+  "copy.platform": "Платформа", // uk: needs native review
+  "copy.reliability": "Надійність", // uk: needs native review
+  "copy.unknown": "Невідомо", // uk: needs native review
+  "copy.status_confirmed": "Підтверджено", // uk: needs native review
+  "copy.status_assessed": "Оцінено", // uk: needs native review
+  "copy.status_claimed": "Заявлено", // uk: needs native review
+  "copy.status_unverified": "Не перевірено", // uk: needs native review
+  "copy.status_unknown": "Невідомо", // uk: needs native review
+  "digest.print.actions": "Друк / Зберегти PDF", // uk: needs native review
+  "digest.print.brief": "Друкувати стислий звіт", // uk: needs native review
+  "digest.print.evidence": "Друкувати з доказами", // uk: needs native review
+  "digest.print.failed": "Не вдалося почати друк", // uk: needs native review
+  "digest.print.selected_note": "Показано вибрані докази; повні докази доступні за посиланням кожного твердження.", // uk: needs native review
+  "digest.print.appendix": "Повний додаток доказів", // uk: needs native review
+  "digest.print.canonical_url": "Канонічне посилання на дайджест", // uk: needs native review
+  "digest.print.generated": "Створено", // uk: needs native review
+  "digest.print.stage": "Етап", // uk: needs native review
+  "digest.print.status": "Статус", // uk: needs native review
   "ask.title": "Запитати розвідку",
   "ask.subtitle": "Цитовані докази",
   "ask.placeholder": "напр., яких олігархів переслідують?",

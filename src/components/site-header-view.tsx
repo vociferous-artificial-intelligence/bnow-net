@@ -154,7 +154,7 @@ export function SiteHeaderView({
           `fixed inset-0` resolves to the header's own box and the menu renders clipped
           to the header strip. `site-header-view.test.tsx` guards the nesting. */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
+        <div data-site-mobile-nav className="fixed inset-0 z-50 md:hidden">
           <div
             className="absolute inset-0 bg-black/40"
             onClick={() => closeSheet(false)}

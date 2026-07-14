@@ -9,7 +9,12 @@ import { currentUserEmail } from "@/lib/session";
 import { hasCurrentAcceptanceByEmail } from "@/lib/legal/acceptance";
 import { getLocale } from "@/i18n/server";
 import { makeT } from "@/i18n/dictionaries";
+import { formatDate } from "@/i18n/format";
 import { ClaimSources } from "@/components/claim-sources";
+import { makeClaimEvidenceLabels } from "@/components/claim-evidence-labels";
+import { ClaimCopyActions } from "@/components/claim-copy-actions";
+import { claimCopyLabels } from "@/components/claim-copy-model";
+import { brandSiteBaseUrl } from "@/lib/site-url";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +41,8 @@ const HEDGE_COLORS: Record<string, string> = {
 export default async function SignalsPage() {
   const locale = await getLocale();
   const t = makeT(locale);
+  const evidenceLabels = makeClaimEvidenceLabels(t);
+  const copyLabels = claimCopyLabels(t);
   // /signals is a PUBLIC page (docs/reviews/DESIGN-FUNCTION-EVAL-2026-07-11.md §0.5,
   // D3) with a teaser-public / specifics-gated split (IA-REFINEMENT-REVIEW.md TASK 3):
   // the headline count + type is public; the `detail` specifics (named individuals,
@@ -66,11 +73,17 @@ export default async function SignalsPage() {
       try {
         const rows = (await rawSql.query(
           `SELECT cl.id AS claim_id, cl.text, cl.hedging, cl.claim_date::text AS claim_date,
+                  c.iso2 AS country_iso2, c.name AS country_name,
+                  dg.digest_date::text AS digest_date,
                   rd.id AS doc_id, rd.url AS doc_url, rd.title AS doc_title, rd.adapter,
-                  s.id AS source_id, s.canonical_url AS source_key, s.reliability_score AS reliability,
-                  s.platform AS source_platform,
-                  COALESCE(rd.published_at, rd.fetched_at)::text AS doc_at
+                  rd.published_at::text AS published_at, rd.fetched_at::text AS fetched_at,
+                  s.id AS source_id, s.name AS source_name,
+                  s.canonical_url AS source_key, s.domain AS source_domain,
+                  s.reliability_score AS reliability,
+                  s.platform AS source_platform
            FROM claims cl
+           JOIN countries c ON c.id = cl.country_id
+           LEFT JOIN digests dg ON dg.id = cl.digest_id
            JOIN claim_sources cs ON cs.claim_id = cl.id
            JOIN raw_documents rd ON rd.id = cs.raw_document_id
            LEFT JOIN sources s ON s.id = rd.source_id
@@ -128,15 +141,44 @@ export default async function SignalsPage() {
                           {pub.evidenceCount} {t("signals.evidence.summary")}
                         </summary>
                         <ul className="mt-2 space-y-3 border-l border-gray-200 pl-3 dark:border-gray-800">
-                          {claims.map((c) => (
+                          {claims.map((c) => {
+                            const digestDate = c.digestDate?.slice(0, 10) ?? null;
+                            const claimUrl = digestDate
+                              ? `${brandSiteBaseUrl()}/digests/${c.countryIso2}/${digestDate}#c${c.claimId}`
+                              : null;
+                            return (
                             <li key={c.claimId} className="text-sm">
                               <span className={`mr-2 rounded px-1.5 py-0.5 text-xs ${HEDGE_COLORS[c.hedging] ?? HEDGE_COLORS.unknown}`}>
                                 {c.hedging}
                               </span>
                               {c.text}
-                              <ClaimSources docs={c.docs} showScores={false} t={t} />
+                              <ClaimSources
+                                docs={c.docs}
+                                locale={locale}
+                                labels={evidenceLabels}
+                                showScores={false}
+                              />
+                              {digestDate && claimUrl && (
+                                <ClaimCopyActions
+                                  payload={{
+                                    claimId: c.claimId,
+                                    text: c.text,
+                                    hedging: c.hedging,
+                                    asOf: formatDate(locale, digestDate),
+                                    countryName: c.countryName,
+                                    countryIso2: c.countryIso2,
+                                    claimUrl,
+                                    docs: c.docs,
+                                    showScores: false,
+                                  }}
+                                  surface="signal"
+                                  locale={locale}
+                                  labels={copyLabels}
+                                />
+                              )}
                             </li>
-                          ))}
+                            );
+                          })}
                         </ul>
                       </details>
                     )}

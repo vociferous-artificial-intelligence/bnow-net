@@ -13,3 +13,14 @@ export function siteBaseUrl(): string {
   if (prod) return `https://${prod.replace(/^https?:\/\//, "").replace(/\/+$/, "")}`;
   return "https://bnow.net";
 }
+
+/**
+ * Stable brand origin for analyst citations and copied report links.
+ *
+ * Unlike siteBaseUrl(), this must never follow Preview/deployment environment
+ * overrides: a citation copied from a local or preview render should still point
+ * at the durable public BNOW address.
+ */
+export function brandSiteBaseUrl(): string {
+  return "https://bnow.net";
+}

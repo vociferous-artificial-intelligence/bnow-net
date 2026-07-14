@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Money test: /search's ONLY DB-touching dependency should be the $0 deterministic
@@ -99,6 +100,66 @@ beforeEach(() => {
         ],
       });
     }
+    if (sql.includes("JOIN claim_sources")) {
+      return Promise.resolve({
+        rows: [
+          {
+            claim_id: 1,
+            digest_date: "2026-07-09",
+            country_name: "Ukraine",
+            country_iso2: "ua",
+            doc_id: 101,
+            doc_url: "https://example.com/report",
+            doc_title: "Source report",
+            adapter: "rss",
+            source_id: 11,
+            source_name: "Example News",
+            source_key: "example.com",
+            source_domain: "example.com",
+            source_platform: "news",
+            reliability: "0.84",
+            published_at: "2026-07-08T20:00:00Z",
+            fetched_at: "2026-07-08T20:05:00Z",
+          },
+          {
+            claim_id: 1,
+            digest_date: "2026-07-09",
+            country_name: "Ukraine",
+            country_iso2: "ua",
+            doc_id: 102,
+            doc_url: null,
+            doc_title: "Unlinked report",
+            adapter: "gdelt",
+            source_id: null,
+            source_name: null,
+            source_key: null,
+            source_domain: null,
+            source_platform: null,
+            reliability: null,
+            published_at: null,
+            fetched_at: "2026-07-08T20:06:00Z",
+          },
+          {
+            claim_id: 2,
+            digest_date: null,
+            country_name: "Russia",
+            country_iso2: "ru",
+            doc_id: 201,
+            doc_url: "https://example.net/report",
+            doc_title: "Other report",
+            adapter: "rss",
+            source_id: 12,
+            source_name: "Other News",
+            source_key: "example.net",
+            source_domain: "example.net",
+            source_platform: "news",
+            reliability: 0.7,
+            published_at: "2026-07-08T21:00:00Z",
+            fetched_at: "2026-07-08T21:05:00Z",
+          },
+        ],
+      });
+    }
     return Promise.resolve({ rows: [] });
   });
 });
@@ -119,13 +180,24 @@ describe("/search never touches the paid ASK pipeline surface", () => {
     expect(screen.getByText("claim two")).toBeTruthy();
     expect(screen.getByText("showing 2 of 2 matching claims")).toBeTruthy();
 
-    // Only claim one carries a date -> only it gets a digest deep link.
+    // The owning digest date comes from the bulk evidence query, not lexical
+    // claim_date (2026-07-10 in the ranked row above).
     const link = screen.getByRole("link", { name: "view digest →" }) as HTMLAnchorElement;
-    expect(link.getAttribute("href")).toBe("/digests/ua/2026-07-10#c1");
+    expect(link.getAttribute("href")).toBe("/digests/ua/2026-07-09#c1");
+    expect(screen.getByText("2 documents · 2 channels · 2 platforms")).toBeTruthy();
+    expect(screen.getAllByText("Example News").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Copy for report" })).toBeTruthy();
+
+    const user = userEvent.setup();
+    const clipboardWrite = vi.spyOn(navigator.clipboard, "writeText");
+    await user.click(screen.getAllByText("More copy options")[0]!);
+    await user.click(screen.getByRole("button", { name: "Copy link" }));
+    expect(clipboardWrite).toHaveBeenCalledWith("https://bnow.net/digests/ua/2026-07-09#c1");
 
     expect(askWithLimitsMock).not.toHaveBeenCalled();
     expect(embedTextsMock).not.toHaveBeenCalled();
     expect(embedGuardFromEnvMock).not.toHaveBeenCalled();
+    expect(queryMock).toHaveBeenCalledTimes(3); // count, capped result page, one evidence batch
     expect(endMock).toHaveBeenCalledTimes(1); // pool closed even on the happy path
   });
 
@@ -151,6 +223,7 @@ describe("/search never touches the paid ASK pipeline surface", () => {
 
     expect(screen.getByText("No claims match.")).toBeTruthy();
     expect(screen.queryByText(/showing/)).toBeNull();
+    expect(queryMock).toHaveBeenCalledTimes(2); // no evidence query for zero result rows
     expect(askWithLimitsMock).not.toHaveBeenCalled();
   });
 });

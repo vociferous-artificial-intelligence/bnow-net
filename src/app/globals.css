@@ -24,3 +24,147 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Digest print content stays server-rendered; these blocks are exposed only by
+   the digest-specific print stylesheet below. */
+[data-print-only] {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: auto;
+    margin: 16mm 14mm 18mm;
+  }
+
+  html[data-print-page="digest"] {
+    color-scheme: light;
+    --background: #ffffff;
+    --foreground: #111827;
+  }
+
+  html[data-print-page="digest"] body {
+    background: #ffffff !important;
+    color: #111827 !important;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 10.5pt;
+  }
+
+  html[data-print-page="digest"] main[data-print="digest"],
+  html[data-print-page="digest"] main[data-print="digest"] * {
+    background-color: transparent !important;
+    color: #111827 !important;
+    print-color-adjust: economy;
+  }
+
+  /* The shared chrome is outside the digest component, so scope these root-level
+     rules to the marker mounted by DigestPrintActions. */
+  html[data-print-page="digest"] body > header,
+  html[data-print-page="digest"] body > footer,
+  html[data-print-page="digest"] body > a[href="#main"],
+  html[data-print-page="digest"] [data-site-mobile-nav] {
+    display: none !important;
+  }
+
+  html[data-print-page="digest"] [data-print="hide"] {
+    display: none !important;
+  }
+
+  html[data-print-page="digest"] [data-print-only] {
+    display: block !important;
+  }
+
+  /* Native Ctrl/Cmd+P has no mode attribute and intentionally defaults to the
+     concise brief. The complete appendix is opt-in from the app action. */
+  html[data-print-page="digest"] [data-print="appendix"] {
+    display: none !important;
+  }
+
+  html[data-print-page="digest"][data-print-mode="evidence"] [data-print="appendix"] {
+    display: block !important;
+  }
+
+  html[data-print-page="digest"][data-print-mode="evidence"] [data-print="brief-note"] {
+    display: none !important;
+  }
+
+  html[data-print-page="digest"] main[data-print="digest"] {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  html[data-print-page="digest"] [data-print="metadata"] {
+    border-bottom: 1px solid #9ca3af;
+    margin-bottom: 8mm;
+    padding-bottom: 4mm;
+  }
+
+  html[data-print-page="digest"] [data-print="event"] {
+    border-color: #d1d5db !important;
+    break-inside: auto;
+    box-shadow: none !important;
+  }
+
+  html[data-print-page="digest"] [data-print="claim"],
+  html[data-print-page="digest"] [data-print="appendix-row"] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Explicit escape hatch for a future unusually tall block: content must flow
+     across pages instead of being clipped or pushed forever. */
+  html[data-print-page="digest"] [data-print-break="auto"] {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  html[data-print-page="digest"] h1,
+  html[data-print-page="digest"] h2,
+  html[data-print-page="digest"] h3,
+  html[data-print-page="digest"] [data-print="appendix-heading"] {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* Together with the heading rule above, this keeps an event's heading and
+     summary attached to at least its first claim instead of orphaning the lead
+     at the foot of a page. */
+  html[data-print-page="digest"] [data-print="event-summary"] {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  html[data-print-page="digest"] a {
+    color: #111827 !important;
+    text-decoration-color: #6b7280 !important;
+  }
+
+  html[data-print-page="digest"] [data-print="source"],
+  html[data-print-page="digest"] [data-print="source"] *,
+  html[data-print-page="digest"] [data-print="selected-evidence"],
+  html[data-print-page="digest"] [data-print="selected-evidence"] *,
+  html[data-print-page="digest"] [data-print="evidence-summary"],
+  html[data-print-page="digest"] [data-print="evidence-summary"] * {
+    max-width: none !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  html[data-print-page="digest"] table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.5pt;
+  }
+
+  html[data-print-page="digest"] thead {
+    display: table-header-group;
+  }
+
+  html[data-print-page="digest"] tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

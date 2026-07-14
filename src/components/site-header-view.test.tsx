@@ -381,6 +381,7 @@ describe("mobile sheet", () => {
     // ...and the overlay it is positioned against is not trapped either.
     const overlay = sheet.parentElement!;
     expect(overlay.className).toContain("fixed");
+    expect(overlay.hasAttribute("data-site-mobile-nav")).toBe(true);
     expect(header.contains(overlay)).toBe(false);
   });
 

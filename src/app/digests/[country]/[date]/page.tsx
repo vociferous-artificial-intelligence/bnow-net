@@ -6,7 +6,21 @@ import { rankEvents, type RankableEvent } from "@/lib/profiles/rank";
 import { feedbackMailto } from "@/lib/feedback";
 import { getLocale } from "@/i18n/server";
 import { makeT } from "@/i18n/dictionaries";
-import { ClaimSources, type ClaimSourceDoc } from "@/components/claim-sources";
+import { ClaimSources } from "@/components/claim-sources";
+import {
+  canonicalEvidenceDocs,
+  claimSourceLabel,
+  evidencePlatform,
+  safeHttpUrl,
+  type ClaimSourceDoc,
+} from "@/components/claim-evidence-model";
+import { makeClaimEvidenceLabels } from "@/components/claim-evidence-labels";
+import { ClaimCopyActions } from "@/components/claim-copy-actions";
+import { claimCopyLabels } from "@/components/claim-copy-model";
+import { DigestPrintActions } from "@/components/digest-print-actions";
+import { brandSiteBaseUrl } from "@/lib/site-url";
+import { digestStage } from "@/lib/time/digest-status";
+import { formatEtDateTime } from "@/lib/time/format-et";
 
 export const dynamic = "force-dynamic";
 
@@ -25,10 +39,22 @@ interface ClaimRow {
   doc_title: string | null;
   adapter: string;
   source_id: number | null;
+  source_name: string | null;
   source_key: string | null;
+  source_domain: string | null;
   reliability: number | null;
   source_platform: string | null;
-  doc_at: string | null;
+  published_at: string | null;
+  fetched_at: string;
+}
+
+interface DigestRow {
+  id: number;
+  track: string;
+  status: string;
+  provider: string;
+  country_name: string;
+  created_at: string;
 }
 
 interface EntityRow {
@@ -71,6 +97,23 @@ export function shapeNeighborDates(
   return { prev: norm(row?.prev_date), next: norm(row?.next_date) };
 }
 
+function toClaimSourceDoc(row: ClaimRow): ClaimSourceDoc {
+  return {
+    docId: row.doc_id,
+    url: row.doc_url,
+    title: row.doc_title,
+    adapter: row.adapter,
+    sourceId: row.source_id,
+    sourceName: row.source_name,
+    sourceKey: row.source_key,
+    sourceDomain: row.source_domain,
+    platform: row.source_platform,
+    reliability: row.reliability === null ? null : Number(row.reliability),
+    publishedAt: row.published_at,
+    firstSeenAt: row.fetched_at ?? "",
+  };
+}
+
 export default async function DigestPage({
   params,
   searchParams,
@@ -84,6 +127,16 @@ export default async function DigestPage({
 
   const locale = await getLocale();
   const t = makeT(locale);
+  const evidenceLabels = makeClaimEvidenceLabels(t);
+  const copyLabels = claimCopyLabels(t);
+  const asOf = new Intl.DateTimeFormat(locale, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${date}T12:00:00Z`));
+  const brandBase = brandSiteBaseUrl();
+  const canonicalDigestUrl = `${brandBase}/digests/${country}/${date}`;
   const digestMailto = feedbackMailto(`[BNOW digest] ${country} ${date}`);
   // Relocated from the (now admin-only) registry detail page, R5 (2026-07-12):
   // a general "suggest or flag a source" affordance, not tied to one source row,
@@ -91,12 +144,13 @@ export default async function DigestPage({
   const sourceMailto = feedbackMailto("[BNOW source] suggestion");
 
   const digestRows = (await rawSql.query(
-    `SELECT d.id, d.track, d.status, d.provider, c.name AS country_name
+    `SELECT d.id, d.track, d.status, d.provider, d.created_at::text AS created_at,
+            c.name AS country_name
      FROM digests d JOIN countries c ON c.id = d.country_id
      WHERE c.iso2 = $1 AND d.digest_date = $2
      ORDER BY d.track = 'military' DESC`,
     [country, date],
-  )) as Array<{ id: number; track: string; status: string; provider: string; country_name: string }>;
+  )) as DigestRow[];
   if (digestRows.length === 0) notFound();
   const trackByDigest = new Map(digestRows.map((d) => [d.id, d.track]));
 
@@ -107,9 +161,11 @@ export default async function DigestPage({
               ev.type AS event_type, ev.summary AS event_summary,
               cl.text, cl.hedging, cl.confidence,
               rd.id AS doc_id, rd.url AS doc_url, rd.title AS doc_title, rd.adapter,
-              s.id AS source_id, s.canonical_url AS source_key, s.reliability_score AS reliability,
+              s.id AS source_id, s.name AS source_name, s.canonical_url AS source_key,
+              s.domain AS source_domain, s.reliability_score AS reliability,
               s.platform AS source_platform,
-              COALESCE(rd.published_at, rd.fetched_at)::text AS doc_at
+              rd.published_at::text AS published_at,
+              rd.fetched_at::text AS fetched_at
        FROM claims cl
        JOIN events ev ON ev.id = cl.event_id
        JOIN claim_sources cs ON cs.claim_id = cl.id
@@ -148,6 +204,7 @@ export default async function DigestPage({
   const byDigest = new Map<
     number,
     Map<number, {
+      id: number;
       title: string; type: string; summary: string;
       claims: Map<number, { text: string; hedging: string; confidence: number | null; docs: ClaimRow[] }>;
     }>
@@ -159,6 +216,7 @@ export default async function DigestPage({
     const events = byDigest.get(r.digest_id)!;
     if (!events.has(r.event_id))
       events.set(r.event_id, {
+        id: r.event_id,
         title: r.event_title, type: r.event_type, summary: r.event_summary, claims: new Map(),
       });
     const ev = events.get(r.event_id)!;
@@ -172,7 +230,10 @@ export default async function DigestPage({
       evSignal.set(r.event_id, { platforms: new Set(), latest: null, confs: new Set(), conf: new Map() });
     const sig = evSignal.get(r.event_id)!;
     if (r.source_platform) sig.platforms.add(r.source_platform);
-    if (r.doc_at && (sig.latest === null || r.doc_at > sig.latest)) sig.latest = r.doc_at;
+    // Ranking intentionally keeps its original publish-or-fetch recency fallback;
+    // evidence provenance exposes the two timestamps separately.
+    const rankAt = r.published_at ?? r.fetched_at;
+    if (rankAt && (sig.latest === null || rankAt > sig.latest)) sig.latest = rankAt;
     sig.conf.set(r.claim_id, r.confidence);
   }
 
@@ -207,15 +268,48 @@ export default async function DigestPage({
   );
 
   return (
-    <main id="main" className="mx-auto max-w-3xl p-6">
-      <p className="mb-1 text-sm text-gray-500">
+    <main id="main" data-print="digest" className="mx-auto max-w-3xl p-6">
+      <header data-print-only data-print="metadata">
+        <p className="text-sm font-semibold tracking-wide">BNOW.NET</p>
+        <h1 className="mt-1 text-2xl font-bold">
+          {digestRows[0].country_name} — {date}
+        </h1>
+        <p className="mt-1 text-xs" data-print="source">
+          {t("digest.print.canonical_url")}: {canonicalDigestUrl}
+        </p>
+        <div className="mt-3 space-y-2">
+          {orderedDigests.map((digest) => (
+            <dl key={digest.id} className="text-xs">
+              <dt className="font-semibold">
+                {TRACK_LABEL_KEYS[digest.track] ? t(TRACK_LABEL_KEYS[digest.track]) : digest.track}
+              </dt>
+              <dd>{t("digest.print.status")}: {digest.status}</dd>
+              <dd>
+                {t("digest.print.stage")}: {t(`home.status.stage_${digestStage(date, new Date(digest.created_at))}`)}
+              </dd>
+              <dd>{t("digest.print.generated")}: {formatEtDateTime(digest.created_at, locale) ?? t("sources.unknown")}</dd>
+            </dl>
+          ))}
+        </div>
+      </header>
+
+      <p data-print="hide" className="mb-1 text-sm text-gray-500">
         <Link href="/" className="underline">BNOW.NET</Link> · daily digest
       </p>
-      <h1 className="mb-3 text-2xl font-bold">
+      <h1 data-print="hide" className="mb-3 text-2xl font-bold">
         {digestRows[0].country_name} — {date}
       </h1>
 
-      <nav className="mb-4 flex items-center gap-3 text-sm">
+      <DigestPrintActions
+        labels={{
+          actions: t("digest.print.actions"),
+          brief: t("digest.print.brief"),
+          evidence: t("digest.print.evidence"),
+          failure: t("digest.print.failed"),
+        }}
+      />
+
+      <nav data-print="hide" className="mb-4 flex items-center gap-3 text-sm">
         {prevDate && (
           <Link
             href={`/digests/${country}/${prevDate}`}
@@ -239,7 +333,7 @@ export default async function DigestPage({
         )}
       </nav>
 
-      <div className="mb-6 flex flex-wrap items-center gap-1.5 text-xs">
+      <div data-print="hide" className="mb-6 flex flex-wrap items-center gap-1.5 text-xs">
         <span className="mr-1 text-gray-400">{t("digest.view_for")}</span>
         {PROFILES.map((p) => {
           const active = (profileKey ?? "balanced") === p.key;
@@ -265,36 +359,38 @@ export default async function DigestPage({
           <div key={digest.id} className="mb-10">
             <h2 className="mb-3 border-b border-gray-200 pb-1 text-lg font-semibold dark:border-gray-800">
               {TRACK_LABEL_KEYS[digest.track] ? t(TRACK_LABEL_KEYS[digest.track]) : digest.track}{" "}
-              <span className="text-xs font-normal text-gray-400">· {digest.provider}</span>
+              <span data-print="hide" className="text-xs font-normal text-gray-400">· {digest.provider}</span>
             </h2>
             {!events && <p className="text-sm text-gray-400">{t("digest.no_events")}</p>}
             {events &&
-              orderedEvents.map((ev, i) => (
-                <section key={i} className="mb-5 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+              orderedEvents.map((ev) => (
+                <section key={ev.id} data-print="event" className="mb-5 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
                   <div className="mb-1 flex flex-wrap items-center gap-2">
                     <span className="rounded bg-gray-200 px-1.5 py-0.5 text-xs uppercase dark:bg-gray-700">
                       {ev.type}
                     </span>
                     <h3 className="font-semibold">{ev.title}</h3>
                   </div>
-                  <p className="mb-3 text-sm text-gray-500">{ev.summary}</p>
+                  <p data-print="event-summary" className="mb-3 text-sm text-gray-500">{ev.summary}</p>
                   <ul className="space-y-3">
-                    {[...ev.claims.entries()].map(([claimId, c]) => (
-                      // scroll-mt-24 clears the sticky site header (site-header-view.tsx,
-                      // `sticky top-0 z-40`) when /ask links straight to #c<claimId> — same
-                      // value as the header's other named anchor target (countries/page.tsx).
-                      <li key={claimId} id={`c${claimId}`} className="scroll-mt-24 text-sm">
+                    {[...ev.claims.entries()].map(([claimId, c]) => {
+                      const claimDocs = c.docs.map(toClaimSourceDoc);
+                      return (
+                        // scroll-mt-24 clears the sticky site header (site-header-view.tsx,
+                        // `sticky top-0 z-40`) when /ask links straight to #c<claimId> — same
+                        // value as the header's other named anchor target (countries/page.tsx).
+                        <li key={claimId} id={`c${claimId}`} data-print="claim" className="scroll-mt-24 text-sm">
                         <span className={`mr-2 rounded px-1.5 py-0.5 text-xs ${HEDGE_COLORS[c.hedging] ?? HEDGE_COLORS.unknown}`}>
                           {c.hedging}
                         </span>
                         {c.text}
                         {c.confidence !== null && (
-                          <span className="ml-2 text-xs text-gray-400">
+                          <span data-print="hide" className="ml-2 text-xs text-gray-400">
                             conf {Number(c.confidence).toFixed(2)}
                           </span>
                         )}
                         {(entitiesByClaim.get(claimId) ?? []).length > 0 && (
-                          <div className="mt-1 flex flex-wrap gap-1.5 pl-1">
+                          <div data-print="hide" className="mt-1 flex flex-wrap gap-1.5 pl-1">
                             {entitiesByClaim.get(claimId)!.map((e) => (
                               <Link
                                 key={e.entity_id}
@@ -307,40 +403,105 @@ export default async function DigestPage({
                             ))}
                           </div>
                         )}
-                        <ClaimSources
-                          docs={c.docs.map(
-                            (d): ClaimSourceDoc => ({
-                              docId: d.doc_id,
-                              url: d.doc_url,
-                              sourceId: d.source_id,
-                              sourceKey: d.source_key,
-                              adapter: d.adapter,
-                              platform: d.source_platform,
-                              reliability: d.reliability === null ? null : Number(d.reliability),
-                              publishedAt: d.doc_at,
-                              title: d.doc_title,
-                            }),
-                          )}
-                          showScores
-                          t={t}
+                        <ClaimCopyActions
+                          payload={{
+                            claimId,
+                            text: c.text,
+                            hedging: c.hedging,
+                            asOf,
+                            countryName: digestRows[0].country_name,
+                            countryIso2: country,
+                            claimUrl: `${canonicalDigestUrl}#c${claimId}`,
+                            docs: claimDocs,
+                            showScores: true,
+                          }}
+                          surface="digest"
+                          locale={locale}
+                          labels={copyLabels}
                         />
-                      </li>
-                    ))}
+                        <ClaimSources
+                          docs={claimDocs}
+                          showScores
+                          locale={locale}
+                          labels={evidenceLabels}
+                        />
+                        <p data-print-only data-print="claim-url" className="mt-1 text-xs">
+                          {canonicalDigestUrl}#c{claimId}
+                        </p>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </section>
               ))}
           </div>
         );
       })}
+      <p data-print-only data-print="brief-note" className="mb-4 text-xs text-gray-600">
+        {t("digest.print.selected_note")}
+      </p>
+      <section data-print-only data-print="appendix" aria-labelledby="digest-evidence-appendix">
+        <h2 id="digest-evidence-appendix" data-print="appendix-heading" className="mb-4 text-xl font-bold">
+          {t("digest.print.appendix")}
+        </h2>
+        {orderedDigests.map((digest) => {
+          const events = byDigest.get(digest.id);
+          const order = rankedOrder.get(digest.id) ?? [];
+          const orderedEvents = events ? order.map((id) => events.get(id)!).filter(Boolean) : [];
+          return (
+            <div key={`appendix-${digest.id}`} className="mb-6">
+              <h3 className="mb-2 text-base font-semibold">
+                {TRACK_LABEL_KEYS[digest.track] ? t(TRACK_LABEL_KEYS[digest.track]) : digest.track}
+              </h3>
+              {orderedEvents.flatMap((event) => [...event.claims.entries()]).map(([claimId, claim]) => (
+                <article key={`appendix-claim-${claimId}`} data-print="appendix-row" data-print-break={claim.docs.length > 8 ? "auto" : undefined} className="mb-4 border-b border-gray-300 pb-3">
+                  <h4 className="font-semibold">#{claimId} · {claim.text}</h4>
+                  <p className="mb-1 text-xs">
+                    {t("copy.status")}: {copyLabels.statuses[claim.hedging as keyof typeof copyLabels.statuses] ?? copyLabels.statuses.unknown}
+                  </p>
+                  <ul className="space-y-1.5">
+                    {canonicalEvidenceDocs(claim.docs.map(toClaimSourceDoc)).map((doc) => {
+                      const safeUrl = safeHttpUrl(doc.url);
+                      const label = claimSourceLabel(doc);
+                      const platform = evidencePlatform(doc);
+                      const platformLabel = platform === "other"
+                        ? (doc.adapter || t("sources.unknown"))
+                        : evidenceLabels.platforms[platform];
+                      const published = formatEtDateTime(doc.publishedAt, locale) ?? t("sources.unknown");
+                      const firstSeen = formatEtDateTime(doc.firstSeenAt, locale) ?? t("sources.unknown");
+                      return (
+                        <li key={doc.docId} data-print="source" className="text-xs">
+                          <span className="font-semibold">{label}</span> · {platformLabel}
+                          {doc.reliability !== null && Number.isFinite(doc.reliability)
+                            ? ` · ${doc.reliability.toFixed(2)}`
+                            : ""}
+                          <br />
+                          {t("sources.col.published")}: {published} · {t("sources.col.first_seen")}: {firstSeen}
+                          <br />
+                          {safeUrl ? (
+                            <a href={safeUrl} rel="nofollow noopener" target="_blank">{doc.title ?? t("sources.open_document")} · {safeUrl}</a>
+                          ) : (
+                            <span>{doc.title ?? t("sources.open_document")}</span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </article>
+              ))}
+            </div>
+          );
+        })}
+      </section>
       {digestMailto && (
-        <p className="mb-2 text-xs text-gray-400">
+        <p data-print="hide" className="mb-2 text-xs text-gray-400">
           <a href={digestMailto} className="underline">
             {t("feedback.flag_digest")}
           </a>
         </p>
       )}
       {sourceMailto && (
-        <p className="mb-2 text-xs text-gray-400">
+        <p data-print="hide" className="mb-2 text-xs text-gray-400">
           <a href={sourceMailto} className="underline">
             {t("feedback.flag_source")}
           </a>

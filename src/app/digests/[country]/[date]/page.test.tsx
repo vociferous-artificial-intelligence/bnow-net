@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // The digest page is an async server component doing rawSql queries directly (no
@@ -29,6 +29,7 @@ const DIGEST_ROW = {
   status: "final",
   provider: "openai:gpt-4o-mini+mapreduce",
   country_name: "Russia",
+  created_at: "2026-07-12T02:05:00Z",
 };
 
 const CLAIM_ROW = {
@@ -46,10 +47,13 @@ const CLAIM_ROW = {
   doc_title: "Doc title",
   adapter: "rss",
   source_id: 1,
-  source_key: "example.com",
+  source_name: "Example News",
+  source_key: "https://example.com",
+  source_domain: "example.com",
   reliability: 0.75,
   source_platform: "independent_media",
-  doc_at: "2026-07-11T12:00:00Z",
+  published_at: "2026-07-11T12:00:00Z",
+  fetched_at: "2026-07-11T13:30:00Z",
 };
 
 describe("digest claim anchors (W3)", () => {
@@ -71,6 +75,136 @@ describe("digest claim anchors (W3)", () => {
     expect(li?.tagName).toBe("LI");
     expect(li?.className).toMatch(/\bscroll-mt-\d+\b/);
     expect(li?.textContent).toContain("Test claim text");
+  });
+});
+
+describe("digest evidence and print handoff", () => {
+  it("selects and renders provider publication separately from BNOW first-seen time", async () => {
+    queryMock
+      .mockResolvedValueOnce([DIGEST_ROW])
+      .mockResolvedValueOnce([CLAIM_ROW])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+
+    const element = await DigestPage({
+      params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
+      searchParams: Promise.resolve({}),
+    });
+    const { container } = render(element);
+
+    const evidenceSql = String(queryMock.mock.calls[1]?.[0]);
+    expect(evidenceSql).toContain("rd.published_at::text AS published_at");
+    expect(evidenceSql).toContain("rd.fetched_at::text AS fetched_at");
+    expect(evidenceSql).not.toContain("COALESCE(rd.published_at, rd.fetched_at)::text AS doc_at");
+    expect(container.textContent).toContain("Jul 11, 8:00 AM ET");
+    expect(container.textContent).toContain("Jul 11, 9:30 AM ET");
+  });
+
+  it("server-renders every attached document in the complete evidence appendix", async () => {
+    const docs = Array.from({ length: 10 }, (_, index) => ({
+      ...CLAIM_ROW,
+      doc_id: index + 1,
+      doc_url: `https://example.com/doc-${index + 1}`,
+      doc_title: `Evidence document ${index + 1}`,
+    }));
+    queryMock
+      .mockResolvedValueOnce([DIGEST_ROW])
+      .mockResolvedValueOnce(docs)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+
+    const element = await DigestPage({
+      params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
+      searchParams: Promise.resolve({}),
+    });
+    const { container } = render(element);
+
+    const appendix = container.querySelector('[data-print="appendix"]');
+    expect(appendix).toBeTruthy();
+    expect(appendix?.querySelectorAll('[data-print="source"]')).toHaveLength(10);
+    expect(appendix?.textContent).toContain("Evidence document 10");
+    expect(appendix?.textContent).not.toContain("#10");
+    expect(appendix?.querySelector('a[target="_blank"][rel="nofollow noopener"]')).toBeTruthy();
+  });
+
+  it("prints truthful metadata for each track and uses durable brand URLs", async () => {
+    const elite = {
+      ...DIGEST_ROW,
+      id: 2,
+      track: "elite_politics",
+      status: "generated",
+      created_at: "2026-07-11T19:30:00Z",
+    };
+    queryMock
+      .mockResolvedValueOnce([DIGEST_ROW, elite])
+      .mockResolvedValueOnce([CLAIM_ROW])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+
+    const element = await DigestPage({
+      params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
+      searchParams: Promise.resolve({}),
+    });
+    const { container } = render(element);
+
+    const metadata = container.querySelector('[data-print="metadata"]');
+    expect(metadata?.textContent).toContain("Military situation");
+    expect(metadata?.textContent).toContain("Elite politics & prosecutions");
+    expect(metadata?.textContent).toContain("Status: final");
+    expect(metadata?.textContent).toContain("Status: generated");
+    expect(metadata?.textContent).toContain("Stage: final");
+    expect(metadata?.textContent).toContain("Stage: intraday");
+    expect(metadata?.textContent).toContain("https://bnow.net/digests/ru/2026-07-11");
+
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const copyLink = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent === "Copy link",
+    );
+    expect(copyLink).toBeTruthy();
+    fireEvent.click(copyLink!);
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith("https://bnow.net/digests/ru/2026-07-11#c123");
+    });
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
+  });
+
+  it("marks screen-only navigation, profiles, provider and feedback for print exclusion", async () => {
+    const originalFeedback = process.env.FEEDBACK_EMAIL;
+    process.env.FEEDBACK_EMAIL = "ops@example.com";
+    queryMock
+      .mockResolvedValueOnce([DIGEST_ROW])
+      .mockResolvedValueOnce([CLAIM_ROW])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+
+    const element = await DigestPage({
+      params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
+      searchParams: Promise.resolve({}),
+    });
+    const { container } = render(element);
+
+    expect(container.querySelector('nav[data-print="hide"]')).toBeTruthy();
+    expect(container.querySelector('[data-print="hide"] span')?.textContent).not.toBeNull();
+    expect(container.querySelector('a[href^="mailto:"]')?.closest('[data-print="hide"]')).toBeTruthy();
+    expect(container.querySelector('[data-print="event"]')).toBeTruthy();
+    expect(container.querySelector('[data-print="claim"]')).toBeTruthy();
+    expect(container.querySelector('[data-print="claim-url"]')?.textContent).toBe(
+      "https://bnow.net/digests/ru/2026-07-11#c123",
+    );
+    expect(container.querySelector('[data-print="claim"] [data-print="hide"]')?.textContent).toContain("conf");
+    expect(container.querySelector('[data-copy-surface="digest"][data-print="hide"]')).toBeTruthy();
+    expect(container.querySelector('[data-print="evidence-summary"]')).toBeTruthy();
+    expect(container.querySelector('[data-print="evidence-summary"] [data-print="hide"]')).toBeTruthy();
+    const provider = [...container.querySelectorAll('[data-print="hide"]')].find((node) =>
+      node.textContent?.includes("openai:gpt-4o-mini+mapreduce"),
+    );
+    expect(provider).toBeTruthy();
+    if (originalFeedback === undefined) delete process.env.FEEDBACK_EMAIL;
+    else process.env.FEEDBACK_EMAIL = originalFeedback;
   });
 });
 

@@ -247,9 +247,11 @@ describe("collectSignalEvidenceIds", () => {
 describe("groupEvidenceRows + evidenceForSignal", () => {
   const row = (over: Partial<SignalEvidenceRow>): SignalEvidenceRow => ({
     claim_id: 1, text: "claim text", hedging: "assessed", claim_date: "2026-07-01",
+    country_iso2: "ru", country_name: "Russia", digest_date: "2026-07-01",
     doc_id: 1, doc_url: "https://example.com/1", doc_title: "t", adapter: "rss",
-    source_id: 1, source_key: "src1", reliability: "0.75", source_platform: "rss",
-    doc_at: "2026-07-01T00:00:00Z",
+    source_id: 1, source_name: "Source One", source_key: "src1", source_domain: "example.com",
+    reliability: "0.75", source_platform: "rss",
+    published_at: "2026-07-01T00:00:00Z", fetched_at: "2026-07-01T00:02:00Z",
     ...over,
   });
 
@@ -263,6 +265,8 @@ describe("groupEvidenceRows + evidenceForSignal", () => {
     expect(byClaim.size).toBe(2);
     expect(byClaim.get(1)!.docs.map((d) => d.docId)).toEqual([1, 2]);
     expect(byClaim.get(2)!.text).toBe("other claim");
+    expect(byClaim.get(1)!.countryName).toBe("Russia");
+    expect(byClaim.get(1)!.digestDate).toBe("2026-07-01");
   });
 
   it("coerces the wire-string numeric reliability to a number, preserving null", () => {

@@ -1,5 +1,14 @@
 import Link from "next/link";
+import type { Locale } from "@/i18n/dictionaries";
 import type { AnswerState, TimeWindow } from "@/lib/ask/types";
+import { ClaimSources } from "@/components/claim-sources";
+import type { ClaimEvidenceLabels } from "@/components/claim-evidence-model";
+import { ClaimCopyActions } from "@/components/claim-copy-actions";
+import type {
+  ClaimCopyLabels,
+  ClaimCopyPayload,
+  ClaimCopySurface,
+} from "@/components/claim-copy-model";
 
 // Presentational rendering for an /ask result. Extracted from page.tsx so it can be
 // unit-tested with @testing-library without a live DB/auth/server-action harness.
@@ -13,8 +22,11 @@ import type { AnswerState, TimeWindow } from "@/lib/ask/types";
 export interface ResolvedClaim {
   id: number;
   text: string;
+  hedging: string;
   iso2: string;
-  date: string | null;
+  countryName: string;
+  digestDate: string | null;
+  copyPayload: ClaimCopyPayload;
 }
 
 /**
@@ -45,6 +57,9 @@ export interface AskResultProps {
   cited: ResolvedClaim[];
   related: ResolvedClaim[];
   t: Translate;
+  locale: Locale;
+  evidenceLabels: ClaimEvidenceLabels;
+  copyLabels: ClaimCopyLabels;
 }
 
 /** Defensive state derivation for payloads that predate the v2 `state` field. */
@@ -67,28 +82,60 @@ function windowEcho(w: TimeWindow, t: Translate): string | null {
   return null;
 }
 
-function ClaimItems({ items }: { items: ResolvedClaim[] }) {
+function ClaimItems({
+  items,
+  surface,
+  locale,
+  evidenceLabels,
+  copyLabels,
+}: {
+  items: ResolvedClaim[];
+  surface: Extract<ClaimCopySurface, "ask_cited" | "ask_related">;
+  locale: Locale;
+  evidenceLabels: ClaimEvidenceLabels;
+  copyLabels: ClaimCopyLabels;
+}) {
   return (
     <ul className="space-y-2">
       {items.map((c) => (
         <li key={c.id} className="rounded border border-gray-100 p-2 text-sm dark:border-gray-800">
           <span className="mr-2 font-mono text-xs text-gray-400">c{c.id}</span>
           {c.text}{" "}
-          {c.date && (
+          {c.digestDate && (
             <Link
-              href={`/digests/${c.iso2}/${c.date.slice(0, 10)}#c${c.id}`}
+              href={`/digests/${c.iso2}/${c.digestDate}#c${c.id}`}
               className="text-xs underline"
             >
               digest →
             </Link>
           )}
+          <ClaimSources
+            docs={c.copyPayload.docs}
+            showScores
+            locale={locale}
+            labels={evidenceLabels}
+          />
+          <ClaimCopyActions
+            payload={c.copyPayload}
+            surface={surface}
+            locale={locale}
+            labels={copyLabels}
+          />
         </li>
       ))}
     </ul>
   );
 }
 
-export function AskResult({ result, cited, related, t }: AskResultProps) {
+export function AskResult({
+  result,
+  cited,
+  related,
+  t,
+  locale,
+  evidenceLabels,
+  copyLabels,
+}: AskResultProps) {
   const state = deriveAnswerState(result);
   const relatedIds = result.relatedClaimIds ?? [];
   const window = result.window ?? null;
@@ -148,14 +195,26 @@ export function AskResult({ result, cited, related, t }: AskResultProps) {
       {cited.length > 0 && (
         <div>
           <h2 className="mb-2 text-sm font-semibold">{t("ask.subtitle")}</h2>
-          <ClaimItems items={cited} />
+          <ClaimItems
+            items={cited}
+            surface="ask_cited"
+            locale={locale}
+            evidenceLabels={evidenceLabels}
+            copyLabels={copyLabels}
+          />
         </div>
       )}
 
       {relatedIds.length > 0 && related.length > 0 && (
         <div>
           <h2 className="mb-2 text-sm font-semibold">{t("ask.related.title")}</h2>
-          <ClaimItems items={related} />
+          <ClaimItems
+            items={related}
+            surface="ask_related"
+            locale={locale}
+            evidenceLabels={evidenceLabels}
+            copyLabels={copyLabels}
+          />
         </div>
       )}
     </div>

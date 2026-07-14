@@ -144,6 +144,7 @@ describe("interpolation", () => {
       sources: "1", citations: "2", docs: "3", runs: "4",
       n: "5", channels: "6", platforms: "7", total: "8",
       pct: "9", amount: "10", time: "11", days: "12", date: "13",
+      country: "14", claimId: "15",
     };
     for (const loc of LOCALES) {
       const d = dict(loc);

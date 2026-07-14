@@ -21,10 +21,9 @@ vi.mock("@/lib/gate", () => ({
   requireAcceptedUser: vi.fn().mockResolvedValue({ email: "user@example.com" }),
 }));
 
-vi.mock("@/i18n/server", async () => {
-  const { makeT } = await import("@/i18n/dictionaries");
-  return { getT: async () => makeT("en") };
-});
+vi.mock("@/i18n/server", () => ({
+  getLocale: async () => "en",
+}));
 
 const askWithLimitsMock = vi.fn();
 vi.mock("@/lib/ask/limits", () => ({
