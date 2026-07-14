@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Pool } from "@neondatabase/serverless";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from "@/lib/legal/policies";
 
 // Real-Postgres coverage for the append-only legal-acceptance record. The disposable branch is
 // forked at the production head (0016) and does NOT auto-apply new migrations, so this test
@@ -71,8 +72,8 @@ describe("policy_acceptances: append-only clickwrap record", () => {
     );
     expect(rows).toHaveLength(1);
     const r = rows[0];
-    expect(r.terms_version).toBe("1.0");
-    expect(r.privacy_version).toBe("1.1");
+    expect(r.terms_version).toBe(CURRENT_TERMS_VERSION);
+    expect(r.privacy_version).toBe(CURRENT_PRIVACY_VERSION);
     expect(r.adult_attested).toBe(true);
     expect(r.privacy_acknowledged).toBe(true);
     expect(r.acceptance_method).toBe("first_login_clickwrap");
@@ -116,12 +117,13 @@ describe("policy_acceptances: append-only clickwrap record", () => {
   });
 
   it("enforces one row per (user, terms_version, privacy_version)", async () => {
+    // duplicates the current-version row inserted by the first test
     await expect(
       pool.query(
         `INSERT INTO policy_acceptances
            (user_id, terms_version, privacy_version, adult_attested, privacy_acknowledged)
-         VALUES ($1, '1.0', '1.1', true, true)`,
-        [userId],
+         VALUES ($1, $2, $3, true, true)`,
+        [userId, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION],
       ),
     ).rejects.toThrow(/duplicate key|unique/i);
   });

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Pool } from "@neondatabase/serverless";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from "@/lib/legal/policies";
 
 const URL = process.env.INTEGRATION_DATABASE_URL;
 if (!URL) throw new Error("INTEGRATION_DATABASE_URL not set — run via npm run test:integration");
@@ -99,7 +100,7 @@ describe("0020 product analytics preference and attribution", () => {
     expect(after.rows[0].count).toBe(before.rows[0].count);
   });
 
-  it("atomically replaces a prior grant when Privacy 1.1 is accepted unchecked", async () => {
+  it("atomically replaces a prior grant when the current Privacy version is accepted unchecked", async () => {
     const { recordAcceptance } = await import("@/lib/legal/acceptance");
     await expect(
       recordAcceptance({
@@ -121,7 +122,7 @@ describe("0020 product analytics preference and attribution", () => {
     );
     expect(versions.rows).toEqual([
       { terms_version: "1.0", privacy_version: "1.0" },
-      { terms_version: "1.0", privacy_version: "1.1" },
+      { terms_version: CURRENT_TERMS_VERSION, privacy_version: CURRENT_PRIVACY_VERSION },
     ]);
   });
 

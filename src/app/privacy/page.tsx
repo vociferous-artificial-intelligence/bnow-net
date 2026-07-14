@@ -116,8 +116,10 @@ export default function PrivacyPage() {
           <li>Language preference.</li>
           <li>
             If you explicitly allow optional product analytics, an internal random account UUID,
-            coarse account role and beta cohort, account-creation date, and limited product-event
-            categories such as digest, evidence, Search, Ask, Signals, and feedback-control use.
+            coarse account role and beta cohort, account-creation date, an approximate city- and
+            postal-level location that our analytics provider derives from your connection IP at the
+            time each event is received, and limited product-event categories such as digest,
+            evidence, Search, Ask, Signals, and feedback-control use.
           </li>
           <li>
             Ordinary technical request and security-log information that may be processed by our
@@ -240,8 +242,9 @@ export default function PrivacyPage() {
           </li>
           <li>
             PostHog, if optional product analytics is enabled for your account, to process the
-            minimized product events described below. BNOW will use a dedicated project and an
-            internal random account UUID, never your email address, as the analytics identity.
+            minimized product events described below. BNOW uses a dedicated PostHog project hosted
+            in the United States and an internal random account UUID, never your email address, as
+            the analytics identity.
           </li>
           <li>Stripe or another disclosed payment provider if paid checkout is enabled.</li>
           <li>
@@ -273,11 +276,11 @@ export default function PrivacyPage() {
         </LegalP>
         <LegalP>
           BNOW does not use third-party behavioral-advertising cookies. Optional PostHog product
-          analytics is default-off and begins only after a signed-in adult user explicitly grants
-          permission. You may decline without losing product access and may change the preference
-          from the Account page. As of this notice&apos;s effective date, activation is pending a
-          dedicated BNOW PostHog project and key; BNOW will not activate collection before those
-          controls are configured.
+          analytics is default-off and is active only for a signed-in adult user who has accepted
+          the current Terms of Use and Privacy Notice and explicitly grants permission on the
+          Account page. You may decline without losing product access and may change the preference
+          at any time; declining or withdrawing stops future collection. When enabled, these
+          analytics are processed in a dedicated BNOW PostHog project hosted in the United States.
         </LegalP>
         <LegalP>
           If enabled with your permission, BNOW sends only allowlisted, coarse events about product
@@ -289,9 +292,11 @@ export default function PrivacyPage() {
           capture are disabled for this integration.
         </LegalP>
         <LegalP>
-          Activation remains pending creation of a dedicated BNOW project and key. BNOW will
-          select and record the project&apos;s processing region and analytics-event retention period
-          before enabling collection rather than claiming settings that have not been verified.
+          BNOW does not store the raw connection IP address for these analytics. PostHog uses that
+          connection IP transiently, at the moment each event is received, to derive an approximate
+          city- and postal-level location, which may be associated with the event and the internal
+          account identifier; the raw IP itself is then discarded. The project&apos;s data-retention
+          period is described under Retention below.
         </LegalP>
       </LegalSection>
 
@@ -313,9 +318,11 @@ export default function PrivacyPage() {
           legal purposes.
         </LegalP>
         <LegalP>
-          If optional analytics is enabled, PostHog events are retained according to the dedicated
-          project&apos;s configured retention setting. Withdrawing permission stops future collection;
-          you may also request deletion of associated analytics data by contacting us.
+          If optional analytics is enabled, PostHog analytics events are retained for the dedicated
+          project&apos;s configured retention period, currently seven years, after which they are
+          deleted; associated person profiles persist until deleted. Withdrawing permission stops
+          future collection, and you may also request deletion of associated analytics data by
+          contacting us.
         </LegalP>
         <LegalP>
           If you make a verified deletion request, we will delete or deidentify information when

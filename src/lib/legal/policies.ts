@@ -10,7 +10,7 @@
 /** Bump when the Terms document changes materially. Returning users then re-accept. */
 export const CURRENT_TERMS_VERSION = "1.0";
 /** Bump when the Privacy Notice changes materially. Returning users then re-acknowledge. */
-export const CURRENT_PRIVACY_VERSION = "1.1";
+export const CURRENT_PRIVACY_VERSION = "1.2";
 
 /** The acceptance clickwrap event kind stored on every record. */
 export const ACCEPTANCE_METHOD = "first_login_clickwrap";
@@ -21,8 +21,13 @@ export const ACCEPTANCE_METHOD = "first_login_clickwrap";
  */
 export const TERMS_EFFECTIVE_DATE = "2026-07-12";
 export const TERMS_EFFECTIVE_DATE_DISPLAY = "July 12, 2026";
-export const PRIVACY_EFFECTIVE_DATE = "2026-07-14";
-export const PRIVACY_EFFECTIVE_DATE_DISPLAY = "July 14, 2026";
+// Privacy 1.2 (analyst-beta remediation): corrects the now-false "activation
+// pending" copy to the live PostHog posture (US project, GeoIP-derived coarse
+// location disclosed, 7-year event retention). Re-acknowledgement is driven by
+// the version STRING above, not this date. OPERATOR: confirm/adjust this to the
+// ACTUAL deploy date before deploying (deploy is gated behind the X closeout).
+export const PRIVACY_EFFECTIVE_DATE = "2026-07-15";
+export const PRIVACY_EFFECTIVE_DATE_DISPLAY = "July 15, 2026";
 
 // Backward-compatible aliases for the unchanged Terms document. Privacy passes its own
 // effective date to the shared document chrome so a Privacy-only revision never makes the
