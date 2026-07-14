@@ -1387,6 +1387,29 @@ alerts. Rollback = remove key + redeploy (the keyless build was deployed and pro
 today). Residual operator items: billing limit/membership/retention in the PostHog UI, optional
 key-scope re-narrowing, GeoIP privacy wording, own 1.1 acceptance.
 
+## 2026-07-14 (evening) — Analyst-beta launch remediation (branch, not deployed)
+
+Isolated worktree `bnow.net-analyst-beta-remediation`, branch
+`codex/analyst-beta-launch-remediation`, base `b71b39a`. Five workstreams implemented,
+zero paid provider calls, no migrations, no OpenSanctions/entity work. Operator decisions
+this session: GeoIP retain+disclose · retention 7 years · prepare Privacy 1.2 (re-ack).
+
+- WS1 Privacy 1.2 (`f7f9af9`): removed both false "activation pending" statements; states
+  analytics active only for opted-in/accepted/signed-in adults, dedicated US project,
+  GeoIP-derived coarse location (raw IP not stored), 7-year retention; exclusions preserved;
+  `CURRENT_PRIVACY_VERSION` 1.1→1.2 (effective 2026-07-15 placeholder). No migration; itests
+  version-agnostic, validated 9/9 on a disposable Neon branch.
+- WS2 email (`9c7020a`): `DEFAULT_FROM` → `BNOW.NET <no-reply@bnow.net>`; partner-domain
+  fallback/comment/test removed; token model untouched.
+- WS3/4/5 (`a873b7f`): Ask working panel (role=status, honest client-elapsed stages, question
+  echoed, one-submit) + provider/model removed from the subscriber footer; scoreboard
+  "Evidence available at ISW publish (proxy)" with honest framing + RU/UA-denominator
+  disclosure; es/he/ko hidden from the language picker (still valid/parseable).
+- Gate: typecheck+lint clean, 1460/129 unit, build clean, 390px real-browser PASS
+  (privacy/terms/scoreboard + injected Ask panel with a long unbroken question). NOT
+  deployed/merged (gated behind X closeout + operator approval). Note:
+  docs/reviews/ANALYST-BETA-REMEDIATION-NOTE-2026-07-14.md; handoff OPEN-TASKS #68.
+
 ### Addendum (2026-07-15 01:2xZ) — UTC-reset preventive drain executed
 
 As planned in the 2026-07-14 entry: drain `[2026-07-14T11:00Z..2026-07-15T00:00Z]`

@@ -1140,6 +1140,39 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   and OpenSanctions-key entries from `docs/BLOCKERS.md`; retained the OpenSanctions commercial-
   rights gate and every genuinely active capability blocker. No code, env, provider, DNS, or
   deploy changes.
+- **2026-07-14 (analyst-beta launch remediation — five workstreams IMPLEMENTED on a branch,
+  NOT deployed, NOT merged)** Isolated worktree `bnow.net-analyst-beta-remediation`, branch
+  `codex/analyst-beta-launch-remediation`, base `b71b39a` (main == origin/main at start). Zero
+  paid provider calls; no migrations; no OpenSanctions/entity work. Three code commits
+  (`9c7020a` email, `f7f9af9` privacy 1.2, `a873b7f` ask/scoreboard/i18n) + this docs commit.
+  Operator decisions taken this session: **GeoIP retain+disclose · retention 7 years · prepare
+  Privacy 1.2 (re-acknowledge)**. **WS1** Privacy 1.2 (`CURRENT_PRIVACY_VERSION` 1.1→1.2 +
+  effective date 2026-07-15 placeholder) — both false "activation pending" statements removed;
+  states analytics active only for opted-in/accepted/signed-in adults, dedicated US project,
+  GeoIP-derived coarse city/postal from the connection IP at ingestion (raw IP not stored),
+  7-year event retention; exclusions preserved. No migration (constant, not schema); every
+  acceptance path already reads the constants so re-acknowledgement propagates; the two legal
+  itests are version-agnostic (validated 9/9 on disposable Neon branch `br-restless-dew-at6uk521`,
+  created+deleted). **WS2** `DEFAULT_FROM` → `BNOW.NET <no-reply@bnow.net>`; partner-domain
+  fallback/comment/test removed — prod uses `POSTMARK_FROM_EMAIL` or fails visibly at Postmark,
+  never a silent partner-domain BNOW login; token model untouched. **WS3** Ask working panel
+  (role=status, aria-live=polite, honest client-elapsed stage copy, no fake %, question echoed,
+  one-submit) replaces the tiny hint; provider/model string removed from the subscriber footer
+  (kept in ask_usage/telemetry/server type). **WS4** scoreboard "At ISW publish" →
+  "Evidence available at ISW publish (proxy)"; dropped "apples-to-apples" + "gap is what later
+  ingestion added"; discloses it does not prove the claim was in the historical digest + RU/UA vs
+  the same ROCA denominator; at-publish.ts comment corrected; no scores/matching/methodology
+  changed. **WS5** es/he/ko (0% own catalog) hidden from the language picker via `selectorLocales()`
+  (still valid/parseable → no 404s; removes the Korean tofu risk); de/fr/pl/ar/ja unchanged.
+  Gate: typecheck+lint clean, **1460/129 unit**, build clean, **390px real-browser PASS**
+  (privacy/terms/scoreboard + injected Ask panel with a long unbroken question, all
+  scrollWidth==390). **NOT deployed/merged** (deploy gated behind the X closeout; standing
+  "Current state" sections deliberately left describing live prod — still 1.1, scenefiend sender,
+  old scoreboard copy, all languages — until the operator deploys). Full account + operator
+  handoff: `docs/reviews/ANALYST-BETA-REMEDIATION-NOTE-2026-07-14.md`. Operator: confirm the 1.2
+  effective date + deploy; verify bnow.net in Postmark (DKIM/Return-Path/dedicated token) +
+  set `POSTMARK_FROM_EMAIL` + delivery check; flip `SIGNIN_MODE=invite` after the grandfather
+  set; authenticated 390px smoke; PostHog billing-limit/membership record still open (#67).
 
 ## Conventions
 
