@@ -1288,3 +1288,41 @@ revalidate; 6. two healthy scheduled polls; 7. document.
 - Spend: X $4.66 all-in this operation (recovery $3.92 + drains $0.44 + healthy polls;
   of $50 authorized); map $0.52 provider-delta (of $10); reduce $0.24 (of $10).
   OpenSanctions NOT run (stays last, after entity cleanup #61).
+
+## 2026-07-14 — scoring/quality-gauge audit (documentation only)
+
+Block plan: 1. trace the validation denominator, matcher, metric formulas, and
+overwrite behavior; 2. verify the July 13 ISW cutoff/publication instants; 3. audit
+RU/UA final claims against current-version mapped/raw evidence; 4. explain the six
+post-X coverage decreases; 5. document a launch-era immutable record/epoch policy.
+
+Result: `docs/reviews/SCORING-QUALITY-AUDIT-2026-07-14.md`. Verified that scoring is
+only against five ISW Key Takeaways (20 points each); July 13 used the same unfiltered
+five-item denominator for RU and UA; stored result RU 20% / UA 0%; combined mapped
+corpus held the core evidence for 5/5 before ISW's declared 11:45 AM ET cutoff, so
+the dominant loss was map→reduce→final selection. Corrected TIME-MODEL and the parked
+cutoff design: July 13 published 7:30 PM ET, and `atPublish` is an evidence proxy,
+not a historical digest snapshot or mathematical lower bound. Recommended one
+combined ROCA benchmark plus attribution drilldowns, cutoff/publish/final snapshots,
+immutable post-launch as-published scores, and visible validation-epoch/outage
+markers. No source code, DB, env, provider, or deployment changes.
+
+## 2026-07-14 — validation scope + corpus-value audit (documentation only)
+
+Result: `docs/reviews/VALIDATION-SCOPE-AND-CORPUS-VALUE-2026-07-14.md`. Traced the
+Russia country-page counter to raw fetched-item rows: the displayed 45,988 had become
+46,343 during live ingest, representing 1,204 registry sources rather than 46K sources
+or summaries. Of those rows, 32,607 canonical documents had been model-read under the
+current map versions, 17,459 produced atomic claims, and the current final layer held
+310 RU claims; raw documents have no per-document summary, full normalized entity
+record, or embedding. Corrected the stale AGENTS map-stage total to ~33K current-version
+atomic claims across ru/ua/ir.
+
+Product recommendation: align each public validation row to the reference report's
+editorial scope — one combined RU+UA evidence score for one ROCA report, and a
+scope-filtered regional union for the Iran Update only after comparable additional
+ME claims exist and pass a shadow evaluation. Keep country feeds and attribution
+drilldowns separate. Reframe ISW as external QA/trust evidence around an analyst
+evidence workbench whose core jobs are awareness, triage, investigation/recall,
+entity/theme continuity, source intelligence, and decision lenses. No code, DB, env,
+provider, or deployment changes.

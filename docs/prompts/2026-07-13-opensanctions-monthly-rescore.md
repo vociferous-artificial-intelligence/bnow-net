@@ -6,40 +6,65 @@ Work in `/home/go/code/bnow.net`. Read `AGENTS.md` completely before changing an
 
 Make OpenSanctions enrichment use the account's **2,000-request calendar-month quota** safely and make a full entity rescore deterministic, resumable, and bounded across multiple serverless invocations. Do not weaken the lifetime/sprint semantics used by X or other paid providers.
 
-## Sequencing gate
+## Status and sequencing gates (refreshed 2026-07-14)
 
-This is the last of three coordinated workstreams. Do not implement or run it until:
+This is the last of three coordinated workstreams. The **implementation gate remains CLOSED**
+until the active X operator finishes its terminal work:
 
 1. `docs/prompts/2026-07-13-private-beta-readiness.md` is complete and deployed, including
-   Workstream E entity canonicalization;
-2. `docs/prompts/2026-07-13-x-gap-catchup-rescore.md` has completed its historical X recovery,
-   mapping, digest regeneration, and validation; and
-3. the post-X entity population is stable and any separately authorized deterministic entity
-   merge is complete.
+   Workstream E canonical-identity persistence;
+2. `docs/prompts/2026-07-13-x-gap-catchup-rescore.md` completed its core historical recovery,
+   mapping, digest regeneration, and validation (interim closeout commit `9821bab`; 16,007
+   recovered documents, 28/30 digest writes, 15/15 validations, and two healthy scheduled polls);
+3. however, the X operator still has two explicit tasks open: the preventive drain + watermark
+   advance at 00:05Z July 15 with verification of the 00:20/01:20 polls, followed by the addendum,
+   documentation closeout, commit, and push; and
+4. do not start this OpenSanctions implementation until those tasks finish, `origin/main` contains
+   the final X addendum/closeout, and the shared primary checkout is clean. The operator chose
+   sequential execution; do not bypass that ruling with a parallel worktree.
 
-The eligible-entity and quota figures below are verified pre-X-recovery evidence, not hard-coded
-completion criteria. Recount the fixed-cutoff population and current calendar-month usage before
-the production rescore. Do not spend quota matching entity rows that are about to be merged.
+Once that final X gate is satisfied, the monthly-accounting and fixed-cutoff code in this prompt
+may be implemented and tested on a dedicated branch/worktree with zero paid production calls.
 
-Production limits are being configured separately as:
+The **paid production rescore gate remains CLOSED** until all of the following are true:
+
+1. the operator reviews and explicitly approves entity cleanup #61;
+2. `scripts/entities-cleanup.ts --apply` is run after the canonical-identity persist fix is live,
+   and its post-apply integrity checks pass;
+3. this prompt's implementation is merged, deployed, and proven to use calendar-month accounting
+   plus an advancing fixed cutoff; and
+4. the operator separately authorizes the paid rescore after a fresh population/quota recount.
+
+Implementation and tests must make **zero paid production calls**. Do not deploy, apply cleanup,
+or start the rescore merely because the code is ready. Do not spend quota matching entity rows that
+are about to be merged or dropped. After the X closeout, if the primary checkout is dirty for some
+new reason, preserve those changes and use an isolated worktree from the intended main commit rather
+than carrying unrelated documentation into the implementation branch.
+
+Current production limits (verify before rollout; do not change without operator authorization):
 
 - `OPENSANCTIONS_CALL_CAP=2000`
 - `OPENSANCTIONS_DAILY_CALL_CAP=200`
 - `OPENSANCTIONS_RUN_CALL_CAP=120`
 - `OPENSANCTIONS_DAILY_USD_CAP=40` (conservative ledger ceiling; the account allowance is request-based)
 
-Current production evidence, verified after the 2026-07-13 cap deployment and one bounded
-non-refresh gap-fill batch:
+Current production evidence, read-only and verified at 2026-07-14 13:20 UTC after X recovery and
+the scheduled 08:00 UTC non-refresh OpenSanctions gap-fill:
 
-- Before restart, the OpenSanctions dashboard and `provider_usage` both showed exactly 300 `/match/default` calls: 200 on July 7, 91 on July 8, and 9 on July 9.
-- There are currently 763 eligible entities (`person`, `company`, `org`, `agency`, `faction`),
-  before the private-beta canonicalization and X historical regeneration work.
-- The restart proof checked 120 previously unchecked entities: 92 matched, 22 sanctioned, zero failed, and no budget stop.
-- 420 now have live OpenSanctions results; approximately 343 remain unchecked.
-- Current aggregate results are 263 matched and 94 sanctioned.
-- A complete fixed-cutoff rescore from this pre-X snapshot would consume 763 additional calls,
-  bringing July usage from 420 to 1,183/2,000 and leaving 817 calls. Recalculate this projection
-  after the preceding workstreams; entities added during the run must be accounted separately.
+- `provider_usage` contains exactly **540 July calls**: 200 on July 7, 91 on July 8, 9 on July 9,
+  120 on July 13, and 120 on July 14. The July 14 daily cap therefore has only 80 calls of nominal
+  headroom before the 200/day limit; do not plan a full 120-call production batch from stale math.
+- There are **876 eligible entities** (`person`, `company`, `org`, `agency`, `faction`): 540 have
+  live OpenSanctions results and 336 are missing or stub-only.
+- Current aggregate live results are **343 matched and 122 sanctioned**.
+- A refreshed post-X cleanup dry run projects **876 -> 683 entities** (80 drops, 113 merges).
+  The original 763 -> 578 dry-run output remains historical evidence in
+  `docs/reviews/ENTITY-CLEANUP-PLAN-2026-07-13.md`; rerun the dry run immediately before approval
+  and apply because scheduled digest persists can change the population.
+- If cleanup produced exactly 683 eligible rows and no additional calls occurred, a complete
+  fixed-cutoff rescore would add 683 calls, bringing July usage from 540 to **1,223/2,000** and
+  leaving 777. This is a planning projection only: ordinary gap-fill is live, so recount immediately
+  before the paid run and account separately for entities created after the fixed cutoff.
 - The current guard sums all historical rows, so `OPENSANCTIONS_CALL_CAP` behaves as a lifetime cap and will not reset next month.
 - The current `refresh=1` query removes the checked-state predicate entirely. Repeated bounded calls therefore select the same highest-priority rows instead of progressing through the corpus.
 
@@ -83,7 +108,7 @@ Configure only OpenSanctions in `src/lib/enrich/run.ts` to use `calendar_month`;
 
 Make rescoring advance across repeated bounded calls. Use a fixed ISO timestamp supplied by the operator, for example:
 
-`GET /api/cron/enrich?only=sanctions&refresh=1&before=2026-07-13T14:00:00.000Z&limit=200`
+`GET /api/cron/enrich?only=sanctions&refresh=1&before=<one-recorded-post-cleanup-ISO-instant>&limit=120`
 
 Required semantics:
 
@@ -151,19 +176,22 @@ Run the full required verification:
 Do not change production environment values unless explicitly authorized by the operator; they are being handled outside this coding task. After the patch is merged and deployed:
 
 1. Verify the private-beta and X recovery checkpoints are complete.
-2. Recount eligible entities and record the exact baseline population at the cutoff.
-3. Query current-calendar-month `provider_usage` and prove baseline calls + remaining candidates fit
+2. Verify cleanup #61 was explicitly approved and applied, and record its integrity evidence.
+3. Recount eligible entities and record the exact baseline population at the cutoff.
+4. Query current-calendar-month `provider_usage` and prove baseline calls + remaining candidates fit
    within the 2,000-request quota; if not, preserve resumability and continue after the UTC month
    reset rather than raising the provider quota.
-4. Record one fixed cutoff timestamp.
-5. Invoke only the sanctions rescore serially with that exact cutoff.
-6. Respect 120/run and 200/day. Do not raise those protections merely to finish faster.
-7. Query `provider_usage` after every batch and stop before 2,000 monthly requests.
-8. Continue on subsequent UTC days until zero candidates remain.
-9. Verify every entity in the recorded cutoff population has a live `checkedAt >= cutoff`, with
-   entities created afterward accounted separately; do not require the historical count 763.
-10. Record before/after totals for checked, matched, sanctioned, failures, and monthly requests.
-11. Verify no stub match appears in user-facing entity/Ask data.
+5. Record one fixed cutoff timestamp after cleanup and use it unchanged for every invocation.
+6. Invoke only the sanctions rescore serially with that exact cutoff. Do not overlap the ordinary
+   08:00 UTC enrichment cron; include its same-day calls in the daily and monthly ledgers.
+7. Respect 120/run and 200/day. Do not raise those protections merely to finish faster.
+8. Query `provider_usage` after every batch and stop before 2,000 monthly requests.
+9. Continue on subsequent UTC days until zero candidates remain.
+10. Verify every entity in the recorded cutoff population has a live `checkedAt >= cutoff`, with
+   entities created afterward accounted separately; do not require either the historical count
+   763 or the 2026-07-14 planning count 876.
+11. Record before/after totals for checked, matched, sanctioned, failures, and monthly requests.
+12. Verify no stub match appears in user-facing entity/Ask data.
 
 Do not claim completion based only on a green cron. Completion requires nonzero early checks, advancing entity IDs/timestamps across batches, a final zero-candidate batch, and matching provider usage totals.
 

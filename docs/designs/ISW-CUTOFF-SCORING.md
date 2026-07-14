@@ -9,12 +9,11 @@ the bottom; this document is the design for the rest.
 Two structural misalignments between our scoreboard and ISW:
 
 1. **Window offset.** Our digest for date D covers the UTC calendar day D
-   (00:00→24:00Z). ISW's report dated D is written to a data cutoff mid-afternoon
-   ET on D and published late evening ET (observed `derived.publishedAt`: ROCA
-   ~00:00–01:30Z D+1; Iran Update ~20:00–23:00Z D). Their effective window is
-   ≈19:00Z D−1 → 19:00Z D: the two windows overlap ~19 of 24 hours, and events in
-   the two ~5h edge bands score as misses/leads on the wrong day. Same-date pairing
-   is already the max-overlap choice — the edge bands are the residual error.
+   (00:00→24:00Z). ISW reports declare a page-specific data cutoff and publish
+   later; neither instant should be assumed from a fixed wall-clock convention.
+   For example, the July 13, 2026 ROCA declared an 11:45 AM ET cutoff and its
+   `datePublished` was 7:30 PM ET. Same-date pairing is a rough max-overlap choice,
+   but the residual edge bands score some events against the wrong day.
 2. **Version asymmetry.** Validation (07:00Z D+1) scores our FINALIZED digest
    (written 02:00Z D+1) — i.e., a digest assembled AFTER ISW published. The
    scoreboard therefore compares our post-publish best against their at-publish
@@ -44,7 +43,7 @@ of 2×. Storage: new nullable columns `at_publish_coverage_pct`,
 avoids disturbing the (digest_id, isw_report_id) uniqueness.
 
 **C. Cutoff anchoring (optional, further out).** Parse ISW's stated data cutoff
-("data cutoff: 3:00 PM ET") from the report text into `derived.cutoffAt`; score
+(for example, "data cutoff: 11:45 AM ET") from the report text into `derived.cutoffAt`; score
 edge-band events against the report whose window actually contains them (requires
 event timestamps, which claims don't carry — claim_date only). This is the
 expensive, low-yield tail: the ~5h bands affect single-digit event counts per day.
@@ -70,8 +69,9 @@ runs whose digests were regenerated after scoring are skipped, never guessed).
 Definition: of the run's scored takeaway set (same denominator as coverage_pct),
 the share matched by a claim whose supporting documents' `min(fetched_at)` — the
 ingest instant, deliberately NOT the source's own publish claim — precedes ISW's
-`datePublished`. It is a lower bound on true at-publish coverage (the claim
-existed in final form only later; its evidence existed at publish). Displayed as
+`datePublished`. It is an evidence-availability proxy, not a bound on the actual
+historical digest: the claim may have existed in final form only later even though
+its evidence existed at publish. Displayed as
 the "at ISW publish: N%" subline on /scoreboard with its own how-to-read line.
 Headline coverage numbers unchanged everywhere.
 

@@ -4,6 +4,21 @@ Produced by `npx tsx scripts/entities-cleanup.ts` (read-only dry run against pro
 2026-07-13, private-beta sprint Workstream E) after the ё-fold + Vorobyov alias-family
 fix landed in `src/lib/entities/canonicalize.ts`. **Nothing has been applied.**
 
+## Post-X refresh — 2026-07-14 (read-only; still awaiting approval)
+
+The X recovery/rescore created additional entities, so the historical 763 -> 578 plan below is no
+longer the current population projection. A fresh dry run at 2026-07-14 13:20 UTC reported:
+
+`876 entities -> 683 after (80 drops, 113 merges); claim_entities 646 total — 58 edges deleted
+with drops, <=58 edges repointed by merges (claims/claim_sources untouched)`
+
+New same-key folds include `155th brigade` -> `155th Brigade` and `Islamic Revolutionary Guard
+Corps Navy` -> its canonical row. Rerun the dry run immediately before operator approval/apply;
+the full verbatim output below remains the pre-X historical plan and must not be mistaken for the
+current completion count. OpenSanctions implementation remains queued until the active X operator's
+July 15 preventive drain/poll verification/addendum is committed and pushed; its paid fixed-cutoff
+rescore is additionally blocked until this cleanup is approved, applied, and integrity-checked.
+
 Key production finding resolved by this plan: the Moscow Oblast governor existed as
 three entities — `Andrey Vorobyov` (2622), `Андрей Воробьев` (2623), `Андрей Воробьёв`
 (2624) — now one canonical key; both Cyrillic rows merge into 2622. The Dembitsky
@@ -20,7 +35,8 @@ double-count (signals inflation) also folds via the surname rule (2348 → 20).
    - `claims` and `claim_sources` row counts UNCHANGED (the script never touches them —
      traceability ruling 2 structurally unaffected).
    - `SELECT count(*) FROM claim_entities WHERE entity_id NOT IN (SELECT id FROM entities)` = 0.
-   - entities count matches the SUMMARY projection below.
+   - entities count matches the freshly rerun SUMMARY projection (683 at the 2026-07-14 refresh,
+     not the historical 578 below; rerun again immediately before apply).
 4. **Durability (corrected 2026-07-13 remediation; the original note here was wrong).**
    The reduce-time canonicalKey fold alone did NOT stop future persists from
    resurrecting merged spellings: it folds only within one reduce batch, so a digest

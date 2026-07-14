@@ -233,14 +233,17 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     `/api/auth/error?error=Verification` (`AUTH-EMAIL-2026-07-09.md`). The 07-09 Postmark tracking
     fix (`9b5b368`) addressed a real but *secondary* defect, not this. Decide: change the token model
     (multi-use within TTL, or device-agnostic) or document the constraint on the sign-in page.
-41. **[Tier 2] OpenSanctions monthly accounting + resumable rescore (gap-fill RESUMED 2026-07-13).**
-    Operator confirmed 300 actual calls against 2,000 requests/month and raised the configured cap
-    to 2,000 with 200/day + 120/run bounds. A live proof checked 120 new entities (92 matched,
-    22 sanctioned, 0 failed), so coverage is now 420. Remaining defects: SpendGuard still sums the
+41. **[Tier 2] OpenSanctions monthly accounting + resumable rescore (QUEUED after final X
+    drain/closeout; paid rescore additionally gated on #61, refreshed 2026-07-14).** July usage is now 540/2,000 calls
+    after the ordinary 08:00 UTC gap-fill checked another 120; live state is 876 eligible,
+    540 checked, 336 missing/stub-only, 343 matched, 122 sanctioned. Remaining defects:
+    SpendGuard still sums the
     cap across all historical usage (no monthly reset), and repeated `refresh=1` batches select the
     same priority prefix. Implement the fixed-cutoff/calendar-month handoff in
-    `docs/prompts/2026-07-13-opensanctions-monthly-rescore.md`, then rescore all eligible entities.
-    Relates to #17 (match hygiene before spending).
+    `docs/prompts/2026-07-13-opensanctions-monthly-rescore.md` only after the active X operator
+    completes its July 15 preventive drain, post-drain polls, addendum, commit, and push; make zero
+    paid calls during implementation. Apply the separately approved cleanup #61 before the paid fixed-cutoff rescore,
+    then recount and obtain explicit run authorization. Relates to #17 (match hygiene before spending).
 42. **[Tier 2] X single-platform citation dependency (~27–29%).** ~1 in 3.4 cited docs is from X
     (twitterapi.io). Concentration risk + validation contamination (§8.6 risks 1–2) persist even
     though the adapter resumed on 2026-07-13. Diversify corpus (MTProto, more RSS/Telegram)
@@ -375,9 +378,9 @@ The user explicitly asked to progress "before API keys are set up," so these wai
 ### New (from the private-beta readiness sprint — 2026-07-13,
 docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
 
-61. **[operator] Entity cleanup plan awaiting approval.** Deterministic dry run against
-    prod: 763 → 578 entities (80 drops, 105 merges incl. the Vorobyov triple and the
-    Dembitsky surname fold). Plan + apply/integrity procedure:
+61. **[operator] Entity cleanup plan awaiting approval.** Refreshed deterministic dry run against
+    prod after X recovery: **876 -> 683 entities** (80 drops, 113 merges; original pre-X dry run
+    was 763 -> 578). Plan + apply/integrity procedure:
     docs/reviews/ENTITY-CLEANUP-PLAN-2026-07-13.md. Apply BEFORE the OpenSanctions
     fixed-cutoff rescore (it changes the scored population). **Sequencing added by the
     2026-07-13 remediation: DEPLOY the canonical-identity persist fix

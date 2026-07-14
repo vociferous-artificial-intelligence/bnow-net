@@ -121,7 +121,8 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   (wired, upstream-flaky), zakupki
   procurement (wired, blocked — needs proxy).
 - **Map stage:** all eligible ru/ua/ir docs since 06-29 mapped once per
-  (track, extractor_version) → `doc_claims` (~19K claims), persistent dedup verdicts
+  (track, extractor_version) → `doc_claims` (~33K current-version atomic claims at
+  the 2026-07-14 snapshot), persistent dedup verdicts
   (`doc_dedup`), dispositions (`doc_map_state`); hourly cron keeps it current;
   $0.076/1K docs. Feeds the mapreduce digest engine (below). Shadow evidence:
   `docs/reviews/MAP-SHADOW-RESULTS.md`.
@@ -199,11 +200,13 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   explicit-tz helpers only). **Scoreboard
   (2026-07-12):** targets-vs-actuals sublines + thin-sourced tile + nonzero-day
   mean + a true median info-lead (closes OPEN-TASKS #11); **explainer block +
-  per-metric how-to-read lines** and an **at-publish dual-coverage subline**:
+  per-metric how-to-read lines** and an **evidence-at-publish proxy subline**:
   `validation_runs.details.atPublish` = share of the run's takeaways matched with
   evidence ingested before ISW's publish instant (src/lib/validation/at-publish.ts,
   jsonb only — no migration; 7-day deterministic backfill applied 2026-07-12; full
-  cutoff-anchored design parked in docs/designs/ISW-CUTOFF-SCORING.md).
+  cutoff-anchored design parked in docs/designs/ISW-CUTOFF-SCORING.md). It is not a
+  historical digest snapshot or a mathematical bound on what the digest said then
+  (corrected 2026-07-14 scoring audit).
   Root error boundaries (`src/app/error.tsx` / `global-error.tsx`, 2026-07-12)
   never render raw error messages. **Analyst home & Iran prominence (2026-07-12,
   deploy `bnow-jihmibgm6`):** signed-in home gained a quick-links rail (latest+prev
@@ -944,6 +947,49 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   self-catch-up). X spend this operation $4.66 all-in (of $50); OpenSanctions NOT run (still
   LAST, after entity cleanup #61).
 
+- **2026-07-14 (scoring/quality-gauge audit; documentation only)** Corrected the standing
+  scoreboard description and time/cutoff design after a read-only July 13 audit. That ROCA
+  declared an **11:45 AM ET** cutoff and published at **7:30 PM ET**; neither 11:30 AM nor
+  6:00 PM is safe as a fixed assumption. Current headline validation scores the latest
+  finalized last-writer-wins digest against only the report's Key Takeaways, not an immutable
+  cutoff/publication snapshot. `details.atPublish` is an evidence-ingest proxy, not proof of
+  what an overwritten digest said. July 13 used the same five-item denominator for RU+UA;
+  stored result RU 20% / UA 0%, while the combined current-version mapped corpus contained
+  the core evidence for all five before cutoff — the dominant loss was final selection.
+  Pre-launch rescoring is recorded as alpha process evaluation; recommended launch policy
+  (immutable as-published series + separate retrospectives + visible system/outage epochs)
+  remains product/design work, not shipped code. Full evidence and handoff boundary:
+  `docs/reviews/SCORING-QUALITY-AUDIT-2026-07-14.md`. No code/DB/env/deploy changes.
+
+- **2026-07-14 (validation scope + corpus-value audit; documentation only)** Corrected the
+  stale map-stage total in Current state from ~19K to ~33K current-version atomic claims.
+  The Russia country-page headline was traced to raw row count, not sources or summaries:
+  46,343 live items at ~13:23Z, 32,607 canonical docs model-read, 17,459 docs with retained
+  atomic claims, and 310 current final RU claims. Recommended one score per reference-report
+  scope (combined RU+UA evidence for ROCA; scope-filtered regional evidence for Iran Update),
+  while retaining country attribution. Product conclusion: ISW is a quality gauge; the core
+  value is a traceable analyst evidence workbench. Evidence and proposed rulings:
+  `docs/reviews/VALIDATION-SCOPE-AND-CORPUS-VALUE-2026-07-14.md`. No code/DB/env/provider/
+  deploy changes.
+
+- **2026-07-14 (OpenSanctions readiness recheck; documentation only)** X's implementation and
+  historical recovery/rescore gates are complete, so the monthly-accounting/fixed-cutoff coding
+  prompt may now be implemented with zero paid production calls. The paid rescore remains blocked
+  on operator cleanup #61. Read-only live evidence at 13:20Z: 876 eligible entities, 540 live
+  checked, 336 missing/stub-only, 343 matched, 122 sanctioned; refreshed cleanup dry run 876 ->
+  683 (80 drops, 113 merges); July ledger 540/2,000 calls including the scheduled 120-call 08:00Z
+  gap-fill today. Projected full post-cleanup rescore: 683 calls -> 1,223/2,000 before later cron
+  activity; recount remains mandatory. Prompt, #41, #61, and the cleanup note corrected in place.
+  No provider calls, DB mutations, env changes, code changes, or deploys.
+
+- **2026-07-14 (OpenSanctions sequencing correction; documentation only)** Corrects the readiness
+  entry immediately above: `9821bab` is an interim X closeout, not the operator's terminal gate.
+  The active X run still owns a preventive drain + watermark advance at 00:05Z July 15, verification
+  of the 00:20/01:20 polls, and its addendum/documentation commit+push. Per the operator's sequential
+  ruling, do not start OpenSanctions implementation until those finish and main is clean/pushed.
+  The paid rescore remains additionally blocked on cleanup #61 and separate spend authorization.
+  Current counts and quota projection in the prior entry remain valid as a 13:20Z snapshot.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).
@@ -969,7 +1015,7 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
 | Cron auth | `CRON_SECRET` | **live** | (already set) |
 | Auth.js | `AUTH_SECRET` | **live** (hashes magic-link tokens: rotating it invalidates every unclicked link) | (already set) |
 | X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live, gap-recovered** (`$75` sprint / `$2.50` daily; Jul 9–13 recovered cursor-complete 2026-07-14; watermark-park >4–8h needs a drain+advance, #66; empty-run monitor remains #38) | api.twitterapi.io |
-| OpenSanctions | `OPENSANCTIONS_API_KEY` + caps | **live gap-fill** (420 checked; 2,000 cap currently all-time until monthly-window patch; full rescore held) | opensanctions.org |
+| OpenSanctions | `OPENSANCTIONS_API_KEY` + caps | **live gap-fill** (876 eligible / 540 live checked as of 2026-07-14 13:20Z; 2,000 cap currently all-time until monthly-window patch; implementation queued after final X drain/closeout, paid rescore then held for cleanup #61) | opensanctions.org |
 | Telegram MTProto | `TELEGRAM_API_ID/HASH` + `TELEGRAM_SESSION` (all in prod env) | **wired; `TELEGRAM_SESSION` present in production** (added 2026-07-11 as a Sensitive var, minted via `scripts/telegram-login.ts`; first live fetch pending `:35` cron verification) | my.telegram.org |
 | ACLED | `ACLED_API_KEY`, `ACLED_EMAIL` | stubbed | acleddata.com |
 | Stripe | `STRIPE_SECRET_KEY`, … | flagged off | dashboard.stripe.com |

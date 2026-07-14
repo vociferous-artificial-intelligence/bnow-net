@@ -98,8 +98,10 @@ bucket passed explicitly by the page (`etToday(now)`), and "Last validated" is
 ## Validation / scoreboard timestamps
 
 The scoreboard's per-day rows key on `digest_date` (UTC bucket). ISW's report for
-the same calendar date is written to a mid-afternoon-ET data cutoff and published
-late evening ET (`isw_reports.derived.publishedAt`); the two windows overlap ~19 of
-24 hours. Coverage is therefore "our finalized UTC-day digest vs their same-dated
-report" — the honest labeling and the at-publish dual metric live in the W4 work
-(same morning note, §④).
+the same calendar date declares a page-specific data cutoff and publishes later;
+neither instant is a safe fixed-time assumption (the July 13, 2026 ROCA declared
+11:45 AM ET and published at 7:30 PM ET). Coverage is therefore "our latest
+finalized UTC-day digest vs their same-dated report," not a cutoff-aligned snapshot.
+The `atPublish` subline is an evidence-availability proxy based on document ingest
+times, not proof of what an overwritten BNOW digest actually said then. Full audit:
+`docs/reviews/SCORING-QUALITY-AUDIT-2026-07-14.md`.
