@@ -16,7 +16,10 @@ export const currentAnalyticsIdentity = cache(async (): Promise<AnalyticsIdentit
   try {
     const { rawSql } = await import("@/db");
     const rows = (await rawSql.query(
-      `SELECT u.id, u.role, u.created_at::text AS created_at
+      // to_char, not ::text: the driver's ::text form is "YYYY-MM-DD HH:MI:SS+00" (space, no T),
+      // which the $identify sanitizer rejects — signup_at must be ISO-8601.
+      `SELECT u.id, u.role,
+              to_char(u.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at
        FROM users u
        JOIN policy_acceptances pa ON pa.user_id = u.id
        WHERE u.email = $1
