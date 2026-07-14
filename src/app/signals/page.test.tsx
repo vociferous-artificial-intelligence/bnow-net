@@ -3,6 +3,9 @@ import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Signal } from "@/lib/analyst/signals";
 
+const captureMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/analytics/client", () => ({ captureProductEvent: captureMock }));
+
 // Auth-boundary test for /signals (IA-REFINEMENT-REVIEW.md TASK 3 / TASK 5.1):
 // the specifics a signal carries in `detail` — here, named individuals — must be WITHHELD
 // from the server-rendered HTML for an unauthenticated visitor, at the data layer, and
@@ -85,6 +88,7 @@ afterEach(() => {
   computeMock.mockReset();
   queryMock.mockReset();
   acceptMock.mockReset();
+  captureMock.mockReset();
 });
 
 describe("/signals auth boundary", () => {
@@ -107,6 +111,7 @@ describe("/signals auth boundary", () => {
     expect(html).not.toContain("data-copy-surface");
     // The gated evidence query never ran for the anonymous request.
     expect(queryMock).not.toHaveBeenCalled();
+    expect(captureMock).not.toHaveBeenCalled();
   });
 
   it("shows an accepted analyst the review-qualified detail plus evidence with hedge and sources", async () => {
@@ -129,6 +134,11 @@ describe("/signals auth boundary", () => {
     expect(html).toContain("Example channel"); // the human-readable source chip
     expect(html).not.toContain("0.62"); // score policy: Signals never renders reliability
     expect(container.querySelector('[data-copy-surface="signal"]')).toBeTruthy();
+    expect(captureMock).toHaveBeenCalledWith("signal_detail_viewed", {
+      theater: "ru",
+      signal_type: "purge",
+      evidence_count_bucket: "2-5",
+    });
   });
 
   it("withholds detail from a signed-in visitor who has NOT accepted, nudging to /welcome/legal", async () => {
@@ -149,5 +159,6 @@ describe("/signals auth boundary", () => {
     expect(html).not.toContain("data-copy-surface");
     // The gated evidence query never ran for the un-accepted request.
     expect(queryMock).not.toHaveBeenCalled();
+    expect(captureMock).not.toHaveBeenCalled();
   });
 });

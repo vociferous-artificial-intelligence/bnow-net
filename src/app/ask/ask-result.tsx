@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Locale } from "@/i18n/dictionaries";
-import type { AnswerState, TimeWindow } from "@/lib/ask/types";
+import type { AnswerState, RetrievalMode, TimeWindow } from "@/lib/ask/types";
 import { ClaimSources } from "@/components/claim-sources";
 import type { ClaimEvidenceLabels } from "@/components/claim-evidence-model";
 import { ClaimCopyActions } from "@/components/claim-copy-actions";
@@ -9,6 +9,7 @@ import type {
   ClaimCopyPayload,
   ClaimCopySurface,
 } from "@/components/claim-copy-model";
+import { summarizeClaimEvidence } from "@/components/claim-evidence-model";
 
 // Presentational rendering for an /ask result. Extracted from page.tsx so it can be
 // unit-tested with @testing-library without a live DB/auth/server-action harness.
@@ -48,6 +49,7 @@ export interface AskResultLike {
   /** corpus currency (max claim_date, yyyy-mm-dd), set by the v2 path — optional,
    *  defensive read consistent with the other v2 fields above. */
   dataCurrentThrough?: string;
+  retrievalMode?: RetrievalMode;
 }
 
 export type Translate = (key: string) => string;
@@ -114,6 +116,12 @@ function ClaimItems({
             showScores
             locale={locale}
             labels={evidenceLabels}
+            analytics={{
+              surface,
+              theater: c.iso2,
+              hedgingClass: c.copyPayload.hedging,
+              sourceCount: summarizeClaimEvidence(c.copyPayload.docs).channels,
+            }}
           />
           <ClaimCopyActions
             payload={c.copyPayload}

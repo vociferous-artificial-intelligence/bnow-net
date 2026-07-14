@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import { requestAccess, type AccessFormState } from "./actions";
 import { EMAIL_MAX, LINKEDIN_MAX, USE_CASE_MAX } from "@/lib/access/validate";
+import type { AccessAttribution } from "@/lib/access/attribution";
 
 // All user-visible strings arrive as props from the server page (locale-resolved
 // there); the action returns machine codes which this component maps to copy.
@@ -28,7 +29,13 @@ const INITIAL: AccessFormState = { status: "idle" };
 const FIELD =
   "w-full rounded border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900";
 
-export function AccessForm({ labels }: { labels: AccessFormLabels }) {
+export function AccessForm({
+  labels,
+  attribution,
+}: {
+  labels: AccessFormLabels;
+  attribution?: AccessAttribution;
+}) {
   const [state, formAction, pending] = useActionState(requestAccess, INITIAL);
   const errorRef = useRef<HTMLDivElement>(null);
 
@@ -61,6 +68,11 @@ export function AccessForm({ labels }: { labels: AccessFormLabels }) {
 
   return (
     <form action={formAction} aria-busy={pending} className="space-y-4">
+      <input type="hidden" name="utm_source" value={attribution?.utmSource ?? ""} />
+      <input type="hidden" name="utm_medium" value={attribution?.utmMedium ?? ""} />
+      <input type="hidden" name="utm_campaign" value={attribution?.utmCampaign ?? ""} />
+      <input type="hidden" name="landing_path" value={attribution?.landingPath ?? ""} />
+      <input type="hidden" name="referrer_host" value={attribution?.referrerHost ?? ""} />
       {errorText && (
         <div
           ref={errorRef}

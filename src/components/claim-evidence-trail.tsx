@@ -3,6 +3,14 @@
 import { useState } from "react";
 import type { Locale } from "@/i18n/dictionaries";
 import { formatEtDateTime } from "@/lib/time/format-et";
+import { captureProductEvent } from "@/lib/analytics/client";
+import {
+  analyticsHedging,
+  analyticsTheater,
+  sourceCountBucket,
+  type EvidenceAnalyticsContext,
+} from "./analytics/product-event-model";
+import { TrackedSourceLink } from "./analytics/tracked-source-link";
 import {
   claimSourceLabel,
   evidencePlatform,
@@ -20,6 +28,7 @@ export interface ClaimEvidenceTrailProps {
   locale: Locale;
   showScores: boolean;
   labels: ClaimEvidenceLabels;
+  analytics?: EvidenceAnalyticsContext;
 }
 
 function interpolate(template: string, values: Record<string, string | number>): string {
@@ -52,12 +61,24 @@ function platformLabel(doc: ClaimSourceDoc, labels: ClaimEvidenceLabels): string
   return adapter ? adapter.replace(/[_-]+/g, " ") : labels.unknown;
 }
 
-export function ClaimEvidenceTrail({ docs, locale, showScores, labels }: ClaimEvidenceTrailProps) {
+export function ClaimEvidenceTrail({ docs, locale, showScores, labels, analytics }: ClaimEvidenceTrailProps) {
   const [sortMode, setSortMode] = useState<EvidenceSortMode>("oldest_published");
   const sorted = sortEvidenceDocs(docs, sortMode);
 
   return (
-    <details className="mt-2 min-w-0" data-print="hide">
+    <details
+      className="mt-2 min-w-0"
+      data-print="hide"
+      onToggle={(event) => {
+        if (!event.currentTarget.open || !analytics) return;
+        captureProductEvent("evidence_opened", {
+          surface: analytics.surface,
+          theater: analyticsTheater(analytics.theater),
+          source_count_bucket: sourceCountBucket(analytics.sourceCount),
+          hedging_class: analyticsHedging(analytics.hedgingClass),
+        });
+      }}
+    >
       <summary className="cursor-pointer text-xs font-medium text-blue-700 hover:underline dark:text-blue-300">
         {interpolate(labels.viewTrail, { n: docs.length })}
       </summary>
@@ -112,14 +133,16 @@ export function ClaimEvidenceTrail({ docs, locale, showScores, labels }: ClaimEv
                     )}
                     <td className="max-w-[320px] break-words px-2 py-2">
                       {safeUrl ? (
-                        <a
+                        <TrackedSourceLink
+                          analytics={analytics}
+                          platform={evidencePlatform(doc)}
                           className="text-blue-700 underline-offset-2 hover:underline dark:text-blue-300"
                           href={safeUrl}
                           rel="nofollow noopener"
                           target="_blank"
                         >
                           {title}
-                        </a>
+                        </TrackedSourceLink>
                       ) : (
                         title
                       )}

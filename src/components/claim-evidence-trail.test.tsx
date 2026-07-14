@@ -1,11 +1,17 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ClaimEvidenceTrail } from "./claim-evidence-trail";
 import type { ClaimEvidenceLabels, ClaimSourceDoc } from "./claim-evidence-model";
 
-afterEach(cleanup);
+const captureMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/analytics/client", () => ({ captureProductEvent: captureMock }));
+
+afterEach(() => {
+  cleanup();
+  captureMock.mockReset();
+});
 
 const evidenceLabels: ClaimEvidenceLabels = {
   summary: "{docs} documents · {channels} channels · {platforms} platforms",
@@ -99,5 +105,33 @@ describe("ClaimEvidenceTrail", () => {
     const link = screen.getByRole("link", { name: "Title 1" });
     expect(link.getAttribute("target")).toBe("_blank");
     expect(link.getAttribute("rel")).toBe("nofollow noopener");
+  });
+
+  it("captures only real open transitions and explicit source clicks with coarse properties", async () => {
+    const user = userEvent.setup();
+    render(
+      <ClaimEvidenceTrail
+        locale="en"
+        showScores
+        labels={evidenceLabels}
+        docs={[sourceDoc(1), sourceDoc(2, { sourceId: 1, sourceName: "Same channel" })]}
+        analytics={{ surface: "search", theater: "UA", hedgingClass: "claimed", sourceCount: 1 }}
+      />,
+    );
+    await user.click(screen.getByText("View evidence trail (2)"));
+    expect(captureMock).toHaveBeenCalledWith("evidence_opened", {
+      surface: "search",
+      theater: "ua",
+      source_count_bucket: "1",
+      hedging_class: "claimed",
+    });
+    await user.click(screen.getByRole("link", { name: "Title 1" }));
+    expect(captureMock).toHaveBeenLastCalledWith("source_link_clicked", {
+      surface: "search",
+      theater: "ua",
+      platform: "rss_news",
+    });
+    await user.click(screen.getByText("View evidence trail (2)"));
+    expect(captureMock.mock.calls.filter(([name]) => name === "evidence_opened")).toHaveLength(1);
   });
 });

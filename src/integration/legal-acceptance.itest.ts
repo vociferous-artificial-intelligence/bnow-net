@@ -24,9 +24,19 @@ async function applyMigration(file: string) {
   }
 }
 
+async function ensureAnalyticsMigration() {
+  const existing = await pool.query(
+    `SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'users'
+       AND column_name = 'analytics_preference'`,
+  );
+  if (existing.rowCount === 0) await applyMigration("0020_reflective_karnak.sql");
+}
+
 beforeAll(async () => {
   pool = new Pool({ connectionString: URL });
   await applyMigration("0017_flashy_photon.sql");
+  await ensureAnalyticsMigration();
   await pool.query(`DELETE FROM users WHERE email = $1`, [EMAIL]); // clean slate (cascades)
   // users.id has no DB default (it's a Drizzle $defaultFn) — supply one explicitly.
   const { rows } = await pool.query(
@@ -62,7 +72,7 @@ describe("policy_acceptances: append-only clickwrap record", () => {
     expect(rows).toHaveLength(1);
     const r = rows[0];
     expect(r.terms_version).toBe("1.0");
-    expect(r.privacy_version).toBe("1.0");
+    expect(r.privacy_version).toBe("1.1");
     expect(r.adult_attested).toBe(true);
     expect(r.privacy_acknowledged).toBe(true);
     expect(r.acceptance_method).toBe("first_login_clickwrap");
@@ -110,7 +120,7 @@ describe("policy_acceptances: append-only clickwrap record", () => {
       pool.query(
         `INSERT INTO policy_acceptances
            (user_id, terms_version, privacy_version, adult_attested, privacy_acknowledged)
-         VALUES ($1, '1.0', '1.0', true, true)`,
+         VALUES ($1, '1.0', '1.1', true, true)`,
         [userId],
       ),
     ).rejects.toThrow(/duplicate key|unique/i);

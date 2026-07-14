@@ -52,6 +52,10 @@ export async function acceptAction(
     adultAttested,
     privacyAcknowledged,
     locale,
+    // This optional control never gates product access. Missing/malformed is an explicit denial,
+    // so a prior grant cannot survive acknowledgement of the revised Privacy Notice unchecked.
+    analyticsPreference:
+      formData.get("analytics_preference") === "granted" ? "granted" : "denied",
   });
   if (!result.ok) {
     return { error: "We couldn't save your acceptance right now. Please try again." };

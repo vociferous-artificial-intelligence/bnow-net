@@ -9,6 +9,8 @@ import type { ClaimEvidenceLabels } from "@/components/claim-evidence-model";
 import type { ClaimCopyLabels } from "@/components/claim-copy-model";
 import { askAction, type AskActionState } from "./actions";
 import { AskResult, type Translate } from "./ask-result";
+import { AskCompletedMarker } from "@/components/analytics/product-event-markers";
+import { deriveAnswerState } from "./ask-result";
 
 const EXAMPLES = [
   "Which Russian officials were prosecuted recently?",
@@ -113,15 +115,24 @@ export function AskForm({
       )}
 
       {state && (
-        <AskResult
-          result={state.result}
-          cited={state.cited}
-          related={state.related}
-          t={t}
-          locale={locale}
-          evidenceLabels={evidenceLabels}
-          copyLabels={copyLabels}
-        />
+        <>
+          <AskCompletedMarker
+            completionKey={state.analyticsCompletionKey}
+            state={deriveAnswerState(state.result)}
+            evidenceCount={state.result.evidenceCount}
+            retrievalMode={state.result.retrievalMode ?? "legacy"}
+            windowPresent={state.result.window != null}
+          />
+          <AskResult
+            result={state.result}
+            cited={state.cited}
+            related={state.related}
+            t={t}
+            locale={locale}
+            evidenceLabels={evidenceLabels}
+            copyLabels={copyLabels}
+          />
+        </>
       )}
     </div>
   );

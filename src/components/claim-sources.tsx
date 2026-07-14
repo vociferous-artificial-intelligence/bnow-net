@@ -3,12 +3,15 @@ import { formatEtDateTime } from "@/lib/time/format-et";
 import {
   claimSourceLabel,
   DEFAULT_VISIBLE_CLAIM_DOCS,
+  evidencePlatform,
   safeHttpUrl,
   selectClaimDocs,
   summarizeClaimEvidence,
   type ClaimSourceDoc,
 } from "./claim-evidence-model";
 import { ClaimEvidenceTrail, type ClaimEvidenceLabels } from "./claim-evidence-trail";
+import { TrackedSourceLink } from "./analytics/tracked-source-link";
+import type { EvidenceAnalyticsContext } from "./analytics/product-event-model";
 
 export type { ClaimSourceDoc } from "./claim-evidence-model";
 export { selectClaimDocs } from "./claim-evidence-model";
@@ -41,7 +44,15 @@ function summaryTime(value: string | null, locale: Locale, unknown: string) {
   );
 }
 
-function Chip({ doc, showScores }: { doc: ClaimSourceDoc; showScores: boolean }) {
+function Chip({
+  doc,
+  showScores,
+  analytics,
+}: {
+  doc: ClaimSourceDoc;
+  showScores: boolean;
+  analytics?: EvidenceAnalyticsContext;
+}) {
   const label = claimSourceLabel(doc);
   const safeUrl = safeHttpUrl(doc.url);
   const content = (
@@ -62,7 +73,9 @@ function Chip({ doc, showScores }: { doc: ClaimSourceDoc; showScores: boolean })
   }
 
   return (
-    <a
+    <TrackedSourceLink
+      analytics={analytics}
+      platform={evidencePlatform(doc)}
       href={safeUrl}
       rel="nofollow noopener"
       target="_blank"
@@ -70,7 +83,7 @@ function Chip({ doc, showScores }: { doc: ClaimSourceDoc; showScores: boolean })
       title={doc.title ?? undefined}
     >
       {content}
-    </a>
+    </TrackedSourceLink>
   );
 }
 
@@ -80,6 +93,7 @@ export interface ClaimSourcesProps {
   showScores: boolean;
   locale: Locale;
   labels: ClaimEvidenceLabels;
+  analytics?: EvidenceAnalyticsContext;
 }
 
 /**
@@ -92,6 +106,7 @@ export function ClaimSources({
   showScores,
   locale,
   labels,
+  analytics,
 }: ClaimSourcesProps) {
   if (docs.length === 0) return null;
   const { visible } = selectClaimDocs(docs, defaultVisible);
@@ -119,10 +134,16 @@ export function ClaimSources({
       </p>
       <div className="mt-1 flex flex-wrap items-center gap-2" data-print="selected-evidence">
         {visible.map((doc) => (
-          <Chip key={doc.docId} doc={doc} showScores={showScores} />
+          <Chip key={doc.docId} doc={doc} showScores={showScores} analytics={analytics} />
         ))}
       </div>
-      <ClaimEvidenceTrail docs={docs} locale={locale} showScores={showScores} labels={labels} />
+      <ClaimEvidenceTrail
+        docs={docs}
+        locale={locale}
+        showScores={showScores}
+        labels={labels}
+        analytics={analytics}
+      />
     </div>
   );
 }

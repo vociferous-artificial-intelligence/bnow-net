@@ -13,6 +13,7 @@ import {
   type SiteNav,
 } from "@/lib/nav/site-nav";
 import { FOCUS_RING, NavDropdown, NavMenuAnchor, NavMenuButton, NavMenuLink } from "./nav-dropdown";
+import { AnalyticsResetForm } from "./analytics/analytics-reset-form";
 
 export interface HeaderLabels {
   language: string;
@@ -208,11 +209,11 @@ export function SiteHeaderView({
                 <>
                   <p className="mb-2 truncate text-xs text-gray-500">{nav.auth.email}</p>
                   <MobileLink href={nav.auth.accountHref} label={labels.account} pathname={pathname} />
-                  <form action={signOutAction}>
+                  <AnalyticsResetForm action={signOutAction}>
                     <button type="submit" className={`block py-1.5 text-sm ${FOCUS_RING}`}>
                       {labels.signOut}
                     </button>
-                  </form>
+                  </AnalyticsResetForm>
                 </>
               ) : (
                 <MobileLink href={nav.auth.signInHref} label={labels.signIn} pathname={pathname} />
@@ -331,9 +332,9 @@ function AuthSlot({
         {nav.auth.email}
       </p>
       <NavMenuLink href={nav.auth.accountHref}>{labels.account}</NavMenuLink>
-      <form action={signOutAction}>
+      <AnalyticsResetForm action={signOutAction}>
         <NavMenuButton>{labels.signOut}</NavMenuButton>
-      </form>
+      </AnalyticsResetForm>
     </NavDropdown>
   );
 }

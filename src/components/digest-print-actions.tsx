@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { captureProductEvent } from "@/lib/analytics/client";
+import { analyticsTheater, type DigestAgeBucket } from "./analytics/product-event-model";
 
 export interface DigestPrintLabels {
   actions: string;
@@ -9,7 +11,15 @@ export interface DigestPrintLabels {
   failure: string;
 }
 
-export function DigestPrintActions({ labels }: { labels: DigestPrintLabels }) {
+export function DigestPrintActions({
+  labels,
+  theater,
+  digestAge,
+}: {
+  labels: DigestPrintLabels;
+  theater: string;
+  digestAge: DigestAgeBucket;
+}) {
   const [error, setError] = useState(false);
 
   useEffect(() => {
@@ -32,6 +42,11 @@ export function DigestPrintActions({ labels }: { labels: DigestPrintLabels }) {
     const root = document.documentElement;
     setError(false);
     root.dataset.printMode = mode;
+    captureProductEvent("digest_print_initiated", {
+      theater: analyticsTheater(theater),
+      print_mode: mode,
+      digest_age_bucket: digestAge,
+    });
     try {
       window.print();
     } catch {

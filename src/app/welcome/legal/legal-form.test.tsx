@@ -13,6 +13,8 @@ vi.mock("next/link", () => ({
 // Stub the server action so the client form has a callable reference (never invoked in these
 // tests) without importing the auth/DB graph behind actions.ts.
 vi.mock("./actions", () => ({ acceptAction: vi.fn(async () => ({ error: null })) }));
+const { resetAnalyticsClient } = vi.hoisted(() => ({ resetAnalyticsClient: vi.fn() }));
+vi.mock("@/lib/analytics/client", () => ({ resetAnalyticsClient }));
 
 const { LegalAcceptanceForm } = await import("./legal-form");
 
@@ -23,10 +25,10 @@ function checkboxes(): HTMLInputElement[] {
 }
 
 describe("LegalAcceptanceForm", () => {
-  it("renders two checkboxes, both initially UNCHECKED (no dark patterns / prechecking)", () => {
+  it("renders two required and one optional checkbox, all initially unchecked", () => {
     render(<LegalAcceptanceForm next="/" />);
     const boxes = checkboxes();
-    expect(boxes).toHaveLength(2);
+    expect(boxes).toHaveLength(3);
     for (const b of boxes) expect(b.checked).toBe(false);
   });
 
@@ -49,12 +51,13 @@ describe("LegalAcceptanceForm", () => {
     expect(privacy.closest("label")).toBeNull();
   });
 
-  it("keeps 'Accept and continue' disabled until BOTH boxes are checked", () => {
+  it("keeps 'Accept and continue' disabled until both required boxes are checked", () => {
     render(<LegalAcceptanceForm next="/" />);
     const submit = screen.getByRole("button", { name: /Accept and continue/ }) as HTMLButtonElement;
     expect(submit.disabled).toBe(true);
 
-    const [adult, privacy] = checkboxes();
+    const adult = screen.getByRole("checkbox", { name: /at least 18/i });
+    const privacy = screen.getByRole("checkbox", { name: /acknowledge that I have read/i });
     fireEvent.click(adult);
     expect(submit.disabled).toBe(true); // only one checked
     fireEvent.click(privacy);
@@ -62,6 +65,24 @@ describe("LegalAcceptanceForm", () => {
 
     fireEvent.click(privacy); // uncheck one again → disabled again
     expect(submit.disabled).toBe(true);
+  });
+
+  it("does not require or precheck optional product analytics", () => {
+    render(<LegalAcceptanceForm next="/" />);
+    const optional = screen.getByRole("checkbox", { name: /Allow optional product analytics/i });
+    expect((optional as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(screen.getByRole("checkbox", { name: /at least 18/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /acknowledge that I have read/i }));
+    expect((screen.getByRole("button", { name: /Accept and continue/ }) as HTMLButtonElement).disabled)
+      .toBe(false);
+  });
+
+  it("immediately stops an existing client when reaccepting without analytics", () => {
+    render(<LegalAcceptanceForm next="/" />);
+    fireEvent.click(screen.getByRole("checkbox", { name: /at least 18/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /acknowledge that I have read/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Accept and continue/ }));
+    expect(resetAnalyticsClient).toHaveBeenCalledOnce();
   });
 
   it("states the 18+ attestation and the question-storage acknowledgement", () => {

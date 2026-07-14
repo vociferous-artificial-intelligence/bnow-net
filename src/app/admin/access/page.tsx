@@ -13,7 +13,7 @@ export default async function AccessRequestsPage() {
   const [recent, counts] = await Promise.all([
     db.execute(dsql`
       SELECT id, email, request_status, linkedin_url, use_case, source, plan_code,
-             created_at
+             utm_source, utm_medium, utm_campaign, landing_path, referrer_host, created_at
       FROM subscribe_intents ORDER BY created_at DESC LIMIT 200`),
     db.execute(dsql`
       SELECT count(*)::int AS total,
@@ -29,6 +29,11 @@ export default async function AccessRequestsPage() {
     use_case: string | null;
     source: string | null;
     plan_code: string | null;
+    utm_source: string | null;
+    utm_medium: string | null;
+    utm_campaign: string | null;
+    landing_path: string | null;
+    referrer_host: string | null;
     created_at: string;
   }>;
   const { total, fresh } = counts.rows[0] as { total: number; fresh: number };
@@ -43,7 +48,8 @@ export default async function AccessRequestsPage() {
         SIGNIN_MODE=invite). LinkedIn URLs are stored as volunteered — never fetched.
       </p>
 
-      <table className="w-full">
+      <div className="overflow-x-auto">
+      <table className="w-full min-w-[80rem]">
         <thead>
           <tr className="border-b-2 border-gray-300 text-left dark:border-gray-700">
             <th className="py-1">id</th>
@@ -52,6 +58,8 @@ export default async function AccessRequestsPage() {
             <th>monitors</th>
             <th>linkedin</th>
             <th>via</th>
+            <th>campaign</th>
+            <th>landing / referrer</th>
             <th className="text-right">created</th>
           </tr>
         </thead>
@@ -82,6 +90,12 @@ export default async function AccessRequestsPage() {
                 )}
               </td>
               <td className="pr-2 text-gray-500">{r.source ?? r.plan_code ?? "—"}</td>
+              <td className="max-w-48 break-words pr-2 text-gray-500">
+                {[r.utm_source, r.utm_medium, r.utm_campaign].filter(Boolean).join(" / ") || "—"}
+              </td>
+              <td className="max-w-48 break-words pr-2 text-gray-500">
+                {[r.landing_path, r.referrer_host].filter(Boolean).join(" · ") || "—"}
+              </td>
               <td className="whitespace-nowrap text-right text-gray-500">
                 {String(r.created_at).slice(0, 16).replace("T", " ")}
               </td>
@@ -89,6 +103,7 @@ export default async function AccessRequestsPage() {
           ))}
         </tbody>
       </table>
+      </div>
       {rows.length === 0 && <p className="mt-4 text-gray-500">No requests yet.</p>}
     </main>
   );

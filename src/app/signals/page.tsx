@@ -15,6 +15,8 @@ import { makeClaimEvidenceLabels } from "@/components/claim-evidence-labels";
 import { ClaimCopyActions } from "@/components/claim-copy-actions";
 import { claimCopyLabels } from "@/components/claim-copy-model";
 import { brandSiteBaseUrl } from "@/lib/site-url";
+import { summarizeClaimEvidence } from "@/components/claim-evidence-model";
+import { SignalDetailViewedMarker } from "@/components/analytics/product-event-markers";
 
 export const dynamic = "force-dynamic";
 
@@ -134,6 +136,12 @@ export default async function SignalsPage() {
 
                 {accepted ? (
                   <>
+                    <SignalDetailViewedMarker
+                      navigationKey={pub.key}
+                      theater={pub.theater}
+                      signalType={pub.kind}
+                      evidenceCount={pub.evidenceCount}
+                    />
                     <p className="text-sm text-gray-600 dark:text-gray-300">{s.detail}</p>
                     {pub.evidenceCount > 0 && (
                       <details className="mt-1">
@@ -157,6 +165,12 @@ export default async function SignalsPage() {
                                 locale={locale}
                                 labels={evidenceLabels}
                                 showScores={false}
+                                analytics={{
+                                  surface: "signal",
+                                  theater: c.countryIso2,
+                                  hedgingClass: c.hedging,
+                                  sourceCount: summarizeClaimEvidence(c.docs).channels,
+                                }}
                               />
                               {digestDate && claimUrl && (
                                 <ClaimCopyActions

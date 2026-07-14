@@ -5,6 +5,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DigestPrintActions } from "./digest-print-actions";
 
+const captureMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/analytics/client", () => ({ captureProductEvent: captureMock }));
+
 const LABELS = {
   actions: "Print / Save PDF",
   brief: "Print brief",
@@ -17,7 +20,12 @@ afterEach(() => {
   delete document.documentElement.dataset.printPage;
   delete document.documentElement.dataset.printMode;
   vi.unstubAllGlobals();
+  captureMock.mockReset();
 });
+
+function actions() {
+  return <DigestPrintActions labels={LABELS} theater="ru" digestAge="1-7d" />;
+}
 
 describe("DigestPrintActions", () => {
   it("marks the mounted page and selects brief mode before printing", () => {
@@ -27,15 +35,21 @@ describe("DigestPrintActions", () => {
     });
     vi.stubGlobal("print", print);
 
-    render(<DigestPrintActions labels={LABELS} />);
+    render(actions());
     expect(document.documentElement.dataset.printPage).toBe("digest");
     fireEvent.click(screen.getByRole("button", { name: "Print brief" }));
     expect(print).toHaveBeenCalledOnce();
+    expect(captureMock).toHaveBeenCalledWith("digest_print_initiated", {
+      theater: "ru",
+      print_mode: "brief",
+      digest_age_bucket: "1-7d",
+    });
+    expect(captureMock.mock.invocationCallOrder[0]).toBeLessThan(print.mock.invocationCallOrder[0]);
   });
 
   it("selects evidence mode and clears it after afterprint", () => {
     vi.stubGlobal("print", vi.fn());
-    render(<DigestPrintActions labels={LABELS} />);
+    render(actions());
 
     fireEvent.click(screen.getByRole("button", { name: "Print with evidence" }));
     expect(document.documentElement.dataset.printMode).toBe("evidence");
@@ -45,7 +59,7 @@ describe("DigestPrintActions", () => {
 
   it("cleans both semantic attributes up on unmount", () => {
     vi.stubGlobal("print", vi.fn());
-    const view = render(<DigestPrintActions labels={LABELS} />);
+    const view = render(actions());
     fireEvent.click(screen.getByRole("button", { name: "Print brief" }));
 
     view.unmount();
@@ -57,7 +71,7 @@ describe("DigestPrintActions", () => {
     vi.stubGlobal("print", vi.fn(() => {
       throw new Error("print unavailable");
     }));
-    render(<DigestPrintActions labels={LABELS} />);
+    render(actions());
 
     fireEvent.click(screen.getByRole("button", { name: "Print brief" }));
     expect(document.documentElement.hasAttribute("data-print-mode")).toBe(false);

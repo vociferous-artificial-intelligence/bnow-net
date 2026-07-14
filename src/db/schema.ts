@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   date,
   doublePrecision,
   index,
@@ -445,19 +446,34 @@ export const watchedSeries = pgTable(
 
 // ---------- auth (Auth.js drizzle adapter shape) ----------
 
-export const users = pgTable("users", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  name: text("name"),
-  email: text("email").unique(),
-  emailVerified: timestamp("email_verified", { withTimezone: true }),
-  image: text("image"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  // 'user' | 'analyst' | 'admin' (hierarchy in that order); plain text, not a pg
-  // enum, so this migration stays additive (AGENTS.md ruling 5) — see src/lib/gate.ts.
-  role: text("role").notNull().default("user"),
-});
+export const users = pgTable(
+  "users",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    name: text("name"),
+    email: text("email").unique(),
+    emailVerified: timestamp("email_verified", { withTimezone: true }),
+    image: text("image"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // 'user' | 'analyst' | 'admin' (hierarchy in that order); plain text, not a pg
+    // enum, so this migration stays additive (AGENTS.md ruling 5) — see src/lib/gate.ts.
+    role: text("role").notNull().default("user"),
+    // Optional product analytics is explicitly permissioned. Existing users begin unset;
+    // only the authoritative legal/account actions may set granted or denied.
+    analyticsPreference: text("analytics_preference").notNull().default("unset"),
+    analyticsPreferenceUpdatedAt: timestamp("analytics_preference_updated_at", {
+      withTimezone: true,
+    }),
+  },
+  (t) => [
+    check(
+      "users_analytics_preference_check",
+      sql`${t.analyticsPreference} IN ('unset', 'granted', 'denied')`,
+    ),
+  ],
+);
 
 export const accounts = pgTable(
   "accounts",
@@ -577,6 +593,13 @@ export const subscribeIntents = pgTable("subscribe_intents", {
   useCase: text("use_case"),
   requestStatus: text("request_status").notNull().default("new"),
   source: text("source"),
+  // First-party acquisition attribution. Values are strictly normalized before insert;
+  // arbitrary query strings and full referrer URLs are never stored.
+  utmSource: text("utm_source"),
+  utmMedium: text("utm_medium"),
+  utmCampaign: text("utm_campaign"),
+  landingPath: text("landing_path"),
+  referrerHost: text("referrer_host"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

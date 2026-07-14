@@ -5,6 +5,8 @@ import { rawSql } from "@/db";
 import { getLocale } from "@/i18n/server";
 import { DISPLAY_TZ, toInstant } from "@/lib/time/day-boundary";
 import { currentAcceptanceForEmail } from "@/lib/legal/acceptance";
+import { AnalyticsPreferenceForm } from "./analytics-preference-form";
+import { AccountSignOutForm } from "./sign-out-form";
 
 export const dynamic = "force-dynamic";
 
@@ -108,11 +110,17 @@ export default async function AccountPage() {
         </dl>
       </section>
 
-      <form action={doSignOut}>
-        <button className="rounded border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-900">
-          Sign out
-        </button>
-      </form>
+      <section className="mb-6 rounded-lg border border-gray-200 p-4 text-sm dark:border-gray-800">
+        <h2 className="mb-2 font-semibold">Optional product analytics</h2>
+        <p className="mb-3 text-gray-600 dark:text-gray-300">
+          Help BNOW understand whether beta analysts reach useful evidence. Events use a random
+          internal account ID and exclude Ask/Search text, claim text, source URLs, email, and
+          session replay. See the <Link href="/privacy" className="underline">Privacy Notice</Link>.
+        </p>
+        <AnalyticsPreferenceForm granted={acceptance.analyticsPreference === "granted"} />
+      </section>
+
+      <AccountSignOutForm action={doSignOut} />
     </main>
   );
 }

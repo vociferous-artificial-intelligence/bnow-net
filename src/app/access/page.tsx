@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { getLocale } from "@/i18n/server";
 import { makeT } from "@/i18n/dictionaries";
 import { feedbackEmail } from "@/lib/feedback";
 import { AccessForm } from "./access-form";
+import {
+  ACCESS_LANDING_PATH,
+  normalizeCampaignValue,
+  referrerHostFromUrl,
+  type AccessAttribution,
+} from "@/lib/access/attribution";
 
 // Public, indexable beta access-request page — the commercial anchor of the private
 // analyst beta (replaces the retired public pricing page; /pricing redirects here).
@@ -17,10 +24,22 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function AccessPage() {
+export default async function AccessPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const locale = await getLocale();
   const t = makeT(locale);
   const contact = feedbackEmail();
+  const [params, requestHeaders] = await Promise.all([searchParams, headers()]);
+  const attribution: AccessAttribution = {
+    utmSource: normalizeCampaignValue(params.utm_source),
+    utmMedium: normalizeCampaignValue(params.utm_medium),
+    utmCampaign: normalizeCampaignValue(params.utm_campaign),
+    landingPath: ACCESS_LANDING_PATH,
+    referrerHost: referrerHostFromUrl(requestHeaders.get("referer")),
+  };
 
   return (
     <main id="main" className="mx-auto w-full max-w-xl p-6">
@@ -34,6 +53,7 @@ export default async function AccessPage() {
       <p className="mb-6 text-sm text-gray-500">{t("access.no_purchase")}</p>
 
       <AccessForm
+        attribution={attribution}
         labels={{
           emailLabel: t("access.email_label"),
           linkedinLabel: t("access.linkedin_label"),

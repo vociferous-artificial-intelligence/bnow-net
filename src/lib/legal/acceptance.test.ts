@@ -14,18 +14,21 @@ const {
   hasCurrentAcceptanceByEmail,
   currentAcceptanceForEmail,
   recordAcceptance,
+  updateAnalyticsPreferenceForEmail,
 } = await import("./acceptance");
 
 afterEach(() => queryMock.mockReset());
 
-/** SQL-routing mock: a users lookup, the idempotent insert, and the timestamp read-back. */
+/** SQL-routing mock for the atomic acceptance + analytics-preference statement. */
 function wireHappyPath(opts: { userId?: string | null; acceptedAt?: string } = {}) {
   const userId = opts.userId === undefined ? "u1" : opts.userId;
   const acceptedAt = opts.acceptedAt ?? "2026-07-12T10:00:00.000Z";
   queryMock.mockImplementation(async (sql: string) => {
-    if (/FROM users WHERE email/i.test(sql)) return userId ? [{ id: userId }] : [];
-    if (/INSERT INTO policy_acceptances/i.test(sql)) return [];
-    if (/SELECT accepted_at/i.test(sql)) return userId ? [{ accepted_at: acceptedAt }] : [];
+    if (/WITH target AS/i.test(sql)) {
+      return userId
+        ? [{ user_id: userId, accepted_at: acceptedAt, preference_user_id: userId }]
+        : [];
+    }
     return [];
   });
 }
@@ -75,10 +78,20 @@ describe("recordAcceptance", () => {
     await recordAcceptance({ email: "a@b.com", adultAttested: true, privacyAcknowledged: true, locale: "uk" });
     const insert = queryMock.mock.calls.find(([sql]) => /INSERT INTO policy_acceptances/i.test(sql))!;
     const [sql, params] = insert;
-    // param order: user_id, terms, privacy, adult, privacy_ack, method, locale
-    expect(params).toEqual(["u1", CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, true, true, ACCEPTANCE_METHOD, "uk"]);
-    // accepted_at is NOT supplied by the app — it is the column DEFAULT now().
-    expect(sql).not.toMatch(/accepted_at/i);
+    // param order: email, terms, privacy, adult, privacy_ack, method, locale, preference
+    expect(params).toEqual([
+      "a@b.com",
+      CURRENT_TERMS_VERSION,
+      CURRENT_PRIVACY_VERSION,
+      true,
+      true,
+      ACCEPTANCE_METHOD,
+      "uk",
+      "denied",
+    ]);
+    // accepted_at is returned by the statement but is absent from the INSERT column list,
+    // so PostgreSQL DEFAULT now() remains authoritative.
+    expect(sql).toMatch(/INSERT INTO policy_acceptances\s*\([^)]*locale\)/i);
   });
 
   it("is idempotent: the insert uses ON CONFLICT DO NOTHING and still returns the stored time", async () => {
@@ -107,11 +120,13 @@ describe("recordAcceptance", () => {
     expect(queryMock).not.toHaveBeenCalled();
   });
 
-  it("returns no_user when the email has no users row (never inserts)", async () => {
+  it("returns no_user when the email has no users row (the target-scoped CTE changes nothing)", async () => {
     wireHappyPath({ userId: null });
     const res = await recordAcceptance({ email: "ghost@b.com", adultAttested: true, privacyAcknowledged: true });
     expect(res).toEqual({ ok: false, error: "no_user" });
-    expect(queryMock.mock.calls.some(([sql]) => /INSERT INTO policy_acceptances/i.test(sql))).toBe(false);
+    expect(queryMock).toHaveBeenCalledTimes(1);
+    expect(queryMock.mock.calls[0][0]).toMatch(/SELECT id FROM users WHERE email = \$1/);
+    expect(queryMock.mock.calls[0][0]).toMatch(/SELECT id, \$2,[\s\S]*FROM target/);
   });
 
   it("defaults a missing locale to null", async () => {
@@ -119,23 +134,82 @@ describe("recordAcceptance", () => {
     await recordAcceptance({ email: "a@b.com", adultAttested: true, privacyAcknowledged: true });
     const insert = queryMock.mock.calls.find(([sql]) => /INSERT INTO policy_acceptances/i.test(sql))!;
     expect(insert[1][6]).toBeNull();
+    expect(insert[1][7]).toBe("denied");
+  });
+
+  it("atomically replaces a prior grant with denied when the new optional control is absent", async () => {
+    wireHappyPath();
+    await recordAcceptance({ email: "a@b.com", adultAttested: true, privacyAcknowledged: true });
+    const [sql, params] = queryMock.mock.calls[0];
+    expect(sql).toMatch(/UPDATE users[\s\S]*analytics_preference = \$8/i);
+    expect(params[7]).toBe("denied");
+  });
+
+  it("persists granted only for the exact granted decision", async () => {
+    wireHappyPath();
+    await recordAcceptance({
+      email: "a@b.com",
+      adultAttested: true,
+      privacyAcknowledged: true,
+      analyticsPreference: "granted",
+    });
+    expect(queryMock.mock.calls[0][1][7]).toBe("granted");
   });
 });
 
 describe("currentAcceptanceForEmail", () => {
   it("returns the current-version record with its stored timestamp", async () => {
     queryMock.mockResolvedValueOnce([
-      { terms_version: "1.0", privacy_version: "1.0", accepted_at: "2026-07-12T10:00:00.000Z" },
+      {
+        terms_version: "1.0",
+        privacy_version: CURRENT_PRIVACY_VERSION,
+        accepted_at: "2026-07-12T10:00:00.000Z",
+        analytics_preference: "granted",
+      },
     ]);
     expect(await currentAcceptanceForEmail("a@b.com")).toEqual({
       termsVersion: "1.0",
-      privacyVersion: "1.0",
+      privacyVersion: CURRENT_PRIVACY_VERSION,
       acceptedAt: "2026-07-12T10:00:00.000Z",
+      analyticsPreference: "granted",
     });
   });
 
   it("returns null when there is no current acceptance", async () => {
     queryMock.mockResolvedValueOnce([]);
     expect(await currentAcceptanceForEmail("a@b.com")).toBeNull();
+  });
+});
+
+describe("updateAnalyticsPreferenceForEmail", () => {
+  it("accepts only granted or denied and uses a database-generated timestamp", async () => {
+    queryMock.mockResolvedValueOnce([{ analytics_preference: "denied" }]);
+    await expect(updateAnalyticsPreferenceForEmail("a@b.com", "denied")).resolves.toEqual({
+      ok: true,
+      preference: "denied",
+    });
+    const [sql, params] = queryMock.mock.calls[0];
+    expect(sql).toMatch(/analytics_preference_updated_at = now\(\)/i);
+    expect(params).toEqual(["a@b.com", "denied"]);
+
+    queryMock.mockClear();
+    await expect(updateAnalyticsPreferenceForEmail("a@b.com", "unset")).resolves.toEqual({
+      ok: false,
+      error: "invalid_preference",
+    });
+    expect(queryMock).not.toHaveBeenCalled();
+  });
+
+  it("fails safely when no user exists or the database errors", async () => {
+    queryMock.mockResolvedValueOnce([]);
+    await expect(updateAnalyticsPreferenceForEmail("missing@b.com", "granted")).resolves.toEqual({
+      ok: false,
+      error: "no_user",
+    });
+    queryMock.mockRejectedValueOnce(new Error("db down"));
+    await expect(updateAnalyticsPreferenceForEmail("a@b.com", "granted")).resolves.toEqual({
+      ok: false,
+      error: "db_error",
+    });
   });
 });
