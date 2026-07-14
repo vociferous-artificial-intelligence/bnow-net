@@ -114,15 +114,18 @@ describe("at-publish dual coverage (W4)", () => {
     ]);
     const element = await ScoreboardPage();
     const { container } = render(element);
-    expect(container.textContent).toContain("at ISW publish: 29%");
-    // and its how-to-read line explains the pair
-    expect(container.textContent).toContain("At ISW publish — of those same takeaways");
+    expect(container.textContent).toContain("evidence available at ISW publish: 29%");
+    // and its how-to-read line names it as an evidence-availability proxy (WS4)
+    expect(container.textContent).toContain("Evidence available at ISW publish (proxy)");
+    // the corrected framing drops the overclaiming language
+    expect(container.textContent).not.toContain("apples-to-apples");
+    expect(container.textContent).not.toContain("later ingestion added");
   });
 
   it("renders no subline for runs scored before the dual metric existed", async () => {
     queryMock.mockResolvedValueOnce([ROW]); // at_publish: null
     const element = await ScoreboardPage();
     const { container } = render(element);
-    expect(container.textContent).not.toContain("at ISW publish:");
+    expect(container.textContent).not.toContain("evidence available at ISW publish:");
   });
 });

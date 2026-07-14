@@ -73,9 +73,27 @@ export const REQUIRED_NAMESPACES = [
   "common",
 ] as const;
 
-/** Locales in market-priority order (for the language selector). */
+/** Locales in market-priority order. */
 export function localesByPriority(): LocaleMeta[] {
   return LOCALES.map((l) => LOCALE_REGISTRY[l]).sort((a, b) => a.order - b.order);
+}
+
+/**
+ * Locales withheld from the language selector for the private-beta launch
+ * (analyst-beta remediation, WS5). es / he / ko ship NO own catalog — every
+ * string falls back to English — so listing them in the picker would advertise
+ * product languages that do not exist yet. They remain fully valid, parseable
+ * locales: Accept-Language, the ?set= switch, and the cookie still resolve them
+ * (to the English fallback), so no existing link 404s — they are only hidden
+ * from the picker. Re-listing one is a one-line edit once a reviewed catalog
+ * exists (an explicit operator decision). Korean additionally avoids a possible
+ * Hangul "tofu" render in system fonts until that is verified.
+ */
+export const LAUNCH_HIDDEN_LOCALES = new Set<Locale>(["es", "he", "ko"]);
+
+/** Locales shown in the language selector: the launch-visible subset, priority order. */
+export function selectorLocales(): LocaleMeta[] {
+  return localesByPriority().filter((m) => !LAUNCH_HIDDEN_LOCALES.has(m.code));
 }
 
 /** Fallback chain from a locale down to the ultimate default (cycle-safe). */
@@ -311,13 +329,18 @@ const en: Dict = {
   // Coverage: matched / matchable ISW same-day takeaways (score.ts coveragePct).
   "scoreboard.how_to_read.coverage":
     "Coverage % — the share of ISW's same-day takeaways our digest also matched. The headline number scores our finalized digest (published ~10:00 PM ET), after ISW's report is already out.",
-  // Dual metric (analyst-trust W4): evidence-in-hand at ISW publish — same
-  // denominator as coverage, gated on min(raw_documents.fetched_at) <= ISW's
-  // datePublished (src/lib/validation/at-publish.ts). Rendered as a per-row
-  // subline in the coverage column.
+  // Evidence-availability proxy (analyst-trust W4; framing corrected in the
+  // analyst-beta remediation, WS4): same denominator as coverage, gated on
+  // min(raw_documents.fetched_at) <= ISW's datePublished
+  // (src/lib/validation/at-publish.ts). It is an evidence-availability PROXY — it
+  // does NOT prove the matched claim appeared in the published digest at that
+  // moment (no historical digest snapshot exists; audit
+  // docs/reviews/SCORING-QUALITY-AUDIT-2026-07-14.md). RU and UA are scored as
+  // separate country digests against the same ROCA report and denominator.
+  // Rendered as a per-row subline in the coverage column.
   "scoreboard.how_to_read.at_publish":
-    "At ISW publish — of those same takeaways, the share we had matched with evidence already ingested when ISW's report went out: the apples-to-apples number. The gap to the headline is what later ingestion added.",
-  "scoreboard.at_publish": "at ISW publish: {pct}%",
+    "Evidence available at ISW publish (proxy) — of the same matched takeaways, the share whose supporting evidence we had already ingested before ISW published. It gauges what evidence was in hand at that moment; it does not prove the claim appeared in our published digest then. RU and UA are currently scored as separate country digests against the same ROCA report and denominator.",
+  "scoreboard.at_publish": "evidence available at ISW publish: {pct}%",
   // Lead: median hours across matched pairs of (ISW publish time − earliest
   // supporting doc's published_at, fallback fetched_at) — score.ts timelinessHours,
   // run.ts earliest_doc_at query.
@@ -460,9 +483,17 @@ const en: Dict = {
   // JSX so no new placeholder collides with i18n.test.ts's fixed vars fixture.
   "ask.nocoverage.prefix": "No claims yet cover",
   "ask.nocoverage.currency": "Data current through",
-  // pending-state hint (W2: /ask double-submit fix, OPEN-TASKS #48) — shown only
-  // while the paid pipeline is running.
-  "ask.pending.hint": "Searching the claim database — usually ~10 seconds",
+  // Working panel (analyst-beta remediation, WS3) — replaces the old one-line
+  // pending hint with a prominent, accessible working panel while the paid
+  // pipeline runs. The stage lines advance on CLIENT elapsed time (an honest
+  // estimate of the pipeline's retrieve → rank → answer order), never a
+  // server-reported stage and never a fake progress percentage.
+  "ask.working.title": "Working on your question",
+  "ask.working.question_label": "Your question",
+  "ask.working.stage.searching": "Searching BNOW evidence…",
+  "ask.working.stage.ranking": "Ranking the most relevant claims…",
+  "ask.working.stage.answering": "Preparing an evidence-linked answer…",
+  "ask.working.elapsed": "Elapsed",
 
   // Free claim search (/search) — deterministic lexical retrieval, no model
   // calls, no per-query cost. The count line reuses already-established tokens.
@@ -673,8 +704,8 @@ const uk: Dict = {
   "scoreboard.how_to_read.coverage":
     "Покриття % — частка тез ISW за той самий день, які також збіглися з нашим дайджестом. Основне число оцінює наш фінальний дайджест (публікується ~22:00 ET), коли звіт ISW уже вийшов.", // uk: needs native review
   "scoreboard.how_to_read.at_publish":
-    "На момент публікації ISW — частка тих самих тез, які ми на той час уже підтвердили завантаженими доказами: чесне порівняння один до одного. Різниця з основним числом — внесок пізнішого завантаження.", // uk: needs native review
-  "scoreboard.at_publish": "на момент публікації ISW: {pct}%", // uk: needs native review
+    "Докази в наявності на момент публікації ISW (наближена оцінка) — частка тих самих збіглих тез, підтверджувальні докази яких ми вже завантажили до публікації ISW. Показує, які докази були в наявності на той момент; це не доводить, що твердження було в опублікованому дайджесті на той час. RU та UA наразі оцінюються як окремі дайджести країн проти того самого звіту ROCA та знаменника.", // uk: needs native review
+  "scoreboard.at_publish": "докази в наявності на момент публікації ISW: {pct}%", // uk: needs native review
   "scoreboard.how_to_read.lead":
     "Інформаційне випередження — медіана годин між нашим найранішим підтверджувальним документом-джерелом і часом публікації ISW серед подій, що збіглися; додатне значення означає, що ми дізналися першими.", // uk: needs native review
   "scoreboard.how_to_read.thin":
@@ -785,7 +816,12 @@ const uk: Dict = {
   "ask.related.title": "Пов'язані твердження", // uk: needs native review
   "ask.nocoverage.prefix": "Ще немає тверджень, що охоплюють", // uk: needs native review
   "ask.nocoverage.currency": "Дані актуальні станом на", // uk: needs native review
-  "ask.pending.hint": "Пошук у базі тверджень — зазвичай ~10 секунд", // uk: needs native review
+  "ask.working.title": "Опрацьовуємо ваш запит", // uk: needs native review
+  "ask.working.question_label": "Ваш запит", // uk: needs native review
+  "ask.working.stage.searching": "Пошук у доказовій базі BNOW…", // uk: needs native review
+  "ask.working.stage.ranking": "Ранжуємо найрелевантніші твердження…", // uk: needs native review
+  "ask.working.stage.answering": "Готуємо відповідь із посиланнями на докази…", // uk: needs native review
+  "ask.working.elapsed": "Минуло", // uk: needs native review
   "search.title": "Пошук тверджень", // uk: needs native review
   "search.breadcrumb": "пошук тверджень", // uk: needs native review
   "search.intro": "Повнотекстовий пошук у базі тверджень. Детермінований збіг — без викликів моделі, без бюджету на запити. Кожен результат має посилання на дайджест і джерельні документи.", // uk: needs native review

@@ -3,12 +3,15 @@
 //
 // The stored coverage_pct scores our FINALIZED digest (written 02:00 UTC D+1)
 // against ISW's report dated D — but ISW publishes late evening ET on D, before
-// our finalize. This metric answers the apples-to-apples question: of the same
-// takeaway set, how many did we match with a claim whose supporting evidence was
-// already INGESTED (raw_documents.fetched_at, not the source's own publish claim)
-// before ISW's publish instant? It is a lower bound on what an at-publish digest
-// could have contained — evidence-based, not a digest snapshot (snapshots don't
-// exist; the true snapshot design is parked in docs/designs/ISW-CUTOFF-SCORING.md).
+// our finalize. This metric is an evidence-availability PROXY: of the same
+// matched takeaway set, how many did we match with a claim whose supporting
+// evidence was already INGESTED (raw_documents.fetched_at, not the source's own
+// publish claim) before ISW's publish instant? It does NOT prove the matched
+// claim appeared in the published digest at that moment, and it is NOT a
+// mathematical bound on what the digest said then (corrected 2026-07-14 scoring
+// audit, docs/reviews/SCORING-QUALITY-AUDIT-2026-07-14.md); no historical digest
+// snapshot exists (the true snapshot design is parked in
+// docs/designs/ISW-CUTOFF-SCORING.md).
 //
 // Deterministic and $0: computed from stored matches + durable document
 // timestamps, never by re-running the paid matcher. Shared by scoring
