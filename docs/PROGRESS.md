@@ -1364,3 +1364,25 @@ deploy also shipped the already-merged analyst evidence-trail feature (2403083,
 no schema/env needs). Collection stays fail-closed: no dedicated PostHog project or
 admin token exists — activation, Live Events verification, and the dashboard are the
 operator sequence in OPEN-TASKS #67.
+
+## 2026-07-14 evening — PostHog activation executed (project, key, Live Events, dashboard)
+
+Operator provided the dedicated project mid-session: US-Cloud project 512327 "BNOW.NET"
+(region = operator's env decision), project-scoped personal API key (scopes broadened on
+request). Privacy posture set via API and verified: autocapture/console/performance off,
+anonymize_ips ON ($ip=None on stored events); GeoIP enrichment kept ON by explicit operator
+decision (wording follow-up noted). Key+host added to Vercel Production only (byte-verified),
+deployed dpl_J5CoSceJSYMFirgbCVam4VUekXBW. Live verification caught a real bug — the driver's
+created_at::text space format made the sanitizer silently drop $identify — fixed via to_char
+(commit 9e371dc, tests 1456, deploy dpl_8xh5zXYfnsCwoFwQTM3resTZ2BSP) — and a harness trap:
+posthog-js bot-filters headless browsers before before_send, so live checks need a masked UA.
+With the opted-in test account go+phtest@vociferous.nyc on https://bnow.net: all 12 event
+types captured AND server-ingested under the single internal UUID; payload audit clean (exact
+allowlist keys, no email/query-text/URLs/content IDs; template-only pageviews; minimized
+$identify); zero flags/decide/array contacts; Ask billed once per submit. Negative proofs:
+anonymous 0, unaccepted 0, deployment-domain journey 0 (canonical-host gate), /privacy silent,
+cross-tab deny stops both tabs, re-grant resumes, sign-out silent. Dashboard "BNOW Private
+Beta" (1848415) with the nine specified insights + first_value_event Action (289102); no
+alerts. Rollback = remove key + redeploy (the keyless build was deployed and proven earlier
+today). Residual operator items: billing limit/membership/retention in the PostHog UI, optional
+key-scope re-narrowing, GeoIP privacy wording, own 1.1 acceptance.

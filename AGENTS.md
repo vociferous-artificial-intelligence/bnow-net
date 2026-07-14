@@ -259,23 +259,33 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   and verified (correct columns, `accepted_at DEFAULT now()`, unique version-triple, FK cascade,
   0 rows); anon prod smoke green (legal pages 200 with v1.0 copy, gated routes 307, /signals 0
   leaks, robots/sitemap correct). Note: `docs/reviews/LEGAL-ACCEPTANCE-NOTE-2026-07-12.md`.
-- **Product analytics (PostHog, phase 1 deployed KEYLESS 2026-07-14 — collection
-  impossible until activation):** consent-gated client layer (`src/lib/analytics/*`,
-  `src/components/analytics/*`, posthog-js 1.399.5 dynamically imported) merged `e5123a9`
-  and deployed with `NEXT_PUBLIC_POSTHOG_KEY` ABSENT from every Vercel env — key absence
-  is the kill switch and the current state; **zero PostHog network requests proven in prod**
-  (anon 5-page sweep + a real signed-in session, Chromium). Init requires ALL of: signed-in +
-  current legal acceptance + `users.analytics_preference='granted'` (migration 0020: 3-value
-  CHECK, default `'unset'`, Account-page reversible control) + valid dedicated key/host +
-  Vercel production + exact bnow.net + approved subscriber route; allowlist-reconstruction
-  `before_send` sanitizer, 10 custom events + manual `$pageview`/`$identify` only, UUID
-  identity never email, no Ask/Search/claim/source text or content IDs ever.
-  `/access` now persists validated first-party attribution (lowercased capped-charset
-  `utm_source/medium/campaign`, forced `landing_path=/access`, hostname-only
-  `referrer_host` — migration 0020, nullable) shown in `/admin/access`; never sent to
-  PostHog. **Activation is operator-blocked (OPEN-TASKS #67):** no dedicated BNOW PostHog
-  project or `phx_` admin token exists (verified; Scenefiend's key deliberately not
-  reused), US-vs-EU region is an explicit operator decision. Evidence + checklist:
+- **Product analytics (PostHog — LIVE, opt-in-only, activated 2026-07-14 evening):**
+  consent-gated client layer (`src/lib/analytics/*`, `src/components/analytics/*`, posthog-js
+  1.399.5 dynamically imported) merged `e5123a9`; dedicated **US-Cloud project 512327
+  "BNOW.NET"** (operator-created; region = operator decision; key ≠ Scenefiend's);
+  `NEXT_PUBLIC_POSTHOG_KEY`+`_HOST` in Vercel **Production only** — key removal + redeploy is
+  the verified rollback (the keyless build `dpl_DjVLg9RgQdFgAxfpLsRh9ELya5w6` was deployed and
+  proven zero-traffic first). Current prod deploy `dpl_8xh5zXYfnsCwoFwQTM3resTZ2BSP` includes
+  the `$identify` signup_at ISO fix (`9e371dc` — `created_at::text`'s space format made the
+  sanitizer drop $identify; to_char now). Init requires ALL of: signed-in + current legal
+  acceptance + `users.analytics_preference='granted'` (migration 0020: 3-value CHECK, default
+  `'unset'`, Account-page reversible control) + valid key/host + Vercel production + exact
+  https://bnow.net + approved subscriber route; allowlist-reconstruction `before_send`
+  sanitizer, 10 custom events + manual `$pageview`/`$identify` only, UUID identity never email.
+  **Live-verified 2026-07-14:** all 12 event types ingested with the internal UUID only; stored
+  payload keys = exactly the allowlist; `$ip` None (anonymize_ips on; autocapture/replay/
+  console/performance off project-side); **GeoIP enrichment kept ON by explicit operator
+  decision** (city/postal from connection IP at ingestion — future privacy-wording pass, note
+  §Residual). Anonymous/unaccepted/denied/deployment-domain/legal-route all proven
+  zero-request; cross-tab deny + sign-out reset proven; Ask stayed one-bill-per-submit.
+  Dashboard **"BNOW Private Beta"** (id 1848415, 9 insights) + Action `first_value_event`
+  (id 289102); no alerts yet. **Verification trap:** posthog-js bot-filters headless/webdriver
+  browsers BEFORE `before_send` — live checks need a masked UA or they prove nothing.
+  `/access` persists validated first-party attribution (lowercased capped-charset
+  `utm_source/medium/campaign`, forced `landing_path=/access`, hostname-only `referrer_host` —
+  migration 0020, nullable) shown in `/admin/access`; never sent to PostHog. Test account
+  `go+phtest@vociferous.nyc` (accepted 1.1, preference granted, signed out) is the standing
+  verification identity. Evidence:
   `docs/reviews/POSTHOG-ANALYTICS-IMPLEMENTATION-NOTE-2026-07-14.md`.
 - **Tests:** 1455 unit tests / 129 files green (`npm test`, ~5s) + Neon-branch
   integration suite (`npm run test:integration`, 22 real-Postgres tests / 6 files). CI mirror:
@@ -1050,6 +1060,45 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   (unit/component-tested meanwhile). X workstream untouched: no X env/code changed; its 00:05Z
   preventive drain + addendum still owns main's next expected commit alongside this one.
 
+- **2026-07-14 (PostHog activation EXECUTED — dedicated project, key, Live Events, dashboard;
+  closes the "operator-blocked" tail of the phase-1 entry above; #67 done)** The operator
+  provided `.env.local` credentials mid-session (public key + `https://us.i.posthog.com` host —
+  the **US region decision** — + a project-scoped personal API key + project id) and broadened
+  the key's scopes twice on request (first `project/action/insight/dashboard:write`; a later
+  `hog_function:write` ask was answered by decision instead). Verified the project is dedicated:
+  **512327 "BNOW.NET"**, created by the operator 18:03Z, its `api_token` == the env key, key ≠
+  Scenefiend's. **Privacy posture set via API and read back:** autocapture opt-out, console-log
+  off, performance off, **anonymize_ips on** (live events store `$ip=None`); replay/dead-clicks
+  already off; **GeoIP transformation kept ON by explicit operator decision** (city/postal-level
+  `$geoip_*` derived at ingestion; privacy-notice wording follow-up noted). Membership/billing/
+  retention are not readable with a project-scoped key → operator UI items. **Env+deploy:**
+  key/host added to Vercel Production ONLY (readable-plain, byte-verified via env pull),
+  keyed deploy `dpl_J5CoSceJSYMFirgbCVam4VUekXBW`. **Live verification found one real bug and
+  one harness trap.** Bug: `identity.ts` `created_at::text` → `"2026-07-14 19:18:12+00"` fails
+  the sanitizer's ISO `T` check, so **$identify was silently dropped** (unit test had mocked an
+  ISO string — driver-realism class, same as the 07-12 rn-as-string bug); fixed via `to_char`,
+  regression-pinned (1456 tests), commit `9e371dc`, deploy `dpl_8xh5zXYfnsCwoFwQTM3resTZ2BSP`
+  (current prod). Trap: **posthog-js bot-filters headless/webdriver browsers BEFORE
+  `before_send`** — headless verification silently proves nothing; SDK-level bisection confirmed
+  every config captures under a masked UA and none under the headless UA. **Positive proof
+  (test account `go+phtest@vociferous.nyc`, opted in via the real 1.1 clickwrap checkbox, on
+  https://bnow.net):** all 12 allowlisted event types captured on the wire AND confirmed
+  ingested via HogQL, single distinct_id = internal UUID; total property-key set across every
+  payload = exactly the allowlist (+token/distinct_id/environment/site_domain); `$identify`
+  minimized (role + ISO signup_at + cohort; SDK referrer/UTM $set_once junk rebuilt away);
+  pageviews template-only; **no email/@/query text (drone/missile/kursk absent)/LinkedIn/UTM/
+  token/content IDs in any payload**; zero non-capture PostHog endpoints (flags/decide/array
+  never contacted). Ask billed exactly once per submit (3 rows / 3 journey runs, ~$0.012 ea).
+  **Negative proof:** anonymous keyed build 0 requests; a FULL granted journey on
+  `bnow-net.vercel.app` = 0 captures (canonical-host gate live — doubling as the
+  deployment-domain re-test); `/privacy` silent mid-session; cross-tab deny stopped both tabs;
+  re-grant resumed; nothing captured after sign-out. **Dashboard:** `BNOW Private Beta` id
+  1848415 with the nine specified insights (tiles verified, funnel computes) + Action
+  `first_value_event` id 289102; alerts deliberately not created. Rollback stays
+  config-only and is already proven (the keyless deploy earlier today). Residual operator
+  items: billing limit + membership + retention record in the UI; consider re-narrowing the
+  API key to read-only; GeoIP privacy-wording pass; accept 1.1 on their own accounts.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).
@@ -1077,7 +1126,7 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
 | X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live, gap-recovered** (`$75` sprint / `$2.50` daily; Jul 9–13 recovered cursor-complete 2026-07-14; watermark-park >4–8h needs a drain+advance, #66; empty-run monitor remains #38) | api.twitterapi.io |
 | OpenSanctions | `OPENSANCTIONS_API_KEY` + caps | **live gap-fill** (876 eligible / 540 live checked as of 2026-07-14 13:20Z; 2,000 cap currently all-time until monthly-window patch; implementation queued after final X drain/closeout, paid rescore then held for cleanup #61) | opensanctions.org |
 | Telegram MTProto | `TELEGRAM_API_ID/HASH` + `TELEGRAM_SESSION` (all in prod env) | **wired; `TELEGRAM_SESSION` present in production** (added 2026-07-11 as a Sensitive var, minted via `scripts/telegram-login.ts`; first live fetch pending `:35` cron verification) | my.telegram.org |
-| PostHog (product analytics) | `NEXT_PUBLIC_POSTHOG_KEY` + `NEXT_PUBLIC_POSTHOG_HOST` | **code deployed, key ABSENT everywhere = fail-closed off** (dedicated BNOW project + region choice = operator task #67; never reuse Scenefiend's key) | posthog.com |
+| PostHog (product analytics) | `NEXT_PUBLIC_POSTHOG_KEY` + `_HOST` (Production only) + `POSTHOG_PERSONAL_API_KEY`/`POSTHOG_PROJECT_ID` (.env.local, ops) | **LIVE opt-in-only** (US project 512327 "BNOW.NET"; rollback = remove key + redeploy; operator UI items: billing limit, membership, retention record) | us.posthog.com |
 | ACLED | `ACLED_API_KEY`, `ACLED_EMAIL` | stubbed | acleddata.com |
 | Stripe | `STRIPE_SECRET_KEY`, … | flagged off | dashboard.stripe.com |
 | Resend | `RESEND_API_KEY` | superseded by Postmark | resend.com |

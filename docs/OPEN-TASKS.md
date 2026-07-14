@@ -425,7 +425,17 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
 
 ### New (from the PostHog analytics phase-1 deploy — 2026-07-14)
 
-67. **[operator] PostHog activation: dedicated project, key, Live Events, dashboard.**
+67. **[CLOSED 2026-07-14 same day — activation EXECUTED]** The operator created dedicated
+    US-Cloud project 512327 "BNOW.NET" and supplied credentials mid-session; privacy toggles
+    set via API (IP discard on; GeoIP kept ON by operator decision); key/host in Production
+    only; deploys `dpl_J5CoSce…` (keyed) + `dpl_8xh5zXY…` ($identify signup_at fix `9e371dc`);
+    all 12 events Live-Events-verified with UUID identity + full negative re-tests; dashboard
+    1848415 (9 insights) + Action 289102 created. Residual (all operator, minutes-scale):
+    billing limit + membership + retention record in the PostHog UI; optional API-key scope
+    re-narrowing; GeoIP privacy-wording pass; accept Privacy 1.1 on own accounts. Evidence:
+    POSTHOG-ANALYTICS-IMPLEMENTATION-NOTE-2026-07-14.md §Activation executed. Original task
+    text follows for the record.
+    **[operator] PostHog activation: dedicated project, key, Live Events, dashboard.**
     Phase 1 is live and fail-closed: analytics code merged (`e5123a9`), migration 0020
     applied, Privacy 1.1 + optional consent deployed keyless
     (`dpl_DjVLg9RgQdFgAxfpLsRh9ELya5w6`); zero PostHog requests proven in production for

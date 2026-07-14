@@ -8,13 +8,15 @@ isolated worktree `/home/go/code/bnow.net-posthog`, forked from evidence-trail c
 `pre-posthog-product-analytics-20260714`; the forward migration is
 `drizzle/0020_reflective_karnak.sql`.
 
-**Superseded 2026-07-14 (same day, activation phase 1):** the branch is now MERGED to main
-(`e5123a9`, --no-ff), migration 0020 is APPLIED to production, and the merged application is
-DEPLOYED keyless (`dpl_DjVLg9RgQdFgAxfpLsRh9ELya5w6`) — see § Production execution results below.
-Collection remains fail-closed: no dedicated BNOW PostHog project, project key, or admin/personal
-token exists yet (Scenefiend's public project key was deliberately not reused), so
-`NEXT_PUBLIC_POSTHOG_KEY` is absent from every Vercel environment and zero telemetry is possible.
-Activation is operator-blocked (OPEN-TASKS #67).
+**Superseded 2026-07-14 (same day, phases 1+2 both executed):** the branch is MERGED to main
+(`e5123a9`), migration 0020 is APPLIED to production, the keyless deploy was verified
+(`dpl_DjVLg9RgQdFgAxfpLsRh9ELya5w6` — § Production execution results), and then the operator
+provided the dedicated project + credentials and **activation was executed and fully verified
+the same evening** (§ Activation executed): dedicated US-Cloud project 512327 "BNOW.NET",
+Production-only key, deploy `dpl_8xh5zXYfnsCwoFwQTM3resTZ2BSP` (includes the `$identify`
+signup_at fix `9e371dc`), all 12 events verified in Live Events with the internal-UUID identity,
+negative/denial/cross-tab/deployment-domain re-tests green, and the `BNOW Private Beta`
+dashboard (9 insights) + `first_value_event` Action created. Analytics is LIVE, opt-in-only.
 
 ## Delivered behavior
 
@@ -222,16 +224,128 @@ activation returns exactly here; migration 0020 and Privacy 1.1 stay (forward-on
 
 ### Remaining operator actions (tracked as OPEN-TASKS #67)
 
-1. Create the dedicated **BNOW** PostHog project — a deliberate US vs EU Cloud region choice —
-   either directly in the PostHog UI or by supplying an org-scoped personal API key (`phx_…`)
-   plus the recorded region decision. No such token exists in any authorized env file (verified);
-   Scenefiend's public key is the only PostHog credential on this box and must not be reused.
-2. In the project: disable IP capture, confirm replay/autocapture/surveys/heatmaps/error
-   tracking off at project level, restrict membership, set a billing limit; record region,
-   retention, and settings here.
-3. Add `NEXT_PUBLIC_POSTHOG_KEY` + matching `NEXT_PUBLIC_POSTHOG_HOST` to Vercel **Production
-   only** (readable-plain: `vercel env add NAME production --no-sensitive`), redeploy (build-time
-   values), then run the positive Live Events verification with one explicitly opted-in test
-   account and the full denial/sign-out/cross-tab/account-switch/Preview/localhost re-tests.
-4. Create the `BNOW Private Beta` dashboard (nine insights) + the `first_value_event` Action.
-5. Accept Privacy 1.1 on their own account (all existing users re-accept on next visit).
+*(Superseded same day — the operator provided the dedicated project + credentials and activation
+was executed; see the next section. Residual operator items are listed there.)*
+
+## Activation executed — 2026-07-14 evening (phase 2: dedicated project, key, Live Events, dashboard)
+
+The operator created the dedicated project and supplied credentials via `.env.local`
+(`NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`, `POSTHOG_PERSONAL_API_KEY`,
+`POSTHOG_PROJECT_ID`), then broadened the key's scopes twice on request. Everything below is
+verified against the live project and production.
+
+### Dedicated project and privacy posture
+
+- Project **512327 "BNOW.NET"**, org `019d0284-c8f2-0000-e367-7245cbcbbfd7`, created by the
+  operator 2026-07-14 18:03Z. **US Cloud** (`https://us.i.posthog.com`) — the region decision is
+  the operator's, recorded via the env value they set. The public `phc_` key differs from
+  Scenefiend's (compared without printing) and is project 512327's own `api_token` (verified).
+- Personal API key label "BNOW.NET", scoped to project 512327 only; initially all-`:read`,
+  operator added `project:write`, `action:write`, `insight:write`, `dashboard:write`.
+- Project settings set via API (PATCH 200, read back): `autocapture_opt_out=true`,
+  `capture_console_log_opt_in=false`, `capture_performance_opt_in=false`, **`anonymize_ips=true`
+  (stored `$ip` verified `None` on live events)**; already off: `session_recording_opt_in=false`,
+  `capture_dead_clicks=false`; heatmaps/surveys not opted in.
+- **GeoIP transformation kept ENABLED — explicit operator decision** (asked directly): events and
+  person records carry city/postal-level `$geoip_*` derived from the connection IP at ingestion
+  (the IP itself is discarded). Note for a future Privacy wording pass: notice 1.1 does not
+  currently disclose location derivation for analytics; it truthfully says BNOW does not *send*
+  IP addresses to PostHog.
+- Not readable/writable with a project-scoped key (403): org membership, billing. **Operator UI
+  items: set a billing limit, review membership, and record the retention period the UI shows.**
+
+### Environment + deploys
+
+- `NEXT_PUBLIC_POSTHOG_KEY` + `NEXT_PUBLIC_POSTHOG_HOST` added to Vercel **Production only**
+  (absent Preview/Development), values read back byte-exact via `vercel env pull` (no trailing
+  whitespace). Keyed deploy **`dpl_J5CoSceJSYMFirgbCVam4VUekXBW`**; the key is embedded in the
+  served client chunk (verified on the live build).
+- **One real defect found by live verification and fixed:** `identity.ts` selected
+  `created_at::text`, whose driver form `2026-07-14 19:18:12+00` (space, no `T`) fails the
+  sanitizer's ISO check — **`$identify` was silently dropped** (person properties never set).
+  Fixed with `to_char(... 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`, regression-pinned (tests 1455→1456,
+  typecheck/lint green), commit `9e371dc`, deployed **`dpl_8xh5zXYfnsCwoFwQTM3resTZ2BSP`**
+  (current production). Same driver-realism class as the 07-12 `rn`-as-string bug.
+
+### Verification-harness finding (recorded trap)
+
+posthog-js ships default bot filtering that silently drops ALL events from headless/webdriver
+browsers *before* `before_send` — a headless verification run therefore proves nothing about
+capture. Live verification must mask the UA (`--disable-blink-features=AutomationControlled` +
+a normal Chrome UA string). Confirmed by SDK-level bisection: with a masked UA every config
+captures; with the headless UA none do. Real analyst browsers are unaffected.
+
+### Positive Live Events verification (opted-in test account, canonical domain)
+
+Test account `go+phtest@vociferous.nyc` (users.id `bbbe580a-712f-45af-b772-9f8dc6fe2759`,
+role `user`): signed in via magic link, accepted Privacy 1.1 WITH the optional analytics box
+checked (the explicit opt-in), then drove every product surface on `https://bnow.net`.
+
+- **All 12 allowlisted event types captured on the network AND confirmed ingested server-side**
+  (HogQL over the project's events, single distinct_id = the internal UUID):
+  `$identify` ×10, `$pageview` ×10, `product_session_started` ×3 (once per tab session),
+  `digest_viewed` ×3, `signal_detail_viewed` ×3, and ×1 each of `evidence_opened`,
+  `source_link_clicked`, `claim_copied`, `digest_print_initiated`, `feedback_initiated`,
+  `search_completed` (`has_results=true, 21+`), `ask_completed` (`state=answered, v2`).
+- **Raw payload audit (client capture + stored server rows):** the complete set of property keys
+  ever sent is exactly the closed allowlist + `token`/`distinct_id`/`environment`/`site_domain`;
+  `$identify` carries only `$set {role}` + `$set_once {signup_at ISO, beta_cohort}` (the SDK's
+  own `$referrer`/UTM `$set_once` junk is rebuilt away, verified against the real SDK shape);
+  `$pageview` uses template paths (`/digests/:theater/:date`) and a reconstructed template
+  `$current_url` — the only `http` strings in any payload. **No email, no `@`, no Ask/Search
+  text (`drone`/`missile`/`kursk` absent), no LinkedIn/UTM/token/content IDs.** Stored events:
+  `$ip` None. Person: role/signup_at/beta_cohort + template URL (+ `$geoip_*` per the operator's
+  GeoIP decision).
+- **Ask/Search invariants held:** `ask_usage` shows exactly one row per submitted Ask (3 rows for
+  the 3 journey runs, ~$0.012 each); Search stayed $0.
+- **Zero non-capture PostHog endpoints** were ever contacted (no `/flags`, `/decide`, `/array`,
+  remote config, or replay) — `advanced_disable_flags` + `disable_external_dependency_loading`
+  proven live.
+
+### Negative re-verification (live, keyed build)
+
+- Anonymous (5 pages incl. `/access` with UTMs): **0 PostHog requests**, attribution stored
+  first-party only.
+- Signed-in **unaccepted** (operator account, phase 1): 0 requests.
+- **Deployment domain**: the full granted journey on `bnow-net.vercel.app` produced **0 capture
+  requests** — the exact-canonical-host gate (`https://bnow.net` only) proven live. Preview and
+  Development additionally have no key at all (build-time). Localhost: keyless + non-canonical.
+- `/privacy` during a granted session: 0 new captures (legal/auth/admin surfaces excluded).
+- **Cross-tab revocation:** deny on `/account` in tab A → tab B produced 0 further requests
+  (BroadcastChannel reset live); re-grant resumed capture; **sign-out**: no capture after the
+  sign-out click (the one trailing event was the pre-click `/account` pageview flushed by the
+  SDK batcher).
+- Test account end state: accepted 1.1, preference `granted`, signed out; left in place for
+  future verification.
+
+### Dashboard + Action (created via API, verified)
+
+- Action **`first_value_event`** (id **289102**): evidence_opened ∪ source_link_clicked ∪
+  search_completed(has_results=true) ∪ ask_completed(state=answered) ∪ signal_detail_viewed ∪
+  feedback_initiated. https://us.posthog.com/project/512327/data-management/actions/289102
+- Dashboard **"BNOW Private Beta"** (id **1848415**), 9 tiles verified present and the
+  activation funnel verified computing (test user converts 1→1→1):
+  https://us.posthog.com/project/512327/dashboard/1848415
+  1. 48-hour activation funnel (`AAq418jO`) · 2. Time to first value (`sTe2CsOR`) ·
+  3. Week-one stickiness (`B0vonzgm`) · 4. Week-two retention days 8–14 (`fbUgw1je`) ·
+  5. Digest evidence engagement (`JHaouwuV`) · 6. Feature adoption trend (`5s2sL1n3`) ·
+  7. Search outcomes (`9Rn3oIoB`) · 8. Ask outcomes by state × evidence bucket (`nVmahnas`) ·
+  9. Feedback initiation by surface (`zED0IUIQ`)
+- **No alerts created** — traffic does not yet support meaningful thresholds.
+
+### Rollback (verified, not hypothetical)
+
+The keyless configuration was deployed and fully verified earlier the same day
+(`dpl_DjVLg9RgQdFgAxfpLsRh9ELya5w6`): product byte-functional, zero PostHog traffic. Removing
+`NEXT_PUBLIC_POSTHOG_KEY`/`_HOST` from Production and redeploying returns exactly there.
+Migration 0020 and Privacy 1.1 stay (forward-only).
+
+### Residual operator items
+
+1. PostHog UI (5 min): set a **billing limit**, review **project membership**, record the
+   **retention** period shown in Settings (not readable via the project-scoped API key).
+2. Consider narrowing the personal API key back to read-only scopes now that setup is done.
+3. Future Privacy wording pass: disclose IP-derived coarse location if GeoIP stays enabled
+   (operator decision of 2026-07-14 records it as intentional).
+4. Accept Privacy 1.1 on your own accounts (every existing user re-accepts at next visit).
+5. Pre-existing: Postmark sender domain migration; OpenSanctions sequencing per the 07-14 ruling.
