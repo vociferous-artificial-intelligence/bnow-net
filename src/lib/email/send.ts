@@ -20,8 +20,9 @@ export interface OutboundEmail {
 
 export async function sendEmail(mail: OutboundEmail): Promise<{ delivered: boolean; via: string }> {
   if (process.env.POSTMARK_SERVER_TOKEN) {
-    // borrowed scenefiend Postmark account/domain (authorized 2026-07-05) until
-    // bnow.net has its own sending identity
+    // Sends via Postmark from senderAddress() (POSTMARK_FROM_EMAIL / EMAIL_FROM,
+    // else the brand-correct BNOW fallback in from.ts). The From domain must be a
+    // verified BNOW Sender Signature / Domain in the Postmark account.
     const body: Record<string, unknown> = {
       From: senderAddress(),
       To: mail.to,
