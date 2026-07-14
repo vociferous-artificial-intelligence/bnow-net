@@ -229,7 +229,13 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   strings + 18 analyst-trust strings — await native review, tracked in
   `docs/reviews/UK-NATIVE-REVIEW-2026-07-12.md`).
 - **Legal acceptance (versioned clickwrap, shipped 2026-07-12):** public `/privacy` +
-  `/terms` (Privacy Notice v1.0 + Terms of Use v1.0, effective 2026-07-12;
+  `/terms` (Terms of Use v1.0 effective 2026-07-12 + **Privacy Notice v1.1 effective
+  2026-07-14** — adds the PostHog product-analytics disclosures (UUID-not-email identity,
+  excluded content, opt-in control, honest "activation pending a dedicated project" state);
+  v1.0 was effective 2026-07-12; the bump forces ALL existing users to re-accept on next
+  visit, where the acceptance form now also carries an optional, initially unchecked
+  "Allow optional product analytics" checkbox — unchecked/missing records `denied`, a
+  stale grant cannot survive re-acceptance;
   `src/components/legal-document.tsx` shared layout, DB-free, indexable, in sitemap);
   a **global `SiteFooter`** in the root layout (Privacy · Terms · Status · Contact) replaced
   the home-only footer (hidden on `/admin`); a first-login acceptance screen
@@ -253,8 +259,26 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   and verified (correct columns, `accepted_at DEFAULT now()`, unique version-triple, FK cascade,
   0 rows); anon prod smoke green (legal pages 200 with v1.0 copy, gated routes 307, /signals 0
   leaks, robots/sitemap correct). Note: `docs/reviews/LEGAL-ACCEPTANCE-NOTE-2026-07-12.md`.
-- **Tests:** 1364 unit tests / 111 files green (`npm test`, ~4s) + Neon-branch
-  integration suite (`npm run test:integration`, +5 real-Postgres acceptance tests). CI mirror:
+- **Product analytics (PostHog, phase 1 deployed KEYLESS 2026-07-14 — collection
+  impossible until activation):** consent-gated client layer (`src/lib/analytics/*`,
+  `src/components/analytics/*`, posthog-js 1.399.5 dynamically imported) merged `e5123a9`
+  and deployed with `NEXT_PUBLIC_POSTHOG_KEY` ABSENT from every Vercel env — key absence
+  is the kill switch and the current state; **zero PostHog network requests proven in prod**
+  (anon 5-page sweep + a real signed-in session, Chromium). Init requires ALL of: signed-in +
+  current legal acceptance + `users.analytics_preference='granted'` (migration 0020: 3-value
+  CHECK, default `'unset'`, Account-page reversible control) + valid dedicated key/host +
+  Vercel production + exact bnow.net + approved subscriber route; allowlist-reconstruction
+  `before_send` sanitizer, 10 custom events + manual `$pageview`/`$identify` only, UUID
+  identity never email, no Ask/Search/claim/source text or content IDs ever.
+  `/access` now persists validated first-party attribution (lowercased capped-charset
+  `utm_source/medium/campaign`, forced `landing_path=/access`, hostname-only
+  `referrer_host` — migration 0020, nullable) shown in `/admin/access`; never sent to
+  PostHog. **Activation is operator-blocked (OPEN-TASKS #67):** no dedicated BNOW PostHog
+  project or `phx_` admin token exists (verified; Scenefiend's key deliberately not
+  reused), US-vs-EU region is an explicit operator decision. Evidence + checklist:
+  `docs/reviews/POSTHOG-ANALYTICS-IMPLEMENTATION-NOTE-2026-07-14.md`.
+- **Tests:** 1455 unit tests / 129 files green (`npm test`, ~5s) + Neon-branch
+  integration suite (`npm run test:integration`, 22 real-Postgres tests / 6 files). CI mirror:
   `.github/workflows/ci.yml`; the enforced gate is `.githooks/pre-push` (typecheck+lint+test).
 - **Crons (vercel.json):** ingest fast */15 · telegram :10 · x :20 · mtproto :35 ·
   map :40 (hourly) · digest 02:00 (D+1 finalize) + 04:00/10:00/19:30 (intraday, rolling window,
@@ -990,6 +1014,42 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   The paid rescore remains additionally blocked on cleanup #61 and separate spend authorization.
   Current counts and quota projection in the prior entry remain valid as a 13:20Z snapshot.
 
+- **2026-07-14 (PostHog analytics phase 1 — review, merge, migration 0020, KEYLESS deploy;
+  activation operator-blocked)** Branch `codex/posthog-product-analytics` (`ed61d3b`, worktree
+  `bnow.net-posthog`, base = the evidence-trail merge `2403083` == then-origin/main) taken through
+  the activation sequence of `docs/prompts/2026-07-14-posthog-product-analytics.md`.
+  **Reconciliation:** remote branch unchanged; only branch anywhere holding migration slot 0020;
+  prod `_migrations` head 0019; 9999 byte-identical, still last. **Independent adversarial
+  re-review (read-only, full diff): PROCEED, no P0/P1** — its P2 confirmed deploy-before-migrate
+  would strand every user at `/welcome/legal` (acceptance CTE reads `users.analytics_preference`),
+  so the order was migrate-then-deploy; P3 notes (cross-device revocation latency, pending-import
+  pageview drop, posthog-js option-name verification at activation, stale-tab preference replay,
+  one stale comment) recorded in the note for the activation pass. **Gates re-run in the worktree:**
+  typecheck, zero-warning lint, 1,455/129 unit, production build, 22/6 disposable-Neon integration
+  (branch auto-deleted). **No secrets:** committed `phc_` strings are named test canaries, none
+  equal Scenefiend's key; no `phx_` token exists in any authorized env file. **Merged** `--no-ff`
+  → main `e5123a9`, pushed (pre-push green; primary checkout needed `npm install` for posthog-js
+  1.399.5 first). **Migration 0020 applied to prod** (8 statements) and post-verified: 5 nullable
+  `subscribe_intents` attribution columns; `users.analytics_preference` NOT NULL DEFAULT 'unset' +
+  timestamptz + exact 3-value CHECK; 4/4 existing users 'unset'; 0 intent rows; head = 0020.
+  **Deployed keyless** `dpl_DjVLg9RgQdFgAxfpLsRh9ELya5w6` (rollback: `dpl_33XREqVT…`) after
+  reading back ZERO `POSTHOG` vars in any Vercel env; this deploy also shipped the evidence-trail
+  feature (2403083 — verified: no schema/env/activation needs; first deploy containing it).
+  **Prod browser proof (Chromium):** anon 5-page sweep AND a real magic-link signed-in session =
+  0 PostHog requests, 0 console errors; the operator account landed on the forced Privacy 1.1
+  re-acceptance screen with three UNCHECKED boxes incl. optional analytics; `/`, `/account`,
+  `/ask` all bounce to `/welcome/legal` pre-acceptance; NOTHING was accepted (clickwrap is a
+  human act) — post-test DB: 4/4 users 'unset', only the historical 1.0 acceptance row. Access
+  attribution proven live (utm lowercased, landing_path forced, junk params ignored, no row
+  written). Gated 307 / admin 404 / crons green on the new build. The magic link was recovered
+  via the Postmark outbound-messages API (server token) because the Gmail MCP plaintext decode
+  corrupts 2 chars at `token=` — reusable trap. **The currently deployed build IS the rollback
+  state** (key absent, product fully functional). Not claimed done: dedicated project, region,
+  key activation, positive Live Events, dashboard — operator sequence in OPEN-TASKS #67; the
+  Account-page preference/sign-out controls are live-verifiable only after a human accepts 1.1
+  (unit/component-tested meanwhile). X workstream untouched: no X env/code changed; its 00:05Z
+  preventive drain + addendum still owns main's next expected commit alongside this one.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).
@@ -1017,6 +1077,7 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
 | X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live, gap-recovered** (`$75` sprint / `$2.50` daily; Jul 9–13 recovered cursor-complete 2026-07-14; watermark-park >4–8h needs a drain+advance, #66; empty-run monitor remains #38) | api.twitterapi.io |
 | OpenSanctions | `OPENSANCTIONS_API_KEY` + caps | **live gap-fill** (876 eligible / 540 live checked as of 2026-07-14 13:20Z; 2,000 cap currently all-time until monthly-window patch; implementation queued after final X drain/closeout, paid rescore then held for cleanup #61) | opensanctions.org |
 | Telegram MTProto | `TELEGRAM_API_ID/HASH` + `TELEGRAM_SESSION` (all in prod env) | **wired; `TELEGRAM_SESSION` present in production** (added 2026-07-11 as a Sensitive var, minted via `scripts/telegram-login.ts`; first live fetch pending `:35` cron verification) | my.telegram.org |
+| PostHog (product analytics) | `NEXT_PUBLIC_POSTHOG_KEY` + `NEXT_PUBLIC_POSTHOG_HOST` | **code deployed, key ABSENT everywhere = fail-closed off** (dedicated BNOW project + region choice = operator task #67; never reuse Scenefiend's key) | posthog.com |
 | ACLED | `ACLED_API_KEY`, `ACLED_EMAIL` | stubbed | acleddata.com |
 | Stripe | `STRIPE_SECRET_KEY`, … | flagged off | dashboard.stripe.com |
 | Resend | `RESEND_API_KEY` | superseded by Postmark | resend.com |

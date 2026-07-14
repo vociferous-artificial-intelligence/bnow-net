@@ -422,3 +422,27 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     noted: registry roster hash drifts at MINUTES scale, so a stopped drain must resume
     immediately or restart under a fresh checkpoint key (observed: a 502-stopped run
     refused resume 3 minutes later).
+
+### New (from the PostHog analytics phase-1 deploy — 2026-07-14)
+
+67. **[operator] PostHog activation: dedicated project, key, Live Events, dashboard.**
+    Phase 1 is live and fail-closed: analytics code merged (`e5123a9`), migration 0020
+    applied, Privacy 1.1 + optional consent deployed keyless
+    (`dpl_DjVLg9RgQdFgAxfpLsRh9ELya5w6`); zero PostHog requests proven in production for
+    anonymous AND signed-in-unaccepted sessions. No PostHog personal/admin token exists
+    in any authorized env file, so the dedicated BNOW project cannot be provisioned from
+    this box, and the US-vs-EU Cloud region is an explicit operator decision (do not
+    infer it from Scenefiend's US config). Operator sequence, in order: (1) create the
+    dedicated BNOW project (deliberate region choice) or hand over an org-scoped `phx_`
+    personal API key + recorded region decision; (2) set project privacy posture
+    (IP capture off, replay/autocapture/surveys/heatmaps/errors off, membership,
+    billing limit) and record region+retention; (3) add `NEXT_PUBLIC_POSTHOG_KEY` +
+    `NEXT_PUBLIC_POSTHOG_HOST` to Vercel **Production only** (readable-plain,
+    `--no-sensitive`), redeploy (build-time values); (4) opted-in test-account Live
+    Events inspection (all 12 allowlisted event types, raw payload audit, then the
+    denial/sign-out/cross-tab/account-switch/Preview/localhost zero-request re-tests);
+    (5) `BNOW Private Beta` dashboard (nine insights) + `first_value_event` Action —
+    no alerts until traffic supports thresholds. Full evidence + checklist:
+    `docs/reviews/POSTHOG-ANALYTICS-IMPLEMENTATION-NOTE-2026-07-14.md` § Production
+    execution results. Reminder: all existing users (incl. Jason/Irina) re-accept
+    Privacy 1.1 on next visit — expected, not a bug; analytics stays opt-in either way.

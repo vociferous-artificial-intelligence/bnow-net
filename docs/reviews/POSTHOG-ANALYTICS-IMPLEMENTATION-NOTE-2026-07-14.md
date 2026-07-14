@@ -8,9 +8,13 @@ isolated worktree `/home/go/code/bnow.net-posthog`, forked from evidence-trail c
 `pre-posthog-product-analytics-20260714`; the forward migration is
 `drizzle/0020_reflective_karnak.sql`.
 
-This branch is **not activated or deployed**. No dedicated BNOW PostHog project, project key, or
-admin/personal token was available. Scenefiend's public project key was deliberately not reused.
-No Production environment, migration, or runtime state was changed.
+**Superseded 2026-07-14 (same day, activation phase 1):** the branch is now MERGED to main
+(`e5123a9`, --no-ff), migration 0020 is APPLIED to production, and the merged application is
+DEPLOYED keyless (`dpl_DjVLg9RgQdFgAxfpLsRh9ELya5w6`) — see § Production execution results below.
+Collection remains fail-closed: no dedicated BNOW PostHog project, project key, or admin/personal
+token exists yet (Scenefiend's public project key was deliberately not reused), so
+`NEXT_PUBLIC_POSTHOG_KEY` is absent from every Vercel environment and zero telemetry is possible.
+Activation is operator-blocked (OPEN-TASKS #67).
 
 ## Delivered behavior
 
@@ -130,3 +134,104 @@ Unresolved/operator-blocked: project creation, region, retention, IP policy, pro
 dashboard URLs, positive Live Events evidence, Production migration/deploy/env activation, and
 post-activation standing-state updates. `AGENTS.md`, `docs/PROGRESS.md`, and `docs/OPEN-TASKS.md`
 remain unchanged because analytics is not deployed or active.
+
+## Production execution results — 2026-07-14 (activation phase 1: merge, migrate, keyless deploy)
+
+Executed by the activation session the same day; every claim below is verified, not assumed.
+
+### Reconciliation and review
+
+- `origin` fetched; remote `codex/posthog-product-analytics` still `ed61d3b` (unchanged);
+  merge-base with `origin/main` = `2403083` (the analyst-evidence-trail merge) exactly.
+- Migration-slot audit across ALL remote branches: only this branch carries an `0020`;
+  origin/main journal head idx 19 (`0019_watery_the_professor`); `9999_claim_source_trigger.sql`
+  byte-identical to main's and still lexicographically last in `scripts/migrate.ts`'s sort.
+- Production `_migrations` head pre-apply: `0019_watery_the_professor.sql` (2026-07-13).
+- **Independent adversarial re-review (read-only, full diff vs base): verdict PROCEED, no P0/P1.**
+  All eight audited invariants verified clean (fail-closed collection incl. race/generation
+  gates; allowlist-reconstruction sanitizer with template-only `$pageview` paths; product-safety
+  try/catch boundaries; append-only acceptance with atomic preference write; additive 0020;
+  attribution validation; Search $0 / Ask no-re-execution; no secrets — canaries only, none equal
+  Scenefiend's key). Its one P2 was operational, already prescribed by this note:
+  **deploying before 0020 would strand every user at `/welcome/legal`** because
+  `recordAcceptance`'s CTE references `users.analytics_preference` — the migrate-before-deploy
+  order below honored it. P3 notes (cross-device revocation latency until root-layout re-render;
+  a pending dynamic import can drop one route's pageview; verify posthog-js option names at
+  activation; stale `/welcome/legal` tab can replay preference; one stale comment in client.ts)
+  are recorded for the activation pass — none blocks keyless deployment.
+
+### Gates (re-run in the worktree at `ed61d3b`)
+
+- Typecheck green; zero-warning lint green; **1,455 unit tests / 129 files** green.
+- Optimized production build green.
+- Disposable-Neon integration suite: **22 tests / 6 files** green (branch
+  `br-floral-pond-att2b2mp` created and deleted by the runner).
+
+### Merge, migration, deploy
+
+- Merge: `git merge --no-ff` → main `e5123a9`, pushed after the enforced pre-push gate
+  (typecheck + lint + 1,455 tests) went green; origin/main == main. (First push attempt failed
+  only because the primary checkout's `node_modules` predated the merge — `npm install` brought
+  in `posthog-js` 1.399.5, then green.)
+- Migration: `npm run db:migrate` against production applied exactly
+  `0020_reflective_karnak.sql` (8 statements). Post-verified live: 5 nullable text columns on
+  `subscribe_intents` (`utm_source`, `utm_medium`, `utm_campaign`, `landing_path`,
+  `referrer_host`); `users.analytics_preference` text NOT NULL DEFAULT `'unset'` +
+  `users.analytics_preference_updated_at` timestamptz NULL; CHECK constraint
+  `users_analytics_preference_check` = exactly (`unset`,`granted`,`denied`); all 4 existing
+  users read `unset`; `subscribe_intents` had 0 rows (nothing to invalidate); `_migrations`
+  head = `0020_reflective_karnak.sql`.
+- Deploy: **`dpl_DjVLg9RgQdFgAxfpLsRh9ELya5w6`** (`bnow-mx4qnf0m0`), READY, serving on the
+  project domain (rollback target: `dpl_33XREqVT41j9Fo3cbzzHSZjqYGk2`). Pre-verified by
+  `vercel env ls`: **zero `POSTHOG` variables in any Vercel environment** — the deploy is
+  keyless by construction. Post-deploy crons green on the new build (`ingest:x` 18:20Z,
+  `ingest:fast` 18:30Z, both ok).
+
+### Browser/network evidence (real Chromium against production)
+
+- **Anonymous:** `/`, `/access?utm_source=Test-Src&utm_medium=email&utm_campaign=beta_wave1`,
+  `/signals`, `/privacy`, `/countries/ru` — all 200, **0 PostHog network requests, 0 console
+  errors**. The only "posthog" string in served anon HTML is the `PostHogProvider` component
+  name inside Next.js flight data (a chunk reference, not a network call); **0 `phc_` tokens
+  served**. Access attribution live: hidden fields rendered `utm_source=test-src` (lowercased),
+  `utm_medium=email`, `utm_campaign=beta_wave1`, `landing_path=/access` (forced),
+  `referrer_host=` (direct nav); an injected junk query param was ignored. No form was
+  submitted — 0 `subscribe_intents` rows before and after.
+- **Signed-in, unaccepted, preference unset** (the state every existing user is now in):
+  a real magic-link sign-in (operator account) landed on `/welcome/legal?next=/` — Privacy 1.1
+  forces re-acceptance as designed; the form shows THREE unchecked checkboxes
+  (`adult_attested`, `privacy_acknowledged`, and optional `analytics_preference` labeled
+  "Allow optional product analytics"); navigation to `/`, `/account`, `/ask` all bounced back
+  to `/welcome/legal`; **0 PostHog requests across the authenticated session, 0 console
+  errors**. Nothing was accepted or submitted: post-test DB shows all 4 users still `unset`
+  and the only `policy_acceptances` row is the historical 1.0 — clickwrap acceptance is a
+  human act left to each user.
+- Public routes 200 / gated routes 307 / `/admin` 404 — unchanged. Privacy page serves
+  Version 1.1 with the PostHog disclosures (and the honest "activation is pending a dedicated
+  project" language).
+- Not live-testable pre-acceptance (by design, and covered by unit/component tests instead):
+  the Account-page preference controls and sign-out form sit behind `requireAcceptedUser`, so
+  they become reachable only after a human accepts 1.1. With the key absent, `granted`/`denied`
+  differentiation is unobservable anyway — every state is keyless-disabled.
+
+### Rollback state
+
+The currently deployed production build IS the documented rollback state: key absent,
+SDK unimportable, product fully functional (proven above). Removing the key after a future
+activation returns exactly here; migration 0020 and Privacy 1.1 stay (forward-only, additive).
+
+### Remaining operator actions (tracked as OPEN-TASKS #67)
+
+1. Create the dedicated **BNOW** PostHog project — a deliberate US vs EU Cloud region choice —
+   either directly in the PostHog UI or by supplying an org-scoped personal API key (`phx_…`)
+   plus the recorded region decision. No such token exists in any authorized env file (verified);
+   Scenefiend's public key is the only PostHog credential on this box and must not be reused.
+2. In the project: disable IP capture, confirm replay/autocapture/surveys/heatmaps/error
+   tracking off at project level, restrict membership, set a billing limit; record region,
+   retention, and settings here.
+3. Add `NEXT_PUBLIC_POSTHOG_KEY` + matching `NEXT_PUBLIC_POSTHOG_HOST` to Vercel **Production
+   only** (readable-plain: `vercel env add NAME production --no-sensitive`), redeploy (build-time
+   values), then run the positive Live Events verification with one explicitly opted-in test
+   account and the full denial/sign-out/cross-tab/account-switch/Preview/localhost re-tests.
+4. Create the `BNOW Private Beta` dashboard (nine insights) + the `first_value_event` Action.
+5. Accept Privacy 1.1 on their own account (all existing users re-accept on next visit).

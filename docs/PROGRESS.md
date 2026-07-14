@@ -1341,3 +1341,26 @@ Then reuse it in free claim search and entity timelines; expose the already-stab
 claim anchor as a copy link. No new schema, LLM, ingestion, embedding, or API is
 needed. Digest-wide indexes, exports, and general graphs deferred until beta usage
 proves demand. No application code or runtime changes.
+
+## 2026-07-14 — PostHog analytics phase 1: merge, migration 0020, keyless deploy
+
+Branch `codex/posthog-product-analytics` (ed61d3b, base = the evidence-trail merge
+2403083) re-gated in its worktree (typecheck, zero-warning lint, 1,455 unit tests /
+129 files, production build, 22/6 disposable-Neon integration tests) and independently
+adversarially re-reviewed (verdict PROCEED, no P0/P1; the one P2 confirmed the
+migrate-before-deploy order this session then followed). Merged --no-ff to main
+`e5123a9`, pushed through the pre-push gate. Migration `0020_reflective_karnak.sql`
+applied to production and post-verified (5 nullable subscribe_intents attribution
+columns; users.analytics_preference NOT NULL DEFAULT 'unset' + timestamptz + 3-value
+CHECK; 4/4 existing users 'unset'; head = 0020). Deployed keyless
+`dpl_DjVLg9RgQdFgAxfpLsRh9ELya5w6` — verified zero POSTHOG env vars anywhere first.
+Production browser proof (real Chromium): anonymous 5-page sweep AND a real
+magic-link signed-in session (which landed on the forced Privacy 1.1 re-acceptance
+screen with the optional analytics checkbox unchecked) both produced ZERO PostHog
+network requests and zero console errors; access attribution live (lowercased UTMs,
+forced landing_path, junk params ignored); gated 307 / admin 404 / crons green on the
+new build. Nothing was accepted on the operator account and no rows changed. This
+deploy also shipped the already-merged analyst evidence-trail feature (2403083,
+no schema/env needs). Collection stays fail-closed: no dedicated PostHog project or
+admin token exists — activation, Live Events verification, and the dashboard are the
+operator sequence in OPEN-TASKS #67.
