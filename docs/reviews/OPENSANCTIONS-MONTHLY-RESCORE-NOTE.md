@@ -4,9 +4,12 @@ Prompt: `docs/prompts/2026-07-13-opensanctions-monthly-rescore.md`.
 Branch: `codex/opensanctions-monthly-rescore` off clean main `651259e`
 (tag `pre-opensanctions-monthly-20260715`).
 
-**Status: IMPLEMENTED + tested (incl. real Postgres). NOT merged, NOT deployed, NO paid
-provider calls, no production writes, no env changes, no migration.** The paid production
-rescore remains gated (see §Gates).
+**Status: MERGED + DEPLOYED 2026-07-15** (`f9aaa9e`, production
+`dpl_ApFhadwyVNkAyyc9T8R4W7ghgPhu`, READY + aliased bnow.net). Zero-paid live proof:
+`/health` 200 on the deployment and authenticated future/timezone-less sanctions cutoffs both
+returned the new 400 before cron/provider work; the July ledger remained 660 requests / $72.6000.
+No paid provider calls, cleanup, env changes, or
+migration. The paid production rescore remains gated (see §Gates).
 
 ## Follow-up: cutoff-safety hardening (2026-07-15, second commit on the branch)
 
@@ -130,9 +133,9 @@ typecheck / lint / `next build`: clean.
 
 - `OPENSANCTIONS_CALL_CAP` env **name kept** (deployed value = 2000) and reinterpreted as the
   monthly quota, avoiding an env rename + re-set during a launch window.
-- `refresh=1` now requires `before` **regardless of `only`** — the operator rescue path is
-  `only=sanctions&refresh=1&before=...`; an ownership-only refresh must also pass a (ignored)
-  cutoff. Documented in the route.
+- A sanctions `refresh=1` requires `before`; the operator rescue path is
+  `only=sanctions&refresh=1&before=...`. An ownership-only refresh has no sanctions cutoff and
+  needs no `before`. Documented and tested in the route.
 - Rescore is **not URL-addressable to re-run for free**: it's a paid, cap-guarded operation; the
   driver + runbook enforce serial operation (the guard snapshot is per invocation).
 - The driver talks only to the endpoint (no DB coupling) so the endpoint's caps are the single
@@ -144,8 +147,8 @@ All must be true before `--run` / the paid rescore:
 
 1. operator approves cleanup **#61** AND `scripts/entities-cleanup.ts --apply` is run after the
    canonical-identity persist fix is live, integrity checks passing;
-2. **this branch merged + deployed** and proven to use calendar-month accounting + an advancing
-   cutoff on the live endpoint;
+2. **DONE 2026-07-15:** merged + deployed with the new cutoff contract proven live without a
+   paid call;
 3. fresh recount of eligible population + current-month `provider_usage`;
 4. **separate** operator spend authorization.
 

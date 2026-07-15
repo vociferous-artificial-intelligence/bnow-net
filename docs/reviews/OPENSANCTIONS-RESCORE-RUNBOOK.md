@@ -1,8 +1,8 @@
 # OpenSanctions monthly rescore — operator runbook
 
 Companion to `docs/prompts/2026-07-13-opensanctions-monthly-rescore.md`. The code
-(calendar-month accounting + fixed-cutoff resumable rescore) is on branch
-`codex/opensanctions-monthly-rescore`. **This runbook drives PAID production calls
+(calendar-month accounting + fixed-cutoff resumable rescore) is deployed from merge `f9aaa9e`
+(`dpl_ApFhadwyVNkAyyc9T8R4W7ghgPhu`). **This runbook drives PAID production calls
 — do not run it until the rescore gate is fully open (below).**
 
 ## Paid-rescore gate (all must be true before `--run`)
@@ -12,8 +12,8 @@ Companion to `docs/prompts/2026-07-13-opensanctions-monthly-rescore.md`. The cod
 3. Entity cleanup **#61** is explicitly operator-approved AND
    `scripts/entities-cleanup.ts --apply` has been run after the canonical persist
    fix is live, with post-apply integrity checks passing.
-4. **This branch is merged + deployed**, and the deployed endpoint is proven to use
-   calendar-month accounting + an advancing fixed cutoff.
+4. **Done 2026-07-15:** merged + deployed; the live endpoint returned the new invalid-cutoff
+   400s without entering provider work.
 5. The operator **separately authorizes** the paid rescore after a fresh
    population/quota recount.
 

@@ -233,17 +233,18 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     `/api/auth/error?error=Verification` (`AUTH-EMAIL-2026-07-09.md`). The 07-09 Postmark tracking
     fix (`9b5b368`) addressed a real but *secondary* defect, not this. Decide: change the token model
     (multi-use within TTL, or device-agnostic) or document the constraint on the sign-in page.
-41. **[Tier 2] OpenSanctions monthly accounting + resumable rescore — CODE LANDED on branch
-    `codex/opensanctions-monthly-rescore` (2026-07-15), NOT deployed; paid rescore still gated on
-    #61 + operator auth.** Both defects are fixed in code (calendar-month `totalPeriod` in
+41. **[Tier 2] OpenSanctions monthly accounting + resumable rescore — CODE MERGED + DEPLOYED
+    2026-07-15 (`f9aaa9e`, `dpl_ApFhadwyVNkAyyc9T8R4W7ghgPhu`); paid rescore still gated on
+    #61 + operator auth.** Both defects are fixed in production (calendar-month `totalPeriod` in
     SpendGuard so `OPENSANCTIONS_CALL_CAP` resets at the UTC month boundary; fixed-cutoff `refresh=1`
     rescore requiring a valid ISO `before`, advancing batch-by-batch instead of re-selecting the same
-    prefix). Tests: +24 unit + a real-Postgres `enrich-rescore.itest.ts` (all green this session);
-    typecheck/lint/build clean; zero paid calls; no migration. See the 2026-07-15 decision-log entry
+    prefix; future/timezone-less cutoffs fail before provider work). Tests: 1495/131 unit + 27/7
+    real-Postgres integration, typecheck/lint/build clean. Live zero-paid proof: `/health` 200 on
+    the deployment, authenticated invalid-cutoff requests returned the new 400, and the July ledger
+    remained 660 requests / $72.6000; no migration, cleanup, or paid call. See the 2026-07-15 decision-log entry
     and `docs/reviews/OPENSANCTIONS-MONTHLY-RESCORE-NOTE.md` + `OPENSANCTIONS-RESCORE-RUNBOOK.md`.
-    **Not done (do NOT close this item until all complete):** merge + deploy the branch and prove
-    the deployed endpoint uses calendar-month accounting + an advancing cutoff; apply the
-    operator-approved cleanup #61 AFTER the canonical-persist fix is live; recount the population +
+    **Not done (do NOT close this item until all complete):** apply the operator-approved cleanup
+    #61 AFTER the canonical-persist fix is live; recount the population +
     current-month quota; obtain separate spend authorization; run the serial rescore to zero
     candidates and record before/after totals. Relates to #17 (match hygiene before spending).
 42. **[Tier 2] X single-platform citation dependency (~27–29%).** ~1 in 3.4 cited docs is from X

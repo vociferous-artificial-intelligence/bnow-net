@@ -94,7 +94,7 @@ spend guards are deployed; remaining engineering debt is OPEN-TASKS #38 (empty-r
 | Env var | `OPENSANCTIONS_API_KEY` |
 | Where | opensanctions.org/api/ (register; commercial use is paid, bulk data is non-commercial-only) |
 | Cost | from ~€ low hundreds/mo (their pricing) |
-| Status | Live non-refresh enrichment is active. Commercial rights remain a paid-launch gate. The calendar-month quota + fixed-cutoff rescore is IMPLEMENTED on branch `codex/opensanctions-monthly-rescore` (a sanctions `refresh=1` now requires a **timezone-qualified `before` cutoff no later than now**; ownership-only refresh needs no `before`) but is **NOT deployed** — the deployed prod code still has the non-advancing `refresh`, so do **not** call `refresh=1&only=sanctions` in prod until this branch is deployed. Then approve/apply entity cleanup #61, recount quota/population, and separately authorize the paid fixed-cutoff rescore (`docs/reviews/OPENSANCTIONS-RESCORE-RUNBOOK.md`). |
+| Status | Live non-refresh enrichment is active. Commercial rights remain a paid-launch gate. The calendar-month quota + fixed-cutoff rescore is **deployed** (`f9aaa9e`, `dpl_ApFhadwyVNkAyyc9T8R4W7ghgPhu`): a sanctions `refresh=1` requires a timezone-qualified `before` cutoff no later than now; ownership-only refresh needs no `before`. The paid rescore is still CLOSED: approve/apply entity cleanup #61, recount quota/population, and separately authorize spend before following `docs/reviews/OPENSANCTIONS-RESCORE-RUNBOOK.md`. |
 
 ## 8. Companies House key — $0, 10 min
 
@@ -186,9 +186,9 @@ npx tsx scripts/sqlq.ts "SELECT c.iso2, d.track, d.digest_date, d.provider FROM 
 curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/digest?country=ua&date=$(date -u -d yesterday +%F)" | head -c 400; echo
 curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/validate?date=$(date -u -d yesterday +%F)&country=ua" | head -c 400; echo
 
-# 6. OpenSanctions: ordinary gap fill only. The fixed-cutoff patch is on branch
-#    codex/opensanctions-monthly-rescore, NOT deployed — until it is, the deployed
-#    refresh=1 does not advance; never call refresh=1&only=sanctions in prod yet.
+# 6. OpenSanctions: ordinary gap fill only. Monthly accounting + fixed-cutoff
+#    rescore are deployed, but cleanup #61 + recount + separate spend authorization
+#    are still required before any refresh=1&only=sanctions production run.
 curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/enrich?only=sanctions"; echo
 
 # 7. full cron audit (all 8 crons, stub-contamination check)

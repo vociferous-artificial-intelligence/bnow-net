@@ -1530,3 +1530,18 @@ Second commit on `codex/opensanctions-monthly-rescore` fixing the `before` cutof
 Tests +11 (unit 1484→1495; integration 26/7→27/7 incl. a real-Postgres `checkedAt == cutoff`
 boundary case). typecheck/lint/`next build`/integration (`TMPDIR=/tmp`) all green. Operator docs
 corrected (SETUP-NEXT-WEEK.md, BLOCKERS.md, runbook). Still not merged/deployed; no paid calls.
+
+## 2026-07-15 20:18 UTC — OpenSanctions monthly/rescore release
+
+Reviewed the cutoff-hardening commit with no remaining defect. Independent release gate passed:
+typecheck, lint, optimized build, **1495/131 unit tests**, and **27/7 Neon integration tests**;
+the disposable branch was deleted. Merged `codex/opensanctions-monthly-rescore` to main at
+`f9aaa9e`, pushed, and deployed production `dpl_ApFhadwyVNkAyyc9T8R4W7ghgPhu` (READY, aliased
+bnow.net). The enforced pre-push gate repeated typecheck/lint/unit green.
+
+Live zero-paid verification used only rejection paths: `/health` returned 200 from that deployment;
+authenticated future and timezone-less sanctions cutoffs each returned the new 400 before cron or
+provider work; the read-only July ledger remained **660 requests / $72.6000** afterward. No
+migration, env change, cleanup, or paid OpenSanctions call occurred. The paid
+rescore remains CLOSED pending operator-approved cleanup #61, a fresh population/month-quota
+recount, separate spend authorization, and the serial run-to-zero evidence in the runbook.

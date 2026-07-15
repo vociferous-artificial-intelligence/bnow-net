@@ -120,6 +120,14 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   (OPEN-TASKS #66); #38 retains only the green-but-empty ALERT half), GDELT
   (wired, upstream-flaky), zakupki
   procurement (wired, blocked — needs proxy).
+- **OpenSanctions enrichment:** live gap-fill remains active. Calendar-month quota accounting +
+  the advancing fixed-cutoff sanctions rescore are **DEPLOYED 2026-07-15** from merge `f9aaa9e`
+  in production deploy `dpl_ApFhadwyVNkAyyc9T8R4W7ghgPhu`. Live zero-paid verification:
+  `/health` 200 on that deployment; authenticated future and timezone-less sanctions cutoffs both
+  returned the new 400 before `withCronRun` / provider work; the read-only July ledger remained
+  660 requests / $72.6000 afterward. The paid rescore remains CLOSED until
+  cleanup #61 is approved+applied, population/month quota are recounted, and spend is separately
+  authorized; no cleanup or paid OpenSanctions call occurred in this rollout.
 - **Map stage:** all eligible ru/ua/ir docs since 06-29 mapped once per
   (track, extractor_version) → `doc_claims` (~33K current-version atomic claims at
   the 2026-07-14 snapshot), persistent dedup verdicts
@@ -272,8 +280,9 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   "BNOW.NET"** (operator-created; region = operator decision; key ≠ Scenefiend's);
   `NEXT_PUBLIC_POSTHOG_KEY`+`_HOST` in Vercel **Production only** — key removal + redeploy is
   the verified rollback (the keyless build `dpl_DjVLg9RgQdFgAxfpLsRh9ELya5w6` was deployed and
-  proven zero-traffic first). Current prod deploy `dpl_EmHs6NneKtPA5RC9i4T3ybYSjLEx` includes
-  the `$identify` signup_at ISO fix (`9e371dc` — `created_at::text`'s space format made the
+  proven zero-traffic first). Activation deploy `dpl_EmHs6NneKtPA5RC9i4T3ybYSjLEx` and current
+  prod deploy `dpl_ApFhadwyVNkAyyc9T8R4W7ghgPhu` include the `$identify` signup_at ISO fix
+  (`9e371dc` — `created_at::text`'s space format made the
   sanitizer drop $identify; to_char now). Init requires ALL of: signed-in + current legal
   acceptance + `users.analytics_preference='granted'` (migration 0020: 3-value CHECK, default
   `'unset'`, Account-page reversible control) + valid key/host + Vercel production + exact
@@ -294,8 +303,8 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   `go+phtest@vociferous.nyc` (previously accepted 1.1, preference granted, signed out; now
   requires 1.2 re-acknowledgement) is the standing verification identity. Evidence:
   `docs/reviews/POSTHOG-ANALYTICS-IMPLEMENTATION-NOTE-2026-07-14.md`.
-- **Tests:** 1460 unit tests / 129 files green on main (`npm test`, ~6s) + Neon-branch integration
-  suite (`npm run test:integration`, 22 real-Postgres tests / 6 files). The saved `NEON_API_KEY`
+- **Tests:** 1495 unit tests / 131 files green on main (`npm test`, ~6s) + Neon-branch integration
+  suite (`npm run test:integration`, 27 real-Postgres tests / 7 files). The saved `NEON_API_KEY`
   works again as of 2026-07-15 (disposable-branch create/run/delete verified this session — the
   earlier 401 is cleared). CI mirror: `.github/workflows/ci.yml`; the enforced gate is
   `.githooks/pre-push` (typecheck+lint+test).
@@ -306,7 +315,8 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
 - **Stubbed / off:** ACLED (fixture stub, unwired); Stripe flagged off; Resend adapter
   superseded by Postmark. (MTProto left this list 2026-07-11 — real adapter wired,
   session-gated; see Ingestion above.)
-- **Deploy:** `npx vercel@latest deploy --prod --yes` — machine CLI session
+- **Deploy:** current production `dpl_ApFhadwyVNkAyyc9T8R4W7ghgPhu` (merge `f9aaa9e`, READY,
+  aliased bnow.net). Command: `npx vercel@latest deploy --prod --yes` via the machine CLI session
   (`VERCEL_TOKEN` is expired; regen is an operator task, SETUP-NEXT-WEEK #2).
 - **This WSL2 box:** the NAT resolver times out on some domains — a DNS quirk, NOT a
   TCP block. `NODE_OPTIONS="--require ./scripts/pin-dns.cjs"` pins vercel/openai/
@@ -315,7 +325,8 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   github.com resolves slowly/flakily: pushes work, but short-timeout git commands can
   fail — retry or wait ~30s+. api.gdeltproject.org DNS still fails locally (not
   pinned). TASS/RIA/Lenta RSS unreachable → covered via their Telegram channels.
-- **Git:** origin/main == local main as of 2026-07-15; there is no push blocker.
+- **Git:** the deployed code release merged at `f9aaa9e`; origin/main == local main after the
+  2026-07-15 release-state documentation sync, and there is no push blocker.
 
 ## Standing rulings (distilled from the decision log; binding until a log entry supersedes)
 
@@ -1273,6 +1284,20 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   smoke #6 + Companies House note), BLOCKERS.md (ownership example note), and the runbook's
   cutoff example (now a captured `now`, not a future date).
 
+- **2026-07-15 (OpenSanctions monthly accounting + fixed-cutoff rescore MERGED + DEPLOYED;
+  paid rescore still CLOSED)** Independent review of `e9c6695` found the cutoff blocker fixed and
+  no further defect. Fresh gate: typecheck + lint + optimized build, 1495/131 unit tests, and
+  27/7 real-Postgres integration tests on a disposable Neon branch (created/deleted) all green;
+  the pre-push gate repeated typecheck/lint/unit green. Branch merged to main at `f9aaa9e`, pushed,
+  and deployed as `dpl_ApFhadwyVNkAyyc9T8R4W7ghgPhu` (READY, aliases include bnow.net). Zero-paid
+  live proof on that deployment: `/health` 200 with the deployment id; authenticated future and
+  timezone-less sanctions cutoffs both returned the new 400 before `withCronRun` / provider work;
+  the July ledger remained 660 requests / $72.6000.
+  No migration, environment change, entity cleanup, or paid OpenSanctions call. Standing status,
+  OPEN-TASKS #41, setup notes, implementation note, and runbook corrected in place. #41 remains
+  open: cleanup #61 approval+apply, fresh population/month-quota recount, separate spend approval,
+  and the serial rescore-to-zero evidence are still required.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).
@@ -1298,7 +1323,7 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
 | Cron auth | `CRON_SECRET` | **live** | (already set) |
 | Auth.js | `AUTH_SECRET` | **live** (hashes magic-link tokens: rotating it invalidates every unclicked link) | (already set) |
 | X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live, gap-recovered** (`$75` sprint / `$2.50` daily; Jul 9–13 recovered cursor-complete 2026-07-14; watermark-park >4–8h needs a drain+advance, #66; empty-run monitor remains #38) | api.twitterapi.io |
-| OpenSanctions | `OPENSANCTIONS_API_KEY` + caps | **live gap-fill** (937 eligible / 660 live checked / 660 July calls as of 2026-07-15; calendar-month accounting + fixed-cutoff rescore IMPLEMENTED on branch `codex/opensanctions-monthly-rescore`, NOT deployed — live prod still sums `OPENSANCTIONS_CALL_CAP` all-time until that deploy; cleanup #61 + paid rescore remain approval-gated) | opensanctions.org |
+| OpenSanctions | `OPENSANCTIONS_API_KEY` + caps | **live gap-fill; monthly accounting + fixed-cutoff rescore deployed** (`f9aaa9e`, `dpl_ApFhadwyVNkAyyc9T8R4W7ghgPhu`; 937 eligible / 660 live checked; July ledger still 660 calls / $72.6000 after zero-paid rollout verification; cleanup #61 + paid rescore remain approval-gated) | opensanctions.org |
 | Telegram MTProto | `TELEGRAM_API_ID/HASH` + `TELEGRAM_SESSION` (all in prod env) | **live** (session added 2026-07-11; first fetch + repeated hourly runs verified; registry top-120 ROCA roster) | my.telegram.org |
 | PostHog (product analytics) | `NEXT_PUBLIC_POSTHOG_KEY` + `_HOST` (Production only) + `POSTHOG_PERSONAL_API_KEY`/`POSTHOG_PROJECT_ID` (.env.local, ops) | **LIVE opt-in-only** (US project 512327 "BNOW.NET"; rollback = remove key + redeploy; operator UI items: billing limit + membership) | us.posthog.com |
 | ACLED | `ACLED_API_KEY`, `ACLED_EMAIL` | stubbed | acleddata.com |
