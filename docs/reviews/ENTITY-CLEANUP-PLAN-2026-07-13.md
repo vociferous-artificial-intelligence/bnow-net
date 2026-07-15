@@ -15,9 +15,17 @@ with drops, <=58 edges repointed by merges (claims/claim_sources untouched)`
 New same-key folds include `155th brigade` -> `155th Brigade` and `Islamic Revolutionary Guard
 Corps Navy` -> its canonical row. Rerun the dry run immediately before operator approval/apply;
 the full verbatim output below remains the pre-X historical plan and must not be mistaken for the
-current completion count. OpenSanctions implementation remains queued until the active X operator's
-July 15 preventive drain/poll verification/addendum is committed and pushed; its paid fixed-cutoff
-rescore is additionally blocked until this cleanup is approved, applied, and integrity-checked.
+current completion count. The X implementation prerequisite is now satisfied. The paid
+OpenSanctions fixed-cutoff rescore remains blocked until this cleanup is approved, applied, and
+integrity-checked and the monthly-accounting/fixed-cutoff patch is merged and deployed.
+
+## 2026-07-15 population check — projection is stale; approval still required
+
+The X sequencing hold is closed and canonical-identity persistence is deployed. A new read-only
+count now finds **937 eligible entities**, so the 876→683 projection above must not be used as an
+apply expectation. No new cleanup dry run or mutation was performed during release reconciliation.
+Immediately before operator approval/apply, rerun `npx tsx scripts/entities-cleanup.ts`, review the
+full new plan, and use that run's summary as the integrity target.
 
 Key production finding resolved by this plan: the Moscow Oblast governor existed as
 three entities — `Andrey Vorobyov` (2622), `Андрей Воробьев` (2623), `Андрей Воробьёв`
@@ -35,8 +43,8 @@ double-count (signals inflation) also folds via the surname rule (2348 → 20).
    - `claims` and `claim_sources` row counts UNCHANGED (the script never touches them —
      traceability ruling 2 structurally unaffected).
    - `SELECT count(*) FROM claim_entities WHERE entity_id NOT IN (SELECT id FROM entities)` = 0.
-   - entities count matches the freshly rerun SUMMARY projection (683 at the 2026-07-14 refresh,
-     not the historical 578 below; rerun again immediately before apply).
+   - entities count matches the freshly rerun SUMMARY projection (neither historical 578 nor the
+     now-stale 2026-07-14 projection of 683; rerun immediately before apply).
 4. **Durability (corrected 2026-07-13 remediation; the original note here was wrong).**
    The reduce-time canonicalKey fold alone did NOT stop future persists from
    resurrecting merged spellings: it folds only within one reduce batch, so a digest

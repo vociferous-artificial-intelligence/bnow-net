@@ -24,8 +24,8 @@ export const TERMS_EFFECTIVE_DATE_DISPLAY = "July 12, 2026";
 // Privacy 1.2 (analyst-beta remediation): corrects the now-false "activation
 // pending" copy to the live PostHog posture (US project, GeoIP-derived coarse
 // location disclosed, 7-year event retention). Re-acknowledgement is driven by
-// the version STRING above, not this date. OPERATOR: confirm/adjust this to the
-// ACTUAL deploy date before deploying (deploy is gated behind the X closeout).
+// the version STRING above, not this date. July 15 is the actual production
+// deployment date for Privacy 1.2.
 export const PRIVACY_EFFECTIVE_DATE = "2026-07-15";
 export const PRIVACY_EFFECTIVE_DATE_DISPLAY = "July 15, 2026";
 

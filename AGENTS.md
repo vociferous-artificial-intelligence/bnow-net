@@ -181,7 +181,9 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   AND Preview; rollback = `ASK_PIPELINE=legacy` plain env + redeploy. **Polished
   2026-07-12 (ask-polish sprint):** paid pipeline runs ONLY from the form's server
   action — GET /ask?q= prefills, never executes (closes OPEN-TASKS #48
-  double-billing); pending state (spinner/disable/aria-busy); end-user persona
+  double-billing); prominent working panel (spinner, disabled controls, aria-busy/status,
+  honest client-elapsed retrieve→rank→answer stages, submitted-question echo); provider/model
+  diagnostics are no longer shown to analysts; end-user persona
   SYSTEM_V2 (legacy SYSTEM byte-preserved); "data current through" context +
   $0 no-coverage short-circuit when window.from > max(claim_date) (rollback
   `ASK_NO_COVERAGE_SHORTCIRCUIT=0`); citation deep links to `#c{claimId}` digest
@@ -225,17 +227,19 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   `src/lib/ask/lexical.ts` (shared with retrieveV2, byte-green), $0 by
   construction — no SpendGuard, no usage rows, proven live (5 queries, zero
   counter movement); GET-with-q EXECUTES there by design ($0), the deliberate
-  contrast to /ask. i18n: en+uk full, de ar ja pl fr catalogs
+  contrast to /ask. i18n: en+uk full, de ar ja pl fr catalogs are offered in the selector;
+  es/he/ko remain valid fallback locales but are hidden until reviewed catalogs exist
   (landing wired; needs native review before promotion; ~108 uk strings — 10
   `ask.*` (MERGE 1) + ~64 design-branch strings (MERGE 2: pricing, home.status,
   home.validation, signals, registry) + 3 ask-polish strings + 31 analyst-home
   strings + 18 analyst-trust strings — await native review, tracked in
   `docs/reviews/UK-NATIVE-REVIEW-2026-07-12.md`).
 - **Legal acceptance (versioned clickwrap, shipped 2026-07-12):** public `/privacy` +
-  `/terms` (Terms of Use v1.0 effective 2026-07-12 + **Privacy Notice v1.1 effective
-  2026-07-14** — adds the PostHog product-analytics disclosures (UUID-not-email identity,
-  excluded content, opt-in control, honest "activation pending a dedicated project" state);
-  v1.0 was effective 2026-07-12; the bump forces ALL existing users to re-accept on next
+  `/terms` (Terms of Use v1.0 effective 2026-07-12 + **Privacy Notice v1.2 effective
+  2026-07-15** — corrects the now-live PostHog posture, discloses the dedicated US project,
+  GeoIP-derived approximate location, and seven-year event retention; v1.1 was effective
+  2026-07-14 and introduced optional analytics consent). The 1.2 bump forces ALL users to
+  re-accept on next
   visit, where the acceptance form now also carries an optional, initially unchecked
   "Allow optional product analytics" checkbox — unchecked/missing records `denied`, a
   stale grant cannot survive re-acceptance;
@@ -268,7 +272,7 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   "BNOW.NET"** (operator-created; region = operator decision; key ≠ Scenefiend's);
   `NEXT_PUBLIC_POSTHOG_KEY`+`_HOST` in Vercel **Production only** — key removal + redeploy is
   the verified rollback (the keyless build `dpl_DjVLg9RgQdFgAxfpLsRh9ELya5w6` was deployed and
-  proven zero-traffic first). Current prod deploy `dpl_5KhaPA9AHwNq6htLJ2pAf8NFESNe` includes
+  proven zero-traffic first). Current prod deploy `dpl_EmHs6NneKtPA5RC9i4T3ybYSjLEx` includes
   the `$identify` signup_at ISO fix (`9e371dc` — `created_at::text`'s space format made the
   sanitizer drop $identify; to_char now). Init requires ALL of: signed-in + current legal
   acceptance + `users.analytics_preference='granted'` (migration 0020: 3-value CHECK, default
@@ -278,8 +282,8 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   **Live-verified 2026-07-14:** all 12 event types ingested with the internal UUID only; stored
   payload keys = exactly the allowlist; `$ip` None (anonymize_ips on; autocapture/replay/
   console/performance off project-side); **GeoIP enrichment kept ON by explicit operator
-  decision** (city/postal from connection IP at ingestion — future privacy-wording pass, note
-  §Residual). Anonymous/unaccepted/denied/deployment-domain/legal-route all proven
+  decision** (city/postal from connection IP at ingestion, disclosed in Privacy 1.2).
+  Anonymous/unaccepted/denied/deployment-domain/legal-route all proven
   zero-request; cross-tab deny + sign-out reset proven; Ask stayed one-bill-per-submit.
   Dashboard **"BNOW Private Beta"** (id 1848415, 9 insights) + Action `first_value_event`
   (id 289102); no alerts yet. **Verification trap:** posthog-js bot-filters headless/webdriver
@@ -287,11 +291,12 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   `/access` persists validated first-party attribution (lowercased capped-charset
   `utm_source/medium/campaign`, forced `landing_path=/access`, hostname-only `referrer_host` —
   migration 0020, nullable) shown in `/admin/access`; never sent to PostHog. Test account
-  `go+phtest@vociferous.nyc` (accepted 1.1, preference granted, signed out) is the standing
-  verification identity. Evidence:
+  `go+phtest@vociferous.nyc` (previously accepted 1.1, preference granted, signed out; now
+  requires 1.2 re-acknowledgement) is the standing verification identity. Evidence:
   `docs/reviews/POSTHOG-ANALYTICS-IMPLEMENTATION-NOTE-2026-07-14.md`.
-- **Tests:** 1455 unit tests / 129 files green (`npm test`, ~5s) + Neon-branch
-  integration suite (`npm run test:integration`, 22 real-Postgres tests / 6 files). CI mirror:
+- **Tests:** 1460 unit tests / 129 files green (`npm test`, ~6s) + last-known-green Neon-branch
+  integration suite (`npm run test:integration`, 22 real-Postgres tests / 6 files; the 2026-07-15
+  local rerun is credential-blocked because the saved `NEON_API_KEY` returns 401). CI mirror:
   `.github/workflows/ci.yml`; the enforced gate is `.githooks/pre-push` (typecheck+lint+test).
 - **Crons (vercel.json):** ingest fast */15 · telegram :10 · x :20 · mtproto :35 ·
   map :40 (hourly) · digest 02:00 (D+1 finalize) + 04:00/10:00/19:30 (intraday, rolling window,
@@ -309,7 +314,7 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   github.com resolves slowly/flakily: pushes work, but short-timeout git commands can
   fail — retry or wait ~30s+. api.gdeltproject.org DNS still fails locally (not
   pinned). TASS/RIA/Lenta RSS unreachable → covered via their Telegram channels.
-- **Git:** origin/main == local main as of 2026-07-14; there is no push blocker.
+- **Git:** origin/main == local main as of 2026-07-15; there is no push blocker.
 
 ## Standing rulings (distilled from the decision log; binding until a log entry supersedes)
 
@@ -1185,6 +1190,22 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   `2026-07-15` remains a placeholder until the actual deploy date is known. Deployment stays
   blocked until `bnow.net` Postmark DKIM/custom Return-Path/sender verification is complete.
 
+- **2026-07-15 (analyst-beta remediation MERGED + DEPLOYED; release loose ends reconciled)**
+  Postmark/DKIM/SPF/DMARC and the final X closeout satisfied the two release gates. The pending
+  setup cleanup was committed and pushed at `11896eb`; the remediation branch was rebased with
+  both append-only histories preserved, then merged to `main` at `2bf89ed` and pushed. Fresh
+  verification: typecheck + lint clean, 1460/129 unit tests green, optimized local and Vercel
+  builds green, and the React review found no hooks/a11y/state/TypeScript defect. The prior scoped
+  Neon integration gate remains green (9/9); a fresh full-suite attempt stopped before branch
+  creation because the saved `NEON_API_KEY` returns 401, now an explicit operator credential
+  task. Production deploy `dpl_EmHs6NneKtPA5RC9i4T3ybYSjLEx` is READY and aliased bnow.net;
+  `/health` returned 200/DB OK on build `2bf89ed`, Privacy 1.2 + the corrected scoreboard copy are
+  live, the selector exposes only en/uk/de/fr/pl/ar/ja, and the first runtime-error scan was empty.
+  No migration or paid provider call occurred. OPEN-TASKS #68 closed; its remaining authenticated
+  phone sweep stays separately tracked by #65, and the `SIGNIN_MODE=invite` flip remains an
+  operator launch decision. OpenSanctions implementation is now unblocked by X but remains
+  unimplemented; entity cleanup #61 and the paid rescore retain their explicit approval gates.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).
@@ -1201,7 +1222,7 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
 
 | Service | Env var | Status | Where to get |
 |---|---|---|---|
-| Neon Postgres | `DATABASE_URL`, `NEON_API_KEY` | **live** | console.neon.tech |
+| Neon Postgres | `DATABASE_URL`, `NEON_API_KEY` | **database live; saved branch-admin API key expired/401 (renew for disposable integration branches)** | console.neon.tech |
 | Vercel deploy | CLI session (`VERCEL_TOKEN` expired) | **live (CLI)** | vercel.com/account/tokens |
 | OpenAI (analysis + ask v2 + embeddings) | `OPENAI_API_KEY` + caps (ruling 4) | **live, spend-guarded** (openai_ask / openai_embed meter separately) | platform.openai.com |
 | LLM kill-switch | `LLM_DISABLE=1` | refuses every LLM call site (ruling 9) | (env only) |
@@ -1210,9 +1231,9 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
 | Cron auth | `CRON_SECRET` | **live** | (already set) |
 | Auth.js | `AUTH_SECRET` | **live** (hashes magic-link tokens: rotating it invalidates every unclicked link) | (already set) |
 | X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live, gap-recovered** (`$75` sprint / `$2.50` daily; Jul 9–13 recovered cursor-complete 2026-07-14; watermark-park >4–8h needs a drain+advance, #66; empty-run monitor remains #38) | api.twitterapi.io |
-| OpenSanctions | `OPENSANCTIONS_API_KEY` + caps | **live gap-fill** (876 eligible / 540 live checked as of 2026-07-14 13:20Z; 2,000 cap currently all-time until monthly-window patch; implementation queued after final X drain/closeout, paid rescore then held for cleanup #61) | opensanctions.org |
-| Telegram MTProto | `TELEGRAM_API_ID/HASH` + `TELEGRAM_SESSION` (all in prod env) | **wired; `TELEGRAM_SESSION` present in production** (added 2026-07-11 as a Sensitive var, minted via `scripts/telegram-login.ts`; first live fetch pending `:35` cron verification) | my.telegram.org |
-| PostHog (product analytics) | `NEXT_PUBLIC_POSTHOG_KEY` + `_HOST` (Production only) + `POSTHOG_PERSONAL_API_KEY`/`POSTHOG_PROJECT_ID` (.env.local, ops) | **LIVE opt-in-only** (US project 512327 "BNOW.NET"; rollback = remove key + redeploy; operator UI items: billing limit, membership, retention record) | us.posthog.com |
+| OpenSanctions | `OPENSANCTIONS_API_KEY` + caps | **live gap-fill** (937 eligible / 660 live checked / 660 July calls as of 2026-07-15; 2,000 cap still all-time until monthly-window patch; implementation is the next isolated workstream, while cleanup #61 + paid rescore remain approval-gated) | opensanctions.org |
+| Telegram MTProto | `TELEGRAM_API_ID/HASH` + `TELEGRAM_SESSION` (all in prod env) | **live** (session added 2026-07-11; first fetch + repeated hourly runs verified; registry top-120 ROCA roster) | my.telegram.org |
+| PostHog (product analytics) | `NEXT_PUBLIC_POSTHOG_KEY` + `_HOST` (Production only) + `POSTHOG_PERSONAL_API_KEY`/`POSTHOG_PROJECT_ID` (.env.local, ops) | **LIVE opt-in-only** (US project 512327 "BNOW.NET"; rollback = remove key + redeploy; operator UI items: billing limit + membership) | us.posthog.com |
 | ACLED | `ACLED_API_KEY`, `ACLED_EMAIL` | stubbed | acleddata.com |
 | Stripe | `STRIPE_SECRET_KEY`, … | flagged off | dashboard.stripe.com |
 | Resend | `RESEND_API_KEY` | superseded by Postmark | resend.com |

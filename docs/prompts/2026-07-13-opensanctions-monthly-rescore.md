@@ -6,25 +6,19 @@ Work in `/home/go/code/bnow.net`. Read `AGENTS.md` completely before changing an
 
 Make OpenSanctions enrichment use the account's **2,000-request calendar-month quota** safely and make a full entity rescore deterministic, resumable, and bounded across multiple serverless invocations. Do not weaken the lifetime/sprint semantics used by X or other paid providers.
 
-## Status and sequencing gates (refreshed 2026-07-14)
+## Status and sequencing gates (refreshed 2026-07-15)
 
-This is the last of three coordinated workstreams. The **implementation gate remains CLOSED**
-until the active X operator finishes its terminal work:
+This is the last of three coordinated workstreams. The **implementation gate is OPEN**:
 
-1. `docs/prompts/2026-07-13-private-beta-readiness.md` is complete and deployed, including
-   Workstream E canonical-identity persistence;
-2. `docs/prompts/2026-07-13-x-gap-catchup-rescore.md` completed its core historical recovery,
-   mapping, digest regeneration, and validation (interim closeout commit `9821bab`; 16,007
-   recovered documents, 28/30 digest writes, 15/15 validations, and two healthy scheduled polls);
-3. however, the X operator still has two explicit tasks open: the preventive drain + watermark
-   advance at 00:05Z July 15 with verification of the 00:20/01:20 polls, followed by the addendum,
-   documentation closeout, commit, and push; and
-4. do not start this OpenSanctions implementation until those tasks finish, `origin/main` contains
-   the final X addendum/closeout, and the shared primary checkout is clean. The operator chose
-   sequential execution; do not bypass that ruling with a parallel worktree.
+1. private-beta readiness and canonical-identity persistence are deployed;
+2. X recovery, mapping, regeneration, validation, preventive drain, watermark advance, and the
+   subsequent healthy polls are complete; the final closeout is pushed at `f94d70c`; and
+3. the later analyst-beta remediation is also merged/deployed at `2bf89ed`, so it is no longer a
+   competing branch or release gate.
 
-Once that final X gate is satisfied, the monthly-accounting and fixed-cutoff code in this prompt
-may be implemented and tested on a dedicated branch/worktree with zero paid production calls.
+The monthly-accounting and fixed-cutoff code in this prompt may now be implemented and tested on a
+dedicated branch/worktree with zero paid production calls. Do not combine entity cleanup or the paid
+rescore with implementation merely because the X sequencing hold has cleared.
 
 The **paid production rescore gate remains CLOSED** until all of the following are true:
 
@@ -48,23 +42,19 @@ Current production limits (verify before rollout; do not change without operator
 - `OPENSANCTIONS_RUN_CALL_CAP=120`
 - `OPENSANCTIONS_DAILY_USD_CAP=40` (conservative ledger ceiling; the account allowance is request-based)
 
-Current production evidence, read-only and verified at 2026-07-14 13:20 UTC after X recovery and
-the scheduled 08:00 UTC non-refresh OpenSanctions gap-fill:
+Current production evidence, read-only and verified 2026-07-15 after the scheduled non-refresh
+OpenSanctions gap-fill:
 
-- `provider_usage` contains exactly **540 July calls**: 200 on July 7, 91 on July 8, 9 on July 9,
-  120 on July 13, and 120 on July 14. The July 14 daily cap therefore has only 80 calls of nominal
-  headroom before the 200/day limit; do not plan a full 120-call production batch from stale math.
-- There are **876 eligible entities** (`person`, `company`, `org`, `agency`, `faction`): 540 have
-  live OpenSanctions results and 336 are missing or stub-only.
-- Current aggregate live results are **343 matched and 122 sanctioned**.
-- A refreshed post-X cleanup dry run projects **876 -> 683 entities** (80 drops, 113 merges).
-  The original 763 -> 578 dry-run output remains historical evidence in
+- `provider_usage` contains **660 July calls** (660 units; ledger estimate $72.60).
+- There are **937 eligible entities** (`person`, `company`, `org`, `agency`, `faction`): 660 have
+  live OpenSanctions results and 277 are missing or stub-only.
+- Current aggregate live results are **409 matched and 144 sanctioned**.
+- The 2026-07-14 cleanup projection (**876 -> 683**, 80 drops, 113 merges) is now stale. The
+  original 763 -> 578 output remains historical evidence in
   `docs/reviews/ENTITY-CLEANUP-PLAN-2026-07-13.md`; rerun the dry run immediately before approval
-  and apply because scheduled digest persists can change the population.
-- If cleanup produced exactly 683 eligible rows and no additional calls occurred, a complete
-  fixed-cutoff rescore would add 683 calls, bringing July usage from 540 to **1,223/2,000** and
-  leaving 777. This is a planning projection only: ordinary gap-fill is live, so recount immediately
-  before the paid run and account separately for entities created after the fixed cutoff.
+  and apply because scheduled digest persists continue changing the population.
+- Do not project rescore cost from 683 or 937. Recount after approved cleanup and immediately before
+  the paid run, including ordinary 08:00 UTC gap-fill calls and entities created after the cutoff.
 - The current guard sums all historical rows, so `OPENSANCTIONS_CALL_CAP` behaves as a lifetime cap and will not reset next month.
 - The current `refresh=1` query removes the checked-state predicate entirely. Repeated bounded calls therefore select the same highest-priority rows instead of progressing through the corpus.
 

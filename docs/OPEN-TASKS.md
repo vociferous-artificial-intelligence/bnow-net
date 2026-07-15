@@ -364,12 +364,12 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     cleanup pass when convenient — 7-catalog edit; watch the namespace-coverage test so you
     don't drop the last key of a required namespace.
 
-## Deferred by design (key-blocked — see BLOCKERS.md)
+## Deferred by design (key/access-blocked — see BLOCKERS.md)
 
-X API (frozen at cap), OpenSanctions key, Companies House key, Comtrade key, zakupki
-proxy, maritime/AIS, ACLED, satellite. All wired behind stubs; flip on when keys land.
-The user explicitly asked to progress "before API keys are set up," so these wait.
-(Telegram MTProto graduated to #47 — deployed, login-gated.)
+Companies House, higher-volume Comtrade, zakupki proxy/mirror, maritime/AIS, ACLED, and
+satellite access remain deferred. X and OpenSanctions are live and are not key-blocked;
+their remaining engineering/operator work is tracked explicitly below. Telegram MTProto
+is also live.
 
 ## Just completed (was open)
 
@@ -386,13 +386,13 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     2026-07-13 remediation: DEPLOY the canonical-identity persist fix
     (digest-persist.ts `resolveEntityId`) before applying — the pre-remediation
     exact-name get-or-create would recreate merged spellings on the next digest
-    persist, immediately regressing the plan.**
-62. **[operator] Graham digest rows repair.** Event 4008 + claims 4413/4414 (ru
-    07-12/07-13) carry the pre-guard unsafe copy. Options: regenerate those digest days
-    post-deploy (guard active; caps + thin-overwrite rules apply; compare before
-    replacing) or leave standing now that the scoreboard labels unmatched non-confirmed
-    claims "BNOW-only reported item" with hedges. Coordinate with the X historical
-    catch-up (which regenerates the same days anyway).
+    persist, immediately regressing the plan.** The persist fix is now deployed. The
+    876→683 projection is stale because current eligible population is 937; rerun the
+    read-only dry run immediately before approval/apply.
+62. **[CLOSED 2026-07-14 by the X recovery regeneration] Graham digest rows repaired.**
+    Production evidence after regeneration: event 4008 and claims 4413/4414 are gone;
+    replacement event 4202 uses deterministic `Sources claim:` copy, with zero
+    Graham+corruption residue. See `docs/PROGRESS.md` (2026-07-14 X recovery execution).
 63. **[watch] Comtrade includeDesc verification.** Both fetchers now request
     includeDesc=true and persist partner_name, but Comtrade is unreachable from the dev
     box and the Vercel build host — the next monthly trade (2nd) / materials (3rd) cron
@@ -432,7 +432,8 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     all 12 events Live-Events-verified with UUID identity + full negative re-tests; dashboard
     1848415 (9 insights) + Action 289102 created. Residual (all operator, minutes-scale):
     billing limit + membership + retention record in the PostHog UI; optional API-key scope
-    re-narrowing; GeoIP privacy-wording pass; accept Privacy 1.1 on own accounts. Evidence:
+    re-narrowing; accept Privacy 1.2 on operator accounts. The GeoIP/region/retention
+    privacy-wording pass is now deployed in Privacy 1.2. Evidence:
     POSTHOG-ANALYTICS-IMPLEMENTATION-NOTE-2026-07-14.md §Activation executed. Original task
     text follows for the record.
     **[operator] PostHog activation: dedicated project, key, Live Events, dashboard.**
@@ -456,28 +457,20 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     `docs/reviews/POSTHOG-ANALYTICS-IMPLEMENTATION-NOTE-2026-07-14.md` § Production
     execution results. Reminder: all existing users (incl. Jason/Irina) re-accept
     Privacy 1.1 on next visit — expected, not a bug; analytics stays opt-in either way.
-    **Update (analyst-beta remediation 2026-07-14):** the GeoIP privacy-wording pass is
-    DONE in code as **Privacy 1.2** (branch `codex/analyst-beta-launch-remediation`, not
-    deployed) — discloses US region, GeoIP-derived coarse location, 7-year retention, and
-    active-only opt-in; on deploy the re-acknowledgement is against 1.2, not 1.1. Still
-    operator-open: PostHog **billing limit + membership** record in the UI.
+    **Update (analyst-beta remediation 2026-07-15):** Privacy 1.2 is deployed and forces
+    re-acknowledgement; it discloses US region, GeoIP-derived coarse location, seven-year
+    retention, and active-only opt-in. Still operator-open: PostHog **billing limit +
+    membership** record in the UI.
 
-### New (from the analyst-beta launch remediation — 2026-07-14, branch not deployed)
+### New (from the analyst-beta launch remediation — 2026-07-14; deployed 2026-07-15)
 
-68. **[operator] Analyst-beta remediation deploy + verification.** Five workstreams are
-    implemented and gated (`docs/reviews/ANALYST-BETA-REMEDIATION-NOTE-2026-07-14.md`),
-    staged on `codex/analyst-beta-launch-remediation`, NOT deployed/merged. The X closeout
-    gate passed and the branch was rebased onto `f94d70c` on 2026-07-15; the full
-    post-rebase verification gate and combined-diff review remain. Deployment still requires
-    operator approval. Operator sequence: (1) **WS2 Postmark** —
-    verify `bnow.net` (DKIM + custom Return-Path), prefer a dedicated BNOW server/token,
-    set `POSTMARK_FROM_EMAIL="BNOW.NET <no-reply@bnow.net>"` in Production, then verify a
-    delivered magic link end-to-end (From, Return-Path, DKIM/SPF/DMARC, direct unrewritten
-    callback → session → `/welcome/legal`). (2) **WS1** — confirm the Privacy 1.2 effective
-    date (currently the `2026-07-15` placeholder in `policies.ts`) = the actual deploy date;
-    deploy forces re-acknowledgement (no migration). (3) **WS5** — flip `SIGNIN_MODE=invite`
-    + redeploy after the grandfather set is confirmed; es/he/ko re-list is a one-line edit
-    once reviewed catalogs exist. (4) **Post-deploy smoke on https://bnow.net:** Privacy 1.2
-    + re-ack; anon/denied analytics zero-request; Ask pending panel + no provider/model
-    string; brand-correct auth email; signed-in 390px sweep (home, live Ask pending panel,
-    Ask result/evidence, account, `/welcome/legal`, signals, digest detail, mobile menu).
+68. **[CLOSED 2026-07-15] Analyst-beta remediation merged, pushed, deployed, and publicly
+    verified.** `main == origin/main == 2bf89ed`; Vercel deploy
+    `dpl_EmHs6NneKtPA5RC9i4T3ybYSjLEx` is READY and aliased bnow.net. Fresh gate:
+    typecheck/lint, 1460 unit tests, build, and React review green. Production `/health`
+    returned 200/DB OK on the expected build; Privacy 1.2, corrected scoreboard copy, and
+    selector subset are live; the initial runtime-error scan was empty. The prior scoped
+    Neon integration run was 9/9; a new full run was blocked before branch creation by an
+    expired `NEON_API_KEY` (tracked in BLOCKERS/HUMAN-SETUP). Remaining actions are not part
+    of this closed release task: authenticated phone sweep stays #65, `SIGNIN_MODE=invite`
+    remains an operator decision, and PostHog billing-limit/membership stays under #67.

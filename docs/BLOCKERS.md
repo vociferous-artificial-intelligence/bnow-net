@@ -69,3 +69,10 @@ Dated log of missing credentials/capabilities. Each has a stub in place; nothing
   Saudi Gazette + Asharq Al-Awsat EN; il revived via JPost + Ynet (timesofisrael still
   403 from Vercel but reachable from the build host). bh/kw: still no working feed
   (HTML-not-RSS / 404 / 405 / KUNA unreachable) — remain scaffolded.
+
+## 2026-07-15
+
+- **Saved `NEON_API_KEY` expired or revoked.** Production database access is healthy, but
+  `npm run test:integration` cannot create its disposable Neon branch: the branch API returns
+  401 before any test or database mutation. **Action:** issue a new Neon project API key, update
+  local `.env.local` and the GitHub Actions secret, then rerun the 22-test integration suite.

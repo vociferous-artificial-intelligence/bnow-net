@@ -1,11 +1,11 @@
 # SETUP-NEXT-WEEK — the operator checklist
 
 Rewritten 2026-07-07 (hardening session). One ordered list of every known operator
-action. The app is live and self-sufficient without any of these — they unlock coverage,
-quality, deliverability, and revenue. Do them top-to-bottom; each says the env var,
-where to get it, cost, and what it unlocks. Finish with the smoke test at the bottom.
+action. The app is live and self-sufficient without the pending items — they unlock coverage,
+quality, and revenue. Completed setup is marked in place for operational reference; work the
+remaining items top-to-bottom. Finish with the smoke test at the bottom.
 
-Orientation: live app **https://bnow-net.vercel.app** (Vercel `bnow-net`, team
+Orientation: live app **https://bnow.net** (Vercel `bnow-net`, team
 `vociferous`) · DB: Neon project **bnow** (`crimson-wave-84127605`, us-east-1, PG17) ·
 state: `AGENTS.md` · blockers detail: `docs/BLOCKERS.md` · plain-language summary:
 `docs/STATUS-REPORT.md`.
@@ -41,14 +41,14 @@ override) when no OpenAI key exists, or force it with `ANALYSIS_PROVIDER=anthrop
 
 Verify: `npx vercel whoami --token $VERCEL_TOKEN` → `go-vociferous`.
 
-## 3. bnow.net DNS + domain attach — ~$0, 10 min + propagation
+## 3. bnow.net DNS + domain attach — DONE
 
 | | |
 |---|---|
 | Env var | `NEXT_PUBLIC_SITE_URL=https://bnow.net` (production) |
 | Where | Vercel dashboard → bnow-net → Settings → Domains → add `bnow.net` + `www` ; registrar: `A @ 76.76.21.21`, `CNAME www cname.vercel-dns.com` |
 | Cost | domain already owned |
-| Unlocks | real brand URL in emails/shares; Postmark migration completed 2026-07-15 (step 4) |
+| Status | `bnow.net` is attached and canonical; Postmark migration completed 2026-07-15 (step 4) |
 
 ## 4. Postmark sending identity → bnow.net — DONE 2026-07-15
 
@@ -65,38 +65,36 @@ Auth.js callback.
 Cost: Postmark free tier 100 emails/mo, then $15/mo. (Resend remains a supported alternative
 in the seam.)
 
-## 5. Telegram MTProto — $0, ~10 min (ONLY the login remains; adapter shipped 2026-07-11)
+## 5. Telegram MTProto — DONE 2026-07-11
 
-| | |
-|---|---|
-| Env vars | `TELEGRAM_API_ID`/`HASH` ✅ (local + prod) · `TELEGRAM_SESSION` ← the missing one |
-| Steps | 1) `npx tsx scripts/telegram-login.ts` (interactive; `--qr` if the phone-code path is flood-limited) → writes `.telegram.session` · 2) verify: `npx tsx scripts/telegram-getme.ts` · 3) `printf '%s' "$(cat .telegram.session)" \| npx vercel@latest env add TELEGRAM_SESSION production` (printf — a trailing newline breaks nothing here but keep the cutover convention; var is Sensitive/write-only) · 4) redeploy · 5) `npx tsx scripts/mtproto-backfill.ts 14 --apply` (estimate ≈ $3.37 map spend of the $6 sprint budget) |
-| Cost | $0 API; backfill map catch-up ≈ $3.37 inside `MAP_USD_CAP_DAILY` |
-| Unlocks | full-history backfill + registry ranks 51–75 + channels with disabled web previews (several MoD/milblogger channels the t.me/s/ scraper cannot read). Cron `ingest:mtproto` (:35 hourly) starts fetching on its own once the env var lands |
+`TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, and `TELEGRAM_SESSION` are live in production;
+interactive login, egress proof, first fetch, and the RU/UA-priority top-120 roster are complete.
+Hourly `ingest:mtproto` runs at :35.
 
-## 6. X/Twitter API via twitterapi.io — paid; the single biggest coverage unlock
+## 6. X/Twitter API via twitterapi.io — LIVE; recovery complete
 
 | | |
 |---|---|
 | Env var | `X_API_KEY` |
 | Where | api.twitterapi.io dashboard |
 | Cost | third-party pay-as-you-go; docs currently advertise `$0.15 / 1,000 tweets` and `$0.18 / 1,000 profiles` |
-| Unlocks | **166 X accounts ISW cited in the last 90 days** that we currently cannot read at all. Citation-weighted source parity is ~51%; the missing half is mostly X. Registry knows exactly which accounts to poll |
+| Status | Lease-aware polling is live; the July 9–13 gap and preventive drain are cursor-complete. Remaining debt: OPEN-TASKS #38 alerting and #66 automatic long-park recovery. |
 
 Status 2026-07-07: `X_API_KEY` is present locally and a smoke call succeeds:
 `curl -H "X-API-Key: $X_API_KEY" "https://api.twitterapi.io/twitter/user/info?userName=elonmusk"`.
 This is **not** the official X API; do not use `X_BEARER_TOKEN`/developer.x.com unless a
-future compliance requirement mandates the official path. Engineering follow-up: replace
-the fixture X adapter with a twitterapi.io adapter and a hard spend/rate guard.
+future compliance requirement mandates the official path. The live lease-aware adapter and
+spend guards are deployed; remaining engineering debt is OPEN-TASKS #38 (empty-run alert) and
+#66 (automatic recovery after a long watermark park).
 
-## 7. OpenSanctions key — commercial, prices on request
+## 7. OpenSanctions — key live; commercial rights + safe rescore still pending
 
 | | |
 |---|---|
 | Env var | `OPENSANCTIONS_API_KEY` |
 | Where | opensanctions.org/api/ (register; commercial use is paid, bulk data is non-commercial-only) |
 | Cost | from ~€ low hundreds/mo (their pricing) |
-| Unlocks | REAL sanctions/PEP badges on /entities (stub data no longer renders anything — hardened 2026-07-06). After adding: `curl -H "Authorization: Bearer $CRON_SECRET" "https://bnow-net.vercel.app/api/cron/enrich?refresh=1"` |
+| Status | Live non-refresh enrichment is active. Commercial rights remain a paid-launch gate. Do **not** call `refresh=1` with the deployed code: its selection does not advance. First implement and deploy `docs/prompts/2026-07-13-opensanctions-monthly-rescore.md`, approve/apply entity cleanup #61, recount quota/population, and separately authorize the paid fixed-cutoff rescore. |
 
 ## 8. Companies House key — $0, 10 min
 
@@ -188,8 +186,8 @@ npx tsx scripts/sqlq.ts "SELECT c.iso2, d.track, d.digest_date, d.provider FROM 
 curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/digest?country=ua&date=$(date -u -d yesterday +%F)" | head -c 400; echo
 curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/validate?date=$(date -u -d yesterday +%F)&country=ua" | head -c 400; echo
 
-# 6. after enrichment keys: refresh + check badges rendered from REAL data only
-curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/enrich?refresh=1"; echo
+# 6. OpenSanctions: ordinary gap fill only; never use unsafe refresh=1 before the fixed-cutoff patch
+curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/enrich?only=sanctions"; echo
 
 # 7. full cron audit (all 8 crons, stub-contamination check)
 npx tsx scripts/audit-cron.ts

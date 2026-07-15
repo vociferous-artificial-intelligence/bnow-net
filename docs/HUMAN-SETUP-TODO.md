@@ -9,8 +9,8 @@ in this queue.
 ## Executive priority
 
 1. **Keep OpenAI funded and capped.** Set auto-recharge or a low-balance alert.
-2. **Finish deployment/CI administration.** Replace the expired Vercel token, confirm GitHub
-   branch protection, and confirm required CI secrets.
+2. **Finish deployment/CI administration.** Replace the expired Vercel token and Neon branch API
+   key, confirm GitHub branch protection, and confirm required CI secrets.
 3. **Resolve compliance-data rights.** Secure commercial OpenSanctions terms before charging
    for compliance surfaces; finish Companies House access.
 4. **Choose a procurement-access path.** Approve a RU-region/residential proxy, commercial
@@ -46,11 +46,12 @@ in this queue.
 ### 4. GitHub CI administration
 
 - Status: `origin/main` and local `main` are synchronized; pushes work and CI configuration
-  exists.
+  exists. The saved `NEON_API_KEY` currently returns 401, so disposable-branch integration
+  tests are blocked until it is renewed; production database access is unaffected.
 - Human task:
   - Confirm branch protection for `main`.
-  - Confirm Actions secrets for disposable-Neon integration tests: `NEON_API_KEY`,
-    `NEON_PROJECT_ID`, and `DATABASE_URL`.
+  - Renew and confirm Actions/local secrets for disposable-Neon integration tests:
+    `NEON_API_KEY`, `NEON_PROJECT_ID`, and `DATABASE_URL`.
   - Add `VERCEL_TOKEN` only if CI should deploy.
   - Ensure local clones use `git config core.hooksPath .githooks`.
 
@@ -82,6 +83,9 @@ in this queue.
 - Status: live API enrichment works under the current quota.
 - Human task: obtain a commercial data license or pay-as-you-go agreement before charging
   customers for sanctions/PEP/compliance surfaces.
+- Operator gates: review and explicitly approve entity cleanup #61 before `--apply`; after the
+  monthly-accounting/fixed-cutoff patch is merged and deployed, authorize the paid rescore
+  separately only after a fresh cleanup dry run and population/monthly-usage recount.
 - Hard gate: treat current compliance data as beta/internal until commercial rights are clear.
 
 ### 8. Companies House

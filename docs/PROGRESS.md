@@ -1438,3 +1438,28 @@ push, or deployment. Full verification and combined-diff review remain. Privacy 
 still has the `2026-07-15` placeholder and must be set to the actual deployment date;
 deployment remains blocked until BNOW Postmark DKIM/Return-Path and sender identity
 are verified.
+
+## 2026-07-15 — Release reconciliation: analyst-beta remediation live; OpenSanctions next
+
+Audited every local/remote branch, worktree, stash, open PR/issue, and Vercel production
+deployment. Found and closed the only unpublished release: the five-commit analyst-beta
+remediation branch. Postmark/setup documentation was committed at `11896eb`; remediation was
+rebased with both decision histories preserved, merged/pushed at `2bf89ed`, and deployed as
+`dpl_EmHs6NneKtPA5RC9i4T3ybYSjLEx` (READY, bnow.net alias). Fresh verification: typecheck,
+lint, 1460/129 unit tests, local + Vercel builds, React review, `/health` 200/DB OK on the
+expected build, Privacy 1.2 and the corrected scoreboard copy live, selector reduced to
+en/uk/de/fr/pl/ar/ja, and zero initial runtime errors. No migration or paid provider call.
+
+The earlier scoped Neon legal/analytics integration run remains 9/9 green; a fresh full-suite
+attempt stopped before disposable-branch creation because the saved `NEON_API_KEY` returned
+401. Production DB access is healthy; credential renewal is now in BLOCKERS/HUMAN-SETUP.
+
+OpenSanctions is confirmed **unimplemented, not forgotten**: deployed code still uses all-time
+total accounting and unsafe non-advancing `refresh=1`. The X implementation hold is now clear,
+so `docs/prompts/2026-07-13-opensanctions-monthly-rescore.md` is the next isolated engineering
+workstream. Read-only production recount: **937 eligible entities; 660 live-checked; 277
+missing/stub; 409 matched; 144 sanctioned; 660 July calls**. The old 876→683 cleanup projection
+is stale. Entity cleanup #61 still requires explicit operator approval and a fresh dry run;
+monthly-accounting/fixed-cutoff code must merge/deploy before any separately authorized paid
+rescore. Graham repair #62 is closed by the X regeneration (4008/4413/4414 gone; safe 4202
+replacement).

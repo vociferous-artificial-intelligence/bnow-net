@@ -3,8 +3,10 @@
 Isolated worktree `bnow.net-analyst-beta-remediation`, branch
 `codex/analyst-beta-launch-remediation`, base `b71b39a` (main == origin/main at
 start), rebased onto the completed X closeout `f94d70c` on 2026-07-15.
-**Not deployed, not merged** — deployment still needs operator approval, the
-actual Privacy 1.2 effective date, and verified BNOW Postmark DNS/sender identity.
+**Merged and deployed 2026-07-15:** `main == origin/main == 2bf89ed`; production
+`dpl_EmHs6NneKtPA5RC9i4T3ybYSjLEx` is READY and aliased bnow.net. Privacy 1.2's
+effective date is the actual deploy date, and BNOW Postmark DNS/sender identity was
+verified before release.
 Zero paid provider calls. No migrations. No OpenSanctions / entity-cleanup work.
 
 ## Commits (code; docs are a separate final commit for post-closeout reconciliation)
@@ -13,7 +15,7 @@ Zero paid provider calls. No migrations. No OpenSanctions / entity-cleanup work.
 - `29d89d2` legal: Privacy 1.2 — correct PostHog copy to the live posture (WS1)
 - `dc23acc` ask/scoreboard/i18n: working panel, honest at-publish copy, launch language subset (WS3/WS4/WS5)
 
-## Pre-rebase gate (all green; full post-rebase rerun still required)
+## Verification
 
 - `npm run typecheck` — clean
 - `npm run lint` — clean
@@ -28,6 +30,13 @@ Zero paid provider calls. No migrations. No OpenSanctions / entity-cleanup work.
   120-char unbroken question** all `scrollWidth == clientWidth == 390`
   (`panelRight=366 ≤ 390`). Authenticated-session sweep is a post-deploy operator
   step (see below).
+- **Post-rebase/release gate:** typecheck + lint clean, 1460/129 unit tests green,
+  optimized local and Vercel builds green, React hooks/a11y/state/TypeScript review green.
+- **Integration caveat:** the earlier scoped Neon run remains 9/9 green. A fresh full-suite
+  rerun stopped before disposable-branch creation because the saved `NEON_API_KEY` returned
+  401; production DB access was healthy and the credential renewal is tracked separately.
+- **Production smoke:** `/health` 200/DB OK on build `2bf89ed`; Privacy 1.2, corrected
+  scoreboard copy, and selector subset live; initial Vercel runtime-error scan empty.
 
 ## Operator decisions received this session (via question prompt)
 
@@ -36,14 +45,13 @@ Zero paid provider calls. No migrations. No OpenSanctions / entity-cleanup work.
    ingestion while the raw IP is not stored.
 2. **Retention: 7 years.** Stated as such in Privacy 1.2 (events; person profiles
    until deletion).
-3. **Privacy 1.2: prepare + re-acknowledge.** Bumped in code, not deployed.
+3. **Privacy 1.2: publish + re-acknowledge.** Bumped and deployed 2026-07-15.
 
 ## What shipped, per workstream
 
 ### WS1 — PostHog privacy (Privacy 1.2)
 `src/lib/legal/policies.ts`: `CURRENT_PRIVACY_VERSION` 1.1 → **1.2**, effective date
-→ **2026-07-15** (placeholder — OPERATOR sets the actual deploy date; a code
-comment marks it). `src/app/privacy/page.tsx`:
+→ **2026-07-15** (the actual deploy date). `src/app/privacy/page.tsx`:
 - Both false "activation pending" statements removed.
 - Analytics stated as active only for signed-in adults who accepted the current
   terms and explicitly granted permission; default-off; reversible from Account.
@@ -107,32 +115,18 @@ this also removes the Korean **한국어** tofu risk from the picker. de/fr/pl/a
 
 ## Deployment / rollback
 
-- **Deploy target:** not created (staged on the branch). Pre-change prod is
-  `dpl_8xh5zXYfnsCwoFwQTM3resTZ2BSP` (the `$identify` fix build) — the rollback
-  point for the eventual deploy.
+- **Production:** `dpl_EmHs6NneKtPA5RC9i4T3ybYSjLEx`, build `2bf89ed`, READY and
+  aliased bnow.net. Pre-change production was `dpl_5KhaPA9AHwNq6htLJ2pAf8NFESNe`.
 - **PostHog copy rollback** (if disclosure can't be finalized before invitations):
   remove `NEXT_PUBLIC_POSTHOG_KEY` + redeploy — the proven zero-traffic keyless
   state, rather than leaving inaccurate live copy.
-- X closeout gate passed: `main == origin/main == f94d70c`; the branch was rebased
-  onto it and the sole `docs/PROGRESS.md` conflict was resolved by retaining both
-  histories in chronological order. Rerun the full gate and review the combined
-  diff before requesting approval to merge or deploy.
+- X closeout gate passed; both append-only histories were preserved through rebase and
+  the combined diff was reviewed before merge/deploy.
 
-## Remaining operator decisions / steps
+## Remaining operator decisions / steps (outside this closed release)
 
-- **WS1:** confirm the Privacy 1.2 effective date (set it to the actual deploy
-  date), then deploy — the version bump forces every user to re-acknowledge on next
-  visit (expected; no migration). Record the PostHog billing limit + membership
-  (still open from #67).
-- **WS2:** verify `bnow.net` in Postmark (DKIM + custom Return-Path), prefer a
-  dedicated BNOW server/token, set `POSTMARK_FROM_EMAIL="BNOW.NET <no-reply@bnow.net>"`
-  in Production, then verify a delivered magic link end-to-end (visible From,
-  Return-Path, DKIM/SPF/DMARC pass, direct unrewritten callback URL, callback
-  success → session → `/welcome/legal` destination).
+- **PostHog:** record the billing limit + membership in the UI (still open from #67).
 - **WS5:** flip `SIGNIN_MODE=invite` + redeploy after the grandfather set is
   confirmed; re-listing es/he/ko is a one-line edit once reviewed catalogs exist.
-- **Post-deploy smoke on https://bnow.net (not deployment URLs):** Privacy 1.2 copy
-  + re-acknowledgement; anonymous/denied analytics zero-request; Ask pending panel +
-  no visible provider/model string; brand-correct auth email; signed-in 390px sweep
-  (analyst home, live Ask pending panel, Ask result/evidence, account, `/welcome/legal`,
-  signals, digest detail, mobile menu).
+- **Authenticated phone sweep:** remains tracked by OPEN-TASKS #65; avoid a paid Ask
+  submission unless separately authorized.
