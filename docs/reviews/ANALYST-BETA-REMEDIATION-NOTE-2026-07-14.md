@@ -2,17 +2,18 @@
 
 Isolated worktree `bnow.net-analyst-beta-remediation`, branch
 `codex/analyst-beta-launch-remediation`, base `b71b39a` (main == origin/main at
-start). **Not deployed, not merged** — deploy is gated behind the active X
-closeout and needs operator approval. Zero paid provider calls. No
-migrations. No OpenSanctions / entity-cleanup work.
+start), rebased onto the completed X closeout `f94d70c` on 2026-07-15.
+**Not deployed, not merged** — deployment still needs operator approval, the
+actual Privacy 1.2 effective date, and verified BNOW Postmark DNS/sender identity.
+Zero paid provider calls. No migrations. No OpenSanctions / entity-cleanup work.
 
 ## Commits (code; docs are a separate final commit for post-closeout reconciliation)
 
-- `9c7020a` email: brand-correct BNOW sender fallback (WS2)
-- `f7f9af9` legal: Privacy 1.2 — correct PostHog copy to the live posture (WS1)
-- `a873b7f` ask/scoreboard/i18n: working panel, honest at-publish copy, launch language subset (WS3/WS4/WS5)
+- `3361b01` email: brand-correct BNOW sender fallback (WS2)
+- `29d89d2` legal: Privacy 1.2 — correct PostHog copy to the live posture (WS1)
+- `dc23acc` ask/scoreboard/i18n: working panel, honest at-publish copy, launch language subset (WS3/WS4/WS5)
 
-## Gate (all green)
+## Pre-rebase gate (all green; full post-rebase rerun still required)
 
 - `npm run typecheck` — clean
 - `npm run lint` — clean
@@ -112,9 +113,10 @@ this also removes the Korean **한국어** tofu risk from the picker. de/fr/pl/a
 - **PostHog copy rollback** (if disclosure can't be finalized before invitations):
   remove `NEXT_PUBLIC_POSTHOG_KEY` + redeploy — the proven zero-traffic keyless
   state, rather than leaving inaccurate live copy.
-- Merge is blocked until the X closeout is pushed and `main == origin/main`; then
-  rebase/merge latest main, resolve doc conflicts preserving both histories, rerun
-  the full gate, and request approval before deploy.
+- X closeout gate passed: `main == origin/main == f94d70c`; the branch was rebased
+  onto it and the sole `docs/PROGRESS.md` conflict was resolved by retaining both
+  histories in chronological order. Rerun the full gate and review the combined
+  diff before requesting approval to merge or deploy.
 
 ## Remaining operator decisions / steps
 

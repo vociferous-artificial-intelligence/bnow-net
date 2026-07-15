@@ -1424,3 +1424,17 @@ with the drain + polls to ~$0.002. No re-stall pending: the watermark is fresh a
 hourly backlog (~1h) sits far under the 5-page ceiling. X workstream closed;
 remaining X item is the #38 alert half + the #66 structural fix, both queued as
 reviewed code work.
+
+## 2026-07-15 — Analyst-beta remediation rebased after X closeout
+
+Confirmed `main == origin/main == f94d70c` and all three worktrees clean. Rebased
+`codex/analyst-beta-launch-remediation` onto the final X closeout. The only conflict
+was the append location in `docs/PROGRESS.md`; both the July 14 remediation account
+and July 15 X drain addendum were preserved in chronological order. Rebased code
+commits: `3361b01` (email), `29d89d2` (Privacy 1.2), `dc23acc`
+(Ask/scoreboard/i18n); docs reconciliation is `484f546`. No application content was
+edited during conflict resolution; no provider calls, environment changes, merge,
+push, or deployment. Full verification and combined-diff review remain. Privacy 1.2
+still has the `2026-07-15` placeholder and must be set to the actual deployment date;
+deployment remains blocked until BNOW Postmark DKIM/Return-Path and sender identity
+are verified.

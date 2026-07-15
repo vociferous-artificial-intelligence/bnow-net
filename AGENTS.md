@@ -1174,6 +1174,17 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   set `POSTMARK_FROM_EMAIL` + delivery check; flip `SIGNIN_MODE=invite` after the grandfather
   set; authenticated 390px smoke; PostHog billing-limit/membership record still open (#67).
 
+- **2026-07-15 (analyst-beta remediation post-X rebase; documentation/environment only)**
+  Confirmed `main == origin/main == f94d70c` and all three worktrees clean, then rebased
+  `codex/analyst-beta-launch-remediation` onto the final X closeout. The sole conflict was
+  `docs/PROGRESS.md` at two independent append points; both histories were retained in
+  chronological order. Rebased commits: `3361b01` email, `29d89d2` Privacy 1.2,
+  `dc23acc` Ask/scoreboard/i18n, `484f546` docs. No application content was edited during
+  conflict resolution; no provider calls, environment changes, push, merge, or deployment.
+  The pre-rebase green gate must be rerun and the combined diff reviewed. Privacy 1.2's
+  `2026-07-15` remains a placeholder until the actual deploy date is known. Deployment stays
+  blocked until `bnow.net` Postmark DKIM/custom Return-Path/sender verification is complete.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).

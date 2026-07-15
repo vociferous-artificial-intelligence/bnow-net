@@ -466,8 +466,10 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
 
 68. **[operator] Analyst-beta remediation deploy + verification.** Five workstreams are
     implemented and gated (`docs/reviews/ANALYST-BETA-REMEDIATION-NOTE-2026-07-14.md`),
-    staged on `codex/analyst-beta-launch-remediation`, NOT deployed/merged (deploy gated
-    behind the X closeout + operator approval). Operator sequence: (1) **WS2 Postmark** —
+    staged on `codex/analyst-beta-launch-remediation`, NOT deployed/merged. The X closeout
+    gate passed and the branch was rebased onto `f94d70c` on 2026-07-15; the full
+    post-rebase verification gate and combined-diff review remain. Deployment still requires
+    operator approval. Operator sequence: (1) **WS2 Postmark** —
     verify `bnow.net` (DKIM + custom Return-Path), prefer a dedicated BNOW server/token,
     set `POSTMARK_FROM_EMAIL="BNOW.NET <no-reply@bnow.net>"` in Production, then verify a
     delivered magic link end-to-end (From, Return-Path, DKIM/SPF/DMARC, direct unrewritten
