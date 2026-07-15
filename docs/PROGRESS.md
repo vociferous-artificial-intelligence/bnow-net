@@ -1386,3 +1386,18 @@ Beta" (1848415) with the nine specified insights + first_value_event Action (289
 alerts. Rollback = remove key + redeploy (the keyless build was deployed and proven earlier
 today). Residual operator items: billing limit/membership/retention in the PostHog UI, optional
 key-scope re-narrowing, GeoIP privacy wording, own 1.1 acceptance.
+
+### Addendum (2026-07-15 01:2xZ) — UTC-reset preventive drain executed
+
+As planned in the 2026-07-14 entry: drain `[2026-07-14T11:00Z..2026-07-15T00:00Z]`
+ran at 00:04Z to cursor exhaustion in one pass (checkpoint
+`stall-drain-0714T11-0715T00` complete=true: 19/19 batches, 216 pages, 3,763
+returned, **3,658 inserted**, $0.5673), then the compare-and-set watermark advance
+1784028033→1784073600 at ~00:07Z with the lease verified free. Both 07-15 polls
+healthy: **cron 1255 (00:20Z, 35 req/102 docs) + cron 1263 (01:20Z, 38 req/136
+docs)** — ok=true, all failure counters 0, watermark committing post-insert
+(1784078420 after 1263). Provider balance 3,003,512 credits ≈ $30.04, reconciling
+with the drain + polls to ~$0.002. No re-stall pending: the watermark is fresh and
+hourly backlog (~1h) sits far under the 5-page ceiling. X workstream closed;
+remaining X item is the #38 alert half + the #66 structural fix, both queued as
+reviewed code work.

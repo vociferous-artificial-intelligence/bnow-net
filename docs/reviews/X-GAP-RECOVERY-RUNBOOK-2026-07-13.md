@@ -243,3 +243,18 @@ Everything below is measured, not planned. Operator ceilings: $50 X / $10 map / 
 7. **Spend by stage (actual vs authorized):** recovery $3.9164 + stall drains $0.4438 +
    healthy-poll billing ≈ **$4.66 of $50** (X); map **$0.5207 of $10** (provider delta incl.
    the hourly cron's share); reduce **$0.2382 of $10**. OpenSanctions was **not** run.
+
+### Addendum (2026-07-15) — preventive drain at the UTC reset, executed
+
+Item 6's planned preventive step ran as scheduled. Drain
+`[2026-07-14T11:00:00Z..2026-07-15T00:00:00Z]` at 00:04Z: one clean pass, checkpoint
+`stall-drain-0714T11-0715T00` complete=true — 19/19 batches, 216 pages, 3,763 returned,
+3,658 inserted, $0.5673. Compare-and-set watermark advance `1784028033→1784073600` at
+~00:07Z (lease verified free/empty). Verification: **cron 1255 (00:20Z, 35 req/102 docs)
+and cron 1263 (01:20Z, 38 req/136 docs)** — both ok=true with incomplete=0,
+budgetStops=0, pageTruncations=0, requestFailures=0, lockSkips=0, watermark committing
+post-insert (1784078420 after 1263). Final provider balance 3,003,512 credits ≈ $30.04,
+reconciled to the ledger within ~$0.002. Total X spend for the whole operation
+(recovery + both stall drains + healthy polls): **≈ $5.24 of the $50 authorization.**
+Steady-state is healthy with no parked backlog; the durable fixes remain OPEN-TASKS #38
+(alert) and #66 (park-vs-ceiling), both requiring reviewed code changes.
