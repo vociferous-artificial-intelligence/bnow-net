@@ -52,16 +52,18 @@ do NOT raise the quota to finish faster.
 
 ## Step 1 — pick ONE fixed cutoff and keep it for the whole rescore
 
-Use an ISO instant recorded **after** cleanup #61 was applied (so already-fresh rows
-are not needlessly re-billed), e.g. the moment you start:
+Record a timezone-qualified ISO instant **after** cleanup #61 was applied and **no
+later than now** — capturing the current instant when you start is the safe choice
+(a future or timezone-less cutoff is rejected with 400):
 
 ```
-BEFORE=2026-08-01T00:00:00Z    # example — use the real recorded instant
+BEFORE=$(date -u +%FT%TZ)      # a captured "now", e.g. 2026-07-15T14:30:00Z
 ```
 
 Every invocation MUST use this exact same cutoff. Because each check stamps
-`checkedAt = now` (which is after the cutoff), the same cutoff advances through the
-corpus batch by batch.
+`checkedAt = now` (at or after the cutoff), the same cutoff advances through the
+corpus batch by batch — and a freshly checked row can never re-enter the strict
+`checkedAt < before` predicate, so it is never billed twice.
 
 ## Step 2 — dry run (no calls)
 

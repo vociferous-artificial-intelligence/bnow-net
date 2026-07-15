@@ -23,16 +23,22 @@ import "./env";
 // network call. Pass --run to actually drive the paid endpoint — an operator
 // action, gated on approval (runbook: docs/reviews/OPENSANCTIONS-RESCORE-RUNBOOK.md).
 //
+// --before must be a timezone-qualified ISO instant (Z or ±HH:MM) NO LATER than
+// now — a future or timezone-less cutoff is rejected before any call. Record it
+// once when the rescore starts and reuse it unchanged:
+//
+//   BEFORE=$(date -u +%FT%TZ)   # e.g. 2026-07-15T14:30:00Z (a captured "now")
+//
 //   # dry run (safe, no calls):
-//   npx tsx scripts/opensanctions-rescore.ts --before 2026-08-01T00:00:00Z
+//   npx tsx scripts/opensanctions-rescore.ts --before "$BEFORE"
 //
 //   # real run (operator only; this box needs the DNS pin for vercel.app):
 //   CRON_SECRET=... NODE_OPTIONS="--require ./scripts/pin-dns.cjs" \
-//     npx tsx scripts/opensanctions-rescore.ts --before 2026-08-01T00:00:00Z --run
+//     npx tsx scripts/opensanctions-rescore.ts --before "$BEFORE" --run
 //
 // Options: --base <url> (default https://bnow-net.vercel.app), --limit <n>
-//          (default 120, <= run cap), --max-batches <n> (default 40 backstop),
-//          --sleep-ms <n> (default 3000, >=2s host spacing).
+//          (default 120, <= run cap), --max-batches <n> (positive int, default 40
+//          backstop), --sleep-ms <n> (default 3000, floor 2000 host spacing).
 
 import { normalizeIsoInstant } from "../src/lib/enrich/run";
 
@@ -61,20 +67,33 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // Budget stops that mean "resume later / fix config", not "keep going this run".
 const HALTING_STOPS = new Set(["daily_cap", "monthly_cap", "cap_unset", "not_initialized"]);
 
+// Documented floor: honor the ≥2s per-host spacing convention between batches.
+const MIN_SLEEP_MS = 2000;
+
 async function main() {
   const args = process.argv.slice(2);
   const run = args.includes("--run");
-  const before = normalizeIsoInstant(argVal(args, "--before") ?? null);
+  // Reject a future or timezone-less --before here, before any network call, using
+  // the same rule the endpoint enforces (nowIso captured now).
+  const nowIso = new Date().toISOString();
+  const before = normalizeIsoInstant(argVal(args, "--before") ?? null, nowIso);
   const base = argVal(args, "--base") ?? process.env.MAP_BACKFILL_BASE ?? "https://bnow-net.vercel.app";
   const limit = Number(argVal(args, "--limit") ?? "120");
   const maxBatches = Number(argVal(args, "--max-batches") ?? "40");
   const sleepMs = Number(argVal(args, "--sleep-ms") ?? "3000");
 
-  if (!before || !Number.isInteger(limit) || limit <= 0 || limit > 1000) {
+  if (
+    !before ||
+    !Number.isInteger(limit) || limit <= 0 || limit > 1000 ||
+    !Number.isInteger(maxBatches) || maxBatches <= 0 ||
+    !Number.isInteger(sleepMs) || sleepMs < MIN_SLEEP_MS
+  ) {
     console.error(
       "usage: npx tsx scripts/opensanctions-rescore.ts --before <ISO instant> [--run]\n" +
         "       [--base <url>] [--limit <n<=120>] [--max-batches <n>] [--sleep-ms <n>]\n" +
-        "  --before must be a full ISO date+time (e.g. 2026-08-01T00:00:00Z).\n" +
+        "  --before must be a timezone-qualified ISO instant no later than now\n" +
+        "           (e.g. 2026-07-15T18:00:00Z or 2026-07-15T20:00:00+02:00).\n" +
+        `  --max-batches must be a positive integer; --sleep-ms >= ${MIN_SLEEP_MS}.\n` +
         "  Omit --run for a dry-run plan (no network call).",
     );
     process.exit(2);

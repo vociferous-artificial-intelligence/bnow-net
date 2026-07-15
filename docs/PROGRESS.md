@@ -1507,3 +1507,26 @@ cleanup #61 (applied after the canonical-persist fix is live), this branch is me
 proven to use calendar-month accounting + an advancing cutoff, and a fresh recount + separate
 spend authorization are done. OPEN-TASKS #41 advanced, not closed. Note:
 `docs/reviews/OPENSANCTIONS-MONTHLY-RESCORE-NOTE.md`.
+
+## 2026-07-15 — OpenSanctions rescore: cutoff-safety hardening (same branch, not deployed)
+
+Second commit on `codex/opensanctions-monthly-rescore` fixing the `before` cutoff validation:
+
+- **No future cutoff** — `normalizeIsoInstant(raw, nowIso?)` rejects `before > nowIso`. A future
+  cutoff kept freshly-checked rows (checkedAt=now < future cutoff) inside the `checkedAt < before`
+  predicate and re-billed them; requiring `before <= nowIso` guarantees `before <= checkedAt` so a
+  successful row always leaves the predicate.
+- **Timezone required** — the cutoff must carry `Z` or a `±HH:MM`/`±HHMM` offset (T separator);
+  a timezone-less string is rejected (Date.parse would read it in the server zone).
+- **One captured instant** — the route captures `nowIso` once and uses it for BOTH cutoff
+  validation and the checkedAt stamp.
+- **Boundary enforcement** — `enrichEntities` re-validates the cutoff against its `nowIso` and
+  throws before opening any pool/loop, so a direct caller cannot bypass route validation.
+- **Contract** — sanctions refresh requires the cutoff; ownership-only refresh
+  (`only=ownership&refresh=1`) needs no `before` (revised + tested).
+- **Script** — `scripts/opensanctions-rescore.ts` rejects a future/timezone-less `--before`
+  before any call, requires a positive-integer `--max-batches`, and enforces `--sleep-ms >= 2000`.
+
+Tests +11 (unit 1484→1495; integration 26/7→27/7 incl. a real-Postgres `checkedAt == cutoff`
+boundary case). typecheck/lint/`next build`/integration (`TMPDIR=/tmp`) all green. Operator docs
+corrected (SETUP-NEXT-WEEK.md, BLOCKERS.md, runbook). Still not merged/deployed; no paid calls.

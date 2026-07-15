@@ -154,14 +154,29 @@ export function buildRemainingQuery(
 export const MAX_ENRICH_LIMIT = 1000;
 const DEFAULT_ENRICH_LIMIT = 200;
 
-/** Canonicalize an operator-supplied ISO instant, or null if it is not a full
- *  date+time. Requires a time component so Date.parse leniency cannot turn a bare
- *  "2026" into a valid year-start — a rescore cutoff must be an exact instant. */
-export function normalizeIsoInstant(raw: string | null): string | null {
+// A rescore cutoff MUST be a timezone-qualified ISO-8601 instant: `YYYY-MM-DDThh:mm`
+// (optional `:ss(.fff)`) followed by `Z` or a `±HH:MM` / `±HHMM` offset. A
+// timezone-LESS timestamp is rejected on purpose — Date.parse would read it in the
+// server's local zone, silently shifting the cutoff. The `T` separator is required
+// (no space form) so the input is unambiguous.
+const TZ_ISO_INSTANT =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:?\d{2})$/;
+
+/** Canonicalize an operator-supplied ISO instant to UTC (`…Z`), or null when it is
+ *  not a timezone-qualified full date+time, is unparseable, or — when `nowIso` is
+ *  given — is LATER than that captured instant. Rejecting a future cutoff preserves
+ *  the invariant `before <= checkedAt` (checkedAt is stamped with the same nowIso),
+ *  so a freshly checked row leaves the rescore predicate instead of staying eligible
+ *  and being billed again. */
+export function normalizeIsoInstant(raw: string | null, nowIso?: string): string | null {
   if (!raw) return null;
-  if (!/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(raw)) return null;
+  if (!TZ_ISO_INSTANT.test(raw)) return null;
   const t = Date.parse(raw);
   if (!Number.isFinite(t)) return null;
+  if (nowIso !== undefined) {
+    const now = Date.parse(nowIso);
+    if (!Number.isFinite(now) || t > now) return null; // no future cutoff
+  }
   return new Date(t).toISOString();
 }
 
@@ -175,10 +190,14 @@ export type EnrichParamResult =
   | { ok: true; params: EnrichRequest }
   | { ok: false; error: string };
 
-/** Validate the enrich cron query params. When refresh=1 a valid ISO `before`
- *  cutoff is REQUIRED (missing/invalid -> 400 so the caller never opens a paid
- *  loop with a per-invocation "now" that would re-select the same prefix). */
-export function parseEnrichParams(sp: URLSearchParams): EnrichParamResult {
+/** Validate the enrich cron query params against `nowIso` (captured once by the
+ *  caller). The sanctions rescore requires a `before` cutoff that is timezone-
+ *  qualified AND not later than `nowIso` (missing/invalid/future -> 400 before any
+ *  paid loop, so a per-invocation "now" cannot re-select the same prefix and a
+ *  future cutoff cannot keep re-billing fresh rows). An ownership-only refresh
+ *  (`only=ownership`) has no checkedAt cutoff, so `before` is not required there —
+ *  a deliberate contract: the cutoff belongs to the sanctions pass. */
+export function parseEnrichParams(sp: URLSearchParams, nowIso: string): EnrichParamResult {
   const refresh = sp.get("refresh") === "1";
   const only = sp.get("only");
 
@@ -193,12 +212,14 @@ export function parseEnrichParams(sp: URLSearchParams): EnrichParamResult {
   }
 
   let before: string | null = null;
-  if (refresh) {
-    before = normalizeIsoInstant(sp.get("before"));
+  if (refresh && only !== "ownership") {
+    before = normalizeIsoInstant(sp.get("before"), nowIso);
     if (!before) {
       return {
         ok: false,
-        error: "refresh=1 requires a valid ISO 'before' cutoff (e.g. 2026-07-15T18:00:00Z)",
+        error:
+          "refresh=1 requires a timezone-qualified ISO 'before' cutoff no later than now " +
+          "(e.g. 2026-07-15T18:00:00Z)",
       };
     }
   }
@@ -211,10 +232,28 @@ export async function enrichEntities(opts?: {
   before?: string | null;
   nowIso: string;
 }): Promise<EnrichStats> {
+  const mode: EnrichMode = opts?.refresh ? "rescore" : "normal";
+
+  // Defense in depth: enforce the cutoff invariant at the enrichment boundary so a
+  // direct caller (bypassing the route's parseEnrichParams) cannot rescore with a
+  // future or timezone-less cutoff. Re-validating `before` against the SAME nowIso
+  // that will stamp checkedAt guarantees before <= checkedAt, so a fresh check
+  // always leaves the predicate. Throw BEFORE opening any pool/loop.
+  let before: string | null = null;
+  if (mode === "rescore") {
+    if (!opts?.nowIso) {
+      throw new Error("enrichEntities: rescore requires nowIso to validate and stamp the cutoff");
+    }
+    before = normalizeIsoInstant(opts.before ?? null, opts.nowIso);
+    if (!before) {
+      throw new Error(
+        "enrichEntities: rescore requires a timezone-qualified `before` cutoff no later than nowIso",
+      );
+    }
+  }
+
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const live = isLive();
-  const mode: EnrichMode = opts?.refresh ? "rescore" : "normal";
-  const before = mode === "rescore" ? (opts?.before ?? null) : null;
 
   // Clamp the candidate limit into [1, run cap] so a caller cannot bypass the
   // per-run cap (or the serverless duration) with an enormous limit.

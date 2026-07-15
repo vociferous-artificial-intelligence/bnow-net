@@ -8,6 +8,36 @@ Branch: `codex/opensanctions-monthly-rescore` off clean main `651259e`
 provider calls, no production writes, no env changes, no migration.** The paid production
 rescore remains gated (see §Gates).
 
+## Follow-up: cutoff-safety hardening (2026-07-15, second commit on the branch)
+
+A review of the first commit found the `before` cutoff validation too loose. Fixed:
+
+- **No future cutoff.** `normalizeIsoInstant(raw, nowIso?)` now rejects a `before` later
+  than the captured `nowIso`. A future cutoff would keep freshly-checked rows (checkedAt =
+  now < future cutoff) inside the `checkedAt < before` predicate, re-billing them every
+  invocation. Accepting only `before <= nowIso` guarantees `before <= checkedAt`, so a
+  successful row always leaves the predicate.
+- **Timezone required.** The cutoff must be a timezone-qualified ISO instant (`…Z` or a
+  `±HH:MM`/`±HHMM` offset, `T` separator). A timezone-less string is rejected — `Date.parse`
+  would read it in the server's local zone and silently shift the cutoff.
+- **One captured instant.** The route captures `nowIso = new Date().toISOString()` **once**
+  and uses it for BOTH `parseEnrichParams` validation and the `enrichEntities` checkedAt
+  stamp, so the accepted cutoff is provably `<=` every row's stamp.
+- **Boundary enforcement.** `enrichEntities` re-validates the cutoff against its `nowIso`
+  and throws **before** opening any pool/loop, so a direct caller cannot bypass the route.
+- **Contract clarified.** A sanctions refresh (`refresh=1` without `only=ownership`) requires
+  the cutoff; an **ownership-only refresh** (`only=ownership&refresh=1`) has no cutoff and
+  needs no `before` — deliberately revised and tested (the cutoff belongs to the sanctions
+  pass; the Companies House ownership examples stay valid).
+- **Script hardened.** `scripts/opensanctions-rescore.ts` rejects a future/timezone-less
+  `--before` before any network call, requires a positive-integer `--max-batches`, and
+  enforces the documented `--sleep-ms >= 2000` floor.
+
+Tests +11 (unit 1484 → 1495): future→400/throw, timezone-less→400/throw, valid `Z` and
+explicit-offset accepted, ownership-only refresh accepted without `before`, accepted cutoff
+`<= nowIso`, and a real-Postgres boundary case proving `checkedAt == cutoff` leaves the
+strict-`<` predicate (integration 26/7 → 27/7). typecheck/lint/build/integration all green.
+
 ## What was built
 
 ### 1. Calendar-month total accounting in SpendGuard (`src/lib/usage/spend-guard.ts`)

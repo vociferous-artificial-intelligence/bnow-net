@@ -1247,6 +1247,32 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   OPEN-TASKS #41 advanced, NOT closed (prod verification pending). Full account:
   `docs/reviews/OPENSANCTIONS-MONTHLY-RESCORE-NOTE.md`.
 
+- **2026-07-15 (OpenSanctions rescore — cutoff-safety hardening; second commit on the same
+  branch, still NOT deployed / NOT merged / no paid calls)** Review of the first commit found
+  the `before` cutoff validation too loose. Fixes on `codex/opensanctions-monthly-rescore`:
+  (1) **reject a future cutoff** — `normalizeIsoInstant(raw, nowIso?)` refuses a `before` later
+  than the captured `nowIso`; a future cutoff kept freshly-checked rows (checkedAt=now < future
+  cutoff) inside the `checkedAt < before` predicate and re-billed them. Accepting only
+  `before <= nowIso` guarantees `before <= checkedAt`, so a successful row always leaves the
+  predicate. (2) **require an explicit timezone** — the cutoff must carry `Z` or a `±HH:MM`/
+  `±HHMM` offset (T separator); a timezone-less string is rejected because `Date.parse` would
+  read it in the server's local zone and silently shift it. (3) **one captured instant** — the
+  route captures `nowIso` ONCE and uses it for BOTH `parseEnrichParams` validation and the
+  `enrichEntities` checkedAt stamp. (4) **boundary enforcement** — `enrichEntities` re-validates
+  the cutoff against its `nowIso` and throws before opening any pool/loop, so a direct caller
+  cannot bypass route validation. (5) **contract** — a sanctions refresh requires the cutoff; an
+  ownership-only refresh (`only=ownership&refresh=1`) has none and needs no `before` (deliberately
+  revised + tested; the Companies House ownership examples stay valid). (6) **script** —
+  `scripts/opensanctions-rescore.ts` rejects a future/timezone-less `--before` before any call,
+  requires a positive-integer `--max-batches`, and enforces `--sleep-ms >= 2000`. Tests +11
+  (unit 1484→1495): future→400/throw, timezone-less→400/throw, valid Z + explicit-offset
+  accepted, ownership-only refresh accepted without `before`, accepted cutoff `<= nowIso`, and a
+  real-Postgres boundary case proving `checkedAt == cutoff` leaves the strict-`<` predicate
+  (integration 26/7→27/7, run green on a disposable branch with `TMPDIR=/tmp`).
+  typecheck/lint/`next build` clean. Operator docs corrected: SETUP-NEXT-WEEK.md (§7 status +
+  smoke #6 + Companies House note), BLOCKERS.md (ownership example note), and the runbook's
+  cutoff example (now a captured `now`, not a future date).
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).

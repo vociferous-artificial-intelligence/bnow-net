@@ -105,6 +105,20 @@ describe("OpenSanctions candidate selection (live SQL)", () => {
     expect(after.has("malformed")).toBe(true);
   });
 
+  it("(invariant) checkedAt == cutoff leaves the predicate (strict <)", async () => {
+    // The route stamps checkedAt with the same instant it validated the cutoff
+    // against, and the cutoff is <= that instant; the tightest case is
+    // checkedAt == cutoff. Predicate is checkedAt < cutoff (strict), so the row
+    // MUST leave — a freshly checked row is never re-billed under the same cutoff.
+    await pool.query(
+      `UPDATE entities SET meta = jsonb_set(meta, '{opensanctions,checkedAt}', to_jsonb($2::text))
+       WHERE id = $1`,
+      [ids.staleSpace, CUTOFF],
+    );
+    const got = await selected(candidatePredicate("rescore", "$2"), [CUTOFF]);
+    expect(got.has("staleSpace")).toBe(false);
+  });
+
   it("the full production builders execute without error against real Postgres", async () => {
     // exercises the CASE + ORDER BY + LIMIT and the COUNT, catching any SQL
     // syntax regression (membership is covered above; volume is prod-fork).
