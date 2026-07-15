@@ -8,6 +8,7 @@ import {
   resolveLocale,
   fallbackChain,
   localesByPriority,
+  selectorLocales,
   LOCALE_REGISTRY,
   RTL_LOCALES,
   LOCALES,
@@ -55,6 +56,23 @@ describe("locale registry", () => {
     const vals = localesByPriority().map((m) => m.order);
     expect([...vals]).toEqual([...vals].sort((a, b) => a - b));
     expect(new Set(vals).size).toBe(vals.length);
+  });
+
+  it("hides the untranslated launch locales (es/he/ko) from the selector but keeps them valid (WS5)", () => {
+    const shown = selectorLocales().map((m) => m.code);
+    for (const hidden of ["es", "he", "ko"] as const) {
+      expect(shown).not.toContain(hidden);
+      // still a valid, parseable locale that resolves (to the English fallback),
+      // so no existing link/Accept-Language 404s — it is only hidden from the picker.
+      expect(isLocale(hidden)).toBe(true);
+      expect(parseLocaleParam(hidden)).toBe(hidden);
+    }
+    // English + Ukrainian (full catalogs) stay visible, English first
+    expect(shown[0]).toBe("en");
+    expect(shown).toContain("uk");
+    // it is exactly localesByPriority minus the hidden set, order preserved
+    const full = localesByPriority().map((m) => m.code);
+    expect(shown).toEqual(full.filter((c) => !["es", "he", "ko"].includes(c)));
   });
 });
 

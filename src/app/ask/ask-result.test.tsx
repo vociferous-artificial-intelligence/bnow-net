@@ -85,6 +85,22 @@ describe("answered state", () => {
     // no v2 chrome for a plain answered result
     expect(screen.queryByRole("heading", { name: "Related claims" })).toBeNull();
   });
+
+  it("never renders the provider/model string in the subscriber result (WS3)", () => {
+    const { container } = render(
+      <AskResult
+        result={baseResult({ provider: "openai:gpt-4o-mini+mapreduce" })}
+        cited={[claim(1, "claim one")]}
+        related={[]}
+        t={t} {...chromeProps}
+      />,
+    );
+    // footer shows counts only, no provider/model token
+    expect(screen.getByText("5 evidence rows · 2 cited")).toBeTruthy();
+    expect(container.textContent).not.toContain("openai");
+    expect(container.textContent).not.toContain("gpt-4o-mini");
+    expect(container.textContent).not.toContain("mapreduce");
+  });
 });
 
 describe("insufficient state", () => {
@@ -415,7 +431,10 @@ describe("legacy-shape input", () => {
     };
     render(<AskResult result={legacy} cited={[claim(1, "claim one")]} related={[]} t={t} {...chromeProps} />);
     expect(screen.getByText(/Top matching evidence/)).toBeTruthy();
-    expect(screen.getByText("3 evidence rows · 1 cited · stub")).toBeTruthy();
+    // WS3 (analyst-beta remediation): the subscriber footer no longer surfaces
+    // the provider/model string — evidence/cited counts only.
+    expect(screen.getByText("3 evidence rows · 1 cited")).toBeTruthy();
+    expect(screen.queryByText(/stub/)).toBeNull();
     expect(screen.getByRole("heading", { name: "Cited evidence" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Related claims" })).toBeNull();
     expect(screen.queryByText(/Evidence sampled from/)).toBeNull();

@@ -1,4 +1,4 @@
-import { localesByPriority, type Locale } from "@/i18n/dictionaries";
+import { selectorLocales, type Locale } from "@/i18n/dictionaries";
 
 // Language switcher: one link per locale, in market-priority order, labelled in its own
 // native script. Plain <a> (not next/link) so the request hits /api/locale, which sets the
@@ -17,7 +17,7 @@ export function LanguageSelector({
       aria-label="Language"
       className={className ?? "flex flex-wrap items-center gap-x-3 gap-y-1 text-xs"}
     >
-      {localesByPriority().map((l) => {
+      {selectorLocales().map((l) => {
         const active = l.code === current;
         return (
           <a

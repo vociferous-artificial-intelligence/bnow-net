@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { signOut } from "@/lib/auth";
 import { currentUserEmail } from "@/lib/session";
 import { getLocale } from "@/i18n/server";
-import { localesByPriority, makeT } from "@/i18n/dictionaries";
+import { selectorLocales, makeT } from "@/i18n/dictionaries";
 import { buildSiteNav } from "@/lib/nav/site-nav";
 import { SiteHeaderView } from "./site-header-view";
 
@@ -30,7 +30,7 @@ export async function SiteHeader() {
     <SiteHeaderView
       nav={nav}
       locale={locale}
-      locales={localesByPriority()}
+      locales={selectorLocales()}
       signOutAction={signOutAction}
       labels={{
         language: t("nav.language"),

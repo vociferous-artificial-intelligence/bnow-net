@@ -77,7 +77,7 @@ describe("/account legal section", () => {
     authMock.mockResolvedValue({ user: { email: "user@example.com" } });
     acceptanceMock.mockResolvedValue({
       termsVersion: "1.0",
-      privacyVersion: "1.1",
+      privacyVersion: "1.2",
       acceptedAt: "2026-07-12T14:00:00.000Z",
       analyticsPreference: "denied",
     });
@@ -90,7 +90,7 @@ describe("/account legal section", () => {
     expect(container.querySelectorAll('a[href="/terms"]').length).toBeGreaterThan(0);
     expect(container.querySelectorAll('a[href="/privacy"]').length).toBeGreaterThan(0);
     expect(text).toContain("Version 1.0");
-    expect(text).toContain("Version 1.1");
+    expect(text).toContain("Version 1.2");
     // The server-generated timestamp renders in ET.
     expect(text).toMatch(/2026.*ET/);
     // No internal method string or raw acceptance id leaks to the user.
@@ -105,7 +105,7 @@ describe("/account legal section", () => {
 // are exercised per the sprint rule.
 const ACCEPTED = {
   termsVersion: "1.0",
-  privacyVersion: "1.1",
+  privacyVersion: "1.2",
   acceptedAt: "2026-07-12T14:00:00.000Z",
   analyticsPreference: "denied" as const,
 };

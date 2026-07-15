@@ -109,9 +109,13 @@ describe("senderAddress", () => {
     expect(senderAddress()).toBe("B <b@bnow.net>");
   });
 
-  it("falls back to the default when neither is set", () => {
+  it("falls back to the brand-correct BNOW default when neither is set", () => {
     expect(senderAddress()).toBe(DEFAULT_FROM);
-    expect(DEFAULT_FROM).toBe("BNOW.NET <no-reply@scenefiend.app>");
+    // The fallback is always a bnow.net sender — never a partner/other-brand
+    // domain. Prod either uses POSTMARK_FROM_EMAIL or fails visibly at Postmark.
+    expect(DEFAULT_FROM).toBe("BNOW.NET <no-reply@bnow.net>");
+    expect(DEFAULT_FROM).toContain("@bnow.net");
+    expect(DEFAULT_FROM).not.toContain("scenefiend");
   });
 
   it("treats a blank env var as unset", () => {

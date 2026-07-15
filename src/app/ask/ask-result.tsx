@@ -194,9 +194,12 @@ export function AskResult({
           </p>
         )}
 
+        {/* Subscriber-facing footer intentionally omits provider/model (WS3,
+            analyst-beta remediation): that diagnostic stays in the server-side
+            result type, ask_usage, and telemetry for a future admin surface —
+            it is not shown to the analyst. */}
         <p className="mt-3 text-xs text-gray-400">
-          {result.evidenceCount} evidence rows · {result.citedClaimIds.length} cited ·{" "}
-          {result.provider}
+          {result.evidenceCount} evidence rows · {result.citedClaimIds.length} cited
         </p>
       </div>
 

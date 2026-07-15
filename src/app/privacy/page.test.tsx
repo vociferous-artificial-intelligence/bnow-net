@@ -25,8 +25,8 @@ describe("/privacy (public Privacy Notice)", () => {
   it("shows the version and effective date prominently", () => {
     const { container } = render(PrivacyPage());
     const text = container.textContent ?? "";
-    expect(text).toContain("Version 1.1");
-    expect(text).toContain("July 14, 2026");
+    expect(text).toContain("Version 1.2");
+    expect(text).toContain("July 15, 2026");
   });
 
   it("explicitly states that Ask questions are STORED", () => {
@@ -47,7 +47,23 @@ describe("/privacy (public Privacy Notice)", () => {
     expect(text).toContain("internal random account UUID");
     expect(text).toContain("does not send Ask or Search text");
     expect(text).toContain("Session replay, heatmaps, broad autocapture");
-    expect(text).toContain("activation is pending");
+  });
+
+  it("states the live analytics posture accurately (WS1): active-only, US region, GeoIP, 7-year retention, no false 'activation pending'", () => {
+    const text = render(PrivacyPage()).container.textContent ?? "";
+    // the analytics are LIVE, not "pending" — the stale claim must be gone
+    expect(text).not.toContain("activation is pending");
+    expect(text).not.toContain("Activation remains pending");
+    expect(text).not.toContain("pending a dedicated");
+    // active only for opted-in, accepted, signed-in adults
+    expect(text).toContain("active only for a signed-in adult user");
+    // verified processing region
+    expect(text).toContain("hosted in the United States");
+    // GeoIP-derived coarse location disclosure (raw IP discarded)
+    expect(text).toContain("does not store the raw connection IP address");
+    expect(text).toContain("city- and postal-level location");
+    // verified retention setting
+    expect(text).toContain("seven years");
   });
 
   it("links to the Terms of Use and exposes the legal contact as a mailto", () => {

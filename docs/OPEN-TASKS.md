@@ -456,3 +456,28 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     `docs/reviews/POSTHOG-ANALYTICS-IMPLEMENTATION-NOTE-2026-07-14.md` § Production
     execution results. Reminder: all existing users (incl. Jason/Irina) re-accept
     Privacy 1.1 on next visit — expected, not a bug; analytics stays opt-in either way.
+    **Update (analyst-beta remediation 2026-07-14):** the GeoIP privacy-wording pass is
+    DONE in code as **Privacy 1.2** (branch `codex/analyst-beta-launch-remediation`, not
+    deployed) — discloses US region, GeoIP-derived coarse location, 7-year retention, and
+    active-only opt-in; on deploy the re-acknowledgement is against 1.2, not 1.1. Still
+    operator-open: PostHog **billing limit + membership** record in the UI.
+
+### New (from the analyst-beta launch remediation — 2026-07-14, branch not deployed)
+
+68. **[operator] Analyst-beta remediation deploy + verification.** Five workstreams are
+    implemented and gated (`docs/reviews/ANALYST-BETA-REMEDIATION-NOTE-2026-07-14.md`),
+    staged on `codex/analyst-beta-launch-remediation`, NOT deployed/merged. The X closeout
+    gate passed and the branch was rebased onto `f94d70c` on 2026-07-15; the full
+    post-rebase verification gate and combined-diff review remain. Deployment still requires
+    operator approval. Operator sequence: (1) **WS2 Postmark** —
+    verify `bnow.net` (DKIM + custom Return-Path), prefer a dedicated BNOW server/token,
+    set `POSTMARK_FROM_EMAIL="BNOW.NET <no-reply@bnow.net>"` in Production, then verify a
+    delivered magic link end-to-end (From, Return-Path, DKIM/SPF/DMARC, direct unrewritten
+    callback → session → `/welcome/legal`). (2) **WS1** — confirm the Privacy 1.2 effective
+    date (currently the `2026-07-15` placeholder in `policies.ts`) = the actual deploy date;
+    deploy forces re-acknowledgement (no migration). (3) **WS5** — flip `SIGNIN_MODE=invite`
+    + redeploy after the grandfather set is confirmed; es/he/ko re-list is a one-line edit
+    once reviewed catalogs exist. (4) **Post-deploy smoke on https://bnow.net:** Privacy 1.2
+    + re-ack; anon/denied analytics zero-request; Ask pending panel + no provider/model
+    string; brand-correct auth email; signed-in 390px sweep (home, live Ask pending panel,
+    Ask result/evidence, account, `/welcome/legal`, signals, digest detail, mobile menu).

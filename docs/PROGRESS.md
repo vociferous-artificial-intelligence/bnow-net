@@ -1387,6 +1387,29 @@ alerts. Rollback = remove key + redeploy (the keyless build was deployed and pro
 today). Residual operator items: billing limit/membership/retention in the PostHog UI, optional
 key-scope re-narrowing, GeoIP privacy wording, own 1.1 acceptance.
 
+## 2026-07-14 (evening) — Analyst-beta launch remediation (branch, not deployed)
+
+Isolated worktree `bnow.net-analyst-beta-remediation`, branch
+`codex/analyst-beta-launch-remediation`, base `b71b39a`. Five workstreams implemented,
+zero paid provider calls, no migrations, no OpenSanctions/entity work. Operator decisions
+this session: GeoIP retain+disclose · retention 7 years · prepare Privacy 1.2 (re-ack).
+
+- WS1 Privacy 1.2 (`f7f9af9`): removed both false "activation pending" statements; states
+  analytics active only for opted-in/accepted/signed-in adults, dedicated US project,
+  GeoIP-derived coarse location (raw IP not stored), 7-year retention; exclusions preserved;
+  `CURRENT_PRIVACY_VERSION` 1.1→1.2 (effective 2026-07-15 placeholder). No migration; itests
+  version-agnostic, validated 9/9 on a disposable Neon branch.
+- WS2 email (`9c7020a`): `DEFAULT_FROM` → `BNOW.NET <no-reply@bnow.net>`; partner-domain
+  fallback/comment/test removed; token model untouched.
+- WS3/4/5 (`a873b7f`): Ask working panel (role=status, honest client-elapsed stages, question
+  echoed, one-submit) + provider/model removed from the subscriber footer; scoreboard
+  "Evidence available at ISW publish (proxy)" with honest framing + RU/UA-denominator
+  disclosure; es/he/ko hidden from the language picker (still valid/parseable).
+- Gate: typecheck+lint clean, 1460/129 unit, build clean, 390px real-browser PASS
+  (privacy/terms/scoreboard + injected Ask panel with a long unbroken question). NOT
+  deployed/merged (gated behind X closeout + operator approval). Note:
+  docs/reviews/ANALYST-BETA-REMEDIATION-NOTE-2026-07-14.md; handoff OPEN-TASKS #68.
+
 ### Addendum (2026-07-15 01:2xZ) — UTC-reset preventive drain executed
 
 As planned in the 2026-07-14 entry: drain `[2026-07-14T11:00Z..2026-07-15T00:00Z]`
@@ -1401,3 +1424,17 @@ with the drain + polls to ~$0.002. No re-stall pending: the watermark is fresh a
 hourly backlog (~1h) sits far under the 5-page ceiling. X workstream closed;
 remaining X item is the #38 alert half + the #66 structural fix, both queued as
 reviewed code work.
+
+## 2026-07-15 — Analyst-beta remediation rebased after X closeout
+
+Confirmed `main == origin/main == f94d70c` and all three worktrees clean. Rebased
+`codex/analyst-beta-launch-remediation` onto the final X closeout. The only conflict
+was the append location in `docs/PROGRESS.md`; both the July 14 remediation account
+and July 15 X drain addendum were preserved in chronological order. Rebased code
+commits: `3361b01` (email), `29d89d2` (Privacy 1.2), `dc23acc`
+(Ask/scoreboard/i18n); docs reconciliation is `484f546`. No application content was
+edited during conflict resolution; no provider calls, environment changes, merge,
+push, or deployment. Full verification and combined-diff review remain. Privacy 1.2
+still has the `2026-07-15` placeholder and must be set to the actual deployment date;
+deployment remains blocked until BNOW Postmark DKIM/Return-Path and sender identity
+are verified.
