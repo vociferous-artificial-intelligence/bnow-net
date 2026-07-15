@@ -51,7 +51,8 @@ Dated log of missing credentials/capabilities. Each has a stub in place; nothing
   api.company-information.service.gov.uk) and OpenCorporates (freemium) are reachable but
   still need access decisions/keys. Adapter runs in stub mode now (seeded links for entities in-graph: Rotenberg,
   Rosnano). Add COMPANIES_HOUSE_API_KEY (free registration) → `GET /api/cron/enrich?only=ownership&refresh=1`
-  populates real officer/PSC edges for company entities. Not blocking.
+  populates real officer/PSC edges for company entities. (Ownership refresh needs no `before` cutoff — that
+  is required only for a `only=sanctions` refresh, per branch `codex/opensanctions-monthly-rescore`.) Not blocking.
 
 ## 2026-07-07 (coverage & compliance sprint)
 

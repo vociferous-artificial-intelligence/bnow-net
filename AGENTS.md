@@ -294,10 +294,11 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   `go+phtest@vociferous.nyc` (previously accepted 1.1, preference granted, signed out; now
   requires 1.2 re-acknowledgement) is the standing verification identity. Evidence:
   `docs/reviews/POSTHOG-ANALYTICS-IMPLEMENTATION-NOTE-2026-07-14.md`.
-- **Tests:** 1460 unit tests / 129 files green (`npm test`, ~6s) + last-known-green Neon-branch
-  integration suite (`npm run test:integration`, 22 real-Postgres tests / 6 files; the 2026-07-15
-  local rerun is credential-blocked because the saved `NEON_API_KEY` returns 401). CI mirror:
-  `.github/workflows/ci.yml`; the enforced gate is `.githooks/pre-push` (typecheck+lint+test).
+- **Tests:** 1460 unit tests / 129 files green on main (`npm test`, ~6s) + Neon-branch integration
+  suite (`npm run test:integration`, 22 real-Postgres tests / 6 files). The saved `NEON_API_KEY`
+  works again as of 2026-07-15 (disposable-branch create/run/delete verified this session — the
+  earlier 401 is cleared). CI mirror: `.github/workflows/ci.yml`; the enforced gate is
+  `.githooks/pre-push` (typecheck+lint+test).
 - **Crons (vercel.json):** ingest fast */15 · telegram :10 · x :20 · mtproto :35 ·
   map :40 (hourly) · digest 02:00 (D+1 finalize) + 04:00/10:00/19:30 (intraday, rolling window,
   delta-framed) · validate 07:00 (scores yesterday = the finalized digest) ·
@@ -1206,6 +1207,72 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   operator launch decision. OpenSanctions implementation is now unblocked by X but remains
   unimplemented; entity cleanup #61 and the paid rescore retain their explicit approval gates.
 
+- **2026-07-15 (OpenSanctions monthly quota + resumable rescore — IMPLEMENTED on a branch,
+  tested incl. real Postgres, NOT deployed, NOT merged, NO paid calls)** Prompt
+  `docs/prompts/2026-07-13-opensanctions-monthly-rescore.md`; branch
+  `codex/opensanctions-monthly-rescore` off clean main `651259e` (tag
+  `pre-opensanctions-monthly-20260715`). Two defects fixed in code only, zero production writes /
+  paid calls / deploys / env changes. **(1) Calendar-month total accounting:** `SpendGuardConfig`
+  gains `totalPeriod: "all_time" | "calendar_month"` (default all_time — X and every LLM guard
+  stay byte-equivalent); calendar_month loads `totalUsd/totalRequests` only from
+  `provider_usage.day >= monthStart` (first UTC day of the month, `monthStartIso`, tz-independent),
+  never mutating history, per-day/per-run caps unchanged. `UsageStore.load` gained a
+  `totalStartIso` window arg; `pgUsageStore` filters the total sums with a `FILTER (WHERE $3::date
+  IS NULL OR day >= $3::date)`; `init(now)` injects the clock for deterministic tests.
+  `ReserveResult` gained a machine `code` + `stopCategory()` so a stop is categorized (run/daily/
+  monthly/total) without string-matching. Only `opensanctionsGuardFromEnv()` opts into
+  calendar_month; `OPENSANCTIONS_CALL_CAP` is now the calendar-month request quota (env name kept
+  for deployed-config compat). **(2) Fixed-cutoff resumable rescore:** `refresh=1` now REQUIRES a
+  valid ISO `before` cutoff (`parseEnrichParams` → HTTP 400 before any paid loop; a per-invocation
+  "now" recreated the repeat-selection bug). Rescore selects live rows whose `checkedAt` is
+  strictly older than the fixed cutoff PLUS missing/stub/malformed rows; a CASE orders the
+  jsonb→timestamptz cast BEHIND an ISO-prefix regex so a malformed legacy `checkedAt` is treated
+  as needs-refresh and never aborts the batch. Each success stamps `checkedAt=now` (after the
+  cutoff), so the SAME cutoff advances batch-by-batch. `limit` clamped to the run cap; priority
+  ordering preserved; `only=sanctions` skips ownership. **Observability:** `cron_runs.counts.
+  sanctions` gains `mode/cutoff/remaining/completed/stopReason` (non-sensitive; no key, header, or
+  payload). **Operator tooling:** `scripts/opensanctions-rescore.ts` (dry-run default; serial;
+  stops on daily/monthly/config budget, continues past a run-cap stop, never prints CRON_SECRET,
+  no daily-cap busy-loop) + `docs/reviews/OPENSANCTIONS-RESCORE-RUNBOOK.md`. **Tests:** +24 unit
+  (1460→1484 / 129→131) covering all 13 required cases pure where possible — guard month
+  semantics, UTC boundary, monthly cap at 2000/1999, daily/run precedence, fail-closed, OS-monthly
+  vs X-all-time wiring, param 400, builder shape, stub-sanitize — plus a new Neon integration test
+  `enrich-rescore.itest.ts` proving the live SQL: normal selects only missing/stub, rescore selects
+  stale/missing/malformed and EXCLUDES post-cutoff rows and ADVANCES on re-stamp, malformed cast
+  never crashes (integration suite 22/6 → 26/7, run green on a disposable branch this session).
+  typecheck/lint/`next build` clean. No migration (the daily `provider_usage` rows already carry
+  the month window; trigger 9999 untouched). **Standing gates unchanged:** the paid production
+  rescore stays CLOSED behind operator approval of cleanup #61 (applied after the canonical-persist
+  fix is live), this branch merged+deployed, and a fresh recount + separate spend authorization.
+  OPEN-TASKS #41 advanced, NOT closed (prod verification pending). Full account:
+  `docs/reviews/OPENSANCTIONS-MONTHLY-RESCORE-NOTE.md`.
+
+- **2026-07-15 (OpenSanctions rescore — cutoff-safety hardening; second commit on the same
+  branch, still NOT deployed / NOT merged / no paid calls)** Review of the first commit found
+  the `before` cutoff validation too loose. Fixes on `codex/opensanctions-monthly-rescore`:
+  (1) **reject a future cutoff** — `normalizeIsoInstant(raw, nowIso?)` refuses a `before` later
+  than the captured `nowIso`; a future cutoff kept freshly-checked rows (checkedAt=now < future
+  cutoff) inside the `checkedAt < before` predicate and re-billed them. Accepting only
+  `before <= nowIso` guarantees `before <= checkedAt`, so a successful row always leaves the
+  predicate. (2) **require an explicit timezone** — the cutoff must carry `Z` or a `±HH:MM`/
+  `±HHMM` offset (T separator); a timezone-less string is rejected because `Date.parse` would
+  read it in the server's local zone and silently shift it. (3) **one captured instant** — the
+  route captures `nowIso` ONCE and uses it for BOTH `parseEnrichParams` validation and the
+  `enrichEntities` checkedAt stamp. (4) **boundary enforcement** — `enrichEntities` re-validates
+  the cutoff against its `nowIso` and throws before opening any pool/loop, so a direct caller
+  cannot bypass route validation. (5) **contract** — a sanctions refresh requires the cutoff; an
+  ownership-only refresh (`only=ownership&refresh=1`) has none and needs no `before` (deliberately
+  revised + tested; the Companies House ownership examples stay valid). (6) **script** —
+  `scripts/opensanctions-rescore.ts` rejects a future/timezone-less `--before` before any call,
+  requires a positive-integer `--max-batches`, and enforces `--sleep-ms >= 2000`. Tests +11
+  (unit 1484→1495): future→400/throw, timezone-less→400/throw, valid Z + explicit-offset
+  accepted, ownership-only refresh accepted without `before`, accepted cutoff `<= nowIso`, and a
+  real-Postgres boundary case proving `checkedAt == cutoff` leaves the strict-`<` predicate
+  (integration 26/7→27/7, run green on a disposable branch with `TMPDIR=/tmp`).
+  typecheck/lint/`next build` clean. Operator docs corrected: SETUP-NEXT-WEEK.md (§7 status +
+  smoke #6 + Companies House note), BLOCKERS.md (ownership example note), and the runbook's
+  cutoff example (now a captured `now`, not a future date).
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).
@@ -1222,7 +1289,7 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
 
 | Service | Env var | Status | Where to get |
 |---|---|---|---|
-| Neon Postgres | `DATABASE_URL`, `NEON_API_KEY` | **database live; saved branch-admin API key expired/401 (renew for disposable integration branches)** | console.neon.tech |
+| Neon Postgres | `DATABASE_URL`, `NEON_API_KEY` | **database live; saved branch-admin API key WORKS (re-verified 2026-07-15: disposable integration branches create/run/delete cleanly)** | console.neon.tech |
 | Vercel deploy | CLI session (`VERCEL_TOKEN` expired) | **live (CLI)** | vercel.com/account/tokens |
 | OpenAI (analysis + ask v2 + embeddings) | `OPENAI_API_KEY` + caps (ruling 4) | **live, spend-guarded** (openai_ask / openai_embed meter separately) | platform.openai.com |
 | LLM kill-switch | `LLM_DISABLE=1` | refuses every LLM call site (ruling 9) | (env only) |
@@ -1231,7 +1298,7 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
 | Cron auth | `CRON_SECRET` | **live** | (already set) |
 | Auth.js | `AUTH_SECRET` | **live** (hashes magic-link tokens: rotating it invalidates every unclicked link) | (already set) |
 | X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live, gap-recovered** (`$75` sprint / `$2.50` daily; Jul 9–13 recovered cursor-complete 2026-07-14; watermark-park >4–8h needs a drain+advance, #66; empty-run monitor remains #38) | api.twitterapi.io |
-| OpenSanctions | `OPENSANCTIONS_API_KEY` + caps | **live gap-fill** (937 eligible / 660 live checked / 660 July calls as of 2026-07-15; 2,000 cap still all-time until monthly-window patch; implementation is the next isolated workstream, while cleanup #61 + paid rescore remain approval-gated) | opensanctions.org |
+| OpenSanctions | `OPENSANCTIONS_API_KEY` + caps | **live gap-fill** (937 eligible / 660 live checked / 660 July calls as of 2026-07-15; calendar-month accounting + fixed-cutoff rescore IMPLEMENTED on branch `codex/opensanctions-monthly-rescore`, NOT deployed — live prod still sums `OPENSANCTIONS_CALL_CAP` all-time until that deploy; cleanup #61 + paid rescore remain approval-gated) | opensanctions.org |
 | Telegram MTProto | `TELEGRAM_API_ID/HASH` + `TELEGRAM_SESSION` (all in prod env) | **live** (session added 2026-07-11; first fetch + repeated hourly runs verified; registry top-120 ROCA roster) | my.telegram.org |
 | PostHog (product analytics) | `NEXT_PUBLIC_POSTHOG_KEY` + `_HOST` (Production only) + `POSTHOG_PERSONAL_API_KEY`/`POSTHOG_PROJECT_ID` (.env.local, ops) | **LIVE opt-in-only** (US project 512327 "BNOW.NET"; rollback = remove key + redeploy; operator UI items: billing limit + membership) | us.posthog.com |
 | ACLED | `ACLED_API_KEY`, `ACLED_EMAIL` | stubbed | acleddata.com |

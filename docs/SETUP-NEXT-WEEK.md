@@ -94,7 +94,7 @@ spend guards are deployed; remaining engineering debt is OPEN-TASKS #38 (empty-r
 | Env var | `OPENSANCTIONS_API_KEY` |
 | Where | opensanctions.org/api/ (register; commercial use is paid, bulk data is non-commercial-only) |
 | Cost | from ~€ low hundreds/mo (their pricing) |
-| Status | Live non-refresh enrichment is active. Commercial rights remain a paid-launch gate. Do **not** call `refresh=1` with the deployed code: its selection does not advance. First implement and deploy `docs/prompts/2026-07-13-opensanctions-monthly-rescore.md`, approve/apply entity cleanup #61, recount quota/population, and separately authorize the paid fixed-cutoff rescore. |
+| Status | Live non-refresh enrichment is active. Commercial rights remain a paid-launch gate. The calendar-month quota + fixed-cutoff rescore is IMPLEMENTED on branch `codex/opensanctions-monthly-rescore` (a sanctions `refresh=1` now requires a **timezone-qualified `before` cutoff no later than now**; ownership-only refresh needs no `before`) but is **NOT deployed** — the deployed prod code still has the non-advancing `refresh`, so do **not** call `refresh=1&only=sanctions` in prod until this branch is deployed. Then approve/apply entity cleanup #61, recount quota/population, and separately authorize the paid fixed-cutoff rescore (`docs/reviews/OPENSANCTIONS-RESCORE-RUNBOOK.md`). |
 
 ## 8. Companies House key — $0, 10 min
 
@@ -103,7 +103,7 @@ spend guards are deployed; remaining engineering debt is OPEN-TASKS #38 (empty-r
 | Env var | `COMPANIES_HOUSE_API_KEY` |
 | Where | developer.company-information.service.gov.uk (free registration) |
 | Cost | $0 |
-| Unlocks | real UK officer/PSC ownership edges on entity pages (stub edges no longer render). After adding: `.../api/cron/enrich?only=ownership&refresh=1` |
+| Unlocks | real UK officer/PSC ownership edges on entity pages (stub edges no longer render). After adding: `.../api/cron/enrich?only=ownership&refresh=1` (ownership refresh needs no `before` cutoff — that is required only for a sanctions refresh) |
 
 ## 9. UN Comtrade key — $0 (free tier), 10 min
 
@@ -186,7 +186,9 @@ npx tsx scripts/sqlq.ts "SELECT c.iso2, d.track, d.digest_date, d.provider FROM 
 curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/digest?country=ua&date=$(date -u -d yesterday +%F)" | head -c 400; echo
 curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/validate?date=$(date -u -d yesterday +%F)&country=ua" | head -c 400; echo
 
-# 6. OpenSanctions: ordinary gap fill only; never use unsafe refresh=1 before the fixed-cutoff patch
+# 6. OpenSanctions: ordinary gap fill only. The fixed-cutoff patch is on branch
+#    codex/opensanctions-monthly-rescore, NOT deployed — until it is, the deployed
+#    refresh=1 does not advance; never call refresh=1&only=sanctions in prod yet.
 curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/enrich?only=sanctions"; echo
 
 # 7. full cron audit (all 8 crons, stub-contamination check)
