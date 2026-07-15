@@ -48,22 +48,22 @@ Verify: `npx vercel whoami --token $VERCEL_TOKEN` → `go-vociferous`.
 | Env var | `NEXT_PUBLIC_SITE_URL=https://bnow.net` (production) |
 | Where | Vercel dashboard → bnow-net → Settings → Domains → add `bnow.net` + `www` ; registrar: `A @ 76.76.21.21`, `CNAME www cname.vercel-dns.com` |
 | Cost | domain already owned |
-| Unlocks | real brand URL in emails/shares; prerequisite for Postmark migration (step 4) |
+| Unlocks | real brand URL in emails/shares; Postmark migration completed 2026-07-15 (step 4) |
 
-## 4. Postmark sending identity → bnow.net — $0, 20 min
+## 4. Postmark sending identity → bnow.net — DONE 2026-07-15
 
-Email is LIVE but borrowing the scenefiend Postmark domain — magic links and digests
-send from scenefiend's identity. After step 3:
+Completed 2026-07-15: `bnow.net` is authenticated in Postmark; DKIM and the custom
+`pm-bounces.bnow.net` Return-Path are published and live-verified. Production `EMAIL_FROM`
+is `BNOW.NET <no-reply@bnow.net>`, deploy `dpl_5KhaPA9AHwNq6htLJ2pAf8NFESNe` is live, and a
+fresh direct/unrewritten magic-link callback signed in successfully.
 
-1. Postmark dashboard → Sender Signatures / Domains → add `bnow.net`.
-2. Add the DKIM + Return-Path DNS records Postmark shows at the registrar; verify.
-3. Update prod env: `POSTMARK_FROM_EMAIL="BNOW.NET <digest@bnow.net>"` (keep
-   `POSTMARK_SERVER_TOKEN`/`POSTMARK_MESSAGE_STREAM`; a bnow-dedicated server token in
-   the same account is cleaner — create server → swap token).
-4. Redeploy; sign in once end-to-end.
+DMARC completion: Cloudflare DNS `TXT _dmarc.bnow.net` =
+`v=DMARC1; p=none; adkim=r; aspf=r`. A post-change production magic link confirmed Gmail
+`dkim=pass`, `spf=pass`, and `dmarc=pass`, the custom Return-Path, and a successful direct
+Auth.js callback.
 
-Cost: Postmark free tier 100 emails/mo, then $15/mo. Unlocks: deliverability +
-brand-correct sender. (Resend remains a supported alternative in the seam.)
+Cost: Postmark free tier 100 emails/mo, then $15/mo. (Resend remains a supported alternative
+in the seam.)
 
 ## 5. Telegram MTProto — $0, ~10 min (ONLY the login remains; adapter shipped 2026-07-11)
 

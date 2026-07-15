@@ -104,7 +104,7 @@ Includes the negative finding (RU displacement) per the sprint's honesty require
   claims) name-matched a Ukrainian-NSDC-sanctioned Russian businessman at score 1.0 —
   name-only matching on common names is a real false-positive channel. Mitigations
   queued: require ≥1 linked claim before spending a call; show score+caption beside
-  badges. Licensing hard gate recorded in HUMAN-SETUP-TODO §13 and BLOCKERS.
+  badges. Licensing hard gate recorded in HUMAN-SETUP-TODO §7 and BLOCKERS.
 - Truth-in-UI held: stub-era rows were sanitized `{matched:false,stub:true}` and were
   upgraded (not trusted) by live checks.
 

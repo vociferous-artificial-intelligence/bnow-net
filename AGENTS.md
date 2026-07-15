@@ -88,9 +88,9 @@ drizzle/            migrations 0000–00NN + 9999_claim_source_trigger.sql (appl
 data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails)
 ```
 
-## Current state — snapshot (verified through 2026-07-14; correct in place when it changes)
+## Current state — snapshot (verified through 2026-07-15; correct in place when it changes)
 
-Live at **https://bnow-net.vercel.app** (Vercel project `bnow-net`, team `vociferous`;
+Live at **https://bnow.net** (Vercel project `bnow-net`, team `vociferous`;
 deployment URLs are SSO-walled — always use the project domain). History/narrative:
 `docs/PROGRESS.md` + `docs/reviews/`; debt: `docs/OPEN-TASKS.md`.
 
@@ -157,7 +157,10 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   carries no commercial entry); hero has a restrained beta badge; sign-in is invite-gateable
   via `SIGNIN_MODE` (open=default/live; invite = users row OR ADMIN_EMAILS OR approved
   subscribe_intents — flip is an operator decision) /
-  magic-link auth (Postmark LIVE, still on scenefiend sender domain) / digests
+  magic-link auth (**Postmark bnow.net sender LIVE 2026-07-15**: Production `EMAIL_FROM` =
+  `BNOW.NET <no-reply@bnow.net>`; the active server token accepts the address; Gmail live proof
+  shows bnow.net DKIM, SPF, and DMARC pass, custom `pm-bounces.bnow.net` Return-Path, and the
+  direct, unrewritten Auth.js callback signs in successfully) / digests
   (ClaimSources diversity-selected source collapse, **adopted 2026-07-12**) +
   registry (**ADMIN-ONLY since 2026-07-12** analyst-trust R5:
   `requireAdminOr404()` in both layouts — every non-admin, signed-in or out, gets a
@@ -265,7 +268,7 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   "BNOW.NET"** (operator-created; region = operator decision; key ≠ Scenefiend's);
   `NEXT_PUBLIC_POSTHOG_KEY`+`_HOST` in Vercel **Production only** — key removal + redeploy is
   the verified rollback (the keyless build `dpl_DjVLg9RgQdFgAxfpLsRh9ELya5w6` was deployed and
-  proven zero-traffic first). Current prod deploy `dpl_8xh5zXYfnsCwoFwQTM3resTZ2BSP` includes
+  proven zero-traffic first). Current prod deploy `dpl_5KhaPA9AHwNq6htLJ2pAf8NFESNe` includes
   the `$identify` signup_at ISO fix (`9e371dc` — `created_at::text`'s space format made the
   sanitizer drop $identify; to_char now). Init requires ALL of: signed-in + current legal
   acceptance + `users.analytics_preference='granted'` (migration 0020: 3-value CHECK, default
@@ -1077,8 +1080,9 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   one harness trap.** Bug: `identity.ts` `created_at::text` → `"2026-07-14 19:18:12+00"` fails
   the sanitizer's ISO `T` check, so **$identify was silently dropped** (unit test had mocked an
   ISO string — driver-realism class, same as the 07-12 rn-as-string bug); fixed via `to_char`,
-  regression-pinned (1456 tests), commit `9e371dc`, deploy `dpl_8xh5zXYfnsCwoFwQTM3resTZ2BSP`
-  (current prod). Trap: **posthog-js bot-filters headless/webdriver browsers BEFORE
+  regression-pinned (1456 tests), commit `9e371dc`, originally deployed as
+  `dpl_8xh5zXYfnsCwoFwQTM3resTZ2BSP` and still present in current production. Trap:
+  **posthog-js bot-filters headless/webdriver browsers BEFORE
   `before_send`** — headless verification silently proves nothing; SDK-level bisection confirmed
   every config captures under a masked UA and none under the headless UA. **Positive proof
   (test account `go+phtest@vociferous.nyc`, opted in via the real 1.1 clickwrap checkbox, on
@@ -1098,6 +1102,44 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   config-only and is already proven (the keyless deploy earlier today). Residual operator
   items: billing limit + membership + retention record in the UI; consider re-narrowing the
   API key to read-only; GeoIP privacy-wording pass; accept 1.1 on their own accounts.
+
+- **2026-07-15 (Postmark bnow.net sender cutover EXECUTED; DMARC DNS follow-up blocked on
+  Cloudflare credentials)** The bnow.net domain was already present and authenticated in the
+  Postmark account: the active production server token accepted a live send from
+  `BNOW.NET <no-reply@bnow.net>`. Gmail raw-MIME proof showed `dkim=pass` for `d=bnow.net`
+  selector `20260712183024pm`, `spf=pass` for `pm_bounces@pm-bounces.bnow.net`, and
+  `Return-Path: <pm_bounces@pm-bounces.bnow.net>`; public DNS independently confirmed the DKIM
+  TXT record and DNS-only Return-Path CNAME → `pm.mtasv.net`. Production `EMAIL_FROM` was
+  updated to `BNOW.NET <no-reply@bnow.net>` and deploy `dpl_5KhaPA9AHwNq6htLJ2pAf8NFESNe`
+  reached READY and aliased bnow.net. A fresh production magic link delivered with the same
+  authentication results; its URL was a direct bnow.net Auth.js callback (no Postmark tracking
+  rewrite), and consuming it created the expected signed-in session at
+  `/welcome/legal?next=/`. Remaining gap: `_dmarc.bnow.net` returns NXDOMAIN, so Gmail cannot
+  report DMARC pass. The local Cloudflare global key and bearer token are both expired; an
+  operator must add `TXT _dmarc = v=DMARC1; p=none; adkim=r; aspf=r` (or provide a fresh
+  DNS-edit token), then repeat one live magic-link header check.
+
+- **2026-07-15 (Postmark DMARC completion EXECUTED; sender-domain migration fully closed)**
+  The operator installed a new bnow.net-scoped Cloudflare account token (active through
+  2026-08-14). Pre-mutation DNS was captured to `/tmp`; the existing Postmark DKIM TXT and
+  DNS-only `pm-bounces` CNAME were left untouched. Added the sole missing record:
+  `TXT _dmarc.bnow.net = v=DMARC1; p=none; adkim=r; aspf=r`; Cloudflare API success and Google
+  public-DNS visibility were immediate. A fresh production magic link to `go@vociferous.nyc`
+  provided received-message proof in Gmail: From = `BNOW.NET <no-reply@bnow.net>`, bnow.net
+  DKIM pass, aligned custom-Return-Path SPF pass, **DMARC pass** (`p=NONE`), Return-Path =
+  `pm_bounces@pm-bounces.bnow.net`. The delivered URL remained a direct bnow.net Auth.js
+  callback with no Postmark tracking host; consuming it created the expected signed-in session
+  at `/welcome/legal?next=/`. No application or Vercel env/deployment change was needed for the
+  DNS-only completion.
+
+- **2026-07-15 (pending-setup documentation cleanup; documentation only)** Rebuilt
+  `docs/HUMAN-SETUP-TODO.md` as a pending-only queue, removing completed/no-action setup for
+  X, Telegram MTProto, bnow.net/Postmark, Gemini, GDELT, and Firecrawl while retaining active
+  account, licensing, procurement, legal, payment, analyst-process, and design-partner work.
+  Removed resolved Product Brief, OpenAI-credit, Postmark/Resend, X-adapter, Telegram-session,
+  and OpenSanctions-key entries from `docs/BLOCKERS.md`; retained the OpenSanctions commercial-
+  rights gate and every genuinely active capability blocker. No code, env, provider, DNS, or
+  deploy changes.
 
 ## Conventions
 
@@ -1120,7 +1162,7 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
 | OpenAI (analysis + ask v2 + embeddings) | `OPENAI_API_KEY` + caps (ruling 4) | **live, spend-guarded** (openai_ask / openai_embed meter separately) | platform.openai.com |
 | LLM kill-switch | `LLM_DISABLE=1` | refuses every LLM call site (ruling 9) | (env only) |
 | Anthropic | `ANTHROPIC_API_KEY` | provider implemented; key absent | console.anthropic.com |
-| Postmark (auth email) | `POSTMARK_SERVER_TOKEN` | **live** (scenefiend sender domain — migrate) | postmarkapp.com |
+| Postmark (auth email) | `POSTMARK_SERVER_TOKEN` + `POSTMARK_MESSAGE_STREAM` + `EMAIL_FROM` | **live on bnow.net** (`BNOW.NET <no-reply@bnow.net>`; DKIM/SPF/DMARC/custom Return-Path + callback live-verified 2026-07-15) | postmarkapp.com |
 | Cron auth | `CRON_SECRET` | **live** | (already set) |
 | Auth.js | `AUTH_SECRET` | **live** (hashes magic-link tokens: rotating it invalidates every unclicked link) | (already set) |
 | X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live, gap-recovered** (`$75` sprint / `$2.50` daily; Jul 9–13 recovered cursor-complete 2026-07-14; watermark-park >4–8h needs a drain+advance, #66; empty-run monitor remains #38) | api.twitterapi.io |
@@ -1133,8 +1175,8 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
 
 ## Next steps / open questions
 
-1. **Operator:** `docs/SETUP-NEXT-WEEK.md` top-to-bottom — VERCEL_TOKEN regen, bnow.net
-   DNS + domain attach, Postmark sender-domain move off scenefiend, MTProto, Stripe.
+1. **Operator:** `docs/SETUP-NEXT-WEEK.md` top-to-bottom — VERCEL_TOKEN regen and Stripe.
+   bnow.net attach, Postmark sender cutover + DMARC, and MTProto are done.
    (OpenAI credits: done 2026-07-05; keep the billing alert.)
 2. **DIGEST_ENGINE=mapreduce is LIVE in prod (flipped 2026-07-09).** Watch the
    scoreboard for a week — especially ua (−3.6 pts in the A/B, noise-scale) — plus
