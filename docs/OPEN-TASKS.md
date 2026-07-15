@@ -233,17 +233,19 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     `/api/auth/error?error=Verification` (`AUTH-EMAIL-2026-07-09.md`). The 07-09 Postmark tracking
     fix (`9b5b368`) addressed a real but *secondary* defect, not this. Decide: change the token model
     (multi-use within TTL, or device-agnostic) or document the constraint on the sign-in page.
-41. **[Tier 2] OpenSanctions monthly accounting + resumable rescore (QUEUED after final X
-    drain/closeout; paid rescore additionally gated on #61, refreshed 2026-07-14).** July usage is now 540/2,000 calls
-    after the ordinary 08:00 UTC gap-fill checked another 120; live state is 876 eligible,
-    540 checked, 336 missing/stub-only, 343 matched, 122 sanctioned. Remaining defects:
-    SpendGuard still sums the
-    cap across all historical usage (no monthly reset), and repeated `refresh=1` batches select the
-    same priority prefix. Implement the fixed-cutoff/calendar-month handoff in
-    `docs/prompts/2026-07-13-opensanctions-monthly-rescore.md` only after the active X operator
-    completes its July 15 preventive drain, post-drain polls, addendum, commit, and push; make zero
-    paid calls during implementation. Apply the separately approved cleanup #61 before the paid fixed-cutoff rescore,
-    then recount and obtain explicit run authorization. Relates to #17 (match hygiene before spending).
+41. **[Tier 2] OpenSanctions monthly accounting + resumable rescore — CODE LANDED on branch
+    `codex/opensanctions-monthly-rescore` (2026-07-15), NOT deployed; paid rescore still gated on
+    #61 + operator auth.** Both defects are fixed in code (calendar-month `totalPeriod` in
+    SpendGuard so `OPENSANCTIONS_CALL_CAP` resets at the UTC month boundary; fixed-cutoff `refresh=1`
+    rescore requiring a valid ISO `before`, advancing batch-by-batch instead of re-selecting the same
+    prefix). Tests: +24 unit + a real-Postgres `enrich-rescore.itest.ts` (all green this session);
+    typecheck/lint/build clean; zero paid calls; no migration. See the 2026-07-15 decision-log entry
+    and `docs/reviews/OPENSANCTIONS-MONTHLY-RESCORE-NOTE.md` + `OPENSANCTIONS-RESCORE-RUNBOOK.md`.
+    **Not done (do NOT close this item until all complete):** merge + deploy the branch and prove
+    the deployed endpoint uses calendar-month accounting + an advancing cutoff; apply the
+    operator-approved cleanup #61 AFTER the canonical-persist fix is live; recount the population +
+    current-month quota; obtain separate spend authorization; run the serial rescore to zero
+    candidates and record before/after totals. Relates to #17 (match hygiene before spending).
 42. **[Tier 2] X single-platform citation dependency (~27–29%).** ~1 in 3.4 cited docs is from X
     (twitterapi.io). Concentration risk + validation contamination (§8.6 risks 1–2) persist even
     though the adapter resumed on 2026-07-13. Diversify corpus (MTProto, more RSS/Telegram)

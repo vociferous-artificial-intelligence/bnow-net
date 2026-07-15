@@ -1463,3 +1463,47 @@ is stale. Entity cleanup #61 still requires explicit operator approval and a fre
 monthly-accounting/fixed-cutoff code must merge/deploy before any separately authorized paid
 rescore. Graham repair #62 is closed by the X regeneration (4008/4413/4414 gone; safe 4202
 replacement).
+
+## 2026-07-15 — OpenSanctions monthly quota + resumable rescore (branch, not deployed)
+
+Implemented `docs/prompts/2026-07-13-opensanctions-monthly-rescore.md` on branch
+`codex/opensanctions-monthly-rescore` (off clean main `651259e`, tag
+`pre-opensanctions-monthly-20260715`). Code only — **zero paid provider calls, no production
+writes, no deploy, no env change, no migration**.
+
+Two defects fixed:
+
+1. **Calendar-month total accounting.** `SpendGuardConfig.totalPeriod` (`"all_time" |
+   "calendar_month"`, default all_time so X and every LLM guard are byte-equivalent). In
+   calendar_month the guard loads `totalUsd/totalRequests` only from `provider_usage.day >=
+   monthStart` (first UTC day of the month; `monthStartIso` is tz-independent), so
+   `OPENSANCTIONS_CALL_CAP` resets at the UTC month boundary without deleting history. Per-day
+   and per-run caps unchanged; still fails closed with no required cap. `UsageStore.load` gained a
+   `totalStartIso` window arg (pg `FILTER (WHERE $3::date IS NULL OR day >= $3::date)`);
+   `init(now)` injects the clock for deterministic tests; `ReserveResult.code` + `stopCategory()`
+   categorize a stop (run/daily/monthly/total) without string-matching. Only OpenSanctions opts in.
+2. **Fixed-cutoff resumable rescore.** `refresh=1` now requires a valid ISO `before` (400 before
+   any paid loop). Rescore selects live rows with `checkedAt` strictly older than the fixed cutoff
+   plus missing/stub/malformed rows; a CASE gates the jsonb→timestamptz cast behind an ISO-prefix
+   regex so a malformed legacy `checkedAt` is needs-refresh and never aborts the batch. Each
+   success stamps `checkedAt=now` (after the cutoff), so the same cutoff advances through the
+   corpus. `limit` clamped to the run cap; priority order preserved; `only=sanctions` skips
+   ownership. `cron_runs.counts.sanctions` now carries `mode/cutoff/remaining/completed/stopReason`
+   (non-sensitive).
+
+Operator tooling: `scripts/opensanctions-rescore.ts` (dry-run default, serial, stops on
+daily/monthly/config budget, continues past a run-cap stop, never prints `CRON_SECRET`, no
+daily-cap busy-loop) + `docs/reviews/OPENSANCTIONS-RESCORE-RUNBOOK.md`.
+
+Tests: +24 unit (1460→1484 / 129→131) covering all 13 required cases pure where possible, plus a
+new Neon integration test `enrich-rescore.itest.ts` proving the live SQL (normal selects only
+missing/stub; rescore selects stale/missing/malformed, excludes post-cutoff rows, advances on
+re-stamp; malformed cast never crashes). Full integration suite 22/6 → 26/7, **run green on a
+disposable Neon branch this session** — the saved `NEON_API_KEY` works again (create/run/delete
+verified; the earlier 401 is cleared). typecheck/lint/`next build` clean.
+
+Standing gates unchanged: the **paid production rescore stays CLOSED** until the operator approves
+cleanup #61 (applied after the canonical-persist fix is live), this branch is merged+deployed and
+proven to use calendar-month accounting + an advancing cutoff, and a fresh recount + separate
+spend authorization are done. OPEN-TASKS #41 advanced, not closed. Note:
+`docs/reviews/OPENSANCTIONS-MONTHLY-RESCORE-NOTE.md`.
