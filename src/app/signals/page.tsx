@@ -109,6 +109,16 @@ export default async function SignalsPage() {
       <h1 className="mb-1 text-2xl font-bold">{t("signals.title")}</h1>
       <p className="mb-6 max-w-2xl text-sm text-gray-500">{t("signals.intro")}</p>
 
+      {/* Attribution / non-endorsement notice — shown to accepted users, who are the
+          only ones who see named individuals (below). Anonymous / unaccepted visitors
+          get the count-only teaser and never reach the name-bearing branch, so this
+          notice is theirs to see, close to the results it qualifies. */}
+      {accepted && signals.length > 0 && (
+        <p className="mb-4 rounded-md border border-gray-200 bg-gray-50 p-3 text-xs leading-relaxed text-gray-600 dark:border-gray-800 dark:bg-gray-900/40 dark:text-gray-300">
+          {t("signals.attribution_disclaimer")}
+        </p>
+      )}
+
       {signals.length === 0 ? (
         <p className="py-8 text-center text-gray-400">{t("signals.empty")}</p>
       ) : (
@@ -143,6 +153,16 @@ export default async function SignalsPage() {
                       evidenceCount={pub.evidenceCount}
                     />
                     <p className="text-sm text-gray-600 dark:text-gray-300">{s.detail}</p>
+                    {/* Named individuals — the FULL set of distinct qualifying people
+                        (never truncated), one entry per canonical identity. Only the
+                        `accepted` branch renders this, so names never enter anonymous
+                        HTML; the attribution notice above qualifies them. */}
+                    {s.subjects && s.subjects.length > 0 && (
+                      <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">
+                        <span className="font-medium">{t("signals.named_label")}</span>{" "}
+                        {s.subjects.join(", ")}
+                      </p>
+                    )}
                     {pub.evidenceCount > 0 && (
                       <details className="mt-1">
                         <summary className="cursor-pointer text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">

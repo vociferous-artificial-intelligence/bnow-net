@@ -38,9 +38,12 @@ vi.mock("@/db", () => ({ rawSql: { query: (...a: unknown[]) => queryMock(...a) }
 
 const SignalsPage = (await import("./page")).default;
 
-// A purge signal in the post-2026-07-13 shape: `detail` carries role/count
-// language only; names appear ONLY inside the accepted-user evidence rows
-// (claim texts with hedge + sources). The auth boundary must hold for both.
+// A purge signal in the post-2026-07-15 shape: `detail` carries role/count
+// language only; the named individuals ride in `subjects` (accepted-user detail),
+// and also appear in the accepted-user evidence rows (claim texts with hedge +
+// sources). Both `subjects` and the evidence must be WITHHELD from anonymous /
+// unaccepted HTML; the auth boundary must hold for all three states.
+const NAMES = ["Ivanov", "Petrov", "Sidorov"];
 const PURGE: Signal = {
   key: "purge:ru:14d",
   kind: "purge",
@@ -50,12 +53,12 @@ const PURGE: Signal = {
   detail:
     "Cluster of recent reported prosecutions/dismissals: 6 named officials across 3 claims in 14d. " +
     "Analyst review required — this is an automated pattern, not a confirmed campaign; see the " +
-    "evidence below for exact claims with hedging and sources.",
+    "named individuals and the evidence below for exact claims with hedging and sources.",
   evidenceClaimIds: [11, 12, 13],
   evidenceRefs: [],
+  subjects: NAMES,
   at: "2026-07-12T00:00:00Z",
 };
-const NAMES = ["Ivanov", "Petrov", "Sidorov"];
 // Evidence rows (the accepted-user drill-down): claim text names an individual,
 // with hedging and a source doc — this is where names are ALLOWED to appear.
 const EVIDENCE_ROWS = [
@@ -104,11 +107,14 @@ describe("/signals auth boundary", () => {
     expect(container.textContent).toContain("sign in to inspect the evidence");
     // The public evidence count is shown (3 supporting claims).
     expect(container.textContent).toMatch(/3\s/);
-    // Specifics are ABSENT — no name, no detail phrasing.
+    // Specifics are ABSENT — no name, no detail phrasing, no named-individuals block.
     for (const name of NAMES) expect(html).not.toContain(name);
+    expect(html).not.toContain("Named in the reporting");
     expect(html).not.toContain("Targets incl.");
     expect(html).not.toContain("factional purge");
     expect(html).not.toContain("data-copy-surface");
+    // The accepted-only attribution/non-endorsement notice is not shown to anonymous.
+    expect(container.textContent).not.toContain("BNOW reports and attributes");
     // The gated evidence query never ran for the anonymous request.
     expect(queryMock).not.toHaveBeenCalled();
     expect(captureMock).not.toHaveBeenCalled();
@@ -124,11 +130,18 @@ describe("/signals auth boundary", () => {
     const html = container.innerHTML;
 
     expect(html).toContain("6 officials under prosecution/dismissal"); // teaser still there
-    // Detail is role/count language with the review qualification — no name list.
+    // Detail is role/count language with the review qualification — no "purge" conclusion.
     expect(container.textContent).toContain("Analyst review required");
     expect(html).not.toContain("Targets incl.");
     expect(html).not.toContain("factional purge");
-    // Names surface ONLY through the evidence claim texts, with hedge + traceable source.
+    // The attribution / non-endorsement notice is shown to accepted users.
+    expect(container.textContent).toContain(
+      "inclusion is not BNOW's endorsement, accusation, opinion",
+    );
+    // The named individuals appear for the accepted analyst — the FULL set, one per person.
+    expect(container.textContent).toContain("Named in the reporting:");
+    for (const name of NAMES) expect(container.textContent).toContain(name);
+    // Names ALSO surface through the evidence claim texts, with hedge + traceable source.
     expect(container.textContent).toContain("Ivanov was arrested on embezzlement charges");
     expect(container.textContent).toContain("claimed"); // the hedging chip
     expect(html).toContain("Example channel"); // the human-readable source chip
@@ -152,6 +165,8 @@ describe("/signals auth boundary", () => {
     // Teaser present; specifics absent — same protection as the anonymous case.
     expect(html).toContain("6 officials under prosecution/dismissal");
     for (const name of NAMES) expect(html).not.toContain(name);
+    expect(html).not.toContain("Named in the reporting");
+    expect(container.textContent).not.toContain("BNOW reports and attributes");
     expect(html).not.toContain("Targets incl.");
     // The nudge points at acceptance (not sign-in — the user is already signed in).
     expect(container.textContent).toContain("accept the Terms to inspect the evidence");

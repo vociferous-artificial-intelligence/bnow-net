@@ -86,7 +86,8 @@ describe("/account legal section", () => {
     const text = container.textContent ?? "";
 
     expect(text).toContain("Legal");
-    // Terms remains 1.0 while Privacy has advanced independently.
+    // The account page displays whatever version pair the user actually accepted
+    // (historical) — here a legacy Terms 1.0 record — not the current constants.
     expect(container.querySelectorAll('a[href="/terms"]').length).toBeGreaterThan(0);
     expect(container.querySelectorAll('a[href="/privacy"]').length).toBeGreaterThan(0);
     expect(text).toContain("Version 1.0");
