@@ -11,7 +11,7 @@ Not deployed — awaiting the operator's normal approval.
 |---|---|
 | Pass 1 (low-layout-risk cleanup) | `9b4c27e` |
 | Pass 2 (interaction/layout) | `846e3f0` |
-| Contrast remediation (closes the review gaps) | `e3d075a` |
+| Contrast remediation (closes the review gaps) | `3015382` |
 | Gate | 1,566 unit tests / 135 files, typecheck, lint, `next build` — all green |
 | Browser | 56/56 checks (32 regression + 24 remediation), real Chrome, light+dark, 1280 and 390×844 |
 

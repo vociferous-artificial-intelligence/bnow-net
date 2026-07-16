@@ -221,7 +221,7 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   **overstated**: its checker read only `text-gray-*`, so three `text-blue-600` foregrounds
   (signed-out mobile CTA; active locale in the mobile drawer and desktop language menu) went
   unmeasured, and `src/app/scoreboard/[country]/[date]/page.tsx` — inside Workstream F's
-  scope — was missed. Fixed in `e3d075a`: blue-600 is 5.25:1 on white but **3.77:1 on
+  scope — was missed. Fixed in `3015382`: blue-600 is 5.25:1 on white but **3.77:1 on
   `#0a0a0a` / 3.84:1 on the gray-950 drawer**, i.e. dark-mode-only failure; all three now use
   `text-blue-700 dark:text-blue-300` (6.83 / 10.92), matching the evidence links. The detail
   page's breadcrumb, metric summary, match-score row and ISW-keyword sentence move to
