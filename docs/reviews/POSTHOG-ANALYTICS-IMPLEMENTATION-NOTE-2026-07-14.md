@@ -342,10 +342,9 @@ Migration 0020 and Privacy 1.1 stay (forward-only).
 
 ### Residual operator items
 
-1. PostHog UI (5 min): set a **billing limit**, review **project membership**, record the
-   **retention** period shown in Settings (not readable via the project-scoped API key).
+1. PostHog UI: the **billing limit is configured** (operator-confirmed 2026-07-15) and the
+   **retention** period is recorded as seven years; review **project membership**.
 2. Consider narrowing the personal API key back to read-only scopes now that setup is done.
-3. Future Privacy wording pass: disclose IP-derived coarse location if GeoIP stays enabled
-   (operator decision of 2026-07-14 records it as intentional).
-4. Accept Privacy 1.1 on your own accounts (every existing user re-accepts at next visit).
-5. Pre-existing: Postmark sender domain migration; OpenSanctions sequencing per the 07-14 ruling.
+3. Privacy 1.2 now discloses the US region, IP-derived coarse location, and seven-year retention.
+4. Accept Privacy 1.2 on your own accounts (every existing user re-accepts at next visit).
+5. Postmark sender migration is complete; OpenSanctions sequencing per the 07-14 ruling remains.

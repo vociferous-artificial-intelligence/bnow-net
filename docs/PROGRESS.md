@@ -1545,3 +1545,11 @@ provider work; the read-only July ledger remained **660 requests / $72.6000** af
 migration, env change, cleanup, or paid OpenSanctions call occurred. The paid
 rescore remains CLOSED pending operator-approved cleanup #61, a fresh population/month-quota
 recount, separate spend authorization, and the serial run-to-zero evidence in the runbook.
+
+## 2026-07-15 — PostHog billing-limit status sync
+
+The operator confirmed that the PostHog billing limit is configured. Corrected the standing
+integration status, OPEN-TASKS #67, and the analytics implementation note. The remaining PostHog
+UI follow-up is project-membership review; optional API-key scope re-narrowing and operator
+Privacy 1.2 acceptance also remain. Documentation only: no code, environment, provider setting,
+or deployment changed in this sync.

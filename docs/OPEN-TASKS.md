@@ -433,9 +433,9 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     set via API (IP discard on; GeoIP kept ON by operator decision); key/host in Production
     only; deploys `dpl_J5CoSce…` (keyed) + `dpl_8xh5zXY…` ($identify signup_at fix `9e371dc`);
     all 12 events Live-Events-verified with UUID identity + full negative re-tests; dashboard
-    1848415 (9 insights) + Action 289102 created. Residual (all operator, minutes-scale):
-    billing limit + membership + retention record in the PostHog UI; optional API-key scope
-    re-narrowing; accept Privacy 1.2 on operator accounts. The GeoIP/region/retention
+    1848415 (9 insights) + Action 289102 created. The operator confirmed the billing limit is
+    configured on 2026-07-15. Residual (all operator, minutes-scale): project-membership review;
+    optional API-key scope re-narrowing; accept Privacy 1.2 on operator accounts. The GeoIP/region/retention
     privacy-wording pass is now deployed in Privacy 1.2. Evidence:
     POSTHOG-ANALYTICS-IMPLEMENTATION-NOTE-2026-07-14.md §Activation executed. Original task
     text follows for the record.
@@ -462,8 +462,8 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     Privacy 1.1 on next visit — expected, not a bug; analytics stays opt-in either way.
     **Update (analyst-beta remediation 2026-07-15):** Privacy 1.2 is deployed and forces
     re-acknowledgement; it discloses US region, GeoIP-derived coarse location, seven-year
-    retention, and active-only opt-in. Still operator-open: PostHog **billing limit +
-    membership** record in the UI.
+    retention, and active-only opt-in. The billing limit was operator-confirmed configured on
+    2026-07-15; only the PostHog **project-membership review** remains open in the UI.
 
 ### New (from the analyst-beta launch remediation — 2026-07-14; deployed 2026-07-15)
 

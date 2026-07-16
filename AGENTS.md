@@ -1298,6 +1298,11 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   open: cleanup #61 approval+apply, fresh population/month-quota recount, separate spend approval,
   and the serial rescore-to-zero evidence are still required.
 
+- **2026-07-15 (PostHog billing limit recorded)** The operator confirmed that the PostHog
+  billing limit is configured. Corrected the standing integration status and OPEN-TASKS #67 in
+  place; the remaining PostHog UI follow-up is project-membership review. No code, environment,
+  analytics configuration, or deployment changed in this documentation sync.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).
@@ -1325,7 +1330,7 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
 | X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live, gap-recovered** (`$75` sprint / `$2.50` daily; Jul 9–13 recovered cursor-complete 2026-07-14; watermark-park >4–8h needs a drain+advance, #66; empty-run monitor remains #38) | api.twitterapi.io |
 | OpenSanctions | `OPENSANCTIONS_API_KEY` + caps | **live gap-fill; monthly accounting + fixed-cutoff rescore deployed** (`f9aaa9e`, `dpl_ApFhadwyVNkAyyc9T8R4W7ghgPhu`; 937 eligible / 660 live checked; July ledger still 660 calls / $72.6000 after zero-paid rollout verification; cleanup #61 + paid rescore remain approval-gated) | opensanctions.org |
 | Telegram MTProto | `TELEGRAM_API_ID/HASH` + `TELEGRAM_SESSION` (all in prod env) | **live** (session added 2026-07-11; first fetch + repeated hourly runs verified; registry top-120 ROCA roster) | my.telegram.org |
-| PostHog (product analytics) | `NEXT_PUBLIC_POSTHOG_KEY` + `_HOST` (Production only) + `POSTHOG_PERSONAL_API_KEY`/`POSTHOG_PROJECT_ID` (.env.local, ops) | **LIVE opt-in-only** (US project 512327 "BNOW.NET"; rollback = remove key + redeploy; operator UI items: billing limit + membership) | us.posthog.com |
+| PostHog (product analytics) | `NEXT_PUBLIC_POSTHOG_KEY` + `_HOST` (Production only) + `POSTHOG_PERSONAL_API_KEY`/`POSTHOG_PROJECT_ID` (.env.local, ops) | **LIVE opt-in-only** (US project 512327 "BNOW.NET"; rollback = remove key + redeploy; billing limit configured 2026-07-15; project-membership review remains) | us.posthog.com |
 | ACLED | `ACLED_API_KEY`, `ACLED_EMAIL` | stubbed | acleddata.com |
 | Stripe | `STRIPE_SECRET_KEY`, … | flagged off | dashboard.stripe.com |
 | Resend | `RESEND_API_KEY` | superseded by Postmark | resend.com |
