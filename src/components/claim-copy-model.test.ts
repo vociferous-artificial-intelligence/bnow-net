@@ -18,7 +18,7 @@ export const copyLabels: ClaimCopyLabels = {
   evidenceListLabel: "Evidence list", publishedLabel: "Published",
   platformLabel: "Platform", reliabilityLabel: "Reliability", unknown: "Unknown",
   statuses: { confirmed: "Confirmed", assessed: "Assessed", claimed: "Claimed", unverified: "Unverified", unknown: "Unknown" },
-  platforms: { rss_news: "RSS/news", gdelt: "GDELT", telegram: "Telegram", x: "X", procurement: "Procurement" },
+  platforms: { rss_news: "News", gdelt: "GDELT", telegram: "Telegram", x: "X", procurement: "Procurement" },
 };
 
 export function copyDoc(id: number, overrides: Partial<ClaimSourceDoc> = {}): ClaimSourceDoc {

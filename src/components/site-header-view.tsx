@@ -189,7 +189,7 @@ export function SiteHeaderView({
                   <MobileLink key={entry.id} href={entry.href} label={entry.label} pathname={pathname} />
                 ) : (
                   <section key={entry.id}>
-                    <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                    <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
                       {entry.label}
                     </h2>
                     <ul>
@@ -207,7 +207,7 @@ export function SiteHeaderView({
             <div className="mt-6 border-t border-gray-200 pt-4 dark:border-gray-800">
               {nav.auth.signedIn ? (
                 <>
-                  <p className="mb-2 truncate text-xs text-gray-500">{nav.auth.email}</p>
+                  <p className="mb-2 truncate text-sm text-gray-600 dark:text-gray-400">{nav.auth.email}</p>
                   <MobileLink href={nav.auth.accountHref} label={labels.account} pathname={pathname} />
                   <AnalyticsResetForm action={signOutAction}>
                     <button type="submit" className={`block py-1.5 text-sm ${FOCUS_RING}`}>
@@ -221,10 +221,10 @@ export function SiteHeaderView({
             </div>
 
             <div className="mt-4 border-t border-gray-200 pt-4 dark:border-gray-800">
-              <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+              <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
                 {labels.language}
               </h2>
-              <ul className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+              <ul className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
                 {locales.map((l) => (
                   <li key={l.code}>
                     <a
@@ -235,7 +235,7 @@ export function SiteHeaderView({
                       title={l.label}
                       aria-current={l.code === locale ? "true" : undefined}
                       className={
-                        l.code === locale ? "font-semibold text-blue-600" : "text-gray-500 hover:underline"
+                        l.code === locale ? "font-semibold text-blue-600" : "text-gray-600 hover:underline dark:text-gray-400"
                       }
                     >
                       {localeSelectorLabel(l)}
@@ -328,7 +328,7 @@ function AuthSlot({
         </span>
       }
     >
-      <p role="none" className="truncate border-b border-gray-100 px-3 py-2 text-xs text-gray-500 dark:border-gray-900">
+      <p role="none" className="truncate border-b border-gray-100 px-3 py-2 text-sm text-gray-600 dark:border-gray-900 dark:text-gray-400">
         {nav.auth.email}
       </p>
       <NavMenuLink href={nav.auth.accountHref}>{labels.account}</NavMenuLink>

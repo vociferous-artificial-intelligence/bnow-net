@@ -19,9 +19,17 @@ const evidenceLabels: ClaimEvidenceLabels = {
   viewTrail: "View evidence trail ({n})", sortLabel: "Sort evidence", sortOldest: "Oldest published",
   sortNewest: "Newest published", sortReliability: "Reliability",
   sortSource: "Source/channel", publishedColumn: "Published",
-  sourceColumn: "Source", platformColumn: "Platform", reliabilityColumn: "Reliability",
-  titleColumn: "Title/link", openSourceDocument: "Open source document",
-  platforms: { rss_news: "RSS/news", gdelt: "GDELT", telegram: "Telegram", x: "X", procurement: "Procurement" },
+  sourceColumn: "Source", reliabilityColumn: "Reliability",
+  titleColumn: "Title/link",
+  openLabels: {
+    rss_news: "Open article",
+    gdelt: "Open article",
+    telegram: "Open Telegram post",
+    x: "Open X post",
+    procurement: "Open procurement record",
+    other: "Open source",
+  },
+  platforms: { rss_news: "News", gdelt: "GDELT", telegram: "Telegram", x: "X", procurement: "Procurement" },
 };
 
 function sourceDoc(id: number, overrides: Partial<ClaimSourceDoc> = {}): ClaimSourceDoc {
@@ -35,8 +43,9 @@ function sourceDoc(id: number, overrides: Partial<ClaimSourceDoc> = {}): ClaimSo
 }
 
 /**
- * Reads the Source cell by resolving its column from the header rather than a fixed
- * index, so a column reorder can't silently make these assertions read a neighbour.
+ * Reads each row's source name by resolving the Source column from the header rather
+ * than a fixed index, so a column reorder can't silently make these assertions read a
+ * neighbour. The name is the cell's first span — the platform badge shares the cell.
  */
 function rowSources(): string[] {
   const headers = within(document.querySelector("thead")!).getAllByRole("columnheader");
@@ -45,7 +54,7 @@ function rowSources(): string[] {
   const body = document.querySelector("tbody")!;
   return within(body)
     .getAllByRole("row")
-    .map((row) => within(row).getAllByRole("cell")[sourceIndex].textContent ?? "");
+    .map((row) => within(row).getAllByRole("cell")[sourceIndex].querySelector("span")?.textContent ?? "");
 }
 
 describe("ClaimEvidenceTrail", () => {
@@ -124,8 +133,54 @@ describe("ClaimEvidenceTrail", () => {
     );
     expect(screen.queryByRole("columnheader", { name: "Reliability" })).toBeNull();
     expect(screen.queryByRole("link")).toBeNull();
-    expect(screen.getByText("Open source document")).toBeTruthy();
+    // Untitled RSS document: named for what it is, still inert because data: is unsafe.
+    expect(screen.getByText("Open article")).toBeTruthy();
     expect(document.body.textContent).not.toContain("0.99");
+  });
+
+  it("names an untitled document by its transport and prefers a real title", () => {
+    render(
+      <ClaimEvidenceTrail
+        locale="en"
+        showScores
+        labels={evidenceLabels}
+        docs={[
+          sourceDoc(1, { adapter: "x_api", title: null }),
+          sourceDoc(2, { adapter: "telegram_mtproto", title: "   " }),
+          sourceDoc(3, { adapter: "procurement", title: null }),
+          sourceDoc(4, { adapter: "somethingelse", title: null, platform: null }),
+          sourceDoc(5, { adapter: "rss", title: "Real headline" }),
+        ]}
+      />,
+    );
+    expect(screen.getByText("Open X post")).toBeTruthy();
+    // Whitespace-only titles are not titles.
+    expect(screen.getByText("Open Telegram post")).toBeTruthy();
+    expect(screen.getByText("Open procurement record")).toBeTruthy();
+    expect(screen.getByText("Open source")).toBeTruthy();
+    expect(screen.getByText("Real headline")).toBeTruthy();
+    // Never a raw document id.
+    expect(document.body.textContent).not.toContain("Open source document");
+  });
+
+  it("puts the source first, badges its platform in that cell, and drops the platform column", () => {
+    render(
+      <ClaimEvidenceTrail
+        locale="en"
+        showScores
+        labels={evidenceLabels}
+        docs={[sourceDoc(1, { sourceName: "Example News", adapter: "rss" })]}
+      />,
+    );
+    const headers = within(document.querySelector("thead")!)
+      .getAllByRole("columnheader")
+      .map((h) => h.textContent);
+    expect(headers).toEqual(["Source", "Published", "Title/link", "Reliability"]);
+
+    const sourceCell = within(document.querySelector("tbody")!).getAllByRole("cell")[0];
+    expect(sourceCell.textContent).toContain("Example News");
+    expect(sourceCell.textContent).toContain("News"); // platform badge, renamed from RSS/news
+    expect(document.body.textContent).not.toContain("RSS/news");
   });
 
   it("retains external-link security attributes", () => {

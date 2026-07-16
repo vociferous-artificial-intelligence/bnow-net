@@ -78,8 +78,8 @@ export default async function ScoreboardPage() {
           <div className="text-2xl font-bold tabular-nums">
             {avgCoverage !== null ? `${avgCoverage.toFixed(0)}%` : "—"}
           </div>
-          <div className="text-xs text-gray-500">{t("scoreboard.avg_coverage")}</div>
-          <div className="mt-1 text-xs text-gray-400">
+          <div className="text-sm text-gray-600 dark:text-gray-400">{t("scoreboard.avg_coverage")}</div>
+          <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">
             {t("scoreboard.target_coverage", { n: TARGETS.coverage })}
             {nonzero.meanPct !== null &&
               ` · ${t("scoreboard.nonzero_day_mean", {
@@ -92,8 +92,8 @@ export default async function ScoreboardPage() {
           <div className="text-2xl font-bold tabular-nums">
             {avgThin !== null ? `${avgThin.toFixed(0)}%` : "—"}
           </div>
-          <div className="text-xs text-gray-500">{t("scoreboard.avg_thin_sourced")}</div>
-          <div className="mt-1 text-xs text-gray-400">
+          <div className="text-sm text-gray-600 dark:text-gray-400">{t("scoreboard.avg_thin_sourced")}</div>
+          <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">
             {t("scoreboard.target_thin", { n: TARGETS.thin })}
           </div>
         </div>
@@ -101,19 +101,21 @@ export default async function ScoreboardPage() {
           <div className="text-2xl font-bold tabular-nums">
             {medianLead !== null ? `${medianLead > 0 ? "+" : ""}${medianLead.toFixed(1)}h` : "—"}
           </div>
-          <div className="text-xs text-gray-500">{t("scoreboard.median_lead")}</div>
-          <div className="mt-1 text-xs text-gray-400">
+          <div className="text-sm text-gray-600 dark:text-gray-400">{t("scoreboard.median_lead")}</div>
+          <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">
             {t("scoreboard.target_lead", { n: TARGETS.timeliness })}
           </div>
         </div>
         <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
           <div className="text-2xl font-bold tabular-nums">{rows.length}</div>
-          <div className="text-xs text-gray-500">validation runs</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">validation runs</div>
         </div>
       </div>
 
+      {/* Uniform cell padding: with none, adjacent cells rendered as "theatercoverage"
+          and "1 / 3 / 5detail". First/last cells stay flush with the table edges. */}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-sm">
+        <table className="w-full min-w-[640px] text-sm [&_td]:px-2 [&_th]:px-2 [&_td:first-child]:ps-0 [&_th:first-child]:ps-0 [&_td:last-child]:pe-0 [&_th:last-child]:pe-0">
           <thead>
             <tr className="border-b-2 border-gray-300 text-left dark:border-gray-700">
               <th className="py-2">date</th>
@@ -143,7 +145,7 @@ export default async function ScoreboardPage() {
                       </span>
                     </div>
                     {r.at_publish?.coveragePct != null && (
-                      <div className="text-xs text-gray-400 tabular-nums">
+                      <div className="text-xs text-gray-600 tabular-nums dark:text-gray-400">
                         {t("scoreboard.at_publish", {
                           pct: Number(r.at_publish.coveragePct).toFixed(0),
                         })}
@@ -166,7 +168,7 @@ export default async function ScoreboardPage() {
                   <td>
                     <Link
                       href={`/scoreboard/${r.iso2}/${String(r.digest_date).slice(0, 10)}`}
-                      className="text-xs underline"
+                      className="text-sm underline"
                     >
                       detail
                     </Link>

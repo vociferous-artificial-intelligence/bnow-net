@@ -114,14 +114,16 @@ export function ClaimSources({
 
   return (
     <div className="mt-2 min-w-0 pl-1" data-print="evidence-summary">
-      <p className="text-xs text-gray-600 dark:text-gray-400">
+      {/* The evidence summary is the scan target — an analyst reads "how many channels,
+          how early" here instead of parsing the table for every claim. 14px, not 12. */}
+      <p className="text-sm text-gray-600 dark:text-gray-400">
         {interpolate(labels.summary, {
           docs: summary.documents,
           channels: summary.channels,
           platforms: summary.platforms,
         })}
       </p>
-      <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">
+      <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">
         {labels.earliestPublished} {summaryTime(summary.earliestPublishedAt, locale, labels.unknown)}
       </p>
       <div className="mt-1 flex flex-wrap items-center gap-2" data-print="selected-evidence">

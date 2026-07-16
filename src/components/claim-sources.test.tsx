@@ -17,11 +17,17 @@ export const evidenceLabels: ClaimEvidenceLabels = {
   sortSource: "Source/channel",
   publishedColumn: "Published",
   sourceColumn: "Source",
-  platformColumn: "Platform",
   reliabilityColumn: "Reliability",
   titleColumn: "Title/link",
-  openSourceDocument: "Open source document",
-  platforms: { rss_news: "RSS/news", gdelt: "GDELT", telegram: "Telegram", x: "X", procurement: "Procurement" },
+  openLabels: {
+    rss_news: "Open article",
+    gdelt: "Open article",
+    telegram: "Open Telegram post",
+    x: "Open X post",
+    procurement: "Open procurement record",
+    other: "Open source",
+  },
+  platforms: { rss_news: "News", gdelt: "GDELT", telegram: "Telegram", x: "X", procurement: "Procurement" },
 };
 
 export function sourceDoc(id: number, overrides: Partial<ClaimSourceDoc> = {}): ClaimSourceDoc {

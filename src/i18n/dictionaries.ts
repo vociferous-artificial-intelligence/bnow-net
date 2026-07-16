@@ -428,11 +428,17 @@ const en: Dict = {
   "sources.sort.source": "Source/channel",
   "sources.col.published": "Published",
   "sources.col.source": "Source",
-  "sources.col.platform": "Platform",
   "sources.col.reliability": "Reliability",
   "sources.col.title": "Title/link",
-  "sources.open_document": "Open source document",
-  "sources.platform.rss_news": "RSS/news",
+  // Link text for an untitled document, by transport: one generic phrase could not tell
+  // a wire story from a tweet from a tender notice.
+  "sources.open.article": "Open article",
+  "sources.open.x": "Open X post",
+  "sources.open.telegram": "Open Telegram post",
+  "sources.open.procurement": "Open procurement record",
+  "sources.open.fallback": "Open source",
+  // "RSS/news" named our transport; the reader only needs the kind of source it is.
+  "sources.platform.rss_news": "News",
   "sources.platform.gdelt": "GDELT",
   "sources.platform.telegram": "Telegram",
   "sources.platform.x": "X",
@@ -472,9 +478,11 @@ const en: Dict = {
   "copy.status_unknown": "Unknown",
 
   // Browser-native print/PDF workflow for digest handoff.
-  "digest.print.actions": "Print / Save PDF",
-  "digest.print.brief": "Print brief",
-  "digest.print.evidence": "Print with evidence",
+  // One disclosure named by `actions`; brief/evidence are its two options, so they no
+  // longer repeat the verb ("Print brief" → "Brief").
+  "digest.print.actions": "Print / save PDF",
+  "digest.print.brief": "Brief",
+  "digest.print.evidence": "With full evidence",
   "digest.print.failed": "Printing could not be started",
   "digest.print.selected_note": "Selected evidence shown; complete evidence is available at each claim link.",
   "digest.print.appendix": "Complete evidence appendix",
@@ -777,11 +785,14 @@ const uk: Dict = {
   "sources.sort.source": "Джерело/канал", // uk: needs native review
   "sources.col.published": "Опубліковано", // uk: needs native review
   "sources.col.source": "Джерело", // uk: needs native review
-  "sources.col.platform": "Платформа", // uk: needs native review
   "sources.col.reliability": "Надійність", // uk: needs native review
   "sources.col.title": "Назва/посилання", // uk: needs native review
-  "sources.open_document": "Відкрити джерельний документ", // uk: needs native review
-  "sources.platform.rss_news": "RSS/новини", // uk: needs native review
+  "sources.open.article": "Відкрити статтю", // uk: needs native review
+  "sources.open.x": "Відкрити допис у X", // uk: needs native review
+  "sources.open.telegram": "Відкрити допис у Telegram", // uk: needs native review
+  "sources.open.procurement": "Відкрити тендерний запис", // uk: needs native review
+  "sources.open.fallback": "Відкрити джерело", // uk: needs native review
+  "sources.platform.rss_news": "Новини", // uk: needs native review
   "sources.platform.gdelt": "GDELT",
   "sources.platform.telegram": "Telegram",
   "sources.platform.x": "X",
@@ -816,9 +827,9 @@ const uk: Dict = {
   "copy.status_claimed": "Заявлено", // uk: needs native review
   "copy.status_unverified": "Не перевірено", // uk: needs native review
   "copy.status_unknown": "Невідомо", // uk: needs native review
-  "digest.print.actions": "Друк / Зберегти PDF", // uk: needs native review
-  "digest.print.brief": "Друкувати стислий звіт", // uk: needs native review
-  "digest.print.evidence": "Друкувати з доказами", // uk: needs native review
+  "digest.print.actions": "Друк / зберегти PDF", // uk: needs native review
+  "digest.print.brief": "Стисло", // uk: needs native review
+  "digest.print.evidence": "З повними доказами", // uk: needs native review
   "digest.print.failed": "Не вдалося почати друк", // uk: needs native review
   "digest.print.selected_note": "Показано вибрані докази; повні докази доступні за посиланням кожного твердження.", // uk: needs native review
   "digest.print.appendix": "Повний додаток доказів", // uk: needs native review

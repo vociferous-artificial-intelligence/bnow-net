@@ -14,6 +14,8 @@ import { TrackedSourceLink } from "./analytics/tracked-source-link";
 import {
   claimSourceLabel,
   evidencePlatform,
+  evidencePlatformLabel,
+  evidenceTitle,
   safeHttpUrl,
   sortEvidenceDocs,
   type ClaimEvidenceLabels,
@@ -54,13 +56,6 @@ function EvidenceTime({ value, locale, unknown }: { value: string | null; locale
   );
 }
 
-function platformLabel(doc: ClaimSourceDoc, labels: ClaimEvidenceLabels): string {
-  const platform = evidencePlatform(doc);
-  if (platform !== "other") return labels.platforms[platform];
-  const adapter = doc.adapter.trim();
-  return adapter ? adapter.replace(/[_-]+/g, " ") : labels.unknown;
-}
-
 export function ClaimEvidenceTrail({ docs, locale, showScores, labels, analytics }: ClaimEvidenceTrailProps) {
   const [sortMode, setSortMode] = useState<EvidenceSortMode>("oldest_published");
   const sorted = sortEvidenceDocs(docs, sortMode);
@@ -79,13 +74,13 @@ export function ClaimEvidenceTrail({ docs, locale, showScores, labels, analytics
         });
       }}
     >
-      <summary className="cursor-pointer text-xs font-medium text-blue-700 hover:underline dark:text-blue-300">
+      <summary className="cursor-pointer text-sm font-medium text-blue-700 hover:underline dark:text-blue-300">
         {interpolate(labels.viewTrail, { n: docs.length })}
       </summary>
       <div className="mt-3 min-w-0 rounded border border-gray-200 p-3 dark:border-gray-800">
         {/* One document has no order to choose — the control would be a dead input. */}
         {docs.length > 1 && (
-          <label className="flex max-w-sm flex-col gap-1 text-xs font-medium text-gray-700 dark:text-gray-300">
+          <label className="flex max-w-sm flex-col gap-1 text-sm font-medium text-gray-700 dark:text-gray-300">
             {labels.sortLabel}
             <select
               className="rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
@@ -100,35 +95,35 @@ export function ClaimEvidenceTrail({ docs, locale, showScores, labels, analytics
           </label>
         )}
 
+        {/* Source-first (2026-07-16): an analyst assessing evidence asks "who says this"
+            before "when". Platform rides along as a badge in the Source cell rather than
+            owning a column, which buys the width back. Column order is presentation only
+            — the default sort stays chronological (oldest published). */}
         <div className="mt-3 max-w-full overflow-x-auto">
-          <table className="min-w-[760px] border-collapse text-left text-xs">
+          <table className="min-w-[560px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-800">
-                <th className="px-2 py-2 font-medium">{labels.publishedColumn}</th>
                 <th className="px-2 py-2 font-medium">{labels.sourceColumn}</th>
-                <th className="px-2 py-2 font-medium">{labels.platformColumn}</th>
-                {showScores && <th className="px-2 py-2 font-medium">{labels.reliabilityColumn}</th>}
+                <th className="px-2 py-2 font-medium">{labels.publishedColumn}</th>
                 <th className="px-2 py-2 font-medium">{labels.titleColumn}</th>
+                {showScores && <th className="px-2 py-2 font-medium">{labels.reliabilityColumn}</th>}
               </tr>
             </thead>
             <tbody>
               {sorted.map((doc) => {
                 const safeUrl = safeHttpUrl(doc.url);
-                const title = doc.title?.trim() || labels.openSourceDocument;
+                const title = evidenceTitle(doc, labels);
                 return (
                   <tr key={doc.docId} className="border-b border-gray-100 align-top dark:border-gray-900">
+                    <td className="max-w-[220px] break-words px-2 py-2">
+                      <span className="block">{claimSourceLabel(doc)}</span>
+                      <span className="mt-1 inline-block rounded border border-gray-300 px-1.5 py-0.5 text-xs text-gray-600 dark:border-gray-700 dark:text-gray-400">
+                        {evidencePlatformLabel(doc, labels)}
+                      </span>
+                    </td>
                     <td className="whitespace-nowrap px-2 py-2">
                       <EvidenceTime value={doc.publishedAt} locale={locale} unknown={labels.unknown} />
                     </td>
-                    <td className="max-w-[220px] break-words px-2 py-2">{claimSourceLabel(doc)}</td>
-                    <td className="whitespace-nowrap px-2 py-2">{platformLabel(doc, labels)}</td>
-                    {showScores && (
-                      <td className="whitespace-nowrap px-2 py-2">
-                        {doc.reliability !== null && Number.isFinite(doc.reliability)
-                          ? doc.reliability.toFixed(2)
-                          : labels.unknown}
-                      </td>
-                    )}
                     <td className="max-w-[320px] break-words px-2 py-2">
                       {safeUrl ? (
                         <TrackedSourceLink
@@ -145,6 +140,13 @@ export function ClaimEvidenceTrail({ docs, locale, showScores, labels, analytics
                         title
                       )}
                     </td>
+                    {showScores && (
+                      <td className="whitespace-nowrap px-2 py-2">
+                        {doc.reliability !== null && Number.isFinite(doc.reliability)
+                          ? doc.reliability.toFixed(2)
+                          : labels.unknown}
+                      </td>
+                    )}
                   </tr>
                 );
               })}

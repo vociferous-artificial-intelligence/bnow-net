@@ -19,10 +19,16 @@ export function makeClaimEvidenceLabels(t: EvidenceTranslator): ClaimEvidenceLab
     sortSource: t("sources.sort.source"),
     publishedColumn: t("sources.col.published"),
     sourceColumn: t("sources.col.source"),
-    platformColumn: t("sources.col.platform"),
     reliabilityColumn: t("sources.col.reliability"),
     titleColumn: t("sources.col.title"),
-    openSourceDocument: t("sources.open_document"),
+    openLabels: {
+      rss_news: t("sources.open.article"),
+      gdelt: t("sources.open.article"),
+      telegram: t("sources.open.telegram"),
+      x: t("sources.open.x"),
+      procurement: t("sources.open.procurement"),
+      other: t("sources.open.fallback"),
+    },
     platforms: {
       rss_news: t("sources.platform.rss_news"),
       gdelt: t("sources.platform.gdelt"),

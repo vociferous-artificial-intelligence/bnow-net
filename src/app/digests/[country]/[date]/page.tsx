@@ -10,7 +10,8 @@ import { ClaimSources } from "@/components/claim-sources";
 import {
   canonicalEvidenceDocs,
   claimSourceLabel,
-  evidencePlatform,
+  evidencePlatformLabel,
+  evidenceTitle,
   safeHttpUrl,
   summarizeClaimEvidence,
   type ClaimSourceDoc,
@@ -340,32 +341,43 @@ export default async function DigestPage({
         </div>
       </header>
 
-      <p data-print="hide" className="mb-1 text-sm text-gray-500">
+      <p data-print="hide" className="mb-1 text-sm text-gray-600 dark:text-gray-400">
         <Link href="/" className="underline">BNOW.NET</Link> · daily digest
       </p>
-      <h1 data-print="hide" className="mb-1 text-2xl font-bold">
-        {digestRows[0].country_name} — {date}
-      </h1>
-      {/* Page-level stage only when every track agrees; the mixed case reports on each
-          track heading instead (see summarizeDigestFreshness). */}
-      {freshness.uniformStage && (
-        <p data-print="hide" data-testid="digest-freshness" className="mb-3 text-sm text-gray-600 dark:text-gray-400">
-          <span className="font-medium">{stageLabel(freshness.uniformStage)}</span>
-          {" · "}
-          {updatedLabel(freshness.lastUpdatedAt)}
-        </p>
-      )}
+      {/* Title and the print disclosure share one action row: side by side once there is
+          room, stacked below 640px. min-w-0 lets a long country name wrap instead of
+          shoving the disclosure off the row. */}
+      <div
+        data-print="hide"
+        data-testid="digest-header-row"
+        className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+      >
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold">
+            {digestRows[0].country_name} — {date}
+          </h1>
+          {/* Page-level stage only when every track agrees; the mixed case reports on each
+              track heading instead (see summarizeDigestFreshness). */}
+          {freshness.uniformStage && (
+            <p data-testid="digest-freshness" className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+              <span className="font-medium">{stageLabel(freshness.uniformStage)}</span>
+              {" · "}
+              {updatedLabel(freshness.lastUpdatedAt)}
+            </p>
+          )}
+        </div>
 
-      <DigestPrintActions
-        theater={country}
-        digestAge={digestAge}
-        labels={{
-          actions: t("digest.print.actions"),
-          brief: t("digest.print.brief"),
-          evidence: t("digest.print.evidence"),
-          failure: t("digest.print.failed"),
-        }}
-      />
+        <DigestPrintActions
+          theater={country}
+          digestAge={digestAge}
+          labels={{
+            actions: t("digest.print.actions"),
+            brief: t("digest.print.brief"),
+            evidence: t("digest.print.evidence"),
+            failure: t("digest.print.failed"),
+          }}
+        />
+      </div>
 
       <nav data-print="hide" className="mb-4 flex items-center gap-3 text-sm">
         {prevDate && (
@@ -391,8 +403,9 @@ export default async function DigestPage({
         )}
       </nav>
 
-      <div data-print="hide" className="mb-6 flex flex-wrap items-center gap-1.5 text-xs">
-        <span className="mr-1 text-gray-400">{t("digest.view_for")}</span>
+      {/* 14px, not 12px: this is a control, and its label states what the buttons do. */}
+      <div data-print="hide" className="mb-6 flex flex-wrap items-center gap-1.5 text-sm">
+        <span className="me-1 text-gray-600 dark:text-gray-400">{t("digest.view_for")}</span>
         {PROFILES.map((p) => {
           const active = (profileKey ?? "balanced") === p.key;
           const qs = p.key === "balanced" ? "" : `?profile=${p.key}`;
@@ -431,7 +444,7 @@ export default async function DigestPage({
                 </span>
               )}
             </h2>
-            {!events && <p className="text-sm text-gray-400">{t("digest.no_events")}</p>}
+            {!events && <p className="text-sm text-gray-600 dark:text-gray-400">{t("digest.no_events")}</p>}
             {events &&
               orderedEvents.map((ev) => (
                 <section key={ev.id} data-print="event" className="mb-5 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
@@ -441,7 +454,8 @@ export default async function DigestPage({
                     </span>
                     <h3 className="font-semibold">{ev.title}</h3>
                   </div>
-                  <p data-print="event-summary" className="mb-3 text-sm text-gray-500">{ev.summary}</p>
+                  {/* Core summary prose — carries the event, so it reads at full strength. */}
+                  <p data-print="event-summary" className="mb-3 text-sm text-gray-700 dark:text-gray-300">{ev.summary}</p>
                   <ul className="space-y-3">
                     {[...ev.claims.entries()].map(([claimId, c]) => {
                       const claimDocs = c.docs.map(toClaimSourceDoc);
@@ -539,11 +553,12 @@ export default async function DigestPage({
                     {canonicalEvidenceDocs(claim.docs.map(toClaimSourceDoc)).map((doc) => {
                       const safeUrl = safeHttpUrl(doc.url);
                       const label = claimSourceLabel(doc);
-                      const platform = evidencePlatform(doc);
-                      const platformLabel = platform === "other"
-                        ? (doc.adapter || t("sources.unknown"))
-                        : evidenceLabels.platforms[platform];
+                      const platformLabel = evidencePlatformLabel(doc, evidenceLabels);
                       const published = formatEtDateTime(doc.publishedAt, locale) ?? t("sources.unknown");
+                      // Same transport-aware link text as the on-screen trail — a printed
+                      // appendix is read away from the app, where "Open source document"
+                      // is even less recoverable.
+                      const title = evidenceTitle(doc, evidenceLabels);
                       return (
                         <li key={doc.docId} data-print="source" className="text-xs">
                           <span className="font-semibold">{label}</span> · {platformLabel}
@@ -554,9 +569,9 @@ export default async function DigestPage({
                           {t("sources.col.published")}: {published}
                           <br />
                           {safeUrl ? (
-                            <a href={safeUrl} rel="nofollow noopener" target="_blank">{doc.title ?? t("sources.open_document")} · {safeUrl}</a>
+                            <a href={safeUrl} rel="nofollow noopener" target="_blank">{title} · {safeUrl}</a>
                           ) : (
-                            <span>{doc.title ?? t("sources.open_document")}</span>
+                            <span>{title}</span>
                           )}
                         </li>
                       );
@@ -569,7 +584,7 @@ export default async function DigestPage({
         })}
       </section>
       {digestMailto && (
-        <p data-print="hide" className="mb-2 text-xs text-gray-400">
+        <p data-print="hide" className="mb-2 text-sm text-gray-600 dark:text-gray-400">
           <TrackedFeedbackLink
             href={digestMailto}
             surface="digest_error"
@@ -581,7 +596,7 @@ export default async function DigestPage({
         </p>
       )}
       {sourceMailto && (
-        <p data-print="hide" className="mb-2 text-xs text-gray-400">
+        <p data-print="hide" className="mb-2 text-sm text-gray-600 dark:text-gray-400">
           <TrackedFeedbackLink
             href={sourceMailto}
             surface="source_suggestion"
@@ -592,7 +607,7 @@ export default async function DigestPage({
           </TrackedFeedbackLink>
         </p>
       )}
-      <p className="text-xs text-gray-400">
+      <p className="text-sm text-gray-600 dark:text-gray-400">
         Every claim links to its source documents. Traceability is enforced at the
         database level. Factional interpretations are marked as assessments.
       </p>

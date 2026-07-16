@@ -30,7 +30,8 @@ export function QuickLinksRail({ t, theaters }: QuickLinksRailProps) {
 
   return (
     <section className="pb-6">
-      <p className="text-sm text-gray-400">
+      {/* gray-400 is 2.60:1 on white — these are real destinations, not decoration. */}
+      <p className="text-sm text-gray-600 dark:text-gray-400">
         {t("home.quicklinks.label")}:{" "}
         {theaterItems.map((th, i) => (
           <span key={th.iso2}>

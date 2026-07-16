@@ -141,7 +141,7 @@ export function TheaterStatusPanel({
                       {status.kind === "none" ? t("home.status.no_digest") : digestLabel(status, locale, t)}
                     </Link>
                     {status.kind === "previous" && (
-                      <span className="block text-xs text-gray-400 dark:text-gray-500">
+                      <span className="block text-xs text-gray-600 dark:text-gray-400">
                         {t("home.status.none_today")}
                       </span>
                     )}
@@ -189,7 +189,7 @@ export function TheaterStatusPanel({
         })}
       </div>
       {xPaused && (
-        <p className="mt-4 text-xs text-gray-400 dark:text-gray-500">
+        <p className="mt-4 text-xs text-gray-600 dark:text-gray-400">
           {t("home.status.x_paused")}
         </p>
       )}

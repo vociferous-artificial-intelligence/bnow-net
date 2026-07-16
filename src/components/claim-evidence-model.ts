@@ -40,10 +40,14 @@ export interface ClaimEvidenceLabels {
   sortSource: string;
   publishedColumn: string;
   sourceColumn: string;
-  platformColumn: string;
   reliabilityColumn: string;
   titleColumn: string;
-  openSourceDocument: string;
+  /**
+   * Link text for a document with no title, per transport. "Open source document" was
+   * the same phrase for a wire story, a tweet and a tender notice, so it told the
+   * analyst nothing about what they were about to open (2026-07-16).
+   */
+  openLabels: Record<EvidencePlatform, string>;
   platforms: Record<Exclude<EvidencePlatform, "other">, string>;
 }
 
@@ -139,6 +143,22 @@ export function evidencePlatform(doc: ClaimSourceDoc): EvidencePlatform {
   if (explicit === "telegram") return "telegram";
   if (explicit === "x" || explicit === "twitter") return "x";
   return "other";
+}
+
+/**
+ * The document's own title when it has one; otherwise a transport-aware invitation.
+ * Never a document id — those are internal identifiers and mean nothing to a reader.
+ */
+export function evidenceTitle(doc: ClaimSourceDoc, labels: ClaimEvidenceLabels): string {
+  return doc.title?.trim() || labels.openLabels[evidencePlatform(doc)];
+}
+
+/** Visible platform name for the badge/label, falling back to the raw adapter. */
+export function evidencePlatformLabel(doc: ClaimSourceDoc, labels: ClaimEvidenceLabels): string {
+  const platform = evidencePlatform(doc);
+  if (platform !== "other") return labels.platforms[platform];
+  const adapter = doc.adapter.trim();
+  return adapter ? adapter.replace(/[_-]+/g, " ") : labels.unknown;
 }
 
 /** The established chip-selection class must not drift to the new display transport. */

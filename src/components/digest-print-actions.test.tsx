@@ -9,9 +9,9 @@ const captureMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/analytics/client", () => ({ captureProductEvent: captureMock }));
 
 const LABELS = {
-  actions: "Print / Save PDF",
-  brief: "Print brief",
-  evidence: "Print with evidence",
+  actions: "Print / save PDF",
+  brief: "Brief",
+  evidence: "With full evidence",
   failure: "Unable to open the print dialog.",
 };
 
@@ -37,7 +37,7 @@ describe("DigestPrintActions", () => {
 
     render(actions());
     expect(document.documentElement.dataset.printPage).toBe("digest");
-    fireEvent.click(screen.getByRole("button", { name: "Print brief" }));
+    fireEvent.click(screen.getByRole("button", { name: "Brief" }));
     expect(print).toHaveBeenCalledOnce();
     expect(captureMock).toHaveBeenCalledWith("digest_print_initiated", {
       theater: "ru",
@@ -51,7 +51,7 @@ describe("DigestPrintActions", () => {
     vi.stubGlobal("print", vi.fn());
     render(actions());
 
-    fireEvent.click(screen.getByRole("button", { name: "Print with evidence" }));
+    fireEvent.click(screen.getByRole("button", { name: "With full evidence" }));
     expect(document.documentElement.dataset.printMode).toBe("evidence");
     window.dispatchEvent(new Event("afterprint"));
     expect(document.documentElement.hasAttribute("data-print-mode")).toBe(false);
@@ -60,7 +60,7 @@ describe("DigestPrintActions", () => {
   it("cleans both semantic attributes up on unmount", () => {
     vi.stubGlobal("print", vi.fn());
     const view = render(actions());
-    fireEvent.click(screen.getByRole("button", { name: "Print brief" }));
+    fireEvent.click(screen.getByRole("button", { name: "Brief" }));
 
     view.unmount();
     expect(document.documentElement.hasAttribute("data-print-page")).toBe(false);
@@ -73,10 +73,50 @@ describe("DigestPrintActions", () => {
     }));
     render(actions());
 
-    fireEvent.click(screen.getByRole("button", { name: "Print brief" }));
+    fireEvent.click(screen.getByRole("button", { name: "Brief" }));
     expect(document.documentElement.hasAttribute("data-print-mode")).toBe(false);
     expect(screen.getByRole("status").textContent).toBe(LABELS.failure);
-    expect((screen.getByRole("button", { name: "Print brief" }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole("button", { name: "Brief" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+});
+
+describe("print disclosure", () => {
+  function disclosure(container: HTMLElement) {
+    return container.querySelector<HTMLDetailsElement>("details")!;
+  }
+
+  it("collapses both modes behind one named disclosure, closed by default", () => {
+    vi.stubGlobal("print", vi.fn());
+    const { container } = render(actions());
+
+    const details = disclosure(container);
+    expect(details.open).toBe(false);
+    // The summary is the accessible name; <details> carries the expanded state natively.
+    expect(container.querySelector("summary")?.textContent).toContain("Print / save PDF");
+    expect(screen.getByRole("button", { name: "Brief" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "With full evidence" })).toBeTruthy();
+  });
+
+  it("is keyboard operable and collapses once a mode is chosen", () => {
+    vi.stubGlobal("print", vi.fn());
+    const { container } = render(actions());
+    const details = disclosure(container);
+    const summary = container.querySelector("summary")!;
+
+    // jsdom does not implement summary's default activation behavior, so drive the
+    // toggle the way the browser would and assert the component honors the state.
+    details.open = true;
+    expect(details.open).toBe(true);
+    expect(summary.tabIndex).toBe(0); // focusable without a tabindex of our own
+
+    fireEvent.click(screen.getByRole("button", { name: "Brief" }));
+    expect(details.open).toBe(false);
+  });
+
+  it("never renders into print output", () => {
+    vi.stubGlobal("print", vi.fn());
+    const { container } = render(actions());
+    expect(disclosure(container).closest('[data-print="hide"]')).toBeTruthy();
   });
 });
 
