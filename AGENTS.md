@@ -212,53 +212,28 @@ Operational rulings:
 
 ## Decision log (append-only, dated)
 
-Entries through the 2026-07-16 #17 spend-subset deployment are archived **verbatim** in
-`docs/DECISIONS.md`; distilled still-binding decisions live in Standing rulings above.
+Entries through the 2026-07-16 analyst-experience quick-wins implementation are archived
+**verbatim** in `docs/DECISIONS.md`; distilled still-binding decisions live in Standing
+rulings above. New entries append at the BOTTOM (the archive runs oldest → newest).
 
-- **2026-07-16 (analyst-experience quick wins implemented — presentation only, NOT deployed)**
-  Branch `codex/analyst-experience-quick-wins` from `8bbc308`: Pass 1 `9b4c27e` (labels/nav,
-  provider + raw-confidence + First-seen removal, digest freshness, scoreboard results-before-
-  methodology, /health row removal) and Pass 2 `846e3f0` (print disclosure, source-first
-  evidence, targeted contrast/type). Gate: 1,562 unit tests / 135 files, typecheck, lint,
-  `next build` green; 32/32 browser checks in light+dark at 1280 and 390×844. No ingestion,
-  analysis, scoring, reliability, traceability, publication-safety, schema, data, paid-provider,
-  env, workflow or deploy change; zero paid calls; every route href unchanged. Standing rulings
-  1–5 untouched; ruling 15's promotion/href policy re-asserted by test. Decisions worth carrying:
-  **(a)** analyst surfaces expose no provider/model string and no raw confidence decimal —
-  the score is uncalibrated, so High/Medium/Low waits on #14; **(b)** "First seen by BNOW" is
-  presentation-dead but `fetched_at`/`firstSeenAt` is RETAINED as sort tie-break, ranking recency
-  fallback and validation-timeliness/health input — a missing `published_at` still renders Unknown
-  and never borrows it; **(c)** a digest page claims one stage only when every displayed track
-  agrees, otherwise per-track — never "Final" because one track finalized — and promises no
-  next-final time; **(d)** the scoreboard caveat must stay OUTSIDE the methodology disclosure.
-  Details + measured contrast: `docs/reviews/ANALYST-EXPERIENCE-QUICK-WINS-2026-07-16.md`.
-  New debt #71–#74. Awaiting operator approval to deploy.
-- **2026-07-16 (dev-server hydration is broken on this WSL2 box — verify against a build)**
-  `npm run dev` server-renders correctly but React never hydrates: the `_next/webpack-hmr`
-  WebSocket handshake fails (`net::ERR_INVALID_HTTP_RESPONSE`) and NO React control responds to
-  input, including components no one has touched (the mobile hamburger). Native `<details>`
-  keeps working, which masks the failure and can make a broken page look interactive. `next
-  build` + `next start` hydrates fine and passed all keyboard checks. **Verify React UI against
-  a production build here; a dev-server click test proves nothing.** OPEN-TASKS #74.
+- **2026-07-16 (analyst-experience contrast remediation — completes the quick-wins branch;
+  still NOT deployed)** Pass 2's claim that all in-scope meaningful text passed 4.5:1 was
+  **overstated**: its checker read only `text-gray-*`, so three `text-blue-600` foregrounds
+  (signed-out mobile CTA; active locale in the mobile drawer and desktop language menu) went
+  unmeasured, and `src/app/scoreboard/[country]/[date]/page.tsx` — inside Workstream F's
+  scope — was missed. Fixed in `e3d075a`: blue-600 is 5.25:1 on white but **3.77:1 on
+  `#0a0a0a` / 3.84:1 on the gray-950 drawer**, i.e. dark-mode-only failure; all three now use
+  `text-blue-700 dark:text-blue-300` (6.83 / 10.92), matching the evidence links. The detail
+  page's breadcrumb, metric summary, match-score row and ISW-keyword sentence move to
+  `text-gray-600 dark:text-gray-400`, the sentence promoted to 14px (it is the reader's
+  evidence for the verdict, not a chip). A palette-derived checker across every in-scope
+  surface now reports **0 failing gray or blue pairs**, with light+dark classes pinned by
+  test at all four sites. Archived decisions (a)–(d) and every scope boundary are unchanged;
+  zero paid calls, no route href moved. Gate: 1,566 unit tests / 135 files, typecheck, lint,
+  `next build`, 56/56 browser checks (32 regression + 24 remediation). Lesson: a contrast
+  sweep scoped to one colour family silently certifies the families it never read.
+  Detail: `docs/reviews/ANALYST-EXPERIENCE-QUICK-WINS-2026-07-16.md`.
 
-- **2026-07-16 (legal integration gate restored)** Commit `165c2b4` removed the stale Terms 1.0
-  assumption from `legal-acceptance.itest.ts`: current acceptance derives from
-  `CURRENT_TERMS_VERSION` / `CURRENT_PRIVACY_VERSION`, the synthetic future pair is explicit and
-  order-independent, and the cascade test no longer carries its own policy-version literals. The
-  disposable-Neon suite is now **32/32 green across 7 files** (all 5 legal + all 10 enrichment),
-  alongside 1,542/134 unit tests, typecheck, and lint; branch `br-restless-pine-at9u1qv1` was
-  deleted. Test-only change, no deploy, production mutation, cron invocation, or paid call.
-- **2026-07-16 (#17 verification wording correction)** The #17 enrichment integration coverage is
-  green (10/10), as are 1,542 unit tests, typecheck, lint, and build; however, the repository-wide
-  real-Postgres run was **31 passed / 1 failed**, not fully green. The failure is the pre-existing
-  `legal-acceptance.itest.ts` Terms 1.0 expectation left stale by the Terms 1.1 rollout. This does
-  not change the reviewed spend-boundary implementation or live-deployment proof, but standing
-  quality text now records the red gate accurately until a coding agent fixes that separate test.
-- **2026-07-16 (analyst-experience work READY)** #17's active spend boundary is deployed and the
-  legal-fixture correction restored the full 32/32 integration gate. The presentation-only analyst
-  quick wins may start from clean main ahead of #56/#69/#14; #61/#41 remain separate operator
-  gates. Implementation is split into low-layout-risk cleanup followed by evidence/print/readability
-  interaction work; monthly scoreboard navigation and feedback-env splitting stay out of scope.
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).

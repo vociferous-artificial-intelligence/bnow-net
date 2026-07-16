@@ -98,6 +98,21 @@ describe("commercial entry (private analyst beta)", () => {
     expect(container.querySelector('a[href="/pricing"]')).toBeNull();
   });
 
+  // Measured against the shipped oklch palette and the real backgrounds (#ffffff /
+  // #0a0a0a page, gray-950 drawer/menu panel): blue-600 is 5.25:1 on white but only
+  // 3.77:1 on the near-black theme, so a bare blue-600 fails dark mode. The 700/300
+  // pair is 6.83:1 light and 10.92:1 dark. Pinned in both directions here because a
+  // half-fix (light shade only) reintroduces the dark-mode failure silently.
+  it("styles the signed-out mobile CTA with a pair that passes in both themes", () => {
+    const { container } = renderHeader({ signedIn: false });
+    const strip = Array.from(container.querySelectorAll('a[href="/access"]')).find((a) =>
+      a.className.includes("md:hidden") || a.closest(".md\\:hidden"),
+    )!;
+    expect(strip.className).toContain("text-blue-700");
+    expect(strip.className).toContain("dark:text-blue-300");
+    expect(strip.className).not.toContain("text-blue-600");
+  });
+
   it("shows NO commercial entry at all once signed in — no pricing, no request access", () => {
     const { container } = renderHeader({ signedIn: true });
     expect(within(mainNav()).queryByRole("link", { name: "Request access" })).toBeNull();
@@ -322,6 +337,20 @@ describe("language selector", () => {
     expect(items.find((i) => i.getAttribute("lang") === "en")!.getAttribute("dir")).toBe("ltr");
   });
 
+  it("marks the desktop active locale with a pair that passes in both themes", async () => {
+    const user = userEvent.setup();
+    renderHeader({ locale: "uk" });
+    await user.click(screen.getByRole("button", { name: "Language" }));
+    const items = within(screen.getByRole("menu", { name: "Language" })).getAllByRole("menuitem");
+    const active = items.find((i) => i.getAttribute("aria-current") === "true")!;
+
+    // The menu panel paints bg-white / dark:bg-gray-950; blue-600 is 3.84:1 on that
+    // dark panel. This is the one item the styling exists to distinguish.
+    expect(active.className).toContain("text-blue-700");
+    expect(active.className).toContain("dark:text-blue-300");
+    expect(active.className).not.toContain("text-blue-600");
+  });
+
   it("labels each item with its uppercase ISO 639-1 code beside the native name", async () => {
     const user = userEvent.setup();
     renderHeader({ locale: "en" });
@@ -382,6 +411,27 @@ describe("mobile sheet", () => {
     expect(within(sheet).getByRole("link", { name: "Ask" }).getAttribute("href")).toBe("/ask");
     expect(within(sheet).getByRole("link", { name: "Signals" }).getAttribute("href")).toBe("/signals");
     expect(within(sheet).getByRole("link", { name: "Sign in" })).toBeTruthy();
+  });
+
+  it("marks the drawer's active locale with a pair that passes in both themes", async () => {
+    const user = userEvent.setup();
+    renderHeader({ locale: "uk" });
+    await user.click(screen.getByRole("button", { name: "Menu" }));
+
+    const sheet = screen.getByRole("dialog", { name: "Menu" });
+    const active = within(sheet)
+      .getAllByRole("link")
+      .find((a) => a.getAttribute("lang") === "uk" && a.getAttribute("aria-current") === "true")!;
+    // The drawer paints bg-white / dark:bg-gray-950 — blue-600 is 3.84:1 against it.
+    expect(active.className).toContain("text-blue-700");
+    expect(active.className).toContain("dark:text-blue-300");
+    expect(active.className).not.toContain("text-blue-600");
+    // The inactive siblings keep the corrected gray pair rather than inheriting blue.
+    const inactive = within(sheet)
+      .getAllByRole("link")
+      .find((a) => a.getAttribute("lang") === "en")!;
+    expect(inactive.className).toContain("text-gray-600");
+    expect(inactive.className).toContain("dark:text-gray-400");
   });
 
   // Regression: the header sets `backdrop-filter` (backdrop-blur), which makes it a

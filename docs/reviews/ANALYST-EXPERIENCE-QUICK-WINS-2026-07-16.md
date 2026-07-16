@@ -11,8 +11,9 @@ Not deployed — awaiting the operator's normal approval.
 |---|---|
 | Pass 1 (low-layout-risk cleanup) | `9b4c27e` |
 | Pass 2 (interaction/layout) | `846e3f0` |
-| Gate | 1,562 unit tests / 135 files, typecheck, lint, `next build` — all green |
-| Browser | 32/32 checks, real Chrome, light+dark, 1280 and 390×844 |
+| Contrast remediation (closes the review gaps) | `e3d075a` |
+| Gate | 1,566 unit tests / 135 files, typecheck, lint, `next build` — all green |
+| Browser | 56/56 checks (32 regression + 24 remediation), real Chrome, light+dark, 1280 and 390×844 |
 
 Presentation only. No ingestion, map/reduce analysis, validation scoring,
 source-reliability calculation, claim traceability, publication safety, schema, data,
@@ -84,7 +85,7 @@ transport. Real titles still win.
 | Metric definitions/targets/thin-sourced naming/at-publish proxy/RU-UA ROCA preserved | **PASS** — relocated verbatim, asserted |
 | `/health` DB OK/DOWN + ISO timestamp retained | **PASS** — new tests |
 | No user/access-intent/validation/report counts public | **PASS** — asserted against the real SQL |
-| Meaningful text ≥ 4.5:1 in both themes on in-scope surfaces | **PASS** — see below |
+| Meaningful text ≥ 4.5:1 in both themes on in-scope surfaces | **PASS as of the remediation commit.** This row read PASS at Pass 2 and was **overstated** — see "Correction" below. |
 
 ## Contrast: measured, not assumed
 
@@ -115,14 +116,66 @@ Two defects surfaced only in the browser, both pre-existing and both fixed: the
 scoreboard table had **no horizontal cell padding**, rendering `theatercoverage` and
 `1 / 3 / 5detail`.
 
+### Correction — the Pass 2 contrast claim was overstated (remediated)
+
+Review found two gaps, and the honest statement of the failure is that **Pass 2's
+"all in-scope meaningful text passes 4.5:1" was not true when written**:
+
+1. **The checker only read `text-gray-*`.** It never inspected any other colour family,
+   so it certified surfaces whose blues it had not measured. Three meaningful
+   `text-blue-600` foregrounds in `site-header-view.tsx` were unmeasured: the signed-out
+   mobile access CTA, the active locale in the mobile drawer, and the active locale in
+   the desktop language menu.
+2. **`src/app/scoreboard/[country]/[date]/page.tsx` was in Workstream F's scope and was
+   missed entirely** — the pass touched the scoreboard index but not the detail route.
+
+Measured (same method, same palette), blue-600 turns out to fail **dark mode only**:
+
+| Shade | On white | On `#0a0a0a` | On the gray-950 panel |
+|---|---|---|---|
+| blue-600 | 5.25:1 ✓ | **3.77:1** ✗ | **3.84:1** ✗ |
+| blue-700 | 6.83:1 ✓ | 2.90:1 ✗ | 2.95:1 ✗ |
+| blue-300 | 1.81:1 ✗ | 10.92:1 ✓ | 11.10:1 ✓ |
+
+So `text-blue-700 dark:text-blue-300` (6.83 / 10.92) is the correct pair — the one the
+evidence links already used. All three header sites now use it, with light and dark
+classes pinned by test at each (a light-only fix would silently reintroduce the dark
+failure). The scoreboard detail page's breadcrumb, metric summary, match-score row and
+ISW-keyword sentence move to `text-gray-600 dark:text-gray-400`; the keyword sentence is
+promoted to 14px because it is the reader's evidence for a verdict, not a chip, while the
+hedge/match row stays 12px as a genuinely tertiary label.
+
+The checker now covers gray **and** blue across every in-scope surface and reports **0
+failing pairs**. The generalisable lesson: a contrast sweep scoped to one colour family
+silently certifies every family it never reads, and reports a clean PASS while doing it.
+
 ## Verification
 
-- **Unit/typecheck/lint/build:** 1,562 tests / 135 files (from 1,542 / 134), typecheck,
+- **Unit/typecheck/lint/build:** 1,566 tests / 135 files (from 1,542 / 134), typecheck,
   lint and `next build` green.
 - **Browser:** real Chrome, light+dark, 1280×900 and exactly 390×844 — no page-level
   horizontal overflow, WCAG 1.4.10 reflow clean at 320px, no console errors, and
-  keyboard-only operation of the header language menu (`aria-expanded`, Escape returns
-  focus), print disclosure, evidence trail + sort, and scoreboard methodology. 32/32.
+  keyboard-only operation of the header language menu (`aria-expanded`, ArrowDown onto a
+  menuitem, Escape returns focus), the mobile drawer + its locale list, the print
+  disclosure, the evidence trail + sort, and the scoreboard methodology. 32/32 regression
+  + 24/24 remediation = **56/56**, re-run after the remediation with no regression.
+- **The remediation was verified from painted colour, not class names.** The browser
+  resolves each element's `color` and alpha-composites every ancestor background, then
+  computes the WCAG ratio — so a wrong class, an unexpected background, or a translucent
+  header (`bg-white/90`, `bg-black/80`) cannot slip through. Sample: mobile CTA 6.83:1
+  light / 11.44:1 dark; drawer + desktop active locale 6.83 / 11.10 (on the gray-950
+  panel); scoreboard-detail worst meaningful text 6.87 light / 5.64 dark — that worst case
+  is the hedge chip on its own `bg-gray-100`/`dark:bg-gray-800`, which only the
+  compositing surfaces.
+- **The first version of that harness was wrong and its numbers were discarded.** Tailwind
+  v4 emits oklch and Chrome returns `lab(...)` from `getComputedStyle().color`; scraping
+  those components as RGB (and dropping the minus signs) produced nonsense ratios that
+  reported both false failures and false passes. The colour is now rasterized on a 1×1
+  canvas so the browser performs the exact sRGB conversion. The harness is **calibrated
+  against the offline palette maths on 8/8 known shades** before being trusted — a
+  contrast checker that is not itself checked is just a second opinion with no evidence.
+  (Calibration also showed the bare `text-blue-300` utility is never generated — it exists
+  only inside the `dark:` variant, which is exactly how the fix uses it.)
 - **Verified against a production build, not `npm run dev`.** Dev-mode React never
   hydrates on this WSL2 box — the `_next/webpack-hmr` WebSocket handshake fails
   (`ERR_INVALID_HTTP_RESPONSE`), so no React control responds to input, including the

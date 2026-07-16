@@ -78,7 +78,7 @@ export default async function ValidationDetailPage({
 
   return (
     <main className="mx-auto max-w-3xl p-6">
-      <p className="mb-1 text-sm text-gray-500">
+      <p className="mb-1 text-sm text-gray-600 dark:text-gray-400">
         <Link href="/scoreboard" className="underline">scoreboard</Link> · divergence detail ·{" "}
         <Link href={`/digests/${country}/${date}`} className="underline">
           {t("scoreboard.view_digest")}
@@ -87,7 +87,7 @@ export default async function ValidationDetailPage({
       <h1 className="mb-2 text-2xl font-bold">
         {country.toUpperCase()} — {date}
       </h1>
-      <p className="mb-6 text-sm text-gray-500">
+      <p className="mb-6 text-sm text-gray-600 dark:text-gray-400">
         coverage {run.coverage_pct !== null ? `${Number(run.coverage_pct).toFixed(0)}%` : "—"} ·
         thin-sourced {(Number(run.unsupported_claim_rate ?? 0) * 100).toFixed(0)}% · lead{" "}
         {run.timeliness_hours !== null ? `${Number(run.timeliness_hours).toFixed(1)}h` : "—"} ·{" "}
@@ -110,13 +110,17 @@ export default async function ValidationDetailPage({
             <div key={i} className={`rounded-lg border-2 p-3 text-sm ${style.cls}`}>
               <div className="mb-1 flex items-center justify-between">
                 <span className="font-semibold">{ours ? ours.label : style.label}</span>
-                <span className="text-xs text-gray-400">
+                {/* Stays 12px: a hedge chip plus a bare match score are genuinely
+                    tertiary short labels, not prose. Contrast corrected. */}
+                <span className="text-xs text-gray-600 dark:text-gray-400">
                   {ours && <span className="me-2 rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">{ours.hedge}</span>}
                   {d.score !== undefined && <>match {d.score}</>}
                 </span>
               </div>
               {d.iswIndex !== undefined && (
-                <p className="text-xs text-gray-500">
+                // A sentence naming the takeaway and its matched keywords — this is the
+                // reader's evidence for the verdict, so it reads as ordinary text (14px).
+                <p className="text-sm text-gray-600 dark:text-gray-400">
                   ISW takeaway #{d.iswIndex + 1} · keywords:{" "}
                   {[...(d.iswToponyms ?? []), ...(d.iswActions ?? [])].join(", ") || "(none)"}
                 </p>

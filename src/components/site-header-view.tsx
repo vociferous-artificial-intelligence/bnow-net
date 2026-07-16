@@ -142,7 +142,9 @@ export function SiteHeaderView({
             cannot drift from the rendered label. */}
         {ctaEntry && (
           <div className="border-t border-gray-100 px-6 py-2 text-center md:hidden dark:border-gray-900">
-            <Link href={ctaEntry.href} className={`text-sm font-semibold text-blue-600 ${FOCUS_RING}`}>
+            {/* blue-600 is 5.25:1 on white but only 3.77:1 on the near-black theme;
+                the 700/300 pair measures 6.83 / 10.92. Same pair as the evidence links. */}
+            <Link href={ctaEntry.href} className={`text-sm font-semibold text-blue-700 dark:text-blue-300 ${FOCUS_RING}`}>
               {ctaEntry.label}
             </Link>
           </div>
@@ -235,7 +237,9 @@ export function SiteHeaderView({
                       title={l.label}
                       aria-current={l.code === locale ? "true" : undefined}
                       className={
-                        l.code === locale ? "font-semibold text-blue-600" : "text-gray-600 hover:underline dark:text-gray-400"
+                        l.code === locale
+                          ? "font-semibold text-blue-700 dark:text-blue-300"
+                          : "text-gray-600 hover:underline dark:text-gray-400"
                       }
                     >
                       {localeSelectorLabel(l)}
@@ -368,7 +372,7 @@ function LanguageMenu({
           dir={l.dir}
           title={l.label}
           aria-current={l.code === locale ? "true" : undefined}
-          className={l.code === locale ? "font-semibold text-blue-600" : ""}
+          className={l.code === locale ? "font-semibold text-blue-700 dark:text-blue-300" : ""}
         >
           {localeSelectorLabel(l)}
         </NavMenuAnchor>
