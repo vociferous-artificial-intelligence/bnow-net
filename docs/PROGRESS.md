@@ -1629,3 +1629,18 @@ calls; zero magic-link email; no production data or deploy.** Gate green: typech
 
 Full account + rollback: `docs/reviews/BETA-INVITE-SIGNALS-X-RELIABILITY-NOTE-2026-07-15.md`.
 #40/#58 close after the copy/names are live; #38/#66 after a real scheduled recovery/healthy poll.
+
+## 2026-07-16 — beta invite / attributed signals / self-healing X MERGED + DEPLOYED
+
+Operator approved the release after the Terms effective-date correction (2026-07-16) was pushed and
+green. Merged `codex/beta-invite-signals-x-reliability` `--no-ff` to main (`35b97bd`), pushed
+(pre-push gate green, 1536/134), deployed production `dpl_DhMh12dn4fdXCesEhXnpxw546Qkw` (READY,
+aliased bnow.net; rollback `dpl_DzTtLPHVCrqbDZsLKqag5bNmndz8` / `426c627`). No migration, no paid
+call, no magic-link email, no env change (new X recovery knobs use safe defaults). Anonymous/public
+prod smoke green on the new build: `/health` 200 DB OK; `/terms` Version 1.1 / July 16, 2026 + the
+named-person rule; **anonymous `/signals` teaser-only — zero names, no attribution notice, no leak
+markers with real prod data**; `/signin?sent=1` single-use + preferred-browser copy; robots correct;
+`/countries/ru` 200; gated `/account` 307; no runtime errors. Residual proofs (items stay open): #40
+emailed body (operator-authorized send), #58 accepted-user names view + re-acceptance flow (operator
+session), #38/#66 a real scheduled park→resume→completion + healthy poll (no paid catch-up
+manufactured).

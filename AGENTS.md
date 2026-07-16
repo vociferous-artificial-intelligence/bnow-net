@@ -247,11 +247,13 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   strings + 18 analyst-trust strings — await native review, tracked in
   `docs/reviews/UK-NATIVE-REVIEW-2026-07-12.md`).
 - **Legal acceptance (versioned clickwrap, shipped 2026-07-12):** public `/privacy` +
-  `/terms` (Terms of Use v1.0 effective 2026-07-12 + **Privacy Notice v1.2 effective
+  `/terms` (**Terms of Use v1.1 effective 2026-07-16** — §9 adds the named-person
+  source-attribution / non-endorsement rule for the accepted-invitee Signals view, deployed
+  2026-07-16; v1.0 was effective 2026-07-12 + **Privacy Notice v1.2 effective
   2026-07-15** — corrects the now-live PostHog posture, discloses the dedicated US project,
-  GeoIP-derived approximate location, and seven-year event retention; v1.1 was effective
-  2026-07-14 and introduced optional analytics consent). The 1.2 bump forces ALL users to
-  re-accept on next
+  GeoIP-derived approximate location, and seven-year event retention; Privacy v1.1 was effective
+  2026-07-14 and introduced optional analytics consent). The Terms 1.1 bump forces ALL users to
+  re-accept on next visit; the earlier Privacy 1.2 bump likewise forces re-acceptance on next
   visit, where the acceptance form now also carries an optional, initially unchecked
   "Allow optional product analytics" checkbox — unchecked/missing records `denied`, a
   stale grant cannot survive re-acceptance;
@@ -319,9 +321,12 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
 - **Stubbed / off:** ACLED (fixture stub, unwired); Stripe flagged off; Resend adapter
   superseded by Postmark. (MTProto left this list 2026-07-11 — real adapter wired,
   session-gated; see Ingestion above.)
-- **Deploy:** current production `dpl_DzTtLPHVCrqbDZsLKqag5bNmndz8` (main `426c627`, READY,
-  aliased bnow.net; redeployed unchanged application code to activate `SIGNIN_MODE=invite`).
-  Command: `npx vercel@latest deploy --prod --yes` via the machine CLI session
+- **Deploy:** current production `dpl_DhMh12dn4fdXCesEhXnpxw546Qkw` (main `35b97bd`, READY,
+  aliased bnow.net; the beta-invite/attributed-signals/self-healing-X release — Terms 1.1,
+  named-person Signals detail for accepted invitees, magic-link single-use guidance, X
+  parked-watermark auto-catch-up + health alerts). Rollback target
+  `dpl_DzTtLPHVCrqbDZsLKqag5bNmndz8` (main `426c627`). Command:
+  `npx vercel@latest deploy --prod --yes` via the machine CLI session
   (`VERCEL_TOKEN` is expired; regen is an operator task, SETUP-NEXT-WEEK #2).
 - **This WSL2 box:** the NAT resolver times out on some domains — a DNS quirk, NOT a
   TCP block. `NODE_OPTIONS="--require ./scripts/pin-dns.cjs"` pins vercel/openai/
@@ -330,10 +335,10 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   github.com resolves slowly/flakily: pushes work, but short-timeout git commands can
   fail — retry or wait ~30s+. api.gdeltproject.org DNS still fails locally (not
   pinned). TASS/RIA/Lenta RSS unreachable → covered via their Telegram channels.
-- **Git:** the last application-code release merged at `f9aaa9e`; the current production build is
-  main `426c627` (later commits are documentation-only) after the invite-mode environment redeploy.
-  At the last reconciliation origin/main == local main, all worktrees were clean, no local or
-  remote branch was unmerged, GitHub had zero open PRs, and main CI was green.
+- **Git:** the last application-code release merged at `35b97bd` (the beta-invite/attributed-
+  signals/self-healing-X merge, deployed 2026-07-16). At the last reconciliation origin/main ==
+  local main == `35b97bd`, the feature branch `codex/beta-invite-signals-x-reliability` is merged,
+  and the deploy is live and aliased bnow.net.
 
 ## Standing rulings (distilled from the decision log; binding until a log entry supersedes)
 
@@ -1397,6 +1402,28 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   **approves the release to proceed through merge to main + explicit production deployment**; #40/#58
   may close after live proof, #38/#66 stay open until a real scheduled recovery + subsequent healthy
   poll prove production behavior, and no paid catch-up is to be manufactured.
+
+- **2026-07-16 (beta invite / attributed signals / self-healing X — MERGED + DEPLOYED)** After the
+  operator approved the release (date-correction delta pushed + green), the branch
+  `codex/beta-invite-signals-x-reliability` was merged `--no-ff` to main (`35b97bd`), pushed
+  (pre-push gate green: typecheck + lint + **1536/134 unit**), and deployed to production
+  `dpl_DhMh12dn4fdXCesEhXnpxw546Qkw` (READY, aliased **bnow.net**; rollback target
+  `dpl_DzTtLPHVCrqbDZsLKqag5bNmndz8` / main `426c627`). No migration; no paid provider call; no
+  magic-link email sent; env unchanged (all new X recovery knobs have safe defaults, none required).
+  **Anonymous / public prod smoke GREEN on the new build** (`data-dpl-id` matches): `/health` 200
+  DB OK; `/terms` shows **Version 1.1 / July 16, 2026** + the named-person attribution rule;
+  **anonymous `/signals` shows the teaser only — zero names, no attribution notice, no legacy leak
+  markers, with real prod data** (the security-critical boundary holds live); `/signin?sent=1`
+  carries the single-use + copy-before-opening preferred-browser copy; robots.txt disallows the
+  gated routes and keeps `/signals` crawlable; `/countries/ru` 200, gated `/account` 307; no runtime
+  errors in the post-deploy scan (only the tracked GramJS #69 noise excluded). Standing "Current
+  state" corrected in place (Legal acceptance → Terms 1.1; Deploy line; Git line). **Residual
+  operator-session / scheduled proofs (items stay OPEN):** #40 — the emailed magic-link BODY copy
+  (needs one operator-authorized live send; the sent-page copy is proven); #58 — the accepted-user
+  Signals names + attribution view and the forced re-acceptance flow (need an accepted operator
+  session); #38/#66 — a real scheduled park → checkpoint-resume → completion + subsequent healthy
+  `ingest:x` poll (observe scheduled runs; do NOT manufacture a paid catch-up). Full account +
+  rollback: `docs/reviews/BETA-INVITE-SIGNALS-X-RELIABILITY-NOTE-2026-07-15.md`.
 
 ## Conventions
 

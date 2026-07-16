@@ -225,8 +225,8 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     or truncation/incomplete — build the alert so the next freeze cannot masquerade as health.
     See also #66 (the park-vs-ceiling stall this run discovered) and the operator-approved coding
     handoff `docs/prompts/2026-07-15-beta-invite-signals-x-reliability.md` Workstream C.
-    **ALERT IMPLEMENTED 2026-07-15 (branch `codex/beta-invite-signals-x-reliability`, NOT yet
-    deployed):** `src/lib/adapters/x-health.ts` — a pure episode-deduped evaluator + a runner that
+    **ALERT IMPLEMENTED 2026-07-15; DEPLOYED 2026-07-16 (`dpl_DhMh12dn4fdXCesEhXnpxw546Qkw`, main
+    `35b97bd`):** `src/lib/adapters/x-health.ts` — a pure episode-deduped evaluator + a runner that
     emails `FEEDBACK_EMAIL` (safe fields only: no key/tweet/cursor value) on `pageTruncations`/
     `budgetStops`/`requestFailures`/unexpected `incomplete`, on prolonged/parked staleness, on
     repeated `fetched=0` polls (conservative consecutive threshold), and on a stuck catch-up, with
@@ -246,7 +246,7 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     in the desired browser; if the email app uses another default browser, copy the unvisited URL
     and paste it into the preferred browser before opening it elsewhere. Implementation/tests:
     `docs/prompts/2026-07-15-beta-invite-signals-x-reliability.md` Workstream A.
-    **IMPLEMENTED 2026-07-15 (branch `codex/beta-invite-signals-x-reliability`, NOT yet deployed):**
+    **IMPLEMENTED 2026-07-15; DEPLOYED 2026-07-16 (`dpl_DhMh12dn4fdXCesEhXnpxw546Qkw`, main `35b97bd`):**
     the magic-link email (`src/lib/email/magic-link.ts`) and the `/signin?sent=1` screen now state
     the link is single-use + 24h and give the copy-before-opening preferred-browser instruction; the
     callback URL, 24h expiry, legal-acceptance redirect, and `trackLinks:"None"`/`trackOpens:false`
@@ -373,7 +373,7 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     restore unsupported coordinated-purge framing. Because the Terms change is material, bump its
     version and force re-acceptance. Implementation/tests:
     `docs/prompts/2026-07-15-beta-invite-signals-x-reliability.md` Workstream B.
-    **IMPLEMENTED 2026-07-15 (branch `codex/beta-invite-signals-x-reliability`, NOT yet deployed):**
+    **IMPLEMENTED 2026-07-15; DEPLOYED 2026-07-16 (`dpl_DhMh12dn4fdXCesEhXnpxw546Qkw`, main `35b97bd`):**
     `detectPurge` now carries `Signal.subjects` (one stable representative name per distinct
     qualifying canonical person, deterministically ordered, all of them); `toPublicSignal` still
     drops it and the `headline` still carries no names, so anonymous/unaccepted HTML shows zero
@@ -458,7 +458,7 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     insert-before-checkpoint, compare-and-set the final watermark, reuse the X lease/SpendGuard,
     and make zero paid calls in tests. Handoff:
     `docs/prompts/2026-07-15-beta-invite-signals-x-reliability.md` Workstream C.
-    **IMPLEMENTED 2026-07-15 (branch `codex/beta-invite-signals-x-reliability`, NOT yet deployed):**
+    **IMPLEMENTED 2026-07-15; DEPLOYED 2026-07-16 (`dpl_DhMh12dn4fdXCesEhXnpxw546Qkw`, main `35b97bd`):**
     `src/lib/adapters/x-auto-catchup.ts` — when `x_api.lastPollAt` is older than
     `X_PARK_THRESHOLD_SEC` (default 4h) the scheduled `ingest:x` run drains ONE fixed window
     `[oldWatermark, caughtUpTo)` (captured once) via the existing `runGapBackfill` engine (no page
