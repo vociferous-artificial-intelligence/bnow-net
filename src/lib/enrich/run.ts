@@ -22,9 +22,10 @@ import { isLive, matchEntity, sanitizeForPersist } from "./opensanctions";
 // MONTH allowance — the OpenSanctions guard uses totalPeriod:"calendar_month", so
 // OPENSANCTIONS_CALL_CAP is a per-UTC-month request quota (it resets at the month
 // boundary without deleting provider_usage history), not a lifetime cap. Every call
-// passes SpendGuard first; per-day and per-run caps still apply. Priority order:
-// entities under pressure signals (defendant/target/dismissed claim roles) first,
-// then persons, then companies — highest compliance value per call.
+// passes SpendGuard first; per-day and per-run caps still apply. Only entities with
+// >=1 linked claim are ever eligible (CLAIM_LINKED_SQL below). Priority order within
+// that population: entities under pressure signals (defendant/target/dismissed claim
+// roles) first, then persons, then companies — highest compliance value per call.
 
 const OS_EST_USD_PER_MATCH = 0.11; // EUR 0.10 /match, ledger visibility only
 
@@ -76,7 +77,26 @@ const ELIGIBLE_KINDS = "('person','company','org','agency','faction')";
 // JSON-to-timestamptz cast error that aborts the whole batch.
 const ISO_TS_PREFIX = "^[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}:[0-9]{2}";
 
-/** WHERE predicate (no leading AND) selecting entities that still need a check.
+// PAID-SPEND ELIGIBILITY BOUNDARY (OPEN-TASKS #17) — not a ranking preference.
+// An entity with no claim_entities row has no claim depending on it, so an
+// OpenSanctions /match for it buys nothing and still costs a metered request
+// against the calendar-month quota. Production evidence (2026-07-16 recount):
+// 537 of 1,012 eligible rows had zero claim links; 351 had already been paid for.
+// EXISTS, not a join: the candidate query's LEFT JOIN on claim_entities is there to
+// RANK (pressure / mention counts) and must stay a LEFT JOIN, and the `remaining`
+// COUNT has no join at all — joining it would count once per LINK and inflate the
+// completion signal past the entity population. EXISTS uses its own alias, is
+// row-count-neutral either way, and matches claim_entities_entity_idx (at today's
+// ~1k entities the planner prefers a hash semi-join over an index scan; both are
+// sub-millisecond). It is ANDed into every selection path by `selectionPredicate`,
+// so the batch loop and the `remaining` count always see the identical population.
+export const CLAIM_LINKED_SQL = `EXISTS (
+        SELECT 1 FROM claim_entities ce_link WHERE ce_link.entity_id = e.id
+      )`;
+
+/** WHERE predicate (no leading AND) matching entities whose OpenSanctions METADATA
+ *  still needs a check. This is only half of eligibility — paid selection must also
+ *  require a claim link; use `selectionPredicate`, which ANDs in `CLAIM_LINKED_SQL`.
  *  `beforeParam` is the SQL placeholder ($n) for the rescore cutoff; unused in
  *  normal mode. The rescore CASE is ordered so the timestamptz cast runs ONLY on
  *  rows whose checkedAt matches the ISO prefix — malformed values fall to an
@@ -95,6 +115,15 @@ export function candidatePredicate(mode: EnrichMode, beforeParam: string): strin
     END`;
 }
 
+/** The ONE selection predicate every paid path uses: metadata needs a check AND the
+ *  entity carries at least one linked claim. Both builders (candidate + remaining,
+ *  both modes) go through here so the batch loop and the completion count can never
+ *  drift apart — the drift is what would let an unlinked row be billed. */
+export function selectionPredicate(mode: EnrichMode, beforeParam: string): string {
+  return `(${candidatePredicate(mode, beforeParam)})
+        AND ${CLAIM_LINKED_SQL}`;
+}
+
 /** Parameterized SELECT for a candidate batch (pure — proven against Postgres in
  *  the enrich integration test). Params: normal -> [limit]; rescore -> [limit, before]. */
 export function buildCandidateQuery(
@@ -106,9 +135,9 @@ export function buildCandidateQuery(
   let pred: string;
   if (mode === "rescore") {
     values.push(before);
-    pred = candidatePredicate("rescore", "$2");
+    pred = selectionPredicate("rescore", "$2");
   } else {
-    pred = candidatePredicate("normal", "");
+    pred = selectionPredicate("normal", "");
   }
   const text = `SELECT e.id, e.kind, e.name,
             count(ce.claim_id) FILTER (WHERE ce.role IN ('defendant','target','dismissed'))::int AS pressure,
@@ -137,9 +166,9 @@ export function buildRemainingQuery(
   let pred: string;
   if (mode === "rescore") {
     values.push(before);
-    pred = candidatePredicate("rescore", "$1");
+    pred = selectionPredicate("rescore", "$1");
   } else {
-    pred = candidatePredicate("normal", "");
+    pred = selectionPredicate("normal", "");
   }
   const text = `SELECT count(*)::int AS remaining
        FROM entities e
