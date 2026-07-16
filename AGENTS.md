@@ -96,8 +96,8 @@ place whenever reality changes. Historical narrative: `docs/PROGRESS.md` + `docs
 debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
 
 - **Live/repository:** https://bnow.net · Vercel `bnow-net` / team `vociferous`; production
-  `dpl_DhMh12dn4fdXCesEhXnpxw546Qkw` from main `35b97bd`; rollback
-  `dpl_DzTtLPHVCrqbDZsLKqag5bNmndz8` / `426c627`; origin/main == local main at last
+  `dpl_CdoLhjeyxab4mvZXzN9Vjq8U7pNC` from main `87f9c12`; rollback
+  `dpl_2p13bnGVNv2VfVVNQkVe4nW3CEaj` / `be0ebf1`; origin/main == local main at last
   reconciliation. Deployment URLs are SSO-walled — verify through the project domain.
 - **Coverage/data:** Russia, Ukraine, Iran live; Israel/Gulf shallow; bh/kw scaffolded; China
   deferred. Registry: 6,985 ISW-derived sources / 251K citations / 1,565 reports. Live ingest:
@@ -115,7 +115,9 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   `/access`. Registry/admin surfaces remain admin-only. Signals are anonymous teaser-only and
   accepted-user detailed, with source-attributed named people + non-endorsement notice. Ask v2,
   free Search, digests/archive/scoreboard, entities, trade/datadark/materials are live behind
-  their documented gates.
+  their documented gates. The 2026-07-16 analyst quick wins are live: source-first evidence,
+  consolidated print disclosure, digest freshness, analyst-safe labels/metadata, and the measured
+  light/dark readability remediation described in the implementation review.
 - **Legal/analytics/email:** Terms 1.1 (2026-07-16) + Privacy 1.2; current clickwrap required.
   Postmark `BNOW.NET <no-reply@bnow.net>` is live; magic-link guidance is single-use/24h and
   copy-before-opening. PostHog is production-only, explicit opt-in, allowlist-sanitized, UUID
@@ -212,27 +214,19 @@ Operational rulings:
 
 ## Decision log (append-only, dated)
 
-Entries through the 2026-07-16 analyst-experience quick-wins implementation are archived
+Entries through the 2026-07-16 analyst-experience contrast remediation are archived
 **verbatim** in `docs/DECISIONS.md`; distilled still-binding decisions live in Standing
 rulings above. New entries append at the BOTTOM (the archive runs oldest → newest).
 
-- **2026-07-16 (analyst-experience contrast remediation — completes the quick-wins branch;
-  still NOT deployed)** Pass 2's claim that all in-scope meaningful text passed 4.5:1 was
-  **overstated**: its checker read only `text-gray-*`, so three `text-blue-600` foregrounds
-  (signed-out mobile CTA; active locale in the mobile drawer and desktop language menu) went
-  unmeasured, and `src/app/scoreboard/[country]/[date]/page.tsx` — inside Workstream F's
-  scope — was missed. Fixed in `3015382`: blue-600 is 5.25:1 on white but **3.77:1 on
-  `#0a0a0a` / 3.84:1 on the gray-950 drawer**, i.e. dark-mode-only failure; all three now use
-  `text-blue-700 dark:text-blue-300` (6.83 / 10.92), matching the evidence links. The detail
-  page's breadcrumb, metric summary, match-score row and ISW-keyword sentence move to
-  `text-gray-600 dark:text-gray-400`, the sentence promoted to 14px (it is the reader's
-  evidence for the verdict, not a chip). A palette-derived checker across every in-scope
-  surface now reports **0 failing gray or blue pairs**, with light+dark classes pinned by
-  test at all four sites. Archived decisions (a)–(d) and every scope boundary are unchanged;
-  zero paid calls, no route href moved. Gate: 1,566 unit tests / 135 files, typecheck, lint,
-  `next build`, 56/56 browser checks (32 regression + 24 remediation). Lesson: a contrast
-  sweep scoped to one colour family silently certifies the families it never read.
-  Detail: `docs/reviews/ANALYST-EXPERIENCE-QUICK-WINS-2026-07-16.md`.
+- **2026-07-16 (analyst-experience quick wins deployed)** Branch
+  `codex/analyst-experience-quick-wins` was pushed, fast-forward merged, and production deployed
+  from main `87f9c12` as `dpl_CdoLhjeyxab4mvZXzN9Vjq8U7pNC` (READY, aliased bnow.net). The local
+  pre-push gate passed 1,566/1,566 tests, typecheck and lint; Vercel's build passed. Live proof on
+  the project domain: `/health`, `/scoreboard`, and `/scoreboard/ir/2026-07-15` returned 200 from
+  the new deployment; the authenticated Iran 2026-07-15 digest passed light+dark at 1280×900 and
+  390×844 with no console/page errors or page overflow, correct freshness, working print/evidence
+  disclosures, and no provider, Confidence, or First-seen text. Zero paid analysis/provider calls;
+  no GitHub Actions change. #73 is the next isolated presentation follow-up.
 
 ## Conventions
 

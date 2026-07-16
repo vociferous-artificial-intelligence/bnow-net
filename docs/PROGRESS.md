@@ -1836,3 +1836,17 @@ labels hardcoded English — documented in the file, not silently scoped in), #7
 landing page still has unpaired grays — out of this pass's listed scope, deliberately not
 blind-swept), #74 (dev hydration). Review:
 `docs/reviews/ANALYST-EXPERIENCE-QUICK-WINS-2026-07-16.md`. Awaiting operator approval to deploy.
+
+## 2026-07-16 — analyst-experience quick wins deployed
+
+Branch `codex/analyst-experience-quick-wins` was pushed and fast-forward merged to main; the
+standing test snapshot was reconciled to 1,566 / 135. Main `87f9c12` deployed as
+`dpl_CdoLhjeyxab4mvZXzN9Vjq8U7pNC` (READY, aliased bnow.net). The pre-push gate passed
+typecheck, lint, and 1,566/1,566 tests; the Vercel production build passed.
+
+Live smoke on the project domain returned 200 for `/health`, `/scoreboard`, and
+`/scoreboard/ir/2026-07-15`, with assets stamped by the new deployment ID. Using the standing
+test identity through the authorized single-use magic-link flow, `/digests/ir/2026-07-15` passed
+at 1280×900 and 390×844 in light and dark: no console/page errors or page overflow, correct final
+freshness, working print and evidence disclosures, and no provider, Confidence, or First-seen
+text. No paid analysis/provider call occurred and no GitHub Actions file changed.

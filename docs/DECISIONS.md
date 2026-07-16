@@ -6,9 +6,9 @@ preserves history; editing or summarizing entries does not and is forbidden. Ent
 here are never edited or deleted; a wrong entry is corrected by a new dated entry in
 the live log in AGENTS.md.
 
-Split as of 2026-07-16 (fifth archive pass): entries from 2026-07-04 through the
-analyst-experience quick-wins implementation (Pass 1 `9b4c27e` / Pass 2 `846e3f0`) and the
-dev-server-hydration finding now live here. AGENTS.md keeps only the current compact cycle.
+Split as of 2026-07-16 (sixth archive pass): entries from 2026-07-04 through the
+analyst-experience quick-wins implementation, dev-server-hydration finding, and contrast
+remediation now live here. AGENTS.md keeps only the current compact deployment cycle.
 Durable versions of still-binding decisions live in AGENTS.md § Standing rulings. This
 preamble records where the split currently sits, so it is corrected on each pass; the
 entries below it never are.
@@ -1403,3 +1403,20 @@ said in AGENTS.md.
   keeps working, which masks the failure and can make a broken page look interactive. `next
   build` + `next start` hydrates fine and passed all keyboard checks. **Verify React UI against
   a production build here; a dev-server click test proves nothing.** OPEN-TASKS #74.
+- **2026-07-16 (analyst-experience contrast remediation — completes the quick-wins branch;
+  still NOT deployed)** Pass 2's claim that all in-scope meaningful text passed 4.5:1 was
+  **overstated**: its checker read only `text-gray-*`, so three `text-blue-600` foregrounds
+  (signed-out mobile CTA; active locale in the mobile drawer and desktop language menu) went
+  unmeasured, and `src/app/scoreboard/[country]/[date]/page.tsx` — inside Workstream F's
+  scope — was missed. Fixed in `3015382`: blue-600 is 5.25:1 on white but **3.77:1 on
+  `#0a0a0a` / 3.84:1 on the gray-950 drawer**, i.e. dark-mode-only failure; all three now use
+  `text-blue-700 dark:text-blue-300` (6.83 / 10.92), matching the evidence links. The detail
+  page's breadcrumb, metric summary, match-score row and ISW-keyword sentence move to
+  `text-gray-600 dark:text-gray-400`, the sentence promoted to 14px (it is the reader's
+  evidence for the verdict, not a chip). A palette-derived checker across every in-scope
+  surface now reports **0 failing gray or blue pairs**, with light+dark classes pinned by
+  test at all four sites. Archived decisions (a)–(d) and every scope boundary are unchanged;
+  zero paid calls, no route href moved. Gate: 1,566 unit tests / 135 files, typecheck, lint,
+  `next build`, 56/56 browser checks (32 regression + 24 remediation). Lesson: a contrast
+  sweep scoped to one colour family silently certifies the families it never read.
+  Detail: `docs/reviews/ANALYST-EXPERIENCE-QUICK-WINS-2026-07-16.md`.

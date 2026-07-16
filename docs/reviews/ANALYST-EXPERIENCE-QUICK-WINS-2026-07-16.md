@@ -5,7 +5,8 @@ Implements the approved quick-win batch in
 `docs/prompts/2026-07-16-analyst-experience-quick-wins.md`.
 
 Branch `codex/analyst-experience-quick-wins`, from clean `origin/main` at `8bbc308`.
-Not deployed — awaiting the operator's normal approval.
+Deployed 2026-07-16 from main `87f9c12` as `dpl_CdoLhjeyxab4mvZXzN9Vjq8U7pNC`
+(READY, aliased bnow.net) after independent review and production smoke verification.
 
 | | |
 |---|---|

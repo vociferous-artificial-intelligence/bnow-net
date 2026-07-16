@@ -248,7 +248,7 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   Signals proof; optional analytics was left off and persisted `denied`. It remains the standing
   verification identity and was signed back out after the proof. Evidence:
   `docs/reviews/POSTHOG-ANALYTICS-IMPLEMENTATION-NOTE-2026-07-14.md`.
-- **Tests:** 1,542 unit tests / 134 files green on main (`npm test`, ~6s) + 32/32 Neon-branch
+- **Tests:** 1,566 unit tests / 135 files green on main (`npm test`, ~6s) + 32/32 Neon-branch
   integration tests / 7 files green. Commit `165c2b4` made legal-acceptance integration coverage
   version-agnostic after the Terms 1.1 rollout; all 5 legal and all 10 enrichment integration tests
   pass. The saved `NEON_API_KEY` works (disposable branch created and deleted cleanly). CI mirror:
@@ -261,11 +261,11 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
 - **Stubbed / off:** ACLED (fixture stub, unwired); Stripe flagged off; Resend adapter
   superseded by Postmark. (MTProto left this list 2026-07-11 — real adapter wired,
   session-gated; see Ingestion above.)
-- **Deploy:** current production `dpl_DhMh12dn4fdXCesEhXnpxw546Qkw` (main `35b97bd`, READY,
-  aliased bnow.net; the beta-invite/attributed-signals/self-healing-X release — Terms 1.1,
-  named-person Signals detail for accepted invitees, magic-link single-use guidance, X
-  parked-watermark auto-catch-up + health alerts). Rollback target
-  `dpl_DzTtLPHVCrqbDZsLKqag5bNmndz8` (main `426c627`). Command:
+- **Deploy:** current production `dpl_CdoLhjeyxab4mvZXzN9Vjq8U7pNC` (main `87f9c12`, READY,
+  aliased bnow.net; the analyst-experience quick-wins release — source-first evidence,
+  consolidated print disclosure, digest freshness, analyst-safe labels/metadata, and measured
+  light/dark readability remediation). Rollback target
+  `dpl_2p13bnGVNv2VfVVNQkVe4nW3CEaj` (main `be0ebf1`). Command:
   `npx vercel@latest deploy --prod --yes` via the machine CLI session
   (`VERCEL_TOKEN` is expired; regen is an operator task, SETUP-NEXT-WEEK #2).
 - **This WSL2 box:** the NAT resolver times out on some domains — a DNS quirk, NOT a
@@ -275,7 +275,7 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   github.com resolves slowly/flakily: pushes work, but short-timeout git commands can
   fail — retry or wait ~30s+. api.gdeltproject.org DNS still fails locally (not
   pinned). TASS/RIA/Lenta RSS unreachable → covered via their Telegram channels.
-- **Git:** the last application-code release merged at `35b97bd` (the beta-invite/attributed-
-  signals/self-healing-X merge, deployed 2026-07-16). At the last reconciliation origin/main ==
-  local main == `35b97bd`, the feature branch `codex/beta-invite-signals-x-reliability` is merged,
-  and the deploy is live and aliased bnow.net.
+- **Git:** the last application-code release is the analyst-experience quick-wins branch, merged
+  and deployed 2026-07-16. At the last reconciliation origin/main == local main; the only
+  post-deploy delta is the documentation reconciliation recording that release.
+  `codex/analyst-experience-quick-wins` is merged, and the deploy is live and aliased bnow.net.
