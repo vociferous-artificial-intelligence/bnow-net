@@ -1644,3 +1644,158 @@ markers with real prod data**; `/signin?sent=1` single-use + preferred-browser c
 emailed body (operator-authorized send), #58 accepted-user names view + re-acceptance flow (operator
 session), #38/#66 a real scheduled park→resume→completion + healthy poll (no paid catch-up
 manufactured).
+
+## 2026-07-16 — operator/live proofs: #40 + #58 closed; #38 + #66 remain open
+
+Authorized and executed the standing-test-account production flow. A live Postmark send delivered
+the new magic-link body; both provider-retained TextBody and Gmail show the single-use, 24-hour,
+copy-before-opening preferred-browser instructions. The same link authenticated and forced current
+policy acceptance. After one transient legal-page render recovered on retry, the operator approved
+Terms 1.1 / Privacy 1.2 acceptance with optional analytics off. DB persisted the append-only 1.1/1.2
+row and `analytics_preference='denied'`. Authenticated `/signals` rendered the attribution notice,
+a nonempty 23-name qualifying subject list, and 47 evidence expanders; same-deploy anonymous HTML
+again contained neither the named label nor notice. The test browser signed out after verification.
+#40 and #58 are closed.
+
+Observed the first natural post-deploy `ingest:x` schedule rather than manufacturing a paid fault:
+cron 1555 (12:20:14Z) finished green with the new `mode=1`, `alertEvaluated=1`, `alertKind=0`
+counters, 382 docs / 46 requests, and zero failures/truncations/stops; `x_api_health` is clean and no
+auto-catch-up checkpoint exists. This proves production wiring only. #38 and #66 correctly remain
+open until a real scheduled park exercises resume→completion, unhealthy delivery, recovery notice,
+and the following healthy poll.
+
+## 2026-07-16 — open-task research, safe handoffs, and authenticated mobile proof
+
+Completed the operator-requested document/research pass without application-source, workflow,
+environment, deployment, production-data, or paid-provider mutation. Scenefiend history confirmed
+that its hosted Actions were deliberately minimized after wrong-backend E2E and secret/budget
+problems; BNOW #70 is therefore declined/closed by operator ruling with workflows untouched.
+AGENTS.md was reduced from 1,514 to 281 lines at the archive point: the prior live decision cycle
+moved verbatim to `docs/DECISIONS.md` (byte-compared), and the detailed living snapshot moved to
+`docs/CURRENT-STATE.md` (#43 closed).
+
+Fresh entity/OpenSanctions read-only evidence blocked unsafe execution: the current cleanup is
+1,012→794 (87 drops, 131 merges), but 79 merges cross entity kinds; a kind-safe projection is 873.
+Only 475/1,012 eligible entities have claim links, while 537 have none (351 already paid-checked).
+July usage is 780 requests / $85.8000. No cleanup/apply or provider call occurred. #17/#41/#61 now
+point to `docs/prompts/2026-07-16-entity-cleanup-kind-safe.md`, which requires kind-aligned identity,
+claim-linked eligibility, zero-paid tests, a new dry run, and separate operator approvals.
+
+Research corrected several stale tasks. #45 closes because the public implementation already says
+“thin-sourced” everywhere; only the legacy internal column name remains. #54 closes because Ask and
+Search already select owning `digest_date`; production has 1,263 claims and zero owning-date
+mismatches. #14 now has an out-of-sample calibration design (historical source score predicts
+future ISW hedging, per theater) rather than the tautological same-sample correlation. It is gated
+by #56: Telegram and X have zero platform roots, but one Facebook root pools 26,195 citations / 7,081
+URLs. Jul 9–15 Iran military input is 80.1% X and cited evidence is 73.1% X; RU/UA evidence is
+36.9%/31.5% X. Account concentration within X is moderate, so #19/#42 remain platform-diversity and
+conversion problems. #69 remains open after 24/24 green MTProto runs (1,251 inserts) and a current
+GramJS version/64-bit probe failed to reproduce the production-only warning. Detailed evidence:
+`docs/reviews/OPEN-TASKS-RESEARCH-2026-07-16.md`; implementation prompts live in `docs/prompts/`.
+
+Finally, operator-authorized production authentication closed #65. Gmail delivered the new magic
+link at 13:08Z with DKIM/SPF/DMARC pass; its single-use callback authenticated the standing test
+account. At exact 390×844 CSS metrics, `clientWidth == scrollWidth == 390`; header/mobile drawer,
+quick links, all theater cards, Ask/recent question, validation tiles and footer passed visual
+inspection. The test account was signed out and the temporary WSL Chrome profile was removed.
+
+## 2026-07-16 10:03 EDT — analyst-experience punch-list review plan
+
+1. Classify the operator's attached usability notes into decisions/questions, quick implementable
+   changes, deeper data/product work, and ideas to defer or decline.
+2. Verify the present navigation, typography, time model, digest evidence controls, public health
+   surface, feedback links, and scoreboard behavior against source/tests and living documentation.
+3. Produce a focused analyst-first recommendation and a detailed implementation handoff without
+   modifying application source, production data, providers, environment, workflows, or deployment.
+
+## 2026-07-16 10:11 EDT — analyst-experience punch-list review complete
+
+Completed the read-only product/source audit and classified every operator note into immediate
+presentation cleanup, deliberate product/data work, or defer/decline. Recommended the quick batch:
+More countries/Russia data opacity labels; code+native-name language selector; digest quick-link
+cleanup; removal of analyst-visible provider and First-seen metadata; single-document sort hiding;
+source-first evidence; compact print disclosure; clearer ranking-profile labels; selected public
+health-row removal; results-first monthly scoreboard with a visible theater-baseline caveat; and a
+targeted contrast/type pass. Code evidence shows gray-400 is about 2.60:1 on white and the current
+surfaces use 12px/14px metadata heavily, so the readability concern is substantiated but requires a
+surface audit, not a repository-wide class replacement.
+
+Resolved discussion items: display is fixed ET (UTC storage/day buckets), not Frankfurt-local;
+retain reliability for accepted analysts; keep Copy for report primary; use desk@ for analyst
+feedback and hello@ for general contact only after splitting the shared FEEDBACK_EMAIL destination
+away from access/X-ops alerts; do not country-block absent a legal/measured-abuse reason; treat the
+Fedorov example as cross-theater relevance QA rather than nationality filtering. Added further
+recommendations for digest freshness/stage, raw-confidence simplification, and beta task-completion
+measurement. Full review: `docs/reviews/ANALYST-EXPERIENCE-PUNCH-LIST-2026-07-16.md`. Application-
+coding handoff: `docs/prompts/2026-07-16-analyst-experience-quick-wins.md`. No application source,
+production data, provider, environment, workflow, deployment, paid call, or outbound email changed.
+
+Operator follow-up promoted two recommendations into the approved quick batch: every digest header
+must show Intraday/Final + last-updated clock time + explicit timezone using the canonical helpers,
+and raw analyst-visible claim-confidence decimals (`conf 0.82`) must be removed from screen/copy/
+print while retained internally. No High/Medium/Low replacement ships until display thresholds are
+explicitly calibrated. The review and coding handoff were corrected in place accordingly.
+
+## 2026-07-16 — #17 spend subset: claim-linked OpenSanctions eligibility (deployed)
+
+Narrow, urgent patch ahead of the 08:00 UTC `/api/cron/enrich` run. OpenSanctions may now select,
+count, and bill an entity only when it has at least one `claim_entities` row. The ordinary cron was
+otherwise going to spend on 186 zero-link missing/stub rows; 351 zero-link rows had already been
+paid for before this landed.
+
+Implementation (`src/lib/enrich/run.ts`): one shared `CLAIM_LINKED_SQL` fragment, composed into
+every selection path by `selectionPredicate()` — normal/rescore × candidate/`remaining`. Selection
+and the completion count therefore cannot drift apart, which is the failure mode that would let an
+unlinked row be billed. `EXISTS` rather than a join, deliberately: the candidate query's LEFT JOIN
+on `claim_entities` is a ranking input (pressure/mention counts) and stays a LEFT JOIN, while the
+`remaining` COUNT has no join at all and would otherwise count once per link and overstate the
+population. Fixed-cutoff semantics, malformed-`checkedAt` handling, stub upgrades, ordering, limit
+clamping, SpendGuard wiring, and the response contract are untouched.
+
+Tests: 1,542 unit / 134 files (+6) green; the real-Postgres run was 31 passed / 1 failed. All 10
+enrichment integration tests passed. The one failure is the pre-existing legal-acceptance Terms
+1.0 expectation described below, so the repository-wide integration gate was not fully green.
+The enrich integration test was rewritten
+around linked/unlinked twins — identical kind and `opensanctions` metadata, differing only in the
+claim link — so the link is provably the only cause of exclusion, and it proves through the real
+builders that multi-link entities appear once, `remaining` equals the candidate population, and
+`remaining` reaches zero while otherwise-eligible unlinked rows still sit there unpaid. A mocked
+unit test proves `matchEntity` is never called when the candidate query returns nothing. Zero
+network/provider calls in tests.
+
+Deploy: `be0ebf1` → `dpl_2p13bnGVNv2VfVVNQkVe4nW3CEaj`, built from a clean detached worktree so the
+in-flight documentation edits could not ride along. `/health` 200 on the live domain with a matching
+`data-dpl-id`; unauthenticated 401 and authenticated malformed-cutoff 400 both reject before the
+paid loop. Ledger identical before and after (July 780 / $85.8000; July 16 120 / $13.2000) — zero
+paid calls. Post-deploy read-only recount: 1,012 eligible / 475 claim-linked / 537 zero-link; normal
+candidates 232 → 46.
+
+Scope held: no entity cleanup, canonicalization, migration, env, cron-schedule, or UI change, and no
+paid rescore. Still open: #17's match-score/caption requirement, #61, #41. Noted but not touched —
+`legal-acceptance.itest.ts` fails pre-existing on terms `1.0` vs the live `CURRENT_TERMS_VERSION`
+`1.1` (stale since `fdc2031`), unrelated to enrichment.
+
+## 2026-07-16 — Legal integration version fixture corrected
+
+Test-only commit `165c2b4` replaced the stale Terms 1.0 assertion in
+`src/integration/legal-acceptance.itest.ts` with an order-independent comparison of the current
+Terms/Privacy constants and an explicit synthetic future pair. The cascade fixture now also uses
+the current constants. Full result: 1,542 unit tests / 134 files and 32/32 real-Postgres integration
+tests / 7 files green (5/5 legal, 10/10 enrichment), typecheck + lint clean; disposable Neon branch
+`br-restless-pine-at9u1qv1` deleted. The commit is on `origin/main`. No deploy, production DB
+mutation, cron invocation, provider call, migration, or runtime behavior change.
+
+## 2026-07-16 — analyst-experience readiness reconciliation
+
+Reviewed the analyst-experience punch list and coding handoff after #17 landed. The active
+OpenSanctions spend risk is resolved: `be0ebf1` is deployed, the billable normal population fell
+232→46, and `165c2b4` restored the full 32/32 integration gate. #61 cleanup and paid #41 remain
+operator-gated but do not overlap or block presentation work.
+
+The analyst handoff is ready to start from clean main ahead of #56/#69/#14. It now requires two
+reviewable passes on one branch: low-layout-risk copy/metadata cleanup first, then source-first
+evidence, consolidated printing, and targeted readability/contrast work. Multi-track digest
+freshness must not label a whole page Final when only one track is final. Monthly scoreboard
+navigation, feedback-environment splitting, OpenSanctions/entity work, and other deeper tasks are
+explicitly out of scope. The stale #41/#61 text and the cleanup handoff were reconciled to treat
+#17 as a deployed regression boundary rather than unfinished implementation.

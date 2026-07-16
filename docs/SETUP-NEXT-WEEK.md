@@ -78,14 +78,15 @@ Hourly `ingest:mtproto` runs at :35.
 | Env var | `X_API_KEY` |
 | Where | api.twitterapi.io dashboard |
 | Cost | third-party pay-as-you-go; docs currently advertise `$0.15 / 1,000 tweets` and `$0.18 / 1,000 profiles` |
-| Status | Lease-aware polling is live; the July 9–13 gap and preventive drain are cursor-complete. Remaining debt: OPEN-TASKS #38 alerting and #66 automatic long-park recovery. |
+| Status | Lease-aware polling is live; the July 9–13 gap is cursor-complete; automatic long-park recovery + alerting are deployed. OPEN-TASKS #38/#66 remain only for a natural scheduled alert→recovery runtime proof. |
 
 Status 2026-07-07: `X_API_KEY` is present locally and a smoke call succeeds:
 `curl -H "X-API-Key: $X_API_KEY" "https://api.twitterapi.io/twitter/user/info?userName=elonmusk"`.
 This is **not** the official X API; do not use `X_BEARER_TOKEN`/developer.x.com unless a
-future compliance requirement mandates the official path. The live lease-aware adapter and
-spend guards are deployed; remaining engineering debt is OPEN-TASKS #38 (empty-run alert) and
-#66 (automatic recovery after a long watermark park).
+future compliance requirement mandates the official path. The live lease-aware adapter, spend
+guards, automatic catch-up, and health alert path are deployed. Remaining #38/#66 work is
+observation-only: wait for a natural scheduled park/alert/recovery and do not manufacture a paid
+incident.
 
 ## 7. OpenSanctions — key live; commercial rights + safe rescore still pending
 

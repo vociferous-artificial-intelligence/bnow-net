@@ -4,6 +4,33 @@ Produced by `npx tsx scripts/entities-cleanup.ts` (read-only dry run against pro
 2026-07-13, private-beta sprint Workstream E) after the ё-fold + Vorobyov alias-family
 fix landed in `src/lib/entities/canonicalize.ts`. **Nothing has been applied.**
 
+## 2026-07-16 fresh dry run — DO NOT APPROVE/APPLY; kind-safety blocker found
+
+The requested read-only rerun reports:
+
+`1012 entities -> 794 after (87 drops, 131 merges); claim_entities 814 total — 86 edges deleted
+with drops, <=72 edges repointed by merges (claims/claim_sources untouched)`
+
+This projection is **not approval-ready**. `planCleanup()` groups by `canonicalKey` without entity
+`kind`, so **79/131 merges cross kinds** (46 source edges). Deployed `resolveEntityId` persists by
+`(kind, canonicalKey)`, which means a later digest can recreate the deleted kind-specific row. The
+claimed durability prerequisite therefore does not cover most proposed merges. A kind-safe-only
+simulation leaves 52 merges and projects 873 rows; this is diagnostic, not an apply plan.
+
+Additional blocker: the plan auto-merges ASCII `Filashkin` into Cyrillic `Вадим Филашкин`, contrary
+to the runbook's English-display intent. Geography policy also misses observed country/city rows
+including Jordan, Morocco, Tehran, Bandar Abbas, Argentina, Damascus, Pakistan, Canada, and Mexico.
+
+OpenSanctions eligibility compounded the problem at audit time: 537/1,012 rows had zero claim
+links; 351 had already been paid-checked and 186 more were missing/stub candidates. Even the full
+cleanup simulation leaves 397 zero-link rows. **The #17 spend boundary is now deployed** from
+`be0ebf1`: zero-link rows are ineligible and normal billable candidates fell 232→46. Preserve that
+boundary; this plan's remaining blocker is kind-safe cleanup.
+
+Kind-safe cleanup handoff: `docs/prompts/2026-07-16-entity-cleanup-kind-safe.md`. Until its code is
+reviewed, deployed, and a new dry run is produced, **do not run `--apply` and do not authorize #41
+spend**. This 2026-07-16 audit made no mutation and no provider call.
+
 ## Post-X refresh — 2026-07-14 (read-only; still awaiting approval)
 
 The X recovery/rescore created additional entities, so the historical 763 -> 578 plan below is no

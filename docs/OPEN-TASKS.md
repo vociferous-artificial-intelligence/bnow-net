@@ -58,14 +58,25 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     2026-07-09 K=3 quota-on/off A/B (Neon branch, 48 samples, majority matcher): ua
     quota cost is −3.0 pts (18.0 vs 21.0), permutation p=0.33 — NOT distinguishable
     from extraction noise (median within-day SD 9.6 pts). Quota stays. See #28.
-19. **IR non-X military corpus depth.** On ir Jul 1–5 only 2–9 non-x_api docs/day pass
-    the military lexicon (vs 35–72 x_api), so batches stay x-heavy after the quota and
-    thin days (Jul 4–5) still cite only X — every non-X track doc was already in the
-    batch; selection can't fix scarcity. Fix is more ir RSS/Telegram feeds (or lexicon
-    variants for wire-service phrasing), not quota tuning.
-17. **OpenSanctions match hygiene.** Require ≥1 linked claim before spending a /match
-    call (orphan entities waste quota and invite name-collisions); render match score +
-    caption beside sanction/PEP badges. From the 1/5 spot-check flag ("Andrei Fedorov").
+19. **IR non-X military corpus depth / conversion.** The Jul 1–5 “2–9 non-X docs/day”
+    snapshot is superseded. Fresh completed-day Jul 9–15 evidence: 5,537 distinct IR military
+    map documents = 4,437 X (**80.1%**) + 1,100 non-X (600 Telegram web, 485 RSS, 15 MTProto).
+    Published evidence is still **73.1% X** (612/837 claim→document links); RSS 15.9%, Telegram
+    web 10.8%, MTProto 0.2%. Corpus depth improved, but the dependency remains. Next research must
+    trace adapter conversion map input → ranked group → cited evidence before deciding whether the
+    lever is feeds, lexicon yield, or reduce ranking. Evidence:
+    `docs/reviews/OPEN-TASKS-RESEARCH-2026-07-16.md`.
+17. **[Tier 1 prerequisite to #41] OpenSanctions match hygiene.** **Spend subset ✅ DEPLOYED
+    2026-07-16** (`be0ebf1` / `dpl_2p13bnGVNv2VfVVNQkVe4nW3CEaj`, zero paid calls): ≥1 linked claim
+    is now required before a /match call is selected, counted, or billed. One shared
+    `CLAIM_LINKED_SQL` fragment is composed by `selectionPredicate()` into all four paths (normal /
+    rescore × candidate / `remaining`), so selection and the completion count share one population.
+    Post-deploy read-only proof: 1,012 eligible / 475 claim-linked / 537 zero-link; normal
+    candidates 232 → 46, blocking the 186 zero-link missing/stub rows the cron would have spent on.
+    **Still open (do NOT close this item):** the match-score/caption UI requirement — surface the
+    OpenSanctions match score + caption so an analyst can judge a match rather than trust it.
+    Handoff for the remaining entity-cleanup half: `docs/prompts/2026-07-16-entity-cleanup-kind-safe.md`
+    (section A; section B now documents the deployed regression boundary only).
 18. ~~**Truncation-retry watch.**~~ ✅ 2026-07-09 (MR sprint 3): generalized as the
     map-reduce split — per-doc extraction (map) + synthesis over claim groups can
     never hit the batch-output ceiling (synthesis sets max_completion_tokens and its
@@ -203,15 +214,19 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
 13. **Sanctions-exposure counsel review (§8.6 risk 4).** Handling Russian state-media
     content may carry sanctions exposure — get counsel review. Operator action (goes in
     SETUP-NEXT-WEEK checklist).
-14. **Source-reliability calibration as a scored dimension (§5).** Original's validation
-    design scores whether our reliability weighting matches ISW's hedging behavior; we score
-    coverage/divergence/timeliness/unsupported only. Design a calibration metric (e.g.
-    correlation between our source weights and ISW hedging distribution on shared sources).
+14. **Source-reliability calibration as a scored dimension (§5) — DESIGN COMPLETE,
+    implementation gated by #56.** A same-sample correlation is tautological because v1 is already
+    the weighted hedging mean. The 2026-07-16 design uses strictly prior citations to predict
+    90-day future ISW hedging per theater, with equal-source ECE/MAE, rank correlation,
+    slope/intercept, clustered intervals, baselines and coverage gates. Do not implement/publish
+    until the 26,195-citation Facebook root is segmented. Design + future coding handoff:
+    `docs/designs/SOURCE-RELIABILITY-CALIBRATION.md`,
+    `docs/prompts/2026-07-16-source-reliability-calibration.md`.
 
 ## New (from the 2026-07-10/11 state recon — docs/reviews/STATE-2026-07-10.md)
 
-38. **[Tier 1 → alert half only] X historical catch-up ✅ EXECUTED 2026-07-14; green-but-empty
-    monitor still open.** The July 9–13 recovery ran to cursor exhaustion on the deployed
+38. **[Tier 1 — live incident proof pending] X historical catch-up executed; alert/recovery
+    production proof still open.** The July 9–13 recovery ran to cursor exhaustion on the deployed
     lease-aware build (deploy `dpl_8DVZK3ac8ja1wi3xW9ALSaPGXJRJ`, main `a38a882`): checkpoint
     `x_gap_backfill:2026-07-09_2026-07-14` complete=true — 19/19 batches, 1,335 pages, 26,090
     returned, **16,007 inserted**, $3.9164, provider balance delta reconciled to the ledger to
@@ -219,8 +234,8 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     Downstream rescore mapped ($0.4963), regenerated 28/30 digests (2 thin-regen refusals kept
     priors), revalidated 15/15 with 0 pending. Two consecutive healthy scheduled polls proven
     (cron 1141 + 1149, all failure counters 0). Full account: AGENTS decision log 2026-07-14 +
-    `docs/reviews/X-GAP-RECOVERY-RUNBOOK-2026-07-13.md` §Execution results. **Still open — the
-    ALERT:** every `ingest:x` run now writes `cron_runs.counts.x_api` (`incomplete`,
+    `docs/reviews/X-GAP-RECOVERY-RUNBOOK-2026-07-13.md` §Execution results. **Pre-implementation
+    alert gap:** every `ingest:x` run already wrote `cron_runs.counts.x_api` (`incomplete`,
     `pageTruncations`, `budgetStops`, `lockSkips`, …) but nothing yet ALERTS on fetched=0 repeats
     or truncation/incomplete — build the alert so the next freeze cannot masquerade as health.
     See also #66 (the park-vs-ceiling stall this run discovered) and the operator-approved coding
@@ -232,12 +247,16 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     repeated `fetched=0` polls (conservative consecutive threshold), and on a stuck catch-up, with
     one alert per episode (cooldown) + one recovery notice; the numeric result is recorded in
     `cron_runs.counts.x_api` even when the recipient is unset or Postmark fails. 32 fixture tests,
-    zero network. **Do NOT close until a real scheduled run proves the alert + recovery in prod.**
+    zero network. **First scheduled production observation 2026-07-16:** cron run 1555 on the new
+    deployment finished green (`mode=1`, `alertEvaluated=1`, `alertKind=0`, 382 docs, 46 requests,
+    zero truncations/failures/stops); `x_api_health` persisted a clean state. This proves the
+    monitor executes on real scheduled traffic, but not its unhealthy email + recovery path.
+    **Do NOT close until a real scheduled incident proves the alert + recovery in prod.**
 39. **[Tier 1] No git→Vercel deploy integration.** `git push` does not deploy — after the 07-09
     auth fix, prod served the stale build ~20 min (`AUTH-EMAIL-2026-07-09.md`). Wire the Vercel Git
     integration, or codify "push then `npx vercel@latest deploy --prod`" in a release checklist so a
     pushed fix is not assumed live.
-40. **[Tier 1 — operator decision made; copy not yet shipped] Magic-link login is not usable
+40. ~~**[Tier 1 — operator decision made] Magic-link login is not usable
     after the link's first open.** The single-use token is consumed
     by the first open (phone prefetch/scanner), so reopening on a second device →
     `/api/auth/error?error=Verification` (`AUTH-EMAIL-2026-07-09.md`). The 07-09 Postmark tracking
@@ -251,9 +270,14 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     the link is single-use + 24h and give the copy-before-opening preferred-browser instruction; the
     callback URL, 24h expiry, legal-acceptance redirect, and `trackLinks:"None"`/`trackOpens:false`
     are unchanged (token stays single-use, never exposed to analytics/logs). Tests pin the email +
-    sent-page copy and that invite-ineligible/eligible requests give the same response. **Close only
-    after the copy is live in prod.**
-41. **[Tier 2] OpenSanctions monthly accounting + resumable rescore — CODE MERGED + DEPLOYED
+    sent-page copy and that invite-ineligible/eligible requests give the same response.~~
+    ✅ **CLOSED 2026-07-16 by operator/live proof:** a production request to the standing test
+    account delivered message `07b145bf-bb55-4d52-b873-67d03f086426`; both Postmark's retained
+    TextBody and the received Gmail message show the single-use, 24-hour, and copy-before-opening
+    preferred-browser instructions. `TrackLinks=None`; the raw delivered MIME is text/plain only
+    (no HTML/tracking pixel). The same unmodified link authenticated the test account and forced the
+    expected current-policy acceptance flow.
+41. **[Tier 1 — paid rescore BLOCKED] OpenSanctions monthly accounting + resumable rescore — CODE MERGED + DEPLOYED
     2026-07-15 (`f9aaa9e`, `dpl_ApFhadwyVNkAyyc9T8R4W7ghgPhu`); paid rescore still gated on
     #61 + operator auth.** Both defects are fixed in production (calendar-month `totalPeriod` in
     SpendGuard so `OPENSANCTIONS_CALL_CAP` resets at the UTC month boundary; fixed-cutoff `refresh=1`
@@ -263,25 +287,37 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     the deployment, authenticated invalid-cutoff requests returned the new 400, and the July ledger
     remained 660 requests / $72.6000; no migration, cleanup, or paid call. See the 2026-07-15 decision-log entry
     and `docs/reviews/OPENSANCTIONS-MONTHLY-RESCORE-NOTE.md` + `OPENSANCTIONS-RESCORE-RUNBOOK.md`.
-    **Not done (do NOT close this item until all complete):** apply the operator-approved cleanup
-    #61 AFTER the canonical-persist fix is live; recount the population +
-    current-month quota; obtain separate spend authorization; run the serial rescore to zero
-    candidates and record before/after totals. Relates to #17 (match hygiene before spending).
-42. **[Tier 2] X single-platform citation dependency (~27–29%).** ~1 in 3.4 cited docs is from X
-    (twitterapi.io). Concentration risk + validation contamination (§8.6 risks 1–2) persist even
-    though the adapter resumed on 2026-07-13. Diversify corpus (MTProto, more RSS/Telegram)
-    — the same lever that closes the coverage gap (#11/#19).
-43. **[maintenance] AGENTS.md is over its own ~300-line budget (323).** Sprint-3/cutover log entries
-    accreted past the "under ~300 lines" rule. Do an archive pass — move the oldest current-cycle
-    decision-log entries **verbatim** to `docs/DECISIONS.md` (append-only; moving preserves history).
+    **Fresh 2026-07-16 read-only recount:** 1,012 all-row eligible / 475 claim-linked; 232
+    missing/stub overall / 46 claim-linked; July usage 780 requests / $85.8000 (120 today).
+    **#17 spend prerequisite is now satisfied** (`be0ebf1` deployed; normal billable candidates
+    232→46 with zero paid rollout calls). Remaining hard prerequisite is the kind-safe #61 fix: the
+    current cleanup proposes 79 cross-kind merges and is not approval-safe. **Not done (do NOT close
+    this item until all complete):** deploy the #61 handoff, rerun/approve/apply cleanup, recount the
+    claim-linked population + current-month quota; obtain separate spend authorization; run the
+    serial rescore to zero candidates and record before/after totals. #17's separate analyst-facing
+    score/caption work does not block the rescore's spend boundary.
+42. **[Tier 2] X single-platform citation dependency.** Completed-day Jul 9–15 claim→document
+    link shares are IR **73.1%**, RU 36.9%, UA 31.5%. Across all three theaters X has 948 links
+    over 131 identities; account concentration is moderate (top 1 6.3%, top 5 22.6%, top 10
+    37.1%, HHI 0.0217), so platform dependency — especially IR — is the dominant risk, not one
+    account. Diversify/diagnose with #19; evidence:
+    `docs/reviews/OPEN-TASKS-RESEARCH-2026-07-16.md`.
+43. ~~**[maintenance] AGENTS.md is over its own ~300-line budget.**~~ ✅ **CLOSED 2026-07-16:**
+    third archive pass moved the complete prior live decision-log cycle verbatim to
+    `docs/DECISIONS.md` (byte-compared against the source entries), moved the detailed living
+    snapshot to `docs/CURRENT-STATE.md`, and returned AGENTS.md from 1,514 to 281 lines at the
+    archive point (296 after this pass's current live decisions). Standing sections remain compact and
+    correct-in-place; the archive remains append-only.
 44. **[maintenance] `X_DAILY_USD_CAP` prod value is above the 1.5 code default.** 07-07 billed $1.877
     in one day without the daily guard stopping it, so prod is raised above the default. Reconcile the
     code default/comment (`x-api.ts:166`) with the actual prod cap so the ledger is not misleading.
-45. **[Tier 2] "unsupported-claim rate" KPI is a thin-sourced proxy mislabeled as literal.**
-    `score.ts:101-103` measures `docCount<2 AND hedging∈{claimed,unverified}` — but the schema
-    guarantees ≥1 source (ruling 2), so *nothing is truly unsupported*. The 45–56% figure overstates
-    hallucination risk against §8.7's plain-English "<2%". Rename the metric (e.g. "thin-sourced rate")
-    and/or add a true-corroboration (≥2 independent sources) metric. Relates to #14 (calibration dimension).
+45. ~~**[Tier 2] "unsupported-claim rate" KPI is a thin-sourced proxy mislabeled as literal.**~~
+    ✅ **CLOSED 2026-07-16 at the product boundary:** `scoreDigest*` calls it
+    `thinSourcedRate`, comments define `docCount<2 AND hedging∈{claimed,unverified}`, and every
+    scoreboard label/translation says “thin-sourced” (tests pin it). The DB column
+    `unsupported_claim_rate` remains a legacy internal name; a semantics-free migration is not
+    justified. True independent-source corroboration/calibration stays separate (#14). Evidence:
+    `docs/reviews/OPEN-TASKS-RESEARCH-2026-07-16.md`.
 46. **[WATCH] Two non-actionable-yet watches.** (a) `ingest:fast` runtime averages 141s / peaks 162s
     against a 300s `maxDuration` (54%) — if RSS/GDELT latency grows it approaches the ceiling; consider
     splitting the adapter set or raising headroom. (b) **ua coverage** — A/B −3.6 pts (noise-scale) and
@@ -335,22 +371,23 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     machine-checked signed-out; nobody has exercised them with a real magic-link session yet
     (design implementation note §5, item 6).
 
-54. **Digest deep links assume `claim_date == digest_date`.** Both /ask citations and the
-    new /search results build `/digests/{iso2}/{claim_date}#c{id}` from the claim's own
-    date. True for all 846 digest claims today (verified 2026-07-12, zero divergence), but
-    if intraday delta framing ever persists a claim dated D-1 into a D digest, the link
-    lands on the wrong day's page (renders, but misses the anchor). Fix = select
-    `dg.digest_date` in the two link queries (ask actions.ts resolver + lexical search row).
+54. ~~**Digest deep links assume `claim_date == digest_date`.**~~ ✅ **CLOSED 2026-07-16:**
+    both Ask and Search already select the owning `dg.digest_date` and build links from it; tests
+    pin the resolver. Production has 1,263 claims, zero owning-date mismatches; one legacy claim
+    has no digest and correctly gets no digest link. Evidence:
+    `docs/reviews/OPEN-TASKS-RESEARCH-2026-07-16.md`.
 55. **/search is not in the nav.** Reachable only from the signed-in home quick-links rail
     (analyst-home readback, decision 3 — nav carries frozen-URL + all-locale-label
     invariants). Add a `nav.item.search` Product-group entry once the surface proves itself.
 
-56. **Platform-level registry sources must be segmented (R8, 2026-07-12).** `facebook.com`,
-    `t.me` root, `x.com` root appear in the ISW-derived registry as single "sources" —
-    a platform is not a source. Segment to page/channel/account level in the ingestion
-    registry (the citation parser already sees the full URLs). Also a registry-credibility
-    blocker for ever un-hiding the registry (it went admin-only 2026-07-12, ruling R5) —
-    a top source of "facebook.com" reads as a data error to any analyst.
+56. **Platform-level registry sources must be segmented (R8, 2026-07-12) — Facebook only.**
+    Fresh audit corrects the task: t.me is already 3,333 channel identities / zero roots; X is
+    2,703 accounts / zero roots. One `facebook.com` root still pools **26,195 citations / 7,081
+    raw URLs**. All have paths, but at least 1,977 use reserved routes (`watch`, `share`, `reel`,
+    `permalink.php`, etc.) and need fail-closed shape-specific recovery; never treat a share id as
+    a page. This blocks #14. Research + coding handoff:
+    `docs/reviews/OPEN-TASKS-RESEARCH-2026-07-16.md`,
+    `docs/prompts/2026-07-16-facebook-source-segmentation.md`.
 57. ~~**/pricing promises registry access the product no longer grants.**~~ ✅ CLOSED
     (private-beta sprint, 2026-07-13): the public pricing page is retired — /pricing
     308-redirects to /access (beta request), all price cards and the registry-promise
@@ -360,7 +397,7 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
 
 ### New (from the IA-refinement sprint — 2026-07-12, docs/reviews/IA-REFINEMENT-REVIEW.md)
 
-58. **[Tier 1 — operator ruling made; implementation pending] Source-attributed named people on
+58. ~~**[Tier 1 — operator ruling made] Source-attributed named people on
     private `/signals`.** The IA-refinement gate already withholds `Signal.detail`, exact claims,
     and sources from anonymous/unaccepted HTML via `toPublicSignal`; accepted users already see
     named claim quotes with hedge + sources. The 2026-07-13 remediation conservatively removed the
@@ -381,7 +418,13 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     `/signals` view renders the names + a prominent attribution/non-endorsement notice; Terms §9
     gained the durable named-person rule and `CURRENT_TERMS_VERSION` bumped 1.0→1.1 (effective
     2026-07-16, the actual rollout date) forcing re-acceptance, Privacy unchanged at 1.2. All person/pressure/canonical
-    safeguards + ruling 19 intact. **Close only after the names/disclaimer/Terms bump are live.**
+    safeguards + ruling 19 intact.~~ ✅ **CLOSED 2026-07-16 by operator/live proof:** the standing
+    stale-acceptance account was redirected to `/welcome/legal`, which rendered required unchecked
+    Terms 1.1 + Privacy 1.2 controls and optional analytics initially off. After the operator
+    authorized acceptance (analytics kept off), the append-only 1.1/1.2 acceptance persisted and
+    authenticated `/signals` rendered exactly one attribution/non-endorsement notice, a nonempty
+    23-name qualifying subject list, and 47 evidence expanders. A fresh anonymous request on the
+    same deployment contained neither the label nor disclaimer and retained the sign-in nudge.
 59. **[i18n] Native review of the IA-refinement strings.** New/changed machine-translated keys
     need a native pass before market launch: nav labels `nav.group.signals`/`nav.group.ask`
     (all 7 catalogs); the reworded, count-driven `home.live` with the `{n}` token (all 7);
@@ -408,17 +451,20 @@ is also live.
 ### New (from the private-beta readiness sprint — 2026-07-13,
 docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
 
-61. **[operator] Entity cleanup plan awaiting approval.** Refreshed deterministic dry run against
-    prod after X recovery: **876 -> 683 entities** (80 drops, 113 merges; original pre-X dry run
-    was 763 -> 578). Plan + apply/integrity procedure:
+61. **[Tier 1 — BLOCKED; do not approve/apply] Entity cleanup needs a kind-safe plan.** Fresh
+    2026-07-16 deterministic dry run: **1,012 -> 794** (87 drops, 131 merges), but 79 merges cross
+    entity kinds while deployed persistence identity is `(kind, canonicalKey)`, so those rows can
+    be recreated. Kind-safe-only diagnostic: 52 merges, projection 873. Plan + apply procedure:
     docs/reviews/ENTITY-CLEANUP-PLAN-2026-07-13.md. Apply BEFORE the OpenSanctions
     fixed-cutoff rescore (it changes the scored population). **Sequencing added by the
     2026-07-13 remediation: DEPLOY the canonical-identity persist fix
     (digest-persist.ts `resolveEntityId`) before applying — the pre-remediation
     exact-name get-or-create would recreate merged spellings on the next digest
     persist, immediately regressing the plan.** The persist fix is now deployed. The
-    876→683 projection is stale because current eligible population is 937; rerun the
-    read-only dry run immediately before approval/apply.
+    Earlier 876→683 and 937-row figures are stale. Coding handoff:
+    `docs/prompts/2026-07-16-entity-cleanup-kind-safe.md`. Deploy it and rerun read-only before any
+    approval/apply. #17 claim-link eligibility is already deployed; #41 still waits on this
+    kind-safe cleanup, recount, and separate spend authorization.
 62. **[CLOSED 2026-07-14 by the X recovery regeneration] Graham digest rows repaired.**
     Production evidence after regeneration: event 4008 and claims 4413/4414 are gone;
     replacement event 4202 uses deterministic `Sources claim:` copy, with zero
@@ -432,11 +478,12 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     (nav.group.access, home.beta.*, home.cta.request_beta, access.* ×6 catalogs, the
     reworded scoreboard divergence explainer). Inventory appended to
     UK-NATIVE-REVIEW-2026-07-12.md; same launch gate as #20/#21/#59.
-65. **[low] Signed-in home 390px operator eyeball.** Browser verification covered 17
-    routes but the signed-in home needs a real session (dev parity renders the
-    signed-out branch). The 2026-07-15 production delta rechecked all anonymous routes at
-    390px in WSL Chrome, but the available Chrome profile was signed out; one real-session
-    phone-viewport eyeball still closes it.
+65. ~~**[low] Signed-in home 390px operator eyeball.**~~ ✅ **CLOSED 2026-07-16 by live
+    proof:** operator-authorized production magic link authenticated the standing test account;
+    exact 390×844 CSS viewport held `clientWidth == scrollWidth == 390`. Header/drawer, quick
+    links, all theater cards, Ask/recent question, validation tiles and footer passed visual
+    inspection. Gmail DKIM/SPF/DMARC passed; session signed out; temp profile removed. Evidence:
+    `docs/reviews/OPEN-TASKS-RESEARCH-2026-07-16.md`.
 
 ### New (from the X gap recovery execution — 2026-07-14)
 
@@ -470,7 +517,10 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     tests, zero network/paid calls. Residual: a tail smaller than the threshold but larger than one
     steady-poll pass can drain would truncate — the #38 monitor ALERTS on it (not silent); the
     operator lowers `X_PARK_THRESHOLD_SEC` or runs the manual gap-backfill. **Do NOT close until a
-    real scheduled park → checkpoint-resume → completion sequence is proven in prod.**
+    real scheduled park → checkpoint-resume → completion sequence is proven in prod.** The first
+    post-deploy scheduled run (1555, 2026-07-16 12:20Z) was correctly steady and healthy
+    (`mode=1`, no auto checkpoint, watermark advanced, `x_api_health` clean); useful wiring proof,
+    but deliberately insufficient to close this item because no natural park occurred.
 
 ### New (from the PostHog analytics phase-1 deploy — 2026-07-14)
 
@@ -520,9 +570,9 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     returned 200/DB OK on the expected build; Privacy 1.2, corrected scoreboard copy, and
     selector subset are live; the initial runtime-error scan was empty. The prior scoped
     Neon integration run was 9/9; a new full run was blocked before branch creation by an
-    expired `NEON_API_KEY` (tracked in BLOCKERS/HUMAN-SETUP). Remaining actions are not part
-    of this closed release task: authenticated phone sweep stays #65 and PostHog
-    project-membership review stays under #67 (the billing limit is configured). **Later update
+    expired `NEON_API_KEY` (tracked in BLOCKERS/HUMAN-SETUP). The authenticated phone sweep was
+    later completed and closed under #65; PostHog project-membership review stays under #67 (the
+    billing limit is configured). **Later update
     2026-07-15:** `SIGNIN_MODE=invite` is now live in Production via deployment
     `dpl_DzTtLPHVCrqbDZsLKqag5bNmndz8`; five existing users remain eligible.
 
@@ -538,9 +588,20 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     regression coverage, and prove the Vercel error stream is clean. Do not merely suppress
     `console.error`; real GramJS errors must remain visible. Evidence:
     `docs/reviews/PRIVATE-BETA-READINESS-DELTA-2026-07-15.md`.
-70. **[low maintenance] GitHub Actions v4 action-runtime deprecation.** CI for the
+    **Fresh 2026-07-16 audit:** 24/24 green, 1,251 inserts, 960 channel selections, zero recorded
+    errors; all 145 channel-state rows clean. `telegram` 2.26.22 is current; local construction +
+    serialization with signed 64-bit fixtures does not reproduce the warning, so blanket
+    suppression or an unproven conversion rewrite is rejected. Research + handoff:
+    `docs/reviews/OPEN-TASKS-RESEARCH-2026-07-16.md`,
+    `docs/prompts/2026-07-16-gramjs-casterror.md`.
+70. ~~**[low maintenance] GitHub Actions v4 action-runtime deprecation.** CI for the
     readiness-delta commit passed both jobs, but GitHub annotated `actions/checkout@v4`
     and `actions/setup-node@v4`: their Node 20 action runtime is deprecated and GitHub is
     currently forcing it onto Node 24. Upgrade to the current Node-24-based action majors
     in a workflow-only change, then verify the gate and integration jobs. This is not a
-    current application-runtime or CI failure.
+    current application-runtime or CI failure.~~ **DECLINED/CLOSED by operator ruling
+    2026-07-16 — do not change the workflows.** Scenefiend's history shows why: automatic Actions
+    was deliberately minimized to protect constrained Actions budget; hosted E2E was retired when
+    it exercised the wrong backend and required storing Neon/Postmark/OpenAI credentials as repo
+    secrets; operator-local validation plus Vercel remained authoritative. BNOW keeps its current
+    workflows untouched unless a future operator ruling explicitly reopens this.

@@ -9,12 +9,16 @@ Companion to `docs/prompts/2026-07-13-opensanctions-monthly-rescore.md`. The cod
 
 1. Private-beta readiness + canonical-identity persist are deployed (done).
 2. X recovery/closeout complete (done — `f94d70c`; analyst-beta merged `2bf89ed`).
-3. Entity cleanup **#61** is explicitly operator-approved AND
+3. **Claim-linked spend eligibility is deployed** (`be0ebf1`; normal candidates 232→46; zero paid
+   rollout calls). The remaining kind-safe cleanup handoff
+   `docs/prompts/2026-07-16-entity-cleanup-kind-safe.md` is implemented, reviewed, tested, and
+   deployed; a new dry run contains zero automatic cross-kind merges.
+4. Entity cleanup **#61** is explicitly operator-approved AND
    `scripts/entities-cleanup.ts --apply` has been run after the canonical persist
    fix is live, with post-apply integrity checks passing.
-4. **Done 2026-07-15:** merged + deployed; the live endpoint returned the new invalid-cutoff
+5. **Done 2026-07-15:** merged + deployed; the live endpoint returned the new invalid-cutoff
    400s without entering provider work.
-5. The operator **separately authorizes** the paid rescore after a fresh
+6. The operator **separately authorizes** the paid rescore after a fresh
    population/quota recount.
 
 Do not spend quota matching entity rows that are about to be merged/dropped: run
@@ -34,9 +38,15 @@ Right before the run, record the exact population and current-month usage:
 
 ```sql
 -- eligible population + how many are missing/stub-only
-SELECT count(*) FILTER (WHERE true) AS eligible,
-       count(*) FILTER (WHERE (meta->'opensanctions') IS NULL
-                          OR (meta->'opensanctions'->>'stub')::boolean IS TRUE) AS missing_or_stub
+SELECT count(*) FILTER (WHERE EXISTS (
+         SELECT 1 FROM claim_entities ce WHERE ce.entity_id = entities.id
+       )) AS eligible,
+       count(*) FILTER (WHERE (
+                           (meta->'opensanctions') IS NULL
+                           OR (meta->'opensanctions'->>'stub')::boolean IS TRUE
+                         ) AND EXISTS (
+                           SELECT 1 FROM claim_entities ce WHERE ce.entity_id = entities.id
+                         )) AS missing_or_stub
 FROM entities WHERE kind IN ('person','company','org','agency','faction');
 
 -- calendar-month OpenSanctions requests already spent (UTC month)
@@ -49,6 +59,10 @@ WHERE provider='opensanctions' AND day >= date_trunc('month', now() AT TIME ZONE
 Prove `month_requests + remaining_candidates <= 2000`. If not, the rescore is still
 safe — it simply pauses on the monthly cap and **resumes after the UTC month reset**;
 do NOT raise the quota to finish faster.
+
+The 2026-07-16 pre-fix read-only baseline was 1,012 rows but only 475 claim-linked; 537 zero-link
+rows are ineligible by policy. Do not use the historical all-row population after the handoff is
+deployed; recount with the exact claim-linked predicate used by the endpoint.
 
 ## Step 1 — pick ONE fixed cutoff and keep it for the whole rescore
 

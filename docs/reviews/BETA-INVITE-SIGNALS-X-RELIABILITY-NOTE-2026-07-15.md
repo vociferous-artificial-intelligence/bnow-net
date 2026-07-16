@@ -3,7 +3,8 @@
 Branch `codex/beta-invite-signals-x-reliability` (worktree
 `/home/go/code/bnow.net-beta-invite-signals-x-reliability`), base `origin/main` at `794d54e`.
 Prompt: `docs/prompts/2026-07-15-beta-invite-signals-x-reliability.md`. **Zero paid provider
-calls** during implementation or testing. **NOT deployed** (deploy is a separate gated step).
+calls** during implementation or testing. Deployed 2026-07-16 as
+`dpl_DhMh12dn4fdXCesEhXnpxw546Qkw`; production proof is recorded below.
 
 Three coordinated workstreams. Gate: `npm run typecheck` + `npm run lint` clean, **`npm test`
 1536/134 green** (was 1495/131 — +41 tests, +3 files), `npm run build` clean. No migration.
@@ -134,6 +135,30 @@ catch-up takes over vs steady poll runs.
 
 ## Residual (blocks closing #38/#40/#58/#66)
 
-`#40`/`#58` need the copy/names LIVE in prod; `#38`/`#66` need a real scheduled recovery + healthy-
-poll (or a separately-authorized bounded exercise with reconciled `provider_usage`). None are
-closed here.
+`#40`/`#58` are closed by the 2026-07-16 operator/live proof below. `#38`/`#66` still need a real
+scheduled recovery + healthy poll (or a separately-authorized bounded exercise with reconciled
+`provider_usage`).
+
+## Production operator/live proof — 2026-07-16
+
+- **#40 CLOSED:** authorized production send to the standing test identity produced Postmark
+  message `07b145bf-bb55-4d52-b873-67d03f086426` (Sent 12:07:34Z). Postmark's retained TextBody
+  and the Gmail-rendered message both carry the single-use, 24-hour, and copy-before-opening
+  preferred-browser guidance. `TrackLinks=None`. The server-level Postmark setting reports
+  `TrackOpens=true` despite the per-message false request, but the retained raw MIME has only a
+  text/plain part—no HTML/image part or open event—so open tracking is technically impossible for
+  this message. The unmodified link authenticated the account and reached forced legal acceptance.
+- **#58 CLOSED:** the stale account was redirected to `/welcome/legal`; after one transient root
+  error recovered via the page's prescribed retry, the form showed required unchecked Terms 1.1
+  and Privacy 1.2 controls with optional analytics initially off. Operator authorized acceptance;
+  analytics stayed off, DB persisted an append-only 1.1/1.2 acceptance at 12:15:03Z and preference
+  `denied`. Authenticated `/signals` rendered one attribution/non-endorsement notice, one nonempty
+  qualifying subject list (23 names), and 47 evidence expanders. Fresh anonymous HTML on the exact
+  deployment contained neither `Named in the reporting:` nor the notice and still showed the
+  sign-in nudge. The test browser signed out after verification.
+- **#38/#66 remain OPEN:** the first natural scheduled `ingest:x` run after deploy, cron 1555 at
+  12:20:14Z, finished green with `mode=1`, `alertEvaluated=1`, `alertKind=0`, 382 docs / 46 requests,
+  and zero failure/truncation/budget/incomplete counters. `x_api_health` persisted a clean state and
+  no auto-catch-up checkpoint exists. This is real production-wiring evidence, but no natural park
+  occurred, so it does not prove checkpoint resume→completion, unhealthy delivery, recovery notice,
+  or the subsequent healthy poll required for closure. No paid incident was manufactured.
