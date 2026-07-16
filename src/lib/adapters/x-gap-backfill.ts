@@ -61,6 +61,14 @@ export interface GapCheckpoint extends Record<string, unknown> {
   fromUnix: number;
   toUnix: number;
   rosterHash: string;
+  /** Immutable roster SNAPSHOT (bounded public account list — userName/sourceKey/
+   *  theater/citations, no secrets). Stored only when `runGapBackfill(...,
+   *  { storeRoster: true })` is set (the unattended auto-catch-up path): the live
+   *  registry roster drifts within minutes, so rosterHash refusal is unsuitable
+   *  there — the resumer feeds this snapshot back so a normal registry change
+   *  cannot strand the checkpoint. The operator gap-backfill script omits it
+   *  (hash refusal is its intended safety check). */
+  roster?: XAccount[];
   batchSize: number;
   accounts: number;
   batches: number;
@@ -104,12 +112,19 @@ export type GapOutcome =
   /** nothing ran and nothing was written (mismatch, lease contention) */
   | { status: "refused"; reason: string };
 
-export function freshCheckpoint(args: GapArgs, accounts: XAccount[]): GapCheckpoint {
+export function freshCheckpoint(
+  args: GapArgs,
+  accounts: XAccount[],
+  opts: { storeRoster?: boolean } = {},
+): GapCheckpoint {
   return {
     version: 1,
     fromUnix: args.fromUnix,
     toUnix: args.toUnix,
     rosterHash: rosterHash(accounts),
+    // Immutable snapshot only when asked (auto-catch-up): the manual script omits
+    // it so its rosterHash refusal keeps working as the operator's safety check.
+    ...(opts.storeRoster ? { roster: accounts } : {}),
     batchSize: args.batchSize,
     accounts: accounts.length,
     batches: Math.ceil(accounts.length / args.batchSize),
@@ -153,6 +168,7 @@ export async function runGapBackfill(
   args: GapArgs,
   accounts: XAccount[],
   deps: GapDeps,
+  opts: { storeRoster?: boolean } = {},
 ): Promise<GapOutcome> {
   const provider = gapCheckpointProvider(args.checkpointKey);
   const hash = rosterHash(accounts);
@@ -172,7 +188,7 @@ export async function runGapBackfill(
   }
   const cp: GapCheckpoint = existing
     ? { ...existing, counts: { ...existing.counts } }
-    : freshCheckpoint(args, accounts);
+    : freshCheckpoint(args, accounts, opts);
 
   // The live watermark must survive recovery untouched (scheduled polls outside
   // the lease may legally advance it FORWARD; backward is never legitimate).

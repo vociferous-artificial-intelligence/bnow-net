@@ -11,6 +11,13 @@ import "./env";
 // Resume = rerun the SAME command; a completed checkpoint reruns as a no-op.
 // The X provider lease serializes this against the :20 scheduled poll.
 //
+// NOTE (2026-07-15): the scheduled poll now AUTOMATICALLY runs a bounded
+// self-catch-up when the watermark is parked (src/lib/adapters/x-auto-catchup.ts,
+// #38/#66) — snapshotting the roster and advancing the watermark by compare-and-set
+// on completion. This operator script remains the escalation/override path (an
+// explicit --budget-usd, a chosen window, roster-hash refusal as the safety check)
+// for a stuck tail or a park the auto-catch-up can't close within its request cap.
+//
 //   npx tsx scripts/x-gap-backfill.ts \
 //     --from 2026-07-09T00:00:00Z --to 2026-07-14T00:00:00Z --budget-usd 10
 //   ... --apply     DO NOT RUN WITHOUT OPERATOR APPROVAL (see the runbook:
