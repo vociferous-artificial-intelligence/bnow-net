@@ -5,16 +5,27 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from "@/lib/legal/policies";
 
 // Real-Postgres coverage for the append-only legal-acceptance record. The disposable branch is
-// forked at the production head (0016) and does NOT auto-apply new migrations, so this test
-// applies drizzle/0017 itself (idempotent IF-NOT-EXISTS DDL), then exercises the actual app code
+// forked at the production head and does NOT auto-apply new migrations, so this test applies
+// drizzle/0017 itself (idempotent IF-NOT-EXISTS DDL), then exercises the actual app code
 // path (recordAcceptance / hasCurrentPolicyAcceptance) end-to-end: DB-generated timestamp,
 // idempotency, append-only version bumps, the unique constraint, and FK cascade.
+//
+// Version-agnostic ON PURPOSE: the current pair comes from the policy constants, never from a
+// literal. Pinning a version here made this file go stale the moment Terms shipped 1.1 — the
+// policy bump was correct and the test was wrong, which is exactly backwards.
 
 const URL = process.env.INTEGRATION_DATABASE_URL;
 if (!URL) throw new Error("INTEGRATION_DATABASE_URL not set — run via npm run test:integration");
 process.env.DATABASE_URL = URL; // @/db (recordAcceptance) reads this — point it at the branch
 
 const EMAIL = "legal-itest@example.com";
+
+// Synthetic "next policy bump" pair. Test-only sentinels: high enough that they cannot collide
+// with a real current pair (the unique constraint is on user_id + both versions), and obviously
+// not a shippable version number.
+const FUTURE_TERMS_VERSION = "99.0";
+const FUTURE_PRIVACY_VERSION = "99.0";
+
 let pool: Pool;
 let userId: string;
 
@@ -102,18 +113,29 @@ describe("policy_acceptances: append-only clickwrap record", () => {
   });
 
   it("is append-only: a version bump inserts a NEW row and leaves the old one untouched", async () => {
-    // Simulate a future version pair directly (the app constants are 1.0).
+    // The current-version row is the one recordAcceptance wrote in the first test; this stands in
+    // for the NEXT policy bump landing on top of it.
     await pool.query(
       `INSERT INTO policy_acceptances
          (user_id, terms_version, privacy_version, adult_attested, privacy_acknowledged, acceptance_method)
-       VALUES ($1, '2.0', '2.0', true, true, 'first_login_clickwrap')`,
-      [userId],
+       VALUES ($1, $2, $3, true, true, 'first_login_clickwrap')`,
+      [userId, FUTURE_TERMS_VERSION, FUTURE_PRIVACY_VERSION],
     );
     const { rows } = await pool.query(
-      `SELECT terms_version FROM policy_acceptances WHERE user_id = $1 ORDER BY terms_version`,
+      `SELECT terms_version, privacy_version FROM policy_acceptances WHERE user_id = $1`,
       [userId],
     );
-    expect(rows.map((r) => r.terms_version)).toEqual(["1.0", "2.0"]);
+    // Both pairs must survive: a bump APPENDS, it never rewrites the record of what the user
+    // actually agreed to. Compared as unordered pairs — row order is not part of the contract,
+    // and terms/privacy versions move independently, so neither column alone identifies a row.
+    const pairs = rows.map((r) => `${r.terms_version}/${r.privacy_version}`);
+    expect(pairs).toHaveLength(2);
+    expect(pairs).toEqual(
+      expect.arrayContaining([
+        `${CURRENT_TERMS_VERSION}/${CURRENT_PRIVACY_VERSION}`,
+        `${FUTURE_TERMS_VERSION}/${FUTURE_PRIVACY_VERSION}`,
+      ]),
+    );
   });
 
   it("enforces one row per (user, terms_version, privacy_version)", async () => {
@@ -134,10 +156,12 @@ describe("policy_acceptances: append-only clickwrap record", () => {
        VALUES (gen_random_uuid()::text, 'legal-itest-cascade@example.com', 'user') RETURNING id`,
     );
     const cascadeUser = u[0].id;
+    // Any valid pair works here — this proves FK cascade, not version behavior — so it tracks the
+    // current constants rather than carrying its own copy of policy-version knowledge to go stale.
     await pool.query(
       `INSERT INTO policy_acceptances (user_id, terms_version, privacy_version, adult_attested, privacy_acknowledged)
-       VALUES ($1, '1.0', '1.0', true, true)`,
-      [cascadeUser],
+       VALUES ($1, $2, $3, true, true)`,
+      [cascadeUser, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION],
     );
     await pool.query(`DELETE FROM users WHERE id = $1`, [cascadeUser]);
     const { rows } = await pool.query(
