@@ -1893,3 +1893,16 @@ matched the new deployment; all nine `main` hrefs matched; signed-out/no-Ask gat
 phone/reflow menu toggled and rendered; and every pass had zero console/page errors and no page
 overflow. The first harness aggregate false was only test order—it looked for the mobile Sign-in
 link before opening the drawer—so the corrected full matrix was rerun and passed. #73 is closed.
+
+## 2026-07-16 15:07 EDT — analyst account onboarding verification
+
+1. Inspect the production auth schema and invite-mode eligibility path.
+2. Upsert the requested design-partner address as a `users.role='analyst'` account without
+   replacing any existing Auth.js identity data.
+3. Read back the production row and confirm the first-login magic-link and legal-acceptance flow.
+
+Verification found the production identity already present at `role='analyst'`; no database
+write was needed. It has no completed first-login verification, active session, or legal
+acceptance yet. The invite-mode gate therefore admits the exact address and the normal `/signin`
+flow will email its single-use 24-hour magic link, then route first login through current-policy
+acceptance. No email was sent during this operator check.
