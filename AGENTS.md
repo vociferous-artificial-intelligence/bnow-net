@@ -1342,6 +1342,50 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   episode-deduped operator alerts. No paid provider call, DB write, application-code change, or
   magic-link email occurred in this operator/configuration/documentation stage.
 
+- **2026-07-15 (beta invite UX + attributed signals + self-healing X — IMPLEMENTED on a branch,
+  NOT deployed, NOT merged, ZERO paid calls)** Prompt
+  `docs/prompts/2026-07-15-beta-invite-signals-x-reliability.md`; branch
+  `codex/beta-invite-signals-x-reliability` off `origin/main` `794d54e`. Standing "Current state"
+  deliberately unchanged — it describes LIVE prod (still Terms 1.0, no attributed names, no X
+  self-catch-up) until the operator deploys. Three coordinated workstreams; gate green
+  (typecheck + lint clean, **1536/134 unit** — was 1495/131, `next build` clean); no migration.
+  **(A, #40)** magic-link email + `/signin?sent=1` now state the link is single-use / 24h and give
+  the copy-the-unopened-URL-into-your-preferred-browser instruction; token model, expiry,
+  `/welcome/legal` redirect and `trackLinks:"None"`/`trackOpens:false` unchanged; generic sent
+  confirmation preserved (no invite oracle). **(B, #58)** `detectPurge` gained `Signal.subjects` —
+  one stable representative per distinct qualifying canonical person (shortest raw spelling, tie
+  alphabetical, ALL of them, sorted; `subjects.length == uniquePersons.size`); `toPublicSignal`
+  drops it and `headline` carries no names, so anonymous/unaccepted `/signals` HTML shows zero names
+  and runs no evidence query (page test proves the data-layer boundary). Accepted `/signals` renders
+  the names + a prominent attribution/non-endorsement notice (i18n `signals.named_label` +
+  `signals.attribution_disclaimer`, en + provisional uk). Terms §9 gained the durable named-person
+  rule; `CURRENT_TERMS_VERSION` 1.0→1.1 (effective 2026-07-15) forces re-acceptance via the existing
+  constant gate; **Privacy unchanged at 1.2**; `policy_acceptances` untouched (no migration). Every
+  person/pressure/canonical safeguard + ruling 19 intact; no "purge" conclusion restored. **(C,
+  #38+#66)** `src/lib/adapters/x-auto-catchup.ts`: a parked `x_api.lastPollAt` (older than
+  `X_PARK_THRESHOLD_SEC`, default 4h) makes the scheduled `ingest:x` run drain ONE fixed window
+  `[oldWatermark, caughtUpTo)` (captured once) via the existing `runGapBackfill` engine (no page
+  ceiling, insert-before-checkpoint), snapshotting the roster INTO the checkpoint
+  (`GapCheckpoint.roster`, additive `runGapBackfill(..., {storeRoster:true})`) so minutes-scale
+  registry drift can't strand it; bounded per run by `X_AUTO_CATCHUP_REQUEST_LIMIT`
+  (≤`X_RUN_REQUEST_CAP`) under the shared `x_api` SpendGuard + the X lease (catch-up and steady poll
+  are mutually exclusive per invocation); the live watermark advances to the fixed boundary only on
+  completion via a compare-and-set (`XWatermarkDriver`) that never moves backward, and a
+  crash-completed checkpoint finalizes with zero paid calls. `src/lib/adapters/x-health.ts` emails
+  `FEEDBACK_EMAIL` (safe fields only — no key/tweet/cursor value/CRON_SECRET) on truncation/failure/
+  budget-stop/park/persistent-empty/stuck, once per episode (cooldown) + one recovery notice, and
+  records the numeric result in `cron_runs.counts.x_api` even with no recipient / a Postmark failure;
+  a valid lease-skip is neutral (no spam); a monitor failure never breaks ingestion. Steady-poll
+  watermark discipline byte-preserved (13 prior fetch tests green). 33 new fixture tests, zero
+  network/paid. **Known edge (documented, not silent):** a residual tail smaller than the park
+  threshold but larger than one steady-poll pass can drain would truncate — the #38 monitor ALERTS
+  on it; the operator lowers `X_PARK_THRESHOLD_SEC` or runs the manual gap-backfill. **Nothing
+  closed:** #40/#58 close after the copy/names are live in prod; #38/#66 after a real scheduled
+  park→resume→completion + healthy-poll sequence. Full account + rollback:
+  `docs/reviews/BETA-INVITE-SIGNALS-X-RELIABILITY-NOTE-2026-07-15.md`. Operator: verify env
+  (`SIGNIN_MODE=invite`, `FEEDBACK_EMAIL`, X key/caps; optional recovery knobs), deploy the tested
+  main commit, then run the production proofs in the note's Rollout section.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).
