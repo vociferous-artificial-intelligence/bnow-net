@@ -261,11 +261,9 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
 - **Stubbed / off:** ACLED (fixture stub, unwired); Stripe flagged off; Resend adapter
   superseded by Postmark. (MTProto left this list 2026-07-11 — real adapter wired,
   session-gated; see Ingestion above.)
-- **Deploy:** current production `dpl_CdoLhjeyxab4mvZXzN9Vjq8U7pNC` (main `87f9c12`, READY,
-  aliased bnow.net; the analyst-experience quick-wins release — source-first evidence,
-  consolidated print disclosure, digest freshness, analyst-safe labels/metadata, and measured
-  light/dark readability remediation). Rollback target
-  `dpl_2p13bnGVNv2VfVVNQkVe4nW3CEaj` (main `be0ebf1`). Command:
+- **Deploy:** current production `dpl_7useRyXz71PVkyFgYqZTXKJXf8mv` (main `df79411`, READY,
+  aliased bnow.net; the #73 signed-out landing contrast release on top of the analyst-experience
+  quick wins). Rollback target `dpl_CdoLhjeyxab4mvZXzN9Vjq8U7pNC` (main `87f9c12`). Command:
   `npx vercel@latest deploy --prod --yes` via the machine CLI session
   (`VERCEL_TOKEN` is expired; regen is an operator task, SETUP-NEXT-WEEK #2).
 - **This WSL2 box:** the NAT resolver times out on some domains — a DNS quirk, NOT a
@@ -275,7 +273,7 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   github.com resolves slowly/flakily: pushes work, but short-timeout git commands can
   fail — retry or wait ~30s+. api.gdeltproject.org DNS still fails locally (not
   pinned). TASS/RIA/Lenta RSS unreachable → covered via their Telegram channels.
-- **Git:** the last application-code release is the analyst-experience quick-wins branch, merged
-  and deployed 2026-07-16. At the last reconciliation origin/main == local main; the only
-  post-deploy delta is the documentation reconciliation recording that release.
-  `codex/analyst-experience-quick-wins` is merged, and the deploy is live and aliased bnow.net.
+- **Git:** the last application-code release is #73 signed-out landing contrast, merged and deployed
+  2026-07-16. At the last reconciliation origin/main == local main; the only post-deploy delta is
+  the documentation closeout recording that live proof. `codex/73-signed-out-landing-contrast` is
+  merged, and the deploy is live and aliased bnow.net.

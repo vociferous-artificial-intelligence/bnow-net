@@ -96,8 +96,8 @@ place whenever reality changes. Historical narrative: `docs/PROGRESS.md` + `docs
 debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
 
 - **Live/repository:** https://bnow.net · Vercel `bnow-net` / team `vociferous`; production
-  `dpl_CdoLhjeyxab4mvZXzN9Vjq8U7pNC` from main `87f9c12`; rollback
-  `dpl_2p13bnGVNv2VfVVNQkVe4nW3CEaj` / `be0ebf1`; origin/main == local main at last
+  `dpl_7useRyXz71PVkyFgYqZTXKJXf8mv` from main `df79411`; rollback
+  `dpl_CdoLhjeyxab4mvZXzN9Vjq8U7pNC` / `87f9c12`; origin/main == local main at last
   reconciliation. Deployment URLs are SSO-walled — verify through the project domain.
 - **Coverage/data:** Russia, Ukraine, Iran live; Israel/Gulf shallow; bh/kw scaffolded; China
   deferred. Registry: 6,985 ISW-derived sources / 251K citations / 1,565 reports. Live ingest:
@@ -117,7 +117,8 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   free Search, digests/archive/scoreboard, entities, trade/datadark/materials are live behind
   their documented gates. The 2026-07-16 analyst quick wins are live: source-first evidence,
   consolidated print disclosure, digest freshness, analyst-safe labels/metadata, and the measured
-  light/dark readability remediation described in the implementation review.
+  light/dark readability remediation described in the implementation review. The signed-out
+  landing contrast follow-up (#73) is also live and production-proven across six viewport/theme passes.
 - **Legal/analytics/email:** Terms 1.1 (2026-07-16) + Privacy 1.2; current clickwrap required.
   Postmark `BNOW.NET <no-reply@bnow.net>` is live; magic-link guidance is single-use/24h and
   copy-before-opening. PostHog is production-only, explicit opt-in, allowlist-sanitized, UUID
@@ -214,19 +215,19 @@ Operational rulings:
 
 ## Decision log (append-only, dated)
 
-Entries through the 2026-07-16 analyst-experience contrast remediation are archived
+Entries through the 2026-07-16 analyst-experience quick-wins deployment are archived
 **verbatim** in `docs/DECISIONS.md`; distilled still-binding decisions live in Standing
 rulings above. New entries append at the BOTTOM (the archive runs oldest → newest).
 
-- **2026-07-16 (analyst-experience quick wins deployed)** Branch
-  `codex/analyst-experience-quick-wins` was pushed, fast-forward merged, and production deployed
-  from main `87f9c12` as `dpl_CdoLhjeyxab4mvZXzN9Vjq8U7pNC` (READY, aliased bnow.net). The local
-  pre-push gate passed 1,566/1,566 tests, typecheck and lint; Vercel's build passed. Live proof on
-  the project domain: `/health`, `/scoreboard`, and `/scoreboard/ir/2026-07-15` returned 200 from
-  the new deployment; the authenticated Iran 2026-07-15 digest passed light+dark at 1280×900 and
-  390×844 with no console/page errors or page overflow, correct freshness, working print/evidence
-  disclosures, and no provider, Confidence, or First-seen text. Zero paid analysis/provider calls;
-  no GitHub Actions change. #73 is the next isolated presentation follow-up.
+- **2026-07-16 (#73 signed-out landing contrast deployed and closed)** Branch
+  `codex/73-signed-out-landing-contrast` was pushed and fast-forward merged; main `df79411`
+  deployed as `dpl_7useRyXz71PVkyFgYqZTXKJXf8mv` (READY, aliased bnow.net). Gate: 1,576/1,576
+  tests, typecheck, lint and Vercel build green. Live `/` proof in real Chrome passed 1280×900,
+  390×844 and 320×844 in light+dark: all eight corrected foregrounds measured 7.56:1 light /
+  7.61:1 dark, the deployment stamp and nine hrefs matched, signed-out/no-Ask gating held, mobile
+  menu hydrated, and there were zero console/page errors or horizontal overflow. The first harness
+  aggregate false was test ordering only (it sought mobile Sign in before opening the drawer); the
+  corrected full six-pass rerun was green. Zero paid calls; no GitHub Actions change. #73 closed.
 
 ## Conventions
 

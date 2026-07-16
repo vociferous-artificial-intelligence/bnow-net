@@ -1878,3 +1878,18 @@ and no signed-in surface in the signed-out render. Ratios were measured from pai
 the class tests were mutation-tested to prove they can fail. Zero paid-provider calls, no
 deployment. Review: `docs/reviews/SIGNED-OUT-LANDING-CONTRAST-2026-07-16.md`. #73 stays open
 until the operator's deploy approval lands it.
+
+## 2026-07-16 — #73 signed-out landing contrast deployed and closed
+
+`codex/73-signed-out-landing-contrast` was pushed and fast-forward merged; the standing unit-test
+snapshot moved to 1,576 / 135. Main `df79411` deployed as
+`dpl_7useRyXz71PVkyFgYqZTXKJXf8mv` (READY, aliased bnow.net), with the local pre-push gate and
+Vercel build green. No GitHub Actions file changed and no paid-provider call occurred.
+
+Live `/` verification used real Chrome against the project domain at 1280×900, 390×844 and
+320×844 in light and dark. All eight corrected foregrounds were found exactly once, carried both
+class halves, and measured 7.56:1 light / 7.61:1 dark from painted colour. The response and assets
+matched the new deployment; all nine `main` hrefs matched; signed-out/no-Ask gating held; the
+phone/reflow menu toggled and rendered; and every pass had zero console/page errors and no page
+overflow. The first harness aggregate false was only test order—it looked for the mobile Sign-in
+link before opening the drawer—so the corrected full matrix was rerun and passed. #73 is closed.

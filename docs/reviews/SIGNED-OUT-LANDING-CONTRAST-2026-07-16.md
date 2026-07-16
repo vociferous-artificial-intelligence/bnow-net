@@ -4,15 +4,30 @@ Isolated presentation follow-up to the analyst-experience quick wins
 (`docs/reviews/ANALYST-EXPERIENCE-QUICK-WINS-2026-07-16.md`). Branch
 `codex/73-signed-out-landing-contrast`, from clean main `4e4743d`.
 
-**Status: implemented and reviewed, NOT deployed.** Awaiting the operator's normal deploy
-approval. Zero paid-provider calls; no schema, data, workflow, environment or application
-behaviour change.
+**Status: deployed and CLOSED.** Main `df79411` deployed 2026-07-16 as
+`dpl_7useRyXz71PVkyFgYqZTXKJXf8mv` (READY, aliased bnow.net), then passed the live six-pass
+matrix described below. Zero paid-provider calls; no schema, data, workflow, environment or
+application-behaviour change.
 
 | | |
 |---|---|
 | Application commit | `40151b6` — `ui: fix signed-out landing contrast` |
 | Files changed | `src/app/page.tsx`, `src/app/page.test.tsx` (+ this note and the docs below) |
 | Tests | 1,576 / 135 files (from 1,566 / 135) — the ten new ones are all in `page.test.tsx` |
+
+## Live deployment proof
+
+The live project domain served `/` with HTTP 200 and assets stamped
+`dpl_7useRyXz71PVkyFgYqZTXKJXf8mv`. Real Chrome then passed the complete 1280×900, 390×844 and
+320×844 matrix in light and dark: all eight target elements carried both class halves and measured
+7.56:1 light / 7.61:1 dark; the nine `main` hrefs were unchanged; the page stayed signed out with
+no `/ask` form; phone/reflow drawers toggled `aria-expanded=false→true`; and every pass had zero
+console/page errors and zero horizontal overflow.
+
+The first automation aggregate reported false only because its signed-out assertion searched for
+the mobile Sign-in link before opening the drawer; its actual contrast, deployment, href, overflow,
+error and menu checks were already green. The corrected test order and full six-pass rerun were
+green. This was a harness-order artifact, not a product defect.
 
 ## What was wrong
 

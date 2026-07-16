@@ -6,9 +6,9 @@ preserves history; editing or summarizing entries does not and is forbidden. Ent
 here are never edited or deleted; a wrong entry is corrected by a new dated entry in
 the live log in AGENTS.md.
 
-Split as of 2026-07-16 (sixth archive pass): entries from 2026-07-04 through the
-analyst-experience quick-wins implementation, dev-server-hydration finding, and contrast
-remediation now live here. AGENTS.md keeps only the current compact deployment cycle.
+Split as of 2026-07-16 (seventh archive pass): entries from 2026-07-04 through the
+analyst-experience quick-wins deployment now live here. AGENTS.md keeps only the current compact
+deployment cycle.
 Durable versions of still-binding decisions live in AGENTS.md § Standing rulings. This
 preamble records where the split currently sits, so it is corrected on each pass; the
 entries below it never are.
@@ -1420,3 +1420,12 @@ said in AGENTS.md.
   `next build`, 56/56 browser checks (32 regression + 24 remediation). Lesson: a contrast
   sweep scoped to one colour family silently certifies the families it never read.
   Detail: `docs/reviews/ANALYST-EXPERIENCE-QUICK-WINS-2026-07-16.md`.
+- **2026-07-16 (analyst-experience quick wins deployed)** Branch
+  `codex/analyst-experience-quick-wins` was pushed, fast-forward merged, and production deployed
+  from main `87f9c12` as `dpl_CdoLhjeyxab4mvZXzN9Vjq8U7pNC` (READY, aliased bnow.net). The local
+  pre-push gate passed 1,566/1,566 tests, typecheck and lint; Vercel's build passed. Live proof on
+  the project domain: `/health`, `/scoreboard`, and `/scoreboard/ir/2026-07-15` returned 200 from
+  the new deployment; the authenticated Iran 2026-07-15 digest passed light+dark at 1280×900 and
+  390×844 with no console/page errors or page overflow, correct freshness, working print/evidence
+  disclosures, and no provider, Confidence, or First-seen text. Zero paid analysis/provider calls;
+  no GitHub Actions change. #73 is the next isolated presentation follow-up.

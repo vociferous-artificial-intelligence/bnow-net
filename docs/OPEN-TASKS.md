@@ -624,21 +624,13 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     Fix = move them to `digest.profile.<key>.label` / `.description` keys across the visible
     catalogs. `key` is the `?profile=` query value and must NOT change. Documented in the
     file itself; deliberately not folded into the presentation batch.
-73. **[a11y] Signed-out landing page still carries unpaired gray text.** The 2026-07-16
-    contrast pass was scoped to the signed-in home + its status/validation/quick-link
-    components, the digest, evidence/copy/print controls, the scoreboard and the header.
-    The marketing branch of `src/app/page.tsx` (hero sub, beta line, visitor tertiary line,
-    feature cards, Iran block) still uses bare `text-gray-500` (4.09:1 on the near-black
-    theme) and bare `text-gray-400` (2.60:1 on white). Measured ratios and the correct pair
-    (`text-gray-600 dark:text-gray-400` = 7.56/7.61) are in the review. Not blind-swept, per
-    the prompt's "do not blindly replace every gray class repository-wide".
-    **IMPLEMENTED + reviewed on `codex/73-signed-out-landing-contrast` (`40151b6`), NOT yet
-    deployed — stays open until the operator's normal deploy approval lands it.** All eight
-    foregrounds moved to the paired class; measured from painted colour on a production
-    build at 7.56:1 light / 7.61:1 dark, worst in-scope 7.56:1, with 0 failures across a
-    23-element sweep of the signed-out `main` in 6 viewport×theme passes. The badge's
-    already-passing `text-gray-500 dark:text-gray-400` (4.84/7.61) was deliberately left
-    alone. Details: `docs/reviews/SIGNED-OUT-LANDING-CONTRAST-2026-07-16.md`.
+73. ~~**[a11y] Signed-out landing page carries unpaired gray text.**~~ ✅ **CLOSED
+    2026-07-16 after live production proof.** Application commit `40151b6`; deployed from main
+    `df79411` as `dpl_7useRyXz71PVkyFgYqZTXKJXf8mv`. All eight corrected foregrounds measured
+    7.56:1 light / 7.61:1 dark on the project domain across 1280×900, 390×844 and 320×844 in
+    both themes. Deployment stamp, nine hrefs, signed-out/no-Ask gating and mobile-menu hydration
+    passed; zero console/page errors or page overflow. The already-passing private-beta badge was
+    unchanged. Details: `docs/reviews/SIGNED-OUT-LANDING-CONTRAST-2026-07-16.md`.
 74. **[env/tooling] Dev-mode React never hydrates on this WSL2 box.** `npm run dev` serves
     and server-renders fine, but the `_next/webpack-hmr` WebSocket handshake fails with
     `net::ERR_INVALID_HTTP_RESPONSE` and no React control responds to input — the header
