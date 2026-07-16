@@ -1574,3 +1574,30 @@ GitHub CI for the pushed delta-review commit `8b433c3` then passed both jobs. Gi
 the v4 checkout/setup actions because their Node 20 action runtime is deprecated and currently
 forced onto Node 24. Added low-maintenance #70 for a workflow-only action-major upgrade; current
 CI and the Vercel application remain green.
+
+## 2026-07-15 — Invite mode activated; beta signal/X implementation handed off
+
+Activated `SIGNIN_MODE=invite` in Vercel Production after a read-only eligibility audit proved
+that all five existing users remain eligible; no request was approved and one request remains
+pending, so the pending address correctly receives no authentication link until approval. The env
+value was read back, then unchanged main `426c627` was deployed as
+`dpl_DzTtLPHVCrqbDZsLKqag5bNmndz8` (READY, aliased bnow.net). Vercel confirms the expected commit
+and production alias. A fresh WSL Chrome smoke loaded the exact deployment: `/health` rendered
+DB OK with build `426c627`, five users and one access request; `/signin` rendered the expected
+email form without submitting it. The post-deploy runtime-error scan found only the previously
+tracked, non-fatal GramJS peer-conversion noise (#69), not a new invite/deployment failure.
+
+Recorded three operator rulings: retain one-use magic links and tell users to copy the unvisited
+URL into their preferred browser before any first open; expose all qualifying named-person signal
+detail and cited evidence to accepted private-beta users while keeping anonymous HTML teaser-only;
+and implement X/twitterapi.io #38/#66 now with resumable cursor-complete self-catch-up and operator
+alerts. The Terms must explicitly state that names appear because cited sources identify them and
+that inclusion is not BNOW endorsement, accusation, opinion, or independent assertion of truth;
+because this is material, the coding release must bump the Terms version and force re-acceptance.
+
+Application coding is delegated under the repository handoff protocol. Comprehensive prompt:
+`docs/prompts/2026-07-15-beta-invite-signals-x-reliability.md`. Its X design snapshots the roster,
+inserts every page before checkpoint advancement, resumes from the exact cursor after budget/error
+stops, compare-and-sets the final watermark, reuses the X lease and SpendGuard, and deduplicates
+unhealthy/recovery alerts. This stage made zero paid provider calls, sent no magic-link email,
+changed no production data, and changed no application source.

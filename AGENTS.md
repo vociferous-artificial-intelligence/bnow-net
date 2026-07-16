@@ -164,9 +164,11 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   use-case; honeypot, 1h dedupe, operator email via after()+FEEDBACK_EMAIL, review list at
   `/admin/access`); `/pricing` 308-redirects there — price cards, dollar amounts and
   `src/lib/pricing/` are deleted; nav shows "Request access" signed-out ONLY (signed-in nav
-  carries no commercial entry); hero has a restrained beta badge; sign-in is invite-gateable
-  via `SIGNIN_MODE` (open=default/live; invite = users row OR ADMIN_EMAILS OR approved
-  subscribe_intents — flip is an operator decision) /
+  carries no commercial entry); hero has a restrained beta badge; sign-in is **invite-only in
+  Production as of 2026-07-15** via `SIGNIN_MODE=invite` (eligibility = existing users row OR
+  ADMIN_EMAILS OR approved subscribe_intents; the pre-flip read-only audit found 5 existing users,
+  0 approved requests and 1 pending request, so existing users remain eligible and the pending
+  requester remains blocked until approval) /
   magic-link auth (**Postmark bnow.net sender LIVE 2026-07-15**: Production `EMAIL_FROM` =
   `BNOW.NET <no-reply@bnow.net>`; the active server token accepts the address; Gmail live proof
   shows bnow.net DKIM, SPF, and DMARC pass, custom `pm-bounces.bnow.net` Return-Path, and the
@@ -317,8 +319,9 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
 - **Stubbed / off:** ACLED (fixture stub, unwired); Stripe flagged off; Resend adapter
   superseded by Postmark. (MTProto left this list 2026-07-11 — real adapter wired,
   session-gated; see Ingestion above.)
-- **Deploy:** current production `dpl_ApFhadwyVNkAyyc9T8R4W7ghgPhu` (merge `f9aaa9e`, READY,
-  aliased bnow.net). Command: `npx vercel@latest deploy --prod --yes` via the machine CLI session
+- **Deploy:** current production `dpl_DzTtLPHVCrqbDZsLKqag5bNmndz8` (main `426c627`, READY,
+  aliased bnow.net; redeployed unchanged application code to activate `SIGNIN_MODE=invite`).
+  Command: `npx vercel@latest deploy --prod --yes` via the machine CLI session
   (`VERCEL_TOKEN` is expired; regen is an operator task, SETUP-NEXT-WEEK #2).
 - **This WSL2 box:** the NAT resolver times out on some domains — a DNS quirk, NOT a
   TCP block. `NODE_OPTIONS="--require ./scripts/pin-dns.cjs"` pins vercel/openai/
@@ -327,9 +330,10 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   github.com resolves slowly/flakily: pushes work, but short-timeout git commands can
   fail — retry or wait ~30s+. api.gdeltproject.org DNS still fails locally (not
   pinned). TASS/RIA/Lenta RSS unreachable → covered via their Telegram channels.
-- **Git:** the deployed code release merged at `f9aaa9e`; origin/main == local main after the
-  2026-07-15 release/readiness documentation sync. All worktrees are clean, no local or remote
-  branch is unmerged, GitHub has zero open PRs, and the current main CI is green.
+- **Git:** the last application-code release merged at `f9aaa9e`; the current production build is
+  main `426c627` (later commits are documentation-only) after the invite-mode environment redeploy.
+  At the last reconciliation origin/main == local main, all worktrees were clean, no local or
+  remote branch was unmerged, GitHub had zero open PRs, and main CI was green.
 
 ## Standing rulings (distilled from the decision log; binding until a log entry supersedes)
 
@@ -1322,6 +1326,22 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   Recorded low-maintenance OPEN-TASKS #70 for a workflow-only major-version upgrade; this is not a
   current CI failure or a Vercel/application Node-runtime issue.
 
+- **2026-07-15 (invite activation + beta disclosure/X rulings)** Operator directed production
+  invite-only access, single-use preferred-browser guidance, full source-attributed named-person
+  evidence for accepted beta users (anonymous teaser unchanged), and a self-healing X/twitterapi.io
+  poller. Before the invite flip, read-only eligibility counts proved 5 existing users, 0 approved
+  requests and 1 pending request; existing users/admins/approved requests remain the eligibility
+  rule. `SIGNIN_MODE` was updated to `invite`, read back, and activated by production deploy
+  `dpl_DzTtLPHVCrqbDZsLKqag5bNmndz8` from main `426c627` (READY, bnow.net). The deployment scan
+  showed only the already-tracked non-fatal GramJS #69 clusters; WSL Chrome rendered `/health`
+  DB OK on that exact deployment/build and `/signin` without submitting a form. Application coding remains a
+  separate-agent task under repository protocol; the reviewed zero-paid implementation handoff is
+  `docs/prompts/2026-07-15-beta-invite-signals-x-reliability.md`. It preserves the anonymous Signals
+  boundary and requires a material Terms version bump, while X #38/#66 use cursor-complete,
+  insert-before-checkpoint, roster-snapshotted recovery under the existing lease/SpendGuard plus
+  episode-deduped operator alerts. No paid provider call, DB write, application-code change, or
+  magic-link email occurred in this operator/configuration/documentation stage.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).
@@ -1344,6 +1364,7 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
 | LLM kill-switch | `LLM_DISABLE=1` | refuses every LLM call site (ruling 9) | (env only) |
 | Anthropic | `ANTHROPIC_API_KEY` | provider implemented; key absent | console.anthropic.com |
 | Postmark (auth email) | `POSTMARK_SERVER_TOKEN` + `POSTMARK_MESSAGE_STREAM` + `EMAIL_FROM` | **live on bnow.net** (`BNOW.NET <no-reply@bnow.net>`; DKIM/SPF/DMARC/custom Return-Path + callback live-verified 2026-07-15) | postmarkapp.com |
+| Sign-in policy | `SIGNIN_MODE` | **Production invite-only since 2026-07-15** (existing user OR admin allowlist OR approved access request) | Vercel environment |
 | Cron auth | `CRON_SECRET` | **live** | (already set) |
 | Auth.js | `AUTH_SECRET` | **live** (hashes magic-link tokens: rotating it invalidates every unclicked link) | (already set) |
 | X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live, gap-recovered** (`$75` sprint / `$2.50` daily; Jul 9–13 recovered cursor-complete 2026-07-14; watermark-park >4–8h needs a drain+advance, #66; empty-run monitor remains #38) | api.twitterapi.io |

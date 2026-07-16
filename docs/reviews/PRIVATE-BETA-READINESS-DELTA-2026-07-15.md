@@ -12,7 +12,9 @@ review.
 **The application release is fully merged, pushed, and deployed.** There is no
 unmerged code branch, dirty worktree, open pull request, failed current CI run, or
 application commit waiting for production. Production serves application commit
-`f9aaa9e` in READY deployment `dpl_ApFhadwyVNkAyyc9T8R4W7ghgPhu` at `bnow.net`.
+`f9aaa9e`; after this audit, documentation-only main `426c627` was redeployed as READY
+deployment `dpl_DzTtLPHVCrqbDZsLKqag5bNmndz8` at `bnow.net` to activate
+`SIGNIN_MODE=invite`. No later application-code commit is waiting for production.
 
 At audit start, `main` and `origin/main` were both `78e15b2`; this review's documentation
 commit follows that baseline. The two commits after `f9aaa9e`
@@ -47,6 +49,12 @@ remain listed below.
   and datadark jobs.
 - Documents fetched in the last 24 hours: X 5,653; Telegram web 2,483; Telegram
   MTProto 1,259; RSS 1,157; GDELT 788.
+
+Later 2026-07-15 invite update: Vercel reports
+`dpl_DzTtLPHVCrqbDZsLKqag5bNmndz8` READY/production with aliases including `bnow.net` and
+source commit `426c627`. Fresh WSL Chrome rendered `/health` as DB OK on that deployment/build
+and `/signin` as expected without submitting the form. The runtime-error scan contained only the
+already-tracked non-fatal GramJS #69 clusters.
 
 ### Live 390px Chrome smoke
 
@@ -89,16 +97,23 @@ is clean without suppressing unrelated errors.
 
 ### Operator decisions before expanding the beta
 
-1. Decide whether to flip `SIGNIN_MODE` from `open` to `invite`. The access-request and
-   approval workflow is live, but production remains open by explicit operator choice.
+1. **Completed 2026-07-15:** production is `SIGNIN_MODE=invite`; a pre-flip read-only audit
+   confirmed all five existing users remain eligible, while the one pending request remains
+   blocked until approval. Environment readback and production deployment
+   `dpl_DzTtLPHVCrqbDZsLKqag5bNmndz8` are verified.
 2. Complete #65: one signed-in 390px homepage/account/legal/signals pass with a real
    accepted-user session.
-3. Resolve #40 before broad external testing: either fix cross-device/prefetch magic-link
-   consumption or state the same-device constraint clearly on the sign-in page.
-4. Complete the #58 counsel decision on named-person evidence quotes and disclaimer
-   prominence.
+3. **Decision completed; implementation pending (#40):** retain single-use links and tell users
+   in the email and sent screen to copy the unvisited URL into their preferred browser before
+   opening it elsewhere.
+4. **Decision completed; implementation pending (#58):** accepted invitees see all qualifying
+   names and cited evidence; anonymous visitors remain teaser-only. Add a visible source-claim
+   disclaimer plus explicit version-bumped Terms language.
 5. Review PostHog project membership and accept Privacy 1.2 on operator accounts. The
    PostHog billing limit is already configured.
+
+The implementation handoff for items 3–4 and X safeguards #38/#66 is
+`docs/prompts/2026-07-15-beta-invite-signals-x-reliability.md`.
 
 ### OpenSanctions paid workstream
 
@@ -114,8 +129,8 @@ is clean without suppressing unrelated errors.
 ### Engineering safeguards
 
 1. #38: alert on repeated X `fetched=0`, `pageTruncations`, or `incomplete` runs.
-2. #66: add a budget-bounded automatic X catch-up mode or an environment-tunable page
-   ceiling so a long pause cannot repeatedly rebill a fixed backlog.
+2. #66: add the approved budget-bounded, resumable automatic X catch-up mode so a long pause
+   cannot repeatedly rebill a fixed backlog; a larger page ceiling alone is insufficient.
 3. #39: connect Git pushes to Vercel or adopt an explicit release checklist. The current
    audit confirms that pushes after `f9aaa9e` did not deploy automatically.
 4. #69: remove the non-fatal GramJS peer-type error noise and prove exact 64-bit peer

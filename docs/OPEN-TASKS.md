@@ -223,16 +223,21 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     ALERT:** every `ingest:x` run now writes `cron_runs.counts.x_api` (`incomplete`,
     `pageTruncations`, `budgetStops`, `lockSkips`, …) but nothing yet ALERTS on fetched=0 repeats
     or truncation/incomplete — build the alert so the next freeze cannot masquerade as health.
-    See also #66 (the park-vs-ceiling stall this run discovered).
+    See also #66 (the park-vs-ceiling stall this run discovered) and the operator-approved coding
+    handoff `docs/prompts/2026-07-15-beta-invite-signals-x-reliability.md` Workstream C.
 39. **[Tier 1] No git→Vercel deploy integration.** `git push` does not deploy — after the 07-09
     auth fix, prod served the stale build ~20 min (`AUTH-EMAIL-2026-07-09.md`). Wire the Vercel Git
     integration, or codify "push then `npx vercel@latest deploy --prod`" in a release checklist so a
     pushed fix is not assumed live.
-40. **[Tier 1] Magic-link login is not usable across two devices.** The single-use token is consumed
+40. **[Tier 1 — operator decision made; copy not yet shipped] Magic-link login is not usable
+    after the link's first open.** The single-use token is consumed
     by the first open (phone prefetch/scanner), so reopening on a second device →
     `/api/auth/error?error=Verification` (`AUTH-EMAIL-2026-07-09.md`). The 07-09 Postmark tracking
-    fix (`9b5b368`) addressed a real but *secondary* defect, not this. Decide: change the token model
-    (multi-use within TTL, or device-agnostic) or document the constraint on the sign-in page.
+    fix (`9b5b368`) addressed a real but *secondary* defect, not this. **Operator ruling
+    2026-07-15:** retain the single-use token and explain it in the email and sent screen: open it
+    in the desired browser; if the email app uses another default browser, copy the unvisited URL
+    and paste it into the preferred browser before opening it elsewhere. Implementation/tests:
+    `docs/prompts/2026-07-15-beta-invite-signals-x-reliability.md` Workstream A.
 41. **[Tier 2] OpenSanctions monthly accounting + resumable rescore — CODE MERGED + DEPLOYED
     2026-07-15 (`f9aaa9e`, `dpl_ApFhadwyVNkAyyc9T8R4W7ghgPhu`); paid rescore still gated on
     #61 + operator auth.** Both defects are fixed in production (calendar-month `totalPeriod` in
@@ -340,19 +345,19 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
 
 ### New (from the IA-refinement sprint — 2026-07-12, docs/reviews/IA-REFINEMENT-REVIEW.md)
 
-58. **[Tier 1 — legal, operator] /signals names living individuals as under "possible
-    purge/prosecution."** *(ADVANCED 2026-07-13, private-beta sprint Workstream C: the
-    signed-in `detail` no longer names anyone or concludes "purge" — role/count language
-    + "Analyst review required"; names now appear ONLY inside the accepted-user evidence
-    disclosure as claim quotes with hedge + sources. Remaining counsel question: whether
-    those evidence quotes may keep names, and disclaimer prominence.)* The IA-refinement gating (2026-07-12) withholds the named-individual
-    specifics (`Signal.detail`) from anonymous /signals HTML — server-side via `toPublicSignal`,
-    plus robots.txt Disallow — closing the pre-auth/indexable exposure (crawlers see only a
-    count-and-type teaser). But the **signed-in** page still renders names framed as analytical
-    judgments ("Clustered elite pressure — possible factional purge. Targets incl.: …"). Counsel
-    review recommended: (a) disclaimer placement/prominence on the signed-in view; (b) whether
-    specific names should appear at all vs. role/count descriptors. Operator/legal action, not
-    code (IA-REFINEMENT-REVIEW.md TASK 3.4).
+58. **[Tier 1 — operator ruling made; implementation pending] Source-attributed named people on
+    private `/signals`.** The IA-refinement gate already withholds `Signal.detail`, exact claims,
+    and sources from anonymous/unaccepted HTML via `toPublicSignal`; accepted users already see
+    named claim quotes with hedge + sources. The 2026-07-13 remediation conservatively removed the
+    qualifying name list and any "purge" conclusion from the accepted-user detail while awaiting a
+    decision. **Operator ruling 2026-07-15:** accepted private-beta reviewers should see every
+    qualifying named person and the full evidence; anonymous visitors remain teaser-only. Add a
+    prominent Signals notice and explicit Terms language that names appear because cited open
+    sources identify them and inclusion is not BNOW endorsement, accusation, opinion, or an
+    independent assertion of truth. Preserve person/pressure/canonical-dedupe safeguards and do not
+    restore unsupported coordinated-purge framing. Because the Terms change is material, bump its
+    version and force re-acceptance. Implementation/tests:
+    `docs/prompts/2026-07-15-beta-invite-signals-x-reliability.md` Workstream B.
 59. **[i18n] Native review of the IA-refinement strings.** New/changed machine-translated keys
     need a native pass before market launch: nav labels `nav.group.signals`/`nav.group.ask`
     (all 7 catalogs); the reworded, count-driven `home.live` with the `{n}` token (all 7);
@@ -424,7 +429,11 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     drains cursor-complete under an explicit budget when it detects a long park. Also
     noted: registry roster hash drifts at MINUTES scale, so a stopped drain must resume
     immediately or restart under a fresh checkpoint key (observed: a 502-stopped run
-    refused resume 3 minutes later).
+    refused resume 3 minutes later). **Operator ruling 2026-07-15:** implement the bounded,
+    resumable self-catch-up and alert path now; the reviewed design must snapshot the roster,
+    insert-before-checkpoint, compare-and-set the final watermark, reuse the X lease/SpendGuard,
+    and make zero paid calls in tests. Handoff:
+    `docs/prompts/2026-07-15-beta-invite-signals-x-reliability.md` Workstream C.
 
 ### New (from the PostHog analytics phase-1 deploy — 2026-07-14)
 
@@ -475,9 +484,10 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     selector subset are live; the initial runtime-error scan was empty. The prior scoped
     Neon integration run was 9/9; a new full run was blocked before branch creation by an
     expired `NEON_API_KEY` (tracked in BLOCKERS/HUMAN-SETUP). Remaining actions are not part
-    of this closed release task: authenticated phone sweep stays #65, `SIGNIN_MODE=invite`
-    remains an operator decision, and PostHog project-membership review stays under #67
-    (the billing limit is configured).
+    of this closed release task: authenticated phone sweep stays #65 and PostHog
+    project-membership review stays under #67 (the billing limit is configured). **Later update
+    2026-07-15:** `SIGNIN_MODE=invite` is now live in Production via deployment
+    `dpl_DzTtLPHVCrqbDZsLKqag5bNmndz8`; five existing users remain eligible.
 
 ### New (from the 2026-07-15 private-beta readiness delta)
 
