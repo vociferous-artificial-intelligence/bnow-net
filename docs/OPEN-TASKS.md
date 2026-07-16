@@ -605,3 +605,37 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     it exercised the wrong backend and required storing Neon/Postmark/OpenAI credentials as repo
     secrets; operator-local validation plus Vercel remained authoritative. BNOW keeps its current
     workflows untouched unless a future operator ruling explicitly reopens this.
+
+### New (from the analyst-experience quick wins — 2026-07-16, docs/reviews/ANALYST-EXPERIENCE-QUICK-WINS-2026-07-16.md)
+
+71. **[Tier 3 — presentation] Evidence trail is still a min-width table inside a horizontal
+    scroller on narrow viewports.** Pass 2 made it source-first and dropped the Platform
+    column into a badge, cutting the table's min-width from 760px to 560px, but below that
+    it still scrolls inside its own tested `overflow-x-auto` wrapper. The page itself never
+    overflows (verified at 390px and at 320px WCAG reflow), so this is comfort, not a
+    defect. A card layout below `sm` — source + platform badge, published, title link,
+    reliability stacked per document — would remove the inner scroll. The prompt explicitly
+    permitted retaining the wrapper and recording this instead of a rushed conversion.
+72. **[i18n] Buyer-profile labels/descriptions are hardcoded English.** `PROFILES` in
+    `src/lib/profiles/config.ts` carries `label`/`description` as literals, so the digest
+    page's "Prioritize for:" row renders Standard / Military & security / Sanctions /
+    Commodities / Compliance untranslated on every locale, and the descriptions (shown as
+    `title` tooltips) likewise. The rest of the digest chrome is catalog-backed via `makeT`.
+    Fix = move them to `digest.profile.<key>.label` / `.description` keys across the visible
+    catalogs. `key` is the `?profile=` query value and must NOT change. Documented in the
+    file itself; deliberately not folded into the presentation batch.
+73. **[a11y] Signed-out landing page still carries unpaired gray text.** The 2026-07-16
+    contrast pass was scoped to the signed-in home + its status/validation/quick-link
+    components, the digest, evidence/copy/print controls, the scoreboard and the header.
+    The marketing branch of `src/app/page.tsx` (hero sub, beta line, visitor tertiary line,
+    feature cards, Iran block) still uses bare `text-gray-500` (4.09:1 on the near-black
+    theme) and bare `text-gray-400` (2.60:1 on white). Measured ratios and the correct pair
+    (`text-gray-600 dark:text-gray-400` = 7.56/7.61) are in the review. Not blind-swept, per
+    the prompt's "do not blindly replace every gray class repository-wide".
+74. **[env/tooling] Dev-mode React never hydrates on this WSL2 box.** `npm run dev` serves
+    and server-renders fine, but the `_next/webpack-hmr` WebSocket handshake fails with
+    `net::ERR_INVALID_HTTP_RESPONSE` and no React control responds to input — the header
+    language menu, the mobile hamburger, everything. Native `<details>` still works, which
+    masks it. `next build` + `next start` hydrates correctly. **Verify React UI against a
+    production build until this is fixed**; a dev-server click test proves nothing here.
+    Not an application defect (reproduced on untouched components).

@@ -120,8 +120,9 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   Postmark `BNOW.NET <no-reply@bnow.net>` is live; magic-link guidance is single-use/24h and
   copy-before-opening. PostHog is production-only, explicit opt-in, allowlist-sanitized, UUID
   identity, no Ask/Search/source text; GeoIP is retained per disclosed operator ruling.
-- **Quality/ops:** 1,542 unit tests / 134 files + 32 real-Postgres integration tests / 7 files,
-  all green. Enforced pre-push gate = typecheck+lint+test. Crons: fast */15; telegram :10; X :20;
+- **Quality/ops:** 1,542 unit tests / 134 files on main + 32 real-Postgres integration tests /
+  7 files, all green (1,562 / 135 on the unmerged `codex/analyst-experience-quick-wins`).
+  Enforced pre-push gate = typecheck+lint+test. Crons: fast */15; telegram :10; X :20;
   MTProto :35;
   map :40; digest 4×/day; validate/enrich/datadark daily; trade/materials monthly.
   OpenSanctions fixed-cutoff rescore is deployed, and claim-linked spend eligibility (#17 spend
@@ -213,6 +214,32 @@ Operational rulings:
 
 Entries through the 2026-07-16 #17 spend-subset deployment are archived **verbatim** in
 `docs/DECISIONS.md`; distilled still-binding decisions live in Standing rulings above.
+
+- **2026-07-16 (analyst-experience quick wins implemented — presentation only, NOT deployed)**
+  Branch `codex/analyst-experience-quick-wins` from `8bbc308`: Pass 1 `9b4c27e` (labels/nav,
+  provider + raw-confidence + First-seen removal, digest freshness, scoreboard results-before-
+  methodology, /health row removal) and Pass 2 `846e3f0` (print disclosure, source-first
+  evidence, targeted contrast/type). Gate: 1,562 unit tests / 135 files, typecheck, lint,
+  `next build` green; 32/32 browser checks in light+dark at 1280 and 390×844. No ingestion,
+  analysis, scoring, reliability, traceability, publication-safety, schema, data, paid-provider,
+  env, workflow or deploy change; zero paid calls; every route href unchanged. Standing rulings
+  1–5 untouched; ruling 15's promotion/href policy re-asserted by test. Decisions worth carrying:
+  **(a)** analyst surfaces expose no provider/model string and no raw confidence decimal —
+  the score is uncalibrated, so High/Medium/Low waits on #14; **(b)** "First seen by BNOW" is
+  presentation-dead but `fetched_at`/`firstSeenAt` is RETAINED as sort tie-break, ranking recency
+  fallback and validation-timeliness/health input — a missing `published_at` still renders Unknown
+  and never borrows it; **(c)** a digest page claims one stage only when every displayed track
+  agrees, otherwise per-track — never "Final" because one track finalized — and promises no
+  next-final time; **(d)** the scoreboard caveat must stay OUTSIDE the methodology disclosure.
+  Details + measured contrast: `docs/reviews/ANALYST-EXPERIENCE-QUICK-WINS-2026-07-16.md`.
+  New debt #71–#74. Awaiting operator approval to deploy.
+- **2026-07-16 (dev-server hydration is broken on this WSL2 box — verify against a build)**
+  `npm run dev` server-renders correctly but React never hydrates: the `_next/webpack-hmr`
+  WebSocket handshake fails (`net::ERR_INVALID_HTTP_RESPONSE`) and NO React control responds to
+  input, including components no one has touched (the mobile hamburger). Native `<details>`
+  keeps working, which masks the failure and can make a broken page look interactive. `next
+  build` + `next start` hydrates fine and passed all keyboard checks. **Verify React UI against
+  a production build here; a dev-server click test proves nothing.** OPEN-TASKS #74.
 
 - **2026-07-16 (legal integration gate restored)** Commit `165c2b4` removed the stale Terms 1.0
   assumption from `legal-acceptance.itest.ts`: current acceptance derives from

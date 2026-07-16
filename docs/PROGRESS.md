@@ -1799,3 +1799,40 @@ freshness must not label a whole page Final when only one track is final. Monthl
 navigation, feedback-environment splitting, OpenSanctions/entity work, and other deeper tasks are
 explicitly out of scope. The stale #41/#61 text and the cleanup handoff were reconciled to treat
 #17 as a deployed regression boundary rather than unfinished implementation.
+
+## 2026-07-16 — analyst-experience quick wins implemented (2 passes, not deployed)
+
+Plan for the block:
+1. Branch `codex/analyst-experience-quick-wins` from clean `origin/main` (`8bbc308`).
+2. Pass 1 — Workstream A; B1/B3/B4; C; E1–E4. Targeted tests, review the diff.
+3. Pass 2 — B2; D; F. Full gate + browser/accessibility verification.
+4. Review doc, living docs, hand back for operator approval.
+
+All four done. Pass 1 `9b4c27e`, Pass 2 `846e3f0`; 1,562 unit tests / 135 files (from
+1,542 / 134), typecheck, lint and `next build` green; 32/32 browser checks in Chrome,
+light+dark, 1280 and exactly 390×844, keyboard-only across the header language menu,
+print disclosure, evidence trail/sort and scoreboard methodology. Presentation only —
+no ingestion, analysis, scoring, reliability, traceability, publication-safety, schema,
+data, paid-provider, env, workflow or deploy change, zero paid calls, no route href moved.
+
+Three things worth carrying forward. **Contrast was measured, not assumed** — computed from
+the oklch palette this build actually ships against the real backgrounds, reproducing the
+punch list's figures (gray-400 = 2.60:1 on white; gray-500 = 4.09:1 on near-black; the correct
+pair is gray-600/dark:gray-400 at 7.56/7.61). That surfaced a status-panel pair
+(`text-gray-400 dark:text-gray-500`) failing in BOTH themes. **Dev-mode React never hydrates
+on this box** — the HMR WebSocket handshake fails and no React control responds, including the
+untouched hamburger; native `<details>` kept working and masked it. Everything passes against
+`next build` + `next start`, so React UI must be verified against a production build here
+(#74). **Two pre-existing browser-only defects** turned up and were fixed: the scoreboard table
+had no horizontal cell padding, rendering "theatercoverage" and "1 / 3 / 5detail".
+
+Pass 1 is one commit rather than four: the `dictionaries.ts` hunks for workstreams A/B/C/E
+interleave inside the same catalogs, so per-hunk splitting risked misleading intermediate
+states. The boundary the handoff actually requires — Pass 1 vs Pass 2 — holds, so Pass 2 can
+be reverted without restoring provider, confidence or First-seen metadata.
+
+New debt #71 (evidence trail still an inner-scrolling table below 560px), #72 (buyer-profile
+labels hardcoded English — documented in the file, not silently scoped in), #73 (signed-out
+landing page still has unpaired grays — out of this pass's listed scope, deliberately not
+blind-swept), #74 (dev hydration). Review:
+`docs/reviews/ANALYST-EXPERIENCE-QUICK-WINS-2026-07-16.md`. Awaiting operator approval to deploy.
