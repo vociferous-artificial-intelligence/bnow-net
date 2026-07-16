@@ -133,6 +133,40 @@ describe("detectPurge", () => {
     expect(detectPurge(claims, { windowDays: 14, minCount: 3, theater: "ir", nowIso: NOW })).toBeNull();
     const s = detectPurge(claims, { windowDays: 14, minCount: 2, theater: "ir", nowIso: NOW });
     expect(s!.headline).toMatch(/^2 officials/);
+    // the accepted-user name list folds the three Khamenei spellings to ONE person,
+    // choosing a stable representative (shortest raw spelling) — 2 people, sorted.
+    expect(s!.subjects).toEqual(["Ali Khamenei", "Hossein Salami"]);
+  });
+
+  it("subjects lists every distinct qualifying person once, deterministically ordered", () => {
+    const claims = [
+      mk(3, "Sidorov", "defendant", "2026-07-05"),
+      mk(1, "Ivanov", "defendant", "2026-07-01"),
+      mk(2, "Petrov", "dismissed", "2026-07-03"),
+      mk(2, "Ivanov", "defendant", "2026-07-03"), // Ivanov named again on a second claim
+    ];
+    const s = detectPurge(claims, { windowDays: 14, minCount: 3, theater: "ru", nowIso: NOW })!;
+    // 3 distinct people, alphabetically sorted, no duplicate despite Ivanov twice;
+    // subjects.length == the headline person count.
+    expect(s.subjects).toEqual(["Ivanov", "Petrov", "Sidorov"]);
+    expect(s.subjects).toHaveLength(3);
+    expect(s.headline).toMatch(/^3 officials/);
+  });
+
+  it("subjects carries ONLY qualifying people — strike targets and org edges never ride along", () => {
+    const claims = [
+      mk(1, "Ivanov", "defendant", "2026-07-01"),
+      mk(2, "Petrov", "dismissed", "2026-07-02"),
+      mk(3, "Volkov", "defendant", "2026-07-03"),
+      mk(50, "Oleg Sidorov", "target", "2026-07-04", {
+        text: "Drone strike targeted the command post where Oleg Sidorov was located",
+      }),
+      mk(51, "NATO", "target", "2026-07-04", { entityKind: "org" }),
+    ];
+    const s = detectPurge(claims, { windowDays: 14, minCount: 3, theater: "ru", nowIso: NOW })!;
+    expect(s.subjects).toEqual(["Ivanov", "Petrov", "Volkov"]);
+    expect(s.subjects).not.toContain("Oleg Sidorov");
+    expect(s.subjects).not.toContain("NATO");
   });
 
   it("evidence list contains ONLY qualifying claims — strike/junk edges never ride along", () => {
@@ -312,21 +346,29 @@ describe("toPublicSignal — the teaser withheld of specifics (IA refinement TAS
     });
   });
 
-  it("drops `detail`, `evidenceClaimIds` and `evidenceRefs` entirely", () => {
+  it("drops `detail`, `evidenceClaimIds`, `evidenceRefs` and `subjects` entirely", () => {
     const pub = toPublicSignal(purge) as unknown as Record<string, unknown>;
     expect("detail" in pub).toBe(false);
     expect("evidenceClaimIds" in pub).toBe(false);
     expect("evidenceRefs" in pub).toBe(false);
+    // subjects (accepted-user named individuals) must never reach the public teaser
+    expect("subjects" in pub).toBe(false);
   });
 
-  it("leaks no named individual at any layer — since 2026-07-13 even `detail` carries no names", () => {
-    const signalJson = JSON.stringify(purge).toLowerCase();
+  it("keeps every named individual OUT of the public projection and headline (2026-07-15: names live only in `subjects`, accepted-user detail)", () => {
     const publicJson = JSON.stringify(toPublicSignal(purge)).toLowerCase();
     for (const name of ["ivanov", "petrov", "sidorov"]) {
-      // Names live ONLY in the evidence claim texts fetched separately for
-      // accepted users — not in the signal object, not in the projection.
+      // never in the anonymous teaser projection...
       expect(publicJson).not.toContain(name);
-      expect(signalJson.replace(/"evidenceclaimids":\[[^\]]*\]/, "")).not.toContain(name);
+      // ...nor in the headline the projection exposes
+      expect(purge.headline.toLowerCase()).not.toContain(name);
+    }
+    // the accepted-user `subjects` list DOES carry the names now — one per person,
+    // sorted — the ONLY place named individuals live in the signal object.
+    expect(purge.subjects).toEqual(["Ivanov", "Petrov", "Sidorov"]);
+    // and `detail` prose still carries no names (names render from `subjects`)
+    for (const name of ["ivanov", "petrov", "sidorov"]) {
+      expect(purge.detail.toLowerCase()).not.toContain(name);
     }
   });
 

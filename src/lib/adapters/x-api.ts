@@ -39,6 +39,14 @@ import {
   pgXLeaseDriver,
   type XLeaseDriver,
 } from "../usage/x-lease";
+import { X_PARK_THRESHOLD_SEC_DEFAULT, type AutoCatchupResult } from "./x-auto-catchup";
+import {
+  alertDeliveryCode,
+  alertKindCode,
+  type XHealthContext,
+  type XHealthCounters,
+  type XHealthOutcome,
+} from "./x-health";
 import type { BackfillRange, RawDoc, SourceAdapter } from "./types";
 
 const BASE = "https://api.twitterapi.io";
@@ -198,6 +206,28 @@ export function xGuardFromEnv(): SpendGuard {
   );
 }
 
+/** Guard for the automatic parked-watermark catch-up: the SAME x_api provider,
+ *  store, total (X_SPRINT_USD_CAP) and daily (X_DAILY_USD_CAP / X_DAILY_REQUEST_CAP)
+ *  caps as the steady poller — spend accounting stays cumulative across the day —
+ *  but the per-run request cap is the dedicated, env-tunable auto-catch-up limit
+ *  `X_AUTO_CATCHUP_REQUEST_LIMIT`, clamped to never exceed X_RUN_REQUEST_CAP. This
+ *  bounds each hourly catch-up slice; a larger backlog resumes next run. There is
+ *  no new USD allowance — the existing caps remain the spend authorization. */
+export function xAutoCatchupGuardFromEnv(): SpendGuard {
+  const runCap = envNum("X_RUN_REQUEST_CAP", 200);
+  const autoLimit = Math.max(1, Math.min(envNum("X_AUTO_CATCHUP_REQUEST_LIMIT", runCap), runCap));
+  return new SpendGuard(
+    {
+      provider: X_PROVIDER,
+      totalCapUsd: envCap("X_SPRINT_USD_CAP"),
+      dailyUsdCap: envNum("X_DAILY_USD_CAP", 1.5),
+      dailyRequestCap: envNum("X_DAILY_REQUEST_CAP", 4000),
+      runRequestCap: autoLimit,
+    },
+    pgUsageStore,
+  );
+}
+
 /** One twitterapi.io GET. Returns parsed JSON, or null on a non-2xx status
  *  (network/timeout errors propagate). Logs path + status only — never the key
  *  or authorization headers. Shared by the adapter and the gap-recovery driver. */
@@ -236,6 +266,12 @@ export interface XApiDeps {
   saveState: typeof saveProviderState;
   fetchImpl: typeof fetch;
   leaseDriver: XLeaseDriver;
+  /** Parked-watermark auto-catch-up. Default (undefined) = the built-in step wired
+   *  to prod seams; tests inject a stub to exercise the fetchLatest branch. */
+  autoCatchup?: (accounts: XAccount[]) => Promise<AutoCatchupResult>;
+  /** Health monitor + operator alert. Default (undefined) = the built-in wired to
+   *  prod seams (no email when FEEDBACK_EMAIL is unset); tests inject a stub. */
+  healthCheck?: (counters: XHealthCounters, context: XHealthContext) => Promise<XHealthOutcome>;
 }
 
 function defaultXApiDeps(): XApiDeps {
@@ -246,6 +282,18 @@ function defaultXApiDeps(): XApiDeps {
     leaseDriver: pgXLeaseDriver,
   };
 }
+
+/** Numeric code for cron_runs.counts.x_api (Record<string, number>): the catch-up
+ *  state must be auditable there without a string. */
+const AUTO_CATCHUP_STATE_CODE: Record<AutoCatchupResult["state"], number> = {
+  not_parked: 0,
+  started: 1,
+  resumed: 2,
+  complete: 3,
+  already_complete: 4,
+  refused: 5,
+  no_roster: 6,
+};
 
 export class XApiAdapter implements SourceAdapter {
   readonly name = X_PROVIDER;
@@ -298,6 +346,25 @@ export class XApiAdapter implements SourceAdapter {
       return [];
     }
 
+    // Self-heal: if the live watermark is parked, run one bounded, resumable,
+    // cursor-complete catch-up slice (it inserts internally and advances the
+    // watermark on completion) and skip the steady poll this run — steady polling
+    // resumes next scheduled run once caught up. #38/#66.
+    const catchup = this.deps.autoCatchup
+      ? await this.deps.autoCatchup(this.accounts)
+      : await this.runAutoCatchupStep();
+    if (catchup.ran) {
+      this.applyCatchupStats(catchup);
+      await this.runHealthStep(catchup.ageSec ?? null, {
+        state: catchup.state,
+        leaseHeld: catchup.leaseHeld ?? false,
+        progressSig: catchup.progressSig ?? null,
+        inserted: catchup.counts?.inserted ?? 0,
+        watermarkAdvanced: catchup.watermarkAdvanced ?? false,
+      });
+      return []; // gap engine already inserted; watermark advanced by the catch-up
+    }
+
     // Paid X work is single-writer: if the historical-recovery driver (or another
     // poll) holds the lease, make ZERO paid calls and leave the watermark alone —
     // the next scheduled poll re-covers the window.
@@ -306,122 +373,233 @@ export class XApiAdapter implements SourceAdapter {
       X_LEASE_TTL_MS,
       this.deps.leaseDriver,
     );
+    let steadyDocs: RawDoc[] = [];
+    let steadyWatermarkAgeSec: number | null = null;
     if (!lease) {
       this.runStats.lockSkips = 1;
       this.runStats.incomplete = 1;
       console.warn(`${X_PROVIDER}: provider lease held — skipping poll (no paid calls)`);
-      return [];
-    }
+    } else {
+      try {
+        await this.guard.init();
 
-    try {
-      await this.guard.init();
+        const {
+          spacingMs = 300,
+          batchSize = 20,
+          maxPagesPerBatch = 5,
+          overlapSec = 1800,
+          defaultLookbackSec = 24 * 3600,
+        } = this.opts;
 
-      const {
-        spacingMs = 300,
-        batchSize = 20,
-        maxPagesPerBatch = 5,
-        overlapSec = 1800,
-        defaultLookbackSec = 24 * 3600,
-      } = this.opts;
+        const state = await this.deps.loadState<{ lastPollAt?: number }>(X_PROVIDER);
+        const pollStartedUnix = Math.floor(Date.now() / 1000);
+        steadyWatermarkAgeSec =
+          typeof state?.lastPollAt === "number" ? pollStartedUnix - state.lastPollAt : null;
+        const sinceUnix = Math.max(
+          (state?.lastPollAt ?? pollStartedUnix - defaultLookbackSec) - overlapSec,
+          pollStartedUnix - 7 * 24 * 3600, // never search further back than a week
+        );
 
-      const state = await this.deps.loadState<{ lastPollAt?: number }>(X_PROVIDER);
-      const pollStartedUnix = Math.floor(Date.now() / 1000);
-      const sinceUnix = Math.max(
-        (state?.lastPollAt ?? pollStartedUnix - defaultLookbackSec) - overlapSec,
-        pollStartedUnix - 7 * 24 * 3600, // never search further back than a week
-      );
+        const byUser = new Map(this.accounts.map((a) => [a.userName.toLowerCase(), a]));
+        const docs: RawDoc[] = [];
+        const seenIds = new Set<string>();
+        let complete = true;
 
-      const byUser = new Map(this.accounts.map((a) => [a.userName.toLowerCase(), a]));
-      const docs: RawDoc[] = [];
-      const seenIds = new Set<string>();
-      let complete = true;
-
-      outer: for (const batch of chunk(this.accounts, batchSize)) {
-        const query = buildSearchQuery(batch, sinceUnix);
-        let cursor = "";
-        for (let page = 1; ; page++) {
-          const r = this.guard.tryReserve();
-          if (!r.ok) {
-            console.warn(`${X_PROVIDER}: budget stop — ${r.reason}`);
-            this.runStats.budgetStops += 1;
-            complete = false;
-            break outer;
-          }
-          if (!(await lease.renew())) {
-            // lost to a takeover (only possible after a >TTL stall): another job
-            // may be spending — stop paid calls immediately, pass is incomplete
-            console.warn(`${X_PROVIDER}: lease lost mid-poll — stopping paid calls`);
-            this.runStats.lockSkips += 1;
-            complete = false;
-            break outer;
-          }
-          let json: unknown | null = null;
-          try {
-            json = await this.request("/twitter/tweet/advanced_search", {
-              query,
-              queryType: "Latest",
-              cursor,
-            });
-          } catch (e) {
-            console.warn(`${X_PROVIDER} search: ${e instanceof Error ? e.message : e}`);
-          }
-          if (json === null) {
-            this.runStats.requestFailures += 1;
-            complete = false;
-            break;
-          }
-          if (!isSearchPayload(json)) {
-            // 200 with a junk body: record the per-request minimum (the provider
-            // bills the request) and fail the pass — a junk "empty" page must not
-            // read as an exhausted batch.
-            await this.guard.record(1, 0, X_MIN_USD_PER_REQUEST);
+        outer: for (const batch of chunk(this.accounts, batchSize)) {
+          const query = buildSearchQuery(batch, sinceUnix);
+          let cursor = "";
+          for (let page = 1; ; page++) {
+            const r = this.guard.tryReserve();
+            if (!r.ok) {
+              console.warn(`${X_PROVIDER}: budget stop — ${r.reason}`);
+              this.runStats.budgetStops += 1;
+              complete = false;
+              break outer;
+            }
+            if (!(await lease.renew())) {
+              // lost to a takeover (only possible after a >TTL stall): another job
+              // may be spending — stop paid calls immediately, pass is incomplete
+              console.warn(`${X_PROVIDER}: lease lost mid-poll — stopping paid calls`);
+              this.runStats.lockSkips += 1;
+              complete = false;
+              break outer;
+            }
+            let json: unknown | null = null;
+            try {
+              json = await this.request("/twitter/tweet/advanced_search", {
+                query,
+                queryType: "Latest",
+                cursor,
+              });
+            } catch (e) {
+              console.warn(`${X_PROVIDER} search: ${e instanceof Error ? e.message : e}`);
+            }
+            if (json === null) {
+              this.runStats.requestFailures += 1;
+              complete = false;
+              break;
+            }
+            if (!isSearchPayload(json)) {
+              // 200 with a junk body: record the per-request minimum (the provider
+              // bills the request) and fail the pass — a junk "empty" page must not
+              // read as an exhausted batch.
+              await this.guard.record(1, 0, X_MIN_USD_PER_REQUEST);
+              this.runStats.requests += 1;
+              this.runStats.requestFailures += 1;
+              complete = false;
+              break;
+            }
+            const tweets = tweetsFromResponse(json);
+            await this.guard.record(
+              1,
+              tweets.length,
+              Math.max(tweets.length * X_USD_PER_TWEET, X_MIN_USD_PER_REQUEST),
+            );
             this.runStats.requests += 1;
-            this.runStats.requestFailures += 1;
-            complete = false;
-            break;
+            this.runStats.units += tweets.length;
+            for (const t of tweets) {
+              if (seenIds.has(t.id)) continue;
+              seenIds.add(t.id);
+              const account = byUser.get((t.author?.userName ?? "").toLowerCase());
+              if (!account) continue; // defensive: only registry-attributed docs
+              docs.push(tweetToRawDoc(t, account));
+            }
+            const o = json as { has_next_page?: boolean; next_cursor?: string };
+            if (!o.has_next_page || !o.next_cursor) break; // batch genuinely exhausted
+            if (page >= maxPagesPerBatch) {
+              // steady-state page ceiling reached with another cursor pending:
+              // visible (counted) and the pass is incomplete, so the watermark
+              // cannot advance past the un-fetched tail (the old silent loss).
+              this.runStats.pageTruncations += 1;
+              complete = false;
+              break;
+            }
+            cursor = o.next_cursor;
+            await new Promise((r2) => setTimeout(r2, spacingMs));
           }
-          const tweets = tweetsFromResponse(json);
-          await this.guard.record(
-            1,
-            tweets.length,
-            Math.max(tweets.length * X_USD_PER_TWEET, X_MIN_USD_PER_REQUEST),
-          );
-          this.runStats.requests += 1;
-          this.runStats.units += tweets.length;
-          for (const t of tweets) {
-            if (seenIds.has(t.id)) continue;
-            seenIds.add(t.id);
-            const account = byUser.get((t.author?.userName ?? "").toLowerCase());
-            if (!account) continue; // defensive: only registry-attributed docs
-            docs.push(tweetToRawDoc(t, account));
-          }
-          const o = json as { has_next_page?: boolean; next_cursor?: string };
-          if (!o.has_next_page || !o.next_cursor) break; // batch genuinely exhausted
-          if (page >= maxPagesPerBatch) {
-            // steady-state page ceiling reached with another cursor pending:
-            // visible (counted) and the pass is incomplete, so the watermark
-            // cannot advance past the un-fetched tail (the old silent loss).
-            this.runStats.pageTruncations += 1;
-            complete = false;
-            break;
-          }
-          cursor = o.next_cursor;
           await new Promise((r2) => setTimeout(r2, spacingMs));
         }
-        await new Promise((r2) => setTimeout(r2, spacingMs));
-      }
 
-      // Never persisted here: runIngest calls commitMarks() after insertDocs().
-      if (complete) this.pendingLastPollAt = pollStartedUnix;
-      this.runStats.incomplete = complete ? 0 : 1;
-      this.runStats.docs = docs.length;
-      console.log(
-        `${X_PROVIDER}: ${docs.length} docs, run usage ${JSON.stringify(this.guard.runStats)}, complete=${complete}`,
-      );
-      return docs;
-    } finally {
-      await lease.release();
+        // Never persisted here: runIngest calls commitMarks() after insertDocs().
+        if (complete) this.pendingLastPollAt = pollStartedUnix;
+        this.runStats.incomplete = complete ? 0 : 1;
+        this.runStats.docs = docs.length;
+        steadyDocs = docs;
+        console.log(
+          `${X_PROVIDER}: ${docs.length} docs, run usage ${JSON.stringify(this.guard.runStats)}, complete=${complete}`,
+        );
+      } finally {
+        await lease.release();
+      }
     }
+
+    this.runStats.mode = 1; // 1 = steady poll (2 = catch-up, set by applyCatchupStats)
+    await this.runHealthStep(steadyWatermarkAgeSec, null);
+    return steadyDocs;
+  }
+
+  /** Merge a catch-up outcome into runStats as safe numeric fields (no cursor
+   *  value, no tweet content) so cron_runs.counts.x_api stays auditable. */
+  private applyCatchupStats(catchup: AutoCatchupResult): void {
+    const c = catchup.counts;
+    this.runStats.mode = 2; // catch-up took over this invocation
+    this.runStats.catchupState = AUTO_CATCHUP_STATE_CODE[catchup.state];
+    this.runStats.requests = c?.requests ?? 0;
+    this.runStats.docs = c?.inserted ?? 0;
+    this.runStats.lockSkips = catchup.leaseHeld ? 1 : 0;
+    this.runStats.incomplete =
+      catchup.state === "complete" || catchup.state === "already_complete" ? 0 : 1;
+    this.runStats.catchupBatchIndex = c?.batchIndex ?? 0;
+    this.runStats.catchupBatches = c?.batches ?? 0;
+    this.runStats.catchupCursorPending = c?.cursorPending ?? 0;
+    this.runStats.catchupInserted = c?.inserted ?? 0;
+    this.runStats.catchupDuplicates = c?.duplicates ?? 0;
+    this.runStats.catchupUnattributed = c?.unattributed ?? 0;
+    this.runStats.catchupSpendUsd = c?.spendUsd ?? 0;
+    this.runStats.watermarkAdvanced = catchup.watermarkAdvanced ? 1 : 0;
+    this.runStats.watermarkAgeSec = catchup.ageSec ?? 0;
+  }
+
+  /** Built-in auto-catch-up wired to prod seams (dynamic import breaks the
+   *  x-api ⇄ x-auto-catchup module cycle at load time). Given the injected
+   *  loadState, an un-parked watermark returns immediately with zero paid calls. */
+  private async runAutoCatchupStep(): Promise<AutoCatchupResult> {
+    const { runXAutoCatchup, pgXWatermarkDriver } = await import("./x-auto-catchup");
+    const key = this.apiKey!;
+    return runXAutoCatchup(
+      this.accounts,
+      {
+        guard: xAutoCatchupGuardFromEnv(),
+        request: (path, params) => xApiRequest(path, params, key, this.deps.fetchImpl),
+        insertDocs: async (docs) => (await import("../ingest/run")).insertDocs(docs),
+        loadState: this.deps.loadState,
+        saveState: this.deps.saveState,
+        leaseDriver: this.deps.leaseDriver,
+        watermark: pgXWatermarkDriver,
+        sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+        log: (l) => console.log(l),
+      },
+      {
+        parkThresholdSec: envNum("X_PARK_THRESHOLD_SEC", X_PARK_THRESHOLD_SEC_DEFAULT),
+        batchSize: this.opts.batchSize ?? 20,
+        spacingMs: this.opts.spacingMs ?? 300,
+        nowMs: Date.now(),
+      },
+    );
+  }
+
+  /** Evaluate health and (on a fire) alert the operator, recording numeric result
+   *  codes in runStats. Never throws — a monitor failure must not fail ingestion. */
+  private async runHealthStep(
+    watermarkAgeSec: number | null,
+    catchup: XHealthContext["catchup"],
+  ): Promise<void> {
+    try {
+      const counters: XHealthCounters = {
+        requests: this.runStats.requests ?? 0,
+        docs: this.runStats.docs ?? 0,
+        budgetStops: this.runStats.budgetStops ?? 0,
+        pageTruncations: this.runStats.pageTruncations ?? 0,
+        requestFailures: this.runStats.requestFailures ?? 0,
+        lockSkips: this.runStats.lockSkips ?? 0,
+        incomplete: this.runStats.incomplete ?? 0,
+      };
+      const context: XHealthContext = {
+        watermarkAgeSec,
+        parkThresholdSec: envNum("X_PARK_THRESHOLD_SEC", X_PARK_THRESHOLD_SEC_DEFAULT),
+        catchup,
+      };
+      const outcome = this.deps.healthCheck
+        ? await this.deps.healthCheck(counters, context)
+        : await this.defaultHealthCheck(counters, context);
+      this.runStats.alertEvaluated = outcome.evaluated ? 1 : 0;
+      this.runStats.alertKind = alertKindCode(outcome.alert);
+      this.runStats.alertDelivery = alertDeliveryCode(outcome.delivery);
+      this.runStats.alertReasons = outcome.reasons.length; // count only — no strings in cron counts
+    } catch (e) {
+      console.warn(`${X_PROVIDER}: health check failed (ingestion unaffected): ${e instanceof Error ? e.message : e}`);
+    }
+  }
+
+  private async defaultHealthCheck(
+    counters: XHealthCounters,
+    context: XHealthContext,
+  ): Promise<XHealthOutcome> {
+    const { runXHealthCheck, xHealthConfigFromEnv } = await import("./x-health");
+    const { feedbackEmail } = await import("../feedback");
+    const { sendEmail } = await import("../email/send");
+    return runXHealthCheck(
+      counters,
+      context,
+      {
+        loadState: this.deps.loadState,
+        saveState: this.deps.saveState,
+        sendEmail,
+        recipient: feedbackEmail,
+        now: () => Date.now(),
+      },
+      xHealthConfigFromEnv(),
+    );
   }
 
   /** Persist the pending watermark — runIngest calls this only AFTER insertDocs

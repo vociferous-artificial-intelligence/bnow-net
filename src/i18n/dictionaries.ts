@@ -386,6 +386,9 @@ const en: Dict = {
   "signals.evidence.public": "supporting claim(s) · traceable to sources",
   "signals.evidence.signin_prompt": "sign in to inspect the evidence",
   "signals.evidence.accept_prompt": "accept the Terms to inspect the evidence",
+  "signals.named_label": "Named in the reporting:",
+  "signals.attribution_disclaimer":
+    "Named individuals appear because cited open sources identify them. BNOW reports and attributes those source claims — inclusion is not BNOW's endorsement, accusation, opinion, or independent assertion that a claim is true. Review the linked evidence, hedging, and source context below.",
 
   // Claim-source disclosure strip (shared by the digest page and signals evidence).
   "sources.more_summary": "+{n} more · {channels} channels · {platforms} platforms",
@@ -734,6 +737,9 @@ const uk: Dict = {
   "signals.evidence.summary": "підтверджувальних тверджень — розгорнути для перегляду",
   "signals.evidence.public": "підтверджувальних тверджень · простежуються до джерел",
   "signals.evidence.signin_prompt": "увійдіть, щоб переглянути докази",
+  "signals.named_label": "Згадані в повідомленнях:", // uk: needs native review
+  "signals.attribution_disclaimer": // uk: needs native review
+    "Названі особи з'являються тут, тому що їх ідентифікують цитовані відкриті джерела. BNOW повідомляє та атрибутує ці твердження джерел — включення не є схваленням, звинуваченням, думкою чи незалежним підтвердженням BNOW того, що твердження правдиве. Ознайомтеся з наведеними нижче доказами, застереженнями та контекстом джерел.",
   "sources.more_summary": "+{n} ще · {channels} каналів · {platforms} платформ",
   "sources.summary": "{docs} документів · {channels} каналів · {platforms} платформ", // uk: needs native review
   "sources.earliest_published": "Найраніша публікація", // uk: needs native review

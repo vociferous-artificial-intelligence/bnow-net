@@ -267,3 +267,76 @@ describe("XApiAdapter.fetchLatest watermark discipline", () => {
     expect(await driver.read()).toBeNull();
   });
 });
+
+describe("XApiAdapter.fetchLatest self-heal integration (#38 + #66)", () => {
+  it("when catch-up takes over, fetchLatest returns [] (it inserted internally) and records catch-up + alert stats", async () => {
+    const state = memoryState();
+    const { fn, calls } = pagedFetch([{ tweets: [tw("1")], has_next_page: false }]);
+    const healthCalls: Array<{ counters: unknown; context: { catchup: { state: string } | null } }> = [];
+    const adapter = new XApiAdapter([CENTCOM], testGuard(), { spacingMs: 0 }, {
+      loadState: state.load,
+      saveState: state.save,
+      fetchImpl: fn,
+      leaseDriver: memoryXLeaseDriver(),
+      autoCatchup: async () => ({
+        state: "complete",
+        ran: true,
+        ageSec: 30000,
+        watermarkAdvanced: true,
+        counts: {
+          requests: 12,
+          pages: 12,
+          returned: 40,
+          inserted: 30,
+          duplicates: 10,
+          unattributed: 0,
+          spendUsd: 0.006,
+          batchIndex: 3,
+          batches: 3,
+          cursorPending: 0,
+        },
+        progressSig: "3/3:0:30",
+      }),
+      healthCheck: async (counters, context) => {
+        healthCalls.push({ counters, context });
+        return { evaluated: true, alert: "recovery", reasons: [], delivery: "sent", episodeKey: null };
+      },
+    });
+    const docs = await adapter.fetchLatest();
+    expect(docs).toHaveLength(0); // catch-up already inserted; steady poll never ran
+    expect(calls).toHaveLength(0);
+    expect(adapter.runStats.mode).toBe(2);
+    expect(adapter.runStats.docs).toBe(30);
+    expect(adapter.runStats.catchupState).toBe(3); // complete
+    expect(adapter.runStats.watermarkAdvanced).toBe(1);
+    expect(adapter.runStats.alertKind).toBe(2); // recovery
+    expect(adapter.runStats.alertDelivery).toBe(1); // sent
+    // the health monitor saw the catch-up context, not a steady poll
+    expect(healthCalls[0].context.catchup?.state).toBe("complete");
+  });
+
+  it("when not parked, the steady poll runs and health is evaluated exactly once", async () => {
+    const state = memoryState();
+    const { fn, calls } = pagedFetch([{ tweets: [tw("1")], has_next_page: false }]);
+    let healthN = 0;
+    let steadyCatchup: unknown = "unset";
+    const adapter = new XApiAdapter([CENTCOM], testGuard(), { spacingMs: 0 }, {
+      loadState: state.load,
+      saveState: state.save,
+      fetchImpl: fn,
+      leaseDriver: memoryXLeaseDriver(),
+      autoCatchup: async () => ({ state: "not_parked", ran: false }),
+      healthCheck: async (_counters, context) => {
+        healthN++;
+        steadyCatchup = context.catchup;
+        return { evaluated: true, alert: null, reasons: [], delivery: "none", episodeKey: null };
+      },
+    });
+    const docs = await adapter.fetchLatest();
+    expect(docs).toHaveLength(1); // steady poll ran normally
+    expect(calls).toHaveLength(1);
+    expect(adapter.runStats.mode).toBe(1);
+    expect(healthN).toBe(1);
+    expect(steadyCatchup).toBeNull(); // steady context carries no catch-up
+  });
+});

@@ -21,7 +21,9 @@ export function LegalDocument({
 }: {
   title: string;
   version: string;
-  /** Per-document effective date; defaults to the unchanged Terms v1.0 date. */
+  /** Per-document effective date; defaults to the current Terms effective date
+   *  (POLICY_EFFECTIVE_DATE). Privacy passes its own date so a Privacy-only or
+   *  Terms-only revision never makes the other document appear newly effective. */
   effectiveDate?: string;
   /** One-line lede shown under the header (optional). */
   intro?: string;

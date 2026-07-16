@@ -1601,3 +1601,31 @@ inserts every page before checkpoint advancement, resumes from the exact cursor 
 stops, compare-and-sets the final watermark, reuses the X lease and SpendGuard, and deduplicates
 unhealthy/recovery alerts. This stage made zero paid provider calls, sent no magic-link email,
 changed no production data, and changed no application source.
+
+## 2026-07-15 — beta invite UX, attributed signals, self-healing X (branch, NOT deployed)
+
+Implemented `docs/prompts/2026-07-15-beta-invite-signals-x-reliability.md` on branch
+`codex/beta-invite-signals-x-reliability` (base `origin/main` `794d54e`). **Zero paid provider
+calls; zero magic-link email; no production data or deploy.** Gate green: typecheck + lint clean,
+**`npm test` 1536/134** (was 1495/131 — +41 tests, +3 files), `npm run build` clean. No migration.
+
+- **A (magic-link, #40):** the email + `/signin?sent=1` state that the link is single-use / 24h and
+  give the copy-before-opening preferred-browser instruction; callback URL, expiry, redirect and
+  `trackLinks:"None"`/`trackOpens:false` unchanged; token stays single-use, never logged.
+- **B (attributed signals, #58):** `detectPurge` adds `Signal.subjects` (all distinct qualifying
+  canonical people, one stable representative each, deterministically ordered) — dropped by
+  `toPublicSignal`, absent from `headline`, so anonymous/unaccepted HTML shows no names (page test
+  proves the data-layer boundary + no evidence query). Accepted `/signals` renders the names + a
+  prominent attribution/non-endorsement notice. Terms §9 gained the durable named-person rule;
+  `CURRENT_TERMS_VERSION` 1.0→1.1 (effective 2026-07-16, the actual rollout date — corrected from
+  the initial 07-15 placeholder) forces re-acceptance, Privacy stays 1.2.
+- **C (self-healing X, #38+#66):** `x-auto-catchup.ts` drains a fixed parked window
+  `[oldWatermark, caughtUpTo)` via `runGapBackfill` (roster snapshotted into the checkpoint against
+  registry drift; insert-before-checkpoint), bounded by `X_AUTO_CATCHUP_REQUEST_LIMIT`
+  (≤`X_RUN_REQUEST_CAP`) under the shared `x_api` SpendGuard + X lease, advancing the watermark on
+  completion by compare-and-set (never backward). `x-health.ts` emails `FEEDBACK_EMAIL` on
+  truncation/failure/park/persistent-empty/stuck, once per episode (cooldown) + one recovery notice,
+  safe fields only, recorded in `cron_runs.counts.x_api`. 33 new fixture tests, zero network.
+
+Full account + rollback: `docs/reviews/BETA-INVITE-SIGNALS-X-RELIABILITY-NOTE-2026-07-15.md`.
+#40/#58 close after the copy/names are live; #38/#66 after a real scheduled recovery/healthy poll.

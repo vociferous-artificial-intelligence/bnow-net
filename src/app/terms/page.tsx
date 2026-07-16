@@ -279,6 +279,15 @@ export default function TermsPage() {
           a particular decision.
         </LegalP>
         <LegalP>
+          Where BNOW surfaces the name of an individual, that name appears because one or more
+          cited open sources identified that person in the reporting BNOW collected. BNOW reports
+          and attributes what those sources say. Inclusion of a name is not BNOW’s endorsement,
+          accusation, opinion, or independent assertion that any allegation, characterization, or
+          claim about that person is true. You must review the linked source, its hedging or
+          uncertainty labels, and its context, and independently verify before relying on or
+          repeating any statement about a named person.
+        </LegalP>
+        <LegalP>
           You must evaluate material context, follow source links, consider contrary evidence, and
           independently verify information before making a material decision.
         </LegalP>

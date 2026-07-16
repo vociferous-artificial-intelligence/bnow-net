@@ -34,12 +34,24 @@ export default async function SignInPage({
       </p>
       <h1 className="mb-4 text-xl font-bold">Sign in</h1>
       {sp.sent ? (
-        <div className="rounded-lg bg-green-100 p-3 text-sm text-green-800 dark:bg-green-900 dark:text-green-100">
-          Magic link sent. Check your inbox
-          {!process.env.POSTMARK_SERVER_TOKEN &&
-            !process.env.RESEND_API_KEY &&
-            " (demo mode: link is in the server log)"}
-          .
+        <div className="space-y-2">
+          <div className="rounded-lg bg-green-100 p-3 text-sm text-green-800 dark:bg-green-900 dark:text-green-100">
+            Magic link sent. Check your inbox
+            {!process.env.POSTMARK_SERVER_TOKEN &&
+              !process.env.RESEND_API_KEY &&
+              " (demo mode: link is in the server log)"}
+            .
+          </div>
+          {/* Same single-use + preferred-browser rule as the email body
+              (src/lib/email/magic-link.ts): opening the link in any browser
+              consumes it, so copy it before opening if your mail app would open
+              a different browser. */}
+          <p className="text-xs leading-relaxed text-gray-500">
+            The link is single-use and expires in 24 hours. Open it in the browser
+            where you want to use BNOW.NET. If your email app opens links in a
+            different browser by default, copy the link before opening it and paste
+            it into your preferred browser first.
+          </p>
         </div>
       ) : (
         <form action={requestLink} className="space-y-3">

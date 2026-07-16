@@ -27,8 +27,14 @@ describe("/terms (public Terms of Use)", () => {
 
   it("shows the version and effective date prominently", () => {
     const t = text();
-    expect(t).toContain("Version 1.0");
-    expect(t).toContain("July 12, 2026");
+    expect(t).toContain("Version 1.1");
+    expect(t).toContain("July 16, 2026");
+  });
+
+  it("states the named-person source-attribution / non-endorsement rule (§9, Terms 1.1)", () => {
+    const t = text();
+    expect(t).toContain("cited open sources identified that person");
+    expect(t).toMatch(/not BNOW’s endorsement, accusation, opinion, or independent assertion/);
   });
 
   it("contains the AI / OSINT limitations", () => {

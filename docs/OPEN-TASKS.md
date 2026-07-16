@@ -225,6 +225,14 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     or truncation/incomplete — build the alert so the next freeze cannot masquerade as health.
     See also #66 (the park-vs-ceiling stall this run discovered) and the operator-approved coding
     handoff `docs/prompts/2026-07-15-beta-invite-signals-x-reliability.md` Workstream C.
+    **ALERT IMPLEMENTED 2026-07-15 (branch `codex/beta-invite-signals-x-reliability`, NOT yet
+    deployed):** `src/lib/adapters/x-health.ts` — a pure episode-deduped evaluator + a runner that
+    emails `FEEDBACK_EMAIL` (safe fields only: no key/tweet/cursor value) on `pageTruncations`/
+    `budgetStops`/`requestFailures`/unexpected `incomplete`, on prolonged/parked staleness, on
+    repeated `fetched=0` polls (conservative consecutive threshold), and on a stuck catch-up, with
+    one alert per episode (cooldown) + one recovery notice; the numeric result is recorded in
+    `cron_runs.counts.x_api` even when the recipient is unset or Postmark fails. 32 fixture tests,
+    zero network. **Do NOT close until a real scheduled run proves the alert + recovery in prod.**
 39. **[Tier 1] No git→Vercel deploy integration.** `git push` does not deploy — after the 07-09
     auth fix, prod served the stale build ~20 min (`AUTH-EMAIL-2026-07-09.md`). Wire the Vercel Git
     integration, or codify "push then `npx vercel@latest deploy --prod`" in a release checklist so a
@@ -238,6 +246,13 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     in the desired browser; if the email app uses another default browser, copy the unvisited URL
     and paste it into the preferred browser before opening it elsewhere. Implementation/tests:
     `docs/prompts/2026-07-15-beta-invite-signals-x-reliability.md` Workstream A.
+    **IMPLEMENTED 2026-07-15 (branch `codex/beta-invite-signals-x-reliability`, NOT yet deployed):**
+    the magic-link email (`src/lib/email/magic-link.ts`) and the `/signin?sent=1` screen now state
+    the link is single-use + 24h and give the copy-before-opening preferred-browser instruction; the
+    callback URL, 24h expiry, legal-acceptance redirect, and `trackLinks:"None"`/`trackOpens:false`
+    are unchanged (token stays single-use, never exposed to analytics/logs). Tests pin the email +
+    sent-page copy and that invite-ineligible/eligible requests give the same response. **Close only
+    after the copy is live in prod.**
 41. **[Tier 2] OpenSanctions monthly accounting + resumable rescore — CODE MERGED + DEPLOYED
     2026-07-15 (`f9aaa9e`, `dpl_ApFhadwyVNkAyyc9T8R4W7ghgPhu`); paid rescore still gated on
     #61 + operator auth.** Both defects are fixed in production (calendar-month `totalPeriod` in
@@ -358,6 +373,15 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     restore unsupported coordinated-purge framing. Because the Terms change is material, bump its
     version and force re-acceptance. Implementation/tests:
     `docs/prompts/2026-07-15-beta-invite-signals-x-reliability.md` Workstream B.
+    **IMPLEMENTED 2026-07-15 (branch `codex/beta-invite-signals-x-reliability`, NOT yet deployed):**
+    `detectPurge` now carries `Signal.subjects` (one stable representative name per distinct
+    qualifying canonical person, deterministically ordered, all of them); `toPublicSignal` still
+    drops it and the `headline` still carries no names, so anonymous/unaccepted HTML shows zero
+    names (proven by the page test's data-layer assertions + no evidence query). The accepted
+    `/signals` view renders the names + a prominent attribution/non-endorsement notice; Terms §9
+    gained the durable named-person rule and `CURRENT_TERMS_VERSION` bumped 1.0→1.1 (effective
+    2026-07-16, the actual rollout date) forcing re-acceptance, Privacy unchanged at 1.2. All person/pressure/canonical
+    safeguards + ruling 19 intact. **Close only after the names/disclaimer/Terms bump are live.**
 59. **[i18n] Native review of the IA-refinement strings.** New/changed machine-translated keys
     need a native pass before market launch: nav labels `nav.group.signals`/`nav.group.ask`
     (all 7 catalogs); the reworded, count-driven `home.live` with the `{n}` token (all 7);
@@ -434,6 +458,19 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     insert-before-checkpoint, compare-and-set the final watermark, reuse the X lease/SpendGuard,
     and make zero paid calls in tests. Handoff:
     `docs/prompts/2026-07-15-beta-invite-signals-x-reliability.md` Workstream C.
+    **IMPLEMENTED 2026-07-15 (branch `codex/beta-invite-signals-x-reliability`, NOT yet deployed):**
+    `src/lib/adapters/x-auto-catchup.ts` — when `x_api.lastPollAt` is older than
+    `X_PARK_THRESHOLD_SEC` (default 4h) the scheduled `ingest:x` run drains ONE fixed window
+    `[oldWatermark, caughtUpTo)` (captured once) via the existing `runGapBackfill` engine (no page
+    ceiling, insert-before-checkpoint), snapshotting the roster INTO the checkpoint so minutes-scale
+    registry drift can't strand it, bounded per-run by `X_AUTO_CATCHUP_REQUEST_LIMIT` (≤
+    `X_RUN_REQUEST_CAP`) under the shared `x_api` SpendGuard + the X lease, advancing the live
+    watermark to the fixed boundary only on completion via a compare-and-set that never moves it
+    backward; a crash-completed checkpoint finalizes the advance with zero paid calls. 15 fixture
+    tests, zero network/paid calls. Residual: a tail smaller than the threshold but larger than one
+    steady-poll pass can drain would truncate — the #38 monitor ALERTS on it (not silent); the
+    operator lowers `X_PARK_THRESHOLD_SEC` or runs the manual gap-backfill. **Do NOT close until a
+    real scheduled park → checkpoint-resume → completion sequence is proven in prod.**
 
 ### New (from the PostHog analytics phase-1 deploy — 2026-07-14)
 
