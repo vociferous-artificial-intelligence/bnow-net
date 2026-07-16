@@ -341,7 +341,7 @@ export default async function Home() {
             <h1 className="mx-auto max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl">
               {t("home.tagline")}
             </h1>
-            <p className="mx-auto mt-5 max-w-2xl text-lg text-gray-500">{t("home.sub")}</p>
+            <p className="mx-auto mt-5 max-w-2xl text-lg text-gray-600 dark:text-gray-400">{t("home.sub")}</p>
             <div className="mt-8 flex justify-center gap-4">
               <Link href="/access" className={PRIMARY_CTA}>
                 {t("home.cta.request_beta")}
@@ -351,12 +351,12 @@ export default async function Home() {
               </Link>
             </div>
             {/* One short collaborative-beta line — analyst-centered, no inflation. */}
-            <p className="mx-auto mt-5 max-w-xl text-sm text-gray-500">{t("home.beta.line")}</p>
+            <p className="mx-auto mt-5 max-w-xl text-sm text-gray-600 dark:text-gray-400">{t("home.beta.line")}</p>
             {/* Visitor journey tertiary line: coverage -> validation -> request access.
                 Stays a single muted line, not a new section. The registry link that
                 used to lead this line was removed (R5, 2026-07-12): the source
                 registry is admin-only now. */}
-            <p className="mt-3 text-xs text-gray-400">
+            <p className="mt-3 text-xs text-gray-600 dark:text-gray-400">
               <Link href="/countries" className="underline hover:text-gray-600 dark:hover:text-gray-300">
                 {t("home.cta.coverage")}
               </Link>
@@ -374,7 +374,7 @@ export default async function Home() {
                 "0 theaters" (truth-in-UI, ruling 3) — the rest of the degraded hero
                 already shows zeros. */}
             {stats.activeTheaters > 0 && (
-              <p className="mt-4 text-sm text-gray-400">{t("home.live", { n: stats.activeTheaters })}</p>
+              <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">{t("home.live", { n: stats.activeTheaters })}</p>
             )}
           </>
         )}
@@ -445,7 +445,7 @@ export default async function Home() {
           <section className="grid gap-6 py-10 sm:grid-cols-3">
             <div className="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
               <h3 className="mb-2 font-semibold">{t("home.features.reliability.title")}</h3>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 {t("home.features.reliability.body", {
                   sources: formatNumber(locale, stats.sources),
                   citations: formatNumber(locale, stats.citations),
@@ -456,7 +456,7 @@ export default async function Home() {
             </div>
             <div className="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
               <h3 className="mb-2 font-semibold">{t("home.features.claims.title")}</h3>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 {t("home.features.claims.body", { docs: formatNumber(locale, stats.docs) })}
               </p>
               <Link href="/countries" className="mt-3 inline-block text-sm underline">
@@ -465,7 +465,7 @@ export default async function Home() {
             </div>
             <div className="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
               <h3 className="mb-2 font-semibold">{t("home.features.scored.title")}</h3>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 {t("home.features.scored.body", { runs: formatNumber(locale, stats.runs) })}
               </p>
               <Link href="/scoreboard" className="mt-3 inline-block text-sm underline">
@@ -479,7 +479,7 @@ export default async function Home() {
           <section className="pb-10">
             <div className="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
               <h2 className="mb-2 font-semibold">{t("home.iran.title")}</h2>
-              <p className="text-sm text-gray-500">{t("home.iran.body")}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t("home.iran.body")}</p>
               <p className="mt-3 flex flex-wrap gap-4 text-sm">
                 <Link href="/countries/ir" className="underline hover:text-gray-600 dark:hover:text-gray-300">
                   {t("home.iran.link")}

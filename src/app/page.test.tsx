@@ -220,7 +220,7 @@ describe("signed-in home: recent asks (W6)", () => {
   });
 });
 
-describe("signed-out home: untouched marketing sections", () => {
+describe("signed-out home: marketing sections carry no paid surface", () => {
   it("renders no /ask form anywhere, and still renders the marketing feature cards", async () => {
     emailMock.mockResolvedValue(null);
     queryMock.mockResolvedValueOnce([STATS_ROW]); // only the top stats query runs
@@ -230,7 +230,8 @@ describe("signed-out home: untouched marketing sections", () => {
 
     expect(container.querySelector('form[action="/ask"]')).toBeNull();
     // Marketing feature cards (signed-out only) still render, resolved through the
-    // real en dictionary — proves the signed-out branch was left untouched.
+    // real en dictionary. #73 changed only these cards' foreground colour classes —
+    // copy, structure and the signed-out-only gating are unchanged.
     expect(screen.getByText("Reliability, derived not asserted")).toBeTruthy();
     // R5 (2026-07-12): the tertiary proof line's and the reliability card's
     // /registry links are both gone — the source registry is admin-only now.
@@ -239,14 +240,14 @@ describe("signed-out home: untouched marketing sections", () => {
 });
 
 describe("signed-out home: additive Iran/Gulf card (W3)", () => {
-  it("renders the new card after the marketing grid without touching it", async () => {
+  it("renders the new card after the marketing grid, alongside it", async () => {
     emailMock.mockResolvedValue(null);
     queryMock.mockResolvedValueOnce([STATS_ROW]); // only the top stats query runs
 
     const element = await Home();
     const { container } = render(element);
 
-    // Marketing cards (unchanged) still present.
+    // Marketing cards still present.
     expect(screen.getByText("Reliability, derived not asserted")).toBeTruthy();
     // New additive card.
     expect(
@@ -310,6 +311,10 @@ describe("signed-in home: compact headline, no marketing CTAs (R3)", () => {
     expect(screen.queryByText(/^Live now/)).toBeNull();
     // The old marketing subtitle must not leak into the signed-in render either.
     expect(screen.queryByText(/Per-country intelligence feeds from open news/)).toBeNull();
+    // Nor the marketing feature cards or the Iran/Gulf card — the #73 contrast pass is
+    // scoped to the signed-out branch, so none of its text may appear here.
+    expect(screen.queryByText("Reliability, derived not asserted")).toBeNull();
+    expect(screen.queryByText(/^Daily Iran coverage on three tracks/)).toBeNull();
   });
 });
 
@@ -343,6 +348,111 @@ describe("signed-out home: private-beta hero (repositioning 2026-07-13)", () => 
     // Scoreboard CTA and the DB-driven live-coverage truth are retained.
     expect(screen.getAllByRole("link", { name: "See the scoreboard" }).length).toBeGreaterThan(0);
     expect(screen.getByText(/^Live now: 8 theaters/)).toBeTruthy();
+  });
+});
+
+// Contrast pairing on the signed-out marketing branch (OPEN-TASKS #73). Ratios were
+// measured against the oklch palette this build ships, on the real backgrounds
+// (#ffffff / #0a0a0a): bare `text-gray-400` is 2.60:1 on white and bare
+// `text-gray-500` is 4.09:1 on the dark background — both fail 4.5:1, each in the
+// theme the other passes. `text-gray-600 dark:text-gray-400` (7.56 / 7.61) passes
+// both, so BOTH halves are pinned at every site: a light-only assertion would let
+// the dark failure back in silently (exactly how the 2026-07-16 pass missed these).
+describe("signed-out home: marketing text contrast pairs (#73)", () => {
+  // Each in-scope foreground, located by the copy a reader actually sees rather than
+  // by child index, so the assertion follows the text if the layout moves.
+  const SITES: Array<{ name: string; find: () => Element | null | undefined }> = [
+    {
+      name: "hero subtitle (home.sub)",
+      find: () => screen.getByText(/^Per-country intelligence feeds from open news/),
+    },
+    {
+      name: "collaborative-beta line (home.beta.line)",
+      find: () => screen.getByText(/^Built with working analysts/),
+    },
+    {
+      // The tertiary line's colour lives on the <p>; its children are links.
+      name: "visitor journey tertiary line",
+      find: () => screen.getByRole("link", { name: "Explore live coverage" }).closest("p"),
+    },
+    {
+      name: "live-theater count (home.live)",
+      find: () => screen.getByText(/^Live now: 8 theaters/),
+    },
+    {
+      name: "reliability feature body",
+      find: () => screen.getByText(/^10 sources rated from 20 citations/),
+    },
+    {
+      name: "claims feature body",
+      find: () => screen.getByText(/^30 raw documents ingested/),
+    },
+    {
+      name: "scored/validation feature body",
+      find: () => screen.getByText(/^5 validation runs against ISW/),
+    },
+    {
+      name: "Iran/Gulf card body (home.iran.body)",
+      find: () => screen.getByText(/^Daily Iran coverage on three tracks/),
+    },
+  ];
+
+  async function renderSignedOut() {
+    emailMock.mockResolvedValue(null);
+    queryMock.mockResolvedValueOnce([STATS_ROW]); // only the top stats query runs
+    return render(await Home());
+  }
+
+  it.each(SITES)("$name carries text-gray-600 and dark:text-gray-400", async ({ find }) => {
+    await renderSignedOut();
+
+    // Non-vacuous by construction: getByText/getByRole throw if the copy is absent,
+    // so a silently-renamed or dropped string fails here rather than passing empty.
+    const el = find();
+    expect(el).toBeTruthy();
+    const tokens = (el as Element).className.split(/\s+/);
+    expect(tokens).toContain("text-gray-600");
+    expect(tokens).toContain("dark:text-gray-400");
+  });
+
+  it("leaves no bare gray-400 or unpaired gray-500 foreground in the signed-out main", async () => {
+    const { container } = await renderSignedOut();
+
+    const main = container.querySelector("main#main")!;
+    const all = Array.from(main.querySelectorAll<HTMLElement>("*"));
+    // Guard the sweep against passing on an empty/degraded render: the eight known
+    // sites must be present and paired before "nothing else fails" means anything.
+    expect(all.length).toBeGreaterThan(20);
+    const paired = all.filter((el) => {
+      const t = el.className.split(/\s+/);
+      return t.includes("text-gray-600") && t.includes("dark:text-gray-400");
+    });
+    expect(paired.length).toBeGreaterThanOrEqual(SITES.length);
+
+    // Token-level, not substring: "dark:text-gray-400" contains "text-gray-400" and
+    // a substring check would wrongly flag every correct pair.
+    const offenders = all
+      .filter((el) => {
+        const t = el.className.split(/\s+/);
+        // Bare gray-400 fails light (2.60:1). gray-500 passes light but fails dark
+        // (4.09:1) unless a dark override lifts it — the badge's own
+        // `text-gray-500 dark:text-gray-400` is a passing pair and stays.
+        if (t.includes("text-gray-400")) return true;
+        return t.includes("text-gray-500") && !t.includes("dark:text-gray-400");
+      })
+      .map((el) => el.className);
+    expect(offenders).toEqual([]);
+  });
+
+  it("leaves the private-beta badge on its already-passing pair", async () => {
+    await renderSignedOut();
+
+    // The badge was already correct (gray-500 light / gray-400 dark, both ≥4.5:1).
+    // #73 must not churn it for mere uniformity.
+    const badge = screen.getByText("Private analyst beta");
+    const tokens = badge.className.split(/\s+/);
+    expect(tokens).toContain("text-gray-500");
+    expect(tokens).toContain("dark:text-gray-400");
   });
 });
 
