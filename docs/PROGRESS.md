@@ -1850,3 +1850,31 @@ test identity through the authorized single-use magic-link flow, `/digests/ir/20
 at 1280×900 and 390×844 in light and dark: no console/page errors or page overflow, correct final
 freshness, working print and evidence disclosures, and no provider, Confidence, or First-seen
 text. No paid analysis/provider call occurred and no GitHub Actions file changed.
+
+## 2026-07-16 — #73 signed-out landing contrast (implemented, awaiting deploy)
+
+Branch `codex/73-signed-out-landing-contrast` from clean main `4e4743d`; application commit
+`40151b6`. The isolated presentation follow-up the quick-wins pass left open: its contrast
+sweep was scoped to the signed-in home and the other analyst surfaces, so the marketing
+branch of `src/app/page.tsx` still carried unpaired grays.
+
+Eight signed-out foregrounds — hero subtitle, beta line, visitor tertiary line, live-theater
+count, the three feature-card bodies and the Iran/Gulf body — move to
+`text-gray-600 dark:text-gray-400` (7.56:1 light / 7.61:1 dark). The failure was a pairing
+one: bare gray-400 is 2.60:1 on white, bare gray-500 is 4.09:1 on `#0a0a0a`, so each fails in
+the theme the other passes, and both halves are now pinned by test at every site. The
+private-beta badge was already correctly paired (4.84/7.61) and is deliberately untouched,
+now pinned as-is. The diff is eight `className` strings: no copy, layout, href, query,
+signed-in or truth-in-UI change.
+
+Gate: 1,576/1,576 tests / 135 files (from 1,566), typecheck, lint and `next build` green;
+the generated `next-env.d.ts` flip reverted and the tree left clean. Verified in real Chrome
+against a production build (never `npm run dev` — #74), across 1280×900, 390×844 and 320×844
+in light and dark: 8/8 sites passing per pass, 23 swept text elements with 0 failures, no
+horizontal overflow, no console errors, hrefs and CTAs unchanged, hamburger still toggling,
+and no signed-in surface in the signed-out render. Ratios were measured from painted colour
+(1×1-canvas rasterization, ancestor backgrounds composited), and the harness was calibrated
+48/48 against offline oklch maths from the shipped palette before its numbers were trusted;
+the class tests were mutation-tested to prove they can fail. Zero paid-provider calls, no
+deployment. Review: `docs/reviews/SIGNED-OUT-LANDING-CONTRAST-2026-07-16.md`. #73 stays open
+until the operator's deploy approval lands it.

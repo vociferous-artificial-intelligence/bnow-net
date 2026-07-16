@@ -632,6 +632,13 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     theme) and bare `text-gray-400` (2.60:1 on white). Measured ratios and the correct pair
     (`text-gray-600 dark:text-gray-400` = 7.56/7.61) are in the review. Not blind-swept, per
     the prompt's "do not blindly replace every gray class repository-wide".
+    **IMPLEMENTED + reviewed on `codex/73-signed-out-landing-contrast` (`40151b6`), NOT yet
+    deployed — stays open until the operator's normal deploy approval lands it.** All eight
+    foregrounds moved to the paired class; measured from painted colour on a production
+    build at 7.56:1 light / 7.61:1 dark, worst in-scope 7.56:1, with 0 failures across a
+    23-element sweep of the signed-out `main` in 6 viewport×theme passes. The badge's
+    already-passing `text-gray-500 dark:text-gray-400` (4.84/7.61) was deliberately left
+    alone. Details: `docs/reviews/SIGNED-OUT-LANDING-CONTRAST-2026-07-16.md`.
 74. **[env/tooling] Dev-mode React never hydrates on this WSL2 box.** `npm run dev` serves
     and server-renders fine, but the `_next/webpack-hmr` WebSocket handshake fails with
     `net::ERR_INVALID_HTTP_RESPONSE` and no React control responds to input — the header
