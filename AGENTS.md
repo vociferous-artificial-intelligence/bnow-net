@@ -122,7 +122,7 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   Postmark `BNOW.NET <no-reply@bnow.net>` is live; magic-link guidance is single-use/24h and
   copy-before-opening. PostHog is production-only, explicit opt-in, allowlist-sanitized, UUID
   identity, no Ask/Search/source text; GeoIP is retained per disclosed operator ruling.
-- **Quality/ops:** 1,566 unit tests / 135 files on main + 32 real-Postgres integration tests /
+- **Quality/ops:** 1,576 unit tests / 135 files on main + 32 real-Postgres integration tests /
   7 files, all green.
   Enforced pre-push gate = typecheck+lint+test. Crons: fast */15; telegram :10; X :20;
   MTProto :35;

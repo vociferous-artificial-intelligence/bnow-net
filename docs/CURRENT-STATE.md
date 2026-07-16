@@ -248,7 +248,7 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   Signals proof; optional analytics was left off and persisted `denied`. It remains the standing
   verification identity and was signed back out after the proof. Evidence:
   `docs/reviews/POSTHOG-ANALYTICS-IMPLEMENTATION-NOTE-2026-07-14.md`.
-- **Tests:** 1,566 unit tests / 135 files green on main (`npm test`, ~6s) + 32/32 Neon-branch
+- **Tests:** 1,576 unit tests / 135 files green on main (`npm test`, ~6s) + 32/32 Neon-branch
   integration tests / 7 files green. Commit `165c2b4` made legal-acceptance integration coverage
   version-agnostic after the Terms 1.1 rollout; all 5 legal and all 10 enrichment integration tests
   pass. The saved `NEON_API_KEY` works (disposable branch created and deleted cleanly). CI mirror:
