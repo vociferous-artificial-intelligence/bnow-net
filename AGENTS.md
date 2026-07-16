@@ -104,7 +104,9 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   PROVEN on Vercel tcp+wss; reads registry **top-120 ROCA-only**
   (`isw_reports.theater='ru'`) vs the scraper's top-50 pan-theater — RU/UA-priority
   roster deployed 2026-07-11, env-tunable, rollback via
-  `REGISTRY_TELEGRAM_MTPROTO_REPORT_THEATER=all`**), X via api.twitterapi.io (364
+  `REGISTRY_TELEGRAM_MTPROTO_REPORT_THEATER=all`; **known observability noise:** GramJS emits
+  non-fatal peer-type `CastError` lines during otherwise healthy runs — 24/24 green and 1,259
+  documents/24h at the 2026-07-15 delta, tracked as OPEN-TASKS #69**), X via api.twitterapi.io (364
   registry accounts — **lease-aware insert-gated poller DEPLOYED 2026-07-14**
   (`dpl_8DVZK3ac8ja1wi3xW9ALSaPGXJRJ`, main `a38a882`; every `ingest:x` run writes
   numeric `cron_runs.counts.x_api`), and the **July 9–13 historical gap is RECOVERED
@@ -326,7 +328,8 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   fail — retry or wait ~30s+. api.gdeltproject.org DNS still fails locally (not
   pinned). TASS/RIA/Lenta RSS unreachable → covered via their Telegram channels.
 - **Git:** the deployed code release merged at `f9aaa9e`; origin/main == local main after the
-  2026-07-15 release-state documentation sync, and there is no push blocker.
+  2026-07-15 release/readiness documentation sync. All worktrees are clean, no local or remote
+  branch is unmerged, GitHub has zero open PRs, and the current main CI is green.
 
 ## Standing rulings (distilled from the decision log; binding until a log entry supersedes)
 
@@ -1302,6 +1305,16 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   billing limit is configured. Corrected the standing integration status and OPEN-TASKS #67 in
   place; the remaining PostHog UI follow-up is project-membership review. No code, environment,
   analytics configuration, or deployment changed in this documentation sync.
+
+- **2026-07-15 (private-beta release/readiness delta)** Reconciled Git, GitHub, Vercel, live
+  health, 24-hour cron/data flow, and 390px anonymous production routes after every post-July-13
+  workstream. Application release is fully merged/pushed/deployed (`f9aaa9e`,
+  `dpl_ApFhadwyVNkAyyc9T8R4W7ghgPhu`); later `main` commits through `78e15b2` are docs-only.
+  Corrected stale OPEN-TASKS #47 to closed. New #69 records non-fatal GramJS peer-type error-stream
+  noise: MTProto remains operational (24/24 green hourly runs, zero channel errors, 1,259 docs/24h),
+  but roughly 80 false error lines/run pollute Vercel telemetry. Full evidence and ordered handoff:
+  `docs/reviews/PRIVATE-BETA-READINESS-DELTA-2026-07-15.md`. No application code, environment,
+  production data, or deployment changed in this audit.
 
 ## Conventions
 

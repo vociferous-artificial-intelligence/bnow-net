@@ -268,14 +268,12 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     07-10 ua military digest was thin (998 chars, 2 surviving events); the standing ruling-18 "watch ua"
     item, monitor as the post-cutover sample grows.
 
-47. **[Tier 1] MTProto ingest is one operator login away from live.** 2026-07-11: adapter,
-    cron (`ingest:mtproto` :35), peer-cache/high-water table, dedupe gate, backfill script
-    and the registry top-75 expansion are ALL deployed and fail-closed on the missing
-    `TELEGRAM_SESSION`. Operator: SETUP-NEXT-WEEK §5 (login → getme → env → redeploy →
-    backfill --apply, ≈$3.37 map spend). Then: first-live-day watch (flood counts in
-    cron_runs), preview-scraper fate decision (sprint TASK 2), MTPROTO-RESULTS.md with
-    the 3-day revalidation (TASK 5). Attacks #42 (X concentration) and the #11/#19
-    coverage gap while X stays frozen (#38).
+47. ~~**[Tier 1] MTProto ingest is one operator login away from live.**~~ ✅ CLOSED
+    2026-07-11: login/session, production env, deployment, live backfill, first fetch,
+    RU/UA-priority top-120 roster, and repeated scheduled runs were all completed. The
+    2026-07-15 readiness delta re-verified 24/24 healthy hourly runs, zero channel errors,
+    and 1,259 inserted MTProto documents in 24 hours. Non-fatal GramJS error-stream noise
+    discovered during that audit is tracked separately as #69.
 
 48. ~~**[Tier 2] /ask form double-submits — duplicate paid runs.**~~ ✅ SHIPPED
     (ask-polish sprint, 2026-07-12, `docs/reviews/ASK-POLISH-NOTE-2026-07-12.md`):
@@ -407,7 +405,9 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     UK-NATIVE-REVIEW-2026-07-12.md; same launch gate as #20/#21/#59.
 65. **[low] Signed-in home 390px operator eyeball.** Browser verification covered 17
     routes but the signed-in home needs a real session (dev parity renders the
-    signed-out branch). Components are class-pinned; one phone-viewport eyeball closes it.
+    signed-out branch). The 2026-07-15 production delta rechecked all anonymous routes at
+    390px in WSL Chrome, but the available Chrome profile was signed out; one real-session
+    phone-viewport eyeball still closes it.
 
 ### New (from the X gap recovery execution — 2026-07-14)
 
@@ -476,4 +476,18 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     Neon integration run was 9/9; a new full run was blocked before branch creation by an
     expired `NEON_API_KEY` (tracked in BLOCKERS/HUMAN-SETUP). Remaining actions are not part
     of this closed release task: authenticated phone sweep stays #65, `SIGNIN_MODE=invite`
-    remains an operator decision, and PostHog billing-limit/membership stays under #67.
+    remains an operator decision, and PostHog project-membership review stays under #67
+    (the billing limit is configured).
+
+### New (from the 2026-07-15 private-beta readiness delta)
+
+69. **[Tier 2 — observability] GramJS emits peer-type `CastError` noise during successful
+    MTProto runs.** Vercel records about two error-stream messages per selected channel
+    (`channelId` and `accessHash`; roughly 80/hour at 40 channels/run). Live impact is
+    currently telemetry-only: the latest 24 scheduled runs were `ok=true`, recorded zero
+    channel errors, and inserted 1,259 documents; all 144 cached channel rows have
+    `last_error IS NULL`. Investigate the bundled GramJS peer construction/auto-resolution
+    path, preserve exact 64-bit identifiers and access hashes, add production-shaped
+    regression coverage, and prove the Vercel error stream is clean. Do not merely suppress
+    `console.error`; real GramJS errors must remain visible. Evidence:
+    `docs/reviews/PRIVATE-BETA-READINESS-DELTA-2026-07-15.md`.

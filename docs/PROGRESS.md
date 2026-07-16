@@ -1553,3 +1553,19 @@ integration status, OPEN-TASKS #67, and the analytics implementation note. The r
 UI follow-up is project-membership review; optional API-key scope re-narrowing and operator
 Privacy 1.2 acceptance also remain. Documentation only: no code, environment, provider setting,
 or deployment changed in this sync.
+
+## 2026-07-15 — Private-beta release/readiness delta
+
+Reconciled all post-July-13 workstreams across local Git, GitHub, Vercel, production health,
+24-hour cron/data flow, and direct WSL Chrome mobile checks. Verdict: the application is fully
+merged, pushed, and deployed (`f9aaa9e` / `dpl_ApFhadwyVNkAyyc9T8R4W7ghgPhu`); at audit start
+`main == origin/main == 78e15b2`, all worktrees were clean, no branch was unmerged, no PR was open, and the
+latest CI is green. Production health is 200/DB OK; every audited cron family had zero failed or
+unfinished runs in 24 hours. Anonymous 390px routes passed with no overflow or signals leak.
+
+The audit corrected stale MTProto task #47 to closed and opened #69 for recurring GramJS
+peer-type `CastError` messages in Vercel. They are non-fatal in current evidence—24/24 hourly
+runs green, zero channel errors, 1,259 documents inserted—but pollute the error stream and need a
+reviewed coding fix. The signed-in 390px pass remains #65 because the WSL Chrome profile has no
+valid BNOW session. Full review and ordered operator/engineering/OpenSanctions handoff:
+`docs/reviews/PRIVATE-BETA-READINESS-DELTA-2026-07-15.md`. Documentation only; no deployment.
