@@ -37,6 +37,15 @@ describe("quick links rail", () => {
     ]);
   });
 
+  it("names the country and both dates without the word digest (2026-07-16)", () => {
+    const { container } = render(<QuickLinksRail t={t} theaters={THEATERS} />);
+    // The rail sits under a "Quick links" label on a page full of digests; the word
+    // was redundant. Country + both linked dates still carry the meaning.
+    expect(container.textContent).not.toContain("home.quicklinks.digest");
+    expect(container.textContent).toContain("Russia: 2026-07-12 · 2026-07-11");
+    expect(container.textContent).toContain("Ukraine: 2026-07-12 · 2026-07-10");
+  });
+
   it("omits a theater entirely when it has no digests at all", () => {
     const { container } = render(<QuickLinksRail t={t} theaters={THEATERS} />);
     expect(container.textContent).not.toContain("Iran");

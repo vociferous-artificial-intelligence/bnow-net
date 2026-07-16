@@ -121,16 +121,8 @@ export function ClaimSources({
           platforms: summary.platforms,
         })}
       </p>
-      <p className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-gray-600 dark:text-gray-400">
-        <span>
-          {labels.earliestPublished}{" "}
-          {summaryTime(summary.earliestPublishedAt, locale, labels.unknown)}
-        </span>
-        <span aria-hidden="true">·</span>
-        <span>
-          {labels.firstSeen}{" "}
-          {summaryTime(summary.earliestFirstSeenAt, locale, labels.unknown)}
-        </span>
+      <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">
+        {labels.earliestPublished} {summaryTime(summary.earliestPublishedAt, locale, labels.unknown)}
       </p>
       <div className="mt-1 flex flex-wrap items-center gap-2" data-print="selected-evidence">
         {visible.map((doc) => (

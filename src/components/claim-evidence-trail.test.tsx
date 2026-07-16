@@ -15,10 +15,10 @@ afterEach(() => {
 
 const evidenceLabels: ClaimEvidenceLabels = {
   summary: "{docs} documents · {channels} channels · {platforms} platforms",
-  earliestPublished: "Earliest published:", firstSeen: "First seen by BNOW:", unknown: "Unknown",
+  earliestPublished: "Earliest published:", unknown: "Unknown",
   viewTrail: "View evidence trail ({n})", sortLabel: "Sort evidence", sortOldest: "Oldest published",
-  sortNewest: "Newest published", sortFirstSeen: "First seen by BNOW", sortReliability: "Reliability",
-  sortSource: "Source/channel", publishedColumn: "Published", firstSeenColumn: "First seen",
+  sortNewest: "Newest published", sortReliability: "Reliability",
+  sortSource: "Source/channel", publishedColumn: "Published",
   sourceColumn: "Source", platformColumn: "Platform", reliabilityColumn: "Reliability",
   titleColumn: "Title/link", openSourceDocument: "Open source document",
   platforms: { rss_news: "RSS/news", gdelt: "GDELT", telegram: "Telegram", x: "X", procurement: "Procurement" },
@@ -34,11 +34,18 @@ function sourceDoc(id: number, overrides: Partial<ClaimSourceDoc> = {}): ClaimSo
   };
 }
 
+/**
+ * Reads the Source cell by resolving its column from the header rather than a fixed
+ * index, so a column reorder can't silently make these assertions read a neighbour.
+ */
 function rowSources(): string[] {
+  const headers = within(document.querySelector("thead")!).getAllByRole("columnheader");
+  const sourceIndex = headers.findIndex((h) => h.textContent === "Source");
+  expect(sourceIndex).toBeGreaterThanOrEqual(0);
   const body = document.querySelector("tbody")!;
   return within(body)
     .getAllByRole("row")
-    .map((row) => within(row).getAllByRole("cell")[2].textContent ?? "");
+    .map((row) => within(row).getAllByRole("cell")[sourceIndex].textContent ?? "");
 }
 
 describe("ClaimEvidenceTrail", () => {
@@ -60,16 +67,30 @@ describe("ClaimEvidenceTrail", () => {
     expect(rowSources()).toEqual(["Bravo", "alpha", "Zulu"]);
     await user.selectOptions(select, "newest_published");
     expect(rowSources()).toEqual(["alpha", "Bravo", "Zulu"]);
-    await user.selectOptions(select, "first_seen");
-    expect(rowSources()).toEqual(["Zulu", "alpha", "Bravo"]);
     await user.selectOptions(select, "reliability");
     expect(rowSources()).toEqual(["alpha", "Bravo", "Zulu"]);
     await user.selectOptions(select, "source");
     expect(rowSources()).toEqual(["alpha", "Bravo", "Zulu"]);
   });
 
-  it("shows exact UTC metadata and keeps publication unknown beside first-seen", () => {
+  it("carries exact UTC metadata on the rendered publication time", () => {
     render(
+      <ClaimEvidenceTrail
+        locale="en"
+        showScores
+        labels={evidenceLabels}
+        docs={[sourceDoc(1, { publishedAt: "2026-07-01T18:00:00Z" })]}
+      />,
+    );
+    // ET is the display zone; the exact UTC instant stays available to the reader
+    // via datetime/title rather than being lost to the localized rendering.
+    const time = screen.getByText("Jul 1, 2:00 PM ET");
+    expect(time.getAttribute("datetime")).toBe("2026-07-01T18:00:00.000Z");
+    expect(time.getAttribute("title")).toBe("2026-07-01T18:00:00.000Z");
+  });
+
+  it("leaves publication Unknown rather than showing when BNOW fetched the document", () => {
+    const { container } = render(
       <ClaimEvidenceTrail
         locale="en"
         showScores
@@ -78,9 +99,18 @@ describe("ClaimEvidenceTrail", () => {
       />,
     );
     expect(screen.getByText("Unknown")).toBeTruthy();
-    const time = screen.getByText("Jul 1, 2:00 PM ET");
-    expect(time.getAttribute("datetime")).toBe("2026-07-01T18:00:00.000Z");
-    expect(time.getAttribute("title")).toBe("2026-07-01T18:00:00.000Z");
+    expect(container.textContent).not.toMatch(/Jul 1, 2:00 PM ET/);
+    expect(screen.queryByRole("columnheader", { name: "First seen" })).toBeNull();
+  });
+
+  it("hides the sort control when a single document leaves nothing to order", () => {
+    render(
+      <ClaimEvidenceTrail locale="en" showScores labels={evidenceLabels} docs={[sourceDoc(1)]} />,
+    );
+    expect(screen.queryByRole("combobox", { name: "Sort evidence" })).toBeNull();
+    expect(screen.queryByText("Sort evidence")).toBeNull();
+    // The evidence itself must still be there — only the dead control is gone.
+    expect(within(document.querySelector("tbody")!).getAllByRole("row")).toHaveLength(1);
   });
 
   it("omits the reliability column and never makes an unsafe URL clickable", () => {

@@ -96,6 +96,15 @@ export function selectorLocales(): LocaleMeta[] {
   return localesByPriority().filter((m) => !LAUNCH_HIDDEN_LOCALES.has(m.code));
 }
 
+/**
+ * Selector item text: uppercase ISO 639-1 code, then the native name — "EN — English",
+ * "UK — Українська". The native name is NOT decoration: `uk` is ISO 639-1 Ukrainian, so
+ * the code alone reads as the United Kingdom to most people. Both parts are required.
+ */
+export function localeSelectorLabel(meta: LocaleMeta): string {
+  return `${meta.code.toUpperCase()} — ${meta.nativeLabel}`;
+}
+
 /** Fallback chain from a locale down to the ultimate default (cycle-safe). */
 export function fallbackChain(locale: Locale): Locale[] {
   const chain: Locale[] = [];
@@ -149,10 +158,12 @@ const en: Dict = {
   "nav.item.registry": "Source reliability registry",
   "nav.item.me_registry": "Middle East registry",
   "nav.item.signals": "Analyst signals",
-  "nav.item.all_theaters": "All theaters",
+  // Key name is legacy ("theaters" was the pre-2026-07-16 vocabulary); the label is
+  // deliberately buyer-facing now. The href (/countries) is unchanged.
+  "nav.item.all_theaters": "More countries",
   "nav.item.sanctions": "Sanctions & trade evasion",
   "nav.item.commodity": "Commodity & supply-chain risk",
-  "nav.item.opacity": "Economic data suppression",
+  "nav.item.opacity": "Russia data opacity",
   "nav.item.political_risk": "Political risk & signals",
   "nav.account": "Account",
   "nav.signout": "Sign out",
@@ -215,7 +226,6 @@ const en: Dict = {
   // Signed-in quick-links rail: compact known-destination links; digest dates
   // are composed in JSX next to these labels.
   "home.quicklinks.label": "Quick links",
-  "home.quicklinks.digest": "digest",
   "home.quicklinks.scoreboard": "scoreboard",
   "home.quicklinks.registry": "registry",
   "home.quicklinks.signals": "signals",
@@ -323,6 +333,16 @@ const en: Dict = {
   // how_to_read.* lines below for the per-metric definitions this must stay
   // consistent with. Per-metric numeric targets stay in the target_* tile
   // sublines above, unchanged by this block.
+  // Opening + caveat (2026-07-16): results now precede methodology, so the top of the
+  // page is one sentence of what is being compared plus the one caveat a reader must
+  // have BEFORE reading the figures. The fuller explainer below moved into the
+  // collapsed methodology disclosure — it is framing, not a precondition.
+  "scoreboard.opening":
+    "We compare each finalized BNOW country digest with the same-day top-line findings in ISW's assessment, showing what matched, what was missed, how early evidence appeared, and how strongly BNOW's claims were sourced.",
+  // Must stay visible without expanding methodology: every coverage/divergence figure
+  // on this page is directional because the baselines are not like-for-like.
+  "scoreboard.caveat":
+    "ISW's Russia assessment covers the wider Russia–Ukraine theater, while BNOW scores separate country digests. Coverage and divergence are therefore directional comparisons, not like-for-like measures of report completeness.",
   "scoreboard.explainer":
     "We score our own output. Every day we compare this system's digest against expert human analysis — ISW's Russian Offensive Campaign Assessment and other baselines — measuring whether we surfaced the same events, how early, and how much of what we published rests on more than one source. We publish the results, including the misses, because analysts should know exactly how much to trust an automated feed. Unlike a finished prose report, every claim here links back to its source document, is searchable, and can land hours earlier — this page shows what that speed costs in coverage.",
   "scoreboard.how_to_read.summary": "How to read these numbers",
@@ -357,7 +377,12 @@ const en: Dict = {
 
   // digest page framing
   "digest.no_events": "No events extracted.",
-  "digest.view_for": "view for:",
+  // Freshness line. Pairs with home.status.stage_intraday/_final; the time itself is
+  // formatEtDateTime, which always carries its own "ET" suffix.
+  "digest.freshness.updated": "Updated",
+  // Key name is legacy. Profiles re-rank the same event set, they do not filter it —
+  // "view for" implied a different feed per buyer, which was never true.
+  "digest.view_for": "Prioritize for:",
   "digest.sources": "sources",
   "digest.confidence": "confidence",
   "digest.track.military": "Military situation",
@@ -394,17 +419,14 @@ const en: Dict = {
   "sources.more_summary": "+{n} more · {channels} channels · {platforms} platforms",
   "sources.summary": "{docs} documents · {channels} channels · {platforms} platforms",
   "sources.earliest_published": "Earliest published",
-  "sources.first_seen": "First seen by BNOW",
   "sources.unknown": "Unknown",
   "sources.view_trail": "View evidence trail ({n})",
   "sources.sort.label": "Sort evidence",
   "sources.sort.oldest": "Oldest published",
   "sources.sort.newest": "Newest published",
-  "sources.sort.first_seen": "First seen by BNOW",
   "sources.sort.reliability": "Reliability",
   "sources.sort.source": "Source/channel",
   "sources.col.published": "Published",
-  "sources.col.first_seen": "First seen",
   "sources.col.source": "Source",
   "sources.col.platform": "Platform",
   "sources.col.reliability": "Reliability",
@@ -436,7 +458,6 @@ const en: Dict = {
   "copy.channels": "channels",
   "copy.platforms": "platforms",
   "copy.published": "Published",
-  "copy.first_seen": "First seen by BNOW",
   "copy.pending": "Copying…",
   "copy.source_value": "BNOW.NET, {country} Daily Digest, claim c{claimId}",
   "copy.linked_summary": "{docs} linked documents · {channels} channels · {platforms} platforms",
@@ -569,10 +590,10 @@ const uk: Dict = {
   "nav.item.registry": "Реєстр надійності джерел",
   "nav.item.me_registry": "Реєстр Близького Сходу",
   "nav.item.signals": "Аналітичні сигнали",
-  "nav.item.all_theaters": "Усі театри",
+  "nav.item.all_theaters": "Більше країн", // uk: needs native review
   "nav.item.sanctions": "Санкції та обхід торгівлі",
   "nav.item.commodity": "Ризики сировини та ланцюгів постачання",
-  "nav.item.opacity": "Приховування економічних даних",
+  "nav.item.opacity": "Закритість даних Росії", // uk: needs native review
   "nav.item.political_risk": "Політичні ризики та сигнали",
   "nav.account": "Обліковий запис",
   "nav.signout": "Вийти",
@@ -613,7 +634,6 @@ const uk: Dict = {
     "Ми щодня оцінюємо власні дайджести проти експертного аналізу — включно з промахами.", // uk: needs native review
   "home.status.scoreboard_link": "таблиця валідації →", // uk: needs native review
   "home.quicklinks.label": "Швидкі посилання", // uk: needs native review
-  "home.quicklinks.digest": "дайджест", // uk: needs native review
   "home.quicklinks.scoreboard": "таблиця валідації", // uk: needs native review
   "home.quicklinks.registry": "реєстр", // uk: needs native review
   "home.quicklinks.signals": "сигнали", // uk: needs native review
@@ -701,6 +721,10 @@ const uk: Dict = {
   "scoreboard.target_lead": "ціль у межах ±{n} год",
   "scoreboard.nonzero_day_mean": "дні з ненульовим покриттям: {pct}% (n={days})",
   "scoreboard.view_digest": "переглянути дайджест цього дня →", // uk: needs native review
+  "scoreboard.opening":
+    "Ми порівнюємо кожен фінальний дайджест країни BNOW з ключовими висновками ISW за той самий день, показуючи, що збіглося, що ми пропустили, наскільки рано з'явилися докази та наскільки надійно підкріплені твердження BNOW.", // uk: needs native review
+  "scoreboard.caveat":
+    "Оцінка ISW щодо Росії охоплює ширший театр Росія–Україна, тоді як BNOW оцінює окремі дайджести країн. Тому покриття та розбіжності є орієнтовними порівняннями, а не рівнозначними вимірами повноти звіту.", // uk: needs native review
   "scoreboard.explainer":
     "Ми оцінюємо власний результат. Щодня ми порівнюємо дайджест цієї системи з експертним аналізом людей — Russian Offensive Campaign Assessment від ISW та іншими базовими джерелами — і перевіряємо, чи ми зафіксували ті самі події, наскільки рано, і яка частка опублікованого спирається більш ніж на одне джерело. Ми публікуємо результати, включно з промахами, бо аналітики повинні точно знати, наскільки довіряти автоматизованій стрічці. На відміну від готового текстового звіту, кожне твердження тут посилається на вихідний документ, доступне для пошуку і може з'явитися на години раніше — ця сторінка показує, чого коштує ця швидкість у покритті.", // uk: needs native review
   "scoreboard.how_to_read.summary": "Як читати ці цифри", // uk: needs native review
@@ -716,7 +740,8 @@ const uk: Dict = {
   "scoreboard.how_to_read.divergence":
     "Збіг / лише ISW / лише ми — події, які повідомили обидві сторони, події, які повідомив ISW, а ми пропустили, і події, які повідомили ми, а ISW не згадав. Пункт «лише ми» вважається можливим випередженням лише якщо він підтверджений; непідтверджені позначаються своїм ступенем достовірності.", // uk: needs native review
   "digest.no_events": "Подій не виявлено.",
-  "digest.view_for": "перегляд для:",
+  "digest.freshness.updated": "Оновлено", // uk: needs native review
+  "digest.view_for": "Пріоритет для:", // uk: needs native review
   "digest.sources": "джерела",
   "digest.confidence": "впевненість",
   "digest.track.military": "Військова ситуація",
@@ -743,17 +768,14 @@ const uk: Dict = {
   "sources.more_summary": "+{n} ще · {channels} каналів · {platforms} платформ",
   "sources.summary": "{docs} документів · {channels} каналів · {platforms} платформ", // uk: needs native review
   "sources.earliest_published": "Найраніша публікація", // uk: needs native review
-  "sources.first_seen": "Уперше отримано BNOW", // uk: needs native review
   "sources.unknown": "Невідомо", // uk: needs native review
   "sources.view_trail": "Переглянути ланцюжок доказів ({n})", // uk: needs native review
   "sources.sort.label": "Сортувати докази", // uk: needs native review
   "sources.sort.oldest": "Найстаріші публікації", // uk: needs native review
   "sources.sort.newest": "Найновіші публікації", // uk: needs native review
-  "sources.sort.first_seen": "Уперше отримані BNOW", // uk: needs native review
   "sources.sort.reliability": "Надійність", // uk: needs native review
   "sources.sort.source": "Джерело/канал", // uk: needs native review
   "sources.col.published": "Опубліковано", // uk: needs native review
-  "sources.col.first_seen": "Уперше отримано", // uk: needs native review
   "sources.col.source": "Джерело", // uk: needs native review
   "sources.col.platform": "Платформа", // uk: needs native review
   "sources.col.reliability": "Надійність", // uk: needs native review
@@ -782,7 +804,6 @@ const uk: Dict = {
   "copy.channels": "каналів", // uk: needs native review
   "copy.platforms": "платформ", // uk: needs native review
   "copy.published": "Опубліковано", // uk: needs native review
-  "copy.first_seen": "Уперше отримано BNOW", // uk: needs native review
   "copy.pending": "Копіювання…", // uk: needs native review
   "copy.source_value": "BNOW.NET, щоденний дайджест «{country}», твердження c{claimId}", // uk: needs native review
   "copy.linked_summary": "{docs} пов'язаних документів · {channels} каналів · {platforms} платформ", // uk: needs native review
@@ -882,10 +903,10 @@ const de: Dict = {
   "nav.item.registry": "Register der Quellenzuverlässigkeit",
   "nav.item.me_registry": "Nahost-Register",
   "nav.item.signals": "Analystensignale",
-  "nav.item.all_theaters": "Alle Schauplätze",
+  "nav.item.all_theaters": "Weitere Länder",
   "nav.item.sanctions": "Sanktionen & Handelsumgehung",
   "nav.item.commodity": "Rohstoff- & Lieferkettenrisiko",
-  "nav.item.opacity": "Unterdrückung von Wirtschaftsdaten",
+  "nav.item.opacity": "Russlands Datenintransparenz",
   "nav.item.political_risk": "Politisches Risiko & Signale",
   "nav.account": "Konto",
   "nav.signout": "Abmelden",
@@ -958,7 +979,8 @@ const de: Dict = {
   "scoreboard.median_lead": "medianer Informationsvorsprung ggü. ISW-Veröffentlichung",
   "scoreboard.thin_sourced": "dünn belegt",
   "digest.no_events": "Keine Ereignisse extrahiert.",
-  "digest.view_for": "Ansicht für:",
+  "digest.freshness.updated": "Aktualisiert",
+  "digest.view_for": "Priorisieren für:",
   "digest.sources": "Quellen",
   "digest.confidence": "Konfidenz",
   "digest.track.military": "Militärische Lage",
@@ -1009,10 +1031,10 @@ const ar: Dict = {
   "nav.item.registry": "سجل موثوقية المصادر",
   "nav.item.me_registry": "سجل الشرق الأوسط",
   "nav.item.signals": "إشارات المحللين",
-  "nav.item.all_theaters": "جميع مسارح العمليات",
+  "nav.item.all_theaters": "المزيد من الدول",
   "nav.item.sanctions": "العقوبات والتحايل التجاري",
   "nav.item.commodity": "مخاطر السلع وسلاسل التوريد",
-  "nav.item.opacity": "حجب البيانات الاقتصادية",
+  "nav.item.opacity": "غموض البيانات الروسية",
   "nav.item.political_risk": "المخاطر السياسية والإشارات",
   "nav.account": "الحساب",
   "nav.signout": "تسجيل الخروج",
@@ -1085,7 +1107,8 @@ const ar: Dict = {
   "scoreboard.median_lead": "وسيط الأسبقية المعلوماتية مقابل نشر ISW",
   "scoreboard.thin_sourced": "ضعيف المصادر",
   "digest.no_events": "لم تُستخرج أحداث.",
-  "digest.view_for": "عرض لـ:",
+  "digest.freshness.updated": "آخر تحديث",
+  "digest.view_for": "ترتيب الأولوية لـ:",
   "digest.sources": "المصادر",
   "digest.confidence": "الثقة",
   "digest.track.military": "الوضع العسكري",
@@ -1136,10 +1159,10 @@ const ja: Dict = {
   "nav.item.registry": "情報源信頼性登録簿",
   "nav.item.me_registry": "中東登録簿",
   "nav.item.signals": "アナリストシグナル",
-  "nav.item.all_theaters": "すべての戦域",
+  "nav.item.all_theaters": "その他の国",
   "nav.item.sanctions": "制裁と貿易迂回",
   "nav.item.commodity": "コモディティ・サプライチェーンリスク",
-  "nav.item.opacity": "経済データの秘匿",
+  "nav.item.opacity": "ロシアのデータ不透明性",
   "nav.item.political_risk": "政治リスクとシグナル",
   "nav.account": "アカウント",
   "nav.signout": "サインアウト",
@@ -1212,7 +1235,8 @@ const ja: Dict = {
   "scoreboard.median_lead": "ISW公開比の情報先行の中央値",
   "scoreboard.thin_sourced": "情報源が乏しい",
   "digest.no_events": "抽出されたイベントはありません。",
-  "digest.view_for": "表示対象：",
+  "digest.freshness.updated": "更新",
+  "digest.view_for": "優先表示：",
   "digest.sources": "情報源",
   "digest.confidence": "確信度",
   "digest.track.military": "軍事情勢",
@@ -1263,10 +1287,10 @@ const pl: Dict = {
   "nav.item.registry": "Rejestr wiarygodności źródeł",
   "nav.item.me_registry": "Rejestr Bliskiego Wschodu",
   "nav.item.signals": "Sygnały analityczne",
-  "nav.item.all_theaters": "Wszystkie teatry działań",
+  "nav.item.all_theaters": "Więcej krajów",
   "nav.item.sanctions": "Sankcje i obchodzenie handlu",
   "nav.item.commodity": "Ryzyko surowcowe i łańcucha dostaw",
-  "nav.item.opacity": "Ukrywanie danych gospodarczych",
+  "nav.item.opacity": "Nieprzejrzystość danych Rosji",
   "nav.item.political_risk": "Ryzyko polityczne i sygnały",
   "nav.account": "Konto",
   "nav.signout": "Wyloguj się",
@@ -1339,7 +1363,8 @@ const pl: Dict = {
   "scoreboard.median_lead": "mediana przewagi informacyjnej vs publikacja ISW",
   "scoreboard.thin_sourced": "słabo udokumentowane",
   "digest.no_events": "Nie wyodrębniono zdarzeń.",
-  "digest.view_for": "widok dla:",
+  "digest.freshness.updated": "Zaktualizowano",
+  "digest.view_for": "Priorytet dla:",
   "digest.sources": "źródła",
   "digest.confidence": "pewność",
   "digest.track.military": "Sytuacja militarna",
@@ -1390,10 +1415,10 @@ const fr: Dict = {
   "nav.item.registry": "Registre de fiabilité des sources",
   "nav.item.me_registry": "Registre Moyen-Orient",
   "nav.item.signals": "Signaux d'analyste",
-  "nav.item.all_theaters": "Tous les théâtres",
+  "nav.item.all_theaters": "Plus de pays",
   "nav.item.sanctions": "Sanctions et contournement commercial",
   "nav.item.commodity": "Risque matières premières et chaîne d'approvisionnement",
-  "nav.item.opacity": "Suppression des données économiques",
+  "nav.item.opacity": "Opacité des données russes",
   "nav.item.political_risk": "Risque politique et signaux",
   "nav.account": "Compte",
   "nav.signout": "Se déconnecter",
@@ -1466,7 +1491,8 @@ const fr: Dict = {
   "scoreboard.median_lead": "avance d'information médiane vs publication ISW",
   "scoreboard.thin_sourced": "peu sourcé",
   "digest.no_events": "Aucun événement extrait.",
-  "digest.view_for": "vue pour :",
+  "digest.freshness.updated": "Mis à jour",
+  "digest.view_for": "Prioriser pour :",
   "digest.sources": "sources",
   "digest.confidence": "confiance",
   "digest.track.military": "Situation militaire",

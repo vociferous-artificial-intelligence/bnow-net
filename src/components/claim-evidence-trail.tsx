@@ -83,27 +83,28 @@ export function ClaimEvidenceTrail({ docs, locale, showScores, labels, analytics
         {interpolate(labels.viewTrail, { n: docs.length })}
       </summary>
       <div className="mt-3 min-w-0 rounded border border-gray-200 p-3 dark:border-gray-800">
-        <label className="flex max-w-sm flex-col gap-1 text-xs font-medium text-gray-700 dark:text-gray-300">
-          {labels.sortLabel}
-          <select
-            className="rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-            value={sortMode}
-            onChange={(event) => setSortMode(event.target.value as EvidenceSortMode)}
-          >
-            <option value="oldest_published">{labels.sortOldest}</option>
-            <option value="newest_published">{labels.sortNewest}</option>
-            <option value="first_seen">{labels.sortFirstSeen}</option>
-            <option value="reliability">{labels.sortReliability}</option>
-            <option value="source">{labels.sortSource}</option>
-          </select>
-        </label>
+        {/* One document has no order to choose — the control would be a dead input. */}
+        {docs.length > 1 && (
+          <label className="flex max-w-sm flex-col gap-1 text-xs font-medium text-gray-700 dark:text-gray-300">
+            {labels.sortLabel}
+            <select
+              className="rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+              value={sortMode}
+              onChange={(event) => setSortMode(event.target.value as EvidenceSortMode)}
+            >
+              <option value="oldest_published">{labels.sortOldest}</option>
+              <option value="newest_published">{labels.sortNewest}</option>
+              <option value="reliability">{labels.sortReliability}</option>
+              <option value="source">{labels.sortSource}</option>
+            </select>
+          </label>
+        )}
 
         <div className="mt-3 max-w-full overflow-x-auto">
           <table className="min-w-[760px] border-collapse text-left text-xs">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-800">
                 <th className="px-2 py-2 font-medium">{labels.publishedColumn}</th>
-                <th className="px-2 py-2 font-medium">{labels.firstSeenColumn}</th>
                 <th className="px-2 py-2 font-medium">{labels.sourceColumn}</th>
                 <th className="px-2 py-2 font-medium">{labels.platformColumn}</th>
                 {showScores && <th className="px-2 py-2 font-medium">{labels.reliabilityColumn}</th>}
@@ -118,9 +119,6 @@ export function ClaimEvidenceTrail({ docs, locale, showScores, labels, analytics
                   <tr key={doc.docId} className="border-b border-gray-100 align-top dark:border-gray-900">
                     <td className="whitespace-nowrap px-2 py-2">
                       <EvidenceTime value={doc.publishedAt} locale={locale} unknown={labels.unknown} />
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-2">
-                      <EvidenceTime value={doc.firstSeenAt} locale={locale} unknown={labels.unknown} />
                     </td>
                     <td className="max-w-[220px] break-words px-2 py-2">{claimSourceLabel(doc)}</td>
                     <td className="whitespace-nowrap px-2 py-2">{platformLabel(doc, labels)}</td>

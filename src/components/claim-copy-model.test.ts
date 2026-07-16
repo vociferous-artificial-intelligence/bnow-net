@@ -15,7 +15,7 @@ export const copyLabels: ClaimCopyLabels = {
   textCopied: "Text copied", copyFailed: "Copy failed", statusLabel: "Status", asOfLabel: "As of",
   evidenceLabel: "Evidence", sourceLabel: "Source", sourceValue: "BNOW.NET, {country} Daily Digest, claim c{claimId}",
   linkedSummary: "{docs} linked documents · {channels} channels · {platforms} platforms",
-  evidenceListLabel: "Evidence list", publishedLabel: "Published", firstSeenLabel: "First seen by BNOW",
+  evidenceListLabel: "Evidence list", publishedLabel: "Published",
   platformLabel: "Platform", reliabilityLabel: "Reliability", unknown: "Unknown",
   statuses: { confirmed: "Confirmed", assessed: "Assessed", claimed: "Claimed", unverified: "Unverified", unknown: "Unknown" },
   platforms: { rss_news: "RSS/news", gdelt: "GDELT", telegram: "Telegram", x: "X", procurement: "Procurement" },
@@ -101,7 +101,11 @@ describe("claim evidence copy", () => {
     expect(content.plain.indexOf("Earlier <safe>")).toBeLessThan(content.plain.indexOf("Later"));
     expect(content.plain.indexOf("Later")).toBeLessThan(content.plain.indexOf("Unknown time"));
     expect(content.plain.match(/Earlier <safe>/g)).toHaveLength(1);
-    expect(content.plain).toContain("Published: Unknown · First seen by BNOW:");
+    // A copied claim goes into someone else's report — an undated document says so
+    // rather than passing off our fetch time as the publication date.
+    expect(content.plain).toContain("Published: Unknown");
+    expect(content.plain).not.toContain("First seen");
+    expect(content.html).not.toContain("First seen");
     expect(content.plain).not.toContain("javascript:bad");
     expect(content.html).toContain("Earlier &lt;safe&gt;");
     expect(content.html).not.toContain("javascript:bad");

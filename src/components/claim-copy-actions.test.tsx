@@ -15,7 +15,7 @@ const labels: ClaimCopyLabels = {
   textCopied: "Text copied", copyFailed: "Copy failed", statusLabel: "Status", asOfLabel: "As of",
   evidenceLabel: "Evidence", sourceLabel: "Source", sourceValue: "BNOW.NET {country} claim {claimId}",
   linkedSummary: "{docs} linked documents · {channels} channels · {platforms} platforms",
-  evidenceListLabel: "Evidence list", publishedLabel: "Published", firstSeenLabel: "First seen",
+  evidenceListLabel: "Evidence list", publishedLabel: "Published",
   platformLabel: "Platform", reliabilityLabel: "Reliability", unknown: "Unknown",
   statuses: { confirmed: "Confirmed", assessed: "Assessed", claimed: "Claimed", unverified: "Unverified", unknown: "Unknown" },
   platforms: { rss_news: "RSS/news", gdelt: "GDELT", telegram: "Telegram", x: "X", procurement: "Procurement" },

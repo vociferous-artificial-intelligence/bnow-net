@@ -10,13 +10,19 @@ export interface ClaimSourceDoc {
   platform: string | null;
   reliability: number | null;
   publishedAt: string | null;
+  /**
+   * raw_documents.fetched_at — when BNOW ingested the document. Retained and carried
+   * on every doc: it is the deterministic sort tie-break below, the ranking recency
+   * fallback, and the validation-timeliness/health input. It is NOT presented to
+   * analysts (2026-07-16): "First seen by BNOW" told them when our crawler ran, not
+   * when the world learned the fact, and it read as a provenance claim it never was.
+   */
   firstSeenAt: string;
 }
 
 export type EvidenceSortMode =
   | "oldest_published"
   | "newest_published"
-  | "first_seen"
   | "reliability"
   | "source";
 
@@ -25,17 +31,14 @@ export type EvidencePlatform = "rss_news" | "gdelt" | "telegram" | "x" | "procur
 export interface ClaimEvidenceLabels {
   summary: string;
   earliestPublished: string;
-  firstSeen: string;
   unknown: string;
   viewTrail: string;
   sortLabel: string;
   sortOldest: string;
   sortNewest: string;
-  sortFirstSeen: string;
   sortReliability: string;
   sortSource: string;
   publishedColumn: string;
-  firstSeenColumn: string;
   sourceColumn: string;
   platformColumn: string;
   reliabilityColumn: string;
@@ -49,7 +52,6 @@ export interface ClaimEvidenceSummary {
   channels: number;
   platforms: number;
   earliestPublishedAt: string | null;
-  earliestFirstSeenAt: string | null;
 }
 
 export interface ClaimDocSelection {
@@ -160,6 +162,7 @@ function compareLabel(a: ClaimSourceDoc, b: ClaimSourceDoc): number {
   return claimSourceLabel(a).localeCompare(claimSourceLabel(b), undefined, { sensitivity: "base" });
 }
 
+/** Deterministic ordering only — firstSeenAt is never surfaced to the analyst. */
 function stableTieBreak(a: ClaimSourceDoc, b: ClaimSourceDoc): number {
   return (
     compareNullableNumber(timestamp(a.firstSeenAt), timestamp(b.firstSeenAt), 1) ||
@@ -175,8 +178,6 @@ export function compareEvidenceDocs(mode: EvidenceSortMode): (a: ClaimSourceDoc,
       primary = compareNullableNumber(timestamp(a.publishedAt), timestamp(b.publishedAt), 1);
     } else if (mode === "newest_published") {
       primary = compareNullableNumber(timestamp(a.publishedAt), timestamp(b.publishedAt), -1);
-    } else if (mode === "first_seen") {
-      primary = compareNullableNumber(timestamp(a.firstSeenAt), timestamp(b.firstSeenAt), 1);
     } else if (mode === "reliability") {
       const ar = Number.isFinite(a.reliability) ? a.reliability : null;
       const br = Number.isFinite(b.reliability) ? b.reliability : null;
@@ -200,19 +201,12 @@ export function canonicalEvidenceDocs(docs: readonly ClaimSourceDoc[]): ClaimSou
 export function summarizeClaimEvidence(docs: readonly ClaimSourceDoc[]): ClaimEvidenceSummary {
   let earliestPublishedAt: string | null = null;
   let earliestPublished = Number.POSITIVE_INFINITY;
-  let earliestFirstSeenAt: string | null = null;
-  let earliestFirstSeen = Number.POSITIVE_INFINITY;
 
   for (const doc of docs) {
     const published = timestamp(doc.publishedAt);
     if (published !== null && published < earliestPublished) {
       earliestPublished = published;
       earliestPublishedAt = doc.publishedAt;
-    }
-    const seen = timestamp(doc.firstSeenAt);
-    if (seen !== null && seen < earliestFirstSeen) {
-      earliestFirstSeen = seen;
-      earliestFirstSeenAt = doc.firstSeenAt;
     }
   }
 
@@ -226,7 +220,6 @@ export function summarizeClaimEvidence(docs: readonly ClaimSourceDoc[]): ClaimEv
       }),
     ).size,
     earliestPublishedAt,
-    earliestFirstSeenAt,
   };
 }
 

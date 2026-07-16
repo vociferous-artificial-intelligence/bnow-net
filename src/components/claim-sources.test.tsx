@@ -8,17 +8,14 @@ afterEach(cleanup);
 export const evidenceLabels: ClaimEvidenceLabels = {
   summary: "{docs} documents · {channels} channels · {platforms} platforms",
   earliestPublished: "Earliest published:",
-  firstSeen: "First seen by BNOW:",
   unknown: "Unknown",
   viewTrail: "View evidence trail ({n})",
   sortLabel: "Sort evidence",
   sortOldest: "Oldest published",
   sortNewest: "Newest published",
-  sortFirstSeen: "First seen by BNOW",
   sortReliability: "Reliability",
   sortSource: "Source/channel",
   publishedColumn: "Published",
-  firstSeenColumn: "First seen",
   sourceColumn: "Source",
   platformColumn: "Platform",
   reliabilityColumn: "Reliability",
@@ -98,8 +95,8 @@ describe("ClaimSources", () => {
     expect(document.querySelector('a[href^="javascript:"]')).toBeNull();
   });
 
-  it("renders provider publication as Unknown without borrowing first-seen time", () => {
-    render(
+  it("renders provider publication as Unknown and never surfaces the first-seen time", () => {
+    const { container } = render(
       <ClaimSources
         docs={[sourceDoc(1, { publishedAt: null, firstSeenAt: "2026-07-01T18:00:00Z" })]}
         showScores
@@ -107,8 +104,12 @@ describe("ClaimSources", () => {
         labels={evidenceLabels}
       />,
     );
-    expect(screen.getAllByText("Unknown")).toHaveLength(2); // summary + table publication
-    expect(screen.getAllByText(/Jul 1, 2:00 PM ET/)).toHaveLength(2); // summary + first-seen cell
+    // Missing publication stays Unknown in both the summary and the table — it never
+    // borrows fetched_at, which would misdate the claim by however long ingest lagged.
+    expect(screen.getAllByText("Unknown")).toHaveLength(2);
+    // firstSeenAt is still carried on the doc (tie-break/ranking) but has no rendering.
+    expect(container.textContent).not.toMatch(/Jul 1, 2:00 PM ET/);
+    expect(container.textContent).not.toMatch(/First seen/i);
   });
 
   it("contains long names and tables without page-level overflow primitives", () => {

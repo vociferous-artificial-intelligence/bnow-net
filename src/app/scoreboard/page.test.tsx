@@ -47,7 +47,6 @@ const ROW = {
     { kind: "ours_only" },
   ],
   at_publish: null,
-  provider: "openai:gpt-4o-mini+mapreduce",
 };
 
 describe("explainer block", () => {
@@ -85,16 +84,47 @@ describe("explainer block", () => {
     expect(container.textContent).toContain("target within ±6h");
   });
 
-  it("renders the explainer above the summary tiles and table", async () => {
+  it("puts results before methodology, with the explainer inside the collapsed disclosure", async () => {
     queryMock.mockResolvedValueOnce([ROW]);
     const element = await ScoreboardPage();
     const { container } = render(element);
     const explainer = screen.getByText(/We score our own output\./);
-    const table = container.querySelector("table");
-    expect(table).toBeTruthy();
-    expect(
-      explainer.compareDocumentPosition(table!) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    const table = container.querySelector("table")!;
+    const methodology = container.querySelector<HTMLDetailsElement>(
+      '[data-testid="scoreboard-methodology"]',
+    )!;
+
+    // Inverted 2026-07-16: the table now precedes the methodology, not the reverse.
+    expect(table.compareDocumentPosition(explainer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(methodology.contains(explainer)).toBe(true);
+    // Collapsed by default and native — the results stay readable with JS disabled.
+    expect(methodology.open).toBe(false);
+    expect(methodology.tagName).toBe("DETAILS");
+  });
+
+  it("shows the opening and the baseline caveat before the figures, outside the disclosure", async () => {
+    queryMock.mockResolvedValueOnce([ROW]);
+    const element = await ScoreboardPage();
+    const { container } = render(element);
+    const caveat = container.querySelector('[data-testid="scoreboard-caveat"]')!;
+    const table = container.querySelector("table")!;
+
+    expect(screen.getByText(/We compare each finalized BNOW country digest/)).toBeTruthy();
+    expect(caveat.textContent).toContain(
+      "Coverage and divergence are therefore directional comparisons, not like-for-like measures of report completeness.",
+    );
+    // A reader who never expands methodology must still see the caveat, above the numbers.
+    expect(caveat.closest("details")).toBeNull();
+    expect(caveat.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("keeps RU/UA sharing the ROCA baseline and denominator stated in the methodology", async () => {
+    queryMock.mockResolvedValueOnce([ROW]);
+    const element = await ScoreboardPage();
+    const { container } = render(element);
+    expect(container.textContent).toContain(
+      "RU and UA are currently scored as separate country digests against the same ROCA report and denominator.",
+    );
   });
 });
 

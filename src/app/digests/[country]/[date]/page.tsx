@@ -20,7 +20,8 @@ import { ClaimCopyActions } from "@/components/claim-copy-actions";
 import { claimCopyLabels } from "@/components/claim-copy-model";
 import { DigestPrintActions } from "@/components/digest-print-actions";
 import { brandSiteBaseUrl } from "@/lib/site-url";
-import { digestStage } from "@/lib/time/digest-status";
+import { digestStage, type DigestStage } from "@/lib/time/digest-status";
+import { toInstant } from "@/lib/time/day-boundary";
 import { formatEtDateTime } from "@/lib/time/format-et";
 import { DigestViewedMarker } from "@/components/analytics/product-event-markers";
 import { digestAgeBucket } from "@/components/analytics/product-event-model";
@@ -56,7 +57,6 @@ interface DigestRow {
   id: number;
   track: string;
   status: string;
-  provider: string;
   country_name: string;
   created_at: string;
 }
@@ -99,6 +99,36 @@ export function shapeNeighborDates(
 ): { prev: string | null; next: string | null } {
   const norm = (v: string | null | undefined) => (v ? String(v).slice(0, 10) : null);
   return { prev: norm(row?.prev_date), next: norm(row?.next_date) };
+}
+
+/**
+ * Screen freshness for the page header, from the persisted rows only — no cadence
+ * arithmetic. A country/date page can hold several tracks written at different times,
+ * so a stage claim is made for the page ONLY when every displayed track agrees; a
+ * mixed page reports per-track instead. Labelling a whole page "final" because its
+ * military track finalized would tell an analyst the elite-politics section is
+ * complete when it is still mid-day. No next-final estimate is produced: the page
+ * does not carry one, and re-deriving the cron schedule here would invent it.
+ */
+export function summarizeDigestFreshness(
+  rows: ReadonlyArray<{ created_at: string }>,
+  date: string,
+): { uniformStage: DigestStage | null; lastUpdatedAt: string | null } {
+  if (rows.length === 0) return { uniformStage: null, lastUpdatedAt: null };
+
+  const stages = rows.map((row) => digestStage(date, toInstant(row.created_at)));
+  const uniformStage = stages.every((stage) => stage === stages[0]) ? stages[0] : null;
+
+  let lastUpdatedAt: string | null = null;
+  let latest = Number.NEGATIVE_INFINITY;
+  for (const row of rows) {
+    const at = toInstant(row.created_at);
+    if (at && at.getTime() > latest) {
+      latest = at.getTime();
+      lastUpdatedAt = row.created_at;
+    }
+  }
+  return { uniformStage, lastUpdatedAt };
 }
 
 function toClaimSourceDoc(row: ClaimRow): ClaimSourceDoc {
@@ -148,7 +178,9 @@ export default async function DigestPage({
   const sourceMailto = feedbackMailto("[BNOW source] suggestion");
 
   const digestRows = (await rawSql.query(
-    `SELECT d.id, d.track, d.status, d.provider, d.created_at::text AS created_at,
+    // No d.provider: which model wrote a digest is pipeline detail, not analyst
+    // information, and it was rendering beside every track heading (2026-07-16).
+    `SELECT d.id, d.track, d.status, d.created_at::text AS created_at,
             c.name AS country_name
      FROM digests d JOIN countries c ON c.id = d.country_id
      WHERE c.iso2 = $1 AND d.digest_date = $2
@@ -266,6 +298,10 @@ export default async function DigestPage({
   // order the track SECTIONS by the profile's track weight (military default first)
   const profile = getProfile(profileKey);
   const digestAge = digestAgeBucket(date);
+  const freshness = summarizeDigestFreshness(digestRows, date);
+  const stageLabel = (stage: DigestStage) => t(`home.status.stage_${stage}`);
+  const updatedLabel = (createdAt: string | null) =>
+    `${t("digest.freshness.updated")} ${formatEtDateTime(createdAt, locale) ?? t("sources.unknown")}`;
   const orderedDigests = [...digestRows].sort(
     (a, b) =>
       (profile.trackWeights[b.track] ?? 1) - (profile.trackWeights[a.track] ?? 1) ||
@@ -307,9 +343,18 @@ export default async function DigestPage({
       <p data-print="hide" className="mb-1 text-sm text-gray-500">
         <Link href="/" className="underline">BNOW.NET</Link> · daily digest
       </p>
-      <h1 data-print="hide" className="mb-3 text-2xl font-bold">
+      <h1 data-print="hide" className="mb-1 text-2xl font-bold">
         {digestRows[0].country_name} — {date}
       </h1>
+      {/* Page-level stage only when every track agrees; the mixed case reports on each
+          track heading instead (see summarizeDigestFreshness). */}
+      {freshness.uniformStage && (
+        <p data-print="hide" data-testid="digest-freshness" className="mb-3 text-sm text-gray-600 dark:text-gray-400">
+          <span className="font-medium">{stageLabel(freshness.uniformStage)}</span>
+          {" · "}
+          {updatedLabel(freshness.lastUpdatedAt)}
+        </p>
+      )}
 
       <DigestPrintActions
         theater={country}
@@ -371,8 +416,20 @@ export default async function DigestPage({
         return (
           <div key={digest.id} className="mb-10">
             <h2 className="mb-3 border-b border-gray-200 pb-1 text-lg font-semibold dark:border-gray-800">
-              {TRACK_LABEL_KEYS[digest.track] ? t(TRACK_LABEL_KEYS[digest.track]) : digest.track}{" "}
-              <span data-print="hide" className="text-xs font-normal text-gray-400">· {digest.provider}</span>
+              {TRACK_LABEL_KEYS[digest.track] ? t(TRACK_LABEL_KEYS[digest.track]) : digest.track}
+              {/* Only when the tracks disagree — otherwise the page-level line said it
+                  once already and repeating it per track is noise. */}
+              {!freshness.uniformStage && (
+                <span
+                  data-print="hide"
+                  data-testid="track-freshness"
+                  className="ms-2 text-sm font-normal text-gray-600 dark:text-gray-400"
+                >
+                  {stageLabel(digestStage(date, toInstant(digest.created_at)))}
+                  {" · "}
+                  {updatedLabel(digest.created_at)}
+                </span>
+              )}
             </h2>
             {!events && <p className="text-sm text-gray-400">{t("digest.no_events")}</p>}
             {events &&
@@ -397,11 +454,11 @@ export default async function DigestPage({
                           {c.hedging}
                         </span>
                         {c.text}
-                        {c.confidence !== null && (
-                          <span data-print="hide" className="ml-2 text-xs text-gray-400">
-                            conf {Number(c.confidence).toFixed(2)}
-                          </span>
-                        )}
+                        {/* No "conf 0.82": the score is uncalibrated, so two decimals
+                            implied a precision it does not have. It still ranks events
+                            (rank.ts avgConfidence) and stays on the claim row. A
+                            High/Medium/Low replacement waits on calibrated thresholds
+                            — OPEN-TASKS #14. */}
                         {(entitiesByClaim.get(claimId) ?? []).length > 0 && (
                           <div data-print="hide" className="mt-1 flex flex-wrap gap-1.5 pl-1">
                             {entitiesByClaim.get(claimId)!.map((e) => (
@@ -487,7 +544,6 @@ export default async function DigestPage({
                         ? (doc.adapter || t("sources.unknown"))
                         : evidenceLabels.platforms[platform];
                       const published = formatEtDateTime(doc.publishedAt, locale) ?? t("sources.unknown");
-                      const firstSeen = formatEtDateTime(doc.firstSeenAt, locale) ?? t("sources.unknown");
                       return (
                         <li key={doc.docId} data-print="source" className="text-xs">
                           <span className="font-semibold">{label}</span> · {platformLabel}
@@ -495,7 +551,7 @@ export default async function DigestPage({
                             ? ` · ${doc.reliability.toFixed(2)}`
                             : ""}
                           <br />
-                          {t("sources.col.published")}: {published} · {t("sources.col.first_seen")}: {firstSeen}
+                          {t("sources.col.published")}: {published}
                           <br />
                           {safeUrl ? (
                             <a href={safeUrl} rel="nofollow noopener" target="_blank">{doc.title ?? t("sources.open_document")} · {safeUrl}</a>

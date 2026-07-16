@@ -131,6 +131,10 @@ describe("dropdown contents", () => {
       "/countries/ir",
       "/countries",
     ]);
+    // Renamed 2026-07-16 off the internal "theater" vocabulary; ru/ua/ir stay the
+    // only promoted countries and /countries stays the final item.
+    expect(items.at(-1)?.textContent).toBe("More countries");
+    expect(items.map((i) => i.textContent)).not.toContain("All theaters");
   });
 
   it("routes Solutions personas at the truthful pages, with signals no longer duplicated", async () => {
@@ -144,7 +148,9 @@ describe("dropdown contents", () => {
     ).toEqual({
       "Sanctions & trade evasion": "/trade",
       "Commodity & supply-chain risk": "/critical-materials",
-      "Economic data suppression": "/datadark",
+      // Renamed 2026-07-16: states the scope instead of making the reader infer
+      // that /datadark is Russia-specific. The href is unchanged.
+      "Russia data opacity": "/datadark",
     });
     // The old Political-risk>/signals duplicate is gone.
     expect(items.map((i) => i.getAttribute("href"))).not.toContain("/signals");
@@ -314,6 +320,21 @@ describe("language selector", () => {
     expect(arabic.getAttribute("aria-current")).toBe("true");
     expect(items.filter((i) => i.getAttribute("aria-current") === "true")).toHaveLength(1);
     expect(items.find((i) => i.getAttribute("lang") === "en")!.getAttribute("dir")).toBe("ltr");
+  });
+
+  it("labels each item with its uppercase ISO 639-1 code beside the native name", async () => {
+    const user = userEvent.setup();
+    renderHeader({ locale: "en" });
+    await user.click(screen.getByRole("button", { name: "Language" }));
+    const items = within(screen.getByRole("menu", { name: "Language" })).getAllByRole("menuitem");
+
+    expect(items.map((i) => i.textContent)).toEqual(
+      localesByPriority().map((l) => `${l.code.toUpperCase()} — ${l.nativeLabel}`),
+    );
+    // `UK` is ISO 639-1 Ukrainian, not the United Kingdom — the native name must stay
+    // beside the code so the two can't be confused.
+    const ukrainian = items.find((i) => i.getAttribute("lang") === "uk")!;
+    expect(ukrainian.textContent).toBe("UK — Українська");
   });
 });
 

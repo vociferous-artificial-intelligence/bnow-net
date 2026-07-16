@@ -47,7 +47,6 @@ export interface ClaimCopyLabels {
   linkedSummary: string;
   evidenceListLabel: string;
   publishedLabel: string;
-  firstSeenLabel: string;
   platformLabel: string;
   reliabilityLabel: string;
   unknown: string;
@@ -81,7 +80,6 @@ export function claimCopyLabels(t: CopyTranslator): ClaimCopyLabels {
     linkedSummary: t("copy.linked_summary"),
     evidenceListLabel: t("copy.evidence_list"),
     publishedLabel: t("copy.published"),
-    firstSeenLabel: t("copy.first_seen"),
     platformLabel: t("copy.platform"),
     reliabilityLabel: t("copy.reliability"),
     unknown: t("copy.unknown"),
@@ -211,7 +209,6 @@ function evidencePlainLine(doc: ClaimSourceDoc, index: number, payload: ClaimCop
     `${index + 1}. ${claimSourceLabel(doc)}`,
     `${labels.platformLabel}: ${platform(doc, labels)}`,
     `${labels.publishedLabel}: ${displayTime(doc.publishedAt, locale, labels.unknown)}`,
-    `${labels.firstSeenLabel}: ${displayTime(doc.firstSeenAt, locale, labels.unknown)}`,
   ];
   if (payload.showScores && doc.reliability !== null && Number.isFinite(doc.reliability)) {
     parts.push(`${labels.reliabilityLabel}: ${doc.reliability.toFixed(2)}`);
@@ -226,7 +223,6 @@ function evidenceHtmlLine(doc: ClaimSourceDoc, payload: ClaimCopyPayload, labels
     escapeClaimCopyHtml(claimSourceLabel(doc)),
     `<strong>${escapeClaimCopyHtml(labels.platformLabel)}:</strong> ${escapeClaimCopyHtml(platform(doc, labels))}`,
     `<strong>${escapeClaimCopyHtml(labels.publishedLabel)}:</strong> ${escapeClaimCopyHtml(displayTime(doc.publishedAt, locale, labels.unknown))}`,
-    `<strong>${escapeClaimCopyHtml(labels.firstSeenLabel)}:</strong> ${escapeClaimCopyHtml(displayTime(doc.firstSeenAt, locale, labels.unknown))}`,
   ];
   if (payload.showScores && doc.reliability !== null && Number.isFinite(doc.reliability)) {
     parts.push(`<strong>${escapeClaimCopyHtml(labels.reliabilityLabel)}:</strong> ${doc.reliability.toFixed(2)}`);

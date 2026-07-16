@@ -35,7 +35,7 @@ export function QuickLinksRail({ t, theaters }: QuickLinksRailProps) {
         {theaterItems.map((th, i) => (
           <span key={th.iso2}>
             {i > 0 && " · "}
-            {th.name} {t("home.quicklinks.digest")}:{" "}
+            {th.name}:{" "}
             <Link href={`/digests/${th.iso2}/${th.latestDate}`} className={LINK_CLASS}>
               {th.latestDate}
             </Link>

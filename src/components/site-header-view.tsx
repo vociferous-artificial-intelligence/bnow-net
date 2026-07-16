@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Globe, Menu, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { LocaleMeta } from "@/i18n/dictionaries";
+import { localeSelectorLabel, type LocaleMeta } from "@/i18n/dictionaries";
 import {
   canonicalSection,
   isCurrentPage,
@@ -238,7 +238,7 @@ export function SiteHeaderView({
                         l.code === locale ? "font-semibold text-blue-600" : "text-gray-500 hover:underline"
                       }
                     >
-                      {l.nativeLabel}
+                      {localeSelectorLabel(l)}
                     </a>
                   </li>
                 ))}
@@ -370,7 +370,7 @@ function LanguageMenu({
           aria-current={l.code === locale ? "true" : undefined}
           className={l.code === locale ? "font-semibold text-blue-600" : ""}
         >
-          {l.nativeLabel}
+          {localeSelectorLabel(l)}
         </NavMenuAnchor>
       ))}
     </NavDropdown>

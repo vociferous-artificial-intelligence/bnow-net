@@ -21,7 +21,6 @@ interface RunRow {
   divergences: Array<{ kind: string }>;
   /** details.atPublish (jsonb): evidence-in-hand-at-ISW-publish dual coverage, when computed. */
   at_publish: { coveragePct: number | null } | null;
-  provider: string;
 }
 
 const TARGETS = { coverage: 80, thin: 2, timeliness: 6 };
@@ -39,9 +38,11 @@ export default async function ScoreboardPage() {
   const locale = await getLocale();
   const t = makeT(locale);
   const rows = (await rawSql.query(
+    // d.provider was selected but never rendered — the analyst-facing surfaces do not
+    // expose which model produced a digest (2026-07-16). Dropped rather than left as a
+    // dead column that invites someone to render it.
     `SELECT vr.id, d.digest_date, c.iso2, vr.coverage_pct, vr.unsupported_claim_rate,
-            vr.timeliness_hours, vr.divergences, vr.details->'atPublish' AS at_publish,
-            d.provider
+            vr.timeliness_hours, vr.divergences, vr.details->'atPublish' AS at_publish
      FROM validation_runs vr
      JOIN digests d ON d.id = vr.digest_id
      JOIN countries c ON c.id = d.country_id
@@ -57,20 +58,20 @@ export default async function ScoreboardPage() {
 
   return (
     <main id="main" className="mx-auto max-w-4xl p-6">
-      <h1 className="mb-1 text-2xl font-bold">{t("scoreboard.title")}</h1>
-      <div className="mb-6 max-w-2xl rounded-lg border border-gray-200 p-4 text-sm text-gray-600 dark:border-gray-800 dark:text-gray-300">
-        <p>{t("scoreboard.explainer")}</p>
-        <p className="mt-3 mb-1 text-xs font-semibold text-gray-500 dark:text-gray-400">
-          {t("scoreboard.how_to_read.summary")}
-        </p>
-        <ul className="list-disc space-y-1 pl-4 text-xs text-gray-500 dark:text-gray-400">
-          <li>{t("scoreboard.how_to_read.coverage")}</li>
-          <li>{t("scoreboard.how_to_read.at_publish")}</li>
-          <li>{t("scoreboard.how_to_read.lead")}</li>
-          <li>{t("scoreboard.how_to_read.thin")}</li>
-          <li>{t("scoreboard.how_to_read.divergence")}</li>
-        </ul>
-      </div>
+      <h1 className="mb-2 text-2xl font-bold">{t("scoreboard.title")}</h1>
+      {/* Results-before-methodology (2026-07-16): one sentence of what is compared, then
+          the one caveat that changes how every figure below should be read. The caveat is
+          NOT inside the disclosure — a reader who never expands it would otherwise take
+          directional coverage numbers as like-for-like. */}
+      <p className="mb-3 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
+        {t("scoreboard.opening")}
+      </p>
+      <p
+        data-testid="scoreboard-caveat"
+        className="mb-6 max-w-2xl border-s-2 border-amber-500 ps-3 text-sm text-gray-700 dark:text-gray-300"
+      >
+        {t("scoreboard.caveat")}
+      </p>
 
       <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
@@ -177,8 +178,29 @@ export default async function ScoreboardPage() {
         </table>
       </div>
       {rows.length === 0 && (
-        <p className="py-8 text-center text-gray-400">{t("scoreboard.empty")}</p>
+        <p className="py-8 text-center text-gray-500 dark:text-gray-400">{t("scoreboard.empty")}</p>
       )}
+
+      {/* Native <details>: the methodology collapses without JavaScript, so the results
+          above are readable and the definitions reachable even with scripting off. Every
+          metric definition, target, the thin-sourced naming, the at-publish proxy warning
+          and the RU/UA shared-ROCA note are preserved verbatim — only relocated. */}
+      <details
+        data-testid="scoreboard-methodology"
+        className="mt-8 max-w-2xl rounded-lg border border-gray-200 p-4 dark:border-gray-800"
+      >
+        <summary className="cursor-pointer text-sm font-semibold">
+          {t("scoreboard.how_to_read.summary")}
+        </summary>
+        <p className="mt-3 text-sm text-gray-700 dark:text-gray-300">{t("scoreboard.explainer")}</p>
+        <ul className="mt-3 list-disc space-y-1.5 ps-4 text-sm text-gray-700 dark:text-gray-300">
+          <li>{t("scoreboard.how_to_read.coverage")}</li>
+          <li>{t("scoreboard.how_to_read.at_publish")}</li>
+          <li>{t("scoreboard.how_to_read.lead")}</li>
+          <li>{t("scoreboard.how_to_read.thin")}</li>
+          <li>{t("scoreboard.how_to_read.divergence")}</li>
+        </ul>
+      </details>
     </main>
   );
 }

@@ -84,7 +84,7 @@ describe("digest claim anchors (W3)", () => {
 });
 
 describe("digest evidence and print handoff", () => {
-  it("selects and renders provider publication separately from BNOW first-seen time", async () => {
+  it("keeps selecting fetched_at internally while rendering only the publication time", async () => {
     queryMock
       .mockResolvedValueOnce([DIGEST_ROW])
       .mockResolvedValueOnce([CLAIM_ROW])
@@ -99,10 +99,13 @@ describe("digest evidence and print handoff", () => {
 
     const evidenceSql = String(queryMock.mock.calls[1]?.[0]);
     expect(evidenceSql).toContain("rd.published_at::text AS published_at");
+    // fetched_at stays selected: it is the ranking recency fallback and the evidence
+    // sort tie-break. It is retained, not rendered (2026-07-16).
     expect(evidenceSql).toContain("rd.fetched_at::text AS fetched_at");
     expect(evidenceSql).not.toContain("COALESCE(rd.published_at, rd.fetched_at)::text AS doc_at");
-    expect(container.textContent).toContain("Jul 11, 8:00 AM ET");
-    expect(container.textContent).toContain("Jul 11, 9:30 AM ET");
+    expect(container.textContent).toContain("Jul 11, 8:00 AM ET"); // published_at
+    expect(container.textContent).not.toContain("Jul 11, 9:30 AM ET"); // fetched_at
+    expect(container.textContent).not.toMatch(/First seen/i);
   });
 
   it("server-renders every attached document in the complete evidence appendix", async () => {
@@ -177,7 +180,7 @@ describe("digest evidence and print handoff", () => {
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
   });
 
-  it("marks screen-only navigation, profiles, provider and feedback for print exclusion", async () => {
+  it("marks screen-only navigation, profiles and feedback for print exclusion", async () => {
     const originalFeedback = process.env.FEEDBACK_EMAIL;
     process.env.FEEDBACK_EMAIL = "ops@example.com";
     queryMock
@@ -200,16 +203,123 @@ describe("digest evidence and print handoff", () => {
     expect(container.querySelector('[data-print="claim-url"]')?.textContent).toBe(
       "https://bnow.net/digests/ru/2026-07-11#c123",
     );
-    expect(container.querySelector('[data-print="claim"] [data-print="hide"]')?.textContent).toContain("conf");
     expect(container.querySelector('[data-copy-surface="digest"][data-print="hide"]')).toBeTruthy();
     expect(container.querySelector('[data-print="evidence-summary"]')).toBeTruthy();
     expect(container.querySelector('[data-print="evidence-summary"] [data-print="hide"]')).toBeTruthy();
-    const provider = [...container.querySelectorAll('[data-print="hide"]')].find((node) =>
-      node.textContent?.includes("openai:gpt-4o-mini+mapreduce"),
-    );
-    expect(provider).toBeTruthy();
     if (originalFeedback === undefined) delete process.env.FEEDBACK_EMAIL;
     else process.env.FEEDBACK_EMAIL = originalFeedback;
+  });
+});
+
+describe("analyst-visible pipeline metadata", () => {
+  it("renders no provider/model token and no raw confidence decimal, and stops selecting provider", async () => {
+    queryMock
+      .mockResolvedValueOnce([DIGEST_ROW])
+      .mockResolvedValueOnce([CLAIM_ROW])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+
+    const element = await DigestPage({
+      params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
+      searchParams: Promise.resolve({}),
+    });
+    const { container } = render(element);
+
+    // DIGEST_ROW still carries a provider — the page must ignore it rather than depend
+    // on the column being absent, and must not ask the database for it either.
+    expect(container.textContent).not.toContain("openai:gpt-4o-mini+mapreduce");
+    expect(container.textContent).not.toContain("gpt-4o-mini");
+    expect(String(queryMock.mock.calls[0]?.[0])).not.toContain("d.provider");
+    // CLAIM_ROW confidence is 0.8; neither the label nor the decimal may render.
+    expect(container.textContent).not.toContain("conf");
+    expect(container.textContent).not.toContain("0.80");
+  });
+});
+
+describe("summarizeDigestFreshness", () => {
+  const { summarizeDigestFreshness } = pageModule;
+
+  it("reports one stage for the page when every track agrees, with the newest write time", () => {
+    expect(
+      summarizeDigestFreshness(
+        [{ created_at: "2026-07-12T02:05:00Z" }, { created_at: "2026-07-12T02:30:00Z" }],
+        "2026-07-11",
+      ),
+    ).toEqual({ uniformStage: "final", lastUpdatedAt: "2026-07-12T02:30:00Z" });
+  });
+
+  it("refuses a page-level stage when one track is final and another is still intraday", () => {
+    // The whole page must never read Final because its first track finalized.
+    expect(
+      summarizeDigestFreshness(
+        [{ created_at: "2026-07-12T02:05:00Z" }, { created_at: "2026-07-11T19:30:00Z" }],
+        "2026-07-11",
+      ),
+    ).toEqual({ uniformStage: null, lastUpdatedAt: "2026-07-12T02:05:00Z" });
+  });
+
+  it("survives an unparseable timestamp without inventing a time", () => {
+    expect(summarizeDigestFreshness([{ created_at: "not-a-date" }], "2026-07-11")).toEqual({
+      uniformStage: "intraday",
+      lastUpdatedAt: null,
+    });
+  });
+
+  it("claims nothing for an empty page", () => {
+    expect(summarizeDigestFreshness([], "2026-07-11")).toEqual({
+      uniformStage: null,
+      lastUpdatedAt: null,
+    });
+  });
+});
+
+describe("digest freshness rendering", () => {
+  it("states stage, clock time and zone once at page level when tracks agree", async () => {
+    queryMock
+      .mockResolvedValueOnce([DIGEST_ROW])
+      .mockResolvedValueOnce([CLAIM_ROW])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+
+    const element = await DigestPage({
+      params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
+      searchParams: Promise.resolve({}),
+    });
+    const { container } = render(element);
+
+    const line = container.querySelector('[data-testid="digest-freshness"]');
+    expect(line?.textContent).toBe("final · Updated Jul 11, 10:05 PM ET");
+    expect(container.querySelector('[data-testid="track-freshness"]')).toBeNull();
+    expect(line?.closest('[data-print="hide"]')).toBeTruthy();
+  });
+
+  it("falls back to per-track metadata when the tracks are at different stages", async () => {
+    const elite = {
+      ...DIGEST_ROW,
+      id: 2,
+      track: "elite_politics",
+      created_at: "2026-07-11T19:30:00Z",
+    };
+    queryMock
+      .mockResolvedValueOnce([DIGEST_ROW, elite])
+      .mockResolvedValueOnce([CLAIM_ROW])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+
+    const element = await DigestPage({
+      params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
+      searchParams: Promise.resolve({}),
+    });
+    const { container } = render(element);
+
+    expect(container.querySelector('[data-testid="digest-freshness"]')).toBeNull();
+    const perTrack = [...container.querySelectorAll('[data-testid="track-freshness"]')].map(
+      (node) => node.textContent,
+    );
+    expect(perTrack).toEqual([
+      "final · Updated Jul 11, 10:05 PM ET",
+      "intraday · Updated Jul 11, 3:30 PM ET",
+    ]);
   });
 });
 

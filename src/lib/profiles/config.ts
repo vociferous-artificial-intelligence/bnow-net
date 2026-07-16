@@ -1,6 +1,12 @@
 // Buyer profiles: re-weight the SAME claim/event set to a buyer's decision.
 // One feed → several products. Read-time transform only — no ingestion or schema
 // change. See docs/COMPETITIVE-AND-DEMAND.md §2.
+//
+// I18N DEBT (2026-07-16, analyst-experience pass): `label` and `description` are
+// hardcoded English and render untranslated on every locale's digest page. The rest
+// of the chrome is catalog-backed via makeT. Moving these to `digest.profile.*` keys
+// is deliberately deferred — see docs/OPEN-TASKS.md. Renaming a label here is safe;
+// `key` is the ?profile= query value and must not change.
 
 export interface BuyerProfile {
   key: string;
@@ -16,7 +22,7 @@ export interface BuyerProfile {
 export const PROFILES: BuyerProfile[] = [
   {
     key: "balanced",
-    label: "Balanced",
+    label: "Standard",
     description: "Default view — no buyer-specific weighting.",
     trackWeights: {},
     eventTypeWeights: {},
@@ -25,7 +31,7 @@ export const PROFILES: BuyerProfile[] = [
   },
   {
     key: "frontline",
-    label: "Frontline / threatened state",
+    label: "Military & security",
     description:
       "Warning & mobilization: troop movements, strikes, logistics, regional recruitment. Latency and coverage first.",
     trackWeights: { military: 1.8, elite_politics: 0.6 },
@@ -35,7 +41,7 @@ export const PROFILES: BuyerProfile[] = [
   },
   {
     key: "sanctioning",
-    label: "Sanctioning state",
+    label: "Sanctions",
     description:
       "Evasion, economic attrition & elite cohesion: mirror-trade, factional fracture, data suppression. Is pressure working, who's cracking.",
     trackWeights: { elite_politics: 1.8, military: 0.8 },
@@ -47,7 +53,7 @@ export const PROFILES: BuyerProfile[] = [
   },
   {
     key: "commodity",
-    label: "Commodity trading desk",
+    label: "Commodities",
     description:
       "Supply shock: refinery/port/pipeline outages, export quotas, procurement, choke-points. What's the supply delta, when.",
     trackWeights: { military: 1.4, elite_politics: 0.9 },
@@ -57,7 +63,7 @@ export const PROFILES: BuyerProfile[] = [
   },
   {
     key: "compliance",
-    label: "Bank / MNC compliance",
+    label: "Compliance",
     description:
       "Counterparty risk: prosecutions-before-designation, sanctions status, ownership. Is this name about to become toxic.",
     trackWeights: { elite_politics: 1.9, military: 0.5 },

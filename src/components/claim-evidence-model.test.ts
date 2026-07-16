@@ -70,18 +70,19 @@ describe("claim evidence identity and summaries", () => {
     expect(evidencePlatform(doc(1, { adapter: "x_api", platform: "independent_media" }))).toBe("x");
   });
 
-  it("counts every edge and keeps provider publication separate from first seen", () => {
+  it("counts every edge and summarizes publication without any first-seen field", () => {
     const summary = summarizeClaimEvidence([
       doc(1, { sourceId: 1, publishedAt: null, firstSeenAt: "2026-07-01T09:00:00Z" }),
       doc(2, { sourceId: 1, publishedAt: "2026-07-01T08:00:00Z", firstSeenAt: "2026-07-01T10:00:00Z" }),
       doc(3, { sourceId: 3, adapter: "x_api", publishedAt: "bad", firstSeenAt: "bad" }),
     ]);
+    // toEqual is exact: an earliestFirstSeenAt key reappearing here fails the test.
+    // Doc 1 has no publication date and its 09:00 fetch time must not stand in for one.
     expect(summary).toEqual({
       documents: 3,
       channels: 2,
       platforms: 2,
       earliestPublishedAt: "2026-07-01T08:00:00Z",
-      earliestFirstSeenAt: "2026-07-01T09:00:00Z",
     });
   });
 });
@@ -93,10 +94,11 @@ describe("evidence sorting", () => {
     doc(3, { sourceName: "Bravo", publishedAt: "2026-07-01T12:00:00Z", firstSeenAt: "2026-07-03T13:00:00Z", reliability: 0.4 }),
   ];
 
+  // No first_seen mode since 2026-07-16 — First-seen is not analyst-visible, so it is
+  // not sortable either. firstSeenAt still orders ties (see the tie-break test below).
   const expected: Record<EvidenceSortMode, number[]> = {
     oldest_published: [3, 2, 1],
     newest_published: [2, 3, 1],
-    first_seen: [1, 2, 3],
     reliability: [2, 3, 1],
     source: [2, 3, 1],
   };

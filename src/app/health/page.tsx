@@ -3,19 +3,27 @@ import { db } from "@/db";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Public, unauthenticated page — these counts are readable by anyone. It exists to answer
+ * "is the database reachable and is the pipeline populated", which the rows below do.
+ *
+ * Deliberately NOT listed (2026-07-16): `users` and `subscribe_intents` published our
+ * private-beta size and inbound demand to competitors; `validation_runs` and
+ * `isw_reports` published how much scoring/corpus work exists, which is business detail
+ * a liveness check does not need. Add a row here only if a stranger may know it.
+ *
+ * `sources` is the deduplicated registry count and `raw_documents` the much larger
+ * ingested-item count — the gap between them is expected, not a fault.
+ */
 const TABLES = [
   "countries",
   "sources",
-  "isw_reports",
   "source_citations",
   "raw_documents",
   "events",
   "claims",
   "claim_sources",
   "digests",
-  "validation_runs",
-  "users",
-  "subscribe_intents",
 ] as const;
 
 async function getCounts() {
