@@ -66,6 +66,34 @@ describe("GET /ask?q=... never executes the paid pipeline", () => {
     expect(input.value).toBe("");
   });
 
+  it("a GET carrying ?intent= is still free — nothing in the URL can execute the pipeline", async () => {
+    // The one-shot handoff (src/lib/ask/intent.ts) added ?intent= to this page's
+    // contract. It must not become a billable GET: with no matching same-tab
+    // sessionStorage entry — a shared link, a prefetch, a forged id — the render and
+    // the mounted form both stay inert.
+    window.sessionStorage.clear();
+    const element = await AskPage({
+      searchParams: Promise.resolve({
+        q: "did russia strike kyiv today",
+        intent: "3f1a2b4c-5d6e-4f70-8901-abcdef123456",
+      }),
+    });
+    render(element);
+
+    expect(askWithLimitsMock).not.toHaveBeenCalled();
+    const input = screen.getByPlaceholderText(PLACEHOLDER) as HTMLInputElement;
+    expect(input.value).toBe("did russia strike kyiv today");
+  });
+
+  it("a malformed ?intent= is dropped rather than trusted, and still executes nothing", async () => {
+    const element = await AskPage({
+      searchParams: Promise.resolve({ q: "some question", intent: "../../not-a-uuid" }),
+    });
+    render(element);
+
+    expect(askWithLimitsMock).not.toHaveBeenCalled();
+  });
+
   it("still calls requireAcceptedUser (the page stays gated on auth + acceptance) but never askWithLimits", async () => {
     const { requireAcceptedUser } = await import("@/lib/gate");
     const element = await AskPage({

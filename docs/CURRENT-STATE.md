@@ -129,7 +129,18 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   AND Preview; rollback = `ASK_PIPELINE=legacy` plain env + redeploy. **Polished
   2026-07-12 (ask-polish sprint):** paid pipeline runs ONLY from the form's server
   action — GET /ask?q= prefills, never executes (closes OPEN-TASKS #48
-  double-billing); prominent working panel (spinner, disabled controls, aria-busy/status,
+  double-billing); **one-click home handoff (2026-07-16):** the signed-in home Ask box
+  no longer costs a second click — it stores the submitted question under a single-use,
+  per-tab `sessionStorage` key and passes its random UUID as `/ask?q=…&intent=…`, which
+  AskForm consumes ONCE on mount and then presses its own submit button
+  (`src/lib/ask/intent.ts`, `src/components/home-ask-box.tsx`). #48 is untouched and still
+  binding: rendering ANY GET /ask — intent present, replayed, shared, prefetched, or
+  forged — stays free; the entry is consumed BEFORE the submit is dispatched, must match
+  `?q=` exactly, and never leaves its tab. The box is still a real
+  `<form action="/ask" method="get">`, so a no-JS/degraded-storage submit falls back to
+  plain prefill. Browser-verified on a disposable Neon branch: one click ⇒ exactly one
+  `ask_usage` row; refresh, back-nav and reopening the URL in a new tab ⇒ zero additional
+  rows; prominent working panel (spinner, disabled controls, aria-busy/status,
   honest client-elapsed retrieve→rank→answer stages, submitted-question echo); provider/model
   diagnostics are no longer shown to analysts; end-user persona
   SYSTEM_V2 (legacy SYSTEM byte-preserved); "data current through" context +
@@ -167,7 +178,9 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   deploy `bnow-jihmibgm6`):** signed-in home gained a quick-links rail (latest+prev
   digest dates ×ru/ua/ir + scoreboard/signals/search (registry link removed 2026-07-12 R5)), date-led digest
   links + claims-today + per-theater scoreboard deep links on the theater cards,
-  and a recent-asks list (`/ask?q=` prefills, never executes); signed-out home
+  and a recent-asks list (`/ask?q=` prefills, never executes — the 2026-07-16 one-click
+  handoff deliberately did NOT touch these links: only the Ask box submits an intent);
+  signed-out home
   gained one additive Iran/Gulf card (quality-gated: ir validation 07-11 = 100%
   coverage; links `/countries#ir` per ruling 15); digest archive index
   `/digests/[country]` + prev/next date nav + scoreboard→digest cross-link;

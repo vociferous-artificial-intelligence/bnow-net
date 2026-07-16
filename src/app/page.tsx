@@ -9,6 +9,7 @@ import { currentUserEmail } from "@/lib/session";
 import { LIVE_THEATERS, latestDigestHref } from "@/lib/nav/site-nav";
 import { TheaterStatusPanel, type TheaterStatusEntry } from "@/components/theater-status-panel";
 import { QuickLinksRail, type QuickLinksTheaterEntry } from "@/components/quick-links-rail";
+import { HomeAskBox } from "@/components/home-ask-box";
 import {
   HomeValidationTiles,
   type TheaterValidationEntry,
@@ -392,26 +393,19 @@ export default async function Home() {
             nextFinalizeIso={nextFinalizeIso}
             xPaused={xPaused}
           />
-          {/* Zero-JS entry point to /ask: a plain GET form. Landing on /ask only
-              prefills the input from ?q= (src/app/ask/page.tsx) — the paid pipeline
-              fires solely from that page's own form submission, so this box can never
-              trigger a billed call by itself (refresh/back-nav/prefetch-safe). */}
-          <section className="pb-10">
-            <div className="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
-              <h3 className="mb-2 font-semibold">{t("ask.title")}</h3>
-              <form action="/ask" method="get" className="flex flex-wrap gap-3">
-                <input
-                  type="text"
-                  name="q"
-                  placeholder={t("ask.placeholder")}
-                  className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
-                />
-                <button type="submit" className={PRIMARY_CTA}>
-                  {t("ask.submit")}
-                </button>
-              </form>
-            </div>
-          </section>
+          {/* Entry point to /ask. Still a plain GET form underneath (zero-JS safe);
+              with JS it hands the question off one-shot so a single click lands on
+              /ask with the pipeline already running (src/lib/ask/intent.ts). Landing
+              on /ask only ever prefills the input from ?q= (src/app/ask/page.tsx) —
+              the paid pipeline fires solely from that page's own form submission, so
+              neither this box nor the URL it produces can trigger a billed call by
+              itself (refresh/back-nav/prefetch/share-safe). */}
+          <HomeAskBox
+            title={t("ask.title")}
+            placeholder={t("ask.placeholder")}
+            submitLabel={t("ask.submit")}
+            submitClassName={PRIMARY_CTA}
+          />
           {recentAsks.length > 0 && (
             <section className="pb-10">
               <p className="mb-2 text-sm font-semibold">{t("home.recent_asks.label")}</p>

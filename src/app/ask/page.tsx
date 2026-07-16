@@ -4,6 +4,7 @@ import { getLocale } from "@/i18n/server";
 import { dict, makeT } from "@/i18n/dictionaries";
 import { makeClaimEvidenceLabels } from "@/components/claim-evidence-labels";
 import { claimCopyLabels } from "@/components/claim-copy-model";
+import { isAskIntentId } from "@/lib/ask/intent";
 import { AskForm } from "./ask-form";
 
 export const dynamic = "force-dynamic";
@@ -14,17 +15,26 @@ export const dynamic = "force-dynamic";
 // paid pipeline (askWithLimits) runs ONLY from the askAction server action
 // (./actions.ts), fired on explicit form submission. This file must never import
 // askWithLimits.
+//
+// ?intent= does not weaken that rule. It is an opaque id naming a single-use,
+// same-tab sessionStorage entry written by the home Ask box; this render only
+// bounds it and hands it to AskForm, which may then press the form's own submit
+// button once. Rendering ANY GET here — intent present, replayed, shared, or
+// forged — stays free and side-effect-free (src/lib/ask/intent.ts).
 
 export default async function AskPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; intent?: string }>;
 }) {
   await requireAcceptedUser(); // page gate matches the layout + action + API (acceptance too)
   const locale = await getLocale();
   const t = makeT(locale);
-  const { q } = await searchParams;
+  const { q, intent } = await searchParams;
   const initialQuestion = q?.slice(0, 400) ?? "";
+  // Untrusted: anything that isn't a well-formed UUID becomes null and the form
+  // renders exactly as it does on a bare GET.
+  const askIntent = isAskIntentId(intent) ? intent : null;
 
   // English is the authoritative key superset (dictionaries.ts) — enumerate its
   // `ask.*` keys and resolve each through the active-locale t() so a client
@@ -49,6 +59,7 @@ export default async function AskPage({
 
       <AskForm
         initialQuestion={initialQuestion}
+        intent={askIntent}
         strings={askStrings}
         locale={locale}
         evidenceLabels={makeClaimEvidenceLabels(t)}

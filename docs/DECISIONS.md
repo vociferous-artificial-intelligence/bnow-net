@@ -1429,3 +1429,13 @@ said in AGENTS.md.
   390×844 with no console/page errors or page overflow, correct freshness, working print/evidence
   disclosures, and no provider, Confidence, or First-seen text. Zero paid analysis/provider calls;
   no GitHub Actions change. #73 is the next isolated presentation follow-up.
+
+- **2026-07-16 (#73 signed-out landing contrast deployed and closed)** Branch
+  `codex/73-signed-out-landing-contrast` was pushed and fast-forward merged; main `df79411`
+  deployed as `dpl_7useRyXz71PVkyFgYqZTXKJXf8mv` (READY, aliased bnow.net). Gate: 1,576/1,576
+  tests, typecheck, lint and Vercel build green. Live `/` proof in real Chrome passed 1280×900,
+  390×844 and 320×844 in light+dark: all eight corrected foregrounds measured 7.56:1 light /
+  7.61:1 dark, the deployment stamp and nine hrefs matched, signed-out/no-Ask gating held, mobile
+  menu hydrated, and there were zero console/page errors or horizontal overflow. The first harness
+  aggregate false was test ordering only (it sought mobile Sign in before opening the drawer); the
+  corrected full six-pass rerun was green. Zero paid calls; no GitHub Actions change. #73 closed.

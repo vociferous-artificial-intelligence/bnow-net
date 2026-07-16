@@ -10,10 +10,16 @@ class RedirectSignal extends Error {
     super(`redirect:${to}`);
   }
 }
+// useRouter is here for the signed-in Ask box (HomeAskBox), which enhances its GET
+// form into a one-shot handoff. The box's own behaviour is covered in
+// src/components/home-ask-box.test.tsx — this file only asserts the home's contract:
+// the GET fallback still exists, and the signed-out home still has no Ask surface.
+const pushMock = vi.fn();
 vi.mock("next/navigation", () => ({
   redirect: (to: string) => {
     throw new RedirectSignal(to);
   },
+  useRouter: () => ({ push: pushMock }),
 }));
 
 const acceptMock = vi.fn<() => Promise<boolean>>();
@@ -96,11 +102,29 @@ describe("signed-in home: Ask entry point (W5)", () => {
     const element = await Home();
     const { container } = render(element);
 
+    // The one-shot handoff is an enhancement layered ON this form, not a replacement:
+    // with JavaScript off, submitting still navigates to /ask?q=... and prefills.
     const form = container.querySelector('form[action="/ask"][method="get"]');
     expect(form).toBeTruthy();
     const input = form?.querySelector('input[name="q"]');
     expect(input).toBeTruthy();
     expect(form?.textContent).toContain("Ask");
+  });
+
+  it("renders the box with the active locale's translated title, placeholder and submit label", async () => {
+    emailMock.mockResolvedValue("user@example.com");
+    mockSignedInQueries();
+
+    const element = await Home();
+    const { container } = render(element);
+
+    // The box is a client component, so the server has to hand it resolved strings —
+    // a dropped prop would silently render raw keys or blanks.
+    expect(screen.getByRole("heading", { name: "Interrogate the intelligence" })).toBeTruthy();
+    expect(
+      container.querySelector('input[placeholder="e.g. which oligarchs are under prosecution?"]'),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ask" })).toBeTruthy();
   });
 });
 

@@ -60,7 +60,8 @@ Directory map (correct in place as it changes):
 
 ```
 src/app/            routes (public pages, /admin/*, /api/cron/*, /api/*)
-src/components/     shared React components (SiteHeader, hand-rolled ARIA dropdowns)
+src/components/     shared React components (SiteHeader, hand-rolled ARIA dropdowns,
+                    home-ask-box = the signed-in home's one-click /ask handoff)
 src/db/             drizzle schema + client; generated SQL lives in drizzle/
 src/i18n/           LOCALE_REGISTRY + catalogs (en uk de ar ja pl fr; ar is RTL)
 src/integration/    *.itest.ts — Neon-branch integration tests, excluded from unit suite
@@ -72,7 +73,8 @@ src/lib/analysis/   AnalysisProvider (openai/anthropic/stub), digest, tracks, so
 src/lib/isw/        crawler, endnote parser, hedging classifier, registry materializer
 src/lib/validation/ ISW scoreboard: keyword gazetteer + majority-vote LLM matcher
 src/lib/usage/      SpendGuard, llm-guard (caps + kill-switch), cron-run bookkeeping
-src/lib/…           ask, entities, enrich, datadark, trade (incl. partners.ts M49 names),
+src/lib/…           ask (incl. intent.ts: one-shot home→/ask handoff contract), entities,
+                    enrich, datadark, trade (incl. partners.ts M49 names),
                     materials, profiles, email, access (beta-request validation),
                     auth-delivery (magic-link + SIGNIN_MODE invite gate),
                     nav, ingest, time (ET/UTC day + format + digest-status helpers),
@@ -119,11 +121,13 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   consolidated print disclosure, digest freshness, analyst-safe labels/metadata, and the measured
   light/dark readability remediation described in the implementation review. The signed-out
   landing contrast follow-up (#73) is also live and production-proven across six viewport/theme passes.
+  The signed-in home Ask box is a one-click handoff (2026-07-16, on main, NOT yet deployed): a
+  single-use per-tab intent key, consumed once by AskForm on mount; #48 holds — every GET /ask is free.
 - **Legal/analytics/email:** Terms 1.1 (2026-07-16) + Privacy 1.2; current clickwrap required.
   Postmark `BNOW.NET <no-reply@bnow.net>` is live; magic-link guidance is single-use/24h and
   copy-before-opening. PostHog is production-only, explicit opt-in, allowlist-sanitized, UUID
   identity, no Ask/Search/source text; GeoIP is retained per disclosed operator ruling.
-- **Quality/ops:** 1,576 unit tests / 135 files on main + 32 real-Postgres integration tests /
+- **Quality/ops:** 1,612 unit tests / 137 files on main + 32 real-Postgres integration tests /
   7 files, all green.
   Enforced pre-push gate = typecheck+lint+test. Crons: fast */15; telegram :10; X :20;
   MTProto :35;
@@ -219,15 +223,27 @@ Entries through the 2026-07-16 analyst-experience quick-wins deployment are arch
 **verbatim** in `docs/DECISIONS.md`; distilled still-binding decisions live in Standing
 rulings above. New entries append at the BOTTOM (the archive runs oldest → newest).
 
-- **2026-07-16 (#73 signed-out landing contrast deployed and closed)** Branch
-  `codex/73-signed-out-landing-contrast` was pushed and fast-forward merged; main `df79411`
-  deployed as `dpl_7useRyXz71PVkyFgYqZTXKJXf8mv` (READY, aliased bnow.net). Gate: 1,576/1,576
-  tests, typecheck, lint and Vercel build green. Live `/` proof in real Chrome passed 1280×900,
-  390×844 and 320×844 in light+dark: all eight corrected foregrounds measured 7.56:1 light /
-  7.61:1 dark, the deployment stamp and nine hrefs matched, signed-out/no-Ask gating held, mobile
-  menu hydrated, and there were zero console/page errors or horizontal overflow. The first harness
-  aggregate false was test ordering only (it sought mobile Sign in before opening the drawer); the
-  corrected full six-pass rerun was green. Zero paid calls; no GitHub Actions change. #73 closed.
+- **2026-07-16 (one-click home Ask handoff; #48 re-affirmed, not weakened)** The signed-in home Ask box
+  cost two clicks: it GET-posted to `/ask?q=…`, which by #48's design only prefills. It now hands off
+  one-shot — question stored under a single-use per-tab `sessionStorage` key `bnow.ask.intent:<uuid>`,
+  UUID passed as `?intent=`, consumed ONCE by AskForm on mount, which then calls `requestSubmit()` on
+  the existing `useActionState` form. **Ruling: `?intent=` is not a money path and must never become
+  one.** Paid execution stays exclusively in `askAction`; ANY GET `/ask` — intent present, replayed,
+  shared, prefetched, forged — stays free. Three ordered defences: the entry is consumed BEFORE the
+  submit is dispatched, the stored question must equal `?q=` exactly, and sessionStorage never leaves
+  the tab (a ref additionally guards StrictMode). The box stays a real `<form action="/ask" method="get">`
+  — storage failure, a no-op storage, absent `crypto.randomUUID`, or a <3-char question all fall back to
+  plain prefill. Recent-question links stay prefill-only by choice. Verified in real Chrome on a
+  disposable Neon branch (forked → seeded → driven → deleted; both DATABASE_URL vars asserted
+  off-production before boot; `LLM_DISABLE=1`; zero paid calls, zero prod writes): one click ⇒ `/ask`
+  with the working panel already active and **exactly one `ask_usage` row**; refresh, back-nav and
+  reopening the URL in a fresh tab ⇒ **zero** extra rows, prefill only; no-JS submit still prefills; no
+  console errors. Gate: 1,612/1,612 tests / 137 files, typecheck, lint. Two review findings acted on:
+  (a) a traced claim that Next's patched `replaceState`/`HistoryUpdater` re-adds `?intent=` after the
+  action did NOT reproduce when measured (Next 16.2.10, settled action) — the strip is cosmetic either
+  way, and the comment now records the measurement, not either over-claim; (b) a click whose `/ask`
+  never mounts (acceptance gate redirect) orphaned an entry holding the user's question text, so
+  `clearAskIntents` prunes the namespace before each handoff. Not yet deployed.
 
 ## Conventions
 

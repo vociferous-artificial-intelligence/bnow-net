@@ -1906,3 +1906,41 @@ write was needed. It has no completed first-login verification, active session, 
 acceptance yet. The invite-mode gate therefore admits the exact address and the normal `/signin`
 flow will email its single-use 24-hour magic link, then route first login through current-policy
 acceptance. No email was sent during this operator check.
+
+## 2026-07-16 18:20 EDT — one-click home Ask handoff
+
+1. Add a shared, framework-free intent module (`src/lib/ask/intent.ts`): UUID bounding,
+   namespaced storage key, `askAction`-identical question normalization, orphan pruning.
+2. Replace the signed-in home's plain GET Ask form with `HomeAskBox`, a client component
+   that keeps the GET form as its no-JS fallback and, on a valid submit, stores the
+   question under a single-use `sessionStorage` key and routes to `/ask?q=…&intent=…`.
+3. Teach `/ask` to bound an optional `?intent=` and `AskForm` to consume it once on
+   mount, submitting via `requestSubmit()` so `useActionState`, auth, limits, spend
+   guards, result rendering and analytics stay authoritative.
+4. Prove the money invariant end-to-end rather than by assertion alone.
+
+Shipped all four. #48 is intact by construction: the intent is consumed BEFORE the submit
+is dispatched, must exactly match `?q=`, and lives in per-tab storage — so refresh,
+back/forward, the App Router client cache, StrictMode, prefetch, a shared link and a forged
+`?intent=` all find nothing and leave the form idle. Gate green: 1,612 tests / 137 files
+(+36 over the 1,576 baseline), typecheck, lint.
+
+Verified in real Chrome against a **disposable Neon branch** (`br-hidden-bird-at1496en`,
+forked → seeded → driven → deleted; both `DATABASE_URL` and `DATABASE_URL_UNPOOLED`
+overridden and asserted off-production before boot, `LLM_DISABLE=1`, zero paid calls, zero
+production writes). Measured: signed-in home rendered from the branch (the seeded session
+exists nowhere else); one click landed on `/ask` with the working panel already active and
+no second click; **exactly one `ask_usage` row**; refresh, back-navigation and reopening the
+resulting URL in a fresh tab each added **zero** rows and only prefilled; no console/page
+errors; with JavaScript disabled the box still reached `/ask?q=…` and prefilled.
+
+Two review findings acted on. (1) An adversarial review traced Next's `app-router.js` and
+concluded the `?intent=` URL strip could not stick once the action ran (patched
+`replaceState` short-circuits on `__NA`; `HistoryUpdater` re-asserts `canonicalUrl`). The
+static trace is real but does NOT reproduce: measured on Next 16.2.10 through a settled
+action (`ask_usage` delta of 1 proving execution), the parameter was stripped on arrival and
+stayed stripped. The code comment now records the measurement and the caveat instead of
+either over-claim, and the jsdom test says plainly what it cannot prove. (2) A click whose
+`/ask` never mounts (acceptance gate redirecting on a Terms bump) orphaned an entry holding
+the user's question text for the tab's lifetime; `clearAskIntents` now prunes the namespace
+before each handoff, so at most one intent is ever in flight.

@@ -13,6 +13,7 @@ import { Loader2 } from "lucide-react";
 import type { Locale } from "@/i18n/dictionaries";
 import type { ClaimEvidenceLabels } from "@/components/claim-evidence-model";
 import type { ClaimCopyLabels } from "@/components/claim-copy-model";
+import { askIntentStorageKey } from "@/lib/ask/intent";
 import { askAction, type AskActionState } from "./actions";
 import { AskResult, type Translate } from "./ask-result";
 import { AskCompletedMarker } from "@/components/analytics/product-event-markers";
@@ -27,6 +28,11 @@ const EXAMPLES = [
 
 export interface AskFormProps {
   initialQuestion?: string;
+  /** One-shot handoff id from the home Ask box (bounded in page.tsx). When it names
+   *  a stored question matching `initialQuestion`, this form submits itself once on
+   *  mount so a single click on the home box runs the pipeline here. Absent,
+   *  unknown, or mismatched — the form just sits prefilled and idle. */
+  intent?: string | null;
   /** Resolved `ask.*` translations for the active locale — a client component
    *  can't receive a function prop from the server component that renders it. */
   strings: Record<string, string>;
@@ -176,8 +182,50 @@ function WorkingPanelBody({ t, question }: { t: Translate; question: string }) {
   );
 }
 
+/**
+ * Tidies ?intent= out of the address bar, keeping /ask?q=... intact.
+ *
+ * COSMETIC ONLY, and deliberately so: what makes a replayed or shared
+ * /ask?q=...&intent=... harmless is that the entry it names was consumed before the
+ * submit and lives in per-tab sessionStorage — such a URL finds nothing and stays
+ * idle whether or not it was ever cleaned. That is the invariant. This is not.
+ * Treat a failure here as untidy, never as unsafe.
+ *
+ * Two Next internals meet here, so the behaviour was measured rather than assumed
+ * (Next 16.2.10, real Chrome, one-click handoff through a settled action): the
+ * parameter is stripped on arrival and STAYS stripped after the answer lands.
+ * Passing window.history.state through is what keeps the App Router's own routing
+ * tree alive across the replace (clobbering it with null breaks back/forward); Next
+ * short-circuits its replaceState patch on that state's `__NA` flag, which leaves
+ * the router's canonicalUrl untouched but did not, in practice, cause HistoryUpdater
+ * to re-assert the intent-bearing URL afterwards.
+ *
+ * If a Next upgrade ever makes ?intent= reappear once the answer renders, that is
+ * this cosmetic layer regressing — not a money bug. Do NOT "fix" it by passing a
+ * plain object (Next then dispatches ACTION_RESTORE for a URL whose renderedSearch
+ * differs from the rendered one, which can refetch the segment and remount this form
+ * mid-action) or by reaching for router.replace() (which remounts the form and
+ * discards the in-flight result). Losing an answer to tidy a query string is a bad
+ * trade.
+ */
+function stripIntentFromUrl(): void {
+  try {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("intent")) return;
+    url.searchParams.delete("intent");
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+  } catch {
+    // no History API / opaque origin — the stale ?intent= in the bar is inert anyway
+  }
+}
+
 export function AskForm({
   initialQuestion = "",
+  intent = null,
   strings,
   locale,
   evidenceLabels,
@@ -187,6 +235,42 @@ export function AskForm({
   const [state, formAction] = useActionState<AskActionState | null, FormData>(askAction, null);
   const formRef = useRef<HTMLFormElement>(null);
   const [busy, setBusy] = useState(false);
+
+  // One-shot handoff from the home Ask box. This is the ONLY automatic submission in
+  // the app, and it is deliberately hard to replay: the intent is consumed (removed)
+  // before the submit is dispatched, the stored question must equal the ?q= we
+  // rendered, and sessionStorage is per-tab. So a refresh, a Back, a shared link, a
+  // prefetch, or a forged ?intent= all find nothing and leave the form idle.
+  //
+  // The submit itself goes through requestSubmit() rather than calling the action
+  // directly, so useActionState, the pending UI, auth, rate limits, spend guards,
+  // result rendering, and analytics all stay exactly as authoritative as they are
+  // for a hand-typed question.
+  const oneShotRef = useRef(false);
+  useEffect(() => {
+    if (!intent) return;
+    // StrictMode invokes effects twice on the same instance; the ref outlives that
+    // and makes a second run a no-op. Set before any await-free work below so no
+    // re-entry can slip between the check and the consume.
+    if (oneShotRef.current) return;
+    oneShotRef.current = true;
+
+    let stored: string | null = null;
+    try {
+      const key = askIntentStorageKey(intent);
+      stored = window.sessionStorage.getItem(key);
+      if (stored !== null) window.sessionStorage.removeItem(key);
+    } catch {
+      stored = null; // storage unavailable: fall through to the idle prefilled form
+    }
+
+    stripIntentFromUrl();
+
+    // Exact match only. A stale entry, a tampered ?q=, or a question that drifted
+    // between the two pages must not silently ask something the user didn't submit.
+    if (stored === null || stored !== initialQuestion) return;
+    formRef.current?.requestSubmit();
+  }, [intent, initialQuestion]);
 
   return (
     <div>
