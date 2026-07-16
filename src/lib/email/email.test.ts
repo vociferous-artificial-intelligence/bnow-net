@@ -51,11 +51,22 @@ describe("buildMagicLinkEmail", () => {
     expect(mail.trackOpens).toBe(false);
   });
 
-  it("carries the callback URL verbatim and states the one-use, 24h terms", () => {
+  it("carries the callback URL verbatim and states the single-use, 24h terms", () => {
     const mail = buildMagicLinkEmail({ to: "a@b.co", url: MAGIC_URL });
     expect(mail.text).toContain(MAGIC_URL);
-    expect(mail.text).toMatch(/works once/i);
+    expect(mail.text).toMatch(/single-use/i);
     expect(mail.text).toMatch(/24 hours/i);
+  });
+
+  it("gives the copy-before-opening preferred-browser instruction (single-use ordering)", () => {
+    const mail = buildMagicLinkEmail({ to: "a@b.co", url: MAGIC_URL });
+    // copy the link BEFORE it has been opened, then paste into the preferred browser
+    expect(mail.text).toMatch(/copy the link .*before opening it/i);
+    expect(mail.text).toMatch(/paste it into your preferred browser/i);
+    // the ordering rule is stated: opening in any browser consumes it
+    expect(mail.text).toMatch(/cannot be reused/i);
+    // the URL is still on its own line, unwrapped — the callback stays clickable/pasteable
+    expect(mail.text.split("\n")).toContain(MAGIC_URL);
   });
 });
 

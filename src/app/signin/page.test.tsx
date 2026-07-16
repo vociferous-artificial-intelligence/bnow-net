@@ -127,6 +127,22 @@ describe("pre-auth disclosure on /signin", () => {
     expect(hrefs).toContain("/privacy");
   });
 
+  it("the sent confirmation states the single-use + copy-before-opening preferred-browser rule", async () => {
+    authMock.mockResolvedValue(null);
+    const element = await SignInPage({ searchParams: Promise.resolve({ sent: "1" }) });
+    const hrefs: string[] = [];
+    const texts: string[] = [];
+    collect(element, hrefs, texts);
+    const text = texts.join(" ");
+
+    expect(text).toContain("Magic link sent");
+    expect(text).toMatch(/single-use/i);
+    expect(text).toMatch(/24 hours/i);
+    // same rule as the email: copy the link before opening, paste into the preferred browser
+    expect(text).toMatch(/copy the link before opening it/i);
+    expect(text).toMatch(/preferred browser/i);
+  });
+
   it("requesting a magic link does NOT record legal acceptance (only sign-in is called)", async () => {
     authMock.mockResolvedValue(null);
     signInMock.mockResolvedValue(undefined);
