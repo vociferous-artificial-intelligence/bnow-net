@@ -8,7 +8,7 @@
 // (the acceptance form renders "version 1.0" from these) as well as server code.
 
 /** Bump when the Terms document changes materially. Returning users then re-accept.
- *  1.1 (2026-07-15): §9 adds the named-person source-attribution / non-endorsement
+ *  1.1 (2026-07-16): §9 adds the named-person source-attribution / non-endorsement
  *  rule for the accepted private-beta Signals view (names shown to accepted invitees
  *  are cited source claims, not BNOW's assertions). */
 export const CURRENT_TERMS_VERSION = "1.1";
@@ -19,13 +19,14 @@ export const CURRENT_PRIVACY_VERSION = "1.2";
 export const ACCEPTANCE_METHOD = "first_login_clickwrap";
 
 /**
- * Per-document effective dates. Terms remains v1.0 while Privacy advances independently;
+ * Per-document effective dates. Terms (v1.1) and Privacy (v1.2) advance independently;
  * changing one must never make the other document appear newly effective.
  */
-// Terms 1.1 effective date = the production rollout date of the named-person
-// attribution rule (attributed-signals sprint). Keep in sync with the deploy.
-export const TERMS_EFFECTIVE_DATE = "2026-07-15";
-export const TERMS_EFFECTIVE_DATE_DISPLAY = "July 15, 2026";
+// Terms 1.1 effective date = the actual production rollout date of the named-person
+// attribution rule (attributed-signals sprint), 2026-07-16 (the rollout did not
+// occur on 07-15). Keep in sync with the deploy.
+export const TERMS_EFFECTIVE_DATE = "2026-07-16";
+export const TERMS_EFFECTIVE_DATE_DISPLAY = "July 16, 2026";
 // Privacy 1.2 (analyst-beta remediation): corrects the now-false "activation
 // pending" copy to the live PostHog posture (US project, GeoIP-derived coarse
 // location disclosed, 7-year event retention). Re-acknowledgement is driven by

@@ -42,7 +42,8 @@ Three coordinated workstreams. Gate: `npm run typecheck` + `npm run lint` clean,
   i18n keys `signals.named_label` + `signals.attribution_disclaimer` (en + provisional uk, appended
   to the native-review inventory).
 - **Terms (material change):** §9 gained the durable named-person rule; `CURRENT_TERMS_VERSION`
-  1.0 → **1.1** (effective **2026-07-15**), forcing re-acceptance via the existing constant-driven
+  1.0 → **1.1** (effective **2026-07-16** — the actual production rollout date, corrected from the
+  initial 07-15 placeholder), forcing re-acceptance via the existing constant-driven
   gate; **Privacy unchanged at 1.2**. `policies.test.ts` pins the bump semantics
   (`isCurrentVersions("1.0","1.2")===false`). `policy_acceptances` untouched (no migration).
 - `#58` closes only after names + disclaimer + Terms bump are live.

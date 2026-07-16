@@ -1617,7 +1617,8 @@ calls; zero magic-link email; no production data or deploy.** Gate green: typech
   `toPublicSignal`, absent from `headline`, so anonymous/unaccepted HTML shows no names (page test
   proves the data-layer boundary + no evidence query). Accepted `/signals` renders the names + a
   prominent attribution/non-endorsement notice. Terms §9 gained the durable named-person rule;
-  `CURRENT_TERMS_VERSION` 1.0→1.1 (effective 2026-07-15) forces re-acceptance, Privacy stays 1.2.
+  `CURRENT_TERMS_VERSION` 1.0→1.1 (effective 2026-07-16, the actual rollout date — corrected from
+  the initial 07-15 placeholder) forces re-acceptance, Privacy stays 1.2.
 - **C (self-healing X, #38+#66):** `x-auto-catchup.ts` drains a fixed parked window
   `[oldWatermark, caughtUpTo)` via `runGapBackfill` (roster snapshotted into the checkpoint against
   registry drift; insert-before-checkpoint), bounded by `X_AUTO_CATCHUP_REQUEST_LIMIT`

@@ -380,7 +380,7 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     names (proven by the page test's data-layer assertions + no evidence query). The accepted
     `/signals` view renders the names + a prominent attribution/non-endorsement notice; Terms §9
     gained the durable named-person rule and `CURRENT_TERMS_VERSION` bumped 1.0→1.1 (effective
-    2026-07-15) forcing re-acceptance, Privacy unchanged at 1.2. All person/pressure/canonical
+    2026-07-16, the actual rollout date) forcing re-acceptance, Privacy unchanged at 1.2. All person/pressure/canonical
     safeguards + ruling 19 intact. **Close only after the names/disclaimer/Terms bump are live.**
 59. **[i18n] Native review of the IA-refinement strings.** New/changed machine-translated keys
     need a native pass before market launch: nav labels `nav.group.signals`/`nav.group.ask`

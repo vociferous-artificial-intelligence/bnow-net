@@ -1386,6 +1386,18 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   (`SIGNIN_MODE=invite`, `FEEDBACK_EMAIL`, X key/caps; optional recovery knobs), deploy the tested
   main commit, then run the production proofs in the note's Rollout section.
 
+- **2026-07-16 (Terms 1.1 effective-date correction — release approved to proceed)** Correcting the
+  entry above (append-only: that entry is left intact): the attributed-signals rollout did NOT occur
+  on 2026-07-15, so `TERMS_EFFECTIVE_DATE` / `TERMS_EFFECTIVE_DATE_DISPLAY` are set to **2026-07-16**
+  (the actual production rollout date) in `src/lib/legal/policies.ts`; `policies.test.ts` +
+  `terms/page.test.tsx` assert the new date, and the stale "Terms remains v1.0" comment in
+  policies.ts was corrected to "Terms (v1.1) and Privacy (v1.2) advance independently". Version
+  strings unchanged (Terms 1.1, Privacy 1.2); no migration; `policy_acceptances` untouched. Gate
+  re-run green after the delta. Per the operator ruling, this delta being pushed and green
+  **approves the release to proceed through merge to main + explicit production deployment**; #40/#58
+  may close after live proof, #38/#66 stay open until a real scheduled recovery + subsequent healthy
+  poll prove production behavior, and no paid catch-up is to be manufactured.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).

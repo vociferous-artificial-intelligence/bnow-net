@@ -14,7 +14,8 @@ describe("legal policy versions (attributed-signals Terms 1.1 bump)", () => {
   it("Terms is 1.1 and Privacy is unchanged at 1.2", () => {
     expect(CURRENT_TERMS_VERSION).toBe("1.1");
     expect(CURRENT_PRIVACY_VERSION).toBe("1.2");
-    expect(TERMS_EFFECTIVE_DATE).toBe("2026-07-15");
+    // effective on the actual production rollout date (2026-07-16, not 07-15)
+    expect(TERMS_EFFECTIVE_DATE).toBe("2026-07-16");
   });
 
   it("a user on the prior Terms (1.0) + current Privacy is NOT current → re-accept", () => {
