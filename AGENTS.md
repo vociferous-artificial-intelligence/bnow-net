@@ -1316,6 +1316,12 @@ cutover). Distilled still-binding decisions live in Standing rulings above.
   `docs/reviews/PRIVATE-BETA-READINESS-DELTA-2026-07-15.md`. No application code, environment,
   production data, or deployment changed in this audit.
 
+- **2026-07-15 (readiness-delta CI follow-up)** GitHub CI for `8b433c3` passed both the gate
+  and integration jobs. Both jobs carried GitHub's Node 20 action-runtime deprecation annotation
+  for `actions/checkout@v4` / `actions/setup-node@v4`, which GitHub currently forces onto Node 24.
+  Recorded low-maintenance OPEN-TASKS #70 for a workflow-only major-version upgrade; this is not a
+  current CI failure or a Vercel/application Node-runtime issue.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).

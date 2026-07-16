@@ -491,3 +491,9 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     regression coverage, and prove the Vercel error stream is clean. Do not merely suppress
     `console.error`; real GramJS errors must remain visible. Evidence:
     `docs/reviews/PRIVATE-BETA-READINESS-DELTA-2026-07-15.md`.
+70. **[low maintenance] GitHub Actions v4 action-runtime deprecation.** CI for the
+    readiness-delta commit passed both jobs, but GitHub annotated `actions/checkout@v4`
+    and `actions/setup-node@v4`: their Node 20 action runtime is deprecated and GitHub is
+    currently forcing it onto Node 24. Upgrade to the current Node-24-based action majors
+    in a workflow-only change, then verify the gate and integration jobs. This is not a
+    current application-runtime or CI failure.

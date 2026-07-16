@@ -1569,3 +1569,8 @@ runs green, zero channel errors, 1,259 documents inserted—but pollute the erro
 reviewed coding fix. The signed-in 390px pass remains #65 because the WSL Chrome profile has no
 valid BNOW session. Full review and ordered operator/engineering/OpenSanctions handoff:
 `docs/reviews/PRIVATE-BETA-READINESS-DELTA-2026-07-15.md`. Documentation only; no deployment.
+
+GitHub CI for the pushed delta-review commit `8b433c3` then passed both jobs. GitHub annotated
+the v4 checkout/setup actions because their Node 20 action runtime is deprecated and currently
+forced onto Node 24. Added low-maintenance #70 for a workflow-only action-major upgrade; current
+CI and the Vercel application remain green.

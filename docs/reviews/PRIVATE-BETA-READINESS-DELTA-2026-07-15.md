@@ -124,6 +124,13 @@ is clean without suppressing unrelated errors.
 These safeguards should be scheduled promptly, but none represents an active outage in
 the evidence above. #38/#66 are the highest operational-risk code work.
 
+### Low-risk CI maintenance
+
+- #70: GitHub's successful CI run annotated `actions/checkout@v4` and
+  `actions/setup-node@v4` because their Node 20 action runtime is deprecated and is being
+  forced onto Node 24. Upgrade the action majors in a workflow-only change and verify both
+  jobs. This is not an application-runtime or current CI failure.
+
 ## Review recommendation
 
 Do **not** repeat the entire July 13 implementation review from scratch. This delta
