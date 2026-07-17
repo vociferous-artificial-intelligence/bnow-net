@@ -91,16 +91,17 @@ drizzle/            migrations 0000–00NN + 9999_claim_source_trigger.sql (appl
 data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails)
 ```
 
-## Current state — compact snapshot (verified 2026-07-16; correct in place)
+## Current state — compact snapshot (verified 2026-07-17; correct in place)
 
 Detailed operational/product state lives in `docs/CURRENT-STATE.md` and is corrected in
 place whenever reality changes. Historical narrative: `docs/PROGRESS.md` + `docs/reviews/`;
 debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
 
 - **Live/repository:** https://bnow.net · Vercel `bnow-net` / team `vociferous`; production
-  `dpl_7useRyXz71PVkyFgYqZTXKJXf8mv` from main `df79411`; rollback
-  `dpl_CdoLhjeyxab4mvZXzN9Vjq8U7pNC` / `87f9c12`; origin/main == local main at last
-  reconciliation. Deployment URLs are SSO-walled — verify through the project domain.
+  `dpl_5jAidKc8rnSKmSG1gK5rP4KehwJv` from main `f0d34d3`; rollback
+  `dpl_7useRyXz71PVkyFgYqZTXKJXf8mv` / `df79411`; origin/main == local main at last
+  reconciliation. Deployment URLs are SSO-walled — verify through the project domain
+  (`/health` renders the 7-char commit stamp; it is set even on CLI deploys).
 - **Coverage/data:** Russia, Ukraine, Iran live; Israel/Gulf shallow; bh/kw scaffolded; China
   deferred. Registry: 6,985 ISW-derived sources / 251K citations / 1,565 reports. Live ingest:
   29 RSS, GDELT (flaky), Telegram web + MTProto, twitterapi.io X, procurement (proxy-blocked).
@@ -121,8 +122,9 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   consolidated print disclosure, digest freshness, analyst-safe labels/metadata, and the measured
   light/dark readability remediation described in the implementation review. The signed-out
   landing contrast follow-up (#73) is also live and production-proven across six viewport/theme passes.
-  The signed-in home Ask box is a one-click handoff (2026-07-16, on main, NOT yet deployed): a
-  single-use per-tab intent key, consumed once by AskForm on mount; #48 holds — every GET /ask is free.
+  The signed-in home Ask box is a one-click handoff (LIVE 2026-07-17, `dpl_5jAidKc8rnSKmSG1gK5rP4KehwJv`):
+  a single-use per-tab intent key, consumed once by AskForm on mount; #48 holds — every GET /ask is free,
+  re-proven in production (direct `?q=` and a forged `?intent=` both prefill-only, zero paid calls).
 - **Legal/analytics/email:** Terms 1.1 (2026-07-16) + Privacy 1.2; current clickwrap required.
   Postmark `BNOW.NET <no-reply@bnow.net>` is live; magic-link guidance is single-use/24h and
   copy-before-opening. PostHog is production-only, explicit opt-in, allowlist-sanitized, UUID
@@ -223,27 +225,22 @@ Entries through the 2026-07-16 analyst-experience quick-wins deployment are arch
 **verbatim** in `docs/DECISIONS.md`; distilled still-binding decisions live in Standing
 rulings above. New entries append at the BOTTOM (the archive runs oldest → newest).
 
-- **2026-07-16 (one-click home Ask handoff; #48 re-affirmed, not weakened)** The signed-in home Ask box
-  cost two clicks: it GET-posted to `/ask?q=…`, which by #48's design only prefills. It now hands off
-  one-shot — question stored under a single-use per-tab `sessionStorage` key `bnow.ask.intent:<uuid>`,
-  UUID passed as `?intent=`, consumed ONCE by AskForm on mount, which then calls `requestSubmit()` on
-  the existing `useActionState` form. **Ruling: `?intent=` is not a money path and must never become
-  one.** Paid execution stays exclusively in `askAction`; ANY GET `/ask` — intent present, replayed,
-  shared, prefetched, forged — stays free. Three ordered defences: the entry is consumed BEFORE the
-  submit is dispatched, the stored question must equal `?q=` exactly, and sessionStorage never leaves
-  the tab (a ref additionally guards StrictMode). The box stays a real `<form action="/ask" method="get">`
-  — storage failure, a no-op storage, absent `crypto.randomUUID`, or a <3-char question all fall back to
-  plain prefill. Recent-question links stay prefill-only by choice. Verified in real Chrome on a
-  disposable Neon branch (forked → seeded → driven → deleted; both DATABASE_URL vars asserted
-  off-production before boot; `LLM_DISABLE=1`; zero paid calls, zero prod writes): one click ⇒ `/ask`
-  with the working panel already active and **exactly one `ask_usage` row**; refresh, back-nav and
-  reopening the URL in a fresh tab ⇒ **zero** extra rows, prefill only; no-JS submit still prefills; no
-  console errors. Gate: 1,612/1,612 tests / 137 files, typecheck, lint. Two review findings acted on:
-  (a) a traced claim that Next's patched `replaceState`/`HistoryUpdater` re-adds `?intent=` after the
-  action did NOT reproduce when measured (Next 16.2.10, settled action) — the strip is cosmetic either
-  way, and the comment now records the measurement, not either over-claim; (b) a click whose `/ask`
-  never mounts (acceptance gate redirect) orphaned an entry holding the user's question text, so
-  `clearAskIntents` prunes the namespace before each handoff. Not yet deployed.
+- **2026-07-17 (one-click Ask handoff deployed and production-proven)** Main `f0d34d3` pushed
+  (pre-push gate: 1,612/1,612 tests, typecheck, lint) and deployed as
+  `dpl_5jAidKc8rnSKmSG1gK5rP4KehwJv` (READY, aliased bnow.net, `/health` stamp `f0d34d3` == local
+  HEAD). Rollback target = the prior production `dpl_7useRyXz71PVkyFgYqZTXKJXf8mv` / `df79411`.
+  Production proof in real Chrome via the standing test identity (invite gate admitted it; magic
+  link recovered through the Postmark outbound API, since mail clients mangle the token): the
+  signed-in home renders the Ask box with its zero-JS GET fallback intact; a direct `/ask?q=…` and
+  a forged `?intent=` both PREFILL ONLY — no working panel, no execution; no console/page/5xx
+  errors; 100/100 sampled runtime log entries were `info`. **Zero paid Ask calls**: `ask_usage` for
+  the identity held at 3 (latest 07-14), zero `ask_usage` rows across ALL users in the hour, and no
+  `openai_ask` `provider_usage` row exists for 2026-07-17. The one-click path itself was NOT re-run
+  in production — the disposable-branch Chrome proof (exactly one `ask_usage` row per click; zero on
+  refresh/back/reopen) already covers it and re-running would bill for nothing. Two traps worth
+  keeping: `scripts/pin-dns.cjs` does NOT cover `api.postmarkapp.com` (Node fetch times out on the
+  WSL2 resolver; curl is unaffected), and Postmark's `ReceivedAt` carries a `-04:00` offset, so a
+  freshness filter MUST parse it as an instant, never string-compare it to a UTC ISO string.
 
 ## Conventions
 

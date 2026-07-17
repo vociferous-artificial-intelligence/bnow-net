@@ -1439,3 +1439,25 @@ said in AGENTS.md.
   menu hydrated, and there were zero console/page errors or horizontal overflow. The first harness
   aggregate false was test ordering only (it sought mobile Sign in before opening the drawer); the
   corrected full six-pass rerun was green. Zero paid calls; no GitHub Actions change. #73 closed.
+
+- **2026-07-16 (one-click home Ask handoff; #48 re-affirmed, not weakened)** The signed-in home Ask box
+  cost two clicks: it GET-posted to `/ask?q=…`, which by #48's design only prefills. It now hands off
+  one-shot — question stored under a single-use per-tab `sessionStorage` key `bnow.ask.intent:<uuid>`,
+  UUID passed as `?intent=`, consumed ONCE by AskForm on mount, which then calls `requestSubmit()` on
+  the existing `useActionState` form. **Ruling: `?intent=` is not a money path and must never become
+  one.** Paid execution stays exclusively in `askAction`; ANY GET `/ask` — intent present, replayed,
+  shared, prefetched, forged — stays free. Three ordered defences: the entry is consumed BEFORE the
+  submit is dispatched, the stored question must equal `?q=` exactly, and sessionStorage never leaves
+  the tab (a ref additionally guards StrictMode). The box stays a real `<form action="/ask" method="get">`
+  — storage failure, a no-op storage, absent `crypto.randomUUID`, or a <3-char question all fall back to
+  plain prefill. Recent-question links stay prefill-only by choice. Verified in real Chrome on a
+  disposable Neon branch (forked → seeded → driven → deleted; both DATABASE_URL vars asserted
+  off-production before boot; `LLM_DISABLE=1`; zero paid calls, zero prod writes): one click ⇒ `/ask`
+  with the working panel already active and **exactly one `ask_usage` row**; refresh, back-nav and
+  reopening the URL in a fresh tab ⇒ **zero** extra rows, prefill only; no-JS submit still prefills; no
+  console errors. Gate: 1,612/1,612 tests / 137 files, typecheck, lint. Two review findings acted on:
+  (a) a traced claim that Next's patched `replaceState`/`HistoryUpdater` re-adds `?intent=` after the
+  action did NOT reproduce when measured (Next 16.2.10, settled action) — the strip is cosmetic either
+  way, and the comment now records the measurement, not either over-claim; (b) a click whose `/ask`
+  never mounts (acceptance gate redirect) orphaned an entry holding the user's question text, so
+  `clearAskIntents` prunes the namespace before each handoff. Not yet deployed.

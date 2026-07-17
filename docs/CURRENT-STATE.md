@@ -138,9 +138,14 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   forged — stays free; the entry is consumed BEFORE the submit is dispatched, must match
   `?q=` exactly, and never leaves its tab. The box is still a real
   `<form action="/ask" method="get">`, so a no-JS/degraded-storage submit falls back to
-  plain prefill. Browser-verified on a disposable Neon branch: one click ⇒ exactly one
-  `ask_usage` row; refresh, back-nav and reopening the URL in a new tab ⇒ zero additional
-  rows; prominent working panel (spinner, disabled controls, aria-busy/status,
+  plain prefill. **LIVE 2026-07-17** (`dpl_5jAidKc8rnSKmSG1gK5rP4KehwJv` from main `f0d34d3`;
+  rollback `dpl_7useRyXz71PVkyFgYqZTXKJXf8mv` / `df79411`). Browser-verified on a disposable
+  Neon branch: one click ⇒ exactly one `ask_usage` row; refresh, back-nav and reopening the URL
+  in a new tab ⇒ zero additional rows. Re-proven in production after the deploy: the signed-in
+  home renders the box with its GET fallback intact, a direct `?q=` and a forged `?intent=` are
+  both prefill-only, zero paid Ask calls, no console/5xx errors (the one-click path itself was
+  not re-run in production — the branch proof covers it and a live run would bill for nothing);
+  prominent working panel (spinner, disabled controls, aria-busy/status,
   honest client-elapsed retrieve→rank→answer stages, submitted-question echo); provider/model
   diagnostics are no longer shown to analysts; end-user persona
   SYSTEM_V2 (legacy SYSTEM byte-preserved); "data current through" context +
