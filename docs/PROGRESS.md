@@ -1967,3 +1967,144 @@ Two environment traps recorded in the decision log: `scripts/pin-dns.cjs` does n
 `api.postmarkapp.com` (Node fetch times out on the WSL2 resolver; curl is unaffected), and
 Postmark's `ReceivedAt` carries a `-04:00` offset, so freshness filters must parse it as an instant
 rather than string-compare it against a UTC ISO timestamp — that bug silently found zero messages.
+
+## 2026-07-19 06:37 EDT — AI Search product and architecture review
+
+1. Trace the actual `/ask` and `/search` request paths, retrieval/reranking/generation stages,
+   provider seams, UI state transitions, metering, and analytics from the repository.
+2. Reconcile repository eval artifacts with read-only recent production usage to identify the
+   measured latency and cost concentrations without causing any paid calls.
+3. Compare progressive-results, streaming, investigation-session, model-routing, caching,
+   entitlement, and observability options against current provider capabilities and established
+   source-grounded AI product patterns.
+4. Write a repository-specific review with UI sketches, a target architecture, code-level handoff
+   recommendations, acceptance gates, and a phased one-year product roadmap. No application code
+   or production state changes are in scope.
+
+Completed in `docs/reviews/AI-SEARCH-PRODUCT-ARCHITECTURE-REVIEW-2026-07-19.md`. The audit found
+that the paid UI is a fully synchronous server action: hybrid retrieval, GPT-5-mini rerank, GPT-5
+answer, and evidence hydration all finish before React receives any state. Its visible stages are
+elapsed-time estimates, not server progress; the separate JSON endpoint is also synchronous; and
+the digest pipeline's multi-provider seam does not cover Ask. Existing evals put v2-k60 at 12.14s
+mean / 10.17s p50 with 97% evidence recall. Read-only recent production accounting attributes
+about 92.6% of recorded Ask inference cost to final synthesis, 7.0% to reranking, and effectively
+zero to the per-question embedding. Production does not yet record enough timing data to assign
+those same proportions to latency.
+
+The recommended product is an evidence-first investigation workspace: render real candidate
+claims and scope immediately, synthesize progressively over a frozen evidence snapshot, support
+scoped follow-ups rather than generic infinite chat, and route internal Fast/Auto/Deep modes
+through provider-neutral generation/rerank/embedding seams. The first build block is measurement
+plus an answer-model eval; the 1–2 week block is a persisted `ask_runs` event protocol, evidence-
+first UI, validated streaming, atomic settlement/idempotency, adaptive K, and exact caching.
+
+## 2026-07-19 08:00 EDT — Paddle billing foundation plan
+
+1. Audit the existing Stripe-shaped `plans`/`subscriptions` scaffold, Auth.js identities,
+   private-beta access flow, legal acceptance, account display, subscriber email selection, and
+   content gates so the plan starts from the repository's real contracts.
+2. Verify Paddle Billing's current checkout, catalog, customer/business, invoice, customer-portal,
+   webhook, sandbox, tax, sanctions, and acceptable-use behavior against Paddle's official
+   documentation.
+3. Design a provider-neutral, organization-capable billing and entitlement foundation that can
+   serve an individual account or an organization site license without making checkout redirects,
+   billing email addresses, or Paddle availability the runtime source of truth.
+4. Write a phased engineering handoff with schema changes, route/module boundaries, lifecycle and
+   failure policies, security/privacy requirements, test matrices, rollout gates, operator setup,
+   estimates, risks, and unresolved product decisions. Documentation only; no application code,
+   migration, Paddle account mutation, or production state change is in scope.
+
+Completed in `docs/designs/PADDLE-BILLING-FOUNDATION-PLAN-2026-07-19.md`. The repository audit found
+that the existing billing scaffold is Stripe-named and user-owned, while the business strategy is
+organization-licensed and the current content gate proves authentication + legal acceptance rather
+than paid entitlement. The plan therefore makes an organization the billing subject (an individual
+is an organization of one), keeps `users.role` independent from payment, preserves current beta
+access through explicit grants, and makes the local entitlement projection — never the browser
+redirect, billing email, or live Paddle API — authoritative for application access.
+
+The engineering handoff specifies additive provider-neutral tables, server-authorized catalog
+mapping, checkout attempts, a lean subscription/transaction cache, durable raw-body-verified
+webhook ingestion, idempotent/out-of-order projection, manual-invoice anti-early-provisioning,
+customer-portal authorization, two-way reconciliation, all paid-boundary gates, operator dashboard
+setup, security/privacy controls, unit + disposable-Neon + sandbox + production-canary matrices,
+three independent rollout flags, rollback, and estimates (12–18 engineering days through an
+individual sandbox foundation; 19–30 for complete individual + business foundations, excluding
+external approval wait).
+
+The first exit gate is written Paddle product approval. Current Paddle guidance may require review
+for people-categorization/data products and blocks buyers in several countries BNOW covers; product
+coverage is not buyer location, but the OSINT/sanctions/named-person use case should be pre-cleared.
+The other pre-code gates are accepted Paddle economics, a frozen regional/individual/annual catalog,
+and Paddle-specific legal/privacy review. No source code, migration, credential, Paddle account,
+checkout, charge, invoice, or production state was changed.
+
+## 2026-07-19 — adversarial revision of the AI Search architecture review
+
+1. Re-verify every claim in `docs/reviews/AI-SEARCH-PRODUCT-ARCHITECTURE-REVIEW-2026-07-19.md`
+   against the working tree (`9d556cf`): the full `/ask` money path, `/search`, retrieval/rerank/
+   answer stages, guards, analytics, schema, eval artifacts; re-run the read-only production
+   accounting queries.
+2. Rewrite the review in place into a decision-ready structure: executive decision, code-referenced
+   current state with evidence classes (measured / code / hypothesis / judgment), ranked critique,
+   target architecture, run event/state model, streaming safety design, investigation sessions,
+   model routing, caching/ledger/entitlement design with an explicit processor-neutral billing
+   boundary, instrumentation spec, and a granular Phase 0–7 implementation plan (objectives,
+   dependencies, files, schema, interfaces, steps, tests, flags, acceptance, rollback, effort)
+   plus critical path and open decisions.
+
+Completed. Key corrections to the draft: `ask_usage` does write error rows (the real gaps are no
+start-of-run persistence, platform-timeout row loss, and disconnect invisibility); the raw
+`results-v2-k60.json` artifact computes 13.0s mean / 13.0s p50 / 27.8s max (scorecard published
+12.1/10.2 — treat as p50 ≈ 10–13s with a ~28s tail); production re-check found 35 billed gpt-5
+answers across 40 all-time rows with the cost split confirmed (answer $0.3921 ≈ 92.6%, rerank
+$0.0297 ≈ 7.0%, embed ≈ $0); the stale `product-event-markers` path was fixed; and a new
+load-bearing finding was added — claim IDs churn on digest regeneration (schema.ts:819-824), so
+evidence snapshots, caches, and sessions must carry claim content + stable raw_documents IDs and
+a corpus version, which reordered caching after run/snapshot persistence in the plan. The
+recommended sequence is Phase 0 measurement + answer-model eval (needs operator approval for a
+~$1–3 paid run and named-person fixtures the 39-question set lacks) → run persistence/atomic
+reservation/idempotency → progressive retrieval (evidence-first UI) → validated answer streaming
+(withhold-until-validated first, buffered validated chunks steady-state) → routing/exact caching →
+provider gateway → sessions → entitlements. The Paddle boundary is interface-only: Ask consumes
+the billing workstream's provider-free `entitlements.ts` and emits ledger aggregates; no Paddle
+objects enter the Ask pipeline; shared-file contact limited to schema.ts appends, migration
+numbering, and gate composition (Phase 7 only). Documentation only — no application code,
+migrations, paid calls, commits, or deploys.
+
+## 2026-07-19 — operator feedback: narrow the entitlement integration surface
+
+Applied the operator's targeted simplification to both 2026-07-19 documents: entitlement logic
+touches only externally callable paid operations, never internal application pipelines. Billing
+correctness was not changed — organizations as billing subject, verified-webhook authority, durable
+inbox/idempotency/ordering/reconciliation, server-authorized offers, manual-invoice safeguards,
+beta grants, independent flags, and role/tier separation all stand as written.
+
+`docs/designs/PADDLE-BILLING-FOUNDATION-PLAN-2026-07-19.md`: added §1.1 (central principle —
+payment does not propagate through the application; Paddle events update a local Neon access
+projection; entry points make one provider-free decision; no billing checks inside retrieval/
+rerank/generation/rendering/persistence; nothing payment-related trusted from the client; canceled
+users keep authentication for account/portal/renewal). Rewrote §8 into: §8.1 one decision at the
+boundary with a centralized `resolveAccessContext()` returning an `AccessContext` passed downstream
+as plain data (pipelines must not import billing/entitlement modules — import-graph enforced);
+§8.2 a route-policy matrix from public pages through webhooks (SSE/result endpoints check run
+ownership only); §8.3 in-flight policy (authorize at start, accepted runs finish, next run
+re-resolves); §8.4 v1 = coarse org access projection (active|grace|restricted|revoked + tier +
+limits + source + timestamps) with granular feature keys, grant merging, and per-module add-ons
+explicitly deferred (`entitlement_grants` stays the extensible target, §5.4 relabeled); §8.5 three
+independent layers (entitlement / usage policy / SpendGuard — payment never overrides a cap, a
+budget outage never unsubscribes anyone); §8.6 fail-closed scoped to starting paid execution, never
+account/portal/legal/sign-out. Added nine direct-request security tests to §11.1 (downgrade-then-
+direct-call, API-without-page, canceled-user account access, removed member, member-vs-billing-
+admin portal, mid-run subscription change, SSE ownership without per-event billing, client-supplied
+fields ignored). Phases B/F narrowed: Phase B builds the coarse projection + one
+`resolveAccessContext()`; Phase F enforces on one vertical slice (Ask) first, proves direct-route
+security/cancellation/account availability, expands surface-by-surface — no simultaneous migration
+of all gated pages.
+
+`docs/reviews/AI-SEARCH-PRODUCT-ARCHITECTURE-REVIEW-2026-07-19.md`: reworded the §9.4 boundary from
+"Ask consumes requireEntitlement/limitsFor" to "the Ask route/action resolves a provider-free
+access context once before creating a run; the pipeline receives approved limits and organization
+context but does not call billing or entitlement services", with the in-flight and SSE-ownership
+policy stated; aligned §4.1 EntitlementProvider, Phase 7 files/steps/tests (added downgrade,
+mid-run change, per-event-lookup, and import-graph tests), and the §12.3 interface freeze (now the
+`resolveAccessContext()`/`AccessContext` contract). Documentation only.
