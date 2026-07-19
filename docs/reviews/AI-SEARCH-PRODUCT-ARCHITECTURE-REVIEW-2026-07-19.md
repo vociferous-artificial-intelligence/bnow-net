@@ -53,7 +53,7 @@ The two highest-leverage near-term moves, in order:
    Ask inference cost [measured] and is plausibly the largest latency component [hypothesis —
    production records no stage timings]. A cheaper/faster answer model can only be adopted
    through the existing eval gate (recall, citation accuracy, negative honesty, temporal
-   correctness) extended with named-person safety fixtures, which the current 39-question set
+   correctness) extended with named-person source-fidelity fixtures, which the current 39-question set
    does not contain [measured — set is 24 known-answer / 10 temporal / 5 negative].
 
 ---
@@ -261,12 +261,14 @@ partial output is exactly where they are easiest to break:
 4. Every paid call reserves first, fails closed on unset caps, and is metered even when its
    output is discarded (rulings 4, 8). Already true at all three call sites; the run
    protocol must not move metering out of the provider-call boundary.
-5. The publication-safety machinery (ruling 19) currently binds the **digest** persist path
-   (`guardPublishedEvents`). Ask has **no named-person allegation guard of its own** [code —
-   no publication-guard import under `src/lib/ask/` or `src/app/ask/`]; its protections are
-   strictly-from-evidence prompting, the citation filter, the denial-lead rewrite, and hedge
-   display. This asymmetry is tolerable while the answer arrives whole; it becomes an active
-   risk once text streams (§6.3) and is called out as a deliberate gate there.
+5. The publication-safety machinery (ruling 19) binds the **digest** persist path
+   (`guardPublishedEvents`); its single-document drop rule is not the Ask/Search contract.
+   Standing ruling 20 permits names and exact source-supported facts for accepted professional
+   users. Ask's missing control is a **source-fidelity validator**: citations must resolve, the
+   named identity must match, official actions/statuses must be stated exactly, disputed reporting
+   must preserve governing attribution and hedging, and OpenSanctions match/topic semantics must
+   remain distinct. This matters more once answer sections stream (§6.3), but it is not a reason
+   to suppress names or require two sources universally.
 6. Deterministic degradation (ruling 9): `/ask` never throws to the user; budget stops
    degrade to the deterministic cited-claims path; `LLM_DISABLE=1` produces an honest
    deterministic answer. Every new stage must keep a $0 deterministic fallback.
@@ -484,7 +486,7 @@ shown is deterministic retrieval output that `/search` already shows freely toda
 
 | Policy | Verdict |
 |---|---|
-| Stream tokens immediately as a labelled draft | **Rejected.** A draft label does not neutralize an unvalidated named-person allegation or a fabricated citation on screen; retraction after display is reputationally too late for this product. Also breaks the denial-rewrite (the "Antarctic defect" fix, `answer.ts:436-440`) which must replace the whole text. |
+| Stream tokens immediately as a labelled draft | **Rejected.** A draft label does not cure a fabricated citation, mistaken identity, or source statement strengthened from “alleged” to fact; retraction after display is too late. Also breaks the denial-rewrite (the "Antarctic defect" fix, `answer.ts:436-440`) which must replace the whole text. |
 | Buffer by sentence/paragraph; release each chunk only after its citations validate | **Adopted as the steady state**, with the safeguards in §6.3. |
 | Withhold until full validation | **Adopted as the first release** (Phase 3 step 1) and as the permanent fallback whenever a safeguard cannot be met. With evidence-first UI already live, the marginal UX cost of withholding prose is small — the user is reading real evidence meanwhile. |
 
@@ -499,13 +501,17 @@ shown is deterministic retrieval output that `/search` already shows freely toda
    until end-of-stream; at terminalization the whole answer re-runs today's filter and the
    rendered text is atomically reconciled to the final validated answer (identical string in
    the normal case).
-3. **Named-person hold rule:** any sentence containing a person-entity from the evidence's
-   entity annotations is held until its citations resolve *and* is rendered with the cited
-   claims' hedge labels adjacent. Ask still lacks a digest-grade allegation guard (§2.8
-   item 5); until an Ask-side equivalent of the ruling-19 attribution check exists, the
-   conservative rule is: sentences naming persons never stream ahead of their citations.
-   Whether to port `guardPublishedEvents` semantics to Ask synthesis is an open decision
-   (§13) — the buffering design must not foreclose it.
+3. **Named-person source-fidelity rule:** naming a person is allowed. Before a name-bearing
+   sentence is released, every citation resolves and the deterministic validator establishes:
+   (a) the cited evidence identifies the same person, not merely a fuzzy namesake; (b) an
+   official record is described with its exact authority, action, status, and date where
+   available — one authoritative record is sufficient; (c) disputed news preserves attribution
+   that governs the assertion and does not upgrade its hedge; and (d) OpenSanctions categories
+   (`sanction`, `role.pep`, `role.rca`, `poi`, etc.) are not collapsed. The current integration
+   submits only schema + name (`src/lib/enrich/opensanctions.ts:75-109`), so a match is a candidate
+   identity until stronger identifiers or analyst review resolve it. A failure to validate uses
+   deterministic cited-claim wording or holds the sentence to terminal review; it does not
+   suppress the person's name merely because the person was named.
 4. **Terminal retraction paths:** provider refusal or empty content → the refusal callout
    replaces everything (today's behavior; nothing was shown if holdback rules held);
    `finish_reason: length` with empty content → truncation copy; provider error mid-stream →
@@ -626,7 +632,7 @@ it belongs behind entitlements, not in the primary UI. [judgment]
 
 From existing computed values: parsed window; term/entity extraction; candidate count and
 source diversity; lexical/vector overlap; `relevant_count`; presence of person entities
-(named-person sensitivity flag); question length/expected output size; interactive vs deep
+(source-fidelity-required flag); question length/expected output size; interactive vs deep
 request; remaining entitlement units and provider health (rolling error/latency from
 `ask_runs`). All are already computed or trivially derivable in the pipeline. [code]
 
@@ -640,7 +646,7 @@ per run. Example shape (targets, all gated on evals, none hard-coded today):
   composite top-K is unambiguous;
 - ordinary synthesis → balanced route, adaptive K = 20–40;
 - broad comparison/long window → deep route, K up to 60;
-- **named-person sensitivity → never a route that has not passed the safety fixture suite**;
+- **name-bearing synthesis → never a route that has not passed the source-fidelity fixture suite**;
 - provider unhealthy before first content → next in fallback chain;
 - failure after first released content → no silent cross-provider merge; terminal error with
   validated partial handling per §6.3, or a visible restart.
@@ -652,9 +658,9 @@ structured output, reasoning control, context), prices by token class, and eval 
 (pass/fail per suite + date). Replaces the `PRICES_PER_MTOK` table
 (`src/lib/ask/limits.ts:49-64`) as the single pricing source; the unknown-model
 conservative fallback stays as the backstop. **Quality gate:** no route/model pair serves
-Auto until it passes the Ask eval matrix *plus* the named-person safety fixtures (to be
-added — the current set has none, §2.6). **Safety gate:** sensitive-flagged runs restrict to
-safety-passed routes. **Cost ceiling:** each route carries a per-run ceiling enforced by the
+Auto until it passes the Ask eval matrix *plus* the named-person source-fidelity fixtures (to be
+added — the current set has none, §2.6). **Fidelity gate:** name-bearing runs restrict to
+fidelity-passed routes. **Cost ceiling:** each route carries a per-run ceiling enforced by the
 reservation. No specific model is recommended as the new default here — that is exactly
 what the Phase 0 eval decides. [judgment + gate discipline]
 
@@ -888,6 +894,17 @@ The EvidenceSnapshot shape and retention class must also freeze before the Phase
 migration numbers must be coordinated with the concurrent billing workstream. These are normal
 phase-entry decisions with owners and acceptance tests below; they do not block Phase 0.
 
+**Unattended execution authorization (2026-07-19):** implementation may continue across all
+phases while the operator is unavailable, using retained stacked phase branches and a dedicated
+integration branch. Every phase still gets its own detailed implementation report and independent
+adversarial gate. A passing phase may merge into the integration branch, never directly to `main`.
+When paid/external approval is unavailable, behavior must remain disabled and production-equivalent
+defaults unchanged; the phase may be recorded as `implementation-pass / enablement-blocked` so
+safe dependent contract work can continue. No paid calls, production writes, deployment, external
+account mutation, provider/cap change, analytics enablement, or Paddle implementation is implied by
+this authorization. The executable handoff and report structure live in
+`docs/prompts/2026-07-19-ai-search-ask-phased-implementation.md`.
+
 ### Phase 0 — Measurement and benchmark baseline (2–3 days)
 
 - **Objective:** every run gets an ID and stage timings; a signed answer-model scorecard
@@ -903,8 +920,8 @@ phase-entry decisions with owners and acceptance tests below; they do not block 
   run_id), `src/app/api/ask/route.ts` (record wrapper total; hydration is not applicable),
   locale catalogs for the copy change, `src/app/ask/page.tsx` route segment (`maxDuration`
   pinned explicitly),
-  `scripts/ask-eval.ts` (accept model override matrix; add named-person fixtures to
-  `docs/evals/ask-eval-set.json` — additive).
+  `scripts/ask-eval.ts` (accept model override matrix; add named-person source-fidelity
+  fixtures to `docs/evals/ask-eval-set.json` — additive).
 - **Schema (additive migration):** `ask_usage` += `run_id uuid`, `started_at timestamptz`,
   `stage_timings_ms jsonb`, `first_content_at timestamptz` (null until Phase 3),
   `route_policy text` (null until Phase 4).
@@ -919,8 +936,13 @@ phase-entry decisions with owners and acceptance tests below; they do not block 
   ("Searching and preparing a cited answer" + elapsed — stop rotating inferred stage
   labels); (4) pin action-route `maxDuration`; (5) extend eval runner for a model matrix
   (`gpt-5` baseline vs at least one fast candidate on the answer stage only, retrieval and
-  rerank held fixed), add ≥ 5 named-person allegation fixtures with gold behavior
-  (attribution preserved, hedge shown, no de-hedged restatement); (6) **operator-approved**
+  rerank held fixed), add ≥ 8 named-person source-fidelity fixtures covering: one authoritative
+  official designation/action, a disputed single-source report with governing attribution, a
+  corroborated-but-still-attributed allegation, a PEP that must not be called sanctioned, an RCA
+  that must not inherit the principal's conduct, an OpenSanctions name-only false-positive, a
+  changed/expired status, and a same-name identity collision. Gold behavior permits the name and
+  exact supported statement while failing identity/category/predicate/certainty strengthening;
+  (6) **operator-approved**
   paid eval run (≈ $1–3 at observed per-question costs); write
   `docs/evals/ASK-EVAL-<date>.md`.
 - **Tests:** unit — timings present on every logged terminal path (answered/insufficient/
@@ -932,8 +954,8 @@ phase-entry decisions with owners and acceptance tests below; they do not block 
 - **Observability:** this phase *is* observability; add a sqlq snippet or admin note for
   p50/p95 from `stage_timings_ms`.
 - **Acceptance:** >99 % of new terminal rows carry run_id + timings; a scorecard with
-  latency/cost/quality per candidate model exists; named-person fixtures scored; no paid
-  call path changed.
+  latency/cost/quality per candidate model exists; named-person source-fidelity fixtures
+  scored; no paid call path changed.
 - **Rollback:** stop writing the new columns (additive, unread by product code).
 - **Risks:** timing collector accidentally moving metering (guard with a test that
   `guard.record` call sites are unchanged); eval spend without approval (gate: operator
@@ -1076,7 +1098,8 @@ phase-entry decisions with owners and acceptance tests below; they do not block 
   interpretation** preserved (record on stream end/error with whatever usage the provider
   reported; a stream that dies pre-usage records the estimate ceiling as settled — never
   unrecorded); (3) buffered release: 250-char prefix holdback → denial check → sentence/
-  paragraph chunks released only with resolved citations; named-person hold rule (§6.3.3);
+  paragraph chunks released only with resolved citations; named-person source-fidelity rule
+  (§6.3.3), with deterministic cited-claim fallback rather than name suppression;
   (4) terminal reconciliation replaces rendered text with the final validated answer
   (assert-equal in the normal case); (5) cancel: flag checked between stages + abort during
   generation; settle billed usage; emit `run.cancelled`; UI freezes with honest copy;
@@ -1084,7 +1107,9 @@ phase-entry decisions with owners and acceptance tests below; they do not block 
   cohort after soak.
 - **Tests:** validator goldens: denial-led reply never renders prose; unresolved-citation
   chunk held; refusal/truncation/empty-content mapping identical to `answerFromEvidence`
-  today (reuse its unit fixtures); person-sentence hold; stream-death mid-generation →
+  today (reuse its unit fixtures); all eight source-fidelity classes from Phase 0; official
+  single-source facts pass, attributed disputed reports pass, name-only identity collisions and
+  predicate/category upgrades fail; stream-death mid-generation →
   state error, usage recorded, no unvalidated text shown; cancel during each stage settles
   once; jsdom — section rendering, Stop, reconnect mid-generation resumes from persisted
   sections; screen-reader announcements are per-section, not per-token.
@@ -1124,7 +1149,7 @@ phase-entry decisions with owners and acceptance tests below; they do not block 
   (coordinate: that touches `digest-persist.ts`, keep it a read-only derivation first).
 - **Steps:** (1) registry + router with Auto ≡ today's policy (K=60, gpt-5) so the flag-on
   default is behavior-identical; (2) record route per run; (3) Fast route enabled only
-  after its scorecard passes the full gate incl. named-person fixtures; adaptive-K
+  after its scorecard passes the full gate incl. named-person source-fidelity fixtures; adaptive-K
   policies likewise (the K-sweep gives priors: K=40 loses 9 pts recall — per-intent K must
   re-earn the gate); (4) rerank-skip policy (pool ≤ K already skips; add high-confidence
   skip only with an eval showing no recall loss); (5) exact cache read at authorize
@@ -1301,7 +1326,7 @@ recording.
 
 ### 12.2 Safe parallel tracks
 
-- Eval-set growth + named-person fixtures (Phase 0 item) — independent of all code.
+- Eval-set growth + named-person source-fidelity fixtures (Phase 0 item) — independent of all code.
 - Phase 5 interface design and the OpenAI-adapter extraction — after Phase 3's stream
   contract stabilizes; the extraction itself is mechanical and test-pinned.
 - Phase 6 schema/classifier design — anytime after Phase 2's snapshot shape freezes.
@@ -1347,6 +1372,10 @@ data).
    IDs (F11).
 5. Reservation design per §9.3 (conditional-upsert hold inside the SpendGuard contract).
 6. Billing boundary per §9.4; Ask stays processor-neutral.
+7. Named-person policy per standing ruling 20: names and exact source-supported facts are
+   allowed; Ask validates identity, category, predicate, certainty, status, timing,
+   attribution, and hedge. No blanket suppression, universal two-source minimum, or
+   automatic port of digest ruling 19.
 
 ### 13.2 Operator approvals required
 
@@ -1359,13 +1388,11 @@ data).
 - New PostHog events (allowlist additions, §10.2) under the existing analytics rulings.
 - Cross-user/org answer-cache pooling (privacy trade, §9.2).
 - Anthropic key + cap envs for Phase 5's secondary provider.
-- Whether to port ruling-19 (publication-guard) semantics into Ask synthesis as an explicit
-  Ask-side allegation guard (§6.3.3) — recommended, but it extends a standing ruling's
-  scope, so it is an operator/decision-log call.
 
 ### 13.3 Experiments required before deciding
 
-- Answer-model matrix (Phase 0) with named-person fixtures — decides Fast route viability.
+- Answer-model matrix (Phase 0) with named-person source-fidelity fixtures — decides Fast
+  route viability.
 - Production stage timings (Phase 0) — decides which serialization fixes are worth doing.
 - Per-intent K sweep on a grown eval set — decides adaptive K.
 - Cached-input token measurement — decides prompt-caching investment.
@@ -1390,7 +1417,7 @@ data).
 
 - **Concurrent billing workstream drift** — highest risk; mitigated only by the §12.3
   interface freezes and early rebases.
-- Eval set too weak to gate routing (39 questions, no safety fixtures) — grow it in
+- Eval set too weak to gate routing (39 questions, no source-fidelity fixtures) — grow it in
   Phase 0 or Phase 4 slips.
 - SSE platform surprises → Phase 2/3 fall back to polling (protocol identical, transport
   degraded) — schedule, not architecture, risk.

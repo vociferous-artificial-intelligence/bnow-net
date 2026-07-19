@@ -1461,3 +1461,20 @@ said in AGENTS.md.
   way, and the comment now records the measurement, not either over-claim; (b) a click whose `/ask`
   never mounts (acceptance gate redirect) orphaned an entry holding the user's question text, so
   `clearAskIntents` prunes the namespace before each handoff. Not yet deployed.
+
+- **2026-07-17 (one-click Ask handoff deployed and production-proven)** Main `f0d34d3` pushed
+  (pre-push gate: 1,612/1,612 tests, typecheck, lint) and deployed as
+  `dpl_5jAidKc8rnSKmSG1gK5rP4KehwJv` (READY, aliased bnow.net, `/health` stamp `f0d34d3` == local
+  HEAD). Rollback target = the prior production `dpl_7useRyXz71PVkyFgYqZTXKJXf8mv` / `df79411`.
+  Production proof in real Chrome via the standing test identity (invite gate admitted it; magic
+  link recovered through the Postmark outbound API, since mail clients mangle the token): the
+  signed-in home renders the Ask box with its zero-JS GET fallback intact; a direct `/ask?q=…` and
+  a forged `?intent=` both PREFILL ONLY — no working panel, no execution; no console/page/5xx
+  errors; 100/100 sampled runtime log entries were `info`. **Zero paid Ask calls**: `ask_usage` for
+  the identity held at 3 (latest 07-14), zero `ask_usage` rows across ALL users in the hour, and no
+  `openai_ask` `provider_usage` row exists for 2026-07-17. The one-click path itself was NOT re-run
+  in production — the disposable-branch Chrome proof (exactly one `ask_usage` row per click; zero on
+  refresh/back/reopen) already covers it and re-running would bill for nothing. Two traps worth
+  keeping: `scripts/pin-dns.cjs` does NOT cover `api.postmarkapp.com` (Node fetch times out on the
+  WSL2 resolver; curl is unaffected), and Postmark's `ReceivedAt` carries a `-04:00` offset, so a
+  freshness filter MUST parse it as an instant, never string-compare it to a UTC ISO string.

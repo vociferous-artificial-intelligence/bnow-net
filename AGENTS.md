@@ -218,29 +218,31 @@ Operational rulings:
     person-allegation on its own; the scoreboard labels non-confirmed unmatched
     claims "BNOW-only reported item" with the hedge shown. Do not bypass the guard
     or weaken these rules without a decision-log entry.
+20. **Named people in Search/Ask (2026-07-19; distinct from digest ruling 19):** names and
+    source-supported facts MAY render; no blanket suppression or universal two-source minimum.
+    One authoritative record may support its exact action/status. Disputed news keeps governing
+    attribution/hedging; synthesis never strengthens identity, predicate, certainty, status, or
+    timing. OpenSanctions name matches are candidate identities; sanction/PEP/RCA/POI topics stay
+    distinct and name-only matches need stronger identifiers or analyst review for definitive
+    identity. Ask enforces source fidelity; it does not port ruling 19's single-doc drop rule.
 
 ## Decision log (append-only, dated)
 
-Entries through the 2026-07-16 analyst-experience quick-wins deployment are archived
+Entries through the 2026-07-17 one-click Ask deployment are archived
 **verbatim** in `docs/DECISIONS.md`; distilled still-binding decisions live in Standing
 rulings above. New entries append at the BOTTOM (the archive runs oldest → newest).
 
-- **2026-07-17 (one-click Ask handoff deployed and production-proven)** Main `f0d34d3` pushed
-  (pre-push gate: 1,612/1,612 tests, typecheck, lint) and deployed as
-  `dpl_5jAidKc8rnSKmSG1gK5rP4KehwJv` (READY, aliased bnow.net, `/health` stamp `f0d34d3` == local
-  HEAD). Rollback target = the prior production `dpl_7useRyXz71PVkyFgYqZTXKJXf8mv` / `df79411`.
-  Production proof in real Chrome via the standing test identity (invite gate admitted it; magic
-  link recovered through the Postmark outbound API, since mail clients mangle the token): the
-  signed-in home renders the Ask box with its zero-JS GET fallback intact; a direct `/ask?q=…` and
-  a forged `?intent=` both PREFILL ONLY — no working panel, no execution; no console/page/5xx
-  errors; 100/100 sampled runtime log entries were `info`. **Zero paid Ask calls**: `ask_usage` for
-  the identity held at 3 (latest 07-14), zero `ask_usage` rows across ALL users in the hour, and no
-  `openai_ask` `provider_usage` row exists for 2026-07-17. The one-click path itself was NOT re-run
-  in production — the disposable-branch Chrome proof (exactly one `ask_usage` row per click; zero on
-  refresh/back/reopen) already covers it and re-running would bill for nothing. Two traps worth
-  keeping: `scripts/pin-dns.cjs` does NOT cover `api.postmarkapp.com` (Node fetch times out on the
-  WSL2 resolver; curl is unaffected), and Postmark's `ReceivedAt` carries a `-04:00` offset, so a
-  freshness filter MUST parse it as an instant, never string-compare it to a UTC ISO string.
+- **2026-07-19 (named-person source-fidelity ruling for AI Search/Ask planning)** Operator
+  set source/identity fidelity—not naming—as the risk boundary. One official record may support
+  its exact action/status; disputed news keeps governing attribution/hedging; OpenSanctions match,
+  category, and identity semantics stay distinct. Ruling 20 records this; digest ruling 19 remains.
+
+- **2026-07-19 (unattended phased AI Search/Ask workstream authorized)** The implementation
+  handoff continues through safe phases on retained phase branches/worktrees plus an integration
+  branch, with detailed implementation and independent-gate reports. Passing work merges only to
+  integration, never `main`. Missing external approval becomes `implementation-pass /
+  enablement-blocked` with defaults unchanged. No paid calls, production writes, deploys, pushes,
+  external/account/provider/cap/analytics changes, or Paddle work; those need later approval.
 
 ## Conventions
 

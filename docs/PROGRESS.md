@@ -2108,3 +2108,33 @@ context but does not call billing or entitlement services", with the in-flight a
 policy stated; aligned §4.1 EntitlementProvider, Phase 7 files/steps/tests (added downgrade,
 mid-run change, per-event-lookup, and import-graph tests), and the §12.3 interface freeze (now the
 `resolveAccessContext()`/`AccessContext` contract). Documentation only.
+
+## 2026-07-19 16:30 EDT — phased AI Search/Ask implementation handoff
+
+1. Correct the AI Search architecture's named-person policy: names and exact citable facts are
+   allowed; the Ask validator enforces identity and source fidelity rather than blanket suppression
+   or a universal two-source threshold. Keep the stricter digest-persist ruling 19 unchanged.
+2. Expand the architecture's streaming, routing, evaluation, and acceptance gates around official
+   records, disputed reporting, OpenSanctions match semantics, PEP/RCA/POI category separation,
+   and deterministic source-faithful fallback.
+3. Write one coding-agent prompt that implements the architecture in dependency-ordered phases,
+   enforces hard gates while continuing safe independent work, and requires independent adversarial,
+   money-invariant, data-integrity, accessibility, privacy, and production-readiness reviews.
+4. Validate and commit documentation only; do not run paid evaluations, write application code,
+   deploy, or overlap the concurrent Paddle workstream beyond the frozen access-context boundary.
+
+Operator execution clarification: the coding-agent handoff must continue unattended through all
+safe phases rather than pause for review after each one. The prompt now requires a dedicated
+integration branch plus retained stacked phase branches/worktrees, two detailed reports per phase
+(implementation + independent gate), cumulative test/decision/workstream ledgers, and automatic
+continuation after a passing gate. Paid/external/production actions remain unauthorized; affected
+features stay disabled and are reported as `implementation-pass / enablement-blocked` while safe
+independent work continues. Nothing merges to `main`, pushes, or deploys without later instruction.
+
+Completed as documentation-only planning: standing ruling 20 now records the professional-user
+source-fidelity contract; the architecture review aligns validation, streaming, routing, fixtures,
+and gates to it; and the executable master prompt defines Phases 0–7, retained `codex/` phase
+branches/worktrees, a dedicated integration branch, independent critical-gate reviews, and detailed
+per-phase plus cumulative reports. The 2026-07-17 live decision was moved verbatim to
+`docs/DECISIONS.md` to keep `AGENTS.md` compact. No application code, paid call, production write,
+external mutation, Paddle work, deployment, push, or merge to `main` was performed.
