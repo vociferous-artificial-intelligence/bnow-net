@@ -262,6 +262,14 @@ export const TERMINAL_EVENT_TYPES: ReadonlySet<AskRunEventType> = new Set([
   "run.cancelled",
 ]);
 
+/** Marker seq range base: the cancel route writes its cancel_requested marker
+ *  at seq >= this so it can never collide with the orchestrating invocation's
+ *  in-process counter. EVERY reader of ask_run_events must treat this range as
+ *  out-of-band: the client reducer caps its lastSeq below it, and the events
+ *  route's tail loop must not advance its poll cursor into it (a cursor at
+ *  1e6 goes blind to all later orchestrator events — supplementary Gate 2). */
+export const CANCEL_SEQ_BASE = 1_000_000;
+
 /** One SSE record for an event (id = seq so Last-Event-ID semantics work). */
 export function encodeSseEvent(e: AskRunEvent): string {
   return `id: ${e.seq}\nevent: ${e.type}\ndata: ${JSON.stringify(e.payload)}\n\n`;

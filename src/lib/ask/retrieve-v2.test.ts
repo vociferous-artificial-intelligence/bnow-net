@@ -359,6 +359,34 @@ describe("retrieveV2 — concurrent arms (Phase 2)", () => {
     expect(r.claims.length).toBeGreaterThan(0);
   });
 
+  it("retrieveV2 awaits the async partial's settlement before returning (seq-order commit — supplementary Gate 2)", async () => {
+    setupPool({ vector: [vrow(1)], lexCount: 1, lexical: [lrow(1)] });
+    let partialSettled = false;
+    const r = await retrieveV2("sanctions", {
+      now: NOW,
+      onLexicalPartial: () =>
+        new Promise<void>((resolve) =>
+          setTimeout(() => {
+            partialSettled = true;
+            resolve();
+          }, 30),
+        ),
+    });
+    // the slow persist finished BEFORE retrieveV2 resolved — the next sink
+    // emit (retrieval.completed) can never commit ahead of the partial
+    expect(partialSettled).toBe(true);
+    expect(r.claims.length).toBeGreaterThan(0);
+  });
+
+  it("a REJECTING async partial is swallowed and still awaited (no unhandled rejection, no retrieval failure)", async () => {
+    setupPool({ vector: [vrow(1)], lexCount: 1, lexical: [lrow(1)] });
+    const r = await retrieveV2("sanctions", {
+      now: NOW,
+      onLexicalPartial: () => Promise.reject(new Error("persist failed")),
+    });
+    expect(r.claims.length).toBeGreaterThan(0);
+  });
+
   it("a vector-arm failure still degrades to lexical-only under concurrency", async () => {
     setupPool({ lexCount: 1, lexical: [lrow(1)] });
     embedTextsMock.mockRejectedValue(new Error("embed exploded"));

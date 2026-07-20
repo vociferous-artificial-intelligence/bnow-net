@@ -171,9 +171,12 @@ describe("resumeRun — mid-run refresh recovery", () => {
     expect(readActiveRun()).toBeNull();
   });
 
-  it("an ownership 404 fails honestly and clears the ref", async () => {
+  it("an ownership 404 fails honestly and clears the ref (after the one confirmation retry)", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 404 }));
-    const final = await resumeRun({ runId: RUN_ID, lastSeq: 0, question: "q" }, { onState: () => {}, fetchImpl });
+    const final = await resumeRun(
+      { runId: RUN_ID, lastSeq: 0, question: "q" },
+      { onState: () => {}, fetchImpl, backoffMs: 0 },
+    );
     expect(final.phase).toBe("failed");
     expect(final.errorClass).toBe("reconnect_404");
   });
@@ -377,7 +380,7 @@ describe("resumeRun — transient failures vs terminal 404 vs exhaustion", () =>
     expect(readActiveRun()).toEqual({ runId: RUN_ID, lastSeq: 2, question: "q" });
   });
 
-  it("a genuine 404 stays terminal and clears the ref", async () => {
+  it("a REPEATED 404 is terminal and clears the ref (genuine ownership/unknown run)", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 404 }));
     storeActiveRun({ runId: RUN_ID, lastSeq: 2, question: "q" });
     const final = await resumeRun(
@@ -386,8 +389,41 @@ describe("resumeRun — transient failures vs terminal 404 vs exhaustion", () =>
     );
     expect(final.phase).toBe("failed");
     expect(final.errorClass).toBe("reconnect_404");
-    expect(fetchImpl).toHaveBeenCalledTimes(1); // no retry burn on a terminal
+    expect(fetchImpl).toHaveBeenCalledTimes(2); // confirmed once before terminal
     expect(readActiveRun()).toBeNull();
+  });
+
+  it("a SINGLE 404 during the run-creation window is transient: the retry finds the run and the billed answer is never orphaned (supplementary Gate 2)", async () => {
+    const tail = sse(['id: 2\nevent: run.completed\ndata: {"result":{"answer":"A"}}\n\n']);
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 404 })) // row not committed yet
+      .mockResolvedValueOnce(new Response(streamOf(tail), { status: 200 }));
+    storeActiveRun({ runId: RUN_ID, lastSeq: 0, question: "q" });
+
+    const final = await resumeRun(
+      { runId: RUN_ID, lastSeq: 0, question: "q" },
+      { onState: () => {}, fetchImpl, backoffMs: 0 },
+    );
+    expect(final.phase).toBe("done");
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(readActiveRun()).toBeNull(); // cleared at terminal, not at the 404
+  });
+
+  it("a 404 followed by a transient 502 resets the 404 count (only CONSECUTIVE 404s are terminal)", async () => {
+    const tail = sse(['id: 2\nevent: run.completed\ndata: {"result":{"answer":"A"}}\n\n']);
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(new Response(null, { status: 502 }))
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(new Response(streamOf(tail), { status: 200 }));
+    const final = await resumeRun(
+      { runId: RUN_ID, lastSeq: 0, question: "q" },
+      { onState: () => {}, fetchImpl, maxReconnects: 5, backoffMs: 0 },
+    );
+    expect(final.phase).toBe("done"); // the non-consecutive 404s never terminalized
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
   });
 });
 

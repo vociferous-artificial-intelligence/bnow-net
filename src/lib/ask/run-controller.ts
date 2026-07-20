@@ -303,6 +303,7 @@ export async function resumeRun(
   // before the first network byte (G2S finding: the resume window rendered an
   // enabled-looking idle form that silently swallowed gestures).
   opts.onState(state);
+  let consecutive404 = 0;
   for (let attempt = 0; attempt < max; attempt++) {
     let res: Response;
     try {
@@ -314,12 +315,23 @@ export async function resumeRun(
       continue;
     }
     if (res.status === 404) {
-      // Ownership/unknown run: genuinely terminal.
-      state = { ...state, phase: "failed", errorClass: `reconnect_${res.status}` };
-      opts.onState(state);
-      clearActiveRun();
-      return state;
+      // A 404 is terminal only when it REPEATS: the POST route announces
+      // run.ref before askWithLimits commits the ask_runs row, so a drop/
+      // refresh inside that creation window sees a 404 for a run that is
+      // billing and executing — clearing the ref on the first one orphans it
+      // (supplementary Gate 2 finding). A second consecutive 404 after
+      // backoff is a genuine ownership/unknown run.
+      consecutive404++;
+      if (consecutive404 >= 2) {
+        state = { ...state, phase: "failed", errorClass: `reconnect_${res.status}` };
+        opts.onState(state);
+        clearActiveRun();
+        return state;
+      }
+      await new Promise((r) => setTimeout(r, backoff * (attempt + 1)));
+      continue;
     }
+    consecutive404 = 0;
     if (!res.ok || !res.body) {
       // Transient 5xx/4xx-other (or a bodiless response): retry within the
       // budget (G2S finding: a single 502 previously destroyed the resume ref

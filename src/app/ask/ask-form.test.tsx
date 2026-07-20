@@ -562,6 +562,124 @@ describe("AskForm: progressive transport (ASK_PROGRESSIVE client path)", () => {
     }
   });
 
+  it("a replayed terminal payload hydrates via the ORIGINAL run's id from result.runId, not the row-less transport id (supplementary Gate 2)", async () => {
+    const ORIGINAL_ID = "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff";
+    const terminal = [
+      `event: run.ref\ndata: {"runId":"${RUN_ID}"}\n\n`, // transport id (no run row on replays)
+      `id: 1\nevent: run.completed\ndata: ${JSON.stringify({ result: { answer: "Replayed answer.", state: "answered", provider: "openai:gpt-5", citedClaimIds: [], evidenceCount: 0, terms: [], relatedClaimIds: [], window: null, totalMatching: 0, sampled: false, retrievalMode: "v2", runId: ORIGINAL_ID, replayed: true } })}\n\n`,
+    ];
+    const resultUrls: string[] = [];
+    const fetchMock = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url) === "/api/ask/runs" && init?.method === "POST") {
+        return new Response(sseStream(terminal), { status: 200 });
+      }
+      if (String(url).endsWith("/result")) {
+        resultUrls.push(String(url));
+        if (String(url).includes(ORIGINAL_ID)) {
+          return Response.json({
+            result: { answer: "Replayed answer.", state: "answered", provider: "openai:gpt-5", citedClaimIds: [], evidenceCount: 0, terms: [], relatedClaimIds: [], window: null, totalMatching: 0, sampled: false, retrievalMode: "v2", runId: ORIGINAL_ID },
+            cited: [],
+            related: [],
+          });
+        }
+        return new Response(null, { status: 404 }); // the transport id has no row
+      }
+      throw new Error(`unexpected fetch ${String(url)}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const user = userEvent.setup();
+      render(<AskForm {...formProps} progressive />);
+      await user.type(
+        screen.getByPlaceholderText(strings["ask.placeholder"]),
+        "did russia strike kyiv today",
+      );
+      await user.click(screen.getByRole("button", { name: strings["ask.submit"] }));
+      await screen.findByText("Replayed answer.");
+      expect(resultUrls).toEqual([`/api/ask/runs/${ORIGINAL_ID}/result`]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("a one-click intent arriving while a resume owns the form is NOT consumed — no swallowed gesture, no POST (supplementary Gate 2)", async () => {
+    const intent = "11111111-2222-4333-8444-555555555555";
+    // a resume that never terminates during the test window
+    const fetchMock = vi.fn(
+      (...args: [RequestInfo | URL, RequestInit?]) =>
+        new Promise<Response>(() => void args),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      window.sessionStorage.setItem(
+        "bnow_ask_active_run",
+        JSON.stringify({ runId: RUN_ID, lastSeq: 3, question: "the earlier question" }),
+      );
+      window.sessionStorage.setItem(askIntentStorageKey(intent), "did russia strike kyiv today");
+      render(
+        <AskForm {...formProps} progressive intent={intent} initialQuestion="did russia strike kyiv today" />,
+      );
+      // the resumed run's own question is displayed (no misattribution)
+      await screen.findByText("the earlier question");
+      // the intent entry SURVIVES (unconsumed — the user can submit by hand later)
+      expect(window.sessionStorage.getItem(askIntentStorageKey(intent))).toBe(
+        "did russia strike kyiv today",
+      );
+      // and no paid POST was dispatched
+      expect(
+        fetchMock.mock.calls.filter((c) => (c[1] as RequestInit | undefined)?.method === "POST"),
+      ).toHaveLength(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("the terminal-hydration gap stays busy: sections remain visible, the form stays disabled, and no example chips flash (supplementary Gate 2)", async () => {
+    const terminal = [
+      `event: run.ref\ndata: {"runId":"${RUN_ID}"}\n\n`,
+      'id: 1\nevent: answer.section\ndata: {"text":"Streamed sentence one.","citedClaimIds":[]}\n\n',
+      `id: 2\nevent: run.completed\ndata: ${JSON.stringify({ result: { answer: "Final answer.", state: "answered", provider: "openai:gpt-5", citedClaimIds: [], evidenceCount: 0, terms: [], relatedClaimIds: [], window: null, totalMatching: 0, sampled: false, retrievalMode: "v2", runId: RUN_ID } })}\n\n`,
+    ];
+    let releaseResult: (() => void) | null = null;
+    const gate = new Promise<void>((r) => (releaseResult = r));
+    const fetchMock = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url) === "/api/ask/runs" && init?.method === "POST") {
+        return new Response(sseStream(terminal), { status: 200 });
+      }
+      if (String(url) === `/api/ask/runs/${RUN_ID}/result`) {
+        await gate; // hold hydration so the gap is observable
+        return Response.json({
+          result: { answer: "Final answer.", state: "answered", provider: "openai:gpt-5", citedClaimIds: [], evidenceCount: 0, terms: [], relatedClaimIds: [], window: null, totalMatching: 0, sampled: false, retrievalMode: "v2" },
+          cited: [],
+          related: [],
+        });
+      }
+      throw new Error(`unexpected fetch ${String(url)}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const user = userEvent.setup();
+      render(<AskForm {...formProps} progressive />);
+      const input = screen.getByPlaceholderText(
+        strings["ask.placeholder"],
+      ) as HTMLInputElement;
+      await user.type(input, "did russia strike kyiv today");
+      await user.click(screen.getByRole("button", { name: strings["ask.submit"] }));
+
+      // inside the gap: finalizing status visible, sections retained, form busy
+      await screen.findByText(strings["ask.progress.finalizing"]);
+      expect(screen.getByText("Streamed sentence one.")).toBeTruthy();
+      expect(input.disabled).toBe(true);
+      expect(screen.queryByText("Which Russian officials were prosecuted recently?")).toBeNull(); // no idle flash
+
+      releaseResult!();
+      await screen.findByText("Final answer.");
+      expect(input.disabled).toBe(false); // released after hydration
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("flag off: the progressive machinery is fully inert (no fetch, action path only)", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);

@@ -94,6 +94,36 @@ describe("POST /api/ask/runs — the progressive paid submission", () => {
     expect(body).toContain('"errorClass":"route_throw"');
     expect(body).not.toContain("secret internals");
   });
+
+  it("a terminal-persist failure NEVER rewrites a billed success as run.failed — the terminal is delivered unpersisted (supplementary Gate 2)", async () => {
+    h.askWithLimitsMock.mockResolvedValue({
+      answer: "Billed answer.",
+      state: "answered",
+      provider: "openai:gpt-5",
+      citedClaimIds: [],
+      evidenceCount: 0,
+      terms: [],
+      relatedClaimIds: [],
+      window: null,
+      totalMatching: 0,
+      sampled: false,
+      retrievalMode: "v2",
+      runId: RUN_ID,
+    });
+    // The sink's INSERT for the terminal event fails (transient DB outage
+    // after the run row was already finalized inside askWithLimits).
+    h.queryMock.mockImplementation(async (_sql: string, params?: unknown[]) => {
+      if (params?.[2] === "run.completed") throw new Error("db write refused");
+      return { rows: [{ at: "t" }] };
+    });
+    const res = await postRun(
+      req("/api/ask/runs", { method: "POST", body: JSON.stringify({ question: "what happened" }), headers: { "content-type": "application/json" } }),
+    );
+    const body = await new Response(res.body).text();
+    expect(body).toContain("event: run.completed"); // the wire terminal
+    expect(body).toContain('"answer":"Billed answer."');
+    expect(body).not.toContain("run.failed"); // a billed success is never rewritten
+  });
 });
 
 describe("GET /api/ask/runs/[id]/events — ownership-gated replay", () => {
@@ -166,6 +196,39 @@ describe("GET /api/ask/runs/[id]/events — ownership-gated replay", () => {
     expect(body).toContain("event: run.created");
     expect(body).toContain("event: run.completed");
   }, 15_000);
+
+  it("a replayed cancel marker never poisons the tail cursor: a LATER terminal still arrives, and the marker forwards exactly once (supplementary Gate 2)", async () => {
+    const afterParams: number[] = [];
+    let poll = 0;
+    h.queryMock.mockImplementation(async (sql: string, params?: unknown[]) => {
+      if (String(sql).includes("SELECT user_email")) return { rows: [{ user_email: "user@example.com" }] };
+      if (String(sql).includes("FROM ask_run_events")) {
+        poll++;
+        const after = Number(params?.[1] ?? 0);
+        afterParams.push(after);
+        // Faithful `seq > after ORDER BY seq` over: marker at 1e6 from poll 1;
+        // the orchestrator's run.cancelled (seq 6) persists from poll 2 on.
+        const all =
+          poll === 1
+            ? [{ seq: 1_000_000, type: "cancel_requested", payload: {} }]
+            : [
+                { seq: 6, type: "run.cancelled", payload: {} },
+                { seq: 1_000_000, type: "cancel_requested", payload: {} },
+              ];
+        return { rows: eventsRows(all.filter((e) => e.seq > after)) };
+      }
+      return { rows: [] };
+    });
+    const res = await getEvents(req(`/api/ask/runs/${RUN_ID}/events`), {
+      params: Promise.resolve({ id: RUN_ID }),
+    });
+    const body = await new Response(res.body).text();
+    // the poll cursor never advanced into the marker range
+    expect(afterParams.every((a) => a < 1_000_000)).toBe(true);
+    expect(body).toContain("event: run.cancelled"); // the terminal WAS delivered
+    // the marker forwarded exactly once despite reappearing on every poll
+    expect(body.match(/event: cancel_requested/g)).toHaveLength(1);
+  }, 15_000);
 });
 
 describe("POST /api/ask/runs/[id]/cancel — Phase 2 stub", () => {
@@ -182,6 +245,10 @@ describe("POST /api/ask/runs/[id]/cancel — Phase 2 stub", () => {
     const insert = h.queryMock.mock.calls.find((c) => String(c[0]).includes("INSERT INTO ask_run_events"));
     expect(String(insert![0])).toContain("cancel_requested");
     expect(String(insert![0])).toContain("ON CONFLICT (run_id, seq) DO NOTHING");
+    // REAL idempotency (supplementary Gate 2 fix): at most one marker per run —
+    // the guarded INSERT writes nothing when a marker already exists, so a
+    // repeated Stop click cannot append marker rows.
+    expect(String(insert![0])).toContain("WHERE NOT EXISTS");
   });
 
   it("non-owner is a 404 and nothing is written", async () => {
