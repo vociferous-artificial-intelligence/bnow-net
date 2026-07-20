@@ -287,6 +287,37 @@ blockers accumulated by the unattended workstream. Revisit-markers are explicit.
     billed usage/model whenever settlement happened (parity with the
     non-streaming billedAnswerModel discipline).
 
+## Phase 4
+
+### Accepted assumptions / structural decisions
+
+52. **The router is recording-only** (`ASK_ROUTER=1` consults `route()` and
+    writes `ask_usage.route_policy`; the pipeline keeps reading its own
+    constants, equivalence-pinned). Models route THROUGH the policy object
+    only when the first non-Auto route earns the paid scorecard — at which
+    point `autoPolicy()` must gain a hard `hasScorecard` check (Gate 4 G4-5
+    latent gap, marked in code and by the `auto_env_override` reason).
+53. **The metering price table stays in limits.ts until Phase 5**; the
+    registry mirrors it under a parity test that fails on divergence. The
+    pin is one-directional (a model added to PRICES_PER_MTOK alone escapes
+    it) — consolidation closes this in the gateway phase.
+54. **Cache-hit rows count against the user's daily allowance** (the hit sits
+    after the gates) — strictly conservative; the Phase 7 units model
+    revisits (hits should cost 0 units commercially).
+55. **Only snapshot-carrying (progressive) answered runs are cacheable**; the
+    action path produces no snapshot and is never cached (F11 requires the
+    snapshot). Bound, not a bug; revisit if the action path ever freezes
+    snapshots.
+56. **Cache retention = lazy 7-day sweep on store** (corpus moves orphan all
+    prior entries permanently — they can never re-key). The Phase 6 retention
+    decision may supersede.
+57. **The recorded route policy is ANSWER-STAGE-scoped** (rerank effort/
+    ceiling and the trim floor are deliberately not in it); the cache KEY
+    however folds every answer-shaping knob incl. those toggles (G4-1 fix).
+58. **Semantic cache, adaptive K, rerank-skip, Fast/Deep enablement, mode
+    selector UI: NOT built** — each blocked on the paid scorecard / per-intent
+    evals / a live router (enablement-blocked list).
+
 ### Revisit list
 
 - If Next.js is upgraded past 16.2.x, re-verify the server-action maxDuration

@@ -92,3 +92,19 @@ export function askRelevantEvidenceFloor(): number {
 export function askStreamAnswer(): boolean {
   return process.env.ASK_STREAM_ANSWER === "1";
 }
+
+/** Phase 4: consult the versioned router and RECORD its policy per run.
+ *  DEFAULT OFF. With the flag on, Auto's policy is equivalence-pinned to
+ *  today's constants — behavior stays identical; enabling Fast/Deep or any
+ *  policy that CHANGES models/K requires the paid scorecard (blocked) and a
+ *  registry entry. */
+export function askRouter(): boolean {
+  return process.env.ASK_ROUTER === "1";
+}
+
+/** Phase 4: per-user EXACT answer cache (normalized question + window +
+ *  policy/prompt/retrieval/corpus versions). DEFAULT OFF. Hits are $0 and
+ *  hydrate cited evidence from the frozen EvidenceSnapshot (F11). */
+export function askExactCache(): boolean {
+  return process.env.ASK_EXACT_CACHE === "1";
+}

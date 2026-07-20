@@ -158,6 +158,14 @@ export function AskResult({
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+        {/* Phase 4: an exact-cache hit is disclosed with the ORIGINAL answer's
+            currency — never presented as a fresh run (§9.2 honesty rule) */}
+        {(result as { cacheStatus?: string }).cacheStatus === "exact" && (
+          <p className="mb-2 text-xs text-gray-400">
+            {t("ask.cached.note")}
+            {currency ? ` · ${t("ask.cached.as_of")} ${currency}` : ""}
+          </p>
+        )}
         {sampled && (
           <p className="mb-2 text-xs text-gray-400">
             {t("ask.sampled.prefix")} {result.totalMatching ?? 0} {t("ask.sampled.suffix")}

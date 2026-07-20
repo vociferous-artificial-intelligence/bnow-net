@@ -86,6 +86,16 @@ in the gate report) and the verification battery:
 | P3-14 | Browser passes B/C — flags on + LLM_DISABLE=1 (**4/4**); flags off + LLM_DISABLE=1 (**4/4**) | PASS | ~3min | offline deterministic through progressive (no sections, one POST); flag-off = zero runs-POSTs (server-action transport); screenshots committed. Fork branch deleted after |
 | P3-15 | `npm run typecheck` + `npm run lint` + `npm test` (final, `27ed1de`) | **PASS — 1,860/1,860, 148 files** (lint 0 errors / 1 pre-existing warning) | ~7min | |
 
+## Phase 4 (branch `codex/ai-search-ask-p4-routing-cache`)
+
+| # | Command | Result | Duration | Notes |
+|---|---|---|---|---|
+| P4-1 | `npm test` (implementation `a335cd4`) | **PASS — 1,890/1,890, 152 files** (+30) | 5.9s | registry price parity + scorecard gate; router Auto-equivalence (defaults + env overrides) + Fast/Deep refusals; cache key sensitivity + fail-soft + field stripping; askWithLimits wiring (flag-off inert, $0 hit, store policy, cache-failure=miss, route recording); snapshot hydration (F11) |
+| P4-2 | `npm run test:integration` | **PASS — 56/56, 10 files** (+4) | ~26s | disposable branch `br-spring-fire-atbf56eh`, deleted: real-Postgres store/lookup + hit accounting + isolation; corpus-bump miss (F11); end-to-end $0 enforce-mode hit (zero reservations, snapshot re-persisted); normalization sharing |
+| P4-3 | `npm run typecheck` + `npm run lint` + `npm run build` | PASS (0 errors / 1 pre-existing warning) | ~4min | |
+| P4-4 | Gate 4 reviewer probes (2 independent agents, executed: key-sensitivity 11 knobs, wiring byte-identity, hit-row accounting capture, scorecard-spoof attempt) | 0 blocker/high; 3 med + 6 low CONFIRMED (G4-1..9) | ~16min | verdicts + dispositions in the gate report |
+| P4-5 | post-fix (`3f4242c`): `npm test` + `npm run test:integration` + typecheck/lint/build | **PASS — 1,896/1,896, 152 files** unit; **56/56** itest (branch `br-falling-flower-atkywyg1`, deleted) | ~8min | +6 pins: 10-knob key matrix, matchedPhrase folding, cache:exact hit rows, anonymous guard, envNum parity, auto_env_override, nameBearing fidelity leg, country-name resolution, retention sweep |
+
 Post-Gate-1 reruns (fix commit `1309d46`):
 
 | # | Command | Result | Duration | Notes |

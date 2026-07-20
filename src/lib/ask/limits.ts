@@ -17,7 +17,11 @@ import {
   type CreateRunResult,
 } from "./runs";
 import { buildAskRunGuards } from "./run-guards";
-import { NULL_EVENT_SINK, type RunEventSink } from "./events";
+import { NULL_EVENT_SINK, persistEvidenceSnapshot, type EvidenceSnapshot, type RunEventSink } from "./events";
+import { askExactCache, askRouter } from "./config";
+import { cacheKey, cacheLookup, cacheStore, corpusVersion } from "./cache";
+import { route, routePolicyString } from "./router";
+import { parseTimeWindow } from "./window";
 
 // /ask spend control: an authenticated user could otherwise run up LLM cost with
 // unlimited questions. This is the FIRST of two gates on the /ask money path:
@@ -276,7 +280,7 @@ async function logUsage(
        rerank_prompt_tokens, rerank_completion_tokens, rerank_cost_usd,
        answer_prompt_tokens, answer_completion_tokens, answer_cost_usd,
        candidates_count, evidence_count, total_matching, window_from, window_to,
-       run_id, started_at, stage_timings_ms
+       run_id, started_at, stage_timings_ms, route_policy
      ) VALUES (
        $1, $2, $3, $4, $5, $6,
        $7, $8, $9, $10, $11,
@@ -284,7 +288,7 @@ async function logUsage(
        $14, $15, $16,
        $17, $18, $19,
        $20, $21, $22, $23, $24,
-       $25, $26, $27::jsonb
+       $25, $26, $27::jsonb, $28
      )`,
     [
       email,
@@ -317,6 +321,7 @@ async function logUsage(
       // Explicit stringify + ::jsonb cast — never rely on driver object-to-json
       // coercion for a column the entry points later patch with a jsonb || merge.
       JSON.stringify(run.timings),
+      run.routePolicy ?? null,
     ],
   );
 }
@@ -399,6 +404,13 @@ export async function askWithLimits(
 ): Promise<AskAnswerV2> {
   const email = userEmail ?? "anonymous";
   const run = createAskRunMeta(opts?.runId);
+  // Phase 4 (ASK_ROUTER=1): consult the versioned router and RECORD its policy
+  // (ask_usage.route_policy). Telemetry only — Auto is equivalence-pinned to
+  // the constants the pipeline reads, so behavior is identical either way.
+  if (askRouter()) {
+    const policy = route({ mode: "auto" });
+    if ("mode" in policy) run.routePolicy = routePolicyString(policy);
+  }
   const t0 = monotonicMs();
   const enforce = askRunsEnforce();
   // Phase 2: the progressive transport's event sink. run.created/run.authorized
@@ -511,6 +523,52 @@ export async function askWithLimits(
       if (progressive) await sink.emit("run.authorized", {});
     }
 
+    // ---- Phase 4: per-user EXACT cache (flag-gated; default OFF) ----------------
+    // Sits AFTER the allowance gates (a hit still counts as one of the user's
+    // daily questions — strictly conservative, registered) and BEFORE the paid
+    // pipeline: a hit costs $0 and makes zero provider calls. The stored
+    // snapshot is re-persisted onto THIS run's row so hydration resolves cited
+    // evidence from it (F11 — live claim ids may have churned).
+    let cacheCtx: { key: string; corpus: string } | null = null;
+    // Anonymous identities never touch the cache (Gate 4: with the auth gate
+    // off, every visitor folds to one "anonymous" namespace — caching there
+    // would pool answers across people).
+    if (askExactCache() && userEmail !== null) {
+      try {
+        const corpus = await corpusVersion(pool);
+        const key = cacheKey({ question, window: parseTimeWindow(question), corpusVersion: corpus });
+        cacheCtx = { key, corpus };
+        const hit = await cacheLookup(email, key);
+        if (hit) {
+          const payload: AskAnswerV2 = { ...hit.result, runId: run.runId, cacheStatus: "exact" };
+          recordStage(run.timings, "pipelineMs", monotonicMs() - t0);
+          try {
+            // The hit's accounting row must not replay the ORIGINAL run's paid
+            // stage columns (Gate 4: a $0 row asserting stage costs is
+            // incoherent and double-counts in any stage aggregation). The
+            // provider marker makes hit rows queryable; the payload the USER
+            // sees keeps its true provider.
+            const hitRow = { ...payload, provider: "cache:exact", usage: undefined, usageByStage: undefined };
+            await logUsage(pool, email, question, hitRow as RawAskResult, 0, run);
+          } catch (logErr) {
+            console.warn(`askWithLimits: cache-hit usage row failed (answer still returned): ${logErr instanceof Error ? logErr.message : logErr}`);
+          }
+          await persistEvidenceSnapshot(run.runId, hit.snapshot);
+          if (enforce) {
+            await finalizeSafe({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: 0 });
+          } else if (created) {
+            await shadowSafe("finalizeRun", () =>
+              finalizeRun({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: 0 }),
+            );
+          }
+          return payload;
+        }
+      } catch (e) {
+        // A cache problem is a MISS, never a failed question.
+        console.warn(`askWithLimits: exact-cache path failed (running the pipeline): ${e instanceof Error ? e.message : e}`);
+      }
+    }
+
     let raw: RawAskResult;
     try {
       raw = await ask(question, {
@@ -567,6 +625,34 @@ export async function askWithLimits(
       await shadowSafe("finalizeRun", () =>
         finalizeRun({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: totalCost }),
       );
+    }
+    // ---- Phase 4: exact-cache store (flag-gated; fail-soft) ---------------------
+    // Only billed ANSWERED pipeline results WITH a frozen snapshot are
+    // cacheable (progressive runs persist one; snapshotless answers cannot
+    // hydrate F11-safely after claim-id churn — registered bound). Stub/
+    // budget/error/cancelled providers never enter the cache (truth-in-UI:
+    // degraded answers must not be re-served as the real thing).
+    if (cacheCtx && payload.state === "answered" && payload.provider.startsWith("openai")) {
+      try {
+        const { rows } = await pool.query(
+          `SELECT evidence_snapshot FROM ask_runs WHERE id = $1`,
+          [run.runId],
+        );
+        const snapshot = (rows[0] as { evidence_snapshot: EvidenceSnapshot | null } | undefined)
+          ?.evidence_snapshot;
+        if (snapshot) {
+          await cacheStore({
+            userEmail: email,
+            key: cacheCtx.key,
+            corpusVersion: cacheCtx.corpus,
+            question,
+            result: payload,
+            snapshot,
+          });
+        }
+      } catch (e) {
+        console.warn(`askWithLimits: cache store skipped: ${e instanceof Error ? e.message : e}`);
+      }
     }
     return payload;
   } finally {

@@ -169,6 +169,13 @@
       "when": 1784511075388,
       "tag": "0023_yielding_triathlon",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1784568194239,
+      "tag": "0024_marvelous_dark_beast",
+      "breakpoints": true
     }
   ]
 }

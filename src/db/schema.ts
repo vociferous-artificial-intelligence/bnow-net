@@ -764,6 +764,33 @@ export const providerUsageReservations = pgTable(
   ],
 );
 
+// AI Search Phase 4: the per-user EXACT answer cache. One row per
+// (user, cache_key); the key folds in the normalized question, parsed window,
+// route-policy/prompt/retrieval versions, and the CORPUS version — digest
+// regeneration replaces claim rows (F11), so the entry stores the frozen
+// EvidenceSnapshot and cited evidence hydrates from it, never from live claim
+// ids. Strictly per-user (cross-user pooling is an unmade operator decision).
+// Passive until ASK_EXACT_CACHE=1.
+export const askAnswerCache = pgTable(
+  "ask_answer_cache",
+  {
+    id: serial("id").primaryKey(),
+    userEmail: text("user_email").notNull(),
+    cacheKey: text("cache_key").notNull(),
+    corpusVersion: text("corpus_version").notNull(),
+    question: text("question").notNull(),
+    result: jsonb("result").notNull(),
+    snapshot: jsonb("snapshot").notNull(),
+    hitCount: integer("hit_count").notNull().default(0),
+    lastHitAt: timestamp("last_hit_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("ask_answer_cache_user_key_idx").on(t.userEmail, t.cacheKey),
+    index("ask_answer_cache_created_idx").on(t.createdAt),
+  ],
+);
+
 // ---------- paid-provider budget accounting ----------
 
 // One row per (provider, UTC day): request/unit counts + estimated spend.

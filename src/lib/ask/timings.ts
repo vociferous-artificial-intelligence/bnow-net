@@ -61,6 +61,10 @@ export interface AskRunMeta {
   /** wall clock, for the started_at column (ordering only — never for durations) */
   startedAt: Date;
   timings: StageTimings;
+  /** Phase 4 (ASK_ROUTER=1): the consulted route policy's compact recording
+   *  string — telemetry only; the pipeline reads its own constants, which the
+   *  router equivalence test pins identical. */
+  routePolicy?: string;
 }
 
 export function createAskRunMeta(runId?: string): AskRunMeta {

@@ -17,9 +17,14 @@ const h = vi.hoisted(() => {
   const finalizeRunMock = vi.fn();
   const expireStaleRunsMock = vi.fn();
   const buildGuardsMock = vi.fn();
+  const cacheKeyMock = vi.fn();
+  const cacheLookupMock = vi.fn();
+  const cacheStoreMock = vi.fn();
+  const corpusVersionMock = vi.fn();
   return {
     askMock, queryMock, endMock, poolCtor,
     createRunMock, reserveAllowanceMock, finalizeRunMock, expireStaleRunsMock, buildGuardsMock,
+    cacheKeyMock, cacheLookupMock, cacheStoreMock, corpusVersionMock,
   };
 });
 
@@ -36,6 +41,15 @@ vi.mock("./runs", () => ({
   expireStaleRuns: h.expireStaleRunsMock,
 }));
 vi.mock("./run-guards", () => ({ buildAskRunGuards: h.buildGuardsMock }));
+// Phase 4: the exact-cache module is mocked (its own SQL is covered by
+// cache.test.ts + the real-Postgres itest); here we pin the WIRING —
+// flag-gating, hit short-circuit, store policy.
+vi.mock("./cache", () => ({
+  cacheKey: h.cacheKeyMock,
+  cacheLookup: h.cacheLookupMock,
+  cacheStore: h.cacheStoreMock,
+  corpusVersion: h.corpusVersionMock,
+}));
 
 const {
   askWithLimits,
@@ -102,6 +116,13 @@ beforeEach(() => {
   h.finalizeRunMock.mockReset();
   h.expireStaleRunsMock.mockReset();
   h.buildGuardsMock.mockReset();
+  h.cacheKeyMock.mockReset();
+  h.cacheLookupMock.mockReset();
+  h.cacheStoreMock.mockReset();
+  h.corpusVersionMock.mockReset();
+  h.cacheStoreMock.mockResolvedValue(undefined);
+  delete process.env.ASK_EXACT_CACHE;
+  delete process.env.ASK_ROUTER;
   // shadow-mode defaults: run writes succeed quietly and change nothing
   h.createRunMock.mockImplementation(async (o: { runId: string; question: string }) => ({
     run: { id: o.runId, userEmail: "u", question: o.question, status: "created", state: null, result: null, finishedAt: null, expired: false },
@@ -725,5 +746,128 @@ describe("askWithLimits — Phase 1 shadow mode stays byte-equivalent", () => {
     expect(h.buildGuardsMock).not.toHaveBeenCalled();
     expect(h.askMock).toHaveBeenCalledTimes(1); // pipeline ran despite the collision
     expect(res.runId).not.toBe("orig"); // fresh run identity as always
+  });
+});
+
+// ---- Phase 4: exact-cache wiring + route recording -------------------------------
+
+describe("askWithLimits — Phase 4 exact cache (ASK_EXACT_CACHE)", () => {
+  const SNAPSHOT = { version: 1, candidates: [], selectedClaimIds: [] };
+
+  it("flag OFF (default): the cache module is never consulted", async () => {
+    h.askMock.mockResolvedValue(v2Full());
+    await askWithLimits("q", "u@x.com");
+    expect(h.corpusVersionMock).not.toHaveBeenCalled();
+    expect(h.cacheLookupMock).not.toHaveBeenCalled();
+    expect(h.cacheStoreMock).not.toHaveBeenCalled();
+  });
+
+  it("flag ON + HIT: the stored payload returns with THIS gesture's runId and cacheStatus, the paid pipeline never runs, a $0 usage row is written", async () => {
+    vi.stubEnv("ASK_EXACT_CACHE", "1");
+    h.corpusVersionMock.mockResolvedValue("100:50");
+    h.cacheKeyMock.mockReturnValue("key-abc");
+    h.cacheLookupMock.mockResolvedValue({
+      result: v2Full({ answer: "Cached answer [c1]." }),
+      snapshot: SNAPSHOT,
+      createdAt: "2026-07-20",
+    });
+    const res = await askWithLimits("cached question", "u@x.com");
+
+    expect(h.askMock).not.toHaveBeenCalled(); // zero provider pipeline
+    expect(res.answer).toBe("Cached answer [c1].");
+    expect(res.cacheStatus).toBe("exact");
+    expect(res.provider).toBe("openai:gpt-5-mini"); // the USER-facing payload keeps its true provider
+    expect(res.runId).toBeTruthy();
+    const usageInsert = h.queryMock.mock.calls.find((c) => String(c[0]).includes("INSERT INTO ask_usage"));
+    expect(usageInsert).toBeTruthy();
+    expect(usageInsert![1][5]).toBe(0); // cost_usd = $0
+    // Gate 4: the hit's accounting row is marked and carries NO paid stage
+    // columns (they'd replay the ORIGINAL run's spend into a $0 row)
+    expect(usageInsert![1][2]).toBe("cache:exact"); // provider marker
+    expect(usageInsert![1][3]).toBeNull(); // prompt_tokens
+    expect(usageInsert![1][18]).toBeNull(); // answer_cost_usd
+    // the frozen snapshot is re-persisted onto THIS run's row (F11 hydration)
+    const snapPersist = h.queryMock.mock.calls.find((c) => String(c[0]).includes("SET evidence_snapshot"));
+    expect(snapPersist).toBeTruthy();
+  });
+
+  it("Gate 4: anonymous identities never touch the cache (no pooled 'anonymous' namespace)", async () => {
+    vi.stubEnv("ASK_EXACT_CACHE", "1");
+    h.askMock.mockResolvedValue(v2Full());
+    await askWithLimits("q", null); // FEATURE_AUTH_GATE-off dev path
+    expect(h.corpusVersionMock).not.toHaveBeenCalled();
+    expect(h.cacheLookupMock).not.toHaveBeenCalled();
+    expect(h.cacheStoreMock).not.toHaveBeenCalled();
+  });
+
+  it("flag ON + MISS: the pipeline runs and an ANSWERED result with a snapshot is stored", async () => {
+    vi.stubEnv("ASK_EXACT_CACHE", "1");
+    h.corpusVersionMock.mockResolvedValue("100:50");
+    h.cacheKeyMock.mockReturnValue("key-abc");
+    h.cacheLookupMock.mockResolvedValue(null);
+    h.askMock.mockResolvedValue(v2Full({ provider: "openai:gpt-5" }));
+    h.queryMock.mockImplementation(async (sql: string) => {
+      if (String(sql).includes("INSERT INTO ask_usage")) return { rows: [] };
+      if (String(sql).includes("evidence_snapshot")) return { rows: [{ evidence_snapshot: SNAPSHOT }] };
+      return { rows: [{ user_count: 0, global_cost: 0 }] };
+    });
+    await askWithLimits("q", "u@x.com");
+    expect(h.askMock).toHaveBeenCalledTimes(1);
+    expect(h.cacheStoreMock).toHaveBeenCalledTimes(1);
+    const stored = h.cacheStoreMock.mock.calls[0][0] as { key: string; snapshot: unknown };
+    expect(stored.key).toBe("key-abc");
+    expect(stored.snapshot).toEqual(SNAPSHOT);
+  });
+
+  it("flag ON + MISS without a snapshot (action path): nothing is stored", async () => {
+    vi.stubEnv("ASK_EXACT_CACHE", "1");
+    h.corpusVersionMock.mockResolvedValue("100:50");
+    h.cacheKeyMock.mockReturnValue("key-abc");
+    h.cacheLookupMock.mockResolvedValue(null);
+    h.askMock.mockResolvedValue(v2Full({ provider: "openai:gpt-5" }));
+    h.queryMock.mockImplementation(async (sql: string) => {
+      if (String(sql).includes("INSERT INTO ask_usage")) return { rows: [] };
+      if (String(sql).includes("evidence_snapshot")) return { rows: [{ evidence_snapshot: null }] };
+      return { rows: [{ user_count: 0, global_cost: 0 }] };
+    });
+    await askWithLimits("q", "u@x.com");
+    expect(h.cacheStoreMock).not.toHaveBeenCalled();
+  });
+
+  it("degraded providers (stub/budget) are NEVER cached (truth-in-UI)", async () => {
+    vi.stubEnv("ASK_EXACT_CACHE", "1");
+    h.corpusVersionMock.mockResolvedValue("100:50");
+    h.cacheKeyMock.mockReturnValue("key-abc");
+    h.cacheLookupMock.mockResolvedValue(null);
+    h.askMock.mockResolvedValue(v2Full({ provider: "stub" }));
+    await askWithLimits("q", "u@x.com");
+    expect(h.cacheStoreMock).not.toHaveBeenCalled();
+  });
+
+  it("a cache-path failure is a MISS, never a failed question", async () => {
+    vi.stubEnv("ASK_EXACT_CACHE", "1");
+    h.corpusVersionMock.mockRejectedValue(new Error("cache db down"));
+    h.askMock.mockResolvedValue(v2Full());
+    const res = await askWithLimits("q", "u@x.com");
+    expect(res.state).toBe("answered");
+    expect(h.askMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("askWithLimits — Phase 4 route recording (ASK_ROUTER)", () => {
+  it("flag OFF (default): route_policy stays null in the usage row", async () => {
+    h.askMock.mockResolvedValue(v2Full());
+    await askWithLimits("q", "u@x.com");
+    const usageInsert = h.queryMock.mock.calls.find((c) => String(c[0]).includes("INSERT INTO ask_usage"));
+    expect(usageInsert![1][27]).toBeNull(); // route_policy param
+  });
+
+  it("flag ON: the Auto policy string is recorded; behavior (the ask() call) is untouched", async () => {
+    vi.stubEnv("ASK_ROUTER", "1");
+    h.askMock.mockResolvedValue(v2Full());
+    await askWithLimits("q", "u@x.com");
+    const usageInsert = h.queryMock.mock.calls.find((c) => String(c[0]).includes("INSERT INTO ask_usage"));
+    expect(String(usageInsert![1][27])).toMatch(/^route-v1:auto:/);
+    expect(h.askMock).toHaveBeenCalledTimes(1); // same single pipeline call as ever
   });
 });

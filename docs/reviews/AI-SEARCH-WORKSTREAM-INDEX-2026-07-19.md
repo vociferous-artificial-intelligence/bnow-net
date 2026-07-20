@@ -24,7 +24,7 @@ are retained after merge for inspection.
 | 1 — runs, idempotency, atomic reservations | `codex/ai-search-ask-p1-runs` | **PASSED Gate 1 after fixes** (`1309d46`; 1 high + 6 med confirmed, 1 refuted); merged to integration | Gate 1 (independent adversarial money review; contract frozen first: `docs/designs/ASK-RUNS-RESERVATION-CONTRACT-2026-07-19.md`) | `AI-SEARCH-PHASE-1-runs-2026-07-19.md`, `AI-SEARCH-GATE-1-2026-07-19.md` |
 | 2 — progressive retrieval | `codex/ai-search-ask-p2-progressive` | **PASSED Gate 2 after fixes** (`04e0318`), **supplementary independent pass COMPLETED 2026-07-20 (PASS stands)**: 3 lens-divided reviewers, 0 blocker/high, 7 med + 4 low (G2S-1..11) all fixed forward on the P3 branch; merged to integration | Gate 2 (inline §5-fallback pass + banked proofs + 2026-07-20 supplementary addendum) | `AI-SEARCH-PHASE-2-progressive-2026-07-19.md`, `AI-SEARCH-GATE-2-2026-07-19.md` (with addendum) |
 | 3 — validator + validated streaming | `codex/ai-search-ask-p3-validation-stream` | **PASSED Gate 3 after fixes** (red-team fixes `e48149c` + browser-battery fix `27ed1de`; 2 high + 7 med + 4 low confirmed by executed probes + 1 browser-only high-class, all fixed and pinned); unit 1,860/1,860, itest 52/52, browser 10/10+4/4+4/4; merged to integration | Gate 3 (independent 3-battery red-team, executed probes + production-build browser battery) | `AI-SEARCH-PHASE-3-validation-stream-2026-07-20.md`, `AI-SEARCH-RECOVERY-2026-07-20.md`, `AI-SEARCH-GATE-3-2026-07-20.md` |
-| 4 — routing + exact cache | — | not started | Gate 4 | — |
+| 4 — routing + exact cache | `codex/ai-search-ask-p4-routing-cache` | **PASSED Gate 4 after fixes** (`a335cd4` impl + `3f4242c` fixes; 0 blocker/high, 3 med + 6 low all fixed); unit 1,896/1,896, itest 56/56; merged to integration | Gate 4 (independent 2-lens review, executed probes) | `AI-SEARCH-PHASE-4-routing-cache-2026-07-20.md`, `AI-SEARCH-GATE-4-2026-07-20.md` |
 | 5 — provider gateway | — | not started | Gate 5 | — |
 | 6 — investigation sessions | — | not started | Gate 6 | — |
 | 7 — entitlements (Ask side) | — | not started | Gate 7 (joint boundary) | — |
@@ -37,6 +37,7 @@ are retained after merge for inspection.
 
 | 0022 | `0022_reflective_callisto.sql` | 1 | ask_runs + ask_allowance_reservations + provider_usage_reservations — purely additive, passive until `ASK_RUNS_ENFORCE=1` | generated via drizzle-kit; applied + exercised on disposable Neon forks only; NOT applied to production |
 | 0023 | `0023_yielding_triathlon.sql` | 2 | ask_run_events (unique run_id+seq) + ask_runs.evidence_snapshot + the #22 partial expiry index — purely additive, passive until `ASK_PROGRESSIVE=1` | generated via drizzle-kit; applied + exercised on disposable Neon forks only; NOT applied to production |
+| 0024 | `0024_marvelous_dark_beast.sql` | 4 | ask_answer_cache (unique user_email+cache_key, created_at index) — purely additive, passive until `ASK_EXACT_CACHE=1` | generated via drizzle-kit; applied + exercised on disposable Neon forks only; NOT applied to production |
 
 > **HARD enablement order (Gate 0 finding F5; applies to 0022 equally):** apply migration 0021 to production
 > (`npm run db:migrate`) BEFORE deploying any build containing the Phase 0 commits.
@@ -58,7 +59,10 @@ The concurrent Paddle/billing workstream had no schema work in-tree at claim tim
 | `ASK_RUNS_ENFORCE` | unset (shadow: rows only, legacy gates authoritative) | operator enablement AFTER prod migration (0021+0022) + deploy + shadow soak |
 | `ASK_PROGRESSIVE` | unset (server-action transport; run routes exist but the client never calls them) | operator enablement after prod migration (0023) + SSE-through-production-proxy verification + internal cohort; **enable together with `ASK_RUNS_ENFORCE=1`** (register #44 — replay semantics hold only under enforce) |
 | `ASK_STREAM_ANSWER` | unset (whole-answer release) | Gate 3 pass + operator cohort decision; only effective with ASK_PROGRESSIVE |
-| `ASK_FIDELITY_FALLBACK` | ON by default (deterministic, $0) | rollback knob only — set 0 to disable sentence replacement |
+| `ASK_FIDELITY_FALLBACK` | ON by default (deterministic, $0) | rollback knob only — set 0 to disable sentence replacement (binds BOTH the whole-answer and streaming paths since Gate 3) |
+| `ASK_ROUTER` | unset (constants path; router never consulted) | recording-only telemetry — safe anytime after prod migration; routing models THROUGH the policy requires the paid scorecard + a hard autoPolicy scorecard check (register #52) |
+| `ASK_EXACT_CACHE` | unset (no cache reads/writes) | operator enablement after prod migration (0024); per-user only; hits $0 with disclosed "as of" |
+| Fast/Deep routes + mode selector UI | not servable (scorecard refusals; no UI) | the paid answer-model matrix (~$1–3, operator-blocked) incl. the fidelity fixtures, then registry scorecard entries |
 
 Phase 0's measurement columns are passive (no flag needed; rollback = stop writing them).
 
