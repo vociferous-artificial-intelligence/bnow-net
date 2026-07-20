@@ -14,6 +14,7 @@ import {
   askRelevanceBoundaryEnabled,
   askRelevantEvidenceFloor,
   askRerankModel,
+  askStreamAnswer,
 } from "./config";
 // Phase 3 Increment A: every deterministic answer check lives in the shared
 // pure validator (citation filter, denial prefix, insufficient copy, terminal
@@ -53,6 +54,7 @@ import {
   type EvidenceSnapshot,
   type RunEventSink,
 } from "./events";
+import { streamAnswer, watchCancelMarker } from "./answer-stream";
 import type {
   AnswerState,
   AskAnswerV2,
@@ -129,6 +131,11 @@ const REFUSED_MESSAGE = "The model declined to answer this phrasing.";
  *  of budget. */
 const TRUNCATED_MESSAGE =
   "The answer exceeded its output budget — ask a narrower question, or try again.";
+
+/** Payload string for a cancelled run (Phase 3). Usage already incurred was
+ *  settled exactly once; the copy says so honestly. */
+const CANCELLED_MESSAGE =
+  "This run was stopped. Usage already incurred was settled; nothing further will be charged.";
 
 /** Answer-stage output-token ceiling (env-overridable via ASK_ANSWER_MAX_OUTPUT_TOKENS).
  *  gpt-5 bills reasoning tokens INSIDE this budget. Measured (2026-07-11 live sweep):
@@ -505,7 +512,15 @@ export async function answerFromEvidence(
   question: string,
   retrieval: RetrievalV2Result,
   ranked: RankedEvidence,
-  opts?: { timings?: StageTimings; guards?: AskStageGuards },
+  opts?: {
+    timings?: StageTimings;
+    guards?: AskStageGuards;
+    /** Phase 3 Increment B: with a real sink AND ASK_STREAM_ANSWER=1, the paid
+     *  call streams with buffered validated section release; the terminal
+     *  payload still goes through the identical whole-answer path. */
+    sink?: RunEventSink;
+    runId?: string;
+  },
 ): Promise<AskAnswerV2> {
   const timings = opts?.timings;
   // One currency read per question (cached; fail-soft to null). Threaded onto every
@@ -539,6 +554,94 @@ export async function answerFromEvidence(
   }
 
   const model = askAnswerModel();
+
+  // ---- Phase 3 Increment B: streaming variant (flagged, progressive-only) ----
+  // Reserve/metering live INSIDE streamAnswer (one reservation, settled exactly
+  // once on every exit); the outcome maps through classifyCompletion + the SAME
+  // assembleV2 terminal path as the non-streaming branch below — the released
+  // sections were validated by the identical validator functions, and the
+  // terminal payload governs the client render (structural reconciliation).
+  const sink = opts?.sink;
+  if (sink && sink !== NULL_EVENT_SINK && askStreamAnswer()) {
+    const tStream = monotonicMs();
+    const controller = new AbortController();
+    const stopWatch = opts?.runId
+      ? watchCancelMarker(opts.runId, () => controller.abort())
+      : () => {};
+    try {
+      const outcome = await streamAnswer({
+        model,
+        messages: [
+          { role: "system", content: SYSTEM_V2 },
+          {
+            role: "user",
+            content: `Question: ${question}\n\nEvidence:\n${evidenceBlockV2(ranked, retrieval)}${currencyContextLine(currency, retrieval.window)}`,
+          },
+        ],
+        maxOutputTokens: answerMaxOutputTokens(),
+        ranked,
+        sink,
+        guards: opts?.guards,
+        signal: controller.signal,
+      });
+      recordStage(timings, "answerMs", monotonicMs() - tStream);
+      await sink.emit("answer.validating", {});
+      if (outcome.cancelled) {
+        // The route maps provider "cancelled" to the run.cancelled terminal.
+        return assembleV2(retrieval, ranked, CANCELLED_MESSAGE, [], "cancelled", "error", outcome.usage, model, currency);
+      }
+      const terminal = classifyCompletion({
+        message: { content: outcome.content, refusal: outcome.refusal || null },
+        finish_reason: outcome.finishReason ?? undefined,
+      });
+      if (terminal === "refused" || terminal === "empty_refused") {
+        return assembleV2(retrieval, ranked, REFUSED_MESSAGE, [], `openai:${model}`, "refused", outcome.usage, model, currency);
+      }
+      if (terminal === "truncated") {
+        return assembleV2(retrieval, ranked, TRUNCATED_MESSAGE, [], `openai:${model}`, "error", outcome.usage, model, currency);
+      }
+      if (outcome.finishReason === "error") {
+        // Stream died after (possibly) releasing content: state error; the
+        // terminal payload replaces any streamed sections client-side. No
+        // silent provider switch, no merged prose (§6.3.4).
+        return assembleV2(
+          retrieval,
+          ranked,
+          "Query failed: the answer stream was interrupted. Evidence was retrieved; try again.",
+          [],
+          "error",
+          "error",
+          outcome.usage,
+          model,
+          currency,
+        );
+      }
+      return timeStageSync(timings, "validateMs", () => {
+        const cited = parseCitedIds(outcome.content);
+        return assembleV2(retrieval, ranked, outcome.content, cited, `openai:${model}`, "answered", outcome.usage, model, currency);
+      });
+    } catch (e) {
+      recordStage(timings, "answerMs", monotonicMs() - tStream);
+      if (e instanceof LlmBudgetError) {
+        const det = deterministicAnswer(ranked.claims, retrieval.entities);
+        return assembleV2(retrieval, ranked, det.answer, det.citedClaimIds, "budget", "answered", undefined, undefined, currency);
+      }
+      return assembleV2(
+        retrieval,
+        ranked,
+        `Query failed: ${e instanceof Error ? e.message : e}. Evidence was retrieved; try again.`,
+        [],
+        "error",
+        "error",
+        undefined,
+        undefined,
+        currency,
+      );
+    } finally {
+      stopWatch();
+    }
+  }
+
   // Set to `model` only once a billed answer call has actually happened (after
   // record()). The catch below then reports answerModel for an error-after-call while
   // leaving it absent when the call threw before billing (contract addendum).
@@ -774,5 +877,11 @@ export async function ask(
     await sink.emit("answer.started", {});
   }
 
-  return answerFromEvidence(question, retrieval, ranked, { timings, guards: opts?.guards });
+  return answerFromEvidence(question, retrieval, ranked, {
+    timings,
+    guards: opts?.guards,
+    // Phase 3: the streaming variant activates only with a real sink AND the
+    // ASK_STREAM_ANSWER flag; runId feeds the cancel-marker watch.
+    ...(progressive ? { sink, runId: opts?.snapshotRunId } : {}),
+  });
 }

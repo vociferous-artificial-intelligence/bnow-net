@@ -27,6 +27,9 @@ export interface RunViewState {
   candidates: { claims: SnapshotClaim[]; totalMatching: number } | null;
   retrieval: AskRunEventPayloads["retrieval.completed"] | null;
   selectedCount: number | null;
+  /** Phase 3: VALIDATED released answer sections, in release order. The
+   *  terminal payload replaces them (structural reconciliation). */
+  sections: Array<AskRunEventPayloads["answer.section"]>;
   result: AskAnswerV2 | null;
   errorClass: string | null;
 }
@@ -39,6 +42,7 @@ export function initialRunViewState(): RunViewState {
     candidates: null,
     retrieval: null,
     selectedCount: null,
+    sections: [],
     result: null,
     errorClass: null,
   };
@@ -119,6 +123,19 @@ export function applyRunEvent(
       return next;
     case "answer.started":
       next.phase = advancePhase(next.phase, "answering");
+      return next;
+    case "answer.section": {
+      const p = payload as AskRunEventPayloads["answer.section"];
+      next.phase = advancePhase(next.phase, "answering");
+      if (typeof p.text === "string" && p.text !== "") next.sections = [...next.sections, p];
+      return next;
+    }
+    case "answer.validating":
+      next.phase = advancePhase(next.phase, "answering");
+      return next;
+    case "run.cancelled":
+      next.phase = "failed";
+      next.errorClass = "cancelled";
       return next;
     case "run.completed": {
       const p = payload as AskRunEventPayloads["run.completed"];

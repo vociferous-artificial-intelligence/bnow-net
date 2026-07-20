@@ -62,7 +62,14 @@ export async function POST(req: NextRequest) {
           sink,
           runId,
         });
-        await sink.emit("run.completed", { result });
+        if (result.provider === "cancelled") {
+          // Phase 3: a stopped run terminates with its own terminal event (one
+          // terminal per run — never run.cancelled AND run.completed). The
+          // cancelled payload is still finalized on the run row for replay.
+          await sink.emit("run.cancelled", {});
+        } else {
+          await sink.emit("run.completed", { result });
+        }
       } catch (e) {
         // askWithLimits is designed not to throw; this is the belt-and-braces
         // terminal so a stream never just hangs. No message text (error class only).

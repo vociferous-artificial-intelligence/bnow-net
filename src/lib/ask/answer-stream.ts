@@ -1,0 +1,237 @@
+import OpenAI from "openai";
+import { Pool } from "@neondatabase/serverless";
+import { askGuardFromEnv, LlmBudgetError } from "../usage/llm-guard";
+import { estimateCostUsd } from "./limits";
+import { chatParamsForModel } from "./llm-params";
+import type { AskStageGuards } from "./run-guards";
+import type { RunEventSink } from "./events";
+import { SectionReleaser, type FidelityEvidence } from "./validator";
+import type { CandidateClaim, RankedEvidence, StageUsage } from "./types";
+
+// AI Search Phase 3 Increment B: the STREAMING answer stage — buffered
+// validated section release behind ASK_STREAM_ANSWER (default OFF). §6.3
+// safeguards all enforced by the pure SectionReleaser (validator.ts); this
+// module owns the provider stream, metering, cancellation, and the material
+// for terminal reconciliation. It imports NOTHING from answer.ts (the caller
+// supplies the prompt/messages/model), so the two modules cannot cycle.
+//
+// Money discipline (ruling 4/8, unchanged shape): reserve BEFORE the call;
+// settle EXACTLY ONCE on every exit — the terminal usage frame when the stream
+// completes, or the CONSERVATIVE CEILING when the stream dies/aborts before a
+// usage frame arrived (never unrecorded). `settled` gates the single record();
+// the atomic guard's conditional transition additionally makes a double
+// settlement structurally impossible.
+//
+// Terminal reconciliation: the caller runs the full text through the SAME
+// whole-answer path (assembleV2) — released sections were validated by the
+// identical validator functions, and the client's terminal render replaces
+// streamed text with the final payload regardless.
+
+/** Minimal delta shape consumed from the provider stream — structural so tests
+ *  feed plain async iterables (the Phase 5 gateway adopts this shape). */
+export interface AnswerStreamChunk {
+  choices?: Array<{
+    delta?: { content?: string | null; refusal?: string | null };
+    finish_reason?: string | null;
+  }>;
+  usage?: { prompt_tokens?: number; completion_tokens?: number } | null;
+}
+
+export interface StreamOutcome {
+  /** full accumulated content (terminal-reconciliation input) */
+  content: string;
+  /** provider refusal text accumulated from refusal deltas ("" = none) */
+  refusal: string;
+  finishReason: string | null;
+  usage: StageUsage;
+  denialLed: boolean;
+  cancelled: boolean;
+  releasedCount: number;
+}
+
+/** Bounded input estimate for the conservative death settlement — same class
+ *  as run-guards' reservation ceiling input estimate. */
+export const STREAM_DEATH_INPUT_EST_TOKENS = 30_000;
+
+/** Watch the run's cancel marker (the Phase 2 stub route becomes LIVE here):
+ *  polls ask_run_events for a cancel_requested row and fires onCancel once.
+ *  Fail-soft: a watch error never cancels or fails a run. Returns the stop fn. */
+export function watchCancelMarker(
+  runId: string,
+  onCancel: () => void,
+  intervalMs = 2000,
+): () => void {
+  let stopped = false;
+  const tick = async () => {
+    if (stopped) return;
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    try {
+      const { rows } = await pool.query(
+        `SELECT 1 FROM ask_run_events WHERE run_id = $1 AND type = 'cancel_requested' LIMIT 1`,
+        [runId],
+      );
+      if (!stopped && rows.length > 0) {
+        stopped = true;
+        onCancel();
+      }
+    } catch {
+      // fail-soft: cancellation polling must never break a paid run
+    } finally {
+      await pool.end();
+    }
+  };
+  const timer = setInterval(() => void tick(), intervalMs);
+  return () => {
+    stopped = true;
+    clearInterval(timer);
+  };
+}
+
+/** Consume a provider answer stream with buffered validated release. Throws
+ *  ONLY pre-call (budget refusal / construction before dispatch); once the
+ *  stream may have started, every path settles exactly once and RESOLVES. */
+export async function streamAnswer(opts: {
+  model: string;
+  messages: Array<{ role: "system" | "user"; content: string }>;
+  maxOutputTokens: number;
+  ranked: RankedEvidence;
+  sink: RunEventSink;
+  guards?: AskStageGuards;
+  signal?: AbortSignal;
+  /** test seam: yields provider chunks; default = the real OpenAI stream */
+  streamFactory?: (params: {
+    model: string;
+    messages: Array<{ role: "system" | "user"; content: string }>;
+    maxOutputTokens: number;
+    signal?: AbortSignal;
+  }) => Promise<AsyncIterable<AnswerStreamChunk>>;
+}): Promise<StreamOutcome> {
+  const { model } = opts;
+  const guard = opts.guards?.answer ?? askGuardFromEnv();
+  await guard.init();
+  const reserve = await guard.tryReserve();
+  if (!reserve.ok) throw new LlmBudgetError(reserve.reason);
+
+  const evidenceById = new Map<number, FidelityEvidence>(
+    opts.ranked.claims.map((c: CandidateClaim) => [
+      c.claimId,
+      { claimId: c.claimId, text: c.text, hedging: c.hedging },
+    ]),
+  );
+  const validIds = new Set(opts.ranked.claims.map((c) => c.claimId));
+  const releaser = new SectionReleaser(evidenceById, validIds);
+
+  const makeStream =
+    opts.streamFactory ??
+    (async (p: {
+      model: string;
+      messages: Array<{ role: "system" | "user"; content: string }>;
+      maxOutputTokens: number;
+      signal?: AbortSignal;
+    }) => {
+      const client = new OpenAI();
+      return client.chat.completions.create(
+        {
+          model: p.model,
+          messages: p.messages,
+          stream: true,
+          stream_options: { include_usage: true },
+          ...chatParamsForModel(p.model, p.maxOutputTokens, { reasoningEffort: "low" }),
+        },
+        { signal: p.signal },
+      ) as Promise<AsyncIterable<AnswerStreamChunk>>;
+    });
+
+  let settled = false;
+  const settleOnce = async (usage: StageUsage) => {
+    if (settled) return;
+    settled = true;
+    await guard.record(1, usage.promptTokens + usage.completionTokens, usage.costUsd);
+  };
+  const ceilingUsage = (): StageUsage => ({
+    promptTokens: STREAM_DEATH_INPUT_EST_TOKENS,
+    completionTokens: opts.maxOutputTokens,
+    costUsd: estimateCostUsd(model, STREAM_DEATH_INPUT_EST_TOKENS, opts.maxOutputTokens),
+  });
+
+  let refusal = "";
+  let finishReason: string | null = null;
+  let usage: StageUsage | null = null;
+  let cancelled = false;
+  let releasedCount = 0;
+
+  let stream: AsyncIterable<AnswerStreamChunk>;
+  try {
+    stream = await makeStream({
+      model,
+      messages: opts.messages,
+      maxOutputTokens: opts.maxOutputTokens,
+      signal: opts.signal,
+    });
+  } catch (e) {
+    // The request may have reached the provider before failing — settle the
+    // ceiling conservatively; never leave a possibly-billed call unrecorded.
+    await settleOnce(ceilingUsage());
+    throw e;
+  }
+
+  const emitSection = async (section: { text: string; citedClaimIds: number[] }) => {
+    releasedCount++;
+    await opts.sink.emit("answer.section", {
+      text: section.text,
+      citedClaimIds: section.citedClaimIds,
+    });
+  };
+
+  try {
+    for await (const chunk of stream) {
+      const choice = chunk.choices?.[0];
+      if (choice?.delta?.refusal) refusal += choice.delta.refusal;
+      if (choice?.finish_reason) finishReason = choice.finish_reason;
+      if (chunk.usage) {
+        const promptTokens = chunk.usage.prompt_tokens ?? 0;
+        const completionTokens = chunk.usage.completion_tokens ?? 0;
+        usage = {
+          promptTokens,
+          completionTokens,
+          costUsd: estimateCostUsd(model, promptTokens, completionTokens),
+        };
+      }
+      const delta = choice?.delta?.content;
+      if (delta && refusal === "") {
+        // §6.3: sections release ONLY through the validated buffered path.
+        for (const section of releaser.push(delta)) await emitSection(section);
+      }
+    }
+  } catch (e) {
+    if (opts.signal?.aborted || (e instanceof Error && e.name === "AbortError")) cancelled = true;
+    await settleOnce(usage ?? ceilingUsage());
+    const fin = releaser.finish();
+    return {
+      content: fin.fullText,
+      refusal,
+      finishReason: cancelled ? "cancelled" : (finishReason ?? "error"),
+      usage: usage ?? ceilingUsage(),
+      denialLed: fin.denialLed,
+      cancelled,
+      releasedCount,
+    };
+  }
+
+  // Clean stream end: meter BEFORE interpretation (ruling 8) with the terminal
+  // usage frame (or the ceiling if the provider omitted one).
+  await settleOnce(usage ?? ceilingUsage());
+  const fin = releaser.finish();
+  if (refusal === "" && !fin.denialLed) {
+    for (const section of fin.released) await emitSection(section);
+  }
+  return {
+    content: fin.fullText,
+    refusal,
+    finishReason,
+    usage: usage ?? ceilingUsage(),
+    denialLed: fin.denialLed,
+    cancelled: false,
+    releasedCount,
+  };
+}

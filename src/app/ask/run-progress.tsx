@@ -17,7 +17,17 @@ const PHASE_KEY: Record<Exclude<RunViewState["phase"], "done" | "failed">, strin
   answering: "ask.progress.answering",
 };
 
-export function RunProgress({ state, t }: { state: RunViewState; t: Translate }) {
+export function RunProgress({
+  state,
+  t,
+  onStop,
+}: {
+  state: RunViewState;
+  t: Translate;
+  /** Phase 3: wired to POST /api/ask/runs/[id]/cancel; the orchestrator's
+   *  cancel-marker watch makes it effective mid-generation. */
+  onStop?: () => void;
+}) {
   if (state.phase === "done" || state.phase === "failed") return null;
   const statusKey = PHASE_KEY[state.phase];
 
@@ -27,12 +37,23 @@ export function RunProgress({ state, t }: { state: RunViewState; t: Translate })
           announcing the whole panel would re-read the entire candidate list on
           every event — a screen-reader wall. Candidates/counts below are
           reachable but not force-announced. */}
-      <div role="status" aria-live="polite" className="flex items-center gap-2">
-        <Loader2
-          className="h-5 w-5 shrink-0 animate-spin text-blue-600 dark:text-blue-400"
-          aria-hidden="true"
-        />
-        <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">{t(statusKey)}</p>
+      <div className="flex items-center justify-between gap-2">
+        <div role="status" aria-live="polite" className="flex items-center gap-2">
+          <Loader2
+            className="h-5 w-5 shrink-0 animate-spin text-blue-600 dark:text-blue-400"
+            aria-hidden="true"
+          />
+          <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">{t(statusKey)}</p>
+        </div>
+        {onStop && state.runId && (
+          <button
+            type="button"
+            onClick={onStop}
+            className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+          >
+            {t("ask.progress.stop")}
+          </button>
+        )}
       </div>
 
       {state.retrieval && (
@@ -59,6 +80,19 @@ export function RunProgress({ state, t }: { state: RunViewState; t: Translate })
         <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
           {state.selectedCount} {t("ask.progress.selected_word")}
         </p>
+      )}
+
+      {state.sections.length > 0 && (
+        <div className="mt-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            {t("ask.progress.sections_label")}
+          </p>
+          <div className="mt-1 space-y-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-800 dark:text-gray-200">
+            {state.sections.map((sec, i) => (
+              <p key={i}>{sec.text}</p>
+            ))}
+          </div>
+        </div>
       )}
 
       {state.candidates && state.candidates.claims.length > 0 && (

@@ -432,12 +432,24 @@ export function AskForm({
           forceDisabled={progressiveBusy}
         />
         <WorkingPanel t={t} />
-        {progressive && runState && <RunProgress state={runState} t={t} />}
+        {progressive && runState && (
+          <RunProgress
+            state={runState}
+            t={t}
+            onStop={() => {
+              // Fire-and-forget cancel: the orchestrator's marker watch aborts
+              // generation; settlement is exactly-once server-side. Read-only
+              // failure here is harmless (the run simply completes).
+              const id = runState.runId;
+              if (id) void fetch(`/api/ask/runs/${id}/cancel`, { method: "POST" }).catch(() => {});
+            }}
+          />
+        )}
       </form>
 
       {progressive && runState?.phase === "failed" && (
         <p className="mb-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
-          {t("ask.progress.failed")}
+          {t(runState.errorClass === "cancelled" ? "ask.progress.cancelled" : "ask.progress.failed")}
         </p>
       )}
 

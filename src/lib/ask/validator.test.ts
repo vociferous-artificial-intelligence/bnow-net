@@ -153,3 +153,89 @@ describe("source-fidelity matrix (§4 / ruling 20)", () => {
     expect(fidelityFallbackEnabled()).toBe(false);
   });
 });
+
+// ---- Phase 3 Increment B: SectionReleaser (§6.3 safeguards) ----------------------
+
+import { DENIAL_HOLDBACK_CHARS, SectionReleaser } from "./validator";
+
+describe("SectionReleaser — buffered validated release", () => {
+  const EVIDENCE = new Map<number, FidelityEvidence>([
+    [1, { claimId: 1, text: "Strikes hit the depot overnight.", hedging: "confirmed" }],
+    [7, { claimId: 7, text: "A channel claimed Colonel Andrei Vetrov was killed.", hedging: "claimed" }],
+  ]);
+  const VALID = new Set([1, 7]);
+  const releaser = () => new SectionReleaser(EVIDENCE, VALID);
+
+  const FILLER = "Filler sentence with sufficient length to cross the holdback boundary. ".repeat(4); // ~280 chars
+
+  it("releases NOTHING before the 250-char denial holdback", () => {
+    const r = releaser();
+    expect(r.push("Strikes hit the depot [c1]. More text follows")).toEqual([]);
+    expect(r.isDenialLed).toBe(false);
+  });
+
+  it("a denial-led reply never releases anything — before or after finish", () => {
+    const r = releaser();
+    const denial = "No claims in the covered data address this question. " + FILLER;
+    expect(r.push(denial)).toEqual([]);
+    expect(r.isDenialLed).toBe(true);
+    const fin = r.finish();
+    expect(fin.denialLed).toBe(true);
+    expect(fin.released).toEqual([]);
+  });
+
+  it("after the holdback clears, only COMPLETE validated sentences release; the tail stays buffered", () => {
+    const r = releaser();
+    const out = r.push(FILLER + "Strikes hit the depot [c1]. The next sentence is still incomp");
+    expect(out.length).toBeGreaterThanOrEqual(1);
+    expect(out.some((s) => s.text.includes("[c1]"))).toBe(true);
+    expect(out.every((s) => !s.text.includes("incomp"))).toBe(true); // tail held
+    const fin = r.finish();
+    expect(fin.released.some((s) => s.text.includes("incomp"))).toBe(true); // flushed at end
+  });
+
+  it("a PARTIAL citation token never renders mid-stream", () => {
+    const r = releaser();
+    const out = r.push(FILLER + "This sentence cites [c1");
+    expect(out.every((s) => !s.text.includes("[c1"))).toBe(true);
+    const out2 = r.push("]. Done.");
+    // the completed marker may now release with its sentence
+    const all = [...out, ...out2, ...r.finish().released];
+    expect(all.some((s) => s.text.includes("[c1]"))).toBe(true);
+  });
+
+  it("an UNRESOLVED citation holds its sentence to end-of-stream, where the marker is stripped", () => {
+    const r = releaser();
+    const out = r.push(FILLER + "A fabricated fact [c999]. A real fact [c1]. ");
+    expect(out.every((s) => !s.text.includes("c999"))).toBe(true); // held
+    expect(out.some((s) => s.text.includes("[c1]"))).toBe(true); // real one flows
+    const fin = r.finish();
+    const heldNow = fin.released.find((s) => s.text.includes("fabricated"));
+    expect(heldNow).toBeTruthy();
+    expect(heldNow!.text).not.toContain("[c999]"); // fabricated marker stripped at terminal
+    expect(heldNow!.citedClaimIds).toEqual([]);
+  });
+
+  it("a fidelity-failing named sentence releases as the deterministic replacement", () => {
+    const r = releaser();
+    const out = r.push(FILLER + "Andrei Vetrov is confirmed dead [c7]. ");
+    const released = out.find((s) => s.text.includes("[c7]"));
+    expect(released).toBeTruthy();
+    expect(released!.text).toContain("Sources state:"); // replaced, not raw
+    expect(released!.text).toContain("Vetrov"); // the name SURVIVES
+    expect(released!.text).not.toContain("confirmed dead");
+  });
+
+  it("short answers (<250 chars) release only at finish, after the denial check", () => {
+    const r = releaser();
+    expect(r.push("Strikes hit the depot [c1].")).toEqual([]);
+    const fin = r.finish();
+    expect(fin.denialLed).toBe(false);
+    expect(fin.released.some((s) => s.text.includes("[c1]"))).toBe(true);
+    expect(fin.fullText).toBe("Strikes hit the depot [c1].");
+  });
+
+  it("DENIAL_HOLDBACK_CHARS matches the prefix-property window", () => {
+    expect(DENIAL_HOLDBACK_CHARS).toBe(250);
+  });
+});

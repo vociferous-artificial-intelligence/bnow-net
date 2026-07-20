@@ -246,3 +246,129 @@ export function fidelityFallbackEnabled(): boolean {
   const v = process.env.ASK_FIDELITY_FALLBACK?.trim().toLowerCase();
   return !(v === "0" || v === "false" || v === "off");
 }
+
+// ---- 6. buffered section release (Phase 3 Increment B; §6.3 safeguards) ---------
+
+/** Chars held back before ANY release so beginsWithDenial — a prefix property
+ *  decidable within this window — can convert a denial-led reply to the
+ *  deterministic insufficient payload BEFORE anything renders (§6.3.1). */
+export const DENIAL_HOLDBACK_CHARS = 250;
+
+/** A trailing PARTIAL citation token ("[c", "[c12") that must never render
+ *  (§6.3 "a partial citation token never renders"). Complete-sentence gating
+ *  plus this check makes marker splitting across chunks impossible to leak. */
+const PARTIAL_MARKER_TAIL_RE = /\[c\d*$/;
+
+export interface ReleasedSection {
+  text: string;
+  citedClaimIds: number[];
+}
+
+/** The pure buffered-release engine consumed by the streaming answer stage.
+ *  Feed provider deltas via push(); complete, VALIDATED sentences come back as
+ *  releasable sections; finish() returns the full accumulated text for the
+ *  terminal whole-answer reconciliation (the final assembleV2 pass governs —
+ *  identical validators, so released text matches it in the normal case).
+ *
+ *  Release rules (all mandatory before a sentence leaves the buffer):
+ *   1. nothing releases before DENIAL_HOLDBACK_CHARS accumulate (or finish);
+ *      a denial-led buffer releases NOTHING, ever (denialLed=true);
+ *   2. only COMPLETE sentences (terminator + following whitespace) release —
+ *      the trailing partial always stays buffered;
+ *   3. a sentence whose citation markers don't ALL resolve against the frozen
+ *      evidence is HELD to end-of-stream (§6.3.2), where the terminal filter
+ *      deals with it — it never renders mid-stream;
+ *   4. a name-bearing sentence failing the §4 fidelity matrix releases as the
+ *      deterministic cited-claim replacement (never suppressed, never raw);
+ *   5. a partial marker tail keeps its sentence buffered (rule 2 corollary).
+ */
+export class SectionReleaser {
+  private buffer = "";
+  private denialChecked = false;
+  private denialLed = false;
+  private full = "";
+
+  constructor(
+    private readonly evidenceById: ReadonlyMap<number, FidelityEvidence>,
+    private readonly validIds: ReadonlySet<number>,
+    private readonly fidelity: boolean = true,
+  ) {}
+
+  get isDenialLed(): boolean {
+    return this.denialLed;
+  }
+
+  /** Feed one provider delta; returns sections that became releasable. */
+  push(delta: string): ReleasedSection[] {
+    this.full += delta;
+    if (this.denialLed) return [];
+    this.buffer += delta;
+    if (!this.denialChecked) {
+      if (this.full.trimStart().length < DENIAL_HOLDBACK_CHARS) return [];
+      this.denialChecked = true;
+      if (beginsWithDenial(this.full)) {
+        this.denialLed = true;
+        this.buffer = "";
+        return [];
+      }
+    }
+    return this.drain(false);
+  }
+
+  /** Stream ended: run the (possibly pending) denial check, flush what remains
+   *  releasable, and hand back the full text for terminal reconciliation. */
+  finish(): { released: ReleasedSection[]; denialLed: boolean; fullText: string } {
+    if (!this.denialChecked && !this.denialLed) {
+      this.denialChecked = true;
+      if (beginsWithDenial(this.full)) {
+        this.denialLed = true;
+        this.buffer = "";
+      }
+    }
+    const released = this.denialLed ? [] : this.drain(true);
+    return { released, denialLed: this.denialLed, fullText: this.full };
+  }
+
+  private drain(final: boolean): ReleasedSection[] {
+    const released: ReleasedSection[] = [];
+    // split into complete sentences + trailing partial (when final, the trailing
+    // fragment is releasable too — the stream ended, nothing more is coming)
+    const parts = this.buffer.split(SENTENCE_SPLIT_RE);
+    const tail = final ? "" : (parts.pop() ?? "");
+    const held: string[] = [];
+    for (const sentence of parts) {
+      if (sentence.trim() === "") continue;
+      if (!final && PARTIAL_MARKER_TAIL_RE.test(sentence)) {
+        held.push(sentence);
+        continue;
+      }
+      const rawIds = parseCitedIds(sentence);
+      const unresolved = rawIds.some((id) => !this.validIds.has(id));
+      if (unresolved && !final) {
+        // §6.3.2: hold to end-of-stream; the terminal filter governs it.
+        held.push(sentence);
+        continue;
+      }
+      let text = sentence;
+      if (unresolved && final) {
+        // terminal: strip fabricated markers exactly like the whole-answer
+        // filter's effect on citedClaimIds — the prose stays, the marker goes.
+        text = text.replace(CITATION_MARKER_RE, (m, d) =>
+          this.validIds.has(parseInt(d, 10)) ? m : "",
+        ).replace(/[ \t]{2,}/g, " ").trimEnd();
+      }
+      if (this.fidelity) {
+        const applied = applyFidelityFallback(text, this.evidenceById);
+        text = applied.text;
+      }
+      if (text.trim() === "") continue;
+      released.push({
+        text,
+        citedClaimIds: filterCitations(parseCitedIds(text), this.validIds),
+      });
+    }
+    // buffer keeps held sentences + the trailing partial, in order
+    this.buffer = final ? "" : [...held, tail].filter((s) => s !== "").join(" ");
+    return released;
+  }
+}
