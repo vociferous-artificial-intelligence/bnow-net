@@ -260,3 +260,44 @@ describe("retrieveV2 — term extraction and lexical-arm predicates", () => {
     expect(r.entities).toEqual([{ entityId: 42, name: "Shoigu", kind: "person", pressure: 4, sanctioned: true }]);
   });
 });
+
+// ---- Phase 0 stage timings (2026-07-19) ------------------------------------------
+
+describe("retrieveV2 — stage timings", () => {
+  it("full v2 run records embed/vector/lexical/entity/merge keys (all non-negative ints)", async () => {
+    setupPool({
+      vector: [vrow(1, { vector_score: 0.9 })],
+      lexCount: 2,
+      lexical: [lrow(1), lrow(2)],
+      entities: [{ claim_id: 1, name: "OFAC" }],
+      entityList: [{ id: 9, name: "OFAC", kind: "org", sanctioned: null, pressure: 3 }],
+    });
+    const timings: Record<string, number> = {};
+    const r = await retrieveV2("sanctions oil exports", { now: NOW, timings });
+
+    expect(r.mode).toBe("v2");
+    for (const key of ["embedMs", "vectorMs", "lexicalMs", "entityMs", "mergeMs"] as const) {
+      expect(timings[key], key).toBeGreaterThanOrEqual(0);
+      expect(Number.isInteger(timings[key]), `${key} integer`).toBe(true);
+    }
+  });
+
+  it("vector arm disabled -> no embedMs/vectorMs; lexical+merge still recorded", async () => {
+    process.env.LLM_DISABLE = "1";
+    setupPool({ lexCount: 1, lexical: [lrow(1)] });
+    const timings: Record<string, number> = {};
+    const r = await retrieveV2("sanctions", { now: NOW, timings });
+
+    expect(r.mode).toBe("v2-lexical-only");
+    expect(timings.embedMs).toBeUndefined();
+    expect(timings.vectorMs).toBeUndefined();
+    expect(timings.lexicalMs).toBeGreaterThanOrEqual(0);
+    expect(timings.mergeMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("without a collector the result is unchanged (passthrough, no throw)", async () => {
+    setupPool({ vector: [vrow(1)], lexCount: 1, lexical: [lrow(1)] });
+    const r = await retrieveV2("sanctions", { now: NOW });
+    expect(r.claims.length).toBeGreaterThan(0);
+  });
+});

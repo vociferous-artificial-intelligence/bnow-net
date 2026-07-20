@@ -148,6 +148,13 @@
       "when": 1784042752225,
       "tag": "0020_reflective_karnak",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1784505505826,
+      "tag": "0021_blushing_shiver_man",
+      "breakpoints": true
     }
   ]
 }

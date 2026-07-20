@@ -116,4 +116,11 @@ export interface AskAnswerV2 {
    *  assembleV2/noEvidenceV2 result). Drives the freshness-honest UI callout; absent
    *  on the legacy path and whenever the read returned null. */
   dataCurrentThrough?: string;
+  /** OPTIONAL (additive, AI Search Phase 0 2026-07-19): the run's opaque UUID —
+   *  matches ask_usage.run_id so the entry point (server action / JSON route) can
+   *  patch its own hydration/wrapper timing onto exactly this run's row. Set by
+   *  askWithLimits on EVERY terminal payload (including limit/error); absent only
+   *  from results that never passed through askWithLimits (eval runner composes
+   *  stages directly). Carries no user data — safe in the client payload. */
+  runId?: string;
 }

@@ -14,6 +14,7 @@ import {
   text,
   timestamp,
   uniqueIndex,
+  uuid,
   vector,
 } from "drizzle-orm/pg-core";
 
@@ -639,10 +640,25 @@ export const askUsage = pgTable(
     totalMatching: integer("total_matching"),
     windowFrom: date("window_from"),
     windowTo: date("window_to"),
+    // ---- AI Search Phase 0 measurement columns (2026-07-19) ----
+    // All additive + nullable; passive (no product code reads them yet). run_id is
+    // the request-scoped run identity generated at askWithLimits entry; the entry
+    // point (server action / JSON route) patches stage_timings_ms by run_id after
+    // the pipeline row is written. first_content_at stays null until Phase 3
+    // (validated answer streaming); route_policy until Phase 4 (router).
+    runId: uuid("run_id"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    stageTimingsMs: jsonb("stage_timings_ms"),
+    firstContentAt: timestamp("first_content_at", { withTimezone: true }),
+    routePolicy: text("route_policy"),
   },
   (t) => [
     index("ask_usage_email_created_idx").on(t.userEmail, t.createdAt),
     index("ask_usage_created_idx").on(t.createdAt),
+    // Postgres unique indexes treat NULLs as distinct, so pre-Phase-0 rows (run_id
+    // NULL) coexist; every new run's id must be unique and lookup-fast for the
+    // entry-point timing patch.
+    uniqueIndex("ask_usage_run_id_idx").on(t.runId),
   ],
 );
 

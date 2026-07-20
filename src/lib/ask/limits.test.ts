@@ -24,6 +24,7 @@ const {
   evaluateAllowance,
   globalDailyBudgetUsd,
   limitMessage,
+  recordEntryTimings,
   totalCostUsd,
   userDailyLimit,
 } = await import("./limits");
@@ -59,6 +60,10 @@ const COL = {
   totalMatching: 21,
   windowFrom: 22,
   windowTo: 23,
+  // Phase 0 measurement columns (2026-07-19)
+  runId: 24,
+  startedAt: 25,
+  stageTimingsMs: 26,
 } as const;
 
 let usage = { user_count: 0, global_cost: 0 };
@@ -230,7 +235,10 @@ describe("askWithLimits — gate, run, log", () => {
     h.askMock.mockResolvedValue(v2Full());
     const res = await askWithLimits("What happened in Kherson?", "user@x.com");
 
-    expect(h.askMock).toHaveBeenCalledWith("What happened in Kherson?");
+    // Phase 0: askWithLimits threads its run's stage-timings collector into ask()
+    expect(h.askMock).toHaveBeenCalledWith("What happened in Kherson?", {
+      timings: expect.any(Object),
+    });
     const p = insertParams()!;
     expect(p[COL.email]).toBe("user@x.com");
     expect(p[COL.provider]).toBe("openai:gpt-5-mini");
@@ -439,5 +447,94 @@ describe("askWithLimits — metering-field mapping + DB-outage hardening (post-r
     expect(res.state).toBe("error");
     expect(res.answer).toContain("retrieve exploded"); // the ORIGINAL cause, not the insert failure
     expect(h.endMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---- Phase 0 measurement: run identity + stage timings (2026-07-19) --------------
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+describe("askWithLimits — run id, started_at, stage timings", () => {
+  it("a successful run's row carries run_id (UUID) + started_at + timings with pipelineMs; the payload's runId matches the row", async () => {
+    h.askMock.mockResolvedValue(v2Full());
+    const res = await askWithLimits("What happened in Kherson?", "user@x.com");
+
+    const p = insertParams()!;
+    expect(p[COL.runId]).toMatch(UUID_RE);
+    expect(p[COL.startedAt]).toBeInstanceOf(Date);
+    const timings = JSON.parse(String(p[COL.stageTimingsMs]));
+    expect(typeof timings.pipelineMs).toBe("number");
+    expect(timings.pipelineMs).toBeGreaterThanOrEqual(0);
+    expect(res.runId).toBe(p[COL.runId]);
+  });
+
+  it("stage timings collected before a thrown pipeline survive onto the error row", async () => {
+    // ask() records some stage keys onto the shared collector, then throws.
+    h.askMock.mockImplementation(async (_q: string, opts?: { timings?: Record<string, number> }) => {
+      if (opts?.timings) {
+        opts.timings.embedMs = 42;
+        opts.timings.lexicalMs = 7;
+      }
+      throw new Error("mid-pipeline crash");
+    });
+    const res = await askWithLimits("q", "u@x.com");
+
+    expect(res.state).toBe("error");
+    expect(res.runId).toMatch(UUID_RE);
+    const p = insertParams()!;
+    expect(p[COL.runId]).toBe(res.runId);
+    const timings = JSON.parse(String(p[COL.stageTimingsMs]));
+    expect(timings.embedMs).toBe(42);
+    expect(timings.lexicalMs).toBe(7);
+    expect(typeof timings.pipelineMs).toBe("number");
+  });
+
+  it("two runs mint distinct run ids", async () => {
+    h.askMock.mockResolvedValue(v2Full());
+    const a = await askWithLimits("q1", "u@x.com");
+    const b = await askWithLimits("q2", "u@x.com");
+    expect(a.runId).toMatch(UUID_RE);
+    expect(b.runId).toMatch(UUID_RE);
+    expect(a.runId).not.toBe(b.runId);
+  });
+
+  it("a limit refusal writes no row and carries NO runId (nothing exists to patch)", async () => {
+    usage = { user_count: 100, global_cost: 0 }; // at the default per-user cap
+    const res = await askWithLimits("q", "u@x.com");
+    expect(res.state).toBe("limit");
+    expect(res.runId).toBeUndefined();
+    expect(insertParams()).toBeUndefined();
+  });
+
+  it("a gate-unavailable refusal carries NO runId either", async () => {
+    h.queryMock.mockImplementation(async (text: string) => {
+      if (String(text).includes("INSERT INTO ask_usage")) return { rows: [] };
+      throw new Error("gate read failed");
+    });
+    const res = await askWithLimits("q", "u@x.com");
+    expect(res.state).toBe("error");
+    expect(res.runId).toBeUndefined();
+    expect(insertParams()).toBeUndefined();
+  });
+});
+
+describe("recordEntryTimings — entry-point patch", () => {
+  it("merges the patch into the run's row by run_id via jsonb ||", async () => {
+    await recordEntryTimings("11111111-2222-4333-8444-555555555555", { hydrateMs: 12, totalMs: 340 });
+    const call = h.queryMock.mock.calls.find((c) => String(c[0]).includes("UPDATE ask_usage"));
+    expect(call).toBeTruthy();
+    expect(String(call![0])).toContain("stage_timings_ms = coalesce(stage_timings_ms, '{}'::jsonb) || $2::jsonb");
+    const params = call![1] as unknown[];
+    expect(params[0]).toBe("11111111-2222-4333-8444-555555555555");
+    expect(JSON.parse(String(params[1]))).toEqual({ hydrateMs: 12, totalMs: 340 });
+    expect(h.endMock).toHaveBeenCalled();
+  });
+
+  it("is fail-soft: a failed patch never throws (telemetry only, answer unaffected)", async () => {
+    h.queryMock.mockRejectedValue(new Error("db down"));
+    await expect(
+      recordEntryTimings("11111111-2222-4333-8444-555555555555", { apiTotalMs: 5 }),
+    ).resolves.toBeUndefined();
+    expect(h.endMock).toHaveBeenCalled();
   });
 });
