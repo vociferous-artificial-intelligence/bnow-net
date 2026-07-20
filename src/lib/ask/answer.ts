@@ -28,6 +28,7 @@ import {
   timeStageSync,
   type StageTimings,
 } from "./timings";
+import type { AskStageGuards } from "./run-guards";
 import type {
   AnswerState,
   AskAnswerV2,
@@ -489,7 +490,7 @@ export async function answerFromEvidence(
   question: string,
   retrieval: RetrievalV2Result,
   ranked: RankedEvidence,
-  opts?: { timings?: StageTimings },
+  opts?: { timings?: StageTimings; guards?: AskStageGuards },
 ): Promise<AskAnswerV2> {
   const timings = opts?.timings;
   // One currency read per question (cached; fail-soft to null). Threaded onto every
@@ -529,12 +530,15 @@ export async function answerFromEvidence(
   let billedAnswerModel: string | undefined;
   const tAnswer = monotonicMs();
   try {
-    const guard = askGuardFromEnv();
+    // Phase 1 seam: enforce mode injects an atomic reservation-backed guard with
+    // the SAME surface; awaiting the legacy guard's synchronous tryReserve is a
+    // no-op. Reserve-before-call / record-after-call discipline is unchanged.
+    const guard = opts?.guards?.answer ?? askGuardFromEnv();
     await guard.init();
     // Reserve BEFORE the billed call; a refusal degrades to the deterministic path with
     // provider "budget" — never an unguarded call (standing ruling 4). No call => no
     // answerModel.
-    const reserve = guard.tryReserve();
+    const reserve = await guard.tryReserve();
     if (!reserve.ok) {
       const det = deterministicAnswer(ranked.claims, retrieval.entities);
       return assembleV2(retrieval, ranked, det.answer, det.citedClaimIds, "budget", "answered", undefined, undefined, currency);
@@ -629,7 +633,7 @@ export async function answerFromEvidence(
  *  Absent (eval runner / direct callers) every timing wrapper is a no-op. */
 export async function ask(
   question: string,
-  opts?: { timings?: StageTimings },
+  opts?: { timings?: StageTimings; guards?: AskStageGuards },
 ): Promise<AskAnswerV2> {
   const timings = opts?.timings;
   if (askPipeline() !== "v2") {
@@ -652,13 +656,13 @@ export async function ask(
     }
   }
 
-  const retrieval = await retrieveV2(question, { timings });
+  const retrieval = await retrieveV2(question, { timings, embedGuard: opts?.guards?.embed });
   // No-evidence short-circuit BEFORE rerank/LLM (step 1): no paid call at all.
   if (retrieval.claims.length === 0 && retrieval.entities.length === 0) {
     return noEvidenceV2(retrieval, currency);
   }
   const ranked = await timeStage(timings, "rerankMs", () =>
-    rerankCandidates(question, retrieval.claims),
+    rerankCandidates(question, retrieval.claims, undefined, opts?.guards?.rerank),
   );
-  return answerFromEvidence(question, retrieval, ranked, { timings });
+  return answerFromEvidence(question, retrieval, ranked, { timings, guards: opts?.guards });
 }

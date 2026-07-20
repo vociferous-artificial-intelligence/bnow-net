@@ -8,6 +8,15 @@ import {
   type AskRunMeta,
   type StageTimings,
 } from "./timings";
+import {
+  askRunsEnforce,
+  createRun,
+  expireStaleRuns,
+  finalizeRun,
+  reserveAllowance,
+  type CreateRunResult,
+} from "./runs";
+import { buildAskRunGuards } from "./run-guards";
 
 // /ask spend control: an authenticated user could otherwise run up LLM cost with
 // unlimited questions. This is the FIRST of two gates on the /ask money path:
@@ -153,6 +162,68 @@ function limitAnswer(message: string): AskAnswerV2 {
   };
 }
 
+/** Shared skeleton for the enforce-mode replay refusal payloads: zero charge,
+ *  provider "duplicate" (NOT "limit" — the API route's 429 mapping keys on
+ *  provider, and none of these are over-cap), `replayed: true` so entry points
+ *  skip the timing patch (the runId names the ORIGINAL run's rows). */
+function replayRefusal(answer: string, runId: string, state: "limit" | "error"): AskAnswerV2 {
+  return {
+    answer,
+    citedClaimIds: [],
+    evidenceCount: 0,
+    terms: [],
+    provider: "duplicate",
+    state,
+    relatedClaimIds: [],
+    window: null,
+    totalMatching: 0,
+    sampled: false,
+    retrievalMode: "legacy",
+    runId,
+    replayed: true,
+  };
+}
+
+/** Replayed key, run still in flight. Phase 2 upgrades this into a real
+ *  reconnect to the running pipeline. */
+function duplicateInFlightAnswer(runId: string): AskAnswerV2 {
+  return replayRefusal(
+    "This exact question was just submitted and is still being processed. " +
+      "The original submission will return the answer — nothing additional was charged.",
+    runId,
+    "limit",
+  );
+}
+
+/** Replayed key whose run terminated WITHOUT a stored result (expired after a
+ *  crash/timeout, or its finalize was lost). Honest copy — the original will
+ *  never return anything, and this key stays bound to the failed gesture
+ *  (Gate 1 finding: the previous in-flight copy falsely promised an answer,
+ *  forever). A NEW submission (new gesture = new key) creates a new run. */
+function expiredRunAnswer(runId: string): AskAnswerV2 {
+  return replayRefusal(
+    "The original submission of this question did not complete — it timed out or " +
+      "was interrupted, and nothing additional was charged. Please submit the " +
+      "question again.",
+    runId,
+    "error",
+  );
+}
+
+/** Replayed key whose stored question DIFFERS from the incoming one. Returning
+ *  the stored answer would silently present the WRONG question's answer as this
+ *  one's (Gate 1 finding); refuse honestly instead — standard idempotency-key
+ *  semantics (a key binds one payload). */
+function questionMismatchAnswer(runId: string): AskAnswerV2 {
+  return replayRefusal(
+    "This submission reused a request key that was already used for a different " +
+      "question, so it was not processed and nothing was charged. Please submit " +
+      "the question again.",
+    runId,
+    "error",
+  );
+}
+
 function errorAnswer(e: unknown): AskAnswerV2 {
   const msg = e instanceof Error ? e.message : String(e);
   return {
@@ -283,23 +354,96 @@ export async function recordEntryTimings(
   }
 }
 
+/** Shadow-mode helper: a run-table write that must NEVER affect the request. */
+async function shadowSafe<T>(what: string, fn: () => Promise<T>): Promise<T | null> {
+  try {
+    return await fn();
+  } catch (e) {
+    console.warn(`askWithLimits(shadow): ${what} failed (non-blocking): ${e instanceof Error ? e.message : e}`);
+    return null;
+  }
+}
+
+/** Finalize the run row, fail-soft in BOTH modes: the answer already exists and
+ *  the reservations already settled — a lost finalize leaves the run open for
+ *  the lazy expiry sweep, never a lost answer. */
+async function finalizeSafe(opts: Parameters<typeof finalizeRun>[0]): Promise<void> {
+  try {
+    await finalizeRun(opts);
+  } catch (e) {
+    console.warn(`askWithLimits: finalize failed (expiry will reconcile): ${e instanceof Error ? e.message : e}`);
+  }
+}
+
 /** Gate + run + log. Both the /ask page and the API route go through here.
  *
  *  Phase 0 (2026-07-19): every invocation mints an AskRunMeta (run UUID + wall
  *  startedAt + monotonic stage-timings collector) threaded through ask() into the
- *  pipeline stages. Rows carry run_id/started_at/stage_timings_ms; the returned
- *  payload carries runId ONLY when a row was written (limit/gate refusals write no
- *  row and get no runId), so entry points patch exactly the rows that exist.
- *  Metering is untouched: the collector never wraps guard.tryReserve/record. */
+ *  pipeline stages. Rows carry run_id/started_at/stage_timings_ms.
+ *  Metering is untouched: the collector never wraps guard.tryReserve/record.
+ *
+ *  Phase 1 (2026-07-19, contract:
+ *  docs/designs/ASK-RUNS-RESERVATION-CONTRACT-2026-07-19.md), two modes:
+ *  - shadow (ASK_RUNS_ENFORCE unset/0, DEFAULT): behavior byte-equivalent to
+ *    Phase 0 — the legacy read-then-act allowance and synchronous SpendGuards
+ *    stay authoritative; ask_runs rows are written best-effort for the soak.
+ *  - enforce (=1): idempotent replay (duplicate key -> stored result, zero
+ *    provider calls), atomic per-user allowance slot, and atomic per-stage
+ *    provider reservations become authoritative. Run-persistence failures FAIL
+ *    CLOSED. The payload carries runId whenever a persistent record exists. */
 export async function askWithLimits(
   question: string,
   userEmail: string | null,
+  opts?: { idempotencyKey?: string },
 ): Promise<AskAnswerV2> {
   const email = userEmail ?? "anonymous";
   const run = createAskRunMeta();
   const t0 = monotonicMs();
+  const enforce = askRunsEnforce();
+  // No client key -> the run's own UUID: unique per invocation, so it can never
+  // replay (the replay-safety contract requires a client-held key).
+  const idempotencyKey = opts?.idempotencyKey ?? run.runId;
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
+    let created: CreateRunResult | null = null;
+    if (enforce) {
+      await expireStaleRuns(); // lazy sweep, fail-soft internally
+      try {
+        created = await createRun({ runId: run.runId, userEmail: email, question, idempotencyKey });
+      } catch (e) {
+        // A run that cannot be recorded must not spend (fail closed).
+        console.warn(`askWithLimits: run persistence unavailable — refusing: ${e instanceof Error ? e.message : e}`);
+        return errorAnswer(new Error("run persistence unavailable; question refused"));
+      }
+      if (created.replayed) {
+        const existing = created.run;
+        // A reused key with a DIFFERENT question never returns the stored answer
+        // (Gate 1 finding) — refuse honestly, charge nothing.
+        if (existing.question !== question.slice(0, 400)) {
+          return questionMismatchAnswer(existing.id);
+        }
+        if (existing.finishedAt !== null && existing.result) {
+          // Idempotent replay: the stored terminal payload, zero provider calls,
+          // zero new allowance. The runId is the ORIGINAL run's id; replayed:true
+          // tells the entry point not to patch the original gesture's timings.
+          return { ...existing.result, runId: existing.id, replayed: true };
+        }
+        if (existing.finishedAt !== null || existing.expired) {
+          // Terminal WITHOUT a result: the run crashed/timed out and was expired
+          // (result stays NULL forever — finalize requires finished_at IS NULL).
+          // The old in-flight copy falsely promised an answer (Gate 1 finding).
+          return expiredRunAnswer(existing.id);
+        }
+        return duplicateInFlightAnswer(existing.id);
+      }
+    } else {
+      created = await shadowSafe("createRun", () =>
+        createRun({ runId: run.runId, userEmail: email, question, idempotencyKey }),
+      );
+      // Shadow replay detection changes NOTHING (legacy gates stay authoritative);
+      // the collision is only visible in the soak telemetry.
+    }
+
     let usage: { count: number; cost: number };
     try {
       usage = await todayUsage(pool, email);
@@ -307,30 +451,71 @@ export async function askWithLimits(
       // Gate unavailable = gate REFUSES (fail closed): if we cannot read today's
       // usage we must not run the pipeline on an unknown budget. Degrade to a
       // contract-complete error answer instead of 500ing the /ask surface.
-      // No row is written on this path, so no runId is attached.
       console.warn(`askWithLimits: usage gate unavailable — refusing without ask(): ${e instanceof Error ? e.message : e}`);
-      return errorAnswer(new Error("usage gate unavailable; question refused"));
+      const err = errorAnswer(new Error("usage gate unavailable; question refused"));
+      if (enforce) {
+        await finalizeSafe({ runId: run.runId, state: "error", result: err, settledCostUsd: 0, errorClass: "gate_unavailable" });
+        return { ...err, runId: run.runId };
+      }
+      return err;
     }
     const limit = userDailyLimit();
-    const allowance = evaluateAllowance(usage.count, usage.cost, limit, globalDailyBudgetUsd());
-    if (!allowance.allowed) {
-      // First gate refused: no pipeline runs, no ask() call, no row (the refusal is
-      // not a metered question). The user gets a complete AskAnswerV2.
-      return limitAnswer(limitMessage(allowance, limit));
+
+    if (enforce) {
+      // Global daily budget: the legacy read-check, deliberately retained
+      // (contract §3) — hard provider caps backstop it. userCount 0 so only the
+      // global leg of evaluateAllowance applies; the user slot is atomic below.
+      const globalGate = evaluateAllowance(0, usage.cost, limit, globalDailyBudgetUsd());
+      if (!globalGate.allowed) {
+        const refusal = limitAnswer(limitMessage(globalGate, limit));
+        await finalizeSafe({ runId: run.runId, state: "limit", result: refusal, settledCostUsd: 0 });
+        return { ...refusal, runId: run.runId };
+      }
+      const slot = await reserveAllowance({ runId: run.runId, userEmail: email, limit });
+      if (!slot.ok) {
+        const refusal =
+          slot.reason === "user_limit"
+            ? limitAnswer(
+                limitMessage(
+                  { allowed: false, reason: "user_limit", userCountToday: limit, globalCostToday: usage.cost },
+                  limit,
+                ),
+              )
+            : errorAnswer(new Error("allowance gate unavailable; question refused"));
+        await finalizeSafe({
+          runId: run.runId,
+          state: slot.reason === "user_limit" ? "limit" : "error",
+          result: refusal,
+          settledCostUsd: 0,
+          errorClass: slot.reason === "user_limit" ? undefined : "allowance_unavailable",
+        });
+        return { ...refusal, runId: run.runId };
+      }
+    } else {
+      const allowance = evaluateAllowance(usage.count, usage.cost, limit, globalDailyBudgetUsd());
+      if (!allowance.allowed) {
+        // First gate refused: no pipeline runs, no ask() call, no ask_usage row
+        // (the refusal is not a metered question). The user gets a complete
+        // AskAnswerV2; no runId in shadow mode (behavior-identical to Phase 0).
+        return limitAnswer(limitMessage(allowance, limit));
+      }
     }
 
     let raw: RawAskResult;
     try {
-      raw = await ask(question, { timings: run.timings });
+      raw = await ask(question, {
+        timings: run.timings,
+        // Enforce mode: atomic reservation-backed guards, one per stage. Absent
+        // (shadow/default), every stage builds its legacy SpendGuard as always.
+        ...(enforce ? { guards: buildAskRunGuards(run.runId) } : {}),
+      });
     } catch (e) {
       // ask() is designed to degrade internally (ruling 9), not throw. If it throws
       // anyway, still write ONE ask_usage row (state "error", cost 0) so the crashed
       // question increments the per-user daily count — an attacker must not get free
       // retries by crashing the pipeline. Any stage spend already landed in
-      // provider_usage via the stage guards; ask_usage is the per-question ledger and
-      // a thrown question produced no answer to meter, so cost_usd is 0 here.
-      // The timings collected by stages that completed before the throw survive on
-      // the shared collector and land on the error row.
+      // provider_usage via the stage guards (enforce: settled reservations); the
+      // timings collected before the throw survive on the shared collector.
       const errRow = errorAnswer(e);
       recordStage(run.timings, "pipelineMs", monotonicMs() - t0);
       try {
@@ -340,7 +525,15 @@ export async function askWithLimits(
         // failure the user needs reported (E adversarial review finding 2).
         console.warn(`askWithLimits: error-row insert failed: ${logErr instanceof Error ? logErr.message : logErr}`);
       }
-      return { ...errRow, runId: run.runId };
+      const errPayload = { ...errRow, runId: run.runId };
+      if (enforce) {
+        await finalizeSafe({ runId: run.runId, state: "error", result: errPayload, settledCostUsd: 0, errorClass: "pipeline_throw" });
+      } else if (created) {
+        await shadowSafe("finalizeRun", () =>
+          finalizeRun({ runId: run.runId, state: "error", result: errPayload, settledCostUsd: 0, errorClass: "pipeline_throw" }),
+        );
+      }
+      return errPayload;
     }
 
     // Coherent settlement: cost_usd is exactly the stages that actually ran. A
@@ -356,7 +549,15 @@ export async function askWithLimits(
       // per-stage SpendGuard caps (provider_usage recorded inside each stage).
       console.warn(`askWithLimits: usage-row insert failed (answer still returned): ${logErr instanceof Error ? logErr.message : logErr}`);
     }
-    return { ...normalizeV2(raw), runId: run.runId };
+    const payload = { ...normalizeV2(raw), runId: run.runId };
+    if (enforce) {
+      await finalizeSafe({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: totalCost });
+    } else if (created) {
+      await shadowSafe("finalizeRun", () =>
+        finalizeRun({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: totalCost }),
+      );
+    }
+    return payload;
   } finally {
     await pool.end();
   }

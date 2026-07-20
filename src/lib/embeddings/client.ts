@@ -10,7 +10,7 @@
 
 import OpenAI from "openai";
 import { LlmBudgetError } from "../usage/llm-guard";
-import type { SpendGuard } from "../usage/spend-guard";
+import type { StageGuard } from "../usage/reservations";
 
 /** ASK_EMBED_MODEL default. 1536-dim, matches the claim_embeddings vector width. */
 export const EMBED_MODEL_DEFAULT = "text-embedding-3-small";
@@ -135,10 +135,12 @@ export async function withRetry<T>(
 /** Embed texts. Batched (<=128/request), retried, metered through `guard` when
  *  passed (reserve BEFORE each request, record AFTER using usage.total_tokens; a
  *  refusal throws LlmBudgetError before any call is made). Returns vectors in
- *  input order. Takes the offline stub path when embedStubReason() is set. */
+ *  input order. Takes the offline stub path when embedStubReason() is set.
+ *  `guard` is any StageGuard — the legacy SpendGuard or (Phase 1 enforce mode)
+ *  the atomic reservation guard; tryReserve is awaited, compatible with both. */
 export async function embedTexts(
   texts: string[],
-  opts?: { guard?: SpendGuard },
+  opts?: { guard?: StageGuard },
 ): Promise<EmbedResult> {
   const inputs = texts.map(truncateInput);
 
@@ -162,7 +164,7 @@ export async function embedTexts(
     const batch = inputs.slice(i, i + EMBED_MAX_INPUTS_PER_REQUEST);
     // Reserve BEFORE the billed request; a refusal throws (fail closed) before we call.
     if (guard) {
-      const r = guard.tryReserve();
+      const r = await guard.tryReserve();
       if (!r.ok) throw new LlmBudgetError(r.reason);
     }
     const resp = await withRetry(() => client.embeddings.create({ model, input: batch }));

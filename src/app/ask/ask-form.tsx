@@ -237,6 +237,13 @@ export function AskForm({
   // one-click intent auto-submitted or the user pressed submit here. Content-free.
   const entryRef = useRef<"form" | "intent">("form");
   const startedRef = useRef(false);
+  // Phase 1 idempotency key: an opaque per-submit-gesture UUID in a hidden field.
+  // Regenerated when a submission settles, so a NEW gesture is a NEW run while a
+  // duplicate dispatch of the SAME gesture (double-submit, transport retry)
+  // replays instead of re-billing. The one-click intent path reuses its intent
+  // UUID (already single-use per tab). Uncontrolled input via ref — the value
+  // must be updated synchronously before requestSubmit, not on a render.
+  const idemKeyRef = useRef<HTMLInputElement>(null);
   const handlePendingChange = useCallback((pending: boolean) => {
     setBusy(pending);
     if (pending && !startedRef.current) {
@@ -246,7 +253,21 @@ export function AskForm({
       }
       entryRef.current = "form"; // one-shot: only the intent-dispatched submit is "intent"
     }
-    if (!pending) startedRef.current = false;
+    if (!pending) {
+      startedRef.current = false;
+      // The gesture settled — mint the next gesture's key.
+      if (idemKeyRef.current) idemKeyRef.current.value = crypto.randomUUID();
+    }
+  }, []);
+
+  // Mint the FIRST gesture's idempotency key on mount (later gestures mint in
+  // handlePendingChange when the prior one settles). Runs before the one-shot
+  // intent effect below, which overrides with the intent UUID; StrictMode's
+  // double-invoke is harmless (only fills an empty value).
+  useEffect(() => {
+    if (idemKeyRef.current && !idemKeyRef.current.value) {
+      idemKeyRef.current.value = crypto.randomUUID();
+    }
   }, []);
 
   // One-shot handoff from the home Ask box. This is the ONLY automatic submission in
@@ -283,12 +304,24 @@ export function AskForm({
     // between the two pages must not silently ask something the user didn't submit.
     if (stored === null || stored !== initialQuestion) return;
     entryRef.current = "intent"; // the pending rising edge this dispatch causes is intent-entry
+    // Reuse the single-use intent UUID as this gesture's idempotency key: a
+    // duplicate dispatch of the one-click handoff replays instead of re-billing.
+    if (idemKeyRef.current) idemKeyRef.current.value = intent;
     formRef.current?.requestSubmit();
   }, [intent, initialQuestion]);
 
   return (
     <div>
       <form ref={formRef} action={formAction} className="mb-4 flex flex-col gap-1">
+        {/* Phase 1: per-submit-gesture idempotency key (opaque UUID, no user data).
+            suppressHydrationWarning: the value is minted client-side per gesture. */}
+        <input
+          ref={idemKeyRef}
+          type="hidden"
+          name="idempotencyKey"
+          defaultValue=""
+          suppressHydrationWarning
+        />
         <AskFormFields
           initialQuestion={initialQuestion}
           t={t}

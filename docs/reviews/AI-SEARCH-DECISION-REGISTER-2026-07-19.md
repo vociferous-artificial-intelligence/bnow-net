@@ -73,6 +73,83 @@ blockers accumulated by the unattended workstream. Revisit-markers are explicit.
     patterns cannot apply to it. acceptStates:["answered"] fixtures still fail
     over-suppression.
 
+## Phase 1
+
+### Accepted assumptions / temporary defaults
+
+12. **Reserve-as-started (bounded deviation from contract §2's markStarted timing).**
+    The ask stage guard inserts its reservation with `status='started'` directly
+    instead of reserved→markStarted, because in every call site the HTTP dispatch
+    follows the successful tryReserve synchronously (no intermediate refusal branch
+    exists). A crash between insert and dispatch settles conservatively AT CEILING —
+    the safe (over-counting) direction. The service still implements the full
+    reserved→started lifecycle (`markReservationStarted`, release-unstarted) for
+    future orchestrator use, and both paths are integration-tested.
+13. **`ask_runs.result` + `ask_runs.question` are new retention surface** (answer
+    text persists per run — required for idempotent replay-without-rerun). Bounded:
+    per-user rows, no cross-user readback (replay resolves via the per-user unique
+    key), never sent to analytics. Shadow mode writes these rows in production once
+    deployed (flag off) — that IS the soak. The operator retention decision the
+    architecture review assigns to sessions (§7.7) applies here too and remains open;
+    revisit before Phase 6 enables sessions.
+14. **Enforce-mode cap checks are ceiling-aware FIT** (`settled + active + ceiling
+    <= cap`) — stricter near a cap boundary than the legacy `current < cap`
+    overshoot-by-one semantics. That strictness IS the F7 race fix; the legacy
+    behavior remains bit-identical while the flag is off.
+15. **The GLOBAL daily budget stays the legacy read-check in enforce mode**
+    (contract §3): it is a soft aggregate backstopped by the hard provider caps;
+    making it atomic adds a lock on a shared key for marginal value. Revisit in
+    Phase 7 when workspace pooling changes its meaning.
+16. **The lazy expiry sweep runs only in enforce mode.** Shadow-mode crash rows
+    stay `created` until enforcement turns on (first enforce request sweeps them);
+    accepted to keep the shadow overhead at two best-effort writes per request.
+17. **Un-keyed API callers stay replay-unsafe-but-unchanged**: `POST /api/ask`
+    without `idempotencyKey` gets a server-generated never-replaying key. The
+    replay guarantee requires a client-held key by construction.
+18. **Duplicate-in-flight payload** renders as state `limit` with provider
+    `duplicate` (so the API 429 mapping — keyed on provider — does not fire) and
+    honest copy. Phase 2 replaces this with a real reconnect.
+
+### Post-Gate-1 additions (fixed findings are in the gate report; these are the
+### accepted-and-registered residuals)
+
+19. **Idempotency keys bind (user, key, question).** A reused key with a different
+    question refuses honestly (Gate 1 fix — standard idempotency semantics); an
+    expired/crashed run's key stays bound to that failed gesture and its replay says
+    so honestly ("did not complete… submit again"). Contract §4 is amended by this
+    register entry.
+20. **Legacy embed callers keep read-then-act semantics on `openai_embed`** (the
+    enrich/backfill/persist paths neither take the advisory lock nor see active
+    ceilings). Enforce-mode atomicity holds among atomic callers; full consolidation
+    is Phase 5's gateway work. Exposure bounded by the existing daily caps.
+21. **Orphaned-consumed slot** when the post-insert authorize UPDATE fails: the slot
+    stays consumed for a run that never became authorized — conservative direction
+    (never a free retry), reconciled by nothing (a day-scoped slot). Accepted.
+22. **`ask_runs.status` never takes 'running'** in Phase 1 (created → authorized →
+    finished/expired); the expiry sweep's predicate (`finished_at IS NULL`) is not
+    covered by the (status, created_at) index — add a partial index in the Phase 2
+    migration (0023) rather than editing 0022.
+23. **`ASK_PIPELINE=legacy` + `ASK_RUNS_ENFORCE=1` is a degenerate combination**: the
+    legacy pipeline ignores injected guards, so spend checks degrade to read-then-act
+    while runs/replay stay atomic. ASK_PIPELINE=legacy is the emergency rollback and
+    must not be combined with enforcement — documented here, not coded around.
+24. **Enforcement-flip day**: the atomic allowance starts from an empty slot table,
+    ignoring same-day pre-flip ask_usage history (a user could get up to 2× the daily
+    limit on that one transition day). One-day artifact, accepted.
+25. **Anonymous namespace** (`FEATURE_AUTH_GATE` off, dev/demo only): client keys
+    share the "anonymous" user namespace across visitors. Production always has the
+    gate on; accepted as dev-only.
+26. **Enforce-mode per-request overhead** (lazy sweep with an unindexed predicate +
+    ~11 serial Pool setups per ask): performance debt, bounded at beta scale;
+    Phase 2's orchestrator consolidates connections, and #22's partial index covers
+    the sweep.
+27. **Replayed payloads carry `replayed: true`** and entry points skip their timing
+    patch — the original gesture's hydrate/total timings are never overwritten
+    (Gate 1 fix).
+28. **Reservation actuals settle to the RESERVATION's day** (not the settle-time
+    day), so midnight-straddling calls are charged against the window that admitted
+    them (Gate 1 fix).
+
 ### Revisit list
 
 - If Next.js is upgraded past 16.2.x, re-verify the server-action maxDuration

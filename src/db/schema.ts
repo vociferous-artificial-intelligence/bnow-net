@@ -662,6 +662,82 @@ export const askUsage = pgTable(
   ],
 );
 
+// ---- AI Search Phase 1: persisted runs + atomic reservations (2026-07-19) ----
+// Contract: docs/designs/ASK-RUNS-RESERVATION-CONTRACT-2026-07-19.md. All three
+// tables are additive and PASSIVE until ASK_RUNS_ENFORCE=1 (shadow-write first).
+
+// One row per paid /ask run, created BEFORE any work. id = the Phase 0 run_id
+// (ask_usage.run_id matches). `result` stores the terminal payload so an
+// idempotent replay returns it without any pipeline call.
+export const askRuns = pgTable(
+  "ask_runs",
+  {
+    id: uuid("id").primaryKey(),
+    userEmail: text("user_email").notNull(),
+    question: text("question").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    status: text("status").notNull().default("created"), // created|authorized|running|finished|expired
+    state: text("state"), // terminal AnswerState once finished
+    result: jsonb("result"), // terminal AskAnswerV2 payload (replay source)
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    authorizedAt: timestamp("authorized_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    expired: boolean("expired").notNull().default(false),
+    reservedCeilingUsd: doublePrecision("reserved_ceiling_usd"),
+    settledCostUsd: doublePrecision("settled_cost_usd"),
+    errorClass: text("error_class"),
+  },
+  (t) => [
+    uniqueIndex("ask_runs_user_idem_idx").on(t.userEmail, t.idempotencyKey),
+    index("ask_runs_status_created_idx").on(t.status, t.createdAt),
+  ],
+);
+
+// One authorized analysis slot per run: UNIQUE(user_email, day, slot) makes the
+// last-slot race lose-exactly-one by constraint (lock-free); UNIQUE(run_id)
+// makes replays reuse their slot instead of consuming another.
+export const askAllowanceReservations = pgTable(
+  "ask_allowance_reservations",
+  {
+    id: serial("id").primaryKey(),
+    userEmail: text("user_email").notNull(),
+    day: date("day").notNull(),
+    slot: integer("slot").notNull(),
+    runId: uuid("run_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("ask_allowance_user_day_slot_idx").on(t.userEmail, t.day, t.slot),
+    uniqueIndex("ask_allowance_run_idx").on(t.runId),
+  ],
+);
+
+// One row per paid-stage reservation: reserved -> started -> settled/released,
+// every transition a single conditional UPDATE (idempotent). Active
+// (reserved|started) ceilings count against the provider caps alongside
+// provider_usage's settled actuals, under a per-provider advisory lock.
+export const providerUsageReservations = pgTable(
+  "provider_usage_reservations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    runId: uuid("run_id").notNull(),
+    stage: text("stage").notNull(), // embed | rerank | answer
+    attempt: integer("attempt").notNull().default(1),
+    provider: text("provider").notNull(), // openai_embed | openai_ask
+    day: date("day").notNull(), // UTC day the reservation counts against
+    ceilingUsd: doublePrecision("ceiling_usd").notNull(),
+    status: text("status").notNull().default("reserved"), // reserved|started|settled|released
+    actualUsd: doublePrecision("actual_usd"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    settledAt: timestamp("settled_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("provider_resv_run_stage_attempt_idx").on(t.runId, t.stage, t.attempt),
+    index("provider_resv_provider_status_day_idx").on(t.provider, t.status, t.day),
+    index("provider_resv_status_created_idx").on(t.status, t.createdAt),
+  ],
+);
+
 // ---------- paid-provider budget accounting ----------
 
 // One row per (provider, UTC day): request/unit counts + estimated spend.
