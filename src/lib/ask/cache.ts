@@ -20,8 +20,16 @@ import { createHash } from "node:crypto";
 import { Pool } from "@neondatabase/serverless";
 import type { AskAnswerV2, TimeWindow } from "./types";
 import type { EvidenceSnapshot } from "./events";
-import { askCandidates, askEvidenceK } from "./config";
-import { ROUTE_POLICY_VERSION } from "./router";
+import {
+  askLexicalTop,
+  askNoCoverageShortcircuit,
+  askPipeline,
+  askRelevanceBoundaryEnabled,
+  askRelevantEvidenceFloor,
+  askVectorTop,
+} from "./config";
+import { route, type RoutePolicy } from "./router";
+import { fidelityFallbackEnabled } from "./validator";
 import { SYSTEM_V2 } from "./answer";
 
 /** Bump when retrieval semantics change in a way env knobs don't capture. */
@@ -63,14 +71,32 @@ export interface CacheKeyInputs {
   corpusVersion: string;
 }
 
-/** Deterministic key over every answer-shaping input. */
+/** Deterministic key over every answer-shaping input (Gate 4 fix: the RESOLVED
+ *  auto policy — model, rerank model, K, caps, output ceiling — plus every
+ *  pipeline/validation toggle participate, so a config change or the
+ *  documented ASK_PIPELINE=legacy rollback can never re-serve entries produced
+ *  under the configuration the operator just rolled back). Only the window's
+ *  RESOLVED dates matter — matchedPhrase's original casing must not split
+ *  otherwise-identical entries. */
 export function cacheKey(inputs: CacheKeyInputs): string {
+  const policy = route({ mode: "auto" }) as RoutePolicy;
   const material = JSON.stringify([
     normalizeQuestion(inputs.question),
-    inputs.window,
-    ROUTE_POLICY_VERSION,
-    askEvidenceK(),
-    askCandidates(),
+    inputs.window ? { from: inputs.window.from, to: inputs.window.to } : null,
+    policy.policyVersion,
+    policy.answerModel,
+    policy.rerankModel,
+    policy.evidenceK,
+    policy.candidatesCap,
+    policy.maxOutputTokens,
+    policy.reasoningEffort,
+    askPipeline(),
+    askVectorTop(),
+    askLexicalTop(),
+    askRelevantEvidenceFloor(),
+    askRelevanceBoundaryEnabled(),
+    askNoCoverageShortcircuit(),
+    fidelityFallbackEnabled(),
     promptVersion(),
     RETRIEVAL_VERSION,
     inputs.corpusVersion,
@@ -142,6 +168,11 @@ export async function cacheStore(opts: {
         JSON.stringify(opts.snapshot),
       ],
     );
+    // Lazy retention sweep (Gate 4): every corpus move permanently orphans
+    // prior entries (their key can never be recomputed), so old rows are pure
+    // dead weight. Piggybacked on store — no new cron; the created_at index
+    // covers it; §9.2 prescribes TTL ≤ corpus cadence, 7 days is generous.
+    await pool.query(`DELETE FROM ask_answer_cache WHERE created_at < now() - interval '7 days'`);
   } catch (e) {
     console.warn(`ask cache store failed (ignored): ${e instanceof Error ? e.message : e}`);
   } finally {

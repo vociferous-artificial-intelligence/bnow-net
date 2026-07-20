@@ -53,6 +53,12 @@ describe("hydrateResultClaims — Phase 4 cache-hit branch (F11)", () => {
   it("resolves cited + related from the frozen snapshot; source docs by STABLE raw_documents ids; never queries live claims", async () => {
     h.queryMock.mockImplementation(async (sql: string) => {
       if (String(sql).includes("evidence_snapshot")) return [{ evidence_snapshot: SNAPSHOT }];
+      if (String(sql).includes("FROM countries")) {
+        return [
+          { iso2: "ua", name: "Ukraine" },
+          { iso2: "ru", name: "Russia" },
+        ];
+      }
       if (String(sql).includes("FROM raw_documents")) {
         return [
           { doc_id: 501, doc_url: "https://t.me/x/1", doc_title: "post", adapter: "telegram", source_id: 3, source_name: "Chan", source_key: null, source_domain: null, source_platform: "telegram", reliability: 0.6, published_at: "2026-07-15", fetched_at: "2026-07-15" },
@@ -64,6 +70,7 @@ describe("hydrateResultClaims — Phase 4 cache-hit branch (F11)", () => {
 
     expect(cited).toHaveLength(1);
     expect(cited[0].text).toBe("Cited claim text from the snapshot."); // content, not a live row
+    expect(cited[0].countryName).toBe("Ukraine"); // G4: resolved by stable iso2, not "UA"
     expect(cited[0].digestDate).toBeNull(); // no unstable digest anchor (F11 §7.4)
     expect(cited[0].copyPayload.claimUrl).toBeNull();
     expect(cited[0].copyPayload.docs[0]?.docId).toBe(501); // stable doc id resolved live

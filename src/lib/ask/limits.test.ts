@@ -776,13 +776,28 @@ describe("askWithLimits — Phase 4 exact cache (ASK_EXACT_CACHE)", () => {
     expect(h.askMock).not.toHaveBeenCalled(); // zero provider pipeline
     expect(res.answer).toBe("Cached answer [c1].");
     expect(res.cacheStatus).toBe("exact");
+    expect(res.provider).toBe("openai:gpt-5-mini"); // the USER-facing payload keeps its true provider
     expect(res.runId).toBeTruthy();
     const usageInsert = h.queryMock.mock.calls.find((c) => String(c[0]).includes("INSERT INTO ask_usage"));
     expect(usageInsert).toBeTruthy();
     expect(usageInsert![1][5]).toBe(0); // cost_usd = $0
+    // Gate 4: the hit's accounting row is marked and carries NO paid stage
+    // columns (they'd replay the ORIGINAL run's spend into a $0 row)
+    expect(usageInsert![1][2]).toBe("cache:exact"); // provider marker
+    expect(usageInsert![1][3]).toBeNull(); // prompt_tokens
+    expect(usageInsert![1][18]).toBeNull(); // answer_cost_usd
     // the frozen snapshot is re-persisted onto THIS run's row (F11 hydration)
     const snapPersist = h.queryMock.mock.calls.find((c) => String(c[0]).includes("SET evidence_snapshot"));
     expect(snapPersist).toBeTruthy();
+  });
+
+  it("Gate 4: anonymous identities never touch the cache (no pooled 'anonymous' namespace)", async () => {
+    vi.stubEnv("ASK_EXACT_CACHE", "1");
+    h.askMock.mockResolvedValue(v2Full());
+    await askWithLimits("q", null); // FEATURE_AUTH_GATE-off dev path
+    expect(h.corpusVersionMock).not.toHaveBeenCalled();
+    expect(h.cacheLookupMock).not.toHaveBeenCalled();
+    expect(h.cacheStoreMock).not.toHaveBeenCalled();
   });
 
   it("flag ON + MISS: the pipeline runs and an ANSWERED result with a snapshot is stored", async () => {

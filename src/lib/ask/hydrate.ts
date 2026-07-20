@@ -167,6 +167,15 @@ async function hydrateFromRunSnapshot(result: AskAnswerV2): Promise<HydratedClai
   const docIds = [
     ...new Set(wantedIds.flatMap((id) => byId.get(id)!.sourceDocIds ?? [])),
   ];
+  // Country display names resolve by STABLE iso2 (Gate 4 polish: the snapshot
+  // carries only the code; rendering "UA" where the live path shows "Ukraine"
+  // made cached and fresh renderings visibly diverge).
+  const isoCodes = [...new Set(wantedIds.map((id) => byId.get(id)!.countryIso2))];
+  const countryRows = (await rawSql.query(
+    `SELECT iso2, name FROM countries WHERE iso2 = ANY($1::text[])`,
+    [isoCodes],
+  )) as Array<{ iso2: string; name: string }>;
+  const countryName = new Map(countryRows.map((r) => [r.iso2, r.name]));
   const docRows =
     docIds.length === 0
       ? []
@@ -207,19 +216,20 @@ async function hydrateFromRunSnapshot(result: AskAnswerV2): Promise<HydratedClai
     const c = byId.get(id);
     if (!c) return null;
     const asOf = c.claimDate ? formatDate(locale, c.claimDate) : null;
+    const name = countryName.get(c.countryIso2) ?? c.countryIso2.toUpperCase();
     return {
       id: c.claimId,
       text: c.text,
       hedging: c.hedging,
       iso2: c.countryIso2,
-      countryName: c.countryIso2.toUpperCase(),
+      countryName: name,
       digestDate: null, // no live digest anchor — the claim id is unstable (F11)
       copyPayload: {
         claimId: c.claimId,
         text: c.text,
         hedging: c.hedging,
         asOf,
-        countryName: c.countryIso2.toUpperCase(),
+        countryName: name,
         countryIso2: c.countryIso2,
         claimUrl: null,
         docs: (c.sourceDocIds ?? [])

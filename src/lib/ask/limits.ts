@@ -530,7 +530,10 @@ export async function askWithLimits(
     // snapshot is re-persisted onto THIS run's row so hydration resolves cited
     // evidence from it (F11 — live claim ids may have churned).
     let cacheCtx: { key: string; corpus: string } | null = null;
-    if (askExactCache()) {
+    // Anonymous identities never touch the cache (Gate 4: with the auth gate
+    // off, every visitor folds to one "anonymous" namespace — caching there
+    // would pool answers across people).
+    if (askExactCache() && userEmail !== null) {
       try {
         const corpus = await corpusVersion(pool);
         const key = cacheKey({ question, window: parseTimeWindow(question), corpusVersion: corpus });
@@ -540,7 +543,13 @@ export async function askWithLimits(
           const payload: AskAnswerV2 = { ...hit.result, runId: run.runId, cacheStatus: "exact" };
           recordStage(run.timings, "pipelineMs", monotonicMs() - t0);
           try {
-            await logUsage(pool, email, question, payload as RawAskResult, 0, run);
+            // The hit's accounting row must not replay the ORIGINAL run's paid
+            // stage columns (Gate 4: a $0 row asserting stage costs is
+            // incoherent and double-counts in any stage aggregation). The
+            // provider marker makes hit rows queryable; the payload the USER
+            // sees keeps its true provider.
+            const hitRow = { ...payload, provider: "cache:exact", usage: undefined, usageByStage: undefined };
+            await logUsage(pool, email, question, hitRow as RawAskResult, 0, run);
           } catch (logErr) {
             console.warn(`askWithLimits: cache-hit usage row failed (answer still returned): ${logErr instanceof Error ? logErr.message : logErr}`);
           }

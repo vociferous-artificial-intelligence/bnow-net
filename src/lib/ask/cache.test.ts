@@ -56,6 +56,41 @@ describe("cacheKey — every answer-shaping input participates (Gate 4 sensitivi
     expect(base()).not.toBe(before);
   });
 
+  it("Gate 4: model/pipeline/toggle knobs each miss on change (a rollback can never re-serve old-config entries)", () => {
+    const before = base();
+    const knobs: Array<[string, string]> = [
+      ["ASK_ANSWER_MODEL", "gpt-4o"],
+      ["ASK_RERANK_MODEL", "gpt-4o-mini"],
+      ["ASK_PIPELINE", "legacy"],
+      ["ASK_ANSWER_MAX_OUTPUT_TOKENS", "500"],
+      ["ASK_VECTOR_TOP", "10"],
+      ["ASK_LEXICAL_TOP", "10"],
+      ["ASK_RELEVANT_EVIDENCE_FLOOR", "20"],
+      ["ASK_RELEVANCE_BOUNDARY", "0"],
+      ["ASK_NO_COVERAGE_SHORTCIRCUIT", "0"],
+      ["ASK_FIDELITY_FALLBACK", "0"],
+    ];
+    for (const [k, v] of knobs) {
+      vi.stubEnv(k, v);
+      expect(base(), `${k} must move the key`).not.toBe(before);
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("Gate 4: the window's matchedPhrase casing does NOT split entries (resolved dates only)", () => {
+    const a = cacheKey({
+      question: "strikes past week",
+      window: { from: "2026-07-13", to: "2026-07-20", matchedPhrase: "Past Week" } as never,
+      corpusVersion: "100:50",
+    });
+    const b = cacheKey({
+      question: "strikes past week",
+      window: { from: "2026-07-13", to: "2026-07-20", matchedPhrase: "past week" } as never,
+      corpusVersion: "100:50",
+    });
+    expect(a).toBe(b);
+  });
+
   it("promptVersion is a stable hash of SYSTEM_V2 (prompt edits invalidate everything)", () => {
     expect(promptVersion()).toMatch(/^[0-9a-f]{12}$/);
     expect(promptVersion()).toBe(promptVersion());
@@ -106,6 +141,9 @@ describe("cacheLookup / cacheStore", () => {
     expect(storedResult.replayed).toBeUndefined();
     expect(storedResult.cacheStatus).toBeUndefined();
     expect(storedResult.answer).toBe("A [c1].");
+    // Gate 4: the lazy retention sweep runs with the store (orphaned rows die)
+    const sweep = h.queryMock.mock.calls.find((c) => String(c[0]).includes("DELETE FROM ask_answer_cache"));
+    expect(String(sweep?.[0] ?? "")).toContain("interval '7 days'");
   });
 
   it("store fails SOFT (the answer was already returned)", async () => {
