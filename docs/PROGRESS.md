@@ -2245,3 +2245,25 @@ B. Buffered validated sections behind `ASK_STREAM_ANSWER` (default OFF): server-
    settlement on all stream-death paths.
 Gate 3 REQUIRES the independent red-team (post-reset). No paid calls, production
 writes, deploys, pushes; production enablement stays blocked.
+
+## 2026-07-20 11:55 EDT — AI Search recovery: interrupted Gate 2 supplementary + Gate 3
+
+The 2026-07-20 session died mid-work (credit/session limit) leaving Phase 3 ungated
+with a dirty `src/lib/ask/run-controller.ts` patch (attempted supplementary-Gate-2
+fixes, uncommitted, unproven). Recovery block (≤2h increments, committed often):
+
+1. Forensics + exclusive ownership; recovery report
+   `docs/reviews/AI-SEARCH-RECOVERY-2026-07-20.md`.
+2. Prove or rework the dirty run-controller patch against the persisted-event
+   contract (14-point behavior matrix; focused tests → typecheck/lint/full suite);
+   commit as forward fixes.
+3. Supplementary Gate 2 independent review (2–3 reviewers, divided lenses), addendum
+   appended to `AI-SEARCH-GATE-2-2026-07-19.md`.
+4. Gate 3 independent red-team over the full Phase 3 diff + executed probes; full
+   verification battery (unit/lint/build/integration on a proven-disposable Neon
+   fork/browser on production build, flags both ways); write
+   `AI-SEARCH-GATE-3-2026-07-20.md`.
+5. On PASS only: merge Phase 3 `--no-ff` into
+   `codex/ai-search-ask-integration-20260719`; retain the phase branch.
+6. Continue Phases 4–7 per the master prompt.
+No pushes, deploys, production writes, paid calls, cap/analytics/provider changes.
