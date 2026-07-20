@@ -978,3 +978,123 @@ describe("stage timings — terminal paths and metering invariance", () => {
     expect(timings.answerMs).toBeUndefined();
   });
 });
+
+// ---- Phase 2: run-event emission + snapshot freeze -------------------------------
+
+const p2 = vi.hoisted(() => ({
+  fetchDocsMock: vi.fn(),
+  persistSnapMock: vi.fn(),
+}));
+vi.mock("./events", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./events")>();
+  return { ...actual, fetchSourceDocIds: p2.fetchDocsMock, persistEvidenceSnapshot: p2.persistSnapMock };
+});
+
+interface Emitted {
+  type: string;
+  payload: Record<string, unknown>;
+}
+
+function fakeSink() {
+  const events: Emitted[] = [];
+  return {
+    events,
+    emit: vi.fn(async (type: string, payload: Record<string, unknown>) => {
+      events.push({ type, payload });
+    }),
+  };
+}
+
+describe("ask() — Phase 2 progressive event emission", () => {
+  const pool = [candidate({ claimId: 1 }), candidate({ claimId: 2 })];
+
+  beforeEach(() => {
+    p2.fetchDocsMock.mockReset();
+    p2.persistSnapMock.mockReset();
+    p2.fetchDocsMock.mockResolvedValue(new Map([[1, [100]], [2, [100, 101]]]));
+    p2.persistSnapMock.mockResolvedValue(undefined);
+  });
+
+  it("emits lexical_partial -> retrieval.completed -> rerank.skipped -> answer.started in order and freezes the snapshot ($0 offline path)", async () => {
+    vi.stubEnv("ASK_PIPELINE", "v2");
+    vi.stubEnv("OPENAI_API_KEY", ""); // offline: no paid calls anywhere
+    mocks.currencyMock.mockResolvedValue("2026-07-18");
+    mocks.retrieveV2Mock.mockImplementation(
+      async (_q: string, opts?: { onLexicalPartial?: (p: { claims: unknown[]; totalMatching: number }) => void }) => {
+        opts?.onLexicalPartial?.({ claims: pool, totalMatching: 5 });
+        return retrievalV2({ claims: pool, totalMatching: 5 });
+      },
+    );
+    mocks.rerankMock.mockResolvedValue(ranked({ claims: pool, rerankUsed: false }));
+
+    const sink = fakeSink();
+    const res = await ask("what happened in kherson", {
+      sink,
+      snapshotRunId: "11111111-2222-4333-8444-555555555555",
+    });
+
+    expect(res.provider).toBe("stub"); // offline deterministic answer, $0
+    expect(sink.events.map((e) => e.type)).toEqual([
+      "retrieval.lexical_partial",
+      "retrieval.completed",
+      "rerank.skipped",
+      "answer.started",
+    ]);
+    const completed = sink.events[1].payload;
+    expect(completed.candidatesCount).toBe(2);
+    expect(completed.totalMatching).toBe(5);
+    expect(completed.uniqueSources).toBe(2); // docs 100+101, deduped
+    expect(completed.currentThrough).toBe("2026-07-18");
+    expect(sink.events[2].payload.reasonClass).toBe("pool_fits"); // 2 <= K
+
+    expect(p2.persistSnapMock).toHaveBeenCalledTimes(1);
+    const [runId, snapshot] = p2.persistSnapMock.mock.calls[0] as [string, {
+      version: number; candidates: Array<{ claimId: number; text: string; sourceDocIds: number[] }>;
+      selectedClaimIds: number[];
+    }];
+    expect(runId).toBe("11111111-2222-4333-8444-555555555555");
+    expect(snapshot.version).toBe(1);
+    expect(snapshot.candidates.map((c) => c.claimId)).toEqual([1, 2]);
+    expect(snapshot.candidates[0].text).toBe("claim 1"); // CONTENT, not just ids (F11)
+    expect(snapshot.candidates[1].sourceDocIds).toEqual([100, 101]); // stable doc ids
+    expect(snapshot.selectedClaimIds).toEqual([1, 2]);
+  });
+
+  it("without a sink nothing changes: no doc prefetch, no snapshot, no emissions (byte-identity with Phase 1)", async () => {
+    vi.stubEnv("ASK_PIPELINE", "v2");
+    vi.stubEnv("OPENAI_API_KEY", "");
+    mocks.retrieveV2Mock.mockResolvedValue(retrievalV2({ claims: pool }));
+    mocks.rerankMock.mockResolvedValue(ranked({ claims: pool }));
+
+    const res = await ask("what happened in kherson");
+    expect(res.provider).toBe("stub");
+    expect(p2.fetchDocsMock).not.toHaveBeenCalled();
+    expect(p2.persistSnapMock).not.toHaveBeenCalled();
+  });
+
+  it("no-evidence short-circuit still emits an honest zero-count retrieval.completed", async () => {
+    vi.stubEnv("ASK_PIPELINE", "v2");
+    vi.stubEnv("OPENAI_API_KEY", "");
+    mocks.retrieveV2Mock.mockResolvedValue(retrievalV2({ claims: [], entities: [], totalMatching: 0 }));
+
+    const sink = fakeSink();
+    const res = await ask("nothing matches", { sink });
+    expect(res.state).toBe("insufficient");
+    expect(sink.events.map((e) => e.type)).toEqual(["retrieval.completed"]);
+    expect(sink.events[0].payload.candidatesCount).toBe(0);
+    expect(p2.persistSnapMock).not.toHaveBeenCalled(); // no snapshot for an empty run
+  });
+
+  it("a rerank that RAN emits rerank.completed with the selected ids", async () => {
+    vi.stubEnv("ASK_PIPELINE", "v2");
+    vi.stubEnv("OPENAI_API_KEY", "");
+    mocks.retrieveV2Mock.mockResolvedValue(retrievalV2({ claims: pool }));
+    mocks.rerankMock.mockResolvedValue(ranked({ claims: [pool[1], pool[0]], rerankUsed: true, relevantCount: 1 }));
+
+    const sink = fakeSink();
+    await ask("q", { sink });
+    const rr = sink.events.find((e) => e.type === "rerank.completed")!;
+    expect(rr.payload.selectedClaimIds).toEqual([2, 1]);
+    expect(rr.payload.relevantCount).toBe(1);
+  });
+});
