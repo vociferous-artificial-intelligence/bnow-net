@@ -50,14 +50,35 @@ export interface SseRecord {
   data: string;
 }
 
+/** Phase ordering for monotonic advancement (Gate 2 inline finding): the
+ *  lexical-partial emit is deliberately not awaited server-side, so its SSE
+ *  forward can arrive AFTER retrieval.completed; replay can also re-deliver
+ *  already-applied events. Phases therefore only move FORWARD, and the terminal
+ *  states are absorbing — a late/duplicate event can never regress the UI. */
+const PHASE_RANK: Record<RunPhase, number> = {
+  starting: 0,
+  retrieving: 1,
+  selecting: 2,
+  answering: 3,
+  done: 4,
+  failed: 4,
+};
+
+function advancePhase(current: RunPhase, proposed: RunPhase): RunPhase {
+  return PHASE_RANK[proposed] >= PHASE_RANK[current] ? proposed : current;
+}
+
 /** Pure reducer: fold one server event into the view state. Unknown event
- *  types advance lastSeq only (forward compatibility). */
+ *  types advance lastSeq only (forward compatibility); phase transitions are
+ *  monotonic and terminal states absorbing (see PHASE_RANK). */
 export function applyRunEvent(
   state: RunViewState,
   record: SseRecord,
 ): RunViewState {
   const next: RunViewState = { ...state };
   if (record.id !== null && record.id < 1_000_000) next.lastSeq = Math.max(next.lastSeq, record.id);
+  // Terminal states are absorbing: only the seq may advance afterwards.
+  if (state.phase === "done" || state.phase === "failed") return next;
   let payload: unknown = {};
   try {
     payload = record.data ? JSON.parse(record.data) : {};
@@ -72,29 +93,32 @@ export function applyRunEvent(
     }
     case "run.created":
     case "run.authorized":
-      next.phase = "starting";
+      next.phase = advancePhase(next.phase, "starting");
       return next;
     case "retrieval.lexical_partial": {
       const p = payload as AskRunEventPayloads["retrieval.lexical_partial"];
-      next.phase = "retrieving";
+      next.phase = advancePhase(next.phase, "retrieving");
+      // The candidate DATA still lands even when the phase is already past
+      // retrieving (late delivery) — the panel may render it; the stage line
+      // never moves backwards.
       next.candidates = { claims: p.claims ?? [], totalMatching: p.totalMatching ?? 0 };
       return next;
     }
     case "retrieval.completed":
-      next.phase = "selecting";
+      next.phase = advancePhase(next.phase, "selecting");
       next.retrieval = payload as AskRunEventPayloads["retrieval.completed"];
       return next;
     case "rerank.completed": {
       const p = payload as AskRunEventPayloads["rerank.completed"];
       next.selectedCount = p.selectedClaimIds?.length ?? null;
-      next.phase = "answering";
+      next.phase = advancePhase(next.phase, "answering");
       return next;
     }
     case "rerank.skipped":
-      next.phase = "answering";
+      next.phase = advancePhase(next.phase, "answering");
       return next;
     case "answer.started":
-      next.phase = "answering";
+      next.phase = advancePhase(next.phase, "answering");
       return next;
     case "run.completed": {
       const p = payload as AskRunEventPayloads["run.completed"];

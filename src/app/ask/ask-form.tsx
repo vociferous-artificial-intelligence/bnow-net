@@ -83,21 +83,28 @@ function AskFormFields({
   t,
   formRef,
   onPendingChange,
+  forceDisabled = false,
 }: {
   initialQuestion: string;
   t: Translate;
   formRef: RefObject<HTMLFormElement | null>;
   onPendingChange: (pending: boolean) => void;
+  /** Phase 2 (Gate 2 inline finding): a progressive run never sets the action's
+   *  pending flag, so the one-submit affordance (disabled controls + spinner)
+   *  must be forced while the run transport is busy. Money was already safe
+   *  (runningRef); this restores the visible contract. */
+  forceDisabled?: boolean;
 }) {
   const { pending } = useFormStatus();
+  const busy = pending || forceDisabled;
 
   // aria-busy belongs on the <form> element, but the component that owns that
   // element can't call useFormStatus (see above) — mirror `pending` onto it via
   // ref, and lift it to AskForm in the same effect.
   useEffect(() => {
-    formRef.current?.setAttribute("aria-busy", pending ? "true" : "false");
+    formRef.current?.setAttribute("aria-busy", busy ? "true" : "false");
     onPendingChange(pending);
-  }, [pending, formRef, onPendingChange]);
+  }, [pending, busy, formRef, onPendingChange]);
 
   return (
     <div className="flex gap-2">
@@ -109,16 +116,16 @@ function AskFormFields({
         name="question"
         defaultValue={initialQuestion}
         placeholder={t("ask.placeholder")}
-        disabled={pending}
+        disabled={busy}
         // a disabled input also suppresses an Enter-key resubmit while pending
         className="min-w-0 flex-1 rounded border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
       />
       <button
         type="submit"
-        disabled={pending}
+        disabled={busy}
         className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
       >
-        {pending ? (
+        {busy ? (
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
         ) : (
           t("ask.submit")
@@ -422,6 +429,7 @@ export function AskForm({
           t={t}
           formRef={formRef}
           onPendingChange={handlePendingChange}
+          forceDisabled={progressiveBusy}
         />
         <WorkingPanel t={t} />
         {progressive && runState && <RunProgress state={runState} t={t} />}

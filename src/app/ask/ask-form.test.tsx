@@ -456,7 +456,7 @@ describe("AskForm: progressive transport (ASK_PROGRESSIVE client path)", () => {
     const tail = [
       `id: 2\nevent: run.completed\ndata: ${JSON.stringify({ result: { answer: "Resumed answer.", state: "answered", provider: "openai:gpt-5", citedClaimIds: [], evidenceCount: 0, terms: [], relatedClaimIds: [], window: null, totalMatching: 0, sampled: false, retrievalMode: "v2" } })}\n\n`,
     ];
-    const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (url: RequestInfo | URL, _init?: RequestInit) => {
       if (String(url).startsWith(`/api/ask/runs/${RUN_ID}/events`)) {
         return new Response(sseStream(tail), { status: 200 });
       }

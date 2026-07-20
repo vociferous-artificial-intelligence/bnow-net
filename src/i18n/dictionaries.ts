@@ -542,7 +542,7 @@ const en: Dict = {
   "ask.progress.sample_prefix": "a sample of",
   "ask.progress.sample_suffix": "matching",
   "ask.progress.current_through": "data current through",
-  "ask.progress.failed": "This run did not complete. Nothing additional was charged — please try again.",
+  "ask.progress.failed": "The connection to this run was lost before a result arrived. It was not charged twice — you can submit the question again.",
 
   // Free claim search (/search) — deterministic lexical retrieval, no model
   // calls, no per-query cost. The count line reuses already-established tokens.
@@ -886,7 +886,7 @@ const uk: Dict = {
   "ask.progress.sample_prefix": "вибірка з", // uk: needs native review
   "ask.progress.sample_suffix": "збігів", // uk: needs native review
   "ask.progress.current_through": "дані актуальні до", // uk: needs native review
-  "ask.progress.failed": "Цей запит не завершився. Додаткової оплати не було — спробуйте ще раз.", // uk: needs native review
+  "ask.progress.failed": "З'єднання з цим запитом перервалося до отримання результату. Подвійної оплати не було — можете надіслати запит ще раз.", // uk: needs native review
   "search.title": "Пошук тверджень", // uk: needs native review
   "search.breadcrumb": "пошук тверджень", // uk: needs native review
   "search.intro": "Повнотекстовий пошук у базі тверджень. Детермінований збіг — без викликів моделі, без бюджету на запити. Кожен результат має посилання на дайджест і джерельні документи.", // uk: needs native review

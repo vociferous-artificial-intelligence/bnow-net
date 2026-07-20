@@ -176,3 +176,44 @@ describe("resumeRun — mid-run refresh recovery", () => {
     expect(final.errorClass).toBe("reconnect_404");
   });
 });
+
+describe("applyRunEvent — monotonic phases (Gate 2 inline findings)", () => {
+  it("a late lexical_partial after retrieval.completed keeps the data but never regresses the phase", () => {
+    let s = initialRunViewState();
+    s = applyRunEvent(s, {
+      id: 4,
+      event: "retrieval.completed",
+      data: JSON.stringify({ candidatesCount: 10, totalMatching: 10, uniqueSources: 3, mode: "v2", window: null, currentThrough: null }),
+    });
+    expect(s.phase).toBe("selecting");
+    // out-of-order delivery: the unawaited partial's forward arrives late
+    s = applyRunEvent(s, {
+      id: 3,
+      event: "retrieval.lexical_partial",
+      data: JSON.stringify({ claims: [], totalMatching: 10 }),
+    });
+    expect(s.phase).toBe("selecting"); // no regression
+    expect(s.candidates).not.toBeNull(); // the data still landed
+  });
+
+  it("terminal states are absorbing: replayed duplicates change nothing but the seq", () => {
+    let s = initialRunViewState();
+    s = applyRunEvent(s, { id: 5, event: "run.completed", data: '{"result":{"answer":"A"}}' });
+    expect(s.phase).toBe("done");
+    s = applyRunEvent(s, { id: 6, event: "retrieval.lexical_partial", data: '{"claims":[],"totalMatching":1}' });
+    expect(s.phase).toBe("done");
+    expect(s.lastSeq).toBe(6);
+    s = applyRunEvent(s, { id: 7, event: "run.failed", data: '{"errorClass":"x"}' });
+    expect(s.phase).toBe("done"); // a stray late failure cannot overwrite success
+  });
+
+  it("duplicate delivery of the same event is idempotent", () => {
+    let s = initialRunViewState();
+    const rr = { id: 5, event: "rerank.completed", data: '{"selectedClaimIds":[1,2]}' };
+    s = applyRunEvent(s, rr);
+    const again = applyRunEvent(s, rr);
+    expect(again.phase).toBe(s.phase);
+    expect(again.selectedCount).toBe(2);
+    expect(again.lastSeq).toBe(5);
+  });
+});

@@ -22,12 +22,12 @@ export function RunProgress({ state, t }: { state: RunViewState; t: Translate })
   const statusKey = PHASE_KEY[state.phase];
 
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/40"
-    >
-      <div className="flex items-center gap-2">
+    <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/40">
+      {/* The live region covers ONLY the status line (Gate 2 inline finding):
+          announcing the whole panel would re-read the entire candidate list on
+          every event — a screen-reader wall. Candidates/counts below are
+          reachable but not force-announced. */}
+      <div role="status" aria-live="polite" className="flex items-center gap-2">
         <Loader2
           className="h-5 w-5 shrink-0 animate-spin text-blue-600 dark:text-blue-400"
           aria-hidden="true"
