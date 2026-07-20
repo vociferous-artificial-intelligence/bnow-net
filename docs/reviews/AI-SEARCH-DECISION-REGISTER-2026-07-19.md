@@ -238,6 +238,30 @@ blockers accumulated by the unattended workstream. Revisit-markers are explicit.
     the tab closes. Mount recovery replays from seq 0 (full panel rebuild); the
     stored lastSeq seeds only live-continuation reconnects.
 
+### Supplementary Gate 2 additions (2026-07-20; findings G2S-1..11 in the gate
+### report's addendum — these are the surviving contracts/residuals)
+
+44. **Enablement coupling:** `ASK_PROGRESSIVE=1` should be enabled together
+    with `ASK_RUNS_ENFORCE=1` — the runs route's idempotent-replay semantics
+    ("a replayed key returns its stored result with zero provider calls") hold
+    only under enforce; in shadow mode a duplicate POST re-runs the paid
+    pipeline (documented legacy semantics). Operator note for the (blocked)
+    enablement step.
+45. **Reconnect 404s are terminal only when consecutive.** The POST route
+    announces `run.ref` before the ask_runs row commits, so the first 404 in a
+    resume is retried after backoff; a second consecutive 404 is a genuine
+    ownership/unknown run and clears the resume ref (G2S-2).
+46. **Terminal-persist failure delivers an unpersisted wire terminal** instead
+    of rewriting a billed success as `run.failed` (G2S-4). Residual accepted:
+    that one run's event log lacks a terminal event, so a later resume tails
+    to cutoff and exhausts honestly (ref retained, #43); the finalized run row
+    + `/result` remain the durable truth.
+47. **Failure-copy class split deferred** for the expired-session path
+    (detecting the auth redirect inside a dropped SSE fetch): `submit_*` /
+    `stream_lost_before_ref` currently share the generic connection-lost copy
+    (money statement exact in every class). `reconnect_404` got its own honest
+    copy (G2S-11).
+
 ### Revisit list
 
 - If Next.js is upgraded past 16.2.x, re-verify the server-action maxDuration

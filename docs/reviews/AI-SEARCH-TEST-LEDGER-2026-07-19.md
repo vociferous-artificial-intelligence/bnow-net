@@ -62,6 +62,16 @@ patch proven/reworked before commit):
 | P3-4 | `npm run typecheck` + `npm run lint` | PASS (1 pre-existing warning) | ~70s | |
 | P3-5 | `npm test` | **PASS — 1,832/1,832, 148 files** | 6.1s | +13 over P3-2 |
 
+Supplementary Gate 2 independent pass (2026-07-20; workflow `wf_2695dde0-5bb`, 3
+lens-divided reviewer agents, 442,864 subagent tokens, all read-only/$0; findings
+G2S-1..11 in the Gate 2 addendum) and its fixes:
+
+| # | Command | Result | Duration | Notes |
+|---|---|---|---|---|
+| P3-6 | reviewer probe: events-route tail poisoning (executed against the real route module, faithful Pool mock) | **CONFIRMED 2/2** | ~1s | control (no marker) delivers the later terminal; poisoned (marker replayed first) polls blind at after=1e6 for the full 50s cutoff — basis of G2S-1 |
+| P3-7 | `npx vitest run` (run-controller + ask-form + runs-routes + retrieve-v2) after fixes | **PASS — 85/85** | 2.4s | new pins: marker-safe tail cursor + single-forward, consecutive-404 contract (3 tests), replay hydration via result.runId, unpersisted-terminal fallback (no run.failed rewrite), cancel single-marker idempotency, partial-emit await + rejection safety, terminal-gap busy window, intent-unconsumed-during-resume + active-question display |
+| P3-8 | `npm run typecheck` + `npm run lint` + `npm test` | **PASS — 1,841/1,841, 148 files** (lint 0 errors / 1 pre-existing warning) | ~7min | +9 over P3-5 |
+
 Post-Gate-1 reruns (fix commit `1309d46`):
 
 | # | Command | Result | Duration | Notes |

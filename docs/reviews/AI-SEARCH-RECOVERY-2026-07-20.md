@@ -91,4 +91,18 @@ recorded in §4 below and in the Gate 2 addendum.
   were found but treated as untrusted hypothesis sources only — no result from
   them is claimed anywhere.
 
+- **~12:30 EDT — Step 3: supplementary Gate 2 independent pass COMPLETED.**
+  Three lens-divided independent reviewers (SSE/state machine, money/
+  idempotency, UX/a11y/evidence truth; workflow `wf_2695dde0-5bb`) over the
+  Phase 2 diff + recovery hardening. Verdict: **the original PASS stands** —
+  0 blocker/high; 7 medium + 4 low findings (G2S-1..11, one proven by an
+  executed probe), all lead-verified and fixed forward on the P3 branch with
+  regression tests: marker-safe tail cursor, consecutive-404 resume contract,
+  replay hydration via result.runId, no-run.failed-rewrite terminal fallback,
+  terminal-gap busy window, terminal-copy announcements, intent-preserved-
+  during-resume + active-question display, idempotent cancel marker, partial-
+  emit commit ordering, disconnect-aware tail, reconnect_404 copy. Full
+  addendum appended to `AI-SEARCH-GATE-2-2026-07-19.md`; registers #44–#47;
+  ledger P3-6..P3-8 (85/85 focused; 1,841/1,841 full).
+
 (subsequent entries appended as recovery proceeds)
