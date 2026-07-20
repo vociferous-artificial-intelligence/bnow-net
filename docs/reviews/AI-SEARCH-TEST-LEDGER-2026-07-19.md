@@ -31,6 +31,14 @@ NOT executed (operator approval required — see the decision register).
 | P1-4 | `npm run test:integration` | **PASS — 45/45, 8 files** | 23.5s | disposable branch `br-raspy-cloud-atxhsqbu`, deleted. New `ask-runs.itest.ts` (13 tests) proves the contract §7 matrix on REAL Postgres: daily-cap race, all-time-cap race, and last-allowance-slot race each lose exactly one; envelope isolation; own-settled-reservation not double-counted; idempotent settlement (actuals written once) and terminalization; release-unstarted vs started; expiry (release/ceiling-settle, allowance retained); cap-unset fail-closed with zero rows; $0 end-to-end enforce replay (1 run, 1 usage row, stored result, zero provider calls). The fork is migrated to head (0021+0022) by the new `runMigrations` export before testing |
 | P1-5 | `npm run build` | PASS | ~90s | |
 
+Post-Gate-1 reruns (fix commit `1309d46`):
+
+| # | Command | Result | Duration | Notes |
+|---|---|---|---|---|
+| P1-6 | `npm run typecheck` + `npm test` | **PASS — 1,738/1,738, 143 files** | ~90s | +14 (expired/mismatch replay branches, replayed-skip at both entry points, key-chain form/action/route pins, run-guards wiring suite) |
+| P1-7 | `npm run lint` | PASS | ~40s | |
+| P1-8 | `npm run test:integration` | **PASS — 49/49, 8 files** | 25.8s | branch `br-mute-pond-atgio8r3`, deleted. +4 on real Postgres: CONCURRENT createRun race (exactly one inserts), real buildAskRunGuards reservation through openai_ask/openai_embed with ledger settlement, expired-replay honesty, question-mismatch refusal (+ original still replays) |
+
 Post-gate reruns (fixes from Gate 0 findings):
 
 | # | Command | Result | Duration | Notes |
