@@ -63,8 +63,10 @@ export interface AskRunMeta {
   timings: StageTimings;
 }
 
-export function createAskRunMeta(): AskRunMeta {
-  return { runId: crypto.randomUUID(), startedAt: new Date(), timings: {} };
+export function createAskRunMeta(runId?: string): AskRunMeta {
+  // Phase 2: the progressive route pre-mints the run id (its event sink needs it
+  // before askWithLimits runs); every other caller lets it mint here.
+  return { runId: runId ?? crypto.randomUUID(), startedAt: new Date(), timings: {} };
 }
 
 /** Monotonic now — exported so tests can pin the rounding behavior. */

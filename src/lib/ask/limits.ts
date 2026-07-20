@@ -17,6 +17,7 @@ import {
   type CreateRunResult,
 } from "./runs";
 import { buildAskRunGuards } from "./run-guards";
+import { NULL_EVENT_SINK, type RunEventSink } from "./events";
 
 // /ask spend control: an authenticated user could otherwise run up LLM cost with
 // unlimited questions. This is the FIRST of two gates on the /ask money path:
@@ -394,12 +395,18 @@ async function finalizeSafe(opts: Parameters<typeof finalizeRun>[0]): Promise<vo
 export async function askWithLimits(
   question: string,
   userEmail: string | null,
-  opts?: { idempotencyKey?: string },
+  opts?: { idempotencyKey?: string; sink?: RunEventSink; runId?: string },
 ): Promise<AskAnswerV2> {
   const email = userEmail ?? "anonymous";
-  const run = createAskRunMeta();
+  const run = createAskRunMeta(opts?.runId);
   const t0 = monotonicMs();
   const enforce = askRunsEnforce();
+  // Phase 2: the progressive transport's event sink. run.created/run.authorized
+  // are emitted HERE (the one money path); the pipeline events come from ask();
+  // the route emits the terminal event with the returned payload. NULL sink =
+  // byte-identical Phase 1 behavior.
+  const sink = opts?.sink ?? NULL_EVENT_SINK;
+  const progressive = sink !== NULL_EVENT_SINK;
   // No client key -> the run's own UUID: unique per invocation, so it can never
   // replay (the replay-safety contract requires a client-held key).
   const idempotencyKey = opts?.idempotencyKey ?? run.runId;
@@ -443,6 +450,7 @@ export async function askWithLimits(
       // Shadow replay detection changes NOTHING (legacy gates stay authoritative);
       // the collision is only visible in the soak telemetry.
     }
+    if (progressive) await sink.emit("run.created", {});
 
     let usage: { count: number; cost: number };
     try {
@@ -472,6 +480,7 @@ export async function askWithLimits(
         return { ...refusal, runId: run.runId };
       }
       const slot = await reserveAllowance({ runId: run.runId, userEmail: email, limit });
+      if (slot.ok && progressive) await sink.emit("run.authorized", {});
       if (!slot.ok) {
         const refusal =
           slot.reason === "user_limit"
@@ -499,6 +508,7 @@ export async function askWithLimits(
         // AskAnswerV2; no runId in shadow mode (behavior-identical to Phase 0).
         return limitAnswer(limitMessage(allowance, limit));
       }
+      if (progressive) await sink.emit("run.authorized", {});
     }
 
     let raw: RawAskResult;
@@ -508,6 +518,7 @@ export async function askWithLimits(
         // Enforce mode: atomic reservation-backed guards, one per stage. Absent
         // (shadow/default), every stage builds its legacy SpendGuard as always.
         ...(enforce ? { guards: buildAskRunGuards(run.runId) } : {}),
+        ...(progressive ? { sink, snapshotRunId: run.runId } : {}),
       });
     } catch (e) {
       // ask() is designed to degrade internally (ruling 9), not throw. If it throws

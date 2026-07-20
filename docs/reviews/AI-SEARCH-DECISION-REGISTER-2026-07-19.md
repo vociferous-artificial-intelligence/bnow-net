@@ -150,6 +150,39 @@ blockers accumulated by the unattended workstream. Revisit-markers are explicit.
     day), so midnight-straddling calls are charged against the window that admitted
     them (Gate 1 fix).
 
+## Phase 2
+
+### Accepted assumptions / structural decisions
+
+29. **`run.ref` is a transport-level SSE record, not a run event** (contract §2
+    addition): the POST stream's first record delivers the run id the client needs
+    for reconnect; it is never persisted (replay clients already hold the id).
+30. **`ask_run_events` is new retention surface, partially duplicating
+    `ask_runs.result`** (the terminal event payload carries the result so replay
+    needs one read). Growth is unbounded until a cleanup policy lands — same
+    operator retention decision class as #13/#30; revisit before enabling
+    ASK_PROGRESSIVE beyond an internal cohort.
+31. **The EvidenceSnapshot is frozen only on the progressive path** (real sink
+    present) and persists fail-soft — a lost snapshot costs Phase 4/6 reuse for
+    that run, never the answer. The action path adds no per-request snapshot
+    weight while the flag is off.
+32. **No separate `orchestrator.ts`:** the composition lives in `ask()` with the
+    sink/snapshot seam (askWithLimits owns run.created/authorized on the one money
+    path). The review's "ask() = thin wrapper over the orchestrator" is satisfied
+    structurally in reverse — ONE composition, zero duplicated business rules.
+    Phase 3's streaming work may still extract a file if the generation stage
+    demands it.
+33. **Connection weight:** PgRunEventSink opens a Pool per event (~8–10 extra
+    per-run connections on top of Phase 1's per-operation pools). Registered
+    performance debt at beta scale; consolidate when Phase 3 touches the
+    orchestration layer.
+34. **Sink persist failure mid-pipeline throws** → the run downgrades to the
+    error row honestly; any post-billing spend was already settled inside the
+    stage guards (ruling 8 discipline is unaffected by transport failures).
+35. **The Phase 2 client renders the terminal result via GET
+    /api/ask/runs/[id]/result** (ownership-gated, $0), sharing the action's
+    hydration module verbatim — one render contract, two transports.
+
 ### Revisit list
 
 - If Next.js is upgraded past 16.2.x, re-verify the server-action maxDuration

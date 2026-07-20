@@ -3,11 +3,12 @@ import { askGuardFromEnv, isLlmDisabled, LlmBudgetError } from "../usage/llm-gua
 import { envNum } from "../usage/spend-guard";
 import { retrieve, type RetrievalResult, type RetrievedEntity } from "./retrieve";
 import { retrieveV2 } from "./retrieve-v2";
-import { rerankCandidates } from "./rerank";
+import { rerankCandidates, rerankOfflineReason } from "./rerank";
 import { estimateCostUsd } from "./limits";
 import {
   askAnswerModel,
   askCandidates,
+  askEvidenceK,
   askNoCoverageShortcircuit,
   askPipeline,
   askRelevanceBoundaryEnabled,
@@ -29,6 +30,15 @@ import {
   type StageTimings,
 } from "./timings";
 import type { AskStageGuards } from "./run-guards";
+import {
+  fetchSourceDocIds,
+  LEXICAL_PARTIAL_MAX,
+  NULL_EVENT_SINK,
+  persistEvidenceSnapshot,
+  toSnapshotClaim,
+  type EvidenceSnapshot,
+  type RunEventSink,
+} from "./events";
 import type {
   AnswerState,
   AskAnswerV2,
@@ -630,16 +640,35 @@ export async function answerFromEvidence(
  *  opts.timings (Phase 0, optional): the request-scoped stage collector minted by
  *  askWithLimits. Stage keys land as each boundary completes; a stage that throws
  *  still leaves its predecessors recorded (the collector is shared by reference).
- *  Absent (eval runner / direct callers) every timing wrapper is a no-op. */
+ *  Absent (eval runner / direct callers) every timing wrapper is a no-op.
+ *
+ *  opts.sink + opts.snapshotRunId (Phase 2, optional): the run-event sink for the
+ *  progressive transport (contract: docs/designs/ASK-RUN-EVENTS-TRANSPORT-2026-07-19.md).
+ *  With a real sink the v2 path emits the retrieval/rerank/answer lifecycle events
+ *  (persist-then-emit — a sink failure THROWS and the run downgrades honestly),
+ *  prefetches source-doc ids CONCURRENTLY with the rerank call, and freezes the
+ *  F11-safe EvidenceSnapshot onto the run row. With the NULL sink (the server
+ *  action / eval runner) none of that runs and behavior is byte-identical to
+ *  Phase 1. The composition itself is shared — this function IS the orchestrator;
+ *  no duplicate business rules exist (registered structural decision). */
 export async function ask(
   question: string,
-  opts?: { timings?: StageTimings; guards?: AskStageGuards },
+  opts?: {
+    timings?: StageTimings;
+    guards?: AskStageGuards;
+    sink?: RunEventSink;
+    snapshotRunId?: string;
+  },
 ): Promise<AskAnswerV2> {
   const timings = opts?.timings;
+  const sink = opts?.sink ?? NULL_EVENT_SINK;
+  const progressive = sink !== NULL_EVENT_SINK;
   if (askPipeline() !== "v2") {
     // Legacy rollback path stays measurement-free by design (DL-6: nothing
     // "improved"); the row still carries run_id/started_at/pipelineMs from
-    // askWithLimits.
+    // askWithLimits. No lifecycle events either (ASK_PIPELINE=legacy is the
+    // emergency rollback; combining it with the progressive client is the
+    // registered degenerate combination — the terminal event still fires).
     return toV2FromLegacy(await legacyAnswer(question));
   }
 
@@ -656,13 +685,91 @@ export async function ask(
     }
   }
 
-  const retrieval = await retrieveV2(question, { timings, embedGuard: opts?.guards?.embed });
+  const retrieval = await retrieveV2(question, {
+    timings,
+    embedGuard: opts?.guards?.embed,
+    ...(progressive
+      ? {
+          onLexicalPartial: (partial: { claims: CandidateClaim[]; totalMatching: number }) =>
+            sink.emit("retrieval.lexical_partial", {
+              claims: partial.claims.slice(0, LEXICAL_PARTIAL_MAX).map((c) => toSnapshotClaim(c)),
+              totalMatching: partial.totalMatching,
+            }),
+        }
+      : {}),
+  });
   // No-evidence short-circuit BEFORE rerank/LLM (step 1): no paid call at all.
   if (retrieval.claims.length === 0 && retrieval.entities.length === 0) {
+    if (progressive) {
+      await sink.emit("retrieval.completed", {
+        candidatesCount: 0,
+        totalMatching: retrieval.totalMatching,
+        uniqueSources: 0,
+        mode: retrieval.mode,
+        window: retrieval.window,
+        currentThrough: currency,
+      });
+    }
     return noEvidenceV2(retrieval, currency);
   }
-  const ranked = await timeStage(timings, "rerankMs", () =>
+
+  // Phase 2: the source-doc prefetch (snapshot + uniqueSources) runs CONCURRENT
+  // with the rerank call — it must never delay the paid pipeline. Progressive-only.
+  const sourceDocsPromise = progressive ? fetchSourceDocIds(retrieval.claims) : null;
+  const rankedPromise = timeStage(timings, "rerankMs", () =>
     rerankCandidates(question, retrieval.claims, undefined, opts?.guards?.rerank),
   );
+
+  let sourceDocs: Map<number, number[]> | null = null;
+  if (progressive && sourceDocsPromise) {
+    sourceDocs = await sourceDocsPromise;
+    const uniqueSources = new Set([...sourceDocs.values()].flat()).size;
+    await sink.emit("retrieval.completed", {
+      candidatesCount: retrieval.claims.length,
+      totalMatching: retrieval.totalMatching,
+      uniqueSources,
+      mode: retrieval.mode,
+      window: retrieval.window,
+      currentThrough: currency,
+    });
+  }
+
+  const ranked = await rankedPromise;
+
+  if (progressive) {
+    if (ranked.rerankUsed) {
+      await sink.emit("rerank.completed", {
+        selectedClaimIds: ranked.claims.map((c) => c.claimId),
+        ...(ranked.relevantCount !== undefined ? { relevantCount: ranked.relevantCount } : {}),
+      });
+    } else {
+      const reasonClass =
+        retrieval.claims.length <= askEvidenceK()
+          ? "pool_fits"
+          : rerankOfflineReason() !== null
+            ? "offline"
+            : "fallback";
+      await sink.emit("rerank.skipped", { reasonClass });
+    }
+    // Freeze the F11-safe snapshot (claim CONTENT + stable doc ids) onto the run
+    // row. Fail-soft (registered): a lost snapshot costs Phase 4/6 reuse for this
+    // run, never the answer.
+    if (opts?.snapshotRunId && sourceDocs) {
+      const snapshot: EvidenceSnapshot = {
+        version: 1,
+        retrievalMode: retrieval.mode,
+        window: retrieval.window,
+        totalMatching: retrieval.totalMatching,
+        candidatesCount: retrieval.claims.length,
+        corpusCurrentThrough: currency,
+        candidates: retrieval.claims.map((c) => toSnapshotClaim(c, sourceDocs!.get(c.claimId) ?? [])),
+        selectedClaimIds: ranked.claims.map((c) => c.claimId),
+        ...(ranked.relevantCount !== undefined ? { relevantCount: ranked.relevantCount } : {}),
+      };
+      await persistEvidenceSnapshot(opts.snapshotRunId, snapshot);
+    }
+    await sink.emit("answer.started", {});
+  }
+
   return answerFromEvidence(question, retrieval, ranked, { timings, guards: opts?.guards });
 }

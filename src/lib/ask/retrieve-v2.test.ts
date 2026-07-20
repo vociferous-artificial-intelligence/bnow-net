@@ -301,3 +301,69 @@ describe("retrieveV2 — stage timings", () => {
     expect(r.claims.length).toBeGreaterThan(0);
   });
 });
+
+// ---- Phase 2: concurrent arms + lexical partial ---------------------------------
+
+describe("retrieveV2 — concurrent arms (Phase 2)", () => {
+  it("onLexicalPartial fires with the lexical rows BEFORE a slow vector arm settles; final result identical to the fast case", async () => {
+    setupPool({
+      vector: [vrow(1, { vector_score: 0.9 })],
+      lexCount: 2,
+      lexical: [lrow(1), lrow(2)],
+    });
+    // slow embed: the vector arm settles ~40ms after the lexical arm
+    embedTextsMock.mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(
+            () => resolve({ vectors: [[0.1, 0.2, 0.3]], tokens: 7, costUsd: 0.0009, provider: "openai:text-embedding-3-small" }),
+            40,
+          ),
+        ),
+    );
+
+    const seen: Array<{ ids: number[]; totalMatching: number; atMs: number }> = [];
+    const t0 = performance.now();
+    const r = await retrieveV2("sanctions oil exports", {
+      now: NOW,
+      onLexicalPartial: (p) => {
+        seen.push({
+          ids: p.claims.map((c) => c.claimId),
+          totalMatching: p.totalMatching,
+          atMs: performance.now() - t0,
+        });
+      },
+    });
+    const totalMs = performance.now() - t0;
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0].ids).toEqual([1, 2]);
+    expect(seen[0].totalMatching).toBe(2);
+    expect(seen[0].atMs).toBeLessThan(totalMs); // partial arrived before completion
+    // determinism: the slow-vector union equals the fast case's shape
+    const c1 = r.claims.find((c) => c.claimId === 1)!;
+    expect(c1.vectorScore).toBe(0.9);
+    expect(c1.lexicalHit).toBe(true);
+    expect(r.mode).toBe("v2");
+    expect(r.totalMatching).toBe(2);
+  });
+
+  it("a throwing onLexicalPartial never fails retrieval", async () => {
+    setupPool({ vector: [vrow(1)], lexCount: 1, lexical: [lrow(1)] });
+    const r = await retrieveV2("sanctions", {
+      now: NOW,
+      onLexicalPartial: () => {
+        throw new Error("progress display exploded");
+      },
+    });
+    expect(r.claims.length).toBeGreaterThan(0);
+  });
+
+  it("a vector-arm failure still degrades to lexical-only under concurrency", async () => {
+    setupPool({ lexCount: 1, lexical: [lrow(1)] });
+    embedTextsMock.mockRejectedValue(new Error("embed exploded"));
+    const r = await retrieveV2("sanctions", { now: NOW });
+    expect(r.mode).toBe("v2-lexical-only");
+    expect(r.claims.map((c) => c.claimId)).toEqual([1]);
+  });
+});

@@ -529,6 +529,20 @@ const en: Dict = {
   // server events only.
   "ask.working.preparing": "Searching the claim database and preparing a cited answer…",
   "ask.working.elapsed": "Elapsed",
+  // Phase 2 progressive panel — every line is a SERVER-reported fact (run
+  // events), never a client-inferred stage. Candidate ≠ selected ≠ cited.
+  "ask.progress.starting": "Starting…",
+  "ask.progress.retrieving": "Searching the claim database…",
+  "ask.progress.selecting": "Candidates found — selecting evidence…",
+  "ask.progress.answering": "Preparing the cited answer…",
+  "ask.progress.candidates_label": "Candidate claims (keyword pass)",
+  "ask.progress.candidates_word": "candidates",
+  "ask.progress.sources_word": "sources",
+  "ask.progress.selected_word": "evidence claims selected",
+  "ask.progress.sample_prefix": "a sample of",
+  "ask.progress.sample_suffix": "matching",
+  "ask.progress.current_through": "data current through",
+  "ask.progress.failed": "The connection to this run was lost before a result arrived. It was not charged twice — you can submit the question again.",
 
   // Free claim search (/search) — deterministic lexical retrieval, no model
   // calls, no per-query cost. The count line reuses already-established tokens.
@@ -861,6 +875,18 @@ const uk: Dict = {
   "ask.working.question_label": "Ваш запит", // uk: needs native review
   "ask.working.preparing": "Шукаємо в базі тверджень і готуємо відповідь із цитуваннями…", // uk: needs native review
   "ask.working.elapsed": "Минуло", // uk: needs native review
+  "ask.progress.starting": "Починаємо…", // uk: needs native review
+  "ask.progress.retrieving": "Шукаємо в базі тверджень…", // uk: needs native review
+  "ask.progress.selecting": "Кандидатів знайдено — відбираємо докази…", // uk: needs native review
+  "ask.progress.answering": "Готуємо відповідь із цитуваннями…", // uk: needs native review
+  "ask.progress.candidates_label": "Твердження-кандидати (пошук за ключовими словами)", // uk: needs native review
+  "ask.progress.candidates_word": "кандидатів", // uk: needs native review
+  "ask.progress.sources_word": "джерел", // uk: needs native review
+  "ask.progress.selected_word": "доказових тверджень відібрано", // uk: needs native review
+  "ask.progress.sample_prefix": "вибірка з", // uk: needs native review
+  "ask.progress.sample_suffix": "збігів", // uk: needs native review
+  "ask.progress.current_through": "дані актуальні до", // uk: needs native review
+  "ask.progress.failed": "З'єднання з цим запитом перервалося до отримання результату. Подвійної оплати не було — можете надіслати запит ще раз.", // uk: needs native review
   "search.title": "Пошук тверджень", // uk: needs native review
   "search.breadcrumb": "пошук тверджень", // uk: needs native review
   "search.intro": "Повнотекстовий пошук у базі тверджень. Детермінований збіг — без викликів моделі, без бюджету на запити. Кожен результат має посилання на дайджест і джерельні документи.", // uk: needs native review

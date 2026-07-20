@@ -686,11 +686,37 @@ export const askRuns = pgTable(
     reservedCeilingUsd: doublePrecision("reserved_ceiling_usd"),
     settledCostUsd: doublePrecision("settled_cost_usd"),
     errorClass: text("error_class"),
+    // Phase 2: the frozen EvidenceSnapshot (claim CONTENT + stable raw_documents
+    // ids — F11-safe; contract §3). Same retention class as `result`.
+    evidenceSnapshot: jsonb("evidence_snapshot"),
   },
   (t) => [
     uniqueIndex("ask_runs_user_idem_idx").on(t.userEmail, t.idempotencyKey),
     index("ask_runs_status_created_idx").on(t.status, t.createdAt),
+    // register #22: the expiry sweep's predicate is finished_at IS NULL — give it
+    // a partial index so the per-request sweep stays O(open runs), not O(table).
+    index("ask_runs_open_created_idx")
+      .on(t.createdAt)
+      .where(sql`finished_at IS NULL`),
   ],
+);
+
+// Phase 2 (2026-07-19, contract: docs/designs/ASK-RUN-EVENTS-TRANSPORT-2026-07-19.md):
+// append-only per-run event log. seq is assigned by the single orchestrating
+// invocation; the reconnect route replays WHERE seq > $after ORDER BY seq and
+// then tails by bounded polling — no process-local fanout exists. Payloads are
+// allowlisted (events.ts); no prose beyond claim text /search already serves.
+export const askRunEvents = pgTable(
+  "ask_run_events",
+  {
+    id: serial("id").primaryKey(),
+    runId: uuid("run_id").notNull(),
+    seq: integer("seq").notNull(),
+    type: text("type").notNull(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    payload: jsonb("payload").notNull().default({}),
+  },
+  (t) => [uniqueIndex("ask_run_events_run_seq_idx").on(t.runId, t.seq)],
 );
 
 // One authorized analysis slot per run: UNIQUE(user_email, day, slot) makes the

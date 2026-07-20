@@ -380,3 +380,130 @@ describe("AskForm: one-shot intent handoff", () => {
     expect(actionMock).not.toHaveBeenCalled();
   });
 });
+
+// ---- Phase 2: progressive transport path ----------------------------------------
+
+describe("AskForm: progressive transport (ASK_PROGRESSIVE client path)", () => {
+  const RUN_ID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+
+  function sseStream(records: string[]): ReadableStream<Uint8Array> {
+    const enc = new TextEncoder();
+    return new ReadableStream({
+      start(c) {
+        c.enqueue(enc.encode(records.join("")));
+        c.close();
+      },
+    });
+  }
+
+  beforeEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it("submit intercepts to ONE paid POST, renders server-event progress, then the hydrated result — the action is never called", async () => {
+    const events = [
+      `event: run.ref\ndata: {"runId":"${RUN_ID}"}\n\n`,
+      "id: 1\nevent: run.created\ndata: {}\n\n",
+      "id: 2\nevent: run.authorized\ndata: {}\n\n",
+      `id: 3\nevent: retrieval.lexical_partial\ndata: ${JSON.stringify({ claims: [{ claimId: 9, text: "candidate claim text", hedging: "claimed", claimDate: "2026-07-10", countryIso2: "ru", track: null, confidence: null, sourceDocIds: [] }], totalMatching: 33 })}\n\n`,
+      `id: 4\nevent: retrieval.completed\ndata: ${JSON.stringify({ candidatesCount: 20, totalMatching: 33, uniqueSources: 7, mode: "v2", window: null, currentThrough: "2026-07-18" })}\n\n`,
+      `id: 5\nevent: run.completed\ndata: ${JSON.stringify({ result: { answer: "Progressive answer [c9].", state: "answered", provider: "openai:gpt-5", citedClaimIds: [9], evidenceCount: 1, terms: [], relatedClaimIds: [], window: null, totalMatching: 33, sampled: true, retrievalMode: "v2", runId: RUN_ID } })}\n\n`,
+    ];
+    const fetchMock = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url) === "/api/ask/runs" && init?.method === "POST") {
+        return new Response(sseStream(events), { status: 200 });
+      }
+      if (String(url) === `/api/ask/runs/${RUN_ID}/result`) {
+        return Response.json({
+          result: { answer: "Progressive answer [c9].", state: "answered", provider: "openai:gpt-5", citedClaimIds: [9], evidenceCount: 1, terms: [], relatedClaimIds: [], window: null, totalMatching: 33, sampled: true, retrievalMode: "v2" },
+          cited: [],
+          related: [],
+        });
+      }
+      throw new Error(`unexpected fetch ${String(url)}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const user = userEvent.setup();
+      render(<AskForm {...formProps} progressive />);
+      await user.type(
+        screen.getByPlaceholderText(strings["ask.placeholder"]),
+        "did russia strike kyiv today",
+      );
+      await user.click(screen.getByRole("button", { name: strings["ask.submit"] }));
+
+      // terminal render: the hydrated result appears
+      await screen.findByText("Progressive answer [c9].");
+      // the server action was NEVER invoked on the progressive path
+      expect(actionMock).not.toHaveBeenCalled();
+      // exactly one paid POST; the rest are reads
+      const posts = fetchMock.mock.calls.filter(
+        (c) => (c[1] as RequestInit | undefined)?.method === "POST",
+      );
+      expect(posts).toHaveLength(1);
+      expect(String(posts[0][0])).toBe("/api/ask/runs");
+      const postBody = JSON.parse(String((posts[0][1] as RequestInit).body));
+      expect(postBody.question).toBe("did russia strike kyiv today");
+      expect(postBody.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/i);
+      // terminal cleared the resume ref
+      expect(window.sessionStorage.getItem("bnow_ask_active_run")).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("a stored non-terminal run resumes READ-ONLY on mount (refresh mid-run bills nothing)", async () => {
+    const tail = [
+      `id: 2\nevent: run.completed\ndata: ${JSON.stringify({ result: { answer: "Resumed answer.", state: "answered", provider: "openai:gpt-5", citedClaimIds: [], evidenceCount: 0, terms: [], relatedClaimIds: [], window: null, totalMatching: 0, sampled: false, retrievalMode: "v2" } })}\n\n`,
+    ];
+    const fetchMock = vi.fn(async (url: RequestInfo | URL, _init?: RequestInit) => {
+      if (String(url).startsWith(`/api/ask/runs/${RUN_ID}/events`)) {
+        return new Response(sseStream(tail), { status: 200 });
+      }
+      if (String(url) === `/api/ask/runs/${RUN_ID}/result`) {
+        return Response.json({
+          result: { answer: "Resumed answer.", state: "answered", provider: "openai:gpt-5", citedClaimIds: [], evidenceCount: 0, terms: [], relatedClaimIds: [], window: null, totalMatching: 0, sampled: false, retrievalMode: "v2" },
+          cited: [],
+          related: [],
+        });
+      }
+      throw new Error(`unexpected fetch ${String(url)}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      window.sessionStorage.setItem(
+        "bnow_ask_active_run",
+        JSON.stringify({ runId: RUN_ID, lastSeq: 1, question: "did russia strike kyiv today" }),
+      );
+      render(<AskForm {...formProps} progressive />);
+      await screen.findByText("Resumed answer.");
+      // zero POSTs anywhere: resume is a pure read
+      expect(
+        fetchMock.mock.calls.filter((c) => (c[1] as RequestInit | undefined)?.method === "POST"),
+      ).toHaveLength(0);
+      expect(String(fetchMock.mock.calls[0][0])).toContain("after=1");
+      expect(actionMock).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("flag off: the progressive machinery is fully inert (no fetch, action path only)", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      actionMock.mockImplementation(async () => fakeState("did russia strike kyiv today"));
+      const user = userEvent.setup();
+      render(<AskForm {...formProps} />);
+      await user.type(
+        screen.getByPlaceholderText(strings["ask.placeholder"]),
+        "did russia strike kyiv today",
+      );
+      await user.click(screen.getByRole("button", { name: strings["ask.submit"] }));
+      expect(actionMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
