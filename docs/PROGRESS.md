@@ -2351,3 +2351,23 @@ export) gated: 1 high (incomplete §7.7 deletion — fixed across all four
 content surfaces) + 5 med + 3 low, all fixed (`10f9d54`). Unit 1,945/1,945 ·
 itest 61/61. Rollout stays retention-blocked; no UI. Merging --no-ff;
 Phase 7 (Ask-owned entitlement units — billing module still absent) next.
+
+## 2026-07-20 16:05 EDT — AI Search Phase 7: Ask-owned entitlement units (billing absent)
+
+Phase 6 merged at `189c84d`. Branch `codex/ai-search-ask-p7-entitlements`.
+RECHECKED at phase start: src/lib/billing/ and resolveAccessContext DO NOT
+exist — per the master prompt §14, ONLY the safe Ask-owned subset ships:
+1. Migration 0026: ask_runs.units (additive, nullable).
+2. units.ts — pure analysis-unit computation (§9.5: billed run = 1; cache
+   hit/replay/refusal = 0; deep = 3 as a shape, unreachable) recorded at
+   finalize; aggregate ledger interface for billing (units/runs/settled cost
+   per user+period — NO stage internals exposed).
+3. access-context.ts — the STUB AccessContext contract Ask codes against
+   (billing OWNS the real module); NOT wired into any money path — the
+   existing gates stay authoritative; wiring is enablement-blocked on the
+   billing contract + Gate 7 joint review.
+4. Import-graph tests: no Ask pipeline module imports billing/Paddle; payment
+   can never override SpendGuard (structural).
+Gate 7's JOINT boundary review is BLOCKED on the billing contract — recorded
+honestly; the safe subset gets its own independent review. No Paddle work,
+no paid calls, no production writes.
