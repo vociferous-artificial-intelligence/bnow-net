@@ -2322,3 +2322,24 @@ plus the reviewer's SDK prototype-patch parity probe. Gate 5: 0 blocker/high,
 1 med + 4 low, fixed (`c701970`). Suite 1,915/1,915 · itest 56/56. No
 secondary provider (key/caps/scorecard absent — enablement-blocked). Merging
 --no-ff; Phase 6 (investigation sessions) next.
+
+## 2026-07-20 15:35 EDT — AI Search Phase 6: scoped investigation sessions (core, no UI)
+
+Phase 5 merged at `54e86c4`. Branch `codex/ai-search-ask-p6-sessions`.
+Migration number 0025 CLAIMED (ask_sessions + ask_turns; billing workstream
+still absent from the tree). Bounded scope — the retention decision (register
+#13/#30 class) blocks any rollout, so NO UI ships; the core lands flag-off:
+1. Migration 0025: ask_sessions (owner, status, turn cap fields) + ask_turns
+   (session, seq, run FK, scope decision) — additive, passive.
+2. sessions.ts: owner-gated lifecycle (create/get/append), turn cap + idle
+   TTL, owner-only DELETE (turns cascade; runs/usage stay as billing records
+   per §7.7), owner-only EXPORT.
+3. classifyFollowup(question, snapshot) — pure scope classifier (suggests
+   reuse|expand|new; the user's choice would always win) + fixtures.
+4. compactHistory(turns, budget) — deterministic bounded history.
+5. The REUSE-turn generation path behind ASK_SESSIONS (default OFF): answer
+   from the session's frozen snapshot with ZERO retrieval/embed calls
+   (structurally — retrieveV2 is never invoked), metered generation via the
+   existing guarded stages, snapshot re-persisted for F11 turn reproducibility.
+6. Unit + real-Postgres itest incl. ownership/delete/export; Gate 6.
+No paid calls, production writes, deploys, pushes.
