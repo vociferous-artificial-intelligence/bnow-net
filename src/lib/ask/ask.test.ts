@@ -1102,11 +1102,23 @@ describe("ask() — Phase 2 progressive event emission", () => {
 // ---- Phase 3 Increment B: streaming wiring (flagged) -----------------------------
 
 const p3 = vi.hoisted(() => ({ streamAnswerMock: vi.fn(), watchStop: vi.fn() }));
-vi.mock("./answer-stream", () => ({
-  streamAnswer: p3.streamAnswerMock,
-  watchCancelMarker: vi.fn(() => p3.watchStop),
-  STREAM_DEATH_INPUT_EST_TOKENS: 30_000,
-}));
+vi.mock("./answer-stream", () => {
+  class StreamDispatchError extends Error {
+    constructor(
+      cause: unknown,
+      public readonly settledUsage: { promptTokens: number; completionTokens: number; costUsd: number },
+    ) {
+      super(cause instanceof Error ? cause.message : String(cause));
+      this.name = "StreamDispatchError";
+    }
+  }
+  return {
+    streamAnswer: p3.streamAnswerMock,
+    StreamDispatchError,
+    watchCancelMarker: vi.fn(() => p3.watchStop),
+    STREAM_DEATH_INPUT_EST_TOKENS: 30_000,
+  };
+});
 
 describe("answerFromEvidence — ASK_STREAM_ANSWER wiring", () => {
   const pool = [candidate({ claimId: 1 })];
@@ -1182,6 +1194,40 @@ describe("answerFromEvidence — ASK_STREAM_ANSWER wiring", () => {
       sink: fakeSink(),
     });
     expect(res.state).toBe("refused");
+  });
+
+  it("G3: a stream that DIED with empty content maps to state 'error' (interrupted), never a model refusal", async () => {
+    envPaidV2();
+    vi.stubEnv("ASK_STREAM_ANSWER", "1");
+    p3.streamAnswerMock.mockResolvedValue({
+      content: "",
+      refusal: "",
+      finishReason: "error", // the synthetic death marker
+      usage: USAGE,
+      denialLed: false,
+      cancelled: false,
+      releasedCount: 0,
+    });
+    const res = await answerFromEvidence("q", retrievalV2({ claims: pool }), ranked({ claims: pool }), {
+      sink: fakeSink(),
+    });
+    expect(res.state).toBe("error");
+    expect(res.answer).toContain("interrupted");
+    expect(res.usage).toEqual(USAGE); // billed usage attributed
+  });
+
+  it("G3: a dispatch failure (StreamDispatchError) reports the settled ceiling usage and the model in the error payload", async () => {
+    envPaidV2();
+    vi.stubEnv("ASK_STREAM_ANSWER", "1");
+    const { StreamDispatchError } = await import("./answer-stream");
+    const ceiling = { promptTokens: 30_000, completionTokens: 2500, costUsd: 0.006 };
+    p3.streamAnswerMock.mockRejectedValue(new StreamDispatchError(new Error("dispatch failed"), ceiling));
+    const res = await answerFromEvidence("q", retrievalV2({ claims: pool }), ranked({ claims: pool }), {
+      sink: fakeSink(),
+    });
+    expect(res.state).toBe("error");
+    expect(res.usage).toEqual(ceiling); // the billed ceiling is not dropped
+    expect(res.answerModel).toBeTruthy();
   });
 
   it("flag OFF: the non-streaming path runs even with a real sink (default behavior preserved)", async () => {

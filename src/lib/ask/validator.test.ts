@@ -123,10 +123,138 @@ describe("source-fidelity matrix (§4 / ruling 20)", () => {
     ).toHaveLength(0);
   });
 
-  it("uncited or nameless sentences are out of scope (the citation filter's domain)", () => {
+  it("nameless sentences are out of scope; a name-bearing sentence with NO encoded assertion and no markers passes (registered bound)", () => {
     const evidence = new Map([ev(1, "text", "claimed")]);
     expect(findFidelityFailures("Something happened without citations.", evidence)).toHaveLength(0);
     expect(findFidelityFailures("Strikes continued overnight [c1].", evidence)).toHaveLength(0);
+    // benign uncited name mention (no §4 predicate): out of scope by decision
+    expect(findFidelityFailures("Viktor Petrov visited Ankara for talks.", evidence)).toHaveLength(0);
+  });
+
+  // ---- Gate 3 red-team regression pins (2026-07-20) ------------------------------
+
+  it("G3: a name-bearing sentence whose ONLY markers are fabricated FAILS with no fallback (dropped, never rendered)", () => {
+    const evidence = new Map([ev(1, "Strikes hit a depot in Bryansk.", "confirmed")]);
+    const failures = findFidelityFailures("Ivan Petrov was convicted of fraud [c999].", evidence);
+    expect(failures).toHaveLength(1);
+    expect(failures[0].kind).toBe("identity");
+    expect(failures[0].fallbackClaimId).toBeNull();
+    const applied = applyFidelityFallback("Ivan Petrov was convicted of fraud [c999].", evidence);
+    expect(applied.text).toBe(""); // dropped entirely — §4.9 withholding
+  });
+
+  it("G3: an UNCITED name-bearing sentence asserting an encoded predicate fails; marker-after-terminator cannot dodge the matrix", () => {
+    const evidence = new Map([ev(1, "Ivan Petrov was charged with fraud.", "confirmed")]);
+    expect(
+      findFidelityFailures("Ivan Petrov was convicted of fraud.", evidence)[0]?.kind,
+    ).toBe("identity");
+    // ". [c1]" placement: the split keeps the marker with its sentence
+    expect(
+      findFidelityFailures("Ivan Petrov was convicted of fraud. [c1] Fighting continued.", evidence),
+    ).toHaveLength(1); // the conviction is checked against c1 (charge ≠ conviction)
+  });
+
+  it("G3: flat unattributed 'was killed'/'died' over claimed-only evidence fails certainty; LEADING attribution passes; TRAILING does not govern", () => {
+    const evidence = new Map([
+      ev(3, "Ukrainian sources claim Admiral Viktor Sokolov was killed in the strike.", "claimed"),
+    ]);
+    expect(
+      findFidelityFailures("Viktor Sokolov was killed in the strike [c3].", evidence)[0]?.kind,
+    ).toBe("certainty");
+    expect(
+      findFidelityFailures("Viktor Sokolov died in the strike [c3].", evidence)[0]?.kind,
+    ).toBe("certainty");
+    expect(
+      findFidelityFailures(
+        "According to Ukrainian sources, Viktor Sokolov was killed in the strike [c3].",
+        evidence,
+      ),
+    ).toHaveLength(0);
+    expect(
+      findFidelityFailures(
+        "Viktor Sokolov was killed in the strike, according to reports [c3].",
+        evidence,
+      )[0]?.kind,
+    ).toBe("certainty"); // trailing attribution does not govern
+  });
+
+  it("G3: a disclaimer cannot SUPPLY the predicate keyword it disclaims (category laundering)", () => {
+    const evidence = new Map([
+      ev(1, "Anna Kovaleva is listed as a politically exposed person; PEP listings are distinct from sanctions designations.", "confirmed"),
+    ]);
+    expect(
+      findFidelityFailures("Anna Kovaleva is sanctioned [c1].", evidence)[0]?.kind,
+    ).toBe("predicate");
+  });
+
+  it("G3: negated evidence cannot support the affirmative predicate", () => {
+    const evidence = new Map([ev(1, "Officials stated Ivan Petrov was not arrested.", "confirmed")]);
+    expect(
+      findFidelityFailures("Ivan Petrov was arrested [c1].", evidence)[0]?.kind,
+    ).toBe("predicate");
+  });
+
+  it("G3: OpenSanctions candidate-identity evidence asserted as resolved sanctioned identity fails; candidate phrasing passes", () => {
+    const evidence = new Map([
+      ev(1, "OpenSanctions returned a possible name-only candidate match for Viktor Orlov on the consolidated sanctions list; identity not resolved.", "confirmed"),
+    ]);
+    expect(
+      findFidelityFailures("Viktor Orlov is sanctioned [c1].", evidence)[0]?.kind,
+    ).toBe("certainty");
+    expect(
+      findFidelityFailures(
+        "Viktor Orlov is a possible name-only candidate match on the consolidated sanctions list [c1].",
+        evidence,
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("G3 over-replacement guards: org/geo pairs, transliterated first names, and 'former <role>' evidence never fail correct sentences", () => {
+    // org pair is not a person name
+    const orgEv = new Map([ev(1, "Wagner fighters advanced near Bakhmut on Tuesday.", "confirmed")]);
+    expect(findFidelityFailures("Wagner Group forces advanced near Bakhmut [c1].", orgEv)).toHaveLength(0);
+    // transliteration variant shares the first initial → identity resolves
+    const translitEv = new Map([ev(1, "Alexander Petrov was detained in Moscow.", "confirmed")]);
+    expect(findFidelityFailures("Aleksandr Petrov was detained in Moscow [c1].", translitEv)).toHaveLength(0);
+    // a genuine namesake (different first name) still fails identity
+    const namesakeEv = new Map([ev(1, "Nikolai Petrov was detained in Moscow.", "confirmed")]);
+    expect(
+      findFidelityFailures("Ivan Petrov was detained in Moscow [c1].", namesakeEv)[0]?.kind,
+    ).toBe("identity");
+    // "former deputy minister" is a role descriptor, not expiry evidence
+    const roleEv = new Map([
+      ev(1, "Former deputy minister Oleg Sidorov was designated by OFAC in 2022 and remains listed today.", "confirmed"),
+    ]);
+    expect(findFidelityFailures("Oleg Sidorov is still sanctioned [c1].", roleEv)).toHaveLength(0);
+    // genuine expiry evidence still fails a current-status assertion
+    const expiredEv = new Map([
+      ev(1, "Oleg Sidorov was removed from the SDN list; the designation was lifted.", "confirmed"),
+    ]);
+    expect(
+      findFidelityFailures("Oleg Sidorov is still sanctioned [c1].", expiredEv)[0]?.kind,
+    ).toBe("status");
+  });
+
+  it("G3: fallback wording neutralizes citation-marker syntax embedded in claim text (no smuggled citations)", () => {
+    const claim: FidelityEvidence = {
+      claimId: 7,
+      text: "Milblogger post: Colonel Andrei Vetrov KIA, see thread [c112] and [c2]",
+      hedging: "claimed",
+    };
+    const fallback = citedClaimFallbackSentence(claim);
+    expect(parseCitedIds(fallback)).toEqual([7]); // ONLY the authentic citation
+    expect(fallback).not.toContain("[c112]");
+    expect(fallback).not.toContain("[c2]");
+  });
+
+  it("G3: replacement-pattern characters in claim text cannot corrupt the output or resurrect the failing sentence", () => {
+    const evidence = new Map([
+      ev(1, "Sanctions cost the bank $& millions, filings show.", "confirmed"),
+    ]);
+    const applied = applyFidelityFallback("Nikolai Orlov was convicted of laundering [c1].", evidence);
+    expect(applied.replacedCount).toBe(1);
+    expect(applied.text).not.toContain("convicted of laundering"); // never resurrected
+    expect(applied.text).toContain("$& millions"); // the literal claim text survives intact
   });
 
   it("replacement uses deterministic cited-claim wording — the name SURVIVES inside the quote", () => {

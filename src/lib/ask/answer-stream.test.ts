@@ -20,7 +20,7 @@ vi.mock("@neondatabase/serverless", () => ({
   },
 }));
 
-const { streamAnswer, watchCancelMarker, STREAM_DEATH_INPUT_EST_TOKENS } = await import("./answer-stream");
+const { streamAnswer, StreamDispatchError, watchCancelMarker, STREAM_DEATH_INPUT_EST_TOKENS } = await import("./answer-stream");
 const { LlmBudgetError } = await import("../usage/llm-guard");
 import type { AnswerStreamChunk } from "./answer-stream";
 import type { CandidateClaim, RankedEvidence } from "./types";
@@ -199,6 +199,120 @@ describe("streamAnswer — §6.3 release safety", () => {
     const texts = sink.events.map((e) => String(e.payload.text));
     expect(texts.some((t) => t.includes("[c999]"))).toBe(false);
     expect(texts.some((t) => t.includes("[c1]"))).toBe(true);
+  });
+});
+
+describe("streamAnswer — Gate 3 red-team regression pins (2026-07-20)", () => {
+  it("a degenerate usage frame ({} / NaN / negative) is rejected — the conservative ceiling settles", async () => {
+    for (const usage of [{}, { prompt_tokens: NaN, completion_tokens: -50 }, { prompt_tokens: -1, completion_tokens: 10 }]) {
+      vi.clearAllMocks();
+      h.guard.init.mockResolvedValue(undefined);
+      h.guard.tryReserve.mockResolvedValue({ ok: true });
+      h.guard.record.mockResolvedValue(undefined);
+      const outcome = await streamAnswer({
+        ...BASE,
+        sink: sinkSpy(),
+        streamFactory: async () =>
+          chunks([
+            { choices: [{ delta: { content: FILLER }, finish_reason: "stop" }] },
+            { usage: usage as never },
+          ]),
+      });
+      expect(h.guard.record).toHaveBeenCalledTimes(1);
+      const [, units, usd] = h.guard.record.mock.calls[0] as [number, number, number];
+      expect(units).toBe(STREAM_DEATH_INPUT_EST_TOKENS + 2500); // ceiling, never $0/NaN
+      expect(Number.isFinite(usd)).toBe(true);
+      expect(usd).toBeGreaterThan(0);
+      expect(outcome.usage.promptTokens).toBe(STREAM_DEATH_INPUT_EST_TOKENS);
+    }
+  });
+
+  it("a valid usage frame still settles actuals (the validation does not over-reject)", async () => {
+    const outcome = await streamAnswer({
+      ...BASE,
+      sink: sinkSpy(),
+      streamFactory: async () =>
+        chunks([
+          { choices: [{ delta: { content: FILLER }, finish_reason: "stop" }] },
+          { usage: { prompt_tokens: 0, completion_tokens: 0 } }, // legitimately zero is finite + non-negative
+        ]),
+    });
+    expect(outcome.usage.promptTokens).toBe(0);
+    expect(h.guard.record).toHaveBeenCalledTimes(1);
+  });
+
+  it("a dispatch failure throws StreamDispatchError carrying the settled ceiling usage", async () => {
+    let caught: unknown;
+    try {
+      await streamAnswer({
+        ...BASE,
+        sink: sinkSpy(),
+        streamFactory: async () => {
+          throw new Error("dispatch failed");
+        },
+      });
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(StreamDispatchError);
+    const err = caught as InstanceType<typeof StreamDispatchError>;
+    expect(err.settledUsage.promptTokens).toBe(STREAM_DEATH_INPUT_EST_TOKENS);
+    expect(err.settledUsage.costUsd).toBeGreaterThan(0);
+    expect(h.guard.record).toHaveBeenCalledTimes(1); // the same usage was settled
+  });
+
+  it("ASK_FIDELITY_FALLBACK=0 binds the STREAMING path too: unfaithful sections release raw (matching the terminal's knob-off behavior)", async () => {
+    vi.stubEnv("ASK_FIDELITY_FALLBACK", "0");
+    try {
+      const sink = sinkSpy();
+      await streamAnswer({
+        ...BASE,
+        sink,
+        streamFactory: async () =>
+          chunks([
+            // names a person absent from the cited claim — fidelity would replace
+            { choices: [{ delta: { content: FILLER + "Viktor Baranov was arrested last week [c1]. " }, finish_reason: "stop" }] },
+            { usage: { prompt_tokens: 100, completion_tokens: 50 } },
+          ]),
+      });
+      const texts = sink.events.map((e) => String(e.payload.text));
+      expect(texts.some((t) => t.includes("Viktor Baranov was arrested"))).toBe(true); // raw, knob off
+      expect(texts.some((t) => t.startsWith("Sources state:"))).toBe(false);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("with the knob ON (default), the same unfaithful section is replaced before release", async () => {
+    const sink = sinkSpy();
+    await streamAnswer({
+      ...BASE,
+      sink,
+      streamFactory: async () =>
+        chunks([
+          { choices: [{ delta: { content: FILLER + "Viktor Baranov was arrested last week [c1]. " }, finish_reason: "stop" }] },
+          { usage: { prompt_tokens: 100, completion_tokens: 50 } },
+        ]),
+    });
+    const texts = sink.events.map((e) => String(e.payload.text));
+    expect(texts.some((t) => t.includes("Viktor Baranov was arrested last week"))).toBe(false);
+    expect(texts.some((t) => t.startsWith("Sources state:"))).toBe(true);
+  });
+
+  it("an all-fabricated-cited strengthened sentence is DROPPED at final drain — never released as uncited prose", async () => {
+    const sink = sinkSpy();
+    const outcome = await streamAnswer({
+      ...BASE,
+      sink,
+      streamFactory: async () =>
+        chunks([
+          { choices: [{ delta: { content: FILLER + "Andrei Vetrov was convicted of treason [c999]." }, finish_reason: "stop" }] },
+          { usage: { prompt_tokens: 100, completion_tokens: 50 } },
+        ]),
+    });
+    const texts = sink.events.map((e) => String(e.payload.text));
+    expect(texts.some((t) => t.includes("convicted of treason"))).toBe(false); // dropped, not stripped-and-released
+    expect(outcome.content).toContain("convicted of treason"); // fullText intact for terminal reconciliation
   });
 });
 

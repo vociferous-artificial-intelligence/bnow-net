@@ -109,7 +109,11 @@ export interface SentenceFidelityFailure {
   fallbackClaimId: number | null;
 }
 
-const SENTENCE_SPLIT_RE = /(?<=[.!?])\s+/;
+/** Sentence split that never separates a trailing citation marker from its
+ *  sentence: "…convicted. [c1]" would otherwise assign the marker to the NEXT
+ *  fragment, making the assertion look uncited and dodging the matrix (Gate 3
+ *  red-team: marker-after-terminator escape). */
+const SENTENCE_SPLIT_RE = /(?<=[.!?])\s+(?!\[c\d)/;
 
 /** Capitalized First Last pairs — the name-bearing heuristic. Union'd with the
  *  cited claims' own detected names so entity-list names always count. */
@@ -122,11 +126,25 @@ const NAME_STOPWORDS = new Set([
   "Colonel", "President", "Minister", "Prime",
 ]);
 
+/** Second tokens that mark an ORG/GEO pair, not a person ("Security Council",
+ *  "Wagner Group", "Nord Stream" …) — Gate 3 red-team measured 17/18 of these
+ *  pairs tripping the identity check and over-replacing correct prose. */
+const ORG_GEO_SECOND_TOKENS = new Set([
+  "Council", "Group", "Ministry", "Court", "Bank", "Sea", "Bridge", "Force",
+  "Forces", "Guard", "State", "Department", "Region", "Oblast", "Republic",
+  "Federation", "Union", "Nations", "Stream", "Fleet", "Corps", "Brigade",
+  "Army", "Navy", "Agency", "Committee", "Assembly", "Parliament", "Service",
+  "Bureau", "Office", "Command", "District", "Province", "City", "Island",
+  "Islands", "Strait", "Canal", "Plant", "Station", "Korea", "Prosecutor",
+]);
+
 export function extractNameCandidates(text: string): string[] {
   const names: string[] = [];
   for (const m of text.matchAll(NAME_PAIR_RE)) {
-    const [first] = m[0].split(" ");
-    if (!NAME_STOPWORDS.has(first)) names.push(m[0]);
+    const [first, second] = m[0].split(" ");
+    if (NAME_STOPWORDS.has(first)) continue;
+    if (second !== undefined && ORG_GEO_SECOND_TOKENS.has(second)) continue;
+    names.push(m[0]);
   }
   return [...new Set(names)];
 }
@@ -134,54 +152,136 @@ export function extractNameCandidates(text: string): string[] {
 /** Assertion families: if a sentence asserts the LEFT pattern about a named
  *  person, at least one cited claim must match the RIGHT evidence family.
  *  Deliberately narrow — these encode the §4 strengthening modes (conviction,
- *  confirmed death, sanction/designation, arrest), not general paraphrase. */
+ *  death, sanction/designation, arrest, charge), not general paraphrase.
+ *  The FLAT death family (Gate 3 red-team high finding) covers the canonical
+ *  allegation-upgraded-to-fact case: an unattributed "X was killed"/"X died"
+ *  over claimed-only evidence must trip the certainty check. */
 const PREDICATE_FAMILIES: Array<{ asserts: RegExp; evidence: RegExp; }> = [
   { asserts: /\bconvict(?:ed|ion)\b/i, evidence: /\bconvict/i },
   { asserts: /\bconfirmed (?:dead|killed)\b|\bdeath (?:is|was|has been) confirmed\b/i, evidence: /\bconfirm[^.]{0,40}(dead|killed|death)|\b(dead|killed|death)[^.]{0,40}confirm/i },
+  { asserts: /\b(?:was|were|is|are) (?:reportedly |allegedly )?(?:killed|dead)\b|\bdied\b/i, evidence: /\bkill|\bdead|\bdeath|\bdied|\bcasualt/i },
   { asserts: /\b(?:is|was|remains) (?:sanctioned|designated)\b|\bunder sanctions\b/i, evidence: /\bsanction|\bdesignat/i },
   { asserts: /\b(?:was|is|been) (?:arrested|detained)\b/i, evidence: /\barrest|\bdetain/i },
   { asserts: /\bcharged with\b/i, evidence: /\bcharge/i },
 ];
 
-/** Attribution markers that GOVERN an assertion (§4.4): their presence in the
- *  sentence keeps hedged single/multi-source reporting honest. */
+/** Attribution markers that GOVERN an assertion (§4.4). To govern, the marker
+ *  must PRECEDE the asserted predicate in the sentence (Gate 3 red-team: a
+ *  trailing "…, according to reports" or an attribution word in a later clause
+ *  does not qualify the assertion — the same governing principle digest
+ *  ruling 19 states for its own domain). */
 const ATTRIBUTION_RE = /\b(?:according to|reportedly|reported(?:ly)?|claimed?|allegedly|sources? (?:say|said|claim)|per\b)/i;
 
-/** Current-status assertions vs expired/removed evidence (§4.8). */
+/** Current-status assertions vs expired/removed evidence (§4.8). "Former" as a
+ *  ROLE descriptor ("former deputy minister …") is not expiry evidence — the
+ *  lookahead excludes title nouns (Gate 3 red-team over-replacement class). */
 const CURRENT_STATUS_RE = /\b(?:is|remains?) (?:currently |still )?(?:sanctioned|designated|listed|on the .{0,20}list)\b/i;
-const EXPIRED_EVIDENCE_RE = /\b(?:removed|delisted|lifted|expired|former|revoked|overturned)\b/i;
+const EXPIRED_EVIDENCE_RE = /\b(?:removed|delisted|lifted|expired|revoked|overturned|former(?!\s+(?:deputy\s+|prime\s+|vice\s+|first\s+)?(?:minister|official|governor|deputy|head|chief|president|director|commander|ambassador|senator|mayor|officer|spokes\w+|advis[eo]r|lawmaker|general|colonel|admiral)))\b/i;
+
+/** Evidence text describing an OpenSanctions-style CANDIDATE identity — a
+ *  name-only/possible match must never be asserted as a resolved sanctioned/
+ *  designated identity, regardless of the claim's hedging class (§4.7; Gate 3
+ *  red-team category-laundering probe). */
+const CANDIDATE_IDENTITY_RE = /\b(?:name-only|candidate match|possible (?:name )?match|potential match|identity (?:was |is )?not (?:yet )?resolved)\b/i;
+
+/** Negated predicate keywords in evidence text ("distinct from sanctions
+ *  designations", "was not arrested") — stripped before the predicate-family
+ *  evidence test so a disclaimer cannot SUPPLY the very keyword it disclaims
+ *  (Gate 3 red-team category-laundering probe). */
+const NEGATED_EVIDENCE_RE = /\b(?:distinct from|not|never|no|excluded from|rather than)\s+(?:\w+\s+){0,3}?(?:(?:sanction|designat|convict|arrest|detain|charge|kill|dead|death|died)\w*\s*)+/gi;
 
 const HEDGED = new Set(["claimed", "unverified"]);
 
-/** Validate every name-bearing CITED sentence of an answer against the claims
- *  it cites. Sentences without a name or without citations pass through — this
- *  matrix governs named-person fidelity only; the general citation filter
- *  already ran. Returns per-sentence failures with replacement material. */
+/** First index at which any predicate family asserts in the sentence
+ *  (Infinity = none assert). */
+function firstAssertIndex(sentence: string): number {
+  let min = Infinity;
+  for (const f of PREDICATE_FAMILIES) {
+    const m = f.asserts.exec(sentence);
+    if (m !== null && m.index < min) min = m.index;
+  }
+  return min;
+}
+
+/** Does the sentence's named-person identity resolve against the cited text?
+ *  Full-pair substring, or surname + matching first initial (common
+ *  transliteration variants — "Aleksandr"/"Alexander" — share the initial;
+ *  a genuine namesake — "Ivan" vs "Nikolai" — does not). Residual: initial-
+ *  changing transliterations (Yevgeny/Evgeny) still over-replace, in the
+ *  conservative direction (registered bound). */
+function nameResolves(name: string, citedTextLower: string): boolean {
+  if (citedTextLower.includes(name.toLowerCase())) return true;
+  const parts = name.split(" ");
+  if (parts.length < 2) return false;
+  const first = parts[0].toLowerCase();
+  const surname = parts[parts.length - 1].toLowerCase();
+  if (surname.length < 3 || !citedTextLower.includes(surname)) return false;
+  // surname present: accept when a token with the same first initial as the
+  // asserted first name appears adjacent to the surname in the cited text
+  const idx = citedTextLower.indexOf(surname);
+  const windowStart = Math.max(0, idx - 30);
+  const before = citedTextLower.slice(windowStart, idx);
+  const tokens = before.split(/[^\p{L}'’-]+/u).filter((t) => t.length > 1);
+  return tokens.some((t) => t[0] === first[0]);
+}
+
+/** Validate every name-bearing sentence of an answer against the claims it
+ *  cites. A name-bearing sentence whose markers exist but NONE resolve (the
+ *  model's clearest fabrication signal), or that asserts an encoded §4
+ *  predicate with no citation at all, FAILS with no fallback material — it is
+ *  dropped/withheld, never rendered (Gate 3 red-team high finding; §4.9
+ *  permits withholding). Nameless sentences pass through — this matrix
+ *  governs named-person fidelity only. */
 export function findFidelityFailures(
   answerText: string,
   evidenceById: ReadonlyMap<number, FidelityEvidence>,
 ): SentenceFidelityFailure[] {
   const failures: SentenceFidelityFailure[] = [];
   for (const sentence of answerText.split(SENTENCE_SPLIT_RE)) {
-    const citedIds = parseCitedIds(sentence).filter((id) => evidenceById.has(id));
-    if (citedIds.length === 0) continue; // uncited sentences: the citation filter's domain
     const names = extractNameCandidates(sentence.replace(CITATION_MARKER_RE, ""));
     if (names.length === 0) continue;
+    const rawIds = parseCitedIds(sentence);
+    const citedIds = rawIds.filter((id) => evidenceById.has(id));
+    const assertIdx = firstAssertIndex(sentence);
+    if (citedIds.length === 0) {
+      // No resolvable evidence behind this name-bearing sentence. Fail it when
+      // it carries fabricated markers (rawIds present but none resolve) OR
+      // asserts an encoded predicate uncited; plain uncited name mentions with
+      // no encoded assertion remain out of scope (registered bound).
+      if (rawIds.length > 0 || assertIdx !== Infinity) {
+        failures.push({ sentence, kind: "identity", fallbackClaimId: null });
+      }
+      continue;
+    }
     const cited = citedIds.map((id) => evidenceById.get(id)!);
     const citedText = cited.map((c) => c.text).join("\n");
+    const citedTextLower = citedText.toLowerCase();
+    // disclaimer/negation phrases must not supply predicate keywords
+    const predicateEvidenceText = citedText.replace(NEGATED_EVIDENCE_RE, " ");
     const fallbackClaimId = citedIds[0] ?? null;
 
-    // (1) identity: every named person must appear in at least one cited claim.
-    const missingName = names.find(
-      (n) => !citedText.toLowerCase().includes(n.toLowerCase()),
-    );
+    // (1) identity: every named person must resolve against the cited claims.
+    const missingName = names.find((n) => !nameResolves(n, citedTextLower));
     if (missingName !== undefined) {
       failures.push({ sentence, kind: "identity", fallbackClaimId });
       continue;
     }
-    // (2) predicate: asserted act/status families need matching evidence.
+    // (1b) §4.7: candidate-identity evidence (OpenSanctions name-only /
+    // possible match) asserted as a resolved sanctioned/designated identity.
+    if (
+      CANDIDATE_IDENTITY_RE.test(citedText) &&
+      /\bsanction|\bdesignat/i.test(sentence) &&
+      assertIdx !== Infinity &&
+      !CANDIDATE_IDENTITY_RE.test(sentence) &&
+      !/\bcandidate\b|\bpossible\b|\bpotential\b|\bunresolved\b/i.test(sentence)
+    ) {
+      failures.push({ sentence, kind: "certainty", fallbackClaimId });
+      continue;
+    }
+    // (2) predicate: asserted act/status families need matching evidence
+    // (tested against the negation-stripped evidence text).
     const badPredicate = PREDICATE_FAMILIES.find(
-      (f) => f.asserts.test(sentence) && !f.evidence.test(citedText),
+      (f) => f.asserts.test(sentence) && !f.evidence.test(predicateEvidenceText),
     );
     if (badPredicate !== undefined) {
       failures.push({ sentence, kind: "predicate", fallbackClaimId });
@@ -193,12 +293,16 @@ export function findFidelityFailures(
       continue;
     }
     // (3) certainty: hedged-only evidence asserted with a strengthening
-    // predicate needs governing attribution in the sentence itself.
+    // predicate needs attribution that GOVERNS — i.e. precedes — the
+    // assertion in the sentence itself.
     const allHedged = cited.every((c) => HEDGED.has(c.hedging));
-    const asserting = PREDICATE_FAMILIES.some((f) => f.asserts.test(sentence));
-    if (allHedged && asserting && !ATTRIBUTION_RE.test(sentence)) {
-      failures.push({ sentence, kind: "certainty", fallbackClaimId });
-      continue;
+    if (allHedged && assertIdx !== Infinity) {
+      const attr = ATTRIBUTION_RE.exec(sentence);
+      const governed = attr !== null && attr.index < assertIdx;
+      if (!governed) {
+        failures.push({ sentence, kind: "certainty", fallbackClaimId });
+        continue;
+      }
     }
   }
   return failures;
@@ -208,7 +312,14 @@ export function findFidelityFailures(
  *  The claim text renders VERBATIM with its citation; nothing is invented and
  *  the person's name survives inside the quoted claim. */
 export function citedClaimFallbackSentence(claim: FidelityEvidence): string {
-  const text = claim.text.replace(/\s+/g, " ").trim().replace(/\.$/, "");
+  // Citation-marker syntax embedded in the (ingest-controlled) claim text is
+  // neutralized: it would otherwise be re-parsed by the citation filter and
+  // formally cite an unrelated valid claim (Gate 3 red-team probe).
+  const text = claim.text
+    .replace(CITATION_MARKER_RE, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\.$/, "");
   return `Sources state: "${text}." [c${claim.claimId}]`;
 }
 
@@ -232,7 +343,10 @@ export function applyFidelityFallback(
     const replacement = claim
       ? citedClaimFallbackSentence(claim)
       : ""; // no cited claim available: drop the unsupported sentence entirely
-    text = text.replace(f.sentence, replacement);
+    // replacer FUNCTION: a plain-string replacement would interpret $&/$'/$`
+    // patterns occurring in ingest-controlled claim text and could resurrect
+    // the failing sentence inside the quote (Gate 3 red-team probe)
+    text = text.replace(f.sentence, () => replacement);
   }
   // tidy doubled whitespace left by replacements
   text = text.replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
@@ -349,17 +463,23 @@ export class SectionReleaser {
         held.push(sentence);
         continue;
       }
+      // Fidelity runs BEFORE fabricated markers are stripped (Gate 3 red-team
+      // high finding: stripping first made an all-fabricated-cited sentence
+      // look uncited, dodging the matrix entirely — the strengthened prose
+      // then released). With markers intact, a name-bearing sentence whose
+      // citations don't resolve now FAILS identity and is dropped/replaced.
       let text = sentence;
-      if (unresolved && final) {
-        // terminal: strip fabricated markers exactly like the whole-answer
-        // filter's effect on citedClaimIds — the prose stays, the marker goes.
-        text = text.replace(CITATION_MARKER_RE, (m, d) =>
-          this.validIds.has(parseInt(d, 10)) ? m : "",
-        ).replace(/[ \t]{2,}/g, " ").trimEnd();
-      }
       if (this.fidelity) {
         const applied = applyFidelityFallback(text, this.evidenceById);
         text = applied.text;
+      }
+      if (unresolved && final && text !== "") {
+        // terminal: strip any remaining fabricated markers exactly like the
+        // whole-answer filter's effect on citedClaimIds — surviving prose
+        // keeps its text, the marker goes.
+        text = text.replace(CITATION_MARKER_RE, (m, d) =>
+          this.validIds.has(parseInt(d, 10)) ? m : "",
+        ).replace(/[ \t]{2,}/g, " ").trimEnd();
       }
       if (text.trim() === "") continue;
       released.push({

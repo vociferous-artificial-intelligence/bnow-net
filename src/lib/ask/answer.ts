@@ -54,7 +54,7 @@ import {
   type EvidenceSnapshot,
   type RunEventSink,
 } from "./events";
-import { streamAnswer, watchCancelMarker } from "./answer-stream";
+import { streamAnswer, StreamDispatchError, watchCancelMarker, type StreamOutcome } from "./answer-stream";
 import type {
   AnswerState,
   AskAnswerV2,
@@ -568,6 +568,7 @@ export async function answerFromEvidence(
     const stopWatch = opts?.runId
       ? watchCancelMarker(opts.runId, () => controller.abort())
       : () => {};
+    let streamOutcome: StreamOutcome | null = null;
     try {
       const outcome = await streamAnswer({
         model,
@@ -584,26 +585,22 @@ export async function answerFromEvidence(
         guards: opts?.guards,
         signal: controller.signal,
       });
+      streamOutcome = outcome;
       recordStage(timings, "answerMs", monotonicMs() - tStream);
       await sink.emit("answer.validating", {});
       if (outcome.cancelled) {
         // The route maps provider "cancelled" to the run.cancelled terminal.
         return assembleV2(retrieval, ranked, CANCELLED_MESSAGE, [], "cancelled", "error", outcome.usage, model, currency);
       }
-      const terminal = classifyCompletion({
-        message: { content: outcome.content, refusal: outcome.refusal || null },
-        finish_reason: outcome.finishReason ?? undefined,
-      });
-      if (terminal === "refused" || terminal === "empty_refused") {
-        return assembleV2(retrieval, ranked, REFUSED_MESSAGE, [], `openai:${model}`, "refused", outcome.usage, model, currency);
-      }
-      if (terminal === "truncated") {
-        return assembleV2(retrieval, ranked, TRUNCATED_MESSAGE, [], `openai:${model}`, "error", outcome.usage, model, currency);
-      }
-      if (outcome.finishReason === "error") {
-        // Stream died after (possibly) releasing content: state error; the
-        // terminal payload replaces any streamed sections client-side. No
-        // silent provider switch, no merged prose (§6.3.4).
+      if (outcome.finishReason === "error" && outcome.refusal === "") {
+        // The stream DIED (synthetic marker) — with or without partial
+        // content this is an interrupted transport, never a model refusal
+        // (Gate 3 finding: an instantly-dead stream previously fell through
+        // to classifyCompletion, whose empty-content mapping told the user
+        // "the model declined" and skewed refusal accounting). A stream that
+        // accumulated a genuine refusal keeps the refusal mapping below.
+        // No silent provider switch, no merged prose (§6.3.4); the terminal
+        // payload replaces any streamed sections client-side.
         return assembleV2(
           retrieval,
           ranked,
@@ -616,6 +613,16 @@ export async function answerFromEvidence(
           currency,
         );
       }
+      const terminal = classifyCompletion({
+        message: { content: outcome.content, refusal: outcome.refusal || null },
+        finish_reason: outcome.finishReason ?? undefined,
+      });
+      if (terminal === "refused" || terminal === "empty_refused") {
+        return assembleV2(retrieval, ranked, REFUSED_MESSAGE, [], `openai:${model}`, "refused", outcome.usage, model, currency);
+      }
+      if (terminal === "truncated") {
+        return assembleV2(retrieval, ranked, TRUNCATED_MESSAGE, [], `openai:${model}`, "error", outcome.usage, model, currency);
+      }
       return timeStageSync(timings, "validateMs", () => {
         const cited = parseCitedIds(outcome.content);
         return assembleV2(retrieval, ranked, outcome.content, cited, `openai:${model}`, "answered", outcome.usage, model, currency);
@@ -626,6 +633,13 @@ export async function answerFromEvidence(
         const det = deterministicAnswer(ranked.claims, retrieval.entities);
         return assembleV2(retrieval, ranked, det.answer, det.citedClaimIds, "budget", "answered", undefined, undefined, currency);
       }
+      // Billed-usage attribution parity with the non-streaming catch (Gate 3
+      // finding): a dispatch failure settled the ceiling inside streamAnswer
+      // (StreamDispatchError carries it), and a post-settlement throw (e.g.
+      // the answer.validating persist) follows a fully settled stream — both
+      // report what was billed instead of dropping usage/model.
+      const billedUsage =
+        e instanceof StreamDispatchError ? e.settledUsage : (streamOutcome?.usage ?? undefined);
       return assembleV2(
         retrieval,
         ranked,
@@ -633,8 +647,8 @@ export async function answerFromEvidence(
         [],
         "error",
         "error",
-        undefined,
-        undefined,
+        billedUsage,
+        billedUsage !== undefined ? model : undefined,
         currency,
       );
     } finally {

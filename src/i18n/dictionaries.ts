@@ -547,6 +547,7 @@ const en: Dict = {
   "ask.progress.run_gone": "This run is no longer available on the server, so it cannot be resumed. It was not charged twice — you can submit the question again.",
   "ask.progress.finalizing": "Answer complete — loading source panels…",
   "ask.progress.sections_label": "Answer (validated so far)",
+  "ask.progress.sections_count_word": "validated sections",
   "ask.progress.stop": "Stop",
   "ask.progress.cancelled": "This run was stopped. Usage already incurred was settled; nothing further will be charged.",
 
@@ -897,6 +898,7 @@ const uk: Dict = {
   "ask.progress.run_gone": "Цей запит більше не доступний на сервері, тому його не можна відновити. Подвійної оплати не було — можете надіслати запит ще раз.", // uk: needs native review
   "ask.progress.finalizing": "Відповідь готова — завантажуємо панелі джерел…", // uk: needs native review
   "ask.progress.sections_label": "Відповідь (перевірено дотепер)", // uk: needs native review
+  "ask.progress.sections_count_word": "перевірених фрагментів", // uk: needs native review
   "ask.progress.stop": "Зупинити", // uk: needs native review
   "ask.progress.cancelled": "Цей запит зупинено. Вже використані ресурси обліковано; більше нічого не буде нараховано.", // uk: needs native review
   "search.title": "Пошук тверджень", // uk: needs native review

@@ -53,7 +53,17 @@ export function RunProgress({
             className="h-5 w-5 shrink-0 animate-spin text-blue-600 dark:text-blue-400"
             aria-hidden="true"
           />
-          <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">{t(statusKey)}</p>
+          <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+            {t(statusKey)}
+            {/* Gate 3 a11y verdict (register #41 resolved): each released
+                section updates this short count INSIDE the live region — one
+                polite announcement per release, never the prose itself (which
+                stays reachable below, avoiding a full re-read at terminal
+                reconciliation). */}
+            {state.phase === "answering" && state.sections.length > 0 && (
+              <> — {state.sections.length} {t("ask.progress.sections_count_word")}</>
+            )}
+          </p>
         </div>
         {onStop && state.runId && state.phase !== "done" && (
           <button

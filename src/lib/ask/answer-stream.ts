@@ -5,7 +5,7 @@ import { estimateCostUsd } from "./limits";
 import { chatParamsForModel } from "./llm-params";
 import type { AskStageGuards } from "./run-guards";
 import type { RunEventSink } from "./events";
-import { SectionReleaser, type FidelityEvidence } from "./validator";
+import { fidelityFallbackEnabled, SectionReleaser, type FidelityEvidence } from "./validator";
 import type { CandidateClaim, RankedEvidence, StageUsage } from "./types";
 
 // AI Search Phase 3 Increment B: the STREAMING answer stage — buffered
@@ -52,6 +52,22 @@ export interface StreamOutcome {
 /** Bounded input estimate for the conservative death settlement — same class
  *  as run-guards' reservation ceiling input estimate. */
 export const STREAM_DEATH_INPUT_EST_TOKENS = 30_000;
+
+/** Thrown when the stream could not be constructed/dispatched AFTER the
+ *  conservative ceiling was settled (the request may have reached the
+ *  provider). Carries the settled usage so the caller's error payload can
+ *  report what was billed instead of dropping the attribution (Gate 3
+ *  finding: the streaming catch reported usage/model as absent although the
+ *  ceiling had settled). */
+export class StreamDispatchError extends Error {
+  constructor(
+    cause: unknown,
+    public readonly settledUsage: StageUsage,
+  ) {
+    super(cause instanceof Error ? cause.message : String(cause));
+    this.name = "StreamDispatchError";
+  }
+}
 
 /** Watch the run's cancel marker (the Phase 2 stub route becomes LIVE here):
  *  polls ask_run_events for a cancel_requested row and fires onCancel once.
@@ -119,7 +135,10 @@ export async function streamAnswer(opts: {
     ]),
   );
   const validIds = new Set(opts.ranked.claims.map((c) => c.claimId));
-  const releaser = new SectionReleaser(evidenceById, validIds);
+  // The rollback knob binds the streaming path too (Gate 3 finding: fidelity
+  // was hard-coded ON here while assembleV2 honored the flag — released text
+  // diverged from the terminal answer whenever the knob was off).
+  const releaser = new SectionReleaser(evidenceById, validIds, fidelityFallbackEnabled());
 
   const makeStream =
     opts.streamFactory ??
@@ -171,8 +190,9 @@ export async function streamAnswer(opts: {
   } catch (e) {
     // The request may have reached the provider before failing — settle the
     // ceiling conservatively; never leave a possibly-billed call unrecorded.
-    await settleOnce(ceilingUsage());
-    throw e;
+    const settled = ceilingUsage();
+    await settleOnce(settled);
+    throw new StreamDispatchError(e, settled);
   }
 
   const emitSection = async (section: { text: string; citedClaimIds: number[] }) => {
@@ -188,9 +208,21 @@ export async function streamAnswer(opts: {
       const choice = chunk.choices?.[0];
       if (choice?.delta?.refusal) refusal += choice.delta.refusal;
       if (choice?.finish_reason) finishReason = choice.finish_reason;
-      if (chunk.usage) {
-        const promptTokens = chunk.usage.prompt_tokens ?? 0;
-        const completionTokens = chunk.usage.completion_tokens ?? 0;
+      // Adopt a usage frame only when BOTH token counts are finite and
+      // non-negative: a truthy-but-degenerate frame ({}/NaN/negative) would
+      // otherwise settle $0 or NaN instead of the conservative ceiling —
+      // eroding the cap in exactly the wrong direction (Gate 3 finding;
+      // unreachable via today's OpenAI frames, but this chunk shape is the
+      // Phase 5 gateway seam where degenerate frames become possible).
+      if (
+        chunk.usage &&
+        Number.isFinite(chunk.usage.prompt_tokens) &&
+        Number.isFinite(chunk.usage.completion_tokens) &&
+        (chunk.usage.prompt_tokens as number) >= 0 &&
+        (chunk.usage.completion_tokens as number) >= 0
+      ) {
+        const promptTokens = chunk.usage.prompt_tokens as number;
+        const completionTokens = chunk.usage.completion_tokens as number;
         usage = {
           promptTokens,
           completionTokens,
