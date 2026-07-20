@@ -2379,3 +2379,11 @@ full units — fixed to 0) + 4 med + 3 low; fixes `528731e`; registered
 decisions #69–#71 for the joint gate, which stays BLOCKED on the absent
 billing module. Unit 1,963/1,963 · itest 61/61. Merging --no-ff; final
 completion audit next.
+
+## 2026-07-20 16:45 EDT — Workstream complete: integration HEAD ef11664
+
+All safe Phases 0–7 merged --no-ff into codex/ai-search-ask-integration-20260719
+with passing gates (Phase 7's joint leg enablement-blocked on billing). Final
+audit in the workstream index. main (6c21b17) untouched; nothing pushed,
+deployed, or written to production; zero paid calls across the entire
+recovery session.

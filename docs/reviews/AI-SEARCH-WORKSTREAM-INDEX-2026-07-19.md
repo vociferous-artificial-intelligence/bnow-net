@@ -92,3 +92,25 @@ Phase 0's measurement columns are passive (no flag needed; rollback = stop writi
 
 - Tests: `AI-SEARCH-TEST-LEDGER-2026-07-19.md`
 - Decisions/assumptions/deferred items: `AI-SEARCH-DECISION-REGISTER-2026-07-19.md`
+
+## Final completion audit (2026-07-20, recovery session close)
+
+- **Integration HEAD:** `ef11664` — eight `--no-ff` phase merges (0–7), all
+  gates passed (Phase 7's JOINT leg honestly blocked on billing).
+- **main:** `6c21b17`, UNTOUCHED. **origin:** never pushed. **Production:**
+  zero writes; migrations 0021–0026 applied to disposable Neon forks ONLY.
+- **Paid/external actions NOT performed:** the ~$1–3 answer-model matrix; any
+  model/K default change; Anthropic key/caps; PostHog event enablement;
+  Paddle/billing work of any kind; deploys; cap changes.
+- **Every flag default-off:** ASK_RUNS_ENFORCE, ASK_PROGRESSIVE (couple with
+  enforce — #44), ASK_STREAM_ANSWER, ASK_ROUTER, ASK_EXACT_CACHE,
+  ASK_SESSIONS (retention-blocked), NEXT_PUBLIC_ANALYTICS_ASK_STARTED;
+  ASK_FIDELITY_FALLBACK stays default-ON (rollback knob, binds both paths).
+- **Rollback:** every phase = flag off / passive columns; migrations additive;
+  9999 trigger last.
+- **Final counts:** unit 1,963/1,963 (157 files); integration 61/61 (11
+  files, disposable forks, all deleted); production-build browser battery
+  10/10 + 4/4 + 4/4 (Phase 3, screenshots committed).
+- **Phase branches retained:** p0-measure, p1-runs, p2-progressive,
+  p3-validation-stream, p4-routing-cache, p5-provider-gateway, p6-sessions,
+  p7-entitlements.

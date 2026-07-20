@@ -121,4 +121,13 @@ recorded in §4 below and in the Gate 2 addendum.
   Gate report: `AI-SEARCH-GATE-3-2026-07-20.md`; registers #48–#51; ledger
   P3-9..P3-15. Zero paid calls; zero production writes; both forks deleted.
 
-(subsequent entries appended as recovery proceeds)
+- **~16:45 EDT — RECOVERY + WORKSTREAM COMPLETE.** After the five recovery
+  steps, Phases 4–7 ran to completion under the master prompt: Phase 4
+  (router/registry/exact cache, Gate 4 PASS after 3 med + 6 low), Phase 5
+  (provider gateway extraction, Gate 5 PASS after 1 med + 4 low, SDK
+  byte-parity proven), Phase 6 (sessions core, Gate 6 PASS after 1 high +
+  5 med + 3 low — incl. completing §7.7 deletion across four content
+  surfaces), Phase 7 (Ask-owned units, Gate 7 subset PASS after 1 high +
+  4 med + 3 low; the JOINT billing leg blocked and recorded). Final
+  integration HEAD `ef11664`; main/origin/production/Paddle/paid APIs
+  untouched; final audit in the workstream index.
