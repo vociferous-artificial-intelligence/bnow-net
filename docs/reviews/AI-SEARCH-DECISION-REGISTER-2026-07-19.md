@@ -215,6 +215,29 @@ blockers accumulated by the unattended workstream. Revisit-markers are explicit.
     flagged for the Gate 3 red-team's a11y verdict on whether section-level
     announcements should be added.
 
+### Post-recovery additions (2026-07-20; the interrupted session's dirty patch
+### proven/reworked — see AI-SEARCH-RECOVERY-2026-07-20.md)
+
+42. **Answer-section identity = the persisted event seq; id-less prose never
+    renders.** An `answer.section` SSE record without a valid `id:` line is
+    contract-violating transport data: its phase advance still applies (the
+    event type is a server fact) but its text is dropped fail-safe — prose with
+    no replay identity cannot be deduplicated, and a shared synthetic id would
+    silently collapse distinct sections. Terminal reconciliation renders the
+    full validated answer regardless, so the drop costs at most an interim
+    display. Duplicate delivery of the same seq renders once (client-side
+    dedupe keyed by seq).
+43. **Reconnect-exhaustion RETAINS the per-tab resume ref.** Clearing it would
+    orphan a possibly still-running billed run (the next refresh would show an
+    idle form inviting a second paid gesture). Policy: keep the ref, render the
+    honest "may still be completing — refresh to check at no extra charge"
+    copy; only terminal replay or a genuine ownership/unknown 404 clears the
+    ref. Residual (accepted): a run that never writes a terminal event (e.g.
+    expired by the sweep, which marks the row but appends no event) leaves a
+    per-tab ref that retries a bounded $0 read-only resume on each mount until
+    the tab closes. Mount recovery replays from seq 0 (full panel rebuild); the
+    stored lastSeq seeds only live-continuation reconnects.
+
 ### Revisit list
 
 - If Next.js is upgraded past 16.2.x, re-verify the server-action maxDuration

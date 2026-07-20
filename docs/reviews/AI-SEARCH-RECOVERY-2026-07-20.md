@@ -73,5 +73,22 @@ recorded in §4 below and in the Gate 2 addendum.
   Required reading completed in full (AGENTS.md, master prompt, architecture
   review, workstream index, test ledger, decision register, Gate 2 report,
   Phase 3 report, both design notes, run-controller code + dirty diff).
+- **~12:00 EDT — Step 2 verdict on the dirty patch.** Four of the five
+  hypothesis fixes verified contract-correct and kept: read-rejection try/catch
+  (drop semantics), full replay from 0 on mount recovery, immediate seed-state
+  push, 404-vs-transient reconnect split. **One defect confirmed and reworked:**
+  the section dedupe mapped a missing SSE id to a shared sentinel `seq = -1`,
+  so a second id-less section would be silently dropped as a "duplicate" of the
+  first — exactly the collapse failure the recovery brief flagged. Reworked
+  contract (register #42): id-less prose never renders (fail-safe drop, phase
+  advance kept, terminal reconciliation covers the text); valid seqs dedupe.
+  **One policy gap fixed:** reconnect exhaustion previously cleared the resume
+  ref, orphaning a possibly still-running billed run; the ref is now retained
+  with honest copy (register #43; en+uk strings added). `backoffMs` became
+  injectable for wall-clock-free tests. Proof: 47/47 focused (14-point matrix),
+  typecheck+lint clean, full suite 1,832/1,832 (ledger P3-3..P3-5). The stale
+  session's scratchpad probes (`/tmp/.../3e412ae5-*/scratchpad/probe-*.ts`)
+  were found but treated as untrusted hypothesis sources only — no result from
+  them is claimed anywhere.
 
 (subsequent entries appended as recovery proceeds)

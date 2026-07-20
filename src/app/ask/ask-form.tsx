@@ -449,7 +449,13 @@ export function AskForm({
 
       {progressive && runState?.phase === "failed" && (
         <p className="mb-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
-          {t(runState.errorClass === "cancelled" ? "ask.progress.cancelled" : "ask.progress.failed")}
+          {t(
+            runState.errorClass === "cancelled"
+              ? "ask.progress.cancelled"
+              : runState.errorClass === "reconnect_exhausted"
+                ? "ask.progress.reconnect_exhausted"
+                : "ask.progress.failed",
+          )}
         </p>
       )}
 

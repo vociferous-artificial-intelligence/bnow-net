@@ -50,6 +50,17 @@ NOT executed (operator approval required — see the decision register).
 
 Gate 3 red-team (independent, executed-probe instructions) + the supplementary Gate 2
 independent pass run in background; their rows and verdicts append on completion.
+**2026-07-20 recovery note:** that background attempt died with the session (no findings
+were captured); the recovery session re-ran both reviews — rows P3-3 onward.
+
+Recovery (2026-07-20, same branch — the interrupted session's dirty run-controller
+patch proven/reworked before commit):
+
+| # | Command | Result | Duration | Notes |
+|---|---|---|---|---|
+| P3-3 | `npx vitest run run-controller.test.ts ask-form.test.tsx` | **PASS — 47/47** | 1.5s | the 14-point recovery matrix: section dedupe by persisted seq (dup renders once; distinct id-less sections drop fail-safe, never collapse), read-rejection → read-only resume (both entry points, GET-only asserted), full replay from 0 on mount (candidates/retrieval/selection/sections/phase rebuilt; overlap-replay deduped), busy state pushed before first network byte (controller order + jsdom disabled-input), transient 502 retry with ref retained, exhaustion retains ref (register #43), 404 terminal clears ref, gesture release after terminal (fresh idempotency key on explicit resubmit). One Phase 2 pin updated: mount-resume now asserts `after=0` (contract change, register #43) |
+| P3-4 | `npm run typecheck` + `npm run lint` | PASS (1 pre-existing warning) | ~70s | |
+| P3-5 | `npm test` | **PASS — 1,832/1,832, 148 files** | 6.1s | +13 over P3-2 |
 
 Post-Gate-1 reruns (fix commit `1309d46`):
 

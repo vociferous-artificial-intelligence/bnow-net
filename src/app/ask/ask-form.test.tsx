@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { StrictMode } from "react";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { askIntentStorageKey } from "@/lib/ask/intent";
@@ -481,8 +481,82 @@ describe("AskForm: progressive transport (ASK_PROGRESSIVE client path)", () => {
       expect(
         fetchMock.mock.calls.filter((c) => (c[1] as RequestInit | undefined)?.method === "POST"),
       ).toHaveLength(0);
-      expect(String(fetchMock.mock.calls[0][0])).toContain("after=1");
+      // mount recovery replays from 0 so the whole panel rebuilds (supplementary
+      // Gate 2 fix) — the stored lastSeq seeds only later reconnects
+      expect(String(fetchMock.mock.calls[0][0])).toContain("after=0");
       expect(actionMock).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("mount resume disables the form and shows the run panel BEFORE any byte arrives", async () => {
+    // a fetch that never resolves: the pre-network state is all the UI has
+    const fetchMock = vi.fn(() => new Promise<Response>(() => {}));
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      window.sessionStorage.setItem(
+        "bnow_ask_active_run",
+        JSON.stringify({ runId: RUN_ID, lastSeq: 3, question: "did russia strike kyiv today" }),
+      );
+      render(<AskForm {...formProps} progressive />);
+      // resumeRun pushes its seed state synchronously in the mount effect
+      const input = (await screen.findByPlaceholderText(
+        strings["ask.placeholder"],
+      )) as HTMLInputElement;
+      await waitFor(() => expect(input.disabled).toBe(true));
+      expect(screen.getByText(strings["ask.progress.starting"])).toBeTruthy();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("after a terminal run the gesture is released: a new submit issues a NEW paid POST with a fresh idempotency key", async () => {
+    const terminal = [
+      `event: run.ref\ndata: {"runId":"${RUN_ID}"}\n\n`,
+      `id: 1\nevent: run.completed\ndata: ${JSON.stringify({ result: { answer: "First answer.", state: "answered", provider: "openai:gpt-5", citedClaimIds: [], evidenceCount: 0, terms: [], relatedClaimIds: [], window: null, totalMatching: 0, sampled: false, retrievalMode: "v2" } })}\n\n`,
+    ];
+    const fetchMock = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url) === "/api/ask/runs" && init?.method === "POST") {
+        return new Response(sseStream(terminal), { status: 200 });
+      }
+      if (String(url) === `/api/ask/runs/${RUN_ID}/result`) {
+        return Response.json({
+          result: { answer: "First answer.", state: "answered", provider: "openai:gpt-5", citedClaimIds: [], evidenceCount: 0, terms: [], relatedClaimIds: [], window: null, totalMatching: 0, sampled: false, retrievalMode: "v2" },
+          cited: [],
+          related: [],
+        });
+      }
+      throw new Error(`unexpected fetch ${String(url)}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const user = userEvent.setup();
+      render(<AskForm {...formProps} progressive />);
+      const input = screen.getByPlaceholderText(
+        strings["ask.placeholder"],
+      ) as HTMLInputElement;
+      await user.type(input, "did russia strike kyiv today");
+      await user.click(screen.getByRole("button", { name: strings["ask.submit"] }));
+      await screen.findByText("First answer.");
+
+      // gesture released: the form re-enabled and a second explicit submit runs
+      expect(input.disabled).toBe(false);
+      await user.click(screen.getByRole("button", { name: strings["ask.submit"] }));
+      await waitFor(() => {
+        const posts = fetchMock.mock.calls.filter(
+          (c) => (c[1] as RequestInit | undefined)?.method === "POST",
+        );
+        expect(posts).toHaveLength(2);
+      });
+      const posts = fetchMock.mock.calls.filter(
+        (c) => (c[1] as RequestInit | undefined)?.method === "POST",
+      );
+      const key1 = JSON.parse(String((posts[0][1] as RequestInit).body)).idempotencyKey;
+      const key2 = JSON.parse(String((posts[1][1] as RequestInit).body)).idempotencyKey;
+      expect(key1).toMatch(/^[0-9a-f-]{36}$/i);
+      expect(key2).toMatch(/^[0-9a-f-]{36}$/i);
+      expect(key2).not.toBe(key1); // a NEW gesture is a NEW key — never a silent replay
     } finally {
       vi.unstubAllGlobals();
     }

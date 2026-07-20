@@ -27,9 +27,10 @@ export interface RunViewState {
   candidates: { claims: SnapshotClaim[]; totalMatching: number } | null;
   retrieval: AskRunEventPayloads["retrieval.completed"] | null;
   selectedCount: number | null;
-  /** Phase 3: VALIDATED released answer sections, in release order. The
+  /** Phase 3: VALIDATED released answer sections, in release order, keyed by
+   *  event seq so duplicate/replayed delivery is idempotent (G2S fix). The
    *  terminal payload replaces them (structural reconciliation). */
-  sections: Array<AskRunEventPayloads["answer.section"]>;
+  sections: Array<AskRunEventPayloads["answer.section"] & { seq: number }>;
   result: AskAnswerV2 | null;
   errorClass: string | null;
 }
@@ -127,7 +128,23 @@ export function applyRunEvent(
     case "answer.section": {
       const p = payload as AskRunEventPayloads["answer.section"];
       next.phase = advancePhase(next.phase, "answering");
-      if (typeof p.text === "string" && p.text !== "") next.sections = [...next.sections, p];
+      // Section identity = the persisted event seq (the SSE record id). Every
+      // persisted event carries one; a record WITHOUT a valid id is
+      // contract-violating transport data, and prose with no replay identity
+      // cannot be deduplicated — so its text is dropped fail-safe (the phase
+      // advance above is still a server fact, and terminal reconciliation
+      // renders the full validated answer regardless). Never a shared
+      // sentinel id: that would silently collapse distinct id-less sections.
+      const seq = record.id;
+      if (
+        seq !== null &&
+        Number.isFinite(seq) &&
+        typeof p.text === "string" &&
+        p.text !== "" &&
+        !next.sections.some((sec) => sec.seq === seq)
+      ) {
+        next.sections = [...next.sections, { ...p, seq }];
+      }
       return next;
     }
     case "answer.validating":
@@ -226,6 +243,9 @@ export interface DriveOpts {
   fetchImpl?: typeof fetch;
   /** reconnect attempts after a dropped stream before giving up (default 5) */
   maxReconnects?: number;
+  /** base backoff between reconnect attempts in ms (default 1000; the delay is
+   *  base × (attempt + 1)). Injectable so tests do not wait wall-clock. */
+  backoffMs?: number;
 }
 
 async function consumeStream(
@@ -238,17 +258,25 @@ async function consumeStream(
   const decoder = new TextDecoder();
   let buffer = "";
   let current = state;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    buffer = parseSseChunk(buffer, (record) => {
-      current = applyRunEvent(current, record);
-      if (current.runId && current.phase !== "done" && current.phase !== "failed") {
-        storeActiveRun({ runId: current.runId, lastSeq: current.lastSeq, question });
-      }
-      onState(current);
-    });
+  // A rejected read (network reset, VPN drop, ERR_NETWORK_CHANGED) is a stream
+  // DROP, not a crash: return the state so far and let the caller's read-only
+  // resume path take over (G2S high finding: this was previously an unhandled
+  // rejection that wedged the UI with runningRef stuck true).
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      buffer = parseSseChunk(buffer, (record) => {
+        current = applyRunEvent(current, record);
+        if (current.runId && current.phase !== "done" && current.phase !== "failed") {
+          storeActiveRun({ runId: current.runId, lastSeq: current.lastSeq, question });
+        }
+        onState(current);
+      });
+    }
+  } catch {
+    return current; // dropped mid-read — resume handles the rest
   }
   return current;
 }
@@ -262,7 +290,19 @@ export async function resumeRun(
 ): Promise<RunViewState> {
   const f = opts.fetchImpl ?? fetch;
   const max = opts.maxReconnects ?? 5;
-  let state: RunViewState = seed ?? { ...initialRunViewState(), runId: ref.runId, lastSeq: ref.lastSeq };
+  const backoff = opts.backoffMs ?? 1000;
+  // Mount-resume (no seed): replay from 0 so the WHOLE panel rebuilds —
+  // candidates, counts, sections, true phase (G2S finding: replaying only
+  // seq > stored lastSeq rendered 'Starting' over a half-finished run). The
+  // reducer is idempotent (monotonic phases, seq-deduped sections), so a full
+  // replay is safe and $0. Live-consumer continuations (seed given) keep
+  // replaying incrementally from lastSeq.
+  let state: RunViewState =
+    seed ?? { ...initialRunViewState(), runId: ref.runId, lastSeq: 0 };
+  // Seed state is pushed IMMEDIATELY so the UI disables + shows the panel
+  // before the first network byte (G2S finding: the resume window rendered an
+  // enabled-looking idle form that silently swallowed gestures).
+  opts.onState(state);
   for (let attempt = 0; attempt < max; attempt++) {
     let res: Response;
     try {
@@ -270,14 +310,22 @@ export async function resumeRun(
         headers: { Accept: "text/event-stream" },
       });
     } catch {
-      await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+      await new Promise((r) => setTimeout(r, backoff * (attempt + 1)));
       continue;
     }
-    if (!res.ok || !res.body) {
+    if (res.status === 404) {
+      // Ownership/unknown run: genuinely terminal.
       state = { ...state, phase: "failed", errorClass: `reconnect_${res.status}` };
       opts.onState(state);
       clearActiveRun();
       return state;
+    }
+    if (!res.ok || !res.body) {
+      // Transient 5xx/4xx-other (or a bodiless response): retry within the
+      // budget (G2S finding: a single 502 previously destroyed the resume ref
+      // and orphaned the paid run).
+      await new Promise((r) => setTimeout(r, backoff * (attempt + 1)));
+      continue;
     }
     state = await consumeStream(res.body, state, opts.onState, ref.question);
     if (state.phase === "done" || state.phase === "failed") {
@@ -286,9 +334,13 @@ export async function resumeRun(
     }
     // stream cut off before terminal (route duration): reconnect with lastSeq
   }
+  // Reconnect budget exhausted. The run may STILL be executing (and billed)
+  // server-side — clearing the resume ref here would orphan it: the next
+  // refresh would show an idle form inviting a second paid gesture. Policy:
+  // KEEP the ref (a refresh retries the $0 read-only resume; terminal replay
+  // or a genuine 404 clears it) and fail the view honestly.
   state = { ...state, phase: "failed", errorClass: "reconnect_exhausted" };
   opts.onState(state);
-  clearActiveRun();
   return state;
 }
 
