@@ -80,6 +80,12 @@ export async function retrieveV2(
     /** Phase 1 seam: enforce mode injects an atomic reservation-backed embed
      *  guard with the same surface; absent, embedGuardFromEnv() as always. */
     embedGuard?: StageGuard;
+    /** Phase 2: fires with the LEXICAL arm's rows the moment that arm settles —
+     *  usually well before the vector arm's embed+SQL — so the progressive UI
+     *  can show real candidate claims (keyword pass) early. Provisional data:
+     *  the final union may reorder/extend it. Failures in the callback are
+     *  swallowed (progress display must never fail retrieval). */
+    onLexicalPartial?: (partial: { claims: CandidateClaim[]; totalMatching: number }) => void | Promise<void>;
   },
 ): Promise<RetrievalV2Result> {
   const now = opts?.now ?? new Date();
@@ -109,70 +115,100 @@ export async function retrieveV2(
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
-    // ---- vector arm ---------------------------------------------------------
-    let vectorRows: ClaimRow[] = [];
-    let vectorArmScored = false;
-    let embedUsage: StageUsage | undefined;
+    // ---- both arms, CONCURRENT (Phase 2) ------------------------------------
+    // The union/dedupe/composite-sort below is order-insensitive (map dedupe +
+    // deterministic sort), so concurrent arms produce byte-identical results to
+    // the old serial order — pinned by the determinism test. Each arm keeps its
+    // own degrade semantics; Promise.allSettled means one arm's failure can
+    // never abort the other. Stage timings keep per-boundary durations (they
+    // now OVERLAP in wall time — sum > elapsed is expected from Phase 2 on).
 
-    if (!vectorArmDisabled()) {
+    const vectorArm = (async (): Promise<{
+      rows: ClaimRow[];
+      scored: boolean;
+      usage: StageUsage | undefined;
+    }> => {
+      if (vectorArmDisabled()) return { rows: [], scored: false, usage: undefined };
       try {
         const guard = opts?.embedGuard ?? embedGuardFromEnv();
         await guard.init();
         const { vectors, tokens, costUsd, provider } = await timeStage(timings, "embedMs", () =>
           embedTexts([question], { guard }),
         );
-        if (provider !== STUB_PROVIDER && vectors[0]) {
-          embedUsage = { promptTokens: tokens, completionTokens: 0, costUsd };
-          const params: unknown[] = [toVectorLiteral(vectors[0]), embedModel()];
-          const wc = windowClause(window, params);
-          params.push(askVectorTop());
-          const { rows } = await timeStage(timings, "vectorMs", () =>
-            pool.query(
-              `SELECT cl.id, cl.text, cl.hedging, cl.claim_date::text AS d, c.iso2, dg.track,
-                      cl.confidence, 1 - (ce.embedding <=> $1::vector) AS vector_score
-               FROM claim_embeddings ce
-               JOIN claims cl ON cl.id = ce.claim_id
-               JOIN countries c ON c.id = cl.country_id
-               LEFT JOIN digests dg ON dg.id = cl.digest_id
-               WHERE ce.model = $2${wc}
-               ORDER BY ce.embedding <=> $1::vector
-               LIMIT $${params.length}`,
-              params,
-            ),
-          );
-          vectorRows = rows as ClaimRow[];
-          // Zero rows means "no embeddings for the current model" — a v2-lexical-only
-          // cause per the RetrievalMode contract, even though we did embed the question.
-          vectorArmScored = vectorRows.length > 0;
-        }
+        if (provider === STUB_PROVIDER || !vectors[0]) return { rows: [], scored: false, usage: undefined };
+        const usage: StageUsage = { promptTokens: tokens, completionTokens: 0, costUsd };
+        const params: unknown[] = [toVectorLiteral(vectors[0]), embedModel()];
+        const wc = windowClause(window, params);
+        params.push(askVectorTop());
+        const { rows } = await timeStage(timings, "vectorMs", () =>
+          pool.query(
+            `SELECT cl.id, cl.text, cl.hedging, cl.claim_date::text AS d, c.iso2, dg.track,
+                    cl.confidence, 1 - (ce.embedding <=> $1::vector) AS vector_score
+             FROM claim_embeddings ce
+             JOIN claims cl ON cl.id = ce.claim_id
+             JOIN countries c ON c.id = cl.country_id
+             LEFT JOIN digests dg ON dg.id = cl.digest_id
+             WHERE ce.model = $2${wc}
+             ORDER BY ce.embedding <=> $1::vector
+             LIMIT $${params.length}`,
+            params,
+          ),
+        );
+        // Zero rows means "no embeddings for the current model" — a v2-lexical-only
+        // cause per the RetrievalMode contract, even though we did embed the question.
+        return { rows: rows as ClaimRow[], scored: (rows as ClaimRow[]).length > 0, usage };
       } catch (e) {
         // Any embed/vector failure (budget refusal, transient OpenAI error, missing
         // table) degrades to lexical-only — never fatal for a user surface.
         console.warn(
           `retrieveV2: vector arm degraded to lexical-only: ${e instanceof Error ? e.message : e}`,
         );
-        vectorRows = [];
-        vectorArmScored = false;
+        return { rows: [], scored: false, usage: undefined };
       }
-    }
+    })();
+
+    // Lexical arm — delegated to lexical.ts (shared with /search): same SQL,
+    // params, ordering, caps, and the "no predicate -> no query at all" degraded
+    // path as before. The early-candidates hook fires the moment it settles.
+    const lexicalArm = timeStage(timings, "lexicalMs", () =>
+      lexicalClaimSearch(pool, {
+        qStripped,
+        terms,
+        window,
+        limit: askLexicalTop(),
+      }),
+    ).then((lex) => {
+      if (opts?.onLexicalPartial) {
+        try {
+          const partial = opts.onLexicalPartial({
+            claims: lex.rows.map((r) => toCandidate(r as ClaimRow, false)),
+            totalMatching: lex.matchCount,
+          });
+          // async callback failures are swallowed too — progress must never fail retrieval
+          void Promise.resolve(partial).catch((e) =>
+            console.warn(`retrieveV2: onLexicalPartial failed (ignored): ${e instanceof Error ? e.message : e}`),
+          );
+        } catch (e) {
+          console.warn(`retrieveV2: onLexicalPartial failed (ignored): ${e instanceof Error ? e.message : e}`);
+        }
+      }
+      return lex;
+    });
+
+    const [vectorSettled, lexicalSettled] = await Promise.allSettled([vectorArm, lexicalArm]);
+    // The vector arm never rejects (internal catch); the lexical arm's rejection
+    // was fatal in the serial flow too — rethrow to preserve exact semantics.
+    if (lexicalSettled.status === "rejected") throw lexicalSettled.reason;
+    const vector =
+      vectorSettled.status === "fulfilled"
+        ? vectorSettled.value
+        : { rows: [] as ClaimRow[], scored: false, usage: undefined };
+    const vectorRows = vector.rows;
+    const vectorArmScored = vector.scored;
+    const embedUsage: StageUsage | undefined = vector.usage;
+    const { rows: lexicalRows, matchCount: lexicalMatchCount } = lexicalSettled.value;
 
     const mode: RetrievalMode = vectorArmScored ? "v2" : "v2-lexical-only";
-
-    // ---- lexical arm --------------------------------------------------------
-    // Delegated to lexical.ts (shared with /search): same SQL, params, ordering,
-    // caps, and the "no predicate -> no query at all" degraded path as before —
-    // only the pool.query calls moved module.
-    const { rows: lexicalRows, matchCount: lexicalMatchCount } = await timeStage(
-      timings,
-      "lexicalMs",
-      () =>
-        lexicalClaimSearch(pool, {
-          qStripped,
-          terms,
-          window,
-          limit: askLexicalTop(),
-        }),
-    );
 
     // ---- union (dedupe by claimId) ------------------------------------------
     accumSectionsStarted = true;
