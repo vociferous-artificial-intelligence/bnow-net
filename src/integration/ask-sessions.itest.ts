@@ -133,10 +133,12 @@ describe("sessions on real Postgres (Phase 6)", () => {
     expect(Number((usage[0] as { cost_usd: number }).cost_usd)).toBe(0);
     // F11: the turn's run row carries the SAME frozen snapshot
     const { rows: run } = await pool.query(
-      `SELECT evidence_snapshot FROM ask_runs WHERE id = $1`,
+      `SELECT evidence_snapshot, units FROM ask_runs WHERE id = $1`,
       [r.result.runId],
     );
     expect((run[0] as { evidence_snapshot: EvidenceSnapshot }).evidence_snapshot).toEqual(SNAPSHOT);
+    // Phase 7: an answered reuse turn settles ONE analysis unit (§9.5)
+    expect((run[0] as { units: number }).units).toBe(1);
   });
 
   it("§7.7 delete: owner removes turns + content EVERYWHERE (runs, events, cache, usage question); accounting rows survive; foreign delete inert", async () => {

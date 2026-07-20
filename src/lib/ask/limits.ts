@@ -21,6 +21,7 @@ import { NULL_EVENT_SINK, persistEvidenceSnapshot, type EvidenceSnapshot, type R
 import { askExactCache, askRouter } from "./config";
 import { cacheKey, cacheLookup, cacheStore, corpusVersion } from "./cache";
 import { route, routePolicyString } from "./router";
+import { analysisUnits } from "./units";
 import { parseTimeWindow } from "./window";
 
 // /ask spend control: an authenticated user could otherwise run up LLM cost with
@@ -570,10 +571,10 @@ export async function askWithLimits(
           }
           await persistEvidenceSnapshot(run.runId, hit.snapshot);
           if (enforce) {
-            await finalizeSafe({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: 0 });
+            await finalizeSafe({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: 0, units: analysisUnits(payload) });
           } else if (created) {
             await shadowSafe("finalizeRun", () =>
-              finalizeRun({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: 0 }),
+              finalizeRun({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: 0, units: analysisUnits(payload) }),
             );
           }
           return payload;
@@ -643,10 +644,10 @@ export async function askWithLimits(
     }
     const payload = { ...normalizeV2(raw), runId: run.runId };
     if (enforce) {
-      await finalizeSafe({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: totalCost });
+      await finalizeSafe({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: totalCost, units: analysisUnits(payload) });
     } else if (created) {
       await shadowSafe("finalizeRun", () =>
-        finalizeRun({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: totalCost }),
+        finalizeRun({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: totalCost, units: analysisUnits(payload) }),
       );
     }
     // ---- Phase 4: exact-cache store (flag-gated; fail-soft) ---------------------
