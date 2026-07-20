@@ -202,6 +202,18 @@ function expiredRunAnswer(runId: string): AskAnswerV2 {
   );
 }
 
+/** Replayed key whose run's content was deleted at the owner's request
+ *  (§7.7 session deletion — Phase 6/Gate 6). The run completed and was
+ *  billed once; only its content is gone. */
+function deletedRunAnswer(runId: string): AskAnswerV2 {
+  return replayRefusal(
+    "The original submission's content was deleted at the owner's request. " +
+      "Nothing additional was charged. Please submit the question again if needed.",
+    runId,
+    "error",
+  );
+}
+
 /** Replayed key whose stored question DIFFERS from the incoming one. Returning
  *  the stored answer would silently present the WRONG question's answer as this
  *  one's (Gate 1 finding); refuse honestly instead — standard idempotency-key
@@ -431,6 +443,13 @@ export async function askWithLimits(
       }
       if (created.replayed) {
         const existing = created.run;
+        // §7.7 content deletion (Phase 6 / Gate 6): a replayed key whose run's
+        // content was deleted at the owner's request gets the honest deleted
+        // copy — NOT the question-mismatch refusal (the question is redacted,
+        // not different) and NOT the expired copy (the run completed fine).
+        if (existing.question === "[deleted]") {
+          return deletedRunAnswer(existing.id);
+        }
         // A reused key with a DIFFERENT question never returns the stored answer
         // (Gate 1 finding) — refuse honestly, charge nothing.
         if (existing.question !== question.slice(0, 400)) {

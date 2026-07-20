@@ -666,6 +666,18 @@ describe("askWithLimits — Phase 1 enforce mode", () => {
     expect(h.askMock).not.toHaveBeenCalled();
   });
 
+  it("G6: a replayed key whose run's content was DELETED (§7.7) returns the honest deleted copy — not question-mismatch, not expired", async () => {
+    h.createRunMock.mockResolvedValue({
+      run: { id: "orig-run-id", userEmail: "u", question: "[deleted]", status: "finished", state: "answered", result: null, finishedAt: "2026-07-19T00:00:00Z", expired: false },
+      replayed: true,
+    });
+    const res = await askWithLimits("the original question", "u@x.com", { idempotencyKey: "key-1" });
+    expect(res.answer).toContain("deleted at the owner's request");
+    expect(res.answer).not.toContain("different question"); // the old FALSE copy
+    expect(res.answer).not.toContain("did not complete");
+    expect(h.askMock).not.toHaveBeenCalled();
+  });
+
   it("a reused key with a DIFFERENT question refuses honestly — never the wrong stored answer (Gate 1)", async () => {
     const stored = v2Full({ answer: "stored answer for the OTHER question." });
     h.createRunMock.mockResolvedValue({

@@ -10,6 +10,7 @@
 
 import { Pool } from "@neondatabase/serverless";
 import { askWithLimits } from "./limits";
+import { askPipeline } from "./config";
 import type { AskAnswerV2 } from "./types";
 import type { EvidenceSnapshot } from "./events";
 
@@ -26,8 +27,9 @@ export type FollowupScope = "reuse" | "expand" | "new";
 
 // ---- scope classifier (pure; SUGGESTS a default — the user always wins) ---------
 
+// bare "may" is usually the modal verb — require month context (Gate 6)
 const MONTHS =
-  /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\b/i;
+  /\b(?:january|february|march|april|june|july|august|september|october|november|december)\b|\b(?:in|last|this|early|late|since|during|until|through)\s+may\b/i;
 const DATEISH = /\b\d{4}-\d{2}-\d{2}\b|\b(?:yesterday|today|last week|this week|past \d+ days?)\b/i;
 const THEATER_WORDS: Record<string, RegExp> = {
   ru: /\brussia|russian\b/i,
@@ -56,11 +58,22 @@ export function classifyFollowup(
     // a dated follow-up may fall outside the frozen window — suggest expansion
     return { suggested: "expand", reason: "temporal_reference" };
   }
+  const LEAD_STOPWORDS = new Set([
+    "What", "Which", "Who", "When", "Where", "How", "Why",
+    "Did", "Does", "Has", "Have", "Was", "Were", "Is", "Are", "The", "Can", "Could", "Would",
+  ]);
   const caps = question.match(/\b[A-Z][a-z][\p{L}'’-]+(?: [A-Z][\p{L}'’-]+)?\b/gu) ?? [];
-  const novel = caps.filter(
-    (c) => !["What", "Which", "Who", "When", "Where", "How", "Why", "Did", "Is", "Are", "The"].includes(c.split(" ")[0]) &&
-      !snapText.includes(c.toLowerCase()),
-  );
+  const candidates: string[] = [];
+  for (const c of caps) {
+    const [first, ...rest] = c.split(" ");
+    if (!LEAD_STOPWORDS.has(first)) {
+      candidates.push(c);
+    } else if (rest.length > 0) {
+      // "Did Putin respond?" — retest the swallowed second token (Gate 6)
+      candidates.push(rest.join(" "));
+    }
+  }
+  const novel = candidates.filter((c) => !snapText.includes(c.toLowerCase()));
   if (novel.length > 0) return { suggested: "expand", reason: "novel_entity" };
   return { suggested: "reuse", reason: "within_snapshot" };
 }
@@ -173,34 +186,59 @@ export async function listTurns(sessionId: string, userEmail: string): Promise<A
   }
 }
 
-/** Append a turn (owner-gated via the session row; unique (session, seq) makes
- *  concurrent appends lose-exactly-one). Refuses past MAX_SESSION_TURNS and on
- *  ended/idle sessions — a capped session needs an explicit new investigation. */
+export type AppendRefusal =
+  | "not_found"
+  | "ended"
+  | "idle"
+  | "turn_cap"
+  | "run_ineligible"
+  | "race";
+
+/** Append a turn. Owner-gated via the session row AND the run row (Gate 6:
+ *  a run must belong to the same owner AND carry a frozen snapshot — a
+ *  snapshotless turn would silently regress the session's scope to an older
+ *  snapshot). Refuses past MAX_SESSION_TURNS and on ended/idle sessions; a
+ *  concurrent same-seq append loses as a TYPED "race" refusal, never a raw
+ *  driver throw after a paid call. */
 export async function appendTurn(opts: {
   sessionId: string;
   userEmail: string;
   runId: string;
   scope: FollowupScope;
-}): Promise<{ ok: true; seq: number } | { ok: false; reason: "not_found" | "ended" | "idle" | "turn_cap" }> {
+}): Promise<{ ok: true; seq: number } | { ok: false; reason: AppendRefusal }> {
   const p = pool();
   try {
     const { rows } = await p.query(
-      `SELECT status, last_active_at, (SELECT coalesce(max(seq), 0) FROM ask_turns WHERE session_id = $1) AS max_seq
+      `SELECT status, last_active_at,
+              (SELECT coalesce(max(seq), 0) FROM ask_turns WHERE session_id = $1) AS max_seq,
+              EXISTS (SELECT 1 FROM ask_runs WHERE id = $3 AND user_email = $2 AND evidence_snapshot IS NOT NULL) AS run_ok
        FROM ask_sessions WHERE id = $1 AND user_email = $2`,
-      [opts.sessionId, opts.userEmail],
+      [opts.sessionId, opts.userEmail, opts.runId],
     );
-    const r = rows[0] as { status: string; last_active_at: string; max_seq: number } | undefined;
+    const r = rows[0] as
+      | { status: string; last_active_at: string; max_seq: number; run_ok: boolean }
+      | undefined;
     if (!r) return { ok: false, reason: "not_found" };
     if (r.status !== "active") return { ok: false, reason: "ended" };
     if (Date.now() - new Date(r.last_active_at).getTime() > SESSION_IDLE_TTL_MS) {
       return { ok: false, reason: "idle" };
     }
+    if (!r.run_ok) return { ok: false, reason: "run_ineligible" };
     const seq = Number(r.max_seq) + 1;
     if (seq > MAX_SESSION_TURNS) return { ok: false, reason: "turn_cap" };
-    await p.query(
-      `INSERT INTO ask_turns (session_id, seq, run_id, scope) VALUES ($1, $2, $3, $4)`,
-      [opts.sessionId, seq, opts.runId, opts.scope],
-    );
+    try {
+      await p.query(
+        `INSERT INTO ask_turns (session_id, seq, run_id, scope) VALUES ($1, $2, $3, $4)`,
+        [opts.sessionId, seq, opts.runId, opts.scope],
+      );
+    } catch (e) {
+      // unique (session_id, seq) or unique (run_id): the concurrent loser
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("duplicate key") || msg.includes("23505")) {
+        return { ok: false, reason: "race" };
+      }
+      throw e;
+    }
     await p.query(`UPDATE ask_sessions SET last_active_at = now() WHERE id = $1`, [opts.sessionId]);
     return { ok: true, seq };
   } finally {
@@ -208,11 +246,18 @@ export async function appendTurn(opts: {
   }
 }
 
-/** Owner-only DELETE (§7.7): removes the session, its turns, and the CONTENT
- *  of the linked runs (result + question + snapshot nulled) while the run and
- *  ask_usage rows persist as accounting records. Registered residual: an
- *  idempotency-key replay of a content-deleted run returns the honest
- *  expired-run copy (result is gone). */
+/** Owner-only DELETE (§7.7): CONTENT removal across EVERY table that holds it
+ *  (Gate 6 high finding — the first cut missed three side tables):
+ *  - ask_run_events rows for the session's runs (claim texts + streamed
+ *    answer sections live in event payloads) are DELETED;
+ *  - the owner's ask_answer_cache rows for those runs' questions are DELETED
+ *    (they store question + result + snapshot);
+ *  - ask_usage.question is redacted for those runs (the cost/token columns —
+ *    the actual accounting — are retained);
+ *  - the run rows' question/result/snapshot are nulled; the run + usage rows
+ *    themselves persist as accounting records.
+ *  Registered residual: an idempotency-key replay of a content-deleted run
+ *  returns the dedicated deleted-content copy (see limits.ts). */
 export async function deleteSession(
   id: string,
   userEmail: string,
@@ -224,6 +269,27 @@ export async function deleteSession(
       [id, userEmail],
     );
     if (rows.length === 0) return { deleted: false, turnsRemoved: 0 };
+    // event payloads carry claim text + streamed answer prose
+    await p.query(
+      `DELETE FROM ask_run_events WHERE run_id IN (
+         SELECT t.run_id FROM ask_turns t JOIN ask_runs r ON r.id = t.run_id
+         WHERE t.session_id = $1 AND r.user_email = $2)`,
+      [id, userEmail],
+    );
+    // cache rows store question + result + snapshot — remove BEFORE the runs'
+    // questions are redacted (the join needs the original text)
+    await p.query(
+      `DELETE FROM ask_answer_cache WHERE user_email = $2 AND question IN (
+         SELECT r.question FROM ask_turns t JOIN ask_runs r ON r.id = t.run_id
+         WHERE t.session_id = $1 AND r.user_email = $2)`,
+      [id, userEmail],
+    );
+    // usage QUESTION text is content; the cost/token columns are accounting
+    await p.query(
+      `UPDATE ask_usage SET question = '[deleted]'
+       WHERE user_email = $2 AND run_id IN (SELECT run_id FROM ask_turns WHERE session_id = $1)`,
+      [id, userEmail],
+    );
     // content removal on the runs this session owns (ownership double-checked)
     await p.query(
       `UPDATE ask_runs SET result = NULL, question = '[deleted]', evidence_snapshot = NULL
@@ -312,16 +378,34 @@ export async function runReuseFollowupTurn(opts: {
   idempotencyKey?: string;
 }): Promise<
   | { ok: true; seq: number; result: AskAnswerV2; suggested: FollowupScope; suggestedReason: string }
-  | { ok: false; reason: "flag_off" | "not_found" | "no_snapshot" | "ended" | "idle" | "turn_cap" }
+  | {
+      ok: false;
+      reason: "flag_off" | "pipeline_legacy" | "not_found" | "no_snapshot" | AppendRefusal;
+      /** present when the paid call already ran — the billed answer is
+       *  RETURNED, never discarded (Gate 6) */
+      result?: AskAnswerV2;
+    }
 > {
   if (!askSessionsEnabled()) return { ok: false, reason: "flag_off" };
+  // The legacy pipeline ignores reuseSnapshot (it would run LIVE retrieval
+  // and record it as a scoped reuse turn) — refuse instead of drifting
+  // (Gate 6; ASK_PIPELINE=legacy is the emergency rollback).
+  if (askPipeline() !== "v2") return { ok: false, reason: "pipeline_legacy" };
   const session = await getSession(opts.sessionId, opts.userEmail);
   if (!session) return { ok: false, reason: "not_found" };
+  // $0 PRE-checks (Gate 6: cap/ended/idle were only enforced after the paid
+  // call — a 21st follow-up billed a full answer and then discarded it). The
+  // post-call appendTurn remains the racing arbiter.
+  if (session.status !== "active") return { ok: false, reason: "ended" };
+  if (Date.now() - new Date(session.lastActiveAt).getTime() > SESSION_IDLE_TTL_MS) {
+    return { ok: false, reason: "idle" };
+  }
+  const turns = await listTurns(opts.sessionId, opts.userEmail);
+  if (turns.length >= MAX_SESSION_TURNS) return { ok: false, reason: "turn_cap" };
   const snapshot = await latestSnapshot(opts.sessionId, opts.userEmail);
   if (!snapshot) return { ok: false, reason: "no_snapshot" };
 
   // compacted deterministic history (§7.5) from the prior turns' runs
-  const turns = await listTurns(opts.sessionId, opts.userEmail);
   const historyBlock = await buildHistoryBlock(opts.sessionId, opts.userEmail);
   const { suggested, reason: suggestedReason } = classifyFollowup(opts.question, snapshot);
 
@@ -329,10 +413,28 @@ export async function runReuseFollowupTurn(opts: {
     idempotencyKey: opts.idempotencyKey,
     sessionReuse: { snapshot, historyBlock },
   });
-  // Only runs that persisted (runId present) become turns; refusals without a
-  // run identity (limit/gate-unavailable in shadow) do not consume a turn.
-  if (!result.runId || result.replayed) {
+  // Refusal payloads never become turns (Gate 6: in ENFORCE mode refusals DO
+  // carry a runId — gate on the terminal state, not run identity). Answered/
+  // insufficient/refused are real investigative exchanges; limit/error are not.
+  if (!result.runId || result.state === "limit" || result.state === "error") {
     return { ok: true, seq: turns.length, result, suggested, suggestedReason };
+  }
+  if (result.replayed) {
+    // Idempotent replay: converge to the original outcome (Gate 6 — a replay
+    // after a failed append must attach the billed run, not orphan it).
+    const existing = await turnSeqForRun(opts.sessionId, opts.userEmail, result.runId);
+    if (existing !== null) {
+      return { ok: true, seq: existing, result, suggested, suggestedReason };
+    }
+    const attached = await appendTurn({
+      sessionId: opts.sessionId,
+      userEmail: opts.userEmail,
+      runId: result.runId,
+      scope: "reuse",
+    });
+    return attached.ok
+      ? { ok: true, seq: attached.seq, result, suggested, suggestedReason }
+      : { ok: false, reason: attached.reason, result };
   }
   const appended = await appendTurn({
     sessionId: opts.sessionId,
@@ -340,8 +442,27 @@ export async function runReuseFollowupTurn(opts: {
     runId: result.runId,
     scope: "reuse",
   });
-  if (!appended.ok) return { ok: false, reason: appended.reason };
+  if (!appended.ok) return { ok: false, reason: appended.reason, result };
   return { ok: true, seq: appended.seq, result, suggested, suggestedReason };
+}
+
+/** The seq of an existing turn linking this run in this session, if any. */
+async function turnSeqForRun(
+  sessionId: string,
+  userEmail: string,
+  runId: string,
+): Promise<number | null> {
+  const p = pool();
+  try {
+    const { rows } = await p.query(
+      `SELECT t.seq FROM ask_turns t JOIN ask_sessions s ON s.id = t.session_id
+       WHERE t.session_id = $1 AND s.user_email = $2 AND t.run_id = $3`,
+      [sessionId, userEmail, runId],
+    );
+    return rows.length > 0 ? Number((rows[0] as { seq: number }).seq) : null;
+  } finally {
+    await p.end();
+  }
 }
 
 /** The compacted prior-turn context for the next generation call. */

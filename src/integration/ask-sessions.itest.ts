@@ -139,8 +139,23 @@ describe("sessions on real Postgres (Phase 6)", () => {
     expect((run[0] as { evidence_snapshot: EvidenceSnapshot }).evidence_snapshot).toEqual(SNAPSHOT);
   });
 
-  it("§7.7 delete: owner removes turns + content; run/usage ACCOUNTING rows survive; foreign delete is inert", async () => {
+  it("§7.7 delete: owner removes turns + content EVERYWHERE (runs, events, cache, usage question); accounting rows survive; foreign delete inert", async () => {
     const runId = await seedRun(USER, "to be deleted");
+    // content copies in the side tables (as a real progressive+cached run would leave)
+    await pool.query(
+      `INSERT INTO ask_run_events (run_id, seq, type, payload) VALUES ($1, 1, 'answer.section', '{"text":"streamed prose","citedClaimIds":[]}'::jsonb)`,
+      [runId],
+    );
+    await pool.query(
+      `INSERT INTO ask_answer_cache (user_email, cache_key, corpus_version, question, result, snapshot)
+       VALUES ($1, 'del-key', '1:1', 'to be deleted', '{}'::jsonb, '{}'::jsonb)`,
+      [USER],
+    );
+    await pool.query(
+      `INSERT INTO ask_usage (user_email, question, provider, cost_usd, evidence_count, run_id)
+       VALUES ($1, 'to be deleted', 'openai:gpt-5', 0.01, 1, $2)`,
+      [USER, runId],
+    );
     const started = await startSessionFromRun({ userEmail: USER, runId, title: "Investigation C" });
     const sessionId = started.ok ? started.session.id : "";
 
@@ -162,6 +177,20 @@ describe("sessions on real Postgres (Phase 6)", () => {
     expect(row.question).toBe("[deleted]");
     expect(row.result).toBeNull();
     expect(row.evidence_snapshot).toBeNull();
+    // G6 high fix: events gone, cache row gone, usage question redacted, usage COST kept
+    const { rows: ev } = await pool.query(`SELECT count(*)::int AS n FROM ask_run_events WHERE run_id = $1`, [runId]);
+    expect((ev[0] as { n: number }).n).toBe(0);
+    const { rows: cache } = await pool.query(
+      `SELECT count(*)::int AS n FROM ask_answer_cache WHERE user_email = $1 AND question = 'to be deleted'`,
+      [USER],
+    );
+    expect((cache[0] as { n: number }).n).toBe(0);
+    const { rows: usage } = await pool.query(
+      `SELECT question, cost_usd FROM ask_usage WHERE run_id = $1`,
+      [runId],
+    );
+    expect((usage[0] as { question: string }).question).toBe("[deleted]");
+    expect(Number((usage[0] as { cost_usd: number }).cost_usd)).toBe(0.01); // accounting retained
   });
 
   it("export returns the owner's turns in order with content; append respects the unique (session, seq) under sequential use", async () => {
