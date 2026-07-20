@@ -105,4 +105,20 @@ recorded in §4 below and in the Gate 2 addendum.
   addendum appended to `AI-SEARCH-GATE-2-2026-07-19.md`; registers #44–#47;
   ledger P3-6..P3-8 (85/85 focused; 1,841/1,841 full).
 
+- **~14:00 EDT — Step 4: Gate 3 red-team COMPLETED, PASS after fixes.** Three
+  independent battery agents (fidelity / streaming-terminal-a11y / money;
+  workflow `wf_6422c025-876`) with EXECUTED probes confirmed 2 high + 7 med +
+  4 low findings — all fixed (`e48149c`) and regression-pinned (+17 tests).
+  The full verification battery followed: unit 1,858 → 1,860, integration
+  52/52 on a disposable fork, production build, and a three-pass browser
+  battery on a second disposable fork with a LOCAL mock provider — which
+  caught one further high-class defect (graceful abort teardown finalizing a
+  Stopped run as answered in the Next runtime; fixed `27ed1de`, re-proven
+  10/10). Two zombie `next-server` processes (the dead session's on :3100,
+  then this session's own kill-survivor) were identified by PID/port evidence
+  and removed — the second had been serving a STALE pre-fix build, which
+  masqueraded as a fix failure until the served bundle was fingerprinted.
+  Gate report: `AI-SEARCH-GATE-3-2026-07-20.md`; registers #48–#51; ledger
+  P3-9..P3-15. Zero paid calls; zero production writes; both forks deleted.
+
 (subsequent entries appended as recovery proceeds)

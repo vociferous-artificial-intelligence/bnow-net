@@ -68,8 +68,22 @@ flag wiring both ways. Lint + build green. Zero paid calls; production enablemen
 blocked (`ASK_STREAM_ANSWER` unset everywhere; cohort rollout is post-gate,
 operator-gated).
 
-## Pending before merge
+## Pending before merge — RESOLVED (2026-07-20 recovery session)
 
-1. The Gate 3 red-team verdict (independent, executed-probe methodology) + fixes.
-2. The supplementary Gate 2 independent pass verdict (addendum to that gate's
-   report) — any findings land as fixes before or alongside this phase's merge.
+1. **Gate 3 PASSED after fixes** (`AI-SEARCH-GATE-3-2026-07-20.md`): independent
+   3-battery red-team with executed probes confirmed 2 high + 7 med + 4 low
+   findings (fidelity-matrix dodges, flat-death certainty gap, marker
+   smuggling, replacement-pattern corruption, category laundering, trailing
+   attribution, flag-binding, death-vs-refusal honesty, degenerate usage
+   frames, over-replacement classes, billed-attribution loss, a11y section
+   count) — all fixed in `e48149c`; the production-build browser battery then
+   caught the graceful-abort-teardown cancellation gap, fixed in `27ed1de`.
+   Final: unit 1,860/1,860; integration 52/52 (disposable fork); browser
+   10/10 + 4/4 + 4/4 with screenshots.
+2. **Supplementary Gate 2 pass COMPLETED** (addendum in
+   `AI-SEARCH-GATE-2-2026-07-19.md`): PASS stands; G2S-1..11 fixed forward in
+   `5afdb33`/`b7ca5dc`.
+
+Recovery context (session death mid-gates, forensics, dirty-patch verdict):
+`AI-SEARCH-RECOVERY-2026-07-20.md`. Production enablement remains BLOCKED:
+`ASK_STREAM_ANSWER` unset everywhere; cohort rollout operator-gated.

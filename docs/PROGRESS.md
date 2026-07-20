@@ -2267,3 +2267,14 @@ fixes, uncommitted, unproven). Recovery block (≤2h increments, committed often
    `codex/ai-search-ask-integration-20260719`; retain the phase branch.
 6. Continue Phases 4–7 per the master prompt.
 No pushes, deploys, production writes, paid calls, cap/analytics/provider changes.
+
+## 2026-07-20 14:05 EDT — Gate 3 PASSED; Phase 3 merging to integration
+
+Supplementary Gate 2: PASS stands (addendum; G2S-1..11 fixed forward). Gate 3:
+independent 3-battery red-team with executed probes — 2 high + 7 med + 4 low
+confirmed and fixed (`e48149c`); the production-build browser battery caught the
+graceful-abort-teardown cancellation gap (fixed `27ed1de`, Stop → run.cancelled
+proven 10/10). Unit 1,860/1,860 · itest 52/52 (disposable fork) · browser
+10/10 + 4/4 + 4/4 with screenshots. Production enablement stays BLOCKED
+(ASK_STREAM_ANSWER unset). Merging Phase 3 --no-ff into
+codex/ai-search-ask-integration-20260719; Phase 4 (routing + exact cache) next.

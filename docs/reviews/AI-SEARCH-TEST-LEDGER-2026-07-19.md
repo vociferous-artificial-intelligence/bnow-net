@@ -72,6 +72,20 @@ G2S-1..11 in the Gate 2 addendum) and its fixes:
 | P3-7 | `npx vitest run` (run-controller + ask-form + runs-routes + retrieve-v2) after fixes | **PASS — 85/85** | 2.4s | new pins: marker-safe tail cursor + single-forward, consecutive-404 contract (3 tests), replay hydration via result.runId, unpersisted-terminal fallback (no run.failed rewrite), cancel single-marker idempotency, partial-emit await + rejection safety, terminal-gap busy window, intent-unconsumed-during-resume + active-question display |
 | P3-8 | `npm run typecheck` + `npm run lint` + `npm test` | **PASS — 1,841/1,841, 148 files** (lint 0 errors / 1 pre-existing warning) | ~7min | +9 over P3-5 |
 
+Gate 3 red-team (2026-07-20; workflow `wf_6422c025-876`, 3 independent battery agents
+with EXECUTED probes, 405,605 subagent tokens, $0 — findings G3-1..13 + browser G3-B1
+in the gate report) and the verification battery:
+
+| # | Command | Result | Duration | Notes |
+|---|---|---|---|---|
+| P3-9 | red-team probe batteries (fidelity ~31 cases, stream ~20, client 12, money 18, watch/flags 14 — `npx tsx`, fake guards/sinks/streams, dummy DB) | 2 high + 7 med + 4 low CONFIRMED; every §6.3/money invariant otherwise clean | ~15min | probes in the reviewers' scratchpads; findings re-verified by the lead before fixing |
+| P3-10 | `npm test` after red-team fixes (`e48149c`) | **PASS — 1,858/1,858, 148 files** (+17 pins) | 5.9s | typecheck clean, lint 0 errors |
+| P3-11 | `npm run test:integration` | **PASS — 52/52, 9 files** | ~26s | disposable branch `br-spring-cherry-atl050ks`, deleted; itests refuse to run without INTEGRATION_DATABASE_URL |
+| P3-12 | `npm run build` | PASS | ~90s | |
+| P3-13 | Browser pass A — PRODUCTION build, streaming (fork `br-spring-darkness-atutd2b1`, host ≠ prod verified, migrated 0021–0023 on fork, LOCAL mock provider via OPENAI_BASE_URL, ASK_PROGRESSIVE=1 + ASK_STREAM_ANSWER=1 + ASK_RUNS_ENFORCE=1) | first run **9/10** — Stop finalized `answered` (G3-B1: graceful abort teardown in the Next runtime); after fix `27ed1de` **10/10** | ~8min | sections stream before terminal; reconciliation replaces; ONE paid POST; read-only resume with attributed question; Stop → run.cancelled; zero extra POSTs; zero console errors; 4 screenshots committed |
+| P3-14 | Browser passes B/C — flags on + LLM_DISABLE=1 (**4/4**); flags off + LLM_DISABLE=1 (**4/4**) | PASS | ~3min | offline deterministic through progressive (no sections, one POST); flag-off = zero runs-POSTs (server-action transport); screenshots committed. Fork branch deleted after |
+| P3-15 | `npm run typecheck` + `npm run lint` + `npm test` (final, `27ed1de`) | **PASS — 1,860/1,860, 148 files** (lint 0 errors / 1 pre-existing warning) | ~7min | |
+
 Post-Gate-1 reruns (fix commit `1309d46`):
 
 | # | Command | Result | Duration | Notes |

@@ -262,6 +262,31 @@ blockers accumulated by the unattended workstream. Revisit-markers are explicit.
     (money statement exact in every class). `reconnect_404` got its own honest
     copy (G2S-11).
 
+### Gate 3 additions (2026-07-20; findings G3-1..13 + G3-B1 in the gate report —
+### these are the surviving contracts/registered bounds)
+
+48. **Fidelity-matrix documented bounds (post-G3 hardening).** (a) An UNCITED
+    name-bearing sentence with no encoded §4 predicate passes through (benign
+    mentions; the encoded families gate the fail-uncited rule). (b) Identity
+    accepts surname + matching first initial, so initial-changing
+    transliterations (Yevgeny/Evgeny) still over-replace — conservative
+    direction, name preserved in the quoted claim. (c) Predicate/negation/
+    candidate-identity checks remain regex-structural; novel phrasings outside
+    the encoded patterns pass to the citation filter alone (register #36's
+    class, narrowed by the G3 fixes).
+49. **Graceful abort teardown = cancelled.** In the Next server runtime an
+    aborted provider stream can end WITHOUT throwing and without a
+    finish_reason (transport-dependent; proven end-to-end). Contract: signal
+    aborted + no provider finish_reason at clean end ⇒ cancelled (no final
+    flush; ceiling settles absent a usage frame); a genuine provider finish
+    racing a late Stop stays a completion.
+50. **Usage frames are adopted only when finite and non-negative** (both token
+    counts); anything else settles the conservative ceiling. This is the
+    Phase 5 gateway seam's contract for degenerate frames.
+51. **StreamDispatchError carries settled usage** so error payloads report
+    billed usage/model whenever settlement happened (parity with the
+    non-streaming billedAnswerModel discipline).
+
 ### Revisit list
 
 - If Next.js is upgraded past 16.2.x, re-verify the server-action maxDuration
