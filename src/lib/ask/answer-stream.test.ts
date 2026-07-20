@@ -316,6 +316,49 @@ describe("streamAnswer — Gate 3 red-team regression pins (2026-07-20)", () => 
   });
 });
 
+describe("streamAnswer — graceful-abort teardown (Gate 3 browser-battery finding)", () => {
+  it("an aborted stream whose iterator ends WITHOUT throwing (and without a finish_reason) is CANCELLED, not answered", async () => {
+    const controller = new AbortController();
+    async function* gracefulTeardown(): AsyncIterable<AnswerStreamChunk> {
+      yield { choices: [{ delta: { content: FILLER + "First sentence out. " } }] };
+      controller.abort();
+      // the torn-down transport just ends the iterator — no throw, no
+      // finish_reason, no usage frame (observed with the real SDK against a
+      // dropped SSE body)
+    }
+    const sink = sinkSpy();
+    const outcome = await streamAnswer({
+      ...BASE,
+      sink,
+      signal: controller.signal,
+      streamFactory: async () => gracefulTeardown(),
+    });
+    expect(outcome.cancelled).toBe(true);
+    expect(outcome.finishReason).toBe("cancelled");
+    expect(h.guard.record).toHaveBeenCalledTimes(1); // ceiling settled (no frame)
+    const [, units] = h.guard.record.mock.calls[0] as [number, number, number];
+    expect(units).toBe(STREAM_DEATH_INPUT_EST_TOKENS + 2500);
+  });
+
+  it("a late Stop racing a GENUINE provider finish (finish_reason present) stays a completion", async () => {
+    const controller = new AbortController();
+    async function* finishedThenAborted(): AsyncIterable<AnswerStreamChunk> {
+      yield { choices: [{ delta: { content: FILLER }, finish_reason: "stop" }] };
+      yield { usage: { prompt_tokens: 100, completion_tokens: 50 } };
+      controller.abort(); // Stop lands after the provider finished
+    }
+    const outcome = await streamAnswer({
+      ...BASE,
+      sink: sinkSpy(),
+      signal: controller.signal,
+      streamFactory: async () => finishedThenAborted(),
+    });
+    expect(outcome.cancelled).toBe(false);
+    expect(outcome.finishReason).toBe("stop");
+    expect(outcome.usage.promptTokens).toBe(100);
+  });
+});
+
 describe("watchCancelMarker", () => {
   it("fires onCancel once when the marker exists and stops cleanly", async () => {
     h.queryMock.mockResolvedValue({ rows: [{ "?column?": 1 }] });

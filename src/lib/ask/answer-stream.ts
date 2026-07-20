@@ -253,17 +253,25 @@ export async function streamAnswer(opts: {
   // Clean stream end: meter BEFORE interpretation (ruling 8) with the terminal
   // usage frame (or the ceiling if the provider omitted one).
   await settleOnce(usage ?? ceilingUsage());
+  // An abort can also surface as a GRACEFUL iterator end (the torn-down
+  // transport closes the SSE body and the SDK's iterator returns instead of
+  // throwing — observed end-to-end in the Gate 3 browser battery). A stream
+  // that ended with the signal aborted and NO provider finish_reason was
+  // cancelled, not completed; a genuine provider finish (finish_reason
+  // present) that merely raced a late Stop stays a completion (red-team
+  // verdict: the answer truly exists and was billed).
+  const abortedMidStream = opts.signal?.aborted === true && finishReason === null;
   const fin = releaser.finish();
-  if (refusal === "" && !fin.denialLed) {
+  if (refusal === "" && !fin.denialLed && !abortedMidStream) {
     for (const section of fin.released) await emitSection(section);
   }
   return {
     content: fin.fullText,
     refusal,
-    finishReason,
+    finishReason: abortedMidStream ? "cancelled" : finishReason,
     usage: usage ?? ceilingUsage(),
     denialLed: fin.denialLed,
-    cancelled: false,
+    cancelled: abortedMidStream,
     releasedCount,
   };
 }
