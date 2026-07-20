@@ -73,6 +73,43 @@ blockers accumulated by the unattended workstream. Revisit-markers are explicit.
     patterns cannot apply to it. acceptStates:["answered"] fixtures still fail
     over-suppression.
 
+## Phase 1
+
+### Accepted assumptions / temporary defaults
+
+12. **Reserve-as-started (bounded deviation from contract §2's markStarted timing).**
+    The ask stage guard inserts its reservation with `status='started'` directly
+    instead of reserved→markStarted, because in every call site the HTTP dispatch
+    follows the successful tryReserve synchronously (no intermediate refusal branch
+    exists). A crash between insert and dispatch settles conservatively AT CEILING —
+    the safe (over-counting) direction. The service still implements the full
+    reserved→started lifecycle (`markReservationStarted`, release-unstarted) for
+    future orchestrator use, and both paths are integration-tested.
+13. **`ask_runs.result` + `ask_runs.question` are new retention surface** (answer
+    text persists per run — required for idempotent replay-without-rerun). Bounded:
+    per-user rows, no cross-user readback (replay resolves via the per-user unique
+    key), never sent to analytics. Shadow mode writes these rows in production once
+    deployed (flag off) — that IS the soak. The operator retention decision the
+    architecture review assigns to sessions (§7.7) applies here too and remains open;
+    revisit before Phase 6 enables sessions.
+14. **Enforce-mode cap checks are ceiling-aware FIT** (`settled + active + ceiling
+    <= cap`) — stricter near a cap boundary than the legacy `current < cap`
+    overshoot-by-one semantics. That strictness IS the F7 race fix; the legacy
+    behavior remains bit-identical while the flag is off.
+15. **The GLOBAL daily budget stays the legacy read-check in enforce mode**
+    (contract §3): it is a soft aggregate backstopped by the hard provider caps;
+    making it atomic adds a lock on a shared key for marginal value. Revisit in
+    Phase 7 when workspace pooling changes its meaning.
+16. **The lazy expiry sweep runs only in enforce mode.** Shadow-mode crash rows
+    stay `created` until enforcement turns on (first enforce request sweeps them);
+    accepted to keep the shadow overhead at two best-effort writes per request.
+17. **Un-keyed API callers stay replay-unsafe-but-unchanged**: `POST /api/ask`
+    without `idempotencyKey` gets a server-generated never-replaying key. The
+    replay guarantee requires a client-held key by construction.
+18. **Duplicate-in-flight payload** renders as state `limit` with provider
+    `duplicate` (so the API 429 mapping — keyed on provider — does not fire) and
+    honest copy. Phase 2 replaces this with a real reconnect.
+
 ### Revisit list
 
 - If Next.js is upgraded past 16.2.x, re-verify the server-action maxDuration

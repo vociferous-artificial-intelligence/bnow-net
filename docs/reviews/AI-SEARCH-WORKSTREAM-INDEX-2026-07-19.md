@@ -21,7 +21,7 @@ are retained after merge for inspection.
 | Phase | Branch | Status | Gate | Reports |
 |---|---|---|---|---|
 | 0 — measurement, UX honesty, eval foundation | `codex/ai-search-ask-p0-measure` | **PASSED Gate 0 after fixes** (`598dcb2`); merged to integration | Gate 0 (adversarial multi-lens; 2 high + 6 med confirmed, all fixed; 0 refuted) | `AI-SEARCH-PHASE-0-measure-2026-07-19.md`, `AI-SEARCH-GATE-0-2026-07-19.md` |
-| 1 — runs, idempotency, atomic reservations | — | not started (blocked on Gate 0) | Gate 1 (independent money review) | — |
+| 1 — runs, idempotency, atomic reservations | `codex/ai-search-ask-p1-runs` | implemented (contract frozen first: `docs/designs/ASK-RUNS-RESERVATION-CONTRACT-2026-07-19.md`); **Gate 1 money review in progress** | Gate 1 (independent adversarial money review) | `AI-SEARCH-PHASE-1-runs-2026-07-19.md`, `AI-SEARCH-GATE-1-2026-07-19.md` |
 | 2 — progressive retrieval | — | not started | Gate 2 | — |
 | 3 — validator + validated streaming | — | not started | Gate 3 (red-team) | — |
 | 4 — routing + exact cache | — | not started | Gate 4 | — |
@@ -35,7 +35,9 @@ are retained after merge for inspection.
 |---|---|---|---|---|
 | 0021 | `0021_blushing_shiver_man.sql` | 0 | ask_usage += run_id (uuid, unique idx), started_at, stage_timings_ms jsonb, first_content_at, route_policy — purely additive | generated via drizzle-kit; **applied + contract-verified on a disposable Neon fork only; NOT applied to production** (production writes are out of authorization) |
 
-> **HARD enablement order (Gate 0 finding F5):** apply migration 0021 to production
+| 0022 | `0022_reflective_callisto.sql` | 1 | ask_runs + ask_allowance_reservations + provider_usage_reservations — purely additive, passive until `ASK_RUNS_ENFORCE=1` | generated via drizzle-kit; applied + exercised on disposable Neon forks only; NOT applied to production |
+
+> **HARD enablement order (Gate 0 finding F5; applies to 0022 equally):** apply migration 0021 to production
 > (`npm run db:migrate`) BEFORE deploying any build containing the Phase 0 commits.
 > logUsage's INSERT names the new columns and its failures are deliberately fail-soft, so
 > a deploy-first window would silently freeze every ask_usage insert — and with it the
