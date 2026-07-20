@@ -26,7 +26,47 @@ export interface ClaimRef {
   claimDate: string | null;
 }
 
-export type EvalQuestionType = "known-answer" | "temporal" | "negative";
+export type EvalQuestionType = "known-answer" | "temporal" | "negative" | "fidelity";
+
+/** One inline evidence claim for a `fidelity` question (AI Search Phase 0,
+ *  2026-07-19). Fidelity fixtures test the ANSWER stage's named-person
+ *  source-fidelity behavior (standing ruling 20) with the evidence held fixed —
+ *  the runner builds the ranked-evidence input from these rows directly, so
+ *  retrieval and rerank never vary between models. Shape mirrors CandidateClaim
+ *  minus the retrieval-computed scores. All fixture persons/organizations are
+ *  FICTIONAL by policy — the fixtures test fidelity mechanics, not real-world
+ *  facts, and a checked-in file must not assert claims about real people. */
+export interface FidelityEvidenceClaim {
+  /** synthetic id, unique within the question (never resolved against the DB) */
+  claimId: number;
+  text: string;
+  /** confirmed | assessed | claimed | unverified | unknown */
+  hedging: string;
+  claimDate: string | null;
+  countryIso2: string;
+  track: string | null;
+  entities: string[];
+  confidence: number | null;
+}
+
+/** Deterministic gold contract for a fidelity question. The regex checks are a
+ *  DELIBERATE heuristic proxy for the §4 source-fidelity matrix — good enough to
+ *  reward accurate naming/exact official facts and to fail category, predicate,
+ *  certainty, status, and identity strengthening on a scorecard; the structural
+ *  per-sentence enforcement is Phase 3's AnswerValidator, not this. Patterns are
+ *  applied case-insensitively to the rendered answer text. */
+export interface FidelitySpec {
+  evidence: FidelityEvidenceClaim[];
+  /** every pattern must match the answer (the name, the exact supported fact) */
+  mustMatch: string[];
+  /** no pattern may match the answer (the strengthening failure modes) */
+  mustNotMatch: string[];
+  /** terminal states that count as correct; default ["answered"]. A case whose
+   *  correct handling may honestly be a refusal-to-assert lists "insufficient"
+   *  too. Over-suppression of a supported answer is a FAILURE by contract. */
+  acceptStates?: string[];
+  notes?: string;
+}
 
 export interface EvalQuestion {
   id: string;
@@ -35,6 +75,8 @@ export interface EvalQuestion {
   gold: ClaimRef[];
   acceptableAlternates: ClaimRef[];
   windowExpected?: { from?: string; to?: string };
+  /** present iff type === "fidelity" */
+  fidelity?: FidelitySpec;
   notes?: string;
 }
 

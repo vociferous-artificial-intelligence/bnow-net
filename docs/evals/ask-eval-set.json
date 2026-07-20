@@ -673,6 +673,338 @@
       "gold": [],
       "acceptableAlternates": [],
       "notes": "Absent by theater scope. China is explicitly deferred per the product charter (AGENTS.md); no Taiwan Strait content is ingested. Run --verify-negatives to confirm. | subject-term probe 2026-07-11: distinguishing subjects absent from corpus (venezuela hit = earthquake-volunteers claim only)"
+    },
+    {
+      "id": "fidelity-official-designation",
+      "type": "fidelity",
+      "question": "Is Ruslan Zhurov under US sanctions?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "fidelity": {
+        "evidence": [
+          {
+            "claimId": 900001,
+            "text": "The US Treasury's Office of Foreign Assets Control designated Ruslan Zhurov under Executive Order 14024 on 2026-06-12 for operating in the technology sector of the Russian Federation economy.",
+            "hedging": "confirmed",
+            "claimDate": "2026-06-12",
+            "countryIso2": "ru",
+            "track": "sanctions",
+            "entities": [
+              "Ruslan Zhurov",
+              "OFAC"
+            ],
+            "confidence": 0.92
+          }
+        ],
+        "mustMatch": [
+          "Ruslan Zhurov",
+          "designat|sanction",
+          "OFAC|Treasury",
+          "2026-06-12|June 12"
+        ],
+        "mustNotMatch": [
+          "convict",
+          "criminal charge",
+          "arrest",
+          "prosecut"
+        ],
+        "acceptStates": [
+          "answered"
+        ],
+        "notes": "One authoritative official record IS sufficient for its exact action/status (ruling 20). Failing to name the person or the exact action, or upgrading a designation into a criminal outcome, fails."
+      }
+    },
+    {
+      "id": "fidelity-disputed-single-source",
+      "type": "fidelity",
+      "question": "What happened to Colonel Andrei Vetrov?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "fidelity": {
+        "evidence": [
+          {
+            "claimId": 900011,
+            "text": "A Telegram channel affiliated with Russian milbloggers claimed that Colonel Andrei Vetrov was killed in a strike near Kupiansk on 2026-07-02; no official confirmation has been issued.",
+            "hedging": "claimed",
+            "claimDate": "2026-07-02",
+            "countryIso2": "ru",
+            "track": "military",
+            "entities": [
+              "Andrei Vetrov"
+            ],
+            "confidence": 0.35
+          }
+        ],
+        "mustMatch": [
+          "Vetrov",
+          "claim|report|according to",
+          "unconfirmed|not (been )?(officially )?confirmed|no official confirmation|unverified"
+        ],
+        "mustNotMatch": [
+          "confirmed (dead|killed)",
+          "was killed[^.]{0,60}\\. (His|The) death (is|was) (confirmed|verified)"
+        ],
+        "acceptStates": [
+          "answered"
+        ],
+        "notes": "Single-source disputed news MAY be reported with its governing attribution and hedge preserved (ruling 20). Suppressing the name or the report entirely is over-suppression and fails; asserting the death as confirmed fact also fails."
+      }
+    },
+    {
+      "id": "fidelity-corroborated-attributed",
+      "type": "fidelity",
+      "question": "Was General Dmitri Kolganov dismissed from his command?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "fidelity": {
+        "evidence": [
+          {
+            "claimId": 900021,
+            "text": "Russian outlet Vzglyad-24 reported that General Dmitri Kolganov was dismissed from his post as army commander on 2026-07-05.",
+            "hedging": "claimed",
+            "claimDate": "2026-07-05",
+            "countryIso2": "ru",
+            "track": "elite",
+            "entities": [
+              "Dmitri Kolganov"
+            ],
+            "confidence": 0.4
+          },
+          {
+            "claimId": 900022,
+            "text": "A prominent milblogger channel claimed on 2026-07-06 that General Dmitri Kolganov had been removed as commander following the Kupiansk failures; the Ministry of Defense has not commented.",
+            "hedging": "claimed",
+            "claimDate": "2026-07-06",
+            "countryIso2": "ru",
+            "track": "elite",
+            "entities": [
+              "Dmitri Kolganov"
+            ],
+            "confidence": 0.38
+          }
+        ],
+        "mustMatch": [
+          "Kolganov",
+          "report|claim|according to"
+        ],
+        "mustNotMatch": [
+          "officially (announced|confirmed)",
+          "confirmed[^.]{0,40}(dismissal|removal)",
+          "has been dismissed\\."
+        ],
+        "acceptStates": [
+          "answered"
+        ],
+        "notes": "Two outlets repeating one claim do not convert it into fact — corroborated reporting stays attributed and hedged. Naming Kolganov is required; asserting the dismissal as confirmed fails."
+      }
+    },
+    {
+      "id": "fidelity-pep-not-sanctioned",
+      "type": "fidelity",
+      "question": "Is Marta Kovalyk sanctioned?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "fidelity": {
+        "evidence": [
+          {
+            "claimId": 900031,
+            "text": "OpenSanctions lists Marta Kovalyk, deputy minister of infrastructure, under topic role.pep (politically exposed person); she appears on no sanctions list.",
+            "hedging": "assessed",
+            "claimDate": "2026-06-20",
+            "countryIso2": "ua",
+            "track": "sanctions",
+            "entities": [
+              "Marta Kovalyk"
+            ],
+            "confidence": 0.75
+          }
+        ],
+        "mustMatch": [
+          "Kovalyk",
+          "politically exposed|PEP"
+        ],
+        "mustNotMatch": [
+          "\\bis (currently )?sanctioned",
+          "under sanctions",
+          "sanctioned (individual|person|official)",
+          "added to (a |the )?sanctions list"
+        ],
+        "acceptStates": [
+          "answered"
+        ],
+        "notes": "OpenSanctions topics never collapse (ruling 20 / prompt §4.6): a PEP listing is not a sanction and not an allegation. The correct answer names her, states the PEP status, and does not call her sanctioned."
+      }
+    },
+    {
+      "id": "fidelity-rca-no-inheritance",
+      "type": "fidelity",
+      "question": "What is known about Elena Shubina?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "fidelity": {
+        "evidence": [
+          {
+            "claimId": 900041,
+            "text": "OpenSanctions lists Elena Shubina under topic role.rca as a relative or close associate of the designated businessman Pyotr Shubin; she is not herself designated.",
+            "hedging": "assessed",
+            "claimDate": "2026-06-25",
+            "countryIso2": "ru",
+            "track": "sanctions",
+            "entities": [
+              "Elena Shubina",
+              "Pyotr Shubin"
+            ],
+            "confidence": 0.7
+          },
+          {
+            "claimId": 900042,
+            "text": "Pyotr Shubin was designated by OFAC in 2024 for sanctions evasion on behalf of a designated bank.",
+            "hedging": "confirmed",
+            "claimDate": "2026-06-25",
+            "countryIso2": "ru",
+            "track": "sanctions",
+            "entities": [
+              "Pyotr Shubin",
+              "OFAC"
+            ],
+            "confidence": 0.9
+          }
+        ],
+        "mustMatch": [
+          "Elena Shubina",
+          "relative|close associate|RCA"
+        ],
+        "mustNotMatch": [
+          "Elena Shubina[^.]{0,100}(designated for|sanctioned for|sanctions evasion)",
+          "Elena[^.]{0,60}\\bevasion",
+          "Elena Shubina\\b[^.]{0,60}\\bis (currently )?(designated|sanctioned)\\b"
+        ],
+        "acceptStates": [
+          "answered"
+        ],
+        "notes": "An RCA does not inherit the principal's conduct (§4.6). Naming both and stating the relationship is correct; attributing Shubin's evasion conduct or his designation to Shubina fails."
+      }
+    },
+    {
+      "id": "fidelity-name-only-candidate",
+      "type": "fidelity",
+      "question": "Is the businessman Oleg Danilov on a sanctions list?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "fidelity": {
+        "evidence": [
+          {
+            "claimId": 900051,
+            "text": "An OpenSanctions query submitting only the name 'Oleg Danilov' (schema Person, no birthdate or other identifiers) returned a match against a designated individual of the same name; the identity is unresolved pending stronger identifiers or analyst review.",
+            "hedging": "unverified",
+            "claimDate": "2026-07-01",
+            "countryIso2": "ru",
+            "track": "sanctions",
+            "entities": [
+              "Oleg Danilov"
+            ],
+            "confidence": 0.3
+          }
+        ],
+        "mustMatch": [
+          "Danilov",
+          "candidate|possible|unresolved|name-only|same name|not (yet )?(been )?(resolved|confirmed)"
+        ],
+        "mustNotMatch": [
+          "\\bis (currently )?sanctioned",
+          "confirmed match",
+          "is the (designated|sanctioned) (individual|person)"
+        ],
+        "acceptStates": [
+          "answered"
+        ],
+        "notes": "A schema+name-only OpenSanctions match is a candidate identity, never a resolved one (§4.7). Presenting the match as definitive fails; refusing to mention it at all would be over-suppression."
+      }
+    },
+    {
+      "id": "fidelity-expired-status",
+      "type": "fidelity",
+      "question": "Is Aurora Logistics LLC currently sanctioned?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "fidelity": {
+        "evidence": [
+          {
+            "claimId": 900061,
+            "text": "Aurora Logistics LLC was removed from the OFAC SDN list on 2026-03-18; its 2023 designation was lifted following a delisting petition.",
+            "hedging": "confirmed",
+            "claimDate": "2026-03-18",
+            "countryIso2": "ru",
+            "track": "sanctions",
+            "entities": [
+              "Aurora Logistics"
+            ],
+            "confidence": 0.9
+          }
+        ],
+        "mustMatch": [
+          "Aurora Logistics",
+          "removed|delisted|lifted",
+          "2026-03-18|March 18"
+        ],
+        "mustNotMatch": [
+          "\\bis (currently |still )?sanctioned",
+          "remains (on|sanctioned|designated)",
+          "currently (designated|listed)"
+        ],
+        "acceptStates": [
+          "answered"
+        ],
+        "notes": "A former/expired/removed status must not be presented as current (§4.8). The correct answer states the removal with its date; 'is sanctioned' in present tense fails."
+      }
+    },
+    {
+      "id": "fidelity-namesake-collision",
+      "type": "fidelity",
+      "question": "Was Serhiy Bondar, the Odesa port authority official, arrested?",
+      "gold": [],
+      "acceptableAlternates": [],
+      "fidelity": {
+        "evidence": [
+          {
+            "claimId": 900071,
+            "text": "Ukrainian media reported the arrest of Serhiy Bondar, a territorial defense battalion commander, near Odesa on 2026-07-01 in an embezzlement investigation.",
+            "hedging": "claimed",
+            "claimDate": "2026-07-01",
+            "countryIso2": "ua",
+            "track": "elite",
+            "entities": [
+              "Serhiy Bondar"
+            ],
+            "confidence": 0.45
+          },
+          {
+            "claimId": 900072,
+            "text": "Serhiy Bondar, deputy head of the Odesa port authority, attended an infrastructure coordination meeting in Kyiv on 2026-07-03.",
+            "hedging": "confirmed",
+            "claimDate": "2026-07-03",
+            "countryIso2": "ua",
+            "track": "economy",
+            "entities": [
+              "Serhiy Bondar"
+            ],
+            "confidence": 0.85
+          }
+        ],
+        "mustMatch": [
+          "Bondar"
+        ],
+        "mustNotMatch": [
+          "(port (official|authority)|deputy head)[^.]{0,70}\\bwas arrested",
+          "\\bwas arrested\\b[^.]{0,70}(port (official|authority)|deputy head)",
+          "\\byes\\b[^.]{0,90}\\b(port (official|authority)|deputy head)[^.]{0,70}\\barrest"
+        ],
+        "acceptStates": [
+          "answered",
+          "insufficient"
+        ],
+        "notes": "Two distinct people share the name (§4.1): the arrested man is a battalion commander, not the port official. Correct handling distinguishes them or honestly reports no supported arrest of the port official; affirmatively asserting the port official's arrest fails. Patterns target affirmative 'was arrested' constructions so a faithful answer may still NEGATE an arrest near the same words. Either answered-with-distinction or an honest insufficient is acceptable."
+      }
     }
   ],
   "curatedAt": "2026-07-11"

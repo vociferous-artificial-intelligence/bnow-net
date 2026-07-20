@@ -69,6 +69,7 @@ import {
   buildKSensitivityTable,
   computeGate,
   computeQuestionMetrics,
+  configAnswerModel,
   configEvidenceK,
   emptyResultsFile,
   isEvalConfig,
@@ -114,7 +115,11 @@ function parseConfigs(): EvalConfig[] {
     .filter(Boolean);
   const bad = picked.filter((p) => !isEvalConfig(p));
   if (bad.length > 0) {
-    console.error(`--configs: unknown config(s): ${bad.join(", ")} (valid: ${EVAL_CONFIGS.join(", ")})`);
+    console.error(
+      `--configs: unknown config(s): ${bad.join(", ")} (valid: ${EVAL_CONFIGS.join(", ")}, ` +
+        `or a v2 answer-model matrix config like v2-k60+gpt-5-mini — retrieval/rerank held fixed, ` +
+        `ASK_ANSWER_MODEL overridden per run)`,
+    );
     process.exit(2);
   }
   return picked as EvalConfig[];
@@ -241,13 +246,18 @@ async function runV2Question(
   const { rerankCandidates } = await import("../src/lib/ask/rerank");
   const { answerFromEvidence } = await import("../src/lib/ask/answer");
   const k = configEvidenceK(config)!;
+  const answerModel = configAnswerModel(config);
   const { ids: resolvedGoldIds, unresolvedCount: unresolvedGoldCount } = resolveAndWarnGold(q, liveClaims);
 
   // config.ts reads ASK_EVIDENCE_K per call — set it IN-PROCESS so every stage
   // this question's pipeline touches agrees on K, in addition to passing k
-  // explicitly to rerankCandidates below.
+  // explicitly to rerankCandidates below. A matrix config additionally overrides
+  // ASK_ANSWER_MODEL for the answer stage ONLY — retrieval and rerank read their
+  // own model knobs, which stay untouched (the Phase 0 matrix contract).
   const savedK = process.env.ASK_EVIDENCE_K;
+  const savedAnswerModel = process.env.ASK_ANSWER_MODEL;
   process.env.ASK_EVIDENCE_K = String(k);
+  if (answerModel !== null) process.env.ASK_ANSWER_MODEL = answerModel;
   const t0 = Date.now();
   try {
     const retrieval = await retrieveV2(q.question);
@@ -273,6 +283,66 @@ async function runV2Question(
   } finally {
     if (savedK === undefined) delete process.env.ASK_EVIDENCE_K;
     else process.env.ASK_EVIDENCE_K = savedK;
+    if (savedAnswerModel === undefined) delete process.env.ASK_ANSWER_MODEL;
+    else process.env.ASK_ANSWER_MODEL = savedAnswerModel;
+  }
+}
+
+/** Fidelity question (AI Search Phase 0): the answer stage runs over the
+ *  fixture's INLINE evidence — no DB retrieval, no rerank call, so every config
+ *  sees literally identical evidence and only the answer model varies. The
+ *  synthetic claim ids exist only inside this run; nothing resolves against the
+ *  live corpus. */
+async function runFidelityQuestion(q: EvalQuestion, config: EvalConfig): Promise<QuestionRunResult> {
+  const { answerFromEvidence } = await import("../src/lib/ask/answer");
+  const spec = q.fidelity;
+  if (!spec) {
+    console.error(`[${config}] fidelity question "${q.id}" carries no fidelity spec — refusing`);
+    process.exit(2);
+  }
+  const claims = spec.evidence.map((e, i) => ({
+    claimId: e.claimId,
+    text: e.text,
+    hedging: e.hedging,
+    claimDate: e.claimDate,
+    countryIso2: e.countryIso2,
+    track: e.track,
+    entities: e.entities,
+    confidence: e.confidence,
+    vectorScore: null,
+    lexicalHit: true,
+    compositeScore: spec.evidence.length - i,
+  }));
+  const retrieval = {
+    claims,
+    entities: [],
+    terms: [],
+    window: null,
+    totalMatching: claims.length,
+    mode: "v2" as const,
+  };
+  const ranked = { claims, rerankUsed: false };
+
+  const answerModel = configAnswerModel(config);
+  const savedAnswerModel = process.env.ASK_ANSWER_MODEL;
+  if (answerModel !== null) process.env.ASK_ANSWER_MODEL = answerModel;
+  const t0 = Date.now();
+  try {
+    const answer = await answerFromEvidence(q.question, retrieval, ranked);
+    return {
+      question: q,
+      resolvedGoldIds: [],
+      unresolvedGoldCount: 0,
+      candidateIds: claims.map((c) => c.claimId),
+      evidenceIds: claims.map((c) => c.claimId),
+      answer,
+      latencyMs: Date.now() - t0,
+      costUsd: answer.usageByStage?.answer?.costUsd ?? 0,
+      openaiKeySet: !!process.env.OPENAI_API_KEY,
+    };
+  } finally {
+    if (savedAnswerModel === undefined) delete process.env.ASK_ANSWER_MODEL;
+    else process.env.ASK_ANSWER_MODEL = savedAnswerModel;
   }
 }
 
@@ -323,6 +393,15 @@ async function runConfig(
   } else {
     todo = pendingQuestions(evalSet, existing, fresh);
   }
+  // Fidelity fixtures exercise the v2 answer stage; the legacy rollback path has
+  // no answerFromEvidence, so they are skipped there — loudly, never silently.
+  if (!isV2Config(config)) {
+    const dropped = todo.filter((q) => q.type === "fidelity").length;
+    if (dropped > 0) {
+      console.log(`[${config}] skipping ${dropped} fidelity fixture(s) — v2-only (legacy has no answer stage to test)`);
+      todo = todo.filter((q) => q.type !== "fidelity");
+    }
+  }
   const alreadyDone = Object.keys(existing?.results ?? {}).length;
   if (todo.length === 0) {
     console.log(`[${config}] nothing to do — ${alreadyDone} question(s) already recorded (use --fresh to rerun)`);
@@ -335,9 +414,12 @@ async function runConfig(
   let rf = existing ?? emptyResultsFile(config, evalSetPath, dbHost);
 
   for (const q of todo) {
-    const run = isV2Config(config)
-      ? await runV2Question(q, config, liveClaims)
-      : await runLegacyQuestion(q, liveClaims);
+    const run =
+      q.type === "fidelity"
+        ? await runFidelityQuestion(q, config)
+        : isV2Config(config)
+          ? await runV2Question(q, config, liveClaims)
+          : await runLegacyQuestion(q, liveClaims);
 
     const metrics = computeQuestionMetrics(run);
     if (metrics.degraded) {
