@@ -508,6 +508,15 @@ function assembleV2(
  *  Timing wraps AROUND the existing metering statements; it never reorders them
  *  (ruling 8's record-before-body-read discipline is untouched). Offline, budget,
  *  and short-circuit paths record no answerMs — no paid boundary ran. */
+/** Phase 6 (sessions): the compacted prior-turn context appended to the user
+ *  message on follow-up turns. Empty input adds NOTHING — every non-session
+ *  path keeps a byte-identical prompt. */
+function historyContextBlock(historyBlock?: string): string {
+  return historyBlock && historyBlock.trim() !== ""
+    ? `\n\nPrior turns in this investigation (context only — answer STRICTLY from the evidence above):\n${historyBlock}`
+    : "";
+}
+
 export async function answerFromEvidence(
   question: string,
   retrieval: RetrievalV2Result,
@@ -520,6 +529,10 @@ export async function answerFromEvidence(
      *  payload still goes through the identical whole-answer path. */
     sink?: RunEventSink;
     runId?: string;
+    /** Phase 6 (sessions): a compacted prior-turn context block appended to
+     *  the user message. ABSENT on every non-session path — the prompt is
+     *  byte-identical without it. */
+    historyBlock?: string;
   },
 ): Promise<AskAnswerV2> {
   const timings = opts?.timings;
@@ -576,7 +589,7 @@ export async function answerFromEvidence(
           { role: "system", content: SYSTEM_V2 },
           {
             role: "user",
-            content: `Question: ${question}\n\nEvidence:\n${evidenceBlockV2(ranked, retrieval)}${currencyContextLine(currency, retrieval.window)}`,
+            content: `Question: ${question}\n\nEvidence:\n${evidenceBlockV2(ranked, retrieval)}${currencyContextLine(currency, retrieval.window)}${historyContextBlock(opts?.historyBlock)}`,
           },
         ],
         maxOutputTokens: answerMaxOutputTokens(),
@@ -679,7 +692,7 @@ export async function answerFromEvidence(
           { role: "system", content: SYSTEM_V2 },
           {
             role: "user",
-            content: `Question: ${question}\n\nEvidence:\n${evidenceBlockV2(ranked, retrieval)}${currencyContextLine(currency, retrieval.window)}`,
+            content: `Question: ${question}\n\nEvidence:\n${evidenceBlockV2(ranked, retrieval)}${currencyContextLine(currency, retrieval.window)}${historyContextBlock(opts?.historyBlock)}`,
           },
         ],
         maxOutputTokens: answerMaxOutputTokens(),
@@ -773,11 +786,66 @@ export async function ask(
     guards?: AskStageGuards;
     sink?: RunEventSink;
     snapshotRunId?: string;
+    /** Phase 6 (sessions, ASK_SESSIONS): answer a follow-up FROM this frozen
+     *  snapshot — ZERO retrieval/embed/rerank calls by construction (none of
+     *  those stages is invoked); only the guarded generation runs. The same
+     *  snapshot is re-persisted onto this turn's run for F11 reproducibility.
+     *  Honored on the v2 pipeline only (legacy ignores it — registered). */
+    reuseSnapshot?: EvidenceSnapshot;
+    /** Phase 6: compacted prior-turn context (see answerFromEvidence). */
+    historyBlock?: string;
   },
 ): Promise<AskAnswerV2> {
   const timings = opts?.timings;
   const sink = opts?.sink ?? NULL_EVENT_SINK;
   const progressive = sink !== NULL_EVENT_SINK;
+
+  if (opts?.reuseSnapshot && askPipeline() === "v2") {
+    const snap = opts.reuseSnapshot;
+    const claims: CandidateClaim[] = snap.candidates.map((c) => ({
+      claimId: c.claimId,
+      text: c.text,
+      hedging: c.hedging,
+      claimDate: c.claimDate,
+      countryIso2: c.countryIso2,
+      track: c.track,
+      entities: [],
+      confidence: c.confidence,
+      vectorScore: null,
+      lexicalHit: false,
+      compositeScore: 0,
+    }));
+    const byId = new Map(claims.map((c) => [c.claimId, c]));
+    const selected = snap.selectedClaimIds
+      .map((id) => byId.get(id))
+      .filter((c): c is CandidateClaim => !!c);
+    const retrieval: RetrievalV2Result = {
+      claims,
+      entities: [], // the snapshot carries claims only (registered bound)
+      terms: [],
+      window: snap.window,
+      totalMatching: snap.totalMatching,
+      mode: snap.retrievalMode,
+      embedUsage: undefined,
+    };
+    // rerankUsed FALSE: no rerank ran THIS turn (also keeps the relevance
+    // boundary from re-firing on the original run's relevantCount).
+    const ranked: RankedEvidence = {
+      claims: selected.length > 0 ? selected : claims,
+      rerankUsed: false,
+    };
+    if (opts.snapshotRunId) {
+      await persistEvidenceSnapshot(opts.snapshotRunId, snap);
+    }
+    return answerFromEvidence(question, retrieval, ranked, {
+      timings,
+      guards: opts?.guards,
+      sink,
+      runId: opts?.snapshotRunId,
+      historyBlock: opts?.historyBlock,
+    });
+  }
+
   if (askPipeline() !== "v2") {
     // Legacy rollback path stays measurement-free by design (DL-6: nothing
     // "improved"); the row still carries run_id/started_at/pipelineMs from

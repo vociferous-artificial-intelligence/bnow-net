@@ -764,6 +764,41 @@ export const providerUsageReservations = pgTable(
   ],
 );
 
+// AI Search Phase 6: scoped investigation sessions — an ORDERING over
+// immutable runs (a session is not a transcript; its continuity unit is the
+// EvidenceSnapshot each run froze). Passive until ASK_SESSIONS=1, which
+// itself stays off pending the operator retention decision (§7.7).
+export const askSessions = pgTable(
+  "ask_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userEmail: text("user_email").notNull(),
+    /** derived from the first question; owner-editable later */
+    title: text("title").notNull(),
+    status: text("status").notNull().default("active"), // active | ended
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastActiveAt: timestamp("last_active_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("ask_sessions_user_idx").on(t.userEmail, t.lastActiveAt)],
+);
+
+export const askTurns = pgTable(
+  "ask_turns",
+  {
+    id: serial("id").primaryKey(),
+    sessionId: uuid("session_id").notNull(),
+    seq: integer("seq").notNull(),
+    runId: uuid("run_id").notNull(),
+    /** reuse | expand | new — the SCOPE the turn actually executed with */
+    scope: text("scope").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("ask_turns_session_seq_idx").on(t.sessionId, t.seq),
+    uniqueIndex("ask_turns_run_idx").on(t.runId),
+  ],
+);
+
 // AI Search Phase 4: the per-user EXACT answer cache. One row per
 // (user, cache_key); the key folds in the normalized question, parsed window,
 // route-policy/prompt/retrieval versions, and the CORPUS version — digest
