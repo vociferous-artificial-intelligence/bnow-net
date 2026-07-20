@@ -685,6 +685,11 @@ export const askRuns = pgTable(
     expired: boolean("expired").notNull().default(false),
     reservedCeilingUsd: doublePrecision("reserved_ceiling_usd"),
     settledCostUsd: doublePrecision("settled_cost_usd"),
+    /** AI Search Phase 7: customer-facing analysis units (§9.5) — separate
+     *  from vendor cost by design; written at finalize; NULL for pre-Phase-7
+     *  rows and refusals. Billing reads the AGGREGATE (units.ts), never
+     *  stage internals. */
+    units: integer("units"),
     errorClass: text("error_class"),
     // Phase 2: the frozen EvidenceSnapshot (claim CONTENT + stable raw_documents
     // ids — F11-safe; contract §3). Same retention class as `result`.

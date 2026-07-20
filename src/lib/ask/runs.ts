@@ -10,6 +10,7 @@
 //    the caller (a run that cannot be recorded must not spend).
 
 import { Pool } from "@neondatabase/serverless";
+import { analysisUnits } from "./units";
 import { utcDayIso } from "../usage/spend-guard";
 import { expireStaleReservations } from "../usage/reservations";
 import type { AnswerState, AskAnswerV2 } from "./types";
@@ -196,15 +197,21 @@ export async function finalizeRun(opts: {
   result: AskAnswerV2;
   settledCostUsd: number;
   errorClass?: string;
+  /** Phase 7: customer-facing analysis units. Defaults to the units.ts
+   *  policy over the result (Gate 7: refusal finalizes previously wrote
+   *  NULL, ambiguous with pre-Phase-7 rows — the policy is now unskippable;
+   *  only the expiry sweep leaves NULL, meaning "never finalized with a
+   *  payload"). */
+  units?: number;
 }): Promise<boolean> {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
     const r = await pool.query(
       `UPDATE ask_runs
        SET status = 'finished', state = $2, result = $3::jsonb,
-           settled_cost_usd = $4, error_class = $5, finished_at = now()
+           settled_cost_usd = $4, error_class = $5, units = $6, finished_at = now()
        WHERE id = $1 AND finished_at IS NULL`,
-      [opts.runId, opts.state, JSON.stringify(opts.result), opts.settledCostUsd, opts.errorClass ?? null],
+      [opts.runId, opts.state, JSON.stringify(opts.result), opts.settledCostUsd, opts.errorClass ?? null, opts.units ?? analysisUnits(opts.result)],
     );
     return (r.rowCount ?? 0) > 0;
   } finally {

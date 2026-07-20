@@ -131,10 +131,12 @@ describe("exact cache on real Postgres (Phase 4)", () => {
     );
     expect(Number((usage[0] as { cost_usd: number }).cost_usd)).toBe(0);
     const { rows: run } = await pool.query(
-      `SELECT state, evidence_snapshot FROM ask_runs WHERE id = $1`,
+      `SELECT state, units, evidence_snapshot FROM ask_runs WHERE id = $1`,
       [res.runId],
     );
     expect((run[0] as { state: string }).state).toBe("answered");
+    // Phase 7: a cache hit settles ZERO analysis units (§9.5)
+    expect((run[0] as { units: number }).units).toBe(0);
     // the frozen snapshot landed on THIS run's row (cache-hit hydration source)
     expect((run[0] as { evidence_snapshot: EvidenceSnapshot | null }).evidence_snapshot?.candidates[0]?.text).toBe(
       "Snapshot claim text.",
