@@ -43,7 +43,9 @@ const strings: Record<string, string> = Object.fromEntries(
 );
 
 const WORKING_TITLE = strings["ask.working.title"];
-const STAGE_SEARCHING = strings["ask.working.stage.searching"];
+// Phase 0 UX honesty: ONE static status line while pending — no client-inferred
+// rotating stage labels (those keys are deleted from the catalogs).
+const WORKING_PREPARING = strings["ask.working.preparing"];
 const formProps = {
   strings,
   locale: "en" as const,
@@ -111,9 +113,13 @@ describe("AskForm", () => {
     const panel = screen.getByRole("status");
     expect(panel.getAttribute("aria-live")).toBe("polite");
     expect(panel.textContent).toContain(WORKING_TITLE);
-    // truthful first-stage message (client elapsed 0s), no fake percentage
-    expect(panel.textContent).toContain(STAGE_SEARCHING);
+    // one honest status line — never a stage the server did not report, never a
+    // fake percentage (Phase 0 UX honesty; the old rotating labels are gone)
+    expect(panel.textContent).toContain(WORKING_PREPARING);
     expect(panel.textContent).not.toMatch(/\d+%/);
+    expect(strings["ask.working.stage.searching"]).toBeUndefined();
+    expect(strings["ask.working.stage.ranking"]).toBeUndefined();
+    expect(strings["ask.working.stage.answering"]).toBeUndefined();
     // the submitted question is preserved verbatim in the panel
     expect(panel.textContent).toContain("did russia strike kyiv today");
     // the examples row is hidden while working
