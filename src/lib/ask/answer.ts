@@ -15,9 +15,23 @@ import {
   askRelevantEvidenceFloor,
   askRerankModel,
 } from "./config";
-// Pure/deterministic evaluator constants — the pipeline and evaluator share the
-// definition of denial language ON PURPOSE (ask.test.ts pins the coupling).
-import { DENIAL_LANGUAGE_PATTERN, NEGATIVE_DENIAL_LEAD_CHARS } from "./eval-run";
+// Phase 3 Increment A: every deterministic answer check lives in the shared
+// pure validator (citation filter, denial prefix, insufficient copy, terminal
+// classification, the ruling-20 source-fidelity matrix) so the streaming and
+// non-streaming paths cannot drift. beginsWithDenial is re-exported for the
+// existing test/consumer surface.
+import {
+  applyFidelityFallback,
+  beginsWithDenial,
+  classifyCompletion,
+  fidelityFallbackEnabled,
+  filterCitations,
+  insufficientEvidenceCopy,
+  parseCitedIds,
+  type FidelityEvidence,
+} from "./validator";
+
+export { beginsWithDenial };
 import { chatParamsForModel } from "./llm-params";
 import { dataCurrentThrough } from "./currency";
 import { parseTimeWindow } from "./window";
@@ -100,18 +114,6 @@ export const SYSTEM_V2 = `You answer questions about geopolitical/OSINT intellig
 6. Be concise (<= 180 words). Note hedging where relevant ("reportedly", "unverified").
 7. These are open-source-derived claims of varying reliability, not confirmed truth — reflect that.
 8. When a "Data current through" date is provided in the context, you may state it as a fact.`;
-
-/** True when a v2 model reply BEGINS with the product's recognized
- *  insufficient-evidence language (the evaluator's own denial families, anchored
- *  near the start — a mid-answer "no reports of casualties" in a genuine answer
- *  must NOT trip this). Drives the deterministic post-answer state correction:
- *  a denial-led reply is an insufficient outcome regardless of what the model
- *  went on to cite. Exported for tests. */
-export function beginsWithDenial(text: string): boolean {
-  const lead = text.trimStart().slice(0, NEGATIVE_DENIAL_LEAD_CHARS);
-  const m = lead.match(DENIAL_LANGUAGE_PATTERN);
-  return m !== null && (m.index ?? 0) <= 30;
-}
 
 /** Shared no-evidence message — byte-identical string on the legacy and v2 paths. */
 const NO_EVIDENCE_MESSAGE =
@@ -356,20 +358,6 @@ function noEvidenceV2(retrieval: RetrievalV2Result, currency: string | null): As
   };
 }
 
-/** Deterministic insufficient-evidence copy — the ONLY prose an insufficient
- *  outcome may show (SYSTEM_V2 rule 4: generic covered theaters/topics and data
- *  currency, never a summary of retrieved claims). Shared by the relevance
- *  boundary below and the post-answer denial correction in assembleV2 so the
- *  two paths cannot drift. Contains no citation syntax by construction. */
-function insufficientEvidenceCopy(currency: string | null): string {
-  return (
-    `No claims in the covered data address this question. The corpus covers ` +
-    `Russia/Ukraine/Iran (strikes, prosecutions, sanctions, trade)` +
-    (currency != null ? ` and is current through ${currency} (UTC)` : "") +
-    `. Try rephrasing toward a covered theater or topic.`
-  );
-}
-
 /** Relevance-boundary short-circuit payload (Workstream D, 2026-07-13): a paid
  *  rerank ran and judged NONE of the candidates relevant, so the expensive
  *  answer model is never called and no irrelevant evidence reaches the user —
@@ -438,7 +426,7 @@ function assembleV2(
   dataCurrentThrough: string | null,
 ): AskAnswerV2 {
   const validIds = new Set(ranked.claims.map((c) => c.claimId));
-  let citedClaimIds = [...new Set(rawCitedIds)].filter((id) => validIds.has(id));
+  let citedClaimIds = filterCitations(rawCitedIds, validIds);
   // Deterministic post-answer state correction (Workstream D): a paid reply that
   // BEGINS with the recognized insufficient-evidence language is an insufficient
   // outcome — persist and render it as such, with citations stripped and the
@@ -455,6 +443,23 @@ function assembleV2(
     state = "insufficient";
     citedClaimIds = [];
     answer = insufficientEvidenceCopy(dataCurrentThrough);
+  }
+  // Phase 3 Increment A — the ruling-20 named-person source-fidelity matrix
+  // (identity, predicate, certainty/attribution, status/timing) over every
+  // name-bearing cited sentence. A failing sentence is REPLACED by the
+  // deterministic cited-claim wording (never name suppression); a faithful
+  // answer passes through byte-identical. Whole-answer release: this runs
+  // before anything renders. Rollback: ASK_FIDELITY_FALLBACK=0.
+  if (state === "answered" && fidelityFallbackEnabled()) {
+    const evidenceById = new Map<number, FidelityEvidence>(
+      ranked.claims.map((c) => [c.claimId, { claimId: c.claimId, text: c.text, hedging: c.hedging }]),
+    );
+    const applied = applyFidelityFallback(answer, evidenceById);
+    if (applied.replacedCount > 0) {
+      answer = applied.text;
+      // replacements may add/remove markers — re-derive through the same filter
+      citedClaimIds = filterCitations(parseCitedIds(answer), validIds);
+    }
   }
   const citedSet = new Set(citedClaimIds);
   // relevance-floored, capped RELATED_MAX (W4) — see related.ts for the calibration.
@@ -581,27 +586,25 @@ export async function answerFromEvidence(
     const answerUsage: StageUsage = { promptTokens, completionTokens, costUsd };
     const choice = completion.choices?.[0];
 
-    const refusal = choice?.message?.refusal;
-    const content = choice?.message?.content;
-    const emptyContent = content == null || content.trim() === "";
-    if (refusal != null && refusal.trim() !== "") {
-      // Explicit decline — billed, so usage AND answerModel are still reported (D7).
+    // The shared terminal classification (validator.ts) — the identical mapping
+    // the streaming path (Increment B) applies, so the two cannot drift.
+    const terminal = classifyCompletion(choice);
+    if (terminal === "refused" || terminal === "empty_refused") {
+      // Explicit decline / empty content without a length stop — billed, so
+      // usage AND answerModel are still reported (D7).
       return assembleV2(retrieval, ranked, REFUSED_MESSAGE, [], `openai:${model}`, "refused", answerUsage, billedAnswerModel, currency);
     }
-    if (emptyContent && choice?.finish_reason === "length") {
+    if (terminal === "truncated") {
       // Truncation, NOT a refusal: reasoning tokens consumed the whole
       // max_completion_tokens budget before any content was emitted (observed live on
       // broad questions). Distinct state + message; billed, so usage/answerModel
       // still reported.
       return assembleV2(retrieval, ranked, TRUNCATED_MESSAGE, [], `openai:${model}`, "error", answerUsage, billedAnswerModel, currency);
     }
-    if (emptyContent) {
-      // Empty content without a length stop — treated as a decline (D7).
-      return assembleV2(retrieval, ranked, REFUSED_MESSAGE, [], `openai:${model}`, "refused", answerUsage, billedAnswerModel, currency);
-    }
+    const content = choice!.message!.content!;
 
     return timeStageSync(timings, "validateMs", () => {
-      const cited = [...content.matchAll(/\[c(\d+)\]/g)].map((m) => parseInt(m[1], 10));
+      const cited = parseCitedIds(content);
       return assembleV2(retrieval, ranked, content, cited, `openai:${model}`, "answered", answerUsage, billedAnswerModel, currency);
     });
   } catch (e) {
