@@ -65,24 +65,11 @@ export function evaluateAllowance(
   return { allowed: true, reason: "ok", userCountToday, globalCostToday };
 }
 
-// List price per 1M tokens. gpt-5 family added for the Tier-2+ ASK pipeline;
-// gpt-4o entries retained; unknown models fall back to a conservative over-estimate.
-const PRICES_PER_MTOK: Record<string, { in: number; out: number }> = {
-  "gpt-4o-mini": { in: 0.15, out: 0.6 },
-  "gpt-4o": { in: 2.5, out: 10 },
-  "gpt-5": { in: 1.25, out: 10 },
-  "gpt-5-mini": { in: 0.125, out: 1 },
-  "gpt-5-nano": { in: 0.05, out: 0.4 },
-};
-
-export function estimateCostUsd(
-  model: string,
-  promptTokens: number,
-  completionTokens: number,
-): number {
-  const p = PRICES_PER_MTOK[model] ?? { in: 5, out: 15 };
-  return (promptTokens * p.in + completionTokens * p.out) / 1_000_000;
-}
+// Phase 5: the price table moved into the gateway layer (src/lib/llm/
+// pricing.ts — the register #53 consolidation); re-exported here so every
+// historical call site keeps its import and the registry parity test keeps
+// pinning the numbers.
+export { estimateCostUsd } from "../llm/pricing";
 
 export function limitMessage(a: Allowance, limit: number): string {
   return a.reason === "user_limit"

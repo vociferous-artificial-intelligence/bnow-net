@@ -1,10 +1,8 @@
-import OpenAI from "openai";
+import { openaiGeneration } from "../llm/openai";
 import type { CandidateClaim, RankedEvidence, StageUsage } from "./types";
 import { askEvidenceK, askRerankModel } from "./config";
-import { estimateCostUsd } from "./limits";
-import { isLlmDisabled, askGuardFromEnv } from "../usage/llm-guard";
+import { isLlmDisabled, askGuardFromEnv, LlmBudgetError } from "../usage/llm-guard";
 import type { StageGuard } from "../usage/reservations";
-import { chatParamsForModel } from "./llm-params";
 
 // ASK Tier-2+ rerank stage (workstream C). A single listwise LLM pass that
 // reorders the composite-ranked candidate pool by question relevance, keeping the
@@ -209,43 +207,38 @@ export async function rerankCandidates(
 
   try {
     const guard = guardOverride ?? askGuardFromEnv();
-    await guard.init();
-    // Reserve BEFORE the billed request; a refusal takes the fallback WITHOUT a
-    // call and WITHOUT usage — never an unguarded call (ruling 4).
-    const reserve = await guard.tryReserve();
-    if (!reserve.ok) {
-      console.warn(`ask rerank: budget refusal — ${reserve.reason}; composite fallback`);
-      return compositeFallback(candidates, k);
+    // Phase 5: the guarded structured-output dispatch (reserve → call →
+    // record, incl. ruling 8's record-before-body-read) moved VERBATIM into
+    // the OpenAI adapter; a budget refusal throws LlmBudgetError BEFORE any
+    // dispatch and takes the fallback below WITHOUT usage — never an
+    // unguarded call (ruling 4). Prompts/parsing/fallback stay here (product
+    // logic, not transport — contracts.ts).
+    let r;
+    try {
+      r = await openaiGeneration.generate(
+        {
+          model,
+          messages: [
+            { role: "system", content: rerankSystemPrompt(k) },
+            { role: "user", content: rerankUserMessage(question, candidates) },
+          ],
+          responseFormat: { name: "rerank", schema: rerankResponseSchema(k) },
+          maxOutputTokens: RERANK_MAX_OUTPUT_TOKENS,
+          reasoningEffort: "minimal",
+        },
+        guard,
+      );
+    } catch (e) {
+      if (e instanceof LlmBudgetError) {
+        // e.reason (not .message) keeps the exact pre-gateway log wording
+        console.warn(`ask rerank: budget refusal — ${e.reason}; composite fallback`);
+        return compositeFallback(candidates, k);
+      }
+      throw e; // provider/transport error: the outer catch's fallback
     }
+    rerankUsage = r.usage;
 
-    const client = new OpenAI();
-    const completion = await client.chat.completions.create({
-      model,
-      messages: [
-        { role: "system", content: rerankSystemPrompt(k) },
-        { role: "user", content: rerankUserMessage(question, candidates) },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: { name: "rerank", schema: rerankResponseSchema(k) as never, strict: true },
-      },
-      ...chatParamsForModel(model, RERANK_MAX_OUTPUT_TOKENS, { reasoningEffort: "minimal" }),
-    });
-
-    // Meter before interpreting: even a malformed/empty response was billed for
-    // every token it emitted (ruling 8). record() AFTER the request — and before
-    // ANY read of the response body, so a shape-anomalous completion (no choices)
-    // still lands in the ledger before the outer catch falls back.
-    const promptTokens = completion.usage?.prompt_tokens ?? 0;
-    const completionTokens = completion.usage?.completion_tokens ?? 0;
-    const costUsd = estimateCostUsd(model, promptTokens, completionTokens);
-    // units = real token count (architecture review F14 — was a literal 1; cost
-    // was always correct, provider_usage.units for openai_ask was not).
-    await guard.record(1, promptTokens + completionTokens, costUsd);
-    rerankUsage = { promptTokens, completionTokens, costUsd };
-
-    const choice = completion.choices?.[0];
-    const parsed = parseRerankResponse(choice?.message?.content, k);
+    const parsed = parseRerankResponse(r.content, k);
     if (parsed === null) {
       console.warn("ask rerank: unparseable/empty response; composite fallback (usage recorded)");
       return compositeFallback(candidates, k, rerankUsage);

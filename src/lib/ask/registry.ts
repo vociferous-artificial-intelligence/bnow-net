@@ -6,16 +6,17 @@
 // production baseline (validated by the checked-in 2026-07-11 eval) carries
 // one.
 //
-// Pricing NOTE (registered deviation): src/lib/ask/limits.ts's PRICES_PER_MTOK
-// remains the metering call sites' lookup for now — this registry mirrors it
-// EXACTLY (parity-pinned by registry.test.ts) and becomes the single source
-// when Phase 5 moves price knowledge into the provider adapters. Diverging the
-// two tables fails the test suite.
+// Pricing NOTE: the metering price table lives in the GATEWAY layer
+// (src/lib/llm/pricing.ts — the Phase 5 consolidation; limits.ts re-exports
+// estimateCostUsd from it). This registry mirrors those numbers EXACTLY
+// (parity-pinned by registry.test.ts against the re-export); pricing.ts is
+// the metering source of truth, the registry adds capabilities + scorecards.
+// Diverging the two tables fails the test suite.
 
 export const REGISTRY_VERSION = "reg-v1";
 
 export interface ModelEntry {
-  /** price per 1M tokens — MUST mirror limits.ts PRICES_PER_MTOK */
+  /** price per 1M tokens — MUST mirror src/lib/llm/pricing.ts PRICES_PER_MTOK */
   pricePerMTok: { in: number; out: number };
   capabilities: {
     streaming: boolean;

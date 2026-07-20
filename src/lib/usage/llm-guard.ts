@@ -46,7 +46,11 @@ export class LlmDisabledError extends Error {
  *  errors so callers never mistake a budget stop for a retryable failure. */
 export class LlmBudgetError extends Error {
   readonly code = "LLM_BUDGET";
-  constructor(reason: string) {
+  constructor(
+    /** the raw refusal reason (additive, Gate 5: callers logging the reason
+     *  keep exact pre-gateway log wording) */
+    public readonly reason: string,
+  ) {
     super(`llm: budget stop — ${reason}`);
     this.name = "LlmBudgetError";
   }
