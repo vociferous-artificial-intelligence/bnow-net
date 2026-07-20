@@ -31,6 +31,16 @@ NOT executed (operator approval required — see the decision register).
 | P1-4 | `npm run test:integration` | **PASS — 45/45, 8 files** | 23.5s | disposable branch `br-raspy-cloud-atxhsqbu`, deleted. New `ask-runs.itest.ts` (13 tests) proves the contract §7 matrix on REAL Postgres: daily-cap race, all-time-cap race, and last-allowance-slot race each lose exactly one; envelope isolation; own-settled-reservation not double-counted; idempotent settlement (actuals written once) and terminalization; release-unstarted vs started; expiry (release/ceiling-settle, allowance retained); cap-unset fail-closed with zero rows; $0 end-to-end enforce replay (1 run, 1 usage row, stored result, zero provider calls). The fork is migrated to head (0021+0022) by the new `runMigrations` export before testing |
 | P1-5 | `npm run build` | PASS | ~90s | |
 
+## Phase 2 (branch `codex/ai-search-ask-p2-progressive`)
+
+| # | Command | Result | Duration | Notes |
+|---|---|---|---|---|
+| P2-1 | `npm test` (server-side increment `1d44370`) | **PASS — 1,738/1,738** | ~90s | events/routes/concurrency compiled + no regressions before the new tests landed |
+| P2-2 | `npx vitest run` (events + ask + retrieve-v2 + routes suites) | PASS | ~40s | allowlist fail-closed, persist-then-emit ordering, ask() event ordering + snapshot freeze, concurrent-arm determinism with a slow vector arm, route ownership/replay/tail/cancel semantics |
+| P2-3 | `npm run test:integration` | **PASS — 52/52, 9 files** | ~26s | new `ask-events.itest.ts`: exact persisted sequence with monotonic seqs; replay equality + after= filter; snapshot carries claim CONTENT + stable raw_documents ids + selection; reads write nothing. **Measured TTFC (lexical partial) on production-shaped fork data: p50 = 180ms** (samples 169/179/180/359/185) vs the <2s acceptance target |
+| P2-4 | `npm test` + `npm run lint` + `npm run build` (client commit `67b93bd`) | **PASS — 1,778/1,778, 146 files** | ~3min | run-controller reducer/parser/transport tests (one POST per gesture; dropped stream resumes read-only; failed submit no-retry; resume-from-storage; ownership 404), jsdom progressive form tests (one POST + zero action calls + hydrated render; mount-resume zero POSTs; flag off fully inert) |
+| P2-5 | Browser verification, PRODUCTION build (`next start`, disposable branch `br-nameless-shadow-atvw230x`, LLM_DISABLE=1 + empty key overrides beating .env.local, ASK_PROGRESSIVE=1, anonymous gate-off) | **PASS — 8/8 checks** | ~4min | real Chrome (`/usr/bin/google-chrome`): terminal render via the progressive path (both outcomes exercised: the no-coverage callout for a "this week" window past currency, then the full stub answer + cited-evidence panels for a non-temporal question); exactly ONE paid POST; resume ref cleared on terminal; GET ?q= prefill-only zero POSTs; forged ?intent= zero calls; unknown-run events 404; zero unexpected console errors. Screenshots: `docs/reviews/assets/p2-ask-{idle,terminal}.png`. Branch deleted; server stopped |
+
 Post-Gate-1 reruns (fix commit `1309d46`):
 
 | # | Command | Result | Duration | Notes |
