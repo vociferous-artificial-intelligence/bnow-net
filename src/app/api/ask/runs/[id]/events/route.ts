@@ -61,8 +61,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       const started = Date.now();
       let lastBeat = started;
       try {
-        // eslint-disable-next-line no-constant-condition
-        while (true) {
+        for (;;) {
           const events = await readRunEvents(id, lastSeq);
           for (const e of events) {
             send(encodeSseEvent(e));

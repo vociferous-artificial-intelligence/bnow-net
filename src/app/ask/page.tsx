@@ -69,6 +69,9 @@ export default async function AskPage({
       <AskForm
         initialQuestion={initialQuestion}
         intent={askIntent}
+        // Phase 2 flag, read server-side: the client transport switch. Off
+        // (default/rollback) keeps the server-action path byte-identical.
+        progressive={process.env.ASK_PROGRESSIVE === "1"}
         strings={askStrings}
         locale={locale}
         evidenceLabels={makeClaimEvidenceLabels(t)}
