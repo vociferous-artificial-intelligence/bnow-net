@@ -2304,3 +2304,12 @@ recovery-brief bounds):
    version invalidation) + Gate 4 independent review.
 No paid calls, production writes, deploys, pushes; adaptive-K/rerank-skip and
 Fast/Deep enablement stay blocked on the paid scorecard.
+
+## 2026-07-20 14:55 EDT — Gate 4 PASSED; Phase 4 merging; Phase 5 next
+
+Gate 4 (independent 2-lens review, executed probes): 0 blocker/high, 3 med +
+6 low — all fixed (`3f4242c`): config-complete cache key (rollback-safe),
+cache:exact hit accounting, nameBearing fidelity leg, envNum parity,
+auto_env_override marker, retention sweep, country-name resolution, anonymous
+guard, matchedPhrase folding. Unit 1,896/1,896 · itest 56/56. Merging Phase 4
+--no-ff into the integration branch; Phase 5 (provider gateway) next.
