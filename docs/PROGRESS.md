@@ -2168,3 +2168,30 @@ Work block (≤2h), per the 2026-07-19 unattended phased workstream authorizatio
 7. Tests in layers; adversarial Gate 0 review; phase + gate reports; merge to the
    integration branch only if Gate 0 passes. No deploy, no push, no paid calls, no
    production writes.
+
+## 2026-07-19 21:10 EDT — AI Search Phase 1: persisted runs, idempotency, atomic reservations
+
+Work block (≤2h to the contract + schema; the phase spans several blocks). Phase 0 PASSED
+Gate 0 (2 high + 6 medium confirmed, 0 refuted, all fixed in `598dcb2`) and merged
+`--no-ff` into `codex/ai-search-ask-integration-20260719` at `a761551`. This phase:
+`codex/ai-search-ask-p1-runs` from that HEAD. Migration number claimed: **0022**
+(billing workstream still has no in-tree schema work; tree clean at branch time).
+
+1. Contract freeze FIRST (master prompt §8): `docs/designs/ASK-RUNS-RESERVATION-CONTRACT-2026-07-19.md`
+   — per-provider advisory-lock reservation transaction (chosen over a locked counter
+   row), reserved→started→settled/released lifecycle with conservative ceiling
+   settlement, lock-free unique-slot allowance, idempotent replay, expiry.
+2. Migration 0022: `ask_runs` (+ result payload for replay), `ask_allowance_reservations`,
+   `provider_usage_reservations` — all additive.
+3. `src/lib/ask/runs.ts` (run lifecycle) + `src/lib/usage/reservations.ts` (atomic
+   reserve/settle/release/expire); ask stages keep their guard call sites, awaiting
+   tryReserve (compatible with both the legacy SpendGuard and the atomic guard).
+4. Entry points thread a client idempotency key (hidden form field UUID; the one-click
+   intent reuses its intent UUID; the API accepts an optional key).
+5. `ASK_RUNS_ENFORCE=0` shadow-writes rows only; `=1` activates replay, atomic
+   allowance, and atomic provider reservations. Fold in F14 (rerank guard.record real
+   token units).
+6. Disposable-Neon integration tests for the full concurrency matrix (last slot, daily
+   cap, all-time cap, envelope isolation, replay, expiry, idempotent settlement).
+7. Independent adversarial money review at Gate 1; reports; merge only on pass.
+   No paid calls, production writes, deploys, or pushes.
