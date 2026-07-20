@@ -2313,3 +2313,12 @@ cache:exact hit accounting, nameBearing fidelity leg, envNum parity,
 auto_env_override marker, retention sweep, country-name resolution, anonymous
 guard, matchedPhrase folding. Unit 1,896/1,896 · itest 56/56. Merging Phase 4
 --no-ff into the integration branch; Phase 5 (provider gateway) next.
+
+## 2026-07-20 15:25 EDT — Gate 5 PASSED; Phase 5 merging; Phase 6 next
+
+Provider gateway extracted (contracts + OpenAI adapter, guards inside the
+boundary, import-graph rule); byte-equivalence proven by 1,896 unchanged pins
+plus the reviewer's SDK prototype-patch parity probe. Gate 5: 0 blocker/high,
+1 med + 4 low, fixed (`c701970`). Suite 1,915/1,915 · itest 56/56. No
+secondary provider (key/caps/scorecard absent — enablement-blocked). Merging
+--no-ff; Phase 6 (investigation sessions) next.
