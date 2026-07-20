@@ -27,7 +27,7 @@ are retained after merge for inspection.
 | 4 — routing + exact cache | `codex/ai-search-ask-p4-routing-cache` | **PASSED Gate 4 after fixes** (`a335cd4` impl + `3f4242c` fixes; 0 blocker/high, 3 med + 6 low all fixed); unit 1,896/1,896, itest 56/56; merged to integration | Gate 4 (independent 2-lens review, executed probes) | `AI-SEARCH-PHASE-4-routing-cache-2026-07-20.md`, `AI-SEARCH-GATE-4-2026-07-20.md` |
 | 5 — provider gateway | `codex/ai-search-ask-p5-provider-gateway` | **PASSED Gate 5 after fixes** (`2e01e9c` + `c701970`; 0 blocker/high, 1 med + 4 low; SDK byte-parity probe over all 7 moved dispatches); unit 1,915/1,915, itest 56/56; merged to integration | Gate 5 (1 independent reviewer + inline pass + mechanical equivalence) | `AI-SEARCH-PHASE-5-provider-gateway-2026-07-20.md`, `AI-SEARCH-GATE-5-2026-07-20.md` |
 | 6 — investigation sessions | `codex/ai-search-ask-p6-sessions` | **PASSED Gate 6 after fixes** (`c98786a` + `10f9d54`; 1 high + 5 med + 3 low all fixed); unit 1,945/1,945, itest 61/61; merged to integration. NO UI; rollout retention-blocked | Gate 6 (1 independent reviewer, executed probes) | `AI-SEARCH-PHASE-6-sessions-2026-07-20.md`, `AI-SEARCH-GATE-6-2026-07-20.md` |
-| 7 — entitlements (Ask side) | — | not started | Gate 7 (joint boundary) | — |
+| 7 — entitlements (Ask side) | `codex/ai-search-ask-p7-entitlements` | **Subset PASSED Gate 7 after fixes** (`9578584` + `528731e`); **JOINT boundary leg BLOCKED on the absent billing contract** (checklist in the gate report); unit 1,963/1,963, itest 61/61; merged to integration | Gate 7 (independent subset review; joint leg blocked, honestly recorded) | `AI-SEARCH-PHASE-7-entitlements-2026-07-20.md`, `AI-SEARCH-GATE-7-2026-07-20.md` |
 
 ## Migrations claimed
 
@@ -39,6 +39,7 @@ are retained after merge for inspection.
 | 0023 | `0023_yielding_triathlon.sql` | 2 | ask_run_events (unique run_id+seq) + ask_runs.evidence_snapshot + the #22 partial expiry index — purely additive, passive until `ASK_PROGRESSIVE=1` | generated via drizzle-kit; applied + exercised on disposable Neon forks only; NOT applied to production |
 | 0024 | `0024_marvelous_dark_beast.sql` | 4 | ask_answer_cache (unique user_email+cache_key, created_at index) — purely additive, passive until `ASK_EXACT_CACHE=1` | generated via drizzle-kit; applied + exercised on disposable Neon forks only; NOT applied to production |
 | 0025 | `0025_confused_ulik.sql` | 6 | ask_sessions + ask_turns (unique session+seq; unique run) — purely additive, passive until `ASK_SESSIONS=1` | generated via drizzle-kit; applied + exercised on disposable Neon forks only; NOT applied to production |
+| 0026 | `0026_lumpy_the_fallen.sql` | 7 | ask_runs.units (nullable) — purely additive; written at finalize by the units.ts policy | generated via drizzle-kit; applied + exercised on disposable Neon forks only; NOT applied to production |
 
 > **HARD enablement order (Gate 0 finding F5; applies to 0022 equally):** apply migration 0021 to production
 > (`npm run db:migrate`) BEFORE deploying any build containing the Phase 0 commits.

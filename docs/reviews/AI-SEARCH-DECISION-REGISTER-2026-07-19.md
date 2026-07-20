@@ -366,6 +366,27 @@ blockers accumulated by the unattended workstream. Revisit-markers are explicit.
     claims-only; the entity list re-derives only on expand/new) — registered
     bound.
 
+## Phase 7
+
+### Accepted assumptions / registered decisions (the JOINT gate revisits)
+
+69. **Ask-owned subset only** — billing/resolveAccessContext absent; the stub
+    contract in access-context.ts is what billing must freeze against; NO
+    money-path wiring exists (test-pinned) and fail-closed-on-resolve-throw
+    is the future caller's obligation (enablement-blocked checklist in the
+    Gate 7 report).
+70. **Beta unit decisions to RE-DECIDE before live billing:** cancelled runs
+    bill 0 units (validated sections may have been delivered — align
+    CANCELLED_MESSAGE when changed); model-refusal bills 1 while truncation
+    bills 0 (both full-cost/zero-value — asymmetry explicit); degraded
+    (stub/budget) answers bill 0 (Gate 7 high fix — billing a kill-switch
+    window's deterministic lists as analyses was indefensible).
+71. **aggregateUnits is an ENFORCE-MODE feed**: shadow mode loses best-effort
+    rows; pipeline-throw runs settle $0 in the run row while stage spend sits
+    in provider_usage; expired runs attribute to sweep time with NULL units.
+    Billing must reconcile against ask_usage/provider_usage; a
+    creation-period attribution column is future work.
+
 ### Revisit list
 
 - If Next.js is upgraded past 16.2.x, re-verify the server-action maxDuration

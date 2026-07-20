@@ -128,3 +128,11 @@ Post-gate reruns (fixes from Gate 0 findings):
 | P6-2 | `npm run test:integration` | **PASS — 61/61, 11 files** (+5) | ~27s | disposable branch `br-fancy-mud-atlv1npo`, deleted: sessions on real Postgres (start/ownership/reuse-$0/delete/export) |
 | P6-3 | Gate 6 reviewer probes (CJS interception harness: SQL capture, enforce refusal payloads, pure batteries) | 1 high + 5 med + 3 low CONFIRMED (G6-1..9) | ~15min | gate report |
 | P6-4 | post-fix (`10f9d54`): `npm test` + `npm run test:integration` + build | **PASS — 1,945/1,945** unit; **61/61** itest (branch `br-cold-frog-atewraaq`, deleted) | ~8min | +8 pins: complete §7.7 deletion (4 surfaces), refusal/replay turn semantics, $0 pre-checks, run_ineligible, race refusal, pipeline_legacy, deleted-replay copy, classifier |
+
+## Phase 7 (branch `codex/ai-search-ask-p7-entitlements`)
+
+| # | Command | Result | Duration | Notes |
+|---|---|---|---|---|
+| P7-1 | `npm test` (subset `9578584`) | **PASS — 1,960/1,960, 157 files** (+15) | 6s | unit policy table, aggregate shape, stub contract, import-graph |
+| P7-2 | Gate 7 subset reviewer (executed probes: all 10 finalize-able payload classes, regex-evasion battery) | 1 high + 4 med + 3 low CONFIRMED (G7-1..8) | ~7min | JOINT leg BLOCKED on billing — gate report |
+| P7-3 | post-fix (`528731e`): `npm test` + `npm run test:integration` + build | **PASS — 1,963/1,963** unit; **61/61** itest (branches `br-lingering-river-atf5i9a9` → fix → `br-divine-smoke-atpncuk3`, deleted) | ~8min | degraded=0 pins; unskippable finalize policy; hardened import-graph |

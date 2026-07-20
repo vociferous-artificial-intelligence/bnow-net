@@ -2371,3 +2371,11 @@ exist — per the master prompt §14, ONLY the safe Ask-owned subset ships:
 Gate 7's JOINT boundary review is BLOCKED on the billing contract — recorded
 honestly; the safe subset gets its own independent review. No Paddle work,
 no paid calls, no production writes.
+
+## 2026-07-20 16:35 EDT — Gate 7 subset PASSED (joint leg blocked); Phase 7 merging
+
+Ask-owned units + boundary contract gated: 1 high (degraded answers billed
+full units — fixed to 0) + 4 med + 3 low; fixes `528731e`; registered
+decisions #69–#71 for the joint gate, which stays BLOCKED on the absent
+billing module. Unit 1,963/1,963 · itest 61/61. Merging --no-ff; final
+completion audit next.
