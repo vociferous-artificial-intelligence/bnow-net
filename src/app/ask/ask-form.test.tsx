@@ -144,6 +144,22 @@ describe("AskForm", () => {
     });
   });
 
+  it("a hand submit carries a mount-minted UUID idempotency key (Gate 1: the key chain must be provable)", async () => {
+    actionMock.mockImplementation(async () => fakeState("did russia strike kyiv today"));
+    const user = userEvent.setup();
+    render(<AskForm {...formProps} />);
+    await user.type(
+      screen.getByPlaceholderText(strings["ask.placeholder"]),
+      "did russia strike kyiv today",
+    );
+    await user.click(screen.getByRole("button", { name: strings["ask.submit"] }));
+
+    const formData = actionMock.mock.calls[0][1] as FormData;
+    expect(String(formData.get("idempotencyKey"))).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+  });
+
   it("ignores an intent when none is passed — an ordinary GET /ask?q= only prefills", () => {
     render(<AskForm initialQuestion="an ordinary prefill link" {...formProps} />);
 
@@ -220,6 +236,16 @@ describe("AskForm: one-shot intent handoff", () => {
     // pending UI, auth, limits and spend guards downstream are all still in play.
     const formData = actionMock.mock.calls[0][1] as FormData;
     expect(formData.get("question")).toBe(QUESTION);
+  });
+
+  it("the intent submit carries the intent UUID as its idempotency key (Gate 1: duplicate dispatch replays, never re-bills)", () => {
+    window.sessionStorage.setItem(askIntentStorageKey(INTENT), QUESTION);
+
+    renderWithIntent();
+
+    expect(actionMock).toHaveBeenCalledTimes(1);
+    const formData = actionMock.mock.calls[0][1] as FormData;
+    expect(formData.get("idempotencyKey")).toBe(INTENT);
   });
 
   it("consumes the intent BEFORE dispatching the submit", () => {

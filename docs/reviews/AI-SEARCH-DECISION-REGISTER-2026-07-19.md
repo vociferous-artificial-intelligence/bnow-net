@@ -110,6 +110,46 @@ blockers accumulated by the unattended workstream. Revisit-markers are explicit.
     `duplicate` (so the API 429 mapping — keyed on provider — does not fire) and
     honest copy. Phase 2 replaces this with a real reconnect.
 
+### Post-Gate-1 additions (fixed findings are in the gate report; these are the
+### accepted-and-registered residuals)
+
+19. **Idempotency keys bind (user, key, question).** A reused key with a different
+    question refuses honestly (Gate 1 fix — standard idempotency semantics); an
+    expired/crashed run's key stays bound to that failed gesture and its replay says
+    so honestly ("did not complete… submit again"). Contract §4 is amended by this
+    register entry.
+20. **Legacy embed callers keep read-then-act semantics on `openai_embed`** (the
+    enrich/backfill/persist paths neither take the advisory lock nor see active
+    ceilings). Enforce-mode atomicity holds among atomic callers; full consolidation
+    is Phase 5's gateway work. Exposure bounded by the existing daily caps.
+21. **Orphaned-consumed slot** when the post-insert authorize UPDATE fails: the slot
+    stays consumed for a run that never became authorized — conservative direction
+    (never a free retry), reconciled by nothing (a day-scoped slot). Accepted.
+22. **`ask_runs.status` never takes 'running'** in Phase 1 (created → authorized →
+    finished/expired); the expiry sweep's predicate (`finished_at IS NULL`) is not
+    covered by the (status, created_at) index — add a partial index in the Phase 2
+    migration (0023) rather than editing 0022.
+23. **`ASK_PIPELINE=legacy` + `ASK_RUNS_ENFORCE=1` is a degenerate combination**: the
+    legacy pipeline ignores injected guards, so spend checks degrade to read-then-act
+    while runs/replay stay atomic. ASK_PIPELINE=legacy is the emergency rollback and
+    must not be combined with enforcement — documented here, not coded around.
+24. **Enforcement-flip day**: the atomic allowance starts from an empty slot table,
+    ignoring same-day pre-flip ask_usage history (a user could get up to 2× the daily
+    limit on that one transition day). One-day artifact, accepted.
+25. **Anonymous namespace** (`FEATURE_AUTH_GATE` off, dev/demo only): client keys
+    share the "anonymous" user namespace across visitors. Production always has the
+    gate on; accepted as dev-only.
+26. **Enforce-mode per-request overhead** (lazy sweep with an unindexed predicate +
+    ~11 serial Pool setups per ask): performance debt, bounded at beta scale;
+    Phase 2's orchestrator consolidates connections, and #22's partial index covers
+    the sweep.
+27. **Replayed payloads carry `replayed: true`** and entry points skip their timing
+    patch — the original gesture's hydrate/total timings are never overwritten
+    (Gate 1 fix).
+28. **Reservation actuals settle to the RESERVATION's day** (not the settle-time
+    day), so midnight-straddling calls are charged against the window that admitted
+    them (Gate 1 fix).
+
 ### Revisit list
 
 - If Next.js is upgraded past 16.2.x, re-verify the server-action maxDuration

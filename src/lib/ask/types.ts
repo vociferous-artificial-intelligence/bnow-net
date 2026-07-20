@@ -132,4 +132,10 @@ export interface AskAnswerV2 {
    *  comment claimed the opposite of the implementation). Carries no user data
    *  — safe in the client payload. */
   runId?: string;
+  /** OPTIONAL (additive, Phase 1): true when this payload was served from a
+   *  replayed idempotency key (stored result or a replay refusal). The runId
+   *  then names the ORIGINAL run — entry points MUST NOT patch their timing
+   *  keys onto it (Gate 1 finding: the replay gesture's timings would overwrite
+   *  the original's). */
+  replayed?: boolean;
 }

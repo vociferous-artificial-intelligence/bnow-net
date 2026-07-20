@@ -98,32 +98,63 @@ export async function reserveProviderSpend(opts: {
     // openai_ask never contend (envelope isolation is structural).
     await client.query("SELECT pg_advisory_xact_lock(hashtext('ask_resv'), hashtext($1))", [provider]);
 
-    const settledRows = (await client.query(
-      `SELECT coalesce(sum(est_usd) FILTER (WHERE $3::date IS NULL OR day >= $3::date), 0)::float AS total_usd,
-              coalesce(sum(requests) FILTER (WHERE $3::date IS NULL OR day >= $3::date), 0)::int AS total_requests,
-              coalesce(sum(est_usd) FILTER (WHERE day = $2::date), 0)::float AS day_usd,
-              coalesce(sum(requests) FILTER (WHERE day = $2::date), 0)::int AS day_requests
-       FROM provider_usage WHERE provider = $1`,
-      [provider, dayIso, totalStartIso],
-    )).rows as Array<{ total_usd: number; total_requests: number; day_usd: number; day_requests: number }>;
-    const settled = settledRows[0];
-
-    const activeRows = (await client.query(
-      `SELECT coalesce(sum(ceiling_usd) FILTER (WHERE $3::date IS NULL OR day >= $3::date), 0)::float AS total_usd,
-              count(*) FILTER (WHERE $3::date IS NULL OR day >= $3::date)::int AS total_count,
-              coalesce(sum(ceiling_usd) FILTER (WHERE day = $2::date), 0)::float AS day_usd,
-              count(*) FILTER (WHERE day = $2::date)::int AS day_count
-       FROM provider_usage_reservations
-       WHERE provider = $1 AND status IN ('reserved','started')`,
-      [provider, dayIso, totalStartIso],
-    )).rows as Array<{ total_usd: number; total_count: number; day_usd: number; day_count: number }>;
-    const active = activeRows[0];
-
-    const runRows = (await client.query(
-      `SELECT count(*)::int AS n FROM provider_usage_reservations WHERE run_id = $1 AND provider = $2`,
-      [runId, provider],
-    )).rows as Array<{ n: number }>;
-    const runCount = runRows[0].n;
+    // ONE statement = ONE snapshot (Gate 1 high finding): settlement moves spend
+    // from the reservations table into provider_usage in its own unlocked
+    // transaction, so reading the two tables in separate READ COMMITTED
+    // statements let a settle committing between them vanish from BOTH sums.
+    // With a single statement, a concurrently settling call is counted exactly
+    // once — as active ceiling (pre-commit snapshot) or as settled actuals
+    // (post-commit snapshot), never neither.
+    const unionRows = (await client.query(
+      `SELECT
+         (SELECT coalesce(sum(est_usd) FILTER (WHERE $4::date IS NULL OR day >= $4::date), 0)::float
+            FROM provider_usage WHERE provider = $1)                                AS settled_total_usd,
+         (SELECT coalesce(sum(requests) FILTER (WHERE $4::date IS NULL OR day >= $4::date), 0)::int
+            FROM provider_usage WHERE provider = $1)                                AS settled_total_requests,
+         (SELECT coalesce(sum(est_usd) FILTER (WHERE day = $3::date), 0)::float
+            FROM provider_usage WHERE provider = $1)                                AS settled_day_usd,
+         (SELECT coalesce(sum(requests) FILTER (WHERE day = $3::date), 0)::int
+            FROM provider_usage WHERE provider = $1)                                AS settled_day_requests,
+         (SELECT coalesce(sum(ceiling_usd) FILTER (WHERE $4::date IS NULL OR day >= $4::date), 0)::float
+            FROM provider_usage_reservations
+            WHERE provider = $1 AND status IN ('reserved','started'))               AS active_total_usd,
+         (SELECT count(*) FILTER (WHERE $4::date IS NULL OR day >= $4::date)::int
+            FROM provider_usage_reservations
+            WHERE provider = $1 AND status IN ('reserved','started'))               AS active_total_count,
+         (SELECT coalesce(sum(ceiling_usd) FILTER (WHERE day = $3::date), 0)::float
+            FROM provider_usage_reservations
+            WHERE provider = $1 AND status IN ('reserved','started'))               AS active_day_usd,
+         (SELECT count(*) FILTER (WHERE day = $3::date)::int
+            FROM provider_usage_reservations
+            WHERE provider = $1 AND status IN ('reserved','started'))               AS active_day_count,
+         (SELECT count(*)::int FROM provider_usage_reservations
+            WHERE run_id = $2 AND provider = $1)                                    AS run_count`,
+      [provider, runId, dayIso, totalStartIso],
+    )).rows as Array<{
+      settled_total_usd: number;
+      settled_total_requests: number;
+      settled_day_usd: number;
+      settled_day_requests: number;
+      active_total_usd: number;
+      active_total_count: number;
+      active_day_usd: number;
+      active_day_count: number;
+      run_count: number;
+    }>;
+    const u = unionRows[0];
+    const settled = {
+      total_usd: u.settled_total_usd,
+      total_requests: u.settled_total_requests,
+      day_usd: u.settled_day_usd,
+      day_requests: u.settled_day_requests,
+    };
+    const active = {
+      total_usd: u.active_total_usd,
+      total_count: u.active_total_count,
+      day_usd: u.active_day_usd,
+      day_count: u.active_day_count,
+    };
+    const runCount = u.run_count;
 
     let refuse: ReserveOutcome | null = null;
     if (hasUsdCap && settled.total_usd + active.total_usd + ceilingUsd > (caps.totalCapUsd as number)) {
@@ -211,13 +242,17 @@ export async function settleReservation(
       `UPDATE provider_usage_reservations
        SET status = 'settled', actual_usd = $2, settled_at = now()
        WHERE id = $1 AND status IN ('reserved','started')
-       RETURNING provider`,
+       RETURNING provider, day::text AS day`,
       [reservationId, actual.usd],
-    )).rows as Array<{ provider: string }>;
+    )).rows as Array<{ provider: string; day: string }>;
     if (closed.length === 0) {
       await client.query("ROLLBACK");
       return false; // already settled/released — never double-write actuals
     }
+    // Actuals land on the RESERVATION's day, not the settle-time day (Gate 1
+    // finding): a call admitted under day D's windows is charged to day D even
+    // when it settles after UTC midnight — otherwise midnight-straddling calls
+    // escape D's active window AND D's settled window while inflating D+1.
     await client.query(
       `INSERT INTO provider_usage (provider, day, requests, units, est_usd)
        VALUES ($1, $2, $3, $4, $5)
@@ -226,7 +261,7 @@ export async function settleReservation(
          units = provider_usage.units + EXCLUDED.units,
          est_usd = provider_usage.est_usd + EXCLUDED.est_usd,
          updated_at = now()`,
-      [closed[0].provider, utcDayIso(), actual.requests, actual.units, actual.usd],
+      [closed[0].provider, closed[0].day, actual.requests, actual.units, actual.usd],
     );
     await client.query("COMMIT");
     return true;
@@ -305,7 +340,9 @@ export class AtomicReservationGuard implements StageGuard {
   private openReservationId: string | null = null;
 
   constructor(
-    private readonly opts: {
+    // public readonly so wiring tests can assert the constructed provider/
+    // stage/ceiling (Gate 1: guard wiring must be provable, not assumed)
+    readonly opts: {
       runId: string;
       stage: ReservationStage;
       provider: string;

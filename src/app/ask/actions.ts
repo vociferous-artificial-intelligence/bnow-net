@@ -154,10 +154,11 @@ export async function askAction(
   }
 
   // Patch THIS run's row (matched by run_id) with the action-scope timings.
-  // runId is present only when askWithLimits wrote a row (limit/gate refusals
-  // carry none — nothing to patch). Awaited so a serverless response can't cut
-  // the write; recordEntryTimings itself is fail-soft and never throws.
-  if (result.runId) {
+  // runId is present only when a persistent record exists; a REPLAYED payload's
+  // runId names the ORIGINAL run, whose timings must not be overwritten by the
+  // replay gesture (Gate 1). Awaited so a serverless response can't cut the
+  // write; recordEntryTimings itself is fail-soft and never throws.
+  if (result.runId && !result.replayed) {
     const end = monotonicMs();
     await recordEntryTimings(result.runId, {
       hydrateMs: clampMs(end - tHydrate),

@@ -65,6 +65,27 @@ describe("POST /api/ask — Phase 0 wrapper timing", () => {
     expect(patch.apiTotalMs).toBeGreaterThanOrEqual(0);
   });
 
+  it("passes a valid idempotencyKey through; malformed becomes undefined (Gate 1)", async () => {
+    askWithLimitsMock.mockResolvedValue(answer({ runId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee" }));
+    await post({ question: "what happened in kherson", idempotencyKey: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee" });
+    expect(askWithLimitsMock).toHaveBeenLastCalledWith("what happened in kherson", "user@example.com", {
+      idempotencyKey: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    });
+    await post({ question: "what happened in kherson", idempotencyKey: "no spaces allowed" });
+    expect(askWithLimitsMock).toHaveBeenLastCalledWith("what happened in kherson", "user@example.com", {
+      idempotencyKey: undefined,
+    });
+  });
+
+  it("skips the timing patch on a REPLAYED payload — the runId names the ORIGINAL run (Gate 1)", async () => {
+    askWithLimitsMock.mockResolvedValue(
+      answer({ runId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", replayed: true }),
+    );
+    const res = await post({ question: "what happened in kherson" });
+    expect(res.status).toBe(200);
+    expect(recordEntryTimingsMock).not.toHaveBeenCalled();
+  });
+
   it("skips the patch when the payload has no runId (limit refusal wrote no row)", async () => {
     askWithLimitsMock.mockResolvedValue(answer({ provider: "limit", state: "limit" }));
     const res = await post({ question: "what happened in kherson" });

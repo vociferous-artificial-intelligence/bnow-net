@@ -25,7 +25,8 @@ export async function POST(req: NextRequest) {
   const rawKey = String(body.idempotencyKey ?? "");
   const idempotencyKey = /^[A-Za-z0-9_-]{8,128}$/.test(rawKey) ? rawKey : undefined;
   const result = await askWithLimits(question, user?.email ?? null, { idempotencyKey });
-  if (result.runId) {
+  // A replayed payload's runId names the ORIGINAL run — never patch it (Gate 1).
+  if (result.runId && !result.replayed) {
     await recordEntryTimings(result.runId, {
       apiTotalMs: clampMs(monotonicMs() - t0),
     });

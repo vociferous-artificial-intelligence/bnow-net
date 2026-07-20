@@ -35,6 +35,7 @@ afterEach(() => {
 const RUN_ROW = {
   id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
   user_email: "u@x.com",
+  question: "q",
   status: "created",
   state: null,
   result: null,

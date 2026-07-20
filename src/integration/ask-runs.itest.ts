@@ -13,7 +13,15 @@ const URL = process.env.INTEGRATION_DATABASE_URL;
 if (!URL) throw new Error("INTEGRATION_DATABASE_URL not set — run via npm run test:integration");
 process.env.DATABASE_URL = URL; // the modules under test read DATABASE_URL
 
-const { runMigrations } = await import("../../scripts/migrate");
+// Defense in depth (Gate 1 finding): this suite must be structurally unable to
+// make a paid call even if a future edit forgets a per-test guard. Scrub every
+// paid-provider credential at module load; migrations-lib is deliberately
+// env-free so nothing re-injects .env.local into this worker.
+for (const k of ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "X_API_KEY", "OPENSANCTIONS_API_KEY"]) {
+  delete process.env[k];
+}
+
+const { runMigrations } = await import("../../scripts/migrations-lib");
 const {
   reserveProviderSpend,
   settleReservation,
@@ -282,14 +290,16 @@ describe("run rows — idempotent create/finalize/expiry (contract §4/§5)", ()
 
 describe("askWithLimits enforce mode — end-to-end replay ($0, stub pipeline)", () => {
   const USER = "itest-runs-e2e@x.test";
-  const SAVED = { enforce: process.env.ASK_RUNS_ENFORCE, key: process.env.OPENAI_API_KEY };
+  const SAVED = { enforce: process.env.ASK_RUNS_ENFORCE, budget: process.env.ASK_GLOBAL_DAILY_BUDGET_USD };
 
   it("duplicate submits with one idempotency key: one run, one usage row, stored result replayed, zero provider calls", async () => {
     await cleanup();
-    // enforce on; NO OpenAI key -> every stage takes its $0 deterministic path,
-    // so this end-to-end run costs nothing and calls no provider.
+    // enforce on; NO OpenAI key (scrubbed at module load) -> every stage takes
+    // its $0 deterministic path: no provider calls, no spend. The global budget
+    // is pinned high so prod-fork same-day ask_usage history can never make
+    // this test flake (Gate 1 low finding).
     process.env.ASK_RUNS_ENFORCE = "1";
-    delete process.env.OPENAI_API_KEY;
+    process.env.ASK_GLOBAL_DAILY_BUDGET_USD = "1000";
     try {
       const key = crypto.randomUUID();
       const first = await askWithLimits("What happened in Kherson this week?", USER, { idempotencyKey: key });
@@ -312,7 +322,136 @@ describe("askWithLimits enforce mode — end-to-end replay ($0, stub pipeline)",
     } finally {
       if (SAVED.enforce === undefined) delete process.env.ASK_RUNS_ENFORCE;
       else process.env.ASK_RUNS_ENFORCE = SAVED.enforce;
-      if (SAVED.key !== undefined) process.env.OPENAI_API_KEY = SAVED.key;
+      if (SAVED.budget === undefined) delete process.env.ASK_GLOBAL_DAILY_BUDGET_USD;
+      else process.env.ASK_GLOBAL_DAILY_BUDGET_USD = SAVED.budget;
+    }
+  });
+});
+
+describe("Gate 1 additions — concurrent create race, guard wiring, replay semantics", () => {
+  const USER = "itest-runs-gate1@x.test";
+
+  it("two CONCURRENT createRun calls on one key: exactly one inserts, the other replays the same run", async () => {
+    await cleanup();
+    const key = uuid();
+    const [a, b] = await Promise.all([
+      createRun({ runId: uuid(), userEmail: USER, question: "q", idempotencyKey: key }),
+      createRun({ runId: uuid(), userEmail: USER, question: "q", idempotencyKey: key }),
+    ]);
+    expect([a, b].filter((r) => !r.replayed)).toHaveLength(1);
+    expect([a, b].filter((r) => r.replayed)).toHaveLength(1);
+    expect(a.run.id).toBe(b.run.id);
+    const { rows } = await pool.query(`SELECT count(*)::int AS n FROM ask_runs WHERE user_email = $1`, [USER]);
+    expect(rows[0].n).toBe(1);
+  });
+
+  it("buildAskRunGuards wires REAL providers/ceilings: an answer-stage tryReserve creates an openai_ask reservation and record() settles it", async () => {
+    await cleanup();
+    // In-process cap envs (never deployed): the atomic guard reads the same
+    // envs as the legacy guard. Ceilings are computed from the price table.
+    const saved = {
+      sprint: process.env.LLM_SPRINT_USD_CAP,
+      ask: process.env.ASK_USD_CAP_DAILY,
+      embed: process.env.EMBED_USD_CAP_DAILY,
+    };
+    process.env.LLM_SPRINT_USD_CAP = "50";
+    process.env.ASK_USD_CAP_DAILY = "2";
+    process.env.EMBED_USD_CAP_DAILY = "1";
+    try {
+      const { buildAskRunGuards, answerCeilingUsd, embedCeilingUsd } = await import("@/lib/ask/run-guards");
+      const runId = uuid();
+      const guards = buildAskRunGuards(runId);
+
+      const r = await guards.answer.tryReserve();
+      expect(r.ok).toBe(true);
+      const open = await pool.query(
+        `SELECT provider, stage, status, ceiling_usd::float AS c FROM provider_usage_reservations WHERE run_id = $1`,
+        [runId],
+      );
+      expect(open.rows).toHaveLength(1);
+      expect(open.rows[0].provider).toBe("openai_ask"); // real envelope, not a test string
+      expect(open.rows[0].stage).toBe("answer");
+      expect(open.rows[0].status).toBe("started");
+      expect(open.rows[0].c).toBeCloseTo(answerCeilingUsd(), 6);
+      expect(answerCeilingUsd()).toBeGreaterThan(0);
+      expect(embedCeilingUsd()).toBeGreaterThan(0);
+
+      await guards.answer.record(1, 1000, 0.012);
+      const settled = await pool.query(
+        `SELECT status, actual_usd::float AS a FROM provider_usage_reservations WHERE run_id = $1`,
+        [runId],
+      );
+      expect(settled.rows[0].status).toBe("settled");
+      expect(settled.rows[0].a).toBeCloseTo(0.012, 6);
+      const ledger = await pool.query(
+        `SELECT est_usd::float AS usd FROM provider_usage WHERE provider = 'openai_ask' AND day = current_date`,
+      );
+      expect(ledger.rows[0].usd).toBeGreaterThanOrEqual(0.012);
+      // embed guard reserves against its OWN envelope
+      const e = await guards.embed.tryReserve();
+      expect(e.ok).toBe(true);
+      const embedRow = await pool.query(
+        `SELECT provider FROM provider_usage_reservations WHERE run_id = $1 AND stage = 'embed'`,
+        [runId],
+      );
+      expect(embedRow.rows[0].provider).toBe("openai_embed");
+      await guards.embed.record(1, 10, 0.00001);
+    } finally {
+      // remove the settled itest spend from the REAL provider rows so repeated
+      // runs on one branch stay clean
+      await pool.query(
+        `UPDATE provider_usage SET est_usd = greatest(est_usd - 0.01201, 0), requests = greatest(requests - 2, 0)
+         WHERE provider IN ('openai_ask','openai_embed') AND day = current_date`,
+      );
+      await pool.query(`DELETE FROM provider_usage_reservations WHERE provider IN ('openai_ask','openai_embed') AND stage IN ('answer','embed') AND created_at > now() - interval '5 minutes'`);
+      for (const [k, v] of Object.entries({ LLM_SPRINT_USD_CAP: saved.sprint, ASK_USD_CAP_DAILY: saved.ask, EMBED_USD_CAP_DAILY: saved.embed })) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  });
+
+  it("replaying an EXPIRED run returns the honest 'did not complete' copy, not a false promise", async () => {
+    await cleanup();
+    process.env.ASK_RUNS_ENFORCE = "1";
+    process.env.ASK_GLOBAL_DAILY_BUDGET_USD = "1000";
+    try {
+      const key = crypto.randomUUID();
+      const runId = uuid();
+      await createRun({ runId, userEmail: USER, question: "what happened in kherson", idempotencyKey: key });
+      await pool.query(`UPDATE ask_runs SET created_at = now() - interval '1 hour' WHERE id = $1`, [runId]);
+      await expireStaleRuns();
+
+      const replay = await askWithLimits("what happened in kherson", USER, { idempotencyKey: key });
+      expect(replay.provider).toBe("duplicate");
+      expect(replay.state).toBe("error");
+      expect(replay.answer).toContain("did not complete");
+      expect(replay.replayed).toBe(true);
+    } finally {
+      delete process.env.ASK_RUNS_ENFORCE;
+      delete process.env.ASK_GLOBAL_DAILY_BUDGET_USD;
+    }
+  });
+
+  it("a reused key with a DIFFERENT question refuses honestly instead of returning the wrong answer", async () => {
+    await cleanup();
+    process.env.ASK_RUNS_ENFORCE = "1";
+    process.env.ASK_GLOBAL_DAILY_BUDGET_USD = "1000";
+    try {
+      const key = crypto.randomUUID();
+      const first = await askWithLimits("What happened in Kherson this week?", USER, { idempotencyKey: key });
+      expect(first.runId).toBeTruthy();
+
+      const mismatch = await askWithLimits("Is Iran enriching uranium?", USER, { idempotencyKey: key });
+      expect(mismatch.provider).toBe("duplicate");
+      expect(mismatch.state).toBe("error");
+      expect(mismatch.answer).toContain("different question");
+      // and the ORIGINAL question still replays its stored result
+      const replay = await askWithLimits("What happened in Kherson this week?", USER, { idempotencyKey: key });
+      expect(replay.answer).toBe(first.answer);
+    } finally {
+      delete process.env.ASK_RUNS_ENFORCE;
+      delete process.env.ASK_GLOBAL_DAILY_BUDGET_USD;
     }
   });
 });

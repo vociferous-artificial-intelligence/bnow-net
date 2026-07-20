@@ -103,8 +103,8 @@ beforeEach(() => {
   h.expireStaleRunsMock.mockReset();
   h.buildGuardsMock.mockReset();
   // shadow-mode defaults: run writes succeed quietly and change nothing
-  h.createRunMock.mockImplementation(async (o: { runId: string }) => ({
-    run: { id: o.runId, userEmail: "u", status: "created", state: null, result: null, finishedAt: null, expired: false },
+  h.createRunMock.mockImplementation(async (o: { runId: string; question: string }) => ({
+    run: { id: o.runId, userEmail: "u", question: o.question, status: "created", state: null, result: null, finishedAt: null, expired: false },
     replayed: false,
   }));
   h.reserveAllowanceMock.mockResolvedValue({ ok: true });
@@ -599,16 +599,17 @@ describe("askWithLimits — Phase 1 enforce mode", () => {
     expect(h.expireStaleRunsMock).toHaveBeenCalledTimes(1); // lazy sweep ran
   });
 
-  it("a replayed TERMINAL run returns the stored result with the ORIGINAL runId and zero pipeline calls", async () => {
+  it("a replayed TERMINAL run returns the stored result with the ORIGINAL runId, replayed:true, zero pipeline calls", async () => {
     const stored = v2Full({ answer: "stored answer [c1]." });
     h.createRunMock.mockResolvedValue({
-      run: { id: "orig-run-id", userEmail: "u", status: "finished", state: "answered", result: stored, finishedAt: "2026-07-19T00:00:00Z", expired: false },
+      run: { id: "orig-run-id", userEmail: "u", question: "q", status: "finished", state: "answered", result: stored, finishedAt: "2026-07-19T00:00:00Z", expired: false },
       replayed: true,
     });
     const res = await askWithLimits("q", "u@x.com", { idempotencyKey: "key-1" });
 
     expect(res.answer).toBe("stored answer [c1].");
     expect(res.runId).toBe("orig-run-id");
+    expect(res.replayed).toBe(true); // entry points must not patch the original's timings
     expect(h.askMock).not.toHaveBeenCalled(); // zero provider work
     expect(h.reserveAllowanceMock).not.toHaveBeenCalled(); // zero new allowance
     expect(insertParams()).toBeUndefined(); // zero new usage rows
@@ -616,7 +617,7 @@ describe("askWithLimits — Phase 1 enforce mode", () => {
 
   it("a replayed IN-FLIGHT run returns the honest duplicate copy, zero pipeline calls", async () => {
     h.createRunMock.mockResolvedValue({
-      run: { id: "orig-run-id", userEmail: "u", status: "running", state: null, result: null, finishedAt: null, expired: false },
+      run: { id: "orig-run-id", userEmail: "u", question: "q", status: "running", state: null, result: null, finishedAt: null, expired: false },
       replayed: true,
     });
     const res = await askWithLimits("q", "u@x.com", { idempotencyKey: "key-1" });
@@ -625,6 +626,38 @@ describe("askWithLimits — Phase 1 enforce mode", () => {
     expect(res.state).toBe("limit");
     expect(res.answer).toContain("still being processed");
     expect(res.runId).toBe("orig-run-id");
+    expect(res.replayed).toBe(true);
+    expect(h.askMock).not.toHaveBeenCalled();
+  });
+
+  it("a replayed EXPIRED run (terminal, no result) returns the honest 'did not complete' copy — never the false promise (Gate 1)", async () => {
+    h.createRunMock.mockResolvedValue({
+      run: { id: "orig-run-id", userEmail: "u", question: "q", status: "expired", state: null, result: null, finishedAt: "2026-07-19T00:15:00Z", expired: true },
+      replayed: true,
+    });
+    const res = await askWithLimits("q", "u@x.com", { idempotencyKey: "key-1" });
+
+    expect(res.provider).toBe("duplicate");
+    expect(res.state).toBe("error");
+    expect(res.answer).toContain("did not complete");
+    expect(res.answer).not.toContain("will return the answer");
+    expect(res.replayed).toBe(true);
+    expect(h.askMock).not.toHaveBeenCalled();
+  });
+
+  it("a reused key with a DIFFERENT question refuses honestly — never the wrong stored answer (Gate 1)", async () => {
+    const stored = v2Full({ answer: "stored answer for the OTHER question." });
+    h.createRunMock.mockResolvedValue({
+      run: { id: "orig-run-id", userEmail: "u", question: "the original question", status: "finished", state: "answered", result: stored, finishedAt: "2026-07-19T00:00:00Z", expired: false },
+      replayed: true,
+    });
+    const res = await askWithLimits("a completely different question", "u@x.com", { idempotencyKey: "key-1" });
+
+    expect(res.provider).toBe("duplicate");
+    expect(res.state).toBe("error");
+    expect(res.answer).toContain("different question");
+    expect(res.answer).not.toContain("stored answer");
+    expect(res.replayed).toBe(true);
     expect(h.askMock).not.toHaveBeenCalled();
   });
 
@@ -683,7 +716,7 @@ describe("askWithLimits — Phase 1 shadow mode stays byte-equivalent", () => {
 
   it("shadow mode never builds atomic guards and never enforces replay", async () => {
     h.createRunMock.mockResolvedValue({
-      run: { id: "orig", userEmail: "u", status: "finished", state: "answered", result: v2Full(), finishedAt: "t", expired: false },
+      run: { id: "orig", userEmail: "u", question: "q", status: "finished", state: "answered", result: v2Full(), finishedAt: "t", expired: false },
       replayed: true, // a shadow-detected collision must change NOTHING
     });
     h.askMock.mockResolvedValue(v2Full());

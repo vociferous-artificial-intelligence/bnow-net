@@ -162,27 +162,66 @@ function limitAnswer(message: string): AskAnswerV2 {
   };
 }
 
-/** Enforce-mode payload for a replayed idempotency key whose run is still
- *  in flight: honest copy, zero charge, provider "duplicate" (NOT "limit" — the
- *  API route's 429 mapping keys on provider, and a duplicate is not over-cap).
- *  Phase 2 upgrades this into a real reconnect to the running pipeline. */
-function duplicateInFlightAnswer(runId: string): AskAnswerV2 {
+/** Shared skeleton for the enforce-mode replay refusal payloads: zero charge,
+ *  provider "duplicate" (NOT "limit" — the API route's 429 mapping keys on
+ *  provider, and none of these are over-cap), `replayed: true` so entry points
+ *  skip the timing patch (the runId names the ORIGINAL run's rows). */
+function replayRefusal(answer: string, runId: string, state: "limit" | "error"): AskAnswerV2 {
   return {
-    answer:
-      "This exact question was just submitted and is still being processed. " +
-      "The original submission will return the answer — nothing additional was charged.",
+    answer,
     citedClaimIds: [],
     evidenceCount: 0,
     terms: [],
     provider: "duplicate",
-    state: "limit",
+    state,
     relatedClaimIds: [],
     window: null,
     totalMatching: 0,
     sampled: false,
     retrievalMode: "legacy",
     runId,
+    replayed: true,
   };
+}
+
+/** Replayed key, run still in flight. Phase 2 upgrades this into a real
+ *  reconnect to the running pipeline. */
+function duplicateInFlightAnswer(runId: string): AskAnswerV2 {
+  return replayRefusal(
+    "This exact question was just submitted and is still being processed. " +
+      "The original submission will return the answer — nothing additional was charged.",
+    runId,
+    "limit",
+  );
+}
+
+/** Replayed key whose run terminated WITHOUT a stored result (expired after a
+ *  crash/timeout, or its finalize was lost). Honest copy — the original will
+ *  never return anything, and this key stays bound to the failed gesture
+ *  (Gate 1 finding: the previous in-flight copy falsely promised an answer,
+ *  forever). A NEW submission (new gesture = new key) creates a new run. */
+function expiredRunAnswer(runId: string): AskAnswerV2 {
+  return replayRefusal(
+    "The original submission of this question did not complete — it timed out or " +
+      "was interrupted, and nothing additional was charged. Please submit the " +
+      "question again.",
+    runId,
+    "error",
+  );
+}
+
+/** Replayed key whose stored question DIFFERS from the incoming one. Returning
+ *  the stored answer would silently present the WRONG question's answer as this
+ *  one's (Gate 1 finding); refuse honestly instead — standard idempotency-key
+ *  semantics (a key binds one payload). */
+function questionMismatchAnswer(runId: string): AskAnswerV2 {
+  return replayRefusal(
+    "This submission reused a request key that was already used for a different " +
+      "question, so it was not processed and nothing was charged. Please submit " +
+      "the question again.",
+    runId,
+    "error",
+  );
 }
 
 function errorAnswer(e: unknown): AskAnswerV2 {
@@ -378,10 +417,22 @@ export async function askWithLimits(
       }
       if (created.replayed) {
         const existing = created.run;
+        // A reused key with a DIFFERENT question never returns the stored answer
+        // (Gate 1 finding) — refuse honestly, charge nothing.
+        if (existing.question !== question.slice(0, 400)) {
+          return questionMismatchAnswer(existing.id);
+        }
         if (existing.finishedAt !== null && existing.result) {
           // Idempotent replay: the stored terminal payload, zero provider calls,
-          // zero new allowance. The runId is the ORIGINAL run's id.
-          return { ...existing.result, runId: existing.id };
+          // zero new allowance. The runId is the ORIGINAL run's id; replayed:true
+          // tells the entry point not to patch the original gesture's timings.
+          return { ...existing.result, runId: existing.id, replayed: true };
+        }
+        if (existing.finishedAt !== null || existing.expired) {
+          // Terminal WITHOUT a result: the run crashed/timed out and was expired
+          // (result stays NULL forever — finalize requires finished_at IS NULL).
+          // The old in-flight copy falsely promised an answer (Gate 1 finding).
+          return expiredRunAnswer(existing.id);
         }
         return duplicateInFlightAnswer(existing.id);
       }

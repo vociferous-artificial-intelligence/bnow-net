@@ -255,6 +255,41 @@ describe("askAction — entry-point timing patch", () => {
     expect(patch.totalMs).toBeGreaterThanOrEqual(patch.hydrateMs);
   });
 
+  it("passes a well-formed hidden idempotency key through and rejects malformed ones (Gate 1: the key chain must be provable)", async () => {
+    askWithLimitsMock.mockResolvedValue({ ...fullAnswer(), citedClaimIds: [], relatedClaimIds: [] });
+    const fd = formWith("what happened in kherson");
+    fd.set("idempotencyKey", "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee");
+    await askAction(null, fd);
+    expect(askWithLimitsMock).toHaveBeenLastCalledWith("what happened in kherson", "user@example.com", {
+      idempotencyKey: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    });
+
+    const bad = formWith("what happened in kherson");
+    bad.set("idempotencyKey", "short"); // under the 8-char floor
+    await askAction(null, bad);
+    expect(askWithLimitsMock).toHaveBeenLastCalledWith("what happened in kherson", "user@example.com", {
+      idempotencyKey: undefined,
+    });
+    const evil = formWith("what happened in kherson");
+    evil.set("idempotencyKey", "in valid; DROP TABLE ask_runs; --");
+    await askAction(null, evil);
+    expect(askWithLimitsMock).toHaveBeenLastCalledWith("what happened in kherson", "user@example.com", {
+      idempotencyKey: undefined,
+    });
+  });
+
+  it("skips the timing patch on a REPLAYED payload — the runId names the ORIGINAL run (Gate 1)", async () => {
+    askWithLimitsMock.mockResolvedValue({
+      ...fullAnswer(),
+      citedClaimIds: [],
+      relatedClaimIds: [],
+      runId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      replayed: true,
+    });
+    await askAction(null, formWith("what happened in kherson"));
+    expect(recordEntryTimingsMock).not.toHaveBeenCalled();
+  });
+
   it("skips the patch entirely when the payload has no runId (limit/gate refusals wrote no row)", async () => {
     askWithLimitsMock.mockResolvedValue({
       ...fullAnswer(),
