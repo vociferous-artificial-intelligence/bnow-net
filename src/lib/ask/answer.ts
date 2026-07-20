@@ -594,9 +594,14 @@ export async function answerFromEvidence(
     // A budget stop degrades (never surfaces as an error); any other throw is state
     // "error" with today's message shape — never a 500 for a user surface (ruling 9).
     // billedAnswerModel is set only if the call already billed (error-after-call).
-    // The failed boundary still consumed real wall time — record it on the error
-    // path too (a budget-refusal degrade spent only guard-read time; still honest).
-    recordStage(timings, "answerMs", monotonicMs() - tAnswer);
+    // Record the failed boundary's duration ONLY if the success path hasn't already
+    // recorded the metered value — a throw AFTER guard.record (e.g. inside the
+    // validation block) must not overwrite the paid-boundary duration with one that
+    // includes validation time (Gate 0 finding). On error rows answerMs therefore
+    // means "time in the answer boundary until it failed" (documented in timings.ts).
+    if (timings && timings.answerMs === undefined) {
+      recordStage(timings, "answerMs", monotonicMs() - tAnswer);
+    }
     if (e instanceof LlmBudgetError) {
       const det = deterministicAnswer(ranked.claims, retrieval.entities);
       return assembleV2(retrieval, ranked, det.answer, det.citedClaimIds, "budget", "answered", undefined, undefined, currency);

@@ -266,7 +266,13 @@ export interface QuestionMetrics {
   fidelityPass: boolean | null;
   /** audit detail for fidelity questions — which patterns missed/fired (the
    *  verdict stays replayable offline from answerSnippet + the eval set) */
-  fidelityDetail?: { mustMatchMisses: string[]; mustNotMatchHits: string[]; stateOk: boolean };
+  fidelityDetail?: {
+    mustMatchMisses: string[];
+    mustNotMatchHits: string[];
+    malformedPatterns: string[];
+    stateOk: boolean;
+    stateShortCircuit: boolean;
+  };
   unresolvedGoldCount: number;
   costUsd: number;
   latencyMs: number;
@@ -360,21 +366,76 @@ export interface FidelityCheck {
   pass: boolean;
   /** mustMatch patterns that failed to match the answer */
   mustMatchMisses: string[];
-  /** mustNotMatch patterns that DID match the answer (the strengthening hits) */
+  /** mustNotMatch patterns that fired AFFIRMATIVELY (the strengthening hits) */
   mustNotMatchHits: string[];
+  /** patterns (either list) that failed to compile — ALWAYS a hard failure
+   *  (Gate 0 fix: a silently-dead mustNotMatch would fail OPEN otherwise) */
+  malformedPatterns: string[];
   /** whether the terminal state was in acceptStates — over-suppression (a
    *  supported official fact answered as "insufficient" when the spec accepts
    *  only "answered") fails HERE, deliberately: suppressing a name or a
    *  supported fact is a fidelity failure, not a safe default. */
   stateOk: boolean;
+  /** true when a non-"answered" accepted state short-circuited the text checks
+   *  (the pipeline's insufficient copy is deterministic, name-free prose — the
+   *  name/predicate patterns cannot meaningfully apply to it) */
+  stateShortCircuit: boolean;
+}
+
+/** Standalone negator tokens that flip a clause's polarity. Deliberately does
+ *  NOT include negated adjectives like "unconfirmed" — "initially unconfirmed,
+ *  his death is now confirmed" is an AFFIRMATIVE strengthening and must fire. */
+const NEGATOR_RE = /\b(?:not|no|never|nor|without|cannot)\b|n['’]t\b/gi;
+
+/** Chars a negator's scope reaches forward within its sentence. */
+const NEGATION_SCOPE_CHARS = 40;
+
+/** An adversative break ends a negator's scope: "not initially clear, but he
+ *  was convicted" is an affirmative conviction. */
+const SCOPE_BREAK_RE = /,\s*(?:but|however|yet|although)\b/i;
+
+/** True when `pattern` matches `text` in an AFFIRMATIVE context: some match in
+ *  some sentence has no in-scope standalone negator shortly before it. This is
+ *  the Gate 0 fix for negation-blind mustNotMatch — a faithful answer that
+ *  explicitly NEGATES the forbidden strengthening ("it is not a confirmed
+ *  match", "she is not under sanctions", "not a criminal conviction") must not
+ *  fire the pattern, while the affirmative assertion still does. Documented
+ *  heuristic: contrived double-negation can still slip either way; the
+ *  structural check is Phase 3's AnswerValidator. Exported for tests. */
+export function firesAffirmatively(pattern: RegExp, text: string): boolean {
+  for (const sentence of text.split(/(?<=[.!?])\s+/)) {
+    const global = new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : pattern.flags + "g");
+    for (let m = global.exec(sentence); m !== null; m = global.exec(sentence)) {
+      const before = sentence.slice(0, m.index);
+      let negated = false;
+      NEGATOR_RE.lastIndex = 0;
+      for (let n = NEGATOR_RE.exec(before); n !== null; n = NEGATOR_RE.exec(before)) {
+        const between = before.slice(n.index + n[0].length);
+        if (between.length <= NEGATION_SCOPE_CHARS && !SCOPE_BREAK_RE.test(between)) {
+          negated = true;
+          break;
+        }
+      }
+      if (!negated) return true;
+      if (m.index === global.lastIndex) global.lastIndex++; // zero-width safety
+    }
+  }
+  return false;
 }
 
 /** Deterministic fidelity verdict over the rendered answer text. Pure; the
  *  patterns' quality is proven by fixture tests (a faithful answer passes, a
  *  category/predicate/certainty/status/identity-strengthened answer fails).
  *  Case-insensitive on purpose — strengthening does not become acceptable by
- *  changing case. An invalid pattern counts as a miss/hit-free failure of that
- *  pattern (surfaced in the arrays), never a crash. */
+ *  changing case.
+ *
+ *  Semantics (revised at Gate 0):
+ *  - a pattern that fails to compile is a HARD failure either way (fail-closed);
+ *  - mustNotMatch fires only affirmatively (see firesAffirmatively);
+ *  - an accepted NON-"answered" state (e.g. acceptStates includes
+ *    "insufficient") passes WITHOUT text checks: the pipeline's insufficient
+ *    copy is deterministic name-free prose, so name/predicate patterns cannot
+ *    apply — previously that path was unreachable (dead acceptStates). */
 export function scoreFidelity(
   answerText: string,
   state: AnswerState,
@@ -382,20 +443,45 @@ export function scoreFidelity(
 ): FidelityCheck {
   const accept = spec.acceptStates ?? ["answered"];
   const stateOk = accept.includes(state);
-  const test = (pattern: string): boolean => {
+
+  const malformedPatterns: string[] = [];
+  const compile = (pattern: string): RegExp | null => {
     try {
-      return new RegExp(pattern, "i").test(answerText);
+      return new RegExp(pattern, "i");
     } catch {
-      return false; // malformed pattern: fails a mustMatch, never fires a mustNotMatch
+      malformedPatterns.push(pattern);
+      return null;
     }
   };
-  const mustMatchMisses = spec.mustMatch.filter((p) => !test(p));
-  const mustNotMatchHits = spec.mustNotMatch.filter((p) => test(p));
+  const mustMatch = spec.mustMatch.map((p) => ({ p, re: compile(p) }));
+  const mustNotMatch = spec.mustNotMatch.map((p) => ({ p, re: compile(p) }));
+
+  if (stateOk && state !== "answered") {
+    return {
+      pass: malformedPatterns.length === 0,
+      mustMatchMisses: [],
+      mustNotMatchHits: [],
+      malformedPatterns,
+      stateOk,
+      stateShortCircuit: true,
+    };
+  }
+
+  const mustMatchMisses = mustMatch.filter(({ re }) => re !== null && !re.test(answerText)).map(({ p }) => p);
+  const mustNotMatchHits = mustNotMatch
+    .filter(({ re }) => re !== null && firesAffirmatively(re, answerText))
+    .map(({ p }) => p);
   return {
-    pass: stateOk && mustMatchMisses.length === 0 && mustNotMatchHits.length === 0,
+    pass:
+      stateOk &&
+      malformedPatterns.length === 0 &&
+      mustMatchMisses.length === 0 &&
+      mustNotMatchHits.length === 0,
     mustMatchMisses,
     mustNotMatchHits,
+    malformedPatterns,
     stateOk,
+    stateShortCircuit: false,
   };
 }
 
@@ -451,7 +537,9 @@ export function computeQuestionMetrics(r: QuestionRunResult): QuestionMetrics {
           fidelityDetail: {
             mustMatchMisses: fidelityCheck.mustMatchMisses,
             mustNotMatchHits: fidelityCheck.mustNotMatchHits,
+            malformedPatterns: fidelityCheck.malformedPatterns,
             stateOk: fidelityCheck.stateOk,
+            stateShortCircuit: fidelityCheck.stateShortCircuit,
           },
         }
       : {}),

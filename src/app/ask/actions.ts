@@ -2,7 +2,7 @@
 
 import { requireAcceptedUser } from "@/lib/gate";
 import { askWithLimits, recordEntryTimings } from "@/lib/ask/limits";
-import { monotonicMs } from "@/lib/ask/timings";
+import { clampMs, monotonicMs } from "@/lib/ask/timings";
 import { rawSql } from "@/db";
 import { getLocale } from "@/i18n/server";
 import { formatDate } from "@/i18n/format";
@@ -153,8 +153,8 @@ export async function askAction(
   if (result.runId) {
     const end = monotonicMs();
     await recordEntryTimings(result.runId, {
-      hydrateMs: Math.max(0, Math.round(end - tHydrate)),
-      totalMs: Math.max(0, Math.round(end - tAction)),
+      hydrateMs: clampMs(end - tHydrate),
+      totalMs: clampMs(end - tAction),
     });
   }
 

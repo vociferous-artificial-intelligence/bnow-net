@@ -252,28 +252,34 @@ async function logUsage(
 /** Patch an entry point's own timing keys onto its run's already-written row.
  *  Phase 0 contract (Gate 0: scopes must not conflate): the server action patches
  *  {hydrateMs, totalMs}; the JSON route patches {apiTotalMs}; nothing else calls
- *  this. The jsonb || merge preserves every pipeline-recorded key. Fire-and-forget
- *  fail-soft: the answer was already produced and returned — a lost patch is lost
- *  telemetry, never a lost answer (mirrors the logUsage failure stance). A runId
- *  that matches no row (e.g. the row insert itself failed) is a silent no-op. */
+ *  this. The jsonb || merge preserves every pipeline-recorded key. Callers AWAIT
+ *  it (a serverless response must not race the write) but it NEVER throws: the
+ *  answer was already produced and returned — a lost patch is lost telemetry,
+ *  never a lost answer (mirrors the logUsage failure stance). A runId that
+ *  matches no row (e.g. the row insert itself failed) is a silent no-op. */
 export async function recordEntryTimings(
   runId: string,
   patch: Partial<StageTimings>,
 ): Promise<void> {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
-    await pool.query(
-      `UPDATE ask_usage
-       SET stage_timings_ms = coalesce(stage_timings_ms, '{}'::jsonb) || $2::jsonb
-       WHERE run_id = $1`,
-      [runId, JSON.stringify(patch)],
-    );
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    try {
+      await pool.query(
+        `UPDATE ask_usage
+         SET stage_timings_ms = coalesce(stage_timings_ms, '{}'::jsonb) || $2::jsonb
+         WHERE run_id = $1`,
+        [runId, JSON.stringify(patch)],
+      );
+    } finally {
+      // end() inside the outer catch too: a teardown rejection must not
+      // propagate into the entry point after the answer was already produced
+      // (Gate 0 finding — the never-throws contract has to be airtight).
+      await pool.end();
+    }
   } catch (e) {
     console.warn(
       `recordEntryTimings: patch failed (telemetry only, answer unaffected): ${e instanceof Error ? e.message : e}`,
     );
-  } finally {
-    await pool.end();
   }
 }
 

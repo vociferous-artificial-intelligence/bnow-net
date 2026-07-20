@@ -92,6 +92,14 @@ export async function retrieveV2(
   const terms = extractTerms(qStripped);
   const pattern = terms.map((t) => `%${t}%`);
 
+  // entityMs/mergeMs accumulate across their split sections (the entity SQL sits
+  // between the union build and the scoring pass). Declared OUTSIDE the try and
+  // flushed in the finally so a mid-retrieval throw still leaves the completed
+  // sections' timings on the shared collector for the error row (Gate 0 finding).
+  let entityAccumMs = 0;
+  let mergeAccumMs = 0;
+  let accumSectionsStarted = false;
+
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
     // ---- vector arm ---------------------------------------------------------
@@ -159,12 +167,8 @@ export async function retrieveV2(
         }),
     );
 
-    // entityMs/mergeMs accumulate across their split sections (the entity SQL sits
-    // between the union build and the scoring pass), recorded once at the end.
-    let entityAccumMs = 0;
-    let mergeAccumMs = 0;
-
     // ---- union (dedupe by claimId) ------------------------------------------
+    accumSectionsStarted = true;
     const tUnion = monotonicMs();
     const byId = new Map<number, CandidateClaim>();
     for (const r of vectorRows) byId.set(r.id, toCandidate(r, true));
@@ -246,11 +250,12 @@ export async function retrieveV2(
       }));
     }
 
-    recordStage(timings, "entityMs", entityAccumMs);
-    recordStage(timings, "mergeMs", mergeAccumMs);
-
     return { claims: capped, entities, terms, window, totalMatching, mode, embedUsage };
   } finally {
+    if (accumSectionsStarted) {
+      recordStage(timings, "entityMs", entityAccumMs);
+      recordStage(timings, "mergeMs", mergeAccumMs);
+    }
     await pool.end();
   }
 }

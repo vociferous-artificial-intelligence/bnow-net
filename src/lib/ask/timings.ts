@@ -19,16 +19,21 @@
 //   mergeMs     retrieveV2: synchronous union/dedupe/composite-score/sort section
 //   rerankMs    ask(): the rerankCandidates() stage (includes its guard I/O)
 //   answerMs    answerFromEvidence: the paid chat-completion await (+ its guard
-//               init/reserve/record I/O — the boundary users actually wait on)
+//               init/reserve/record I/O — the boundary users actually wait on).
+//               On ERROR rows it means "time in the answer boundary until it
+//               failed" and is never overwritten once the metered success value
+//               is recorded.
 //   validateMs  answerFromEvidence: post-response synchronous validation/assembly
 //               (citation filter, denial correction) — expected ~0–1ms, recorded
 //               so "validation is cheap" is a measurement, not an assumption
 //   pipelineMs  askWithLimits: entry → just before the ask_usage INSERT
 //   hydrateMs   askAction ONLY: the post-answer source-hydration SQL
-//   totalMs     askAction ONLY: action entry → after hydration (the user-felt
-//               total for the web path)
-//   apiTotalMs  POST /api/ask ONLY: route wrapper total (no hydration exists
-//               there — hydrateMs/totalMs stay absent on API rows)
+//   totalMs     askAction ONLY: action scope AFTER the auth/acceptance gate →
+//               after hydration (the user-felt total for the web path minus the
+//               auth round-trip, which is deliberately out of pipeline telemetry)
+//   apiTotalMs  POST /api/ask ONLY: route wrapper total, same post-auth-gate
+//               scope (no hydration exists there — hydrateMs/totalMs stay absent
+//               on API rows)
 
 export interface StageTimings {
   currencyMs?: number;
@@ -67,6 +72,13 @@ export function monotonicMs(): number {
   return performance.now();
 }
 
+/** Normalize a duration for storage: whole ms, floored at 0. The ONE place the
+ *  rounding rule lives — entry-point patches use it too, so a future change
+ *  cannot silently diverge from recordStage (Gate 0 finding). */
+export function clampMs(durationMs: number): number {
+  return Math.max(0, Math.round(durationMs));
+}
+
 /** Record a duration (rounded to whole ms, floored at 0) onto the collector.
  *  No-ops when the collector is absent so every stage can call it
  *  unconditionally with an optional timings object. */
@@ -76,7 +88,7 @@ export function recordStage(
   durationMs: number,
 ): void {
   if (!timings) return;
-  timings[key] = Math.max(0, Math.round(durationMs));
+  timings[key] = clampMs(durationMs);
 }
 
 /** Time an async boundary onto the collector. The duration is recorded on BOTH

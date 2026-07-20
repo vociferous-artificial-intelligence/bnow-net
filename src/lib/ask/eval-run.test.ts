@@ -957,22 +957,50 @@ describe("scoreFidelity", () => {
     expect(r.stateOk).toBe(false);
   });
 
-  it("acceptStates widens the accepted outcomes when the fixture allows an honest insufficient", () => {
-    const r = scoreFidelity("No supported arrest of the port official.", "insufficient", {
-      evidence: [],
-      mustMatch: [],
-      mustNotMatch: [],
-      acceptStates: ["answered", "insufficient"],
-    });
+  it("an accepted non-answered state passes WITHOUT text checks (state short-circuit — the fix for the dead acceptStates path)", () => {
+    // mustMatch is non-empty and the deterministic insufficient copy cannot
+    // contain the name — pre-Gate-0 this path was unreachable (always failed).
+    const r = scoreFidelity(
+      "No claims in the covered data address this question.",
+      "insufficient",
+      {
+        evidence: [],
+        mustMatch: ["Bondar"],
+        mustNotMatch: ["was arrested"],
+        acceptStates: ["answered", "insufficient"],
+      },
+    );
     expect(r.pass).toBe(true);
+    expect(r.stateShortCircuit).toBe(true);
+    expect(r.mustMatchMisses).toEqual([]);
   });
 
-  it("matching is case-insensitive and a malformed pattern fails safe", () => {
+  it("matching is case-insensitive; a malformed pattern in EITHER list is a HARD failure (fail-closed)", () => {
     expect(scoreFidelity("ruslan zhurov was DESIGNATED.", "answered", spec).pass).toBe(true);
-    const bad = scoreFidelity("anything", "answered", { evidence: [], mustMatch: ["("], mustNotMatch: ["("] });
-    expect(bad.pass).toBe(false); // broken mustMatch counts as a miss
-    expect(bad.mustMatchMisses).toEqual(["("]);
-    expect(bad.mustNotMatchHits).toEqual([]); // broken mustNotMatch can never fire
+    const badNot = scoreFidelity("anything", "answered", { evidence: [], mustMatch: ["any"], mustNotMatch: ["("] });
+    expect(badNot.pass).toBe(false); // a silently-dead mustNotMatch must not fail open (Gate 0)
+    expect(badNot.malformedPatterns).toEqual(["("]);
+    const badMust = scoreFidelity("anything", "answered", { evidence: [], mustMatch: ["("], mustNotMatch: [] });
+    expect(badMust.pass).toBe(false);
+    expect(badMust.malformedPatterns).toEqual(["("]);
+  });
+
+  it("mustNotMatch is negation-aware: an explicitly negated strengthening does not fire; the affirmative does", () => {
+    const negSpec = { evidence: [], mustMatch: [], mustNotMatch: ["confirmed match", "under sanctions"] };
+    // faithful negations — exempt
+    expect(scoreFidelity("It is not a confirmed match.", "answered", negSpec).pass).toBe(true);
+    expect(scoreFidelity("She is not under sanctions.", "answered", negSpec).pass).toBe(true);
+    // affirmative assertions — fire
+    expect(scoreFidelity("OpenSanctions returned a confirmed match.", "answered", negSpec).pass).toBe(false);
+    expect(scoreFidelity("She is under sanctions.", "answered", negSpec).pass).toBe(false);
+    // a negated ADJECTIVE earlier in the sentence is not a negator of the later clause
+    expect(
+      scoreFidelity("Initially unconfirmed, it is now a confirmed match.", "answered", negSpec).pass,
+    ).toBe(false);
+    // an adversative break ends the negation scope
+    expect(
+      scoreFidelity("It was not initially clear, but he is under sanctions.", "answered", negSpec).pass,
+    ).toBe(false);
   });
 });
 

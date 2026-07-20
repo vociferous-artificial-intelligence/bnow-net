@@ -59,11 +59,20 @@ export interface FidelitySpec {
   evidence: FidelityEvidenceClaim[];
   /** every pattern must match the answer (the name, the exact supported fact) */
   mustMatch: string[];
-  /** no pattern may match the answer (the strengthening failure modes) */
+  /** no pattern may fire AFFIRMATIVELY in the answer (the strengthening failure
+   *  modes). Gate 0 semantics: a match preceded — in the same sentence, within
+   *  a short scope, with no adversative break — by a standalone negator (not/
+   *  no/never/…) does NOT fire, so a faithful answer may explicitly negate the
+   *  forbidden strengthening ("it is not a confirmed match") without failing.
+   *  See eval-run.ts firesAffirmatively. A pattern that fails to compile is a
+   *  HARD failure of the fixture (fail-closed), never silently dead. */
   mustNotMatch: string[];
   /** terminal states that count as correct; default ["answered"]. A case whose
    *  correct handling may honestly be a refusal-to-assert lists "insufficient"
-   *  too. Over-suppression of a supported answer is a FAILURE by contract. */
+   *  too — an accepted non-"answered" state passes WITHOUT text checks, because
+   *  the pipeline's insufficient copy is deterministic name-free prose the
+   *  name/predicate patterns cannot apply to. Over-suppression of a supported
+   *  answer (acceptStates only ["answered"]) is a FAILURE by contract. */
   acceptStates?: string[];
   notes?: string;
 }

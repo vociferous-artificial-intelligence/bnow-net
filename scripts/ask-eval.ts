@@ -326,7 +326,9 @@ async function runFidelityQuestion(q: EvalQuestion, config: EvalConfig): Promise
   const answerModel = configAnswerModel(config);
   const savedAnswerModel = process.env.ASK_ANSWER_MODEL;
   if (answerModel !== null) process.env.ASK_ANSWER_MODEL = answerModel;
-  const t0 = Date.now();
+  // monotonic clock for the NEW measurement site (the two pre-existing runners
+  // keep their historical Date.now() latencies for comparability).
+  const t0 = performance.now();
   try {
     const answer = await answerFromEvidence(q.question, retrieval, ranked);
     return {
@@ -336,7 +338,7 @@ async function runFidelityQuestion(q: EvalQuestion, config: EvalConfig): Promise
       candidateIds: claims.map((c) => c.claimId),
       evidenceIds: claims.map((c) => c.claimId),
       answer,
-      latencyMs: Date.now() - t0,
+      latencyMs: Math.round(performance.now() - t0),
       costUsd: answer.usageByStage?.answer?.costUsd ?? 0,
       openaiKeySet: !!process.env.OPENAI_API_KEY,
     };

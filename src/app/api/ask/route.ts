@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { askWithLimits, recordEntryTimings } from "@/lib/ask/limits";
-import { monotonicMs } from "@/lib/ask/timings";
+import { clampMs, monotonicMs } from "@/lib/ask/timings";
 import { requireAcceptedUser } from "@/lib/gate";
 
 export const maxDuration = 60;
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   const result = await askWithLimits(question, user?.email ?? null);
   if (result.runId) {
     await recordEntryTimings(result.runId, {
-      apiTotalMs: Math.max(0, Math.round(monotonicMs() - t0)),
+      apiTotalMs: clampMs(monotonicMs() - t0),
     });
   }
   return NextResponse.json(result, { status: result.provider === "limit" ? 429 : 200 });
