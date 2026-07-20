@@ -10,6 +10,7 @@ import { embedModel, embedTexts } from "../embeddings/client";
 import { embedGuardFromEnv } from "../embeddings/guard";
 import { lexicalClaimSearch, windowClause } from "./lexical";
 import { monotonicMs, recordStage, timeStage, type StageTimings } from "./timings";
+import type { StageGuard } from "../usage/reservations";
 
 // Retrieval v2: deterministic time-window parse + hybrid (vector union lexical)
 // candidate generation + composite pre-rank. Same anti-hallucination boundary as
@@ -73,7 +74,13 @@ function toCandidate(r: ClaimRow, vectorHit: boolean): CandidateClaim {
 
 export async function retrieveV2(
   question: string,
-  opts?: { now?: Date; timings?: StageTimings },
+  opts?: {
+    now?: Date;
+    timings?: StageTimings;
+    /** Phase 1 seam: enforce mode injects an atomic reservation-backed embed
+     *  guard with the same surface; absent, embedGuardFromEnv() as always. */
+    embedGuard?: StageGuard;
+  },
 ): Promise<RetrievalV2Result> {
   const now = opts?.now ?? new Date();
   // Phase 0 stage timings (optional, no-op when absent): embedMs = the embedTexts
@@ -109,7 +116,7 @@ export async function retrieveV2(
 
     if (!vectorArmDisabled()) {
       try {
-        const guard = embedGuardFromEnv();
+        const guard = opts?.embedGuard ?? embedGuardFromEnv();
         await guard.init();
         const { vectors, tokens, costUsd, provider } = await timeStage(timings, "embedMs", () =>
           embedTexts([question], { guard }),

@@ -3,6 +3,7 @@ import type { CandidateClaim, RankedEvidence, StageUsage } from "./types";
 import { askEvidenceK, askRerankModel } from "./config";
 import { estimateCostUsd } from "./limits";
 import { isLlmDisabled, askGuardFromEnv } from "../usage/llm-guard";
+import type { StageGuard } from "../usage/reservations";
 import { chatParamsForModel } from "./llm-params";
 
 // ASK Tier-2+ rerank stage (workstream C). A single listwise LLM pass that
@@ -186,6 +187,9 @@ export async function rerankCandidates(
   question: string,
   candidates: CandidateClaim[],
   k: number = askEvidenceK(),
+  // Phase 1 seam: enforce mode injects an atomic reservation-backed guard with
+  // the same surface; absent, the legacy SpendGuard path is byte-identical.
+  guardOverride?: StageGuard,
 ): Promise<RankedEvidence> {
   // already fits — nothing to rank, no call
   if (candidates.length <= k) {
@@ -204,11 +208,11 @@ export async function rerankCandidates(
   let rerankUsage: StageUsage | undefined;
 
   try {
-    const guard = askGuardFromEnv();
+    const guard = guardOverride ?? askGuardFromEnv();
     await guard.init();
     // Reserve BEFORE the billed request; a refusal takes the fallback WITHOUT a
     // call and WITHOUT usage — never an unguarded call (ruling 4).
-    const reserve = guard.tryReserve();
+    const reserve = await guard.tryReserve();
     if (!reserve.ok) {
       console.warn(`ask rerank: budget refusal — ${reserve.reason}; composite fallback`);
       return compositeFallback(candidates, k);
@@ -235,7 +239,9 @@ export async function rerankCandidates(
     const promptTokens = completion.usage?.prompt_tokens ?? 0;
     const completionTokens = completion.usage?.completion_tokens ?? 0;
     const costUsd = estimateCostUsd(model, promptTokens, completionTokens);
-    await guard.record(1, 1, costUsd);
+    // units = real token count (architecture review F14 — was a literal 1; cost
+    // was always correct, provider_usage.units for openai_ask was not).
+    await guard.record(1, promptTokens + completionTokens, costUsd);
     rerankUsage = { promptTokens, completionTokens, costUsd };
 
     const choice = completion.choices?.[0];

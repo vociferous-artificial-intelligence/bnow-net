@@ -365,7 +365,8 @@ describe("rerankCandidates — happy path", () => {
   it("reserves BEFORE the request and records AFTER", async () => {
     await rerankCandidates("q", pool([1, 2, 3, 4, 5, 6, 7, 8]), 4);
     expect(order).toEqual(["init", "reserve", "create", "record"]);
-    expect(recordMock).toHaveBeenCalledWith(1, 1, estimateCostUsd("gpt-5-mini", 1000, 50));
+    // units = real token count (F14 fix, Phase 1): 1000 prompt + 50 completion.
+    expect(recordMock).toHaveBeenCalledWith(1, 1050, estimateCostUsd("gpt-5-mini", 1000, 50));
   });
 
   it("passes RERANK_MAX_OUTPUT_TOKENS + reasoningEffort minimal to chatParamsForModel and spreads them", async () => {

@@ -72,10 +72,17 @@ export async function askAction(
   // pipeline call, no charge, no error page (mirrors the API route's floor).
   if (question.length < 3) return prevState;
 
+  // Phase 1 idempotency: a per-submit-gesture opaque key from the form (the
+  // one-click home intent reuses its intent UUID). Namespaced per-user
+  // server-side, so any well-formed token is safe; malformed/absent -> undefined
+  // and askWithLimits generates a never-replaying key. Bounded charset+length.
+  const rawKey = String(formData.get("idempotencyKey") ?? "");
+  const idempotencyKey = /^[A-Za-z0-9_-]{8,128}$/.test(rawKey) ? rawKey : undefined;
+
   // Phase 0 measurement: this action owns the run's hydrateMs + totalMs (the
   // user-felt web total). Monotonic clock only — never wall-clock subtraction.
   const tAction = monotonicMs();
-  const result = await askWithLimits(question, user?.email ?? null);
+  const result = await askWithLimits(question, user?.email ?? null, { idempotencyKey });
 
   // Resolve cited + related claim ids, owning digests, and every attached source
   // document. This stays ONE query for the union: joining claim_sources repeats

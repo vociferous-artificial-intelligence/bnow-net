@@ -5,9 +5,12 @@ import { neon } from "@neondatabase/serverless";
 
 // Minimal idempotent migration runner over drizzle/ SQL files.
 // Tracks applied files in _migrations; safe to re-run anytime.
-async function main() {
-  const url = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL(_UNPOOLED) not set");
+//
+// Exported as runMigrations(url) so the integration suite can bring a
+// disposable Neon fork (which inherits the PRODUCTION schema, possibly behind
+// this checkout's migrations) to head before exercising new tables
+// (AI Search Phase 1). The CLI behavior is unchanged.
+export async function runMigrations(url: string): Promise<void> {
   const sql = neon(url);
 
   await sql`CREATE TABLE IF NOT EXISTS _migrations (
@@ -38,7 +41,17 @@ async function main() {
   console.log("migrations up to date");
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+async function main() {
+  const url = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL(_UNPOOLED) not set");
+  await runMigrations(url);
+}
+
+// Run only when invoked as a script (tsx scripts/migrate.ts), never on import
+// (the integration suite imports runMigrations under vitest).
+if (process.argv[1]?.endsWith("migrate.ts")) {
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}

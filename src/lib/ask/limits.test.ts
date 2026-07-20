@@ -12,11 +12,30 @@ const h = vi.hoisted(() => {
   const queryMock = vi.fn();
   const endMock = vi.fn();
   const poolCtor = vi.fn(() => ({ query: queryMock, end: endMock }));
-  return { askMock, queryMock, endMock, poolCtor };
+  const createRunMock = vi.fn();
+  const reserveAllowanceMock = vi.fn();
+  const finalizeRunMock = vi.fn();
+  const expireStaleRunsMock = vi.fn();
+  const buildGuardsMock = vi.fn();
+  return {
+    askMock, queryMock, endMock, poolCtor,
+    createRunMock, reserveAllowanceMock, finalizeRunMock, expireStaleRunsMock, buildGuardsMock,
+  };
 });
 
 vi.mock("./answer", () => ({ ask: h.askMock }));
 vi.mock("@neondatabase/serverless", () => ({ Pool: h.poolCtor }));
+// Phase 1: the run-persistence and guard-factory modules are mocked — their SQL
+// is covered by runs.test.ts and the real-Postgres integration suite; here we
+// pin askWithLimits' MODE LOGIC (shadow vs enforce).
+vi.mock("./runs", () => ({
+  askRunsEnforce: () => process.env.ASK_RUNS_ENFORCE === "1",
+  createRun: h.createRunMock,
+  reserveAllowance: h.reserveAllowanceMock,
+  finalizeRun: h.finalizeRunMock,
+  expireStaleRuns: h.expireStaleRunsMock,
+}));
+vi.mock("./run-guards", () => ({ buildAskRunGuards: h.buildGuardsMock }));
 
 const {
   askWithLimits,
@@ -71,12 +90,27 @@ let usage = { user_count: 0, global_cost: 0 };
 beforeEach(() => {
   delete process.env.ASK_USER_DAILY_LIMIT;
   delete process.env.ASK_GLOBAL_DAILY_BUDGET_USD;
+  delete process.env.ASK_RUNS_ENFORCE; // default: shadow mode
   usage = { user_count: 0, global_cost: 0 };
   h.askMock.mockReset();
   h.queryMock.mockReset();
   h.endMock.mockReset();
   h.endMock.mockResolvedValue(undefined);
   h.poolCtor.mockClear();
+  h.createRunMock.mockReset();
+  h.reserveAllowanceMock.mockReset();
+  h.finalizeRunMock.mockReset();
+  h.expireStaleRunsMock.mockReset();
+  h.buildGuardsMock.mockReset();
+  // shadow-mode defaults: run writes succeed quietly and change nothing
+  h.createRunMock.mockImplementation(async (o: { runId: string }) => ({
+    run: { id: o.runId, userEmail: "u", status: "created", state: null, result: null, finishedAt: null, expired: false },
+    replayed: false,
+  }));
+  h.reserveAllowanceMock.mockResolvedValue({ ok: true });
+  h.finalizeRunMock.mockResolvedValue(true);
+  h.expireStaleRunsMock.mockResolvedValue(undefined);
+  h.buildGuardsMock.mockReturnValue({ embed: "G_EMBED", rerank: "G_RERANK", answer: "G_ANSWER" });
   h.queryMock.mockImplementation(async (text: string) => {
     if (String(text).includes("INSERT INTO ask_usage")) return { rows: [] };
     return { rows: [{ user_count: usage.user_count, global_cost: usage.global_cost }] };
@@ -268,7 +302,7 @@ describe("askWithLimits — gate, run, log", () => {
     expect(res.state).toBe("answered");
     expect(res.retrievalMode).toBe("v2");
     expect(res.totalMatching).toBe(42);
-    expect(h.endMock).toHaveBeenCalledTimes(1);
+    expect(h.endMock.mock.calls.length).toBe(h.poolCtor.mock.calls.length); // every pool ended (Phase 1: shadow run-writes add pools)
   });
 
   it("legacy answer (no usageByStage): cost from usage; stage cols NULL; neutral-filled return", async () => {
@@ -357,7 +391,7 @@ describe("askWithLimits — gate, run, log", () => {
     expect(res.provider).toBe("limit");
     expect(res.state).toBe("limit");
     expect(res.answer).toContain("100/day");
-    expect(h.endMock).toHaveBeenCalledTimes(1);
+    expect(h.endMock.mock.calls.length).toBe(h.poolCtor.mock.calls.length); // every pool ended (Phase 1: shadow run-writes add pools)
   });
 
   it("global budget gate refuses BEFORE ask() runs and writes no row", async () => {
@@ -384,7 +418,7 @@ describe("askWithLimits — gate, run, log", () => {
     // the user gets a graceful AskAnswerV2, not a thrown error
     expect(res.state).toBe("error");
     expect(res.provider).toBe("error");
-    expect(h.endMock).toHaveBeenCalledTimes(1);
+    expect(h.endMock.mock.calls.length).toBe(h.poolCtor.mock.calls.length); // every pool ended (Phase 1: shadow run-writes add pools)
   });
 });
 
@@ -420,7 +454,7 @@ describe("askWithLimits — metering-field mapping + DB-outage hardening (post-r
     expect(res.provider).toBe("error");
     expect(res.relatedClaimIds).toEqual([]);
     expect(res.window).toBeNull();
-    expect(h.endMock).toHaveBeenCalledTimes(1);
+    expect(h.endMock.mock.calls.length).toBe(h.poolCtor.mock.calls.length); // every pool ended (Phase 1: shadow run-writes add pools)
   });
 
   it("success-row insert failure still returns the (already paid-for) answer", async () => {
@@ -433,7 +467,7 @@ describe("askWithLimits — metering-field mapping + DB-outage hardening (post-r
 
     expect(res.state).toBe("answered");
     expect(res.citedClaimIds).toEqual([1]);
-    expect(h.endMock).toHaveBeenCalledTimes(1);
+    expect(h.endMock.mock.calls.length).toBe(h.poolCtor.mock.calls.length); // every pool ended (Phase 1: shadow run-writes add pools)
   });
 
   it("error-row insert failure does not mask the original ask() error", async () => {
@@ -446,7 +480,7 @@ describe("askWithLimits — metering-field mapping + DB-outage hardening (post-r
 
     expect(res.state).toBe("error");
     expect(res.answer).toContain("retrieve exploded"); // the ORIGINAL cause, not the insert failure
-    expect(h.endMock).toHaveBeenCalledTimes(1);
+    expect(h.endMock.mock.calls.length).toBe(h.poolCtor.mock.calls.length); // every pool ended (Phase 1: shadow run-writes add pools)
   });
 });
 
@@ -536,5 +570,127 @@ describe("recordEntryTimings — entry-point patch", () => {
       recordEntryTimings("11111111-2222-4333-8444-555555555555", { apiTotalMs: 5 }),
     ).resolves.toBeUndefined();
     expect(h.endMock).toHaveBeenCalled();
+  });
+});
+
+// ---- Phase 1: enforce mode (ASK_RUNS_ENFORCE=1) ----------------------------------
+
+describe("askWithLimits — Phase 1 enforce mode", () => {
+  beforeEach(() => {
+    process.env.ASK_RUNS_ENFORCE = "1";
+  });
+
+  it("threads the atomic stage guards into ask() and finalizes the run with the settled cost", async () => {
+    h.askMock.mockResolvedValue(v2Full());
+    const res = await askWithLimits("q", "u@x.com", { idempotencyKey: "key-1" });
+
+    expect(res.state).toBe("answered");
+    expect(h.buildGuardsMock).toHaveBeenCalledTimes(1);
+    expect(h.askMock).toHaveBeenCalledWith("q", {
+      timings: expect.any(Object),
+      guards: { embed: "G_EMBED", rerank: "G_RERANK", answer: "G_ANSWER" },
+    });
+    expect(h.finalizeRunMock).toHaveBeenCalledWith(
+      expect.objectContaining({ state: "answered", settledCostUsd: expect.closeTo(0.0076, 6) }),
+    );
+    expect(h.createRunMock).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: "key-1", userEmail: "u@x.com" }),
+    );
+    expect(h.expireStaleRunsMock).toHaveBeenCalledTimes(1); // lazy sweep ran
+  });
+
+  it("a replayed TERMINAL run returns the stored result with the ORIGINAL runId and zero pipeline calls", async () => {
+    const stored = v2Full({ answer: "stored answer [c1]." });
+    h.createRunMock.mockResolvedValue({
+      run: { id: "orig-run-id", userEmail: "u", status: "finished", state: "answered", result: stored, finishedAt: "2026-07-19T00:00:00Z", expired: false },
+      replayed: true,
+    });
+    const res = await askWithLimits("q", "u@x.com", { idempotencyKey: "key-1" });
+
+    expect(res.answer).toBe("stored answer [c1].");
+    expect(res.runId).toBe("orig-run-id");
+    expect(h.askMock).not.toHaveBeenCalled(); // zero provider work
+    expect(h.reserveAllowanceMock).not.toHaveBeenCalled(); // zero new allowance
+    expect(insertParams()).toBeUndefined(); // zero new usage rows
+  });
+
+  it("a replayed IN-FLIGHT run returns the honest duplicate copy, zero pipeline calls", async () => {
+    h.createRunMock.mockResolvedValue({
+      run: { id: "orig-run-id", userEmail: "u", status: "running", state: null, result: null, finishedAt: null, expired: false },
+      replayed: true,
+    });
+    const res = await askWithLimits("q", "u@x.com", { idempotencyKey: "key-1" });
+
+    expect(res.provider).toBe("duplicate"); // NOT "limit" — the API 429 mapping keys on provider
+    expect(res.state).toBe("limit");
+    expect(res.answer).toContain("still being processed");
+    expect(res.runId).toBe("orig-run-id");
+    expect(h.askMock).not.toHaveBeenCalled();
+  });
+
+  it("an allowance user_limit refusal finalizes the run as 'limit' and never calls ask()", async () => {
+    h.reserveAllowanceMock.mockResolvedValue({ ok: false, reason: "user_limit" });
+    const res = await askWithLimits("q", "u@x.com", { idempotencyKey: "key-1" });
+
+    expect(res.state).toBe("limit");
+    expect(res.provider).toBe("limit");
+    expect(res.runId).toBeTruthy(); // enforce mode: the run row exists
+    expect(h.askMock).not.toHaveBeenCalled();
+    expect(h.finalizeRunMock).toHaveBeenCalledWith(expect.objectContaining({ state: "limit" }));
+  });
+
+  it("an unavailable allowance gate fails CLOSED as an error run", async () => {
+    h.reserveAllowanceMock.mockResolvedValue({ ok: false, reason: "unavailable" });
+    const res = await askWithLimits("q", "u@x.com", { idempotencyKey: "key-1" });
+
+    expect(res.state).toBe("error");
+    expect(h.askMock).not.toHaveBeenCalled();
+    expect(h.finalizeRunMock).toHaveBeenCalledWith(
+      expect.objectContaining({ state: "error", errorClass: "allowance_unavailable" }),
+    );
+  });
+
+  it("run persistence failure fails CLOSED before any gate or pipeline work", async () => {
+    h.createRunMock.mockRejectedValue(new Error("ask_runs unavailable"));
+    const res = await askWithLimits("q", "u@x.com", { idempotencyKey: "key-1" });
+
+    expect(res.state).toBe("error");
+    expect(res.answer).toContain("run persistence unavailable");
+    expect(h.askMock).not.toHaveBeenCalled();
+    expect(h.reserveAllowanceMock).not.toHaveBeenCalled();
+  });
+
+  it("the GLOBAL daily budget still refuses (legacy read-check retained by contract §3)", async () => {
+    usage = { user_count: 0, global_cost: 10 }; // at the default $10 global budget
+    const res = await askWithLimits("q", "u@x.com", { idempotencyKey: "key-1" });
+
+    expect(res.state).toBe("limit");
+    expect(res.answer).toContain("shared daily analysis budget");
+    expect(h.reserveAllowanceMock).not.toHaveBeenCalled(); // refused before the slot
+    expect(h.askMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("askWithLimits — Phase 1 shadow mode stays byte-equivalent", () => {
+  it("shadow createRun failure never blocks the request", async () => {
+    h.createRunMock.mockRejectedValue(new Error("ask_runs table missing"));
+    h.askMock.mockResolvedValue(v2Full());
+    const res = await askWithLimits("q", "u@x.com");
+
+    expect(res.state).toBe("answered"); // request unaffected
+    expect(h.askMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("shadow mode never builds atomic guards and never enforces replay", async () => {
+    h.createRunMock.mockResolvedValue({
+      run: { id: "orig", userEmail: "u", status: "finished", state: "answered", result: v2Full(), finishedAt: "t", expired: false },
+      replayed: true, // a shadow-detected collision must change NOTHING
+    });
+    h.askMock.mockResolvedValue(v2Full());
+    const res = await askWithLimits("q", "u@x.com", { idempotencyKey: "key-1" });
+
+    expect(h.buildGuardsMock).not.toHaveBeenCalled();
+    expect(h.askMock).toHaveBeenCalledTimes(1); // pipeline ran despite the collision
+    expect(res.runId).not.toBe("orig"); // fresh run identity as always
   });
 });

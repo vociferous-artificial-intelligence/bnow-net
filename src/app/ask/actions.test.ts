@@ -177,6 +177,7 @@ describe("askAction — the money-path guard's server half", () => {
     expect(askWithLimitsMock).toHaveBeenCalledWith(
       "did russia strike kyiv today",
       "user@example.com",
+      { idempotencyKey: undefined }, // no hidden key in this form -> server-generated
     );
     expect(result?.question).toBe("did russia strike kyiv today");
     expect(askWithLimitsMock).toHaveBeenCalledTimes(1);
@@ -226,7 +227,9 @@ describe("askAction — the money-path guard's server half", () => {
     queryMock.mockResolvedValue([]);
     const long = "a".repeat(500);
     await askAction(null, formWith(long));
-    expect(askWithLimitsMock).toHaveBeenCalledWith("a".repeat(400), "user@example.com");
+    expect(askWithLimitsMock).toHaveBeenCalledWith("a".repeat(400), "user@example.com", {
+      idempotencyKey: undefined,
+    });
   });
 });
 
