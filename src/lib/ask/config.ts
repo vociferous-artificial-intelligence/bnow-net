@@ -83,3 +83,12 @@ export function askRelevanceBoundaryEnabled(): boolean {
 export function askRelevantEvidenceFloor(): number {
   return posInt("ASK_RELEVANT_EVIDENCE_FLOOR", 8);
 }
+
+/** Phase 3 Increment B: buffered validated answer streaming on the progressive
+ *  transport. DEFAULT OFF (whole-answer release stays the shipped behavior);
+ *  "1" enables the streaming variant — internal cohort only after Gate 3, and
+ *  only ever effective when a run has a real event sink (ASK_PROGRESSIVE
+ *  client). Independent of ASK_PROGRESSIVE by design (§10). */
+export function askStreamAnswer(): boolean {
+  return process.env.ASK_STREAM_ANSWER === "1";
+}

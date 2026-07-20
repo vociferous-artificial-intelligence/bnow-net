@@ -170,6 +170,14 @@ export async function retrieveV2(
     // Lexical arm — delegated to lexical.ts (shared with /search): same SQL,
     // params, ordering, caps, and the "no predicate -> no query at all" degraded
     // path as before. The early-candidates hook fires the moment it settles.
+    // The callback's settlement is HELD (not detached): retrieveV2 awaits it
+    // before returning, so the partial's event INSERT commits before the
+    // orchestrator's next emit (retrieval.completed) can take a later seq with
+    // an earlier commit — a tailing replay client would otherwise advance past
+    // the uncommitted partial and never see the candidates (supplementary
+    // Gate 2 finding). Dispatch-time concurrency is unchanged; failures are
+    // still swallowed (progress display must never fail retrieval).
+    let pendingPartial: Promise<void> = Promise.resolve();
     const lexicalArm = timeStage(timings, "lexicalMs", () =>
       lexicalClaimSearch(pool, {
         qStripped,
@@ -185,9 +193,11 @@ export async function retrieveV2(
             totalMatching: lex.matchCount,
           });
           // async callback failures are swallowed too — progress must never fail retrieval
-          void Promise.resolve(partial).catch((e) =>
-            console.warn(`retrieveV2: onLexicalPartial failed (ignored): ${e instanceof Error ? e.message : e}`),
-          );
+          pendingPartial = Promise.resolve(partial)
+            .then(() => undefined)
+            .catch((e) =>
+              console.warn(`retrieveV2: onLexicalPartial failed (ignored): ${e instanceof Error ? e.message : e}`),
+            );
         } catch (e) {
           console.warn(`retrieveV2: onLexicalPartial failed (ignored): ${e instanceof Error ? e.message : e}`);
         }
@@ -292,6 +302,9 @@ export async function retrieveV2(
         sanctioned: r.sanctioned,
       }));
     }
+
+    // Seq-order commit guarantee for the detached partial emit (see above).
+    await pendingPartial;
 
     return { claims: capped, entities, terms, window, totalMatching, mode, embedUsage };
   } finally {

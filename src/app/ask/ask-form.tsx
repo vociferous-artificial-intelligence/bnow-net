@@ -263,13 +263,29 @@ export function AskForm({
   const [runState, setRunState] = useState<RunViewState | null>(null);
   const [hydrated, setHydrated] = useState<HydratedRunResult | null>(null);
   const runningRef = useRef(false);
+  // The question the ACTIVE run is answering — displayed in the progress panel
+  // so a resumed run is never misattributed to whatever the input shows
+  // (supplementary Gate 2 finding: a resumed run's answer rendered under a
+  // different question's prefill with nothing on screen attributing it).
+  // Lazy-seeded from the per-tab resume ref: available from the FIRST client
+  // render (server render sees null; nothing visible depends on it until
+  // runState exists, so hydration stays clean).
+  const [activeQuestion, setActiveQuestion] = useState<string | null>(() =>
+    progressive ? (readActiveRun()?.question ?? null) : null,
+  );
 
   const finishProgressiveRun = useCallback(async (finalState: RunViewState) => {
     runningRef.current = false;
     idemKeyRef.current?.setAttribute("value", crypto.randomUUID()); // next gesture
     if (finalState.phase !== "done" || !finalState.runId) return;
+    // A replayed idempotency key streams under a NEW transport run id whose
+    // ask_runs row does not exist — the stored payload's own runId names the
+    // ORIGINAL run (same owner), which is the id /result can hydrate
+    // (supplementary Gate 2 finding: the transport id 404'd and the evidence
+    // panels silently vanished on replays).
+    const hydrateId = finalState.result?.runId ?? finalState.runId;
     try {
-      const res = await fetch(`/api/ask/runs/${finalState.runId}/result`);
+      const res = await fetch(`/api/ask/runs/${hydrateId}/result`);
       if (res.ok) {
         setHydrated((await res.json()) as HydratedRunResult);
         return;
@@ -287,6 +303,7 @@ export function AskForm({
       if (runningRef.current) return; // one-submit: a gesture in flight wins
       runningRef.current = true;
       setHydrated(null);
+      setActiveQuestion(question);
       if (askStartedEventEnabled()) {
         captureProductEvent("ask_started", { entry });
       }
@@ -363,6 +380,14 @@ export function AskForm({
     // and makes a second run a no-op. Set before any await-free work below so no
     // re-entry can slip between the check and the consume.
     if (oneShotRef.current) return;
+    // A resume claimed the form first (the mount-resume effect above runs
+    // earlier and sets runningRef synchronously). Consuming the intent now
+    // would silently swallow the user's one click — startProgressiveRun would
+    // drop the dispatched submit on the runningRef guard AFTER the single-use
+    // entry was destroyed (supplementary Gate 2 finding). Leave the intent
+    // unconsumed and the form prefilled-idle; the user can submit by hand once
+    // the resumed run settles.
+    if (runningRef.current) return;
     oneShotRef.current = true;
 
     let stored: string | null = null;
@@ -404,8 +429,14 @@ export function AskForm({
     [progressive, startProgressiveRun],
   );
 
+  // The window between run.completed and the hydrated /result render is still
+  // busy: sections stay visible, the form stays disabled, and the idle example
+  // chips must not flash back over a just-billed run (supplementary Gate 2).
+  const terminalHydrating =
+    runState?.phase === "done" && hydrated === null && runState.result !== null;
   const progressiveBusy =
-    runState !== null && runState.phase !== "done" && runState.phase !== "failed";
+    (runState !== null && runState.phase !== "done" && runState.phase !== "failed") ||
+    terminalHydrating;
 
   return (
     <div>
@@ -432,12 +463,40 @@ export function AskForm({
           forceDisabled={progressiveBusy}
         />
         <WorkingPanel t={t} />
-        {progressive && runState && <RunProgress state={runState} t={t} />}
+        {progressive && runState && (
+          <RunProgress
+            state={runState}
+            t={t}
+            holdTerminal={terminalHydrating}
+            question={activeQuestion}
+            onStop={() => {
+              // Fire-and-forget cancel: the orchestrator's marker watch aborts
+              // generation; settlement is exactly-once server-side. Read-only
+              // failure here is harmless (the run simply completes).
+              const id = runState.runId;
+              if (id) void fetch(`/api/ask/runs/${id}/cancel`, { method: "POST" }).catch(() => {});
+            }}
+          />
+        )}
       </form>
 
       {progressive && runState?.phase === "failed" && (
-        <p className="mb-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
-          {t("ask.progress.failed")}
+        // role=status announces the terminal transition once — the progress
+        // panel's live region unmounts at this exact moment, so without it the
+        // money-relevant terminal copy was never voiced (supplementary Gate 2).
+        <p
+          role="status"
+          className="mb-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
+        >
+          {t(
+            runState.errorClass === "cancelled"
+              ? "ask.progress.cancelled"
+              : runState.errorClass === "reconnect_exhausted"
+                ? "ask.progress.reconnect_exhausted"
+                : runState.errorClass === "reconnect_404"
+                  ? "ask.progress.run_gone"
+                  : "ask.progress.failed",
+          )}
         </p>
       )}
 

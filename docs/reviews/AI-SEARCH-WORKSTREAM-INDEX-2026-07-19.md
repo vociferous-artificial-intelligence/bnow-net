@@ -22,8 +22,8 @@ are retained after merge for inspection.
 |---|---|---|---|---|
 | 0 — measurement, UX honesty, eval foundation | `codex/ai-search-ask-p0-measure` | **PASSED Gate 0 after fixes** (`598dcb2`); merged to integration | Gate 0 (adversarial multi-lens; 2 high + 6 med confirmed, all fixed; 0 refuted) | `AI-SEARCH-PHASE-0-measure-2026-07-19.md`, `AI-SEARCH-GATE-0-2026-07-19.md` |
 | 1 — runs, idempotency, atomic reservations | `codex/ai-search-ask-p1-runs` | **PASSED Gate 1 after fixes** (`1309d46`; 1 high + 6 med confirmed, 1 refuted); merged to integration | Gate 1 (independent adversarial money review; contract frozen first: `docs/designs/ASK-RUNS-RESERVATION-CONTRACT-2026-07-19.md`) | `AI-SEARCH-PHASE-1-runs-2026-07-19.md`, `AI-SEARCH-GATE-1-2026-07-19.md` |
-| 2 — progressive retrieval | `codex/ai-search-ask-p2-progressive` | **PASSED Gate 2 after fixes** (`04e0318`; inline adversarial pass — the multi-agent attempt failed on session limits and a supplementary independent pass is queued post-reset); merged to integration | Gate 2 (inline §5-fallback pass + banked mechanical proofs: 180ms p50 TTFC, 8/8 prod-build browser checks) | `AI-SEARCH-PHASE-2-progressive-2026-07-19.md`, `AI-SEARCH-GATE-2-2026-07-19.md` |
-| 3 — validator + validated streaming | — | not started | Gate 3 (red-team) | — |
+| 2 — progressive retrieval | `codex/ai-search-ask-p2-progressive` | **PASSED Gate 2 after fixes** (`04e0318`), **supplementary independent pass COMPLETED 2026-07-20 (PASS stands)**: 3 lens-divided reviewers, 0 blocker/high, 7 med + 4 low (G2S-1..11) all fixed forward on the P3 branch; merged to integration | Gate 2 (inline §5-fallback pass + banked proofs + 2026-07-20 supplementary addendum) | `AI-SEARCH-PHASE-2-progressive-2026-07-19.md`, `AI-SEARCH-GATE-2-2026-07-19.md` (with addendum) |
+| 3 — validator + validated streaming | `codex/ai-search-ask-p3-validation-stream` | **PASSED Gate 3 after fixes** (red-team fixes `e48149c` + browser-battery fix `27ed1de`; 2 high + 7 med + 4 low confirmed by executed probes + 1 browser-only high-class, all fixed and pinned); unit 1,860/1,860, itest 52/52, browser 10/10+4/4+4/4; merged to integration | Gate 3 (independent 3-battery red-team, executed probes + production-build browser battery) | `AI-SEARCH-PHASE-3-validation-stream-2026-07-20.md`, `AI-SEARCH-RECOVERY-2026-07-20.md`, `AI-SEARCH-GATE-3-2026-07-20.md` |
 | 4 — routing + exact cache | — | not started | Gate 4 | — |
 | 5 — provider gateway | — | not started | Gate 5 | — |
 | 6 — investigation sessions | — | not started | Gate 6 | — |
@@ -56,7 +56,9 @@ The concurrent Paddle/billing workstream had no schema work in-tree at claim tim
 | `NEXT_PUBLIC_ANALYTICS_ASK_STARTED` | unset (event never emits) | operator approval of the new PostHog event + decision-log entry |
 | Paid answer-model matrix eval run (~$1–3) | not run | operator approval (recorded as enablement-blocked in Gate 0) |
 | `ASK_RUNS_ENFORCE` | unset (shadow: rows only, legacy gates authoritative) | operator enablement AFTER prod migration (0021+0022) + deploy + shadow soak |
-| `ASK_PROGRESSIVE` | unset (server-action transport; run routes exist but the client never calls them) | operator enablement after prod migration (0023) + SSE-through-production-proxy verification + internal cohort |
+| `ASK_PROGRESSIVE` | unset (server-action transport; run routes exist but the client never calls them) | operator enablement after prod migration (0023) + SSE-through-production-proxy verification + internal cohort; **enable together with `ASK_RUNS_ENFORCE=1`** (register #44 — replay semantics hold only under enforce) |
+| `ASK_STREAM_ANSWER` | unset (whole-answer release) | Gate 3 pass + operator cohort decision; only effective with ASK_PROGRESSIVE |
+| `ASK_FIDELITY_FALLBACK` | ON by default (deterministic, $0) | rollback knob only — set 0 to disable sentence replacement |
 
 Phase 0's measurement columns are passive (no flag needed; rollback = stop writing them).
 

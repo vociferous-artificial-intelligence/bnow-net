@@ -17,9 +17,29 @@ const PHASE_KEY: Record<Exclude<RunViewState["phase"], "done" | "failed">, strin
   answering: "ask.progress.answering",
 };
 
-export function RunProgress({ state, t }: { state: RunViewState; t: Translate }) {
-  if (state.phase === "done" || state.phase === "failed") return null;
-  const statusKey = PHASE_KEY[state.phase];
+export function RunProgress({
+  state,
+  t,
+  onStop,
+  holdTerminal = false,
+  question = null,
+}: {
+  state: RunViewState;
+  t: Translate;
+  /** Phase 3: wired to POST /api/ask/runs/[id]/cancel; the orchestrator's
+   *  cancel-marker watch makes it effective mid-generation. */
+  onStop?: () => void;
+  /** Keep the panel mounted through phase "done" while the terminal result is
+   *  still hydrating (supplementary Gate 2 finding: released sections vanished
+   *  and the idle affordances flashed back during the /result round trip). */
+  holdTerminal?: boolean;
+  /** The question the ACTIVE run is answering — shown so a resumed run is
+   *  never misattributed to a different prefill in the input. */
+  question?: string | null;
+}) {
+  if (state.phase === "failed" || (state.phase === "done" && !holdTerminal)) return null;
+  const statusKey =
+    state.phase === "done" ? "ask.progress.finalizing" : PHASE_KEY[state.phase];
 
   return (
     <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/40">
@@ -27,13 +47,43 @@ export function RunProgress({ state, t }: { state: RunViewState; t: Translate })
           announcing the whole panel would re-read the entire candidate list on
           every event — a screen-reader wall. Candidates/counts below are
           reachable but not force-announced. */}
-      <div role="status" aria-live="polite" className="flex items-center gap-2">
-        <Loader2
-          className="h-5 w-5 shrink-0 animate-spin text-blue-600 dark:text-blue-400"
-          aria-hidden="true"
-        />
-        <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">{t(statusKey)}</p>
+      <div className="flex items-center justify-between gap-2">
+        <div role="status" aria-live="polite" className="flex items-center gap-2">
+          <Loader2
+            className="h-5 w-5 shrink-0 animate-spin text-blue-600 dark:text-blue-400"
+            aria-hidden="true"
+          />
+          <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+            {t(statusKey)}
+            {/* Gate 3 a11y verdict (register #41 resolved): each released
+                section updates this short count INSIDE the live region — one
+                polite announcement per release, never the prose itself (which
+                stays reachable below, avoiding a full re-read at terminal
+                reconciliation). */}
+            {state.phase === "answering" && state.sections.length > 0 && (
+              <> — {state.sections.length} {t("ask.progress.sections_count_word")}</>
+            )}
+          </p>
+        </div>
+        {onStop && state.runId && state.phase !== "done" && (
+          <button
+            type="button"
+            onClick={onStop}
+            className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+          >
+            {t("ask.progress.stop")}
+          </button>
+        )}
       </div>
+
+      {question && (
+        <p className="mt-2 break-words text-sm text-gray-700 dark:text-gray-200">
+          <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            {t("ask.working.question_label")}:
+          </span>{" "}
+          {question}
+        </p>
+      )}
 
       {state.retrieval && (
         <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">
@@ -59,6 +109,19 @@ export function RunProgress({ state, t }: { state: RunViewState; t: Translate })
         <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
           {state.selectedCount} {t("ask.progress.selected_word")}
         </p>
+      )}
+
+      {state.sections.length > 0 && (
+        <div className="mt-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            {t("ask.progress.sections_label")}
+          </p>
+          <div className="mt-1 space-y-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-800 dark:text-gray-200">
+            {state.sections.map((sec, i) => (
+              <p key={i}>{sec.text}</p>
+            ))}
+          </div>
+        </div>
       )}
 
       {state.candidates && state.candidates.claims.length > 0 && (

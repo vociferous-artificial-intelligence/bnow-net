@@ -2223,3 +2223,58 @@ Work blocks (per the master prompt §9):
 6. Gate 2: evidence-truth/state-machine/reconnect/a11y/money lenses + measured
    p50 time-to-first-candidate target <2s on production-shaped data.
 No paid calls, production writes, deploys, or pushes.
+
+## 2026-07-19 23:05 EDT — AI Search Phase 3: AnswerValidator + validated streaming
+
+Phase 2 PASSED Gate 2 (inline §5-fallback pass after the multi-agent attempt died on
+session limits — 4 findings fixed in `04e0318`; supplementary independent pass queued
+post-reset) and merged at `a0c6e85`. This phase:
+`codex/ai-search-ask-p3-validation-stream`. Two increments under independent flags
+(master prompt §10):
+
+A. Extract the pure `AnswerValidator` (citation filter, denial-prefix check, terminal
+   refusal/empty/truncation mapping) into `src/lib/ask/validator.ts`, shared by the
+   streaming and non-streaming paths with BYTE-EQUIVALENCE tests against current
+   outputs; add the §4 source-fidelity matrix for name-bearing sentences (identity/
+   category/predicate/status/certainty/timing + governing attribution against the
+   cited EvidenceSnapshot; deterministic cited-claim fallback — never name
+   suppression). Whole-answer release first.
+B. Buffered validated sections behind `ASK_STREAM_ANSWER` (default OFF): server-side
+   provider stream, sentence-boundary buffering, 250-char denial holdback, per-chunk
+   citation validation, terminal reconciliation, Stop/cancel wiring, exactly-once
+   settlement on all stream-death paths.
+Gate 3 REQUIRES the independent red-team (post-reset). No paid calls, production
+writes, deploys, pushes; production enablement stays blocked.
+
+## 2026-07-20 11:55 EDT — AI Search recovery: interrupted Gate 2 supplementary + Gate 3
+
+The 2026-07-20 session died mid-work (credit/session limit) leaving Phase 3 ungated
+with a dirty `src/lib/ask/run-controller.ts` patch (attempted supplementary-Gate-2
+fixes, uncommitted, unproven). Recovery block (≤2h increments, committed often):
+
+1. Forensics + exclusive ownership; recovery report
+   `docs/reviews/AI-SEARCH-RECOVERY-2026-07-20.md`.
+2. Prove or rework the dirty run-controller patch against the persisted-event
+   contract (14-point behavior matrix; focused tests → typecheck/lint/full suite);
+   commit as forward fixes.
+3. Supplementary Gate 2 independent review (2–3 reviewers, divided lenses), addendum
+   appended to `AI-SEARCH-GATE-2-2026-07-19.md`.
+4. Gate 3 independent red-team over the full Phase 3 diff + executed probes; full
+   verification battery (unit/lint/build/integration on a proven-disposable Neon
+   fork/browser on production build, flags both ways); write
+   `AI-SEARCH-GATE-3-2026-07-20.md`.
+5. On PASS only: merge Phase 3 `--no-ff` into
+   `codex/ai-search-ask-integration-20260719`; retain the phase branch.
+6. Continue Phases 4–7 per the master prompt.
+No pushes, deploys, production writes, paid calls, cap/analytics/provider changes.
+
+## 2026-07-20 14:05 EDT — Gate 3 PASSED; Phase 3 merging to integration
+
+Supplementary Gate 2: PASS stands (addendum; G2S-1..11 fixed forward). Gate 3:
+independent 3-battery red-team with executed probes — 2 high + 7 med + 4 low
+confirmed and fixed (`e48149c`); the production-build browser battery caught the
+graceful-abort-teardown cancellation gap (fixed `27ed1de`, Stop → run.cancelled
+proven 10/10). Unit 1,860/1,860 · itest 52/52 (disposable fork) · browser
+10/10 + 4/4 + 4/4 with screenshots. Production enablement stays BLOCKED
+(ASK_STREAM_ANSWER unset). Merging Phase 3 --no-ff into
+codex/ai-search-ask-integration-20260719; Phase 4 (routing + exact cache) next.

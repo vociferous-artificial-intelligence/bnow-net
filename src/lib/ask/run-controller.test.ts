@@ -158,22 +158,272 @@ describe("runProgressiveAsk — one paid POST per gesture", () => {
 });
 
 describe("resumeRun — mid-run refresh recovery", () => {
-  it("replays from the stored seq to terminal with GETs only", async () => {
+  it("mount recovery replays the FULL event log (after=0) to terminal with GETs only", async () => {
     const tail = sse(['id: 5\nevent: run.completed\ndata: {"result":{"answer":"A"}}\n\n']);
     const fetchImpl = vi.fn().mockResolvedValue(new Response(streamOf(tail), { status: 200 }));
     storeActiveRun({ runId: RUN_ID, lastSeq: 4, question: "q" });
 
     const final = await resumeRun({ runId: RUN_ID, lastSeq: 4, question: "q" }, { onState: () => {}, fetchImpl });
     expect(final.phase).toBe("done");
-    expect(String(fetchImpl.mock.calls[0][0])).toBe(`/api/ask/runs/${RUN_ID}/events?after=4`);
+    // supplementary Gate 2 fix: no seed ⇒ replay from 0 so the whole panel
+    // rebuilds; the stored lastSeq only seeds live-continuation reconnects
+    expect(String(fetchImpl.mock.calls[0][0])).toBe(`/api/ask/runs/${RUN_ID}/events?after=0`);
     expect(readActiveRun()).toBeNull();
   });
 
-  it("an ownership 404 fails honestly and clears the ref", async () => {
+  it("an ownership 404 fails honestly and clears the ref (after the one confirmation retry)", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 404 }));
-    const final = await resumeRun({ runId: RUN_ID, lastSeq: 0, question: "q" }, { onState: () => {}, fetchImpl });
+    const final = await resumeRun(
+      { runId: RUN_ID, lastSeq: 0, question: "q" },
+      { onState: () => {}, fetchImpl, backoffMs: 0 },
+    );
     expect(final.phase).toBe("failed");
     expect(final.errorClass).toBe("reconnect_404");
+  });
+});
+
+describe("applyRunEvent — answer.section identity (supplementary Gate 2 recovery)", () => {
+  const section = (id: number | null, text: string): SseRecord => ({
+    id,
+    event: "answer.section",
+    data: JSON.stringify({ text, citedClaimIds: [1] }),
+  });
+
+  it("duplicate delivery of the same persisted section seq renders once", () => {
+    let s = initialRunViewState();
+    s = applyRunEvent(s, section(7, "First validated sentence. [c1]"));
+    s = applyRunEvent(s, section(7, "First validated sentence. [c1]"));
+    expect(s.sections).toHaveLength(1);
+    expect(s.sections[0].seq).toBe(7);
+  });
+
+  it("distinct sections with distinct seqs both render, in release order", () => {
+    let s = initialRunViewState();
+    s = applyRunEvent(s, section(7, "First. [c1]"));
+    s = applyRunEvent(s, section(8, "Second. [c1]"));
+    expect(s.sections.map((x) => x.text)).toEqual(["First. [c1]", "Second. [c1]"]);
+  });
+
+  it("a section without a valid persisted seq advances the phase but never renders — and two id-less sections cannot collapse into one", () => {
+    let s = initialRunViewState();
+    s = applyRunEvent(s, section(null, "No identity A."));
+    expect(s.phase).toBe("answering"); // the event type is still a server fact
+    expect(s.sections).toHaveLength(0); // prose without replay identity is dropped fail-safe
+    s = applyRunEvent(s, section(null, "No identity B."));
+    expect(s.sections).toHaveLength(0); // dropped too — never a shared-sentinel collapse
+    // valid sections still render afterwards (the drop is per-record, not sticky)
+    s = applyRunEvent(s, section(9, "Valid. [c1]"));
+    expect(s.sections.map((x) => x.text)).toEqual(["Valid. [c1]"]);
+  });
+
+  it("a late section after a terminal state is ignored entirely", () => {
+    let s = initialRunViewState();
+    s = applyRunEvent(s, { id: 5, event: "run.completed", data: '{"result":{"answer":"A"}}' });
+    s = applyRunEvent(s, section(6, "Too late."));
+    expect(s.phase).toBe("done");
+    expect(s.sections).toHaveLength(0);
+  });
+});
+
+describe("consumeStream rejection — a dropped read is a stream drop, not a crash", () => {
+  function rejectingStream(firstChunk: string): ReadableStream<Uint8Array> {
+    const enc = new TextEncoder();
+    let delivered = false;
+    return new ReadableStream({
+      pull(controller) {
+        if (!delivered) {
+          delivered = true;
+          controller.enqueue(enc.encode(firstChunk));
+        } else {
+          controller.error(new TypeError("network changed"));
+        }
+      },
+    });
+  }
+
+  it("a reader.read() rejection mid-POST-stream falls to the READ-ONLY resume — never a second POST", async () => {
+    const first = sse([
+      `event: run.ref\ndata: {"runId":"${RUN_ID}"}\n\n`,
+      'id: 1\nevent: run.created\ndata: {}\n\n',
+    ]);
+    const tail = sse(['id: 2\nevent: run.completed\ndata: {"result":{"answer":"A"}}\n\n']);
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(rejectingStream(first), { status: 200 }))
+      .mockResolvedValueOnce(new Response(streamOf(tail), { status: 200 }));
+
+    const final = await runProgressiveAsk("q", "key-1", {
+      onState: () => {},
+      fetchImpl,
+      backoffMs: 0,
+    });
+
+    expect(final.phase).toBe("done");
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect((fetchImpl.mock.calls[0][1] as RequestInit).method).toBe("POST");
+    expect(String(fetchImpl.mock.calls[1][0])).toBe(`/api/ask/runs/${RUN_ID}/events?after=1`);
+    expect((fetchImpl.mock.calls[1][1] as RequestInit | undefined)?.method ?? "GET").toBe("GET");
+  });
+
+  it("a rejection during a resume read keeps retrying the GET within the budget", async () => {
+    const first = sse(['id: 1\nevent: run.created\ndata: {}\n\n']);
+    const tail = sse(['id: 2\nevent: run.completed\ndata: {"result":{"answer":"A"}}\n\n']);
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(rejectingStream(first), { status: 200 }))
+      .mockResolvedValueOnce(new Response(streamOf(tail), { status: 200 }));
+
+    const final = await resumeRun(
+      { runId: RUN_ID, lastSeq: 0, question: "q" },
+      { onState: () => {}, fetchImpl, backoffMs: 0 },
+    );
+    expect(final.phase).toBe("done");
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(
+      fetchImpl.mock.calls.every((c) => ((c[1] as RequestInit | undefined)?.method ?? "GET") === "GET"),
+    ).toBe(true);
+  });
+});
+
+describe("resumeRun — mount recovery rebuilds the WHOLE panel (supplementary Gate 2)", () => {
+  it("replays from 0 (not the stored lastSeq), rebuilds candidates/retrieval/selection/sections/phase, and dedupes overlapping section replay", async () => {
+    const fullReplay = sse([
+      'id: 1\nevent: run.created\ndata: {}\n\n',
+      `id: 2\nevent: retrieval.lexical_partial\ndata: ${JSON.stringify({ claims: [{ claimId: 4, text: "cand", hedging: "claimed", claimDate: null, countryIso2: "ua", track: null, confidence: null, sourceDocIds: [] }], totalMatching: 21 })}\n\n`,
+      `id: 3\nevent: retrieval.completed\ndata: ${JSON.stringify({ candidatesCount: 12, totalMatching: 21, uniqueSources: 5, mode: "v2", window: null, currentThrough: "2026-07-19" })}\n\n`,
+      'id: 4\nevent: rerank.completed\ndata: {"selectedClaimIds":[4,2]}\n\n',
+      'id: 5\nevent: answer.section\ndata: {"text":"Released so far. [c4]","citedClaimIds":[4]}\n\n',
+      // non-terminal cutoff — the client must reconnect from its lastSeq
+    ]);
+    const tail = sse([
+      // the server replays seq 5 again (after=5 boundary races are the client's
+      // problem to absorb) plus the terminal
+      'id: 5\nevent: answer.section\ndata: {"text":"Released so far. [c4]","citedClaimIds":[4]}\n\n',
+      'id: 6\nevent: run.completed\ndata: {"result":{"answer":"Full.","state":"answered"}}\n\n',
+    ]);
+    const calls: string[] = [];
+    const midStates: RunViewState[] = [];
+    const fetchImpl = vi.fn(async (url: RequestInfo | URL) => {
+      calls.push(String(url));
+      return calls.length === 1
+        ? new Response(streamOf(fullReplay), { status: 200 })
+        : new Response(streamOf(tail), { status: 200 });
+    });
+
+    const final = await resumeRun(
+      { runId: RUN_ID, lastSeq: 5, question: "q" }, // the tab stored lastSeq 5
+      { onState: (s) => midStates.push(s), fetchImpl, backoffMs: 0 },
+    );
+
+    // full replay from 0 despite the stored lastSeq
+    expect(calls[0]).toBe(`/api/ask/runs/${RUN_ID}/events?after=0`);
+    // the mid-run view rebuilt EVERYTHING from persisted events
+    const mid = midStates.find((s) => s.phase === "answering" && s.sections.length > 0);
+    expect(mid).toBeDefined();
+    expect(mid!.candidates?.claims[0]?.text).toBe("cand");
+    expect(mid!.retrieval?.uniqueSources).toBe(5);
+    expect(mid!.selectedCount).toBe(2);
+    // duplicate section replay across the reconnect rendered ONCE
+    expect(final.sections.filter((s) => s.seq === 5)).toHaveLength(1);
+    expect(final.phase).toBe("done");
+  });
+
+  it("pushes a busy state synchronously BEFORE the first network byte", async () => {
+    const order: string[] = [];
+    const fetchImpl = vi.fn(async () => {
+      order.push("fetch");
+      return new Response(streamOf(sse(['id: 1\nevent: run.completed\ndata: {"result":{}}\n\n'])), { status: 200 });
+    });
+    await resumeRun(
+      { runId: RUN_ID, lastSeq: 3, question: "q" },
+      {
+        onState: (s) => order.push(`state:${s.phase}:${s.runId}`),
+        fetchImpl,
+        backoffMs: 0,
+      },
+    );
+    expect(order[0]).toBe(`state:starting:${RUN_ID}`); // busy view before any fetch
+    expect(order[1]).toBe("fetch");
+  });
+});
+
+describe("resumeRun — transient failures vs terminal 404 vs exhaustion", () => {
+  it("a transient 502 retries within the budget and keeps the resume ref until terminal", async () => {
+    const tail = sse(['id: 2\nevent: run.completed\ndata: {"result":{"answer":"A"}}\n\n']);
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 502 }))
+      .mockResolvedValueOnce(new Response(streamOf(tail), { status: 200 }));
+    storeActiveRun({ runId: RUN_ID, lastSeq: 1, question: "q" });
+
+    const final = await resumeRun(
+      { runId: RUN_ID, lastSeq: 1, question: "q" },
+      { onState: () => {}, fetchImpl, backoffMs: 0 },
+    );
+    expect(final.phase).toBe("done");
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(readActiveRun()).toBeNull(); // cleared at terminal, not at the 502
+  });
+
+  it("reconnect exhaustion fails the view honestly but RETAINS the resume ref (a still-running paid run is never orphaned)", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 502 }));
+    storeActiveRun({ runId: RUN_ID, lastSeq: 2, question: "q" });
+
+    const final = await resumeRun(
+      { runId: RUN_ID, lastSeq: 2, question: "q" },
+      { onState: () => {}, fetchImpl, maxReconnects: 3, backoffMs: 0 },
+    );
+    expect(final.phase).toBe("failed");
+    expect(final.errorClass).toBe("reconnect_exhausted");
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    // the ref survives: a refresh retries the $0 read-only resume
+    expect(readActiveRun()).toEqual({ runId: RUN_ID, lastSeq: 2, question: "q" });
+  });
+
+  it("a REPEATED 404 is terminal and clears the ref (genuine ownership/unknown run)", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 404 }));
+    storeActiveRun({ runId: RUN_ID, lastSeq: 2, question: "q" });
+    const final = await resumeRun(
+      { runId: RUN_ID, lastSeq: 2, question: "q" },
+      { onState: () => {}, fetchImpl, backoffMs: 0 },
+    );
+    expect(final.phase).toBe("failed");
+    expect(final.errorClass).toBe("reconnect_404");
+    expect(fetchImpl).toHaveBeenCalledTimes(2); // confirmed once before terminal
+    expect(readActiveRun()).toBeNull();
+  });
+
+  it("a SINGLE 404 during the run-creation window is transient: the retry finds the run and the billed answer is never orphaned (supplementary Gate 2)", async () => {
+    const tail = sse(['id: 2\nevent: run.completed\ndata: {"result":{"answer":"A"}}\n\n']);
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 404 })) // row not committed yet
+      .mockResolvedValueOnce(new Response(streamOf(tail), { status: 200 }));
+    storeActiveRun({ runId: RUN_ID, lastSeq: 0, question: "q" });
+
+    const final = await resumeRun(
+      { runId: RUN_ID, lastSeq: 0, question: "q" },
+      { onState: () => {}, fetchImpl, backoffMs: 0 },
+    );
+    expect(final.phase).toBe("done");
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(readActiveRun()).toBeNull(); // cleared at terminal, not at the 404
+  });
+
+  it("a 404 followed by a transient 502 resets the 404 count (only CONSECUTIVE 404s are terminal)", async () => {
+    const tail = sse(['id: 2\nevent: run.completed\ndata: {"result":{"answer":"A"}}\n\n']);
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(new Response(null, { status: 502 }))
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(new Response(streamOf(tail), { status: 200 }));
+    const final = await resumeRun(
+      { runId: RUN_ID, lastSeq: 0, question: "q" },
+      { onState: () => {}, fetchImpl, maxReconnects: 5, backoffMs: 0 },
+    );
+    expect(final.phase).toBe("done"); // the non-consecutive 404s never terminalized
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
   });
 });
 

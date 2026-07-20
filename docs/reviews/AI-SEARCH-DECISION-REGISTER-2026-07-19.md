@@ -183,6 +183,110 @@ blockers accumulated by the unattended workstream. Revisit-markers are explicit.
     /api/ask/runs/[id]/result** (ownership-gated, $0), sharing the action's
     hydration module verbatim — one render contract, two transports.
 
+## Phase 3
+
+### Accepted assumptions / structural decisions
+
+36. **The §4 fidelity matrix is structural-deterministic** (sentence regex families
+    + cited-claim text; never an LLM judge). Documented heuristic bounds: novel
+    predicate paraphrases outside the encoded families pass through to the
+    citation filter alone; the encoded families cover the §4 strengthening modes
+    (conviction, confirmed death, sanction/designation, arrest, charge). Rollback:
+    `ASK_FIDELITY_FALLBACK=0` disables sentence replacement only.
+37. **`answer.section` admits a `text` payload key** — the ONE prose-bearing event
+    besides the terminal result, restricted to VALIDATED released sections
+    (citation-filtered + fidelity-checked before emit); the allowlist test pins
+    that no other event admits text.
+38. **Cancellation maps to provider `"cancelled"` + state `"error"`** in the
+    payload (the `AnswerState` union and the PostHog `ask_completed` enum stay
+    untouched); the runs route emits the single `run.cancelled` terminal instead
+    of `run.completed`; the cancelled payload is finalized on the run row so
+    replays stay honest.
+39. **Stream-death settlement is the conservative ceiling** (30K input estimate +
+    the output-token ceiling) when no usage frame arrived — same conservatism
+    class as reservation expiry; later corrections are new records. A clean end
+    settles the provider's terminal usage frame exactly once (`settled` gate +
+    the atomic guard's conditional transition).
+40. **`answer-stream.ts` imports nothing from `answer.ts`** (the caller supplies
+    model/messages/ceiling), so the modules cannot cycle; its `streamFactory`
+    seam is the shape the Phase 5 gateway adopts.
+41. **Streamed sections render OUTSIDE the aria-live region** (the status line
+    announces stage changes; sections are reachable, not force-announced) —
+    flagged for the Gate 3 red-team's a11y verdict on whether section-level
+    announcements should be added.
+
+### Post-recovery additions (2026-07-20; the interrupted session's dirty patch
+### proven/reworked — see AI-SEARCH-RECOVERY-2026-07-20.md)
+
+42. **Answer-section identity = the persisted event seq; id-less prose never
+    renders.** An `answer.section` SSE record without a valid `id:` line is
+    contract-violating transport data: its phase advance still applies (the
+    event type is a server fact) but its text is dropped fail-safe — prose with
+    no replay identity cannot be deduplicated, and a shared synthetic id would
+    silently collapse distinct sections. Terminal reconciliation renders the
+    full validated answer regardless, so the drop costs at most an interim
+    display. Duplicate delivery of the same seq renders once (client-side
+    dedupe keyed by seq).
+43. **Reconnect-exhaustion RETAINS the per-tab resume ref.** Clearing it would
+    orphan a possibly still-running billed run (the next refresh would show an
+    idle form inviting a second paid gesture). Policy: keep the ref, render the
+    honest "may still be completing — refresh to check at no extra charge"
+    copy; only terminal replay or a genuine ownership/unknown 404 clears the
+    ref. Residual (accepted): a run that never writes a terminal event (e.g.
+    expired by the sweep, which marks the row but appends no event) leaves a
+    per-tab ref that retries a bounded $0 read-only resume on each mount until
+    the tab closes. Mount recovery replays from seq 0 (full panel rebuild); the
+    stored lastSeq seeds only live-continuation reconnects.
+
+### Supplementary Gate 2 additions (2026-07-20; findings G2S-1..11 in the gate
+### report's addendum — these are the surviving contracts/residuals)
+
+44. **Enablement coupling:** `ASK_PROGRESSIVE=1` should be enabled together
+    with `ASK_RUNS_ENFORCE=1` — the runs route's idempotent-replay semantics
+    ("a replayed key returns its stored result with zero provider calls") hold
+    only under enforce; in shadow mode a duplicate POST re-runs the paid
+    pipeline (documented legacy semantics). Operator note for the (blocked)
+    enablement step.
+45. **Reconnect 404s are terminal only when consecutive.** The POST route
+    announces `run.ref` before the ask_runs row commits, so the first 404 in a
+    resume is retried after backoff; a second consecutive 404 is a genuine
+    ownership/unknown run and clears the resume ref (G2S-2).
+46. **Terminal-persist failure delivers an unpersisted wire terminal** instead
+    of rewriting a billed success as `run.failed` (G2S-4). Residual accepted:
+    that one run's event log lacks a terminal event, so a later resume tails
+    to cutoff and exhausts honestly (ref retained, #43); the finalized run row
+    + `/result` remain the durable truth.
+47. **Failure-copy class split deferred** for the expired-session path
+    (detecting the auth redirect inside a dropped SSE fetch): `submit_*` /
+    `stream_lost_before_ref` currently share the generic connection-lost copy
+    (money statement exact in every class). `reconnect_404` got its own honest
+    copy (G2S-11).
+
+### Gate 3 additions (2026-07-20; findings G3-1..13 + G3-B1 in the gate report —
+### these are the surviving contracts/registered bounds)
+
+48. **Fidelity-matrix documented bounds (post-G3 hardening).** (a) An UNCITED
+    name-bearing sentence with no encoded §4 predicate passes through (benign
+    mentions; the encoded families gate the fail-uncited rule). (b) Identity
+    accepts surname + matching first initial, so initial-changing
+    transliterations (Yevgeny/Evgeny) still over-replace — conservative
+    direction, name preserved in the quoted claim. (c) Predicate/negation/
+    candidate-identity checks remain regex-structural; novel phrasings outside
+    the encoded patterns pass to the citation filter alone (register #36's
+    class, narrowed by the G3 fixes).
+49. **Graceful abort teardown = cancelled.** In the Next server runtime an
+    aborted provider stream can end WITHOUT throwing and without a
+    finish_reason (transport-dependent; proven end-to-end). Contract: signal
+    aborted + no provider finish_reason at clean end ⇒ cancelled (no final
+    flush; ceiling settles absent a usage frame); a genuine provider finish
+    racing a late Stop stays a completion.
+50. **Usage frames are adopted only when finite and non-negative** (both token
+    counts); anything else settles the conservative ceiling. This is the
+    Phase 5 gateway seam's contract for degenerate frames.
+51. **StreamDispatchError carries settled usage** so error payloads report
+    billed usage/model whenever settlement happened (parity with the
+    non-streaming billedAnswerModel discipline).
+
 ### Revisit list
 
 - If Next.js is upgraded past 16.2.x, re-verify the server-action maxDuration

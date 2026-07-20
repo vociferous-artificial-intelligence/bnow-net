@@ -41,6 +41,51 @@ NOT executed (operator approval required — see the decision register).
 | P2-4 | `npm test` + `npm run lint` + `npm run build` (client commit `67b93bd`) | **PASS — 1,778/1,778, 146 files** | ~3min | run-controller reducer/parser/transport tests (one POST per gesture; dropped stream resumes read-only; failed submit no-retry; resume-from-storage; ownership 404), jsdom progressive form tests (one POST + zero action calls + hydrated render; mount-resume zero POSTs; flag off fully inert) |
 | P2-5 | Browser verification, PRODUCTION build (`next start`, disposable branch `br-nameless-shadow-atvw230x`, LLM_DISABLE=1 + empty key overrides beating .env.local, ASK_PROGRESSIVE=1, anonymous gate-off) | **PASS — 8/8 checks** | ~4min | real Chrome (`/usr/bin/google-chrome`): terminal render via the progressive path (both outcomes exercised: the no-coverage callout for a "this week" window past currency, then the full stub answer + cited-evidence panels for a non-temporal question); exactly ONE paid POST; resume ref cleared on terminal; GET ?q= prefill-only zero POSTs; forged ?intent= zero calls; unknown-run events 404; zero unexpected console errors. Screenshots: `docs/reviews/assets/p2-ask-{idle,terminal}.png`. Branch deleted; server stopped |
 
+## Phase 3 (branch `codex/ai-search-ask-p3-validation-stream`)
+
+| # | Command | Result | Duration | Notes |
+|---|---|---|---|---|
+| P3-1 | `npm test` (Increment A, `71e557a`) | **PASS — 1,796/1,796, 147 files** | ~90s | validator extraction byte-equivalent (existing ask suite unchanged); 15 validator tests covering the red-team classes at unit level (identity/predicate/certainty/status + over-suppression-must-not-happen) |
+| P3-2 | `npm test` + `npm run lint` + `npm run build` (Increment B, `9418f13`) | **PASS — 1,819/1,819, 148 files** | ~3min | +23: SectionReleaser §6.3 matrix (holdback, denial-led releases nothing, partial marker never renders, unresolved held-then-stripped, fidelity replacement at release), streamAnswer money paths (reserve-before, exactly-once settle on clean/death/abort/dispatch-fail, refusal suppresses release, ceiling on missing usage frame), cancel watcher, ask()-level flag wiring (ON+sink streams; OFF or no sink byte-identical) |
+
+Gate 3 red-team (independent, executed-probe instructions) + the supplementary Gate 2
+independent pass run in background; their rows and verdicts append on completion.
+**2026-07-20 recovery note:** that background attempt died with the session (no findings
+were captured); the recovery session re-ran both reviews — rows P3-3 onward.
+
+Recovery (2026-07-20, same branch — the interrupted session's dirty run-controller
+patch proven/reworked before commit):
+
+| # | Command | Result | Duration | Notes |
+|---|---|---|---|---|
+| P3-3 | `npx vitest run run-controller.test.ts ask-form.test.tsx` | **PASS — 47/47** | 1.5s | the 14-point recovery matrix: section dedupe by persisted seq (dup renders once; distinct id-less sections drop fail-safe, never collapse), read-rejection → read-only resume (both entry points, GET-only asserted), full replay from 0 on mount (candidates/retrieval/selection/sections/phase rebuilt; overlap-replay deduped), busy state pushed before first network byte (controller order + jsdom disabled-input), transient 502 retry with ref retained, exhaustion retains ref (register #43), 404 terminal clears ref, gesture release after terminal (fresh idempotency key on explicit resubmit). One Phase 2 pin updated: mount-resume now asserts `after=0` (contract change, register #43) |
+| P3-4 | `npm run typecheck` + `npm run lint` | PASS (1 pre-existing warning) | ~70s | |
+| P3-5 | `npm test` | **PASS — 1,832/1,832, 148 files** | 6.1s | +13 over P3-2 |
+
+Supplementary Gate 2 independent pass (2026-07-20; workflow `wf_2695dde0-5bb`, 3
+lens-divided reviewer agents, 442,864 subagent tokens, all read-only/$0; findings
+G2S-1..11 in the Gate 2 addendum) and its fixes:
+
+| # | Command | Result | Duration | Notes |
+|---|---|---|---|---|
+| P3-6 | reviewer probe: events-route tail poisoning (executed against the real route module, faithful Pool mock) | **CONFIRMED 2/2** | ~1s | control (no marker) delivers the later terminal; poisoned (marker replayed first) polls blind at after=1e6 for the full 50s cutoff — basis of G2S-1 |
+| P3-7 | `npx vitest run` (run-controller + ask-form + runs-routes + retrieve-v2) after fixes | **PASS — 85/85** | 2.4s | new pins: marker-safe tail cursor + single-forward, consecutive-404 contract (3 tests), replay hydration via result.runId, unpersisted-terminal fallback (no run.failed rewrite), cancel single-marker idempotency, partial-emit await + rejection safety, terminal-gap busy window, intent-unconsumed-during-resume + active-question display |
+| P3-8 | `npm run typecheck` + `npm run lint` + `npm test` | **PASS — 1,841/1,841, 148 files** (lint 0 errors / 1 pre-existing warning) | ~7min | +9 over P3-5 |
+
+Gate 3 red-team (2026-07-20; workflow `wf_6422c025-876`, 3 independent battery agents
+with EXECUTED probes, 405,605 subagent tokens, $0 — findings G3-1..13 + browser G3-B1
+in the gate report) and the verification battery:
+
+| # | Command | Result | Duration | Notes |
+|---|---|---|---|---|
+| P3-9 | red-team probe batteries (fidelity ~31 cases, stream ~20, client 12, money 18, watch/flags 14 — `npx tsx`, fake guards/sinks/streams, dummy DB) | 2 high + 7 med + 4 low CONFIRMED; every §6.3/money invariant otherwise clean | ~15min | probes in the reviewers' scratchpads; findings re-verified by the lead before fixing |
+| P3-10 | `npm test` after red-team fixes (`e48149c`) | **PASS — 1,858/1,858, 148 files** (+17 pins) | 5.9s | typecheck clean, lint 0 errors |
+| P3-11 | `npm run test:integration` | **PASS — 52/52, 9 files** | ~26s | disposable branch `br-spring-cherry-atl050ks`, deleted; itests refuse to run without INTEGRATION_DATABASE_URL |
+| P3-12 | `npm run build` | PASS | ~90s | |
+| P3-13 | Browser pass A — PRODUCTION build, streaming (fork `br-spring-darkness-atutd2b1`, host ≠ prod verified, migrated 0021–0023 on fork, LOCAL mock provider via OPENAI_BASE_URL, ASK_PROGRESSIVE=1 + ASK_STREAM_ANSWER=1 + ASK_RUNS_ENFORCE=1) | first run **9/10** — Stop finalized `answered` (G3-B1: graceful abort teardown in the Next runtime); after fix `27ed1de` **10/10** | ~8min | sections stream before terminal; reconciliation replaces; ONE paid POST; read-only resume with attributed question; Stop → run.cancelled; zero extra POSTs; zero console errors; 4 screenshots committed |
+| P3-14 | Browser passes B/C — flags on + LLM_DISABLE=1 (**4/4**); flags off + LLM_DISABLE=1 (**4/4**) | PASS | ~3min | offline deterministic through progressive (no sections, one POST); flag-off = zero runs-POSTs (server-action transport); screenshots committed. Fork branch deleted after |
+| P3-15 | `npm run typecheck` + `npm run lint` + `npm test` (final, `27ed1de`) | **PASS — 1,860/1,860, 148 files** (lint 0 errors / 1 pre-existing warning) | ~7min | |
+
 Post-Gate-1 reruns (fix commit `1309d46`):
 
 | # | Command | Result | Duration | Notes |

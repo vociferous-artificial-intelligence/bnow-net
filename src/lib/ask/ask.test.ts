@@ -1098,3 +1098,155 @@ describe("ask() — Phase 2 progressive event emission", () => {
     expect(rr.payload.relevantCount).toBe(1);
   });
 });
+
+// ---- Phase 3 Increment B: streaming wiring (flagged) -----------------------------
+
+const p3 = vi.hoisted(() => ({ streamAnswerMock: vi.fn(), watchStop: vi.fn() }));
+vi.mock("./answer-stream", () => {
+  class StreamDispatchError extends Error {
+    constructor(
+      cause: unknown,
+      public readonly settledUsage: { promptTokens: number; completionTokens: number; costUsd: number },
+    ) {
+      super(cause instanceof Error ? cause.message : String(cause));
+      this.name = "StreamDispatchError";
+    }
+  }
+  return {
+    streamAnswer: p3.streamAnswerMock,
+    StreamDispatchError,
+    watchCancelMarker: vi.fn(() => p3.watchStop),
+    STREAM_DEATH_INPUT_EST_TOKENS: 30_000,
+  };
+});
+
+describe("answerFromEvidence — ASK_STREAM_ANSWER wiring", () => {
+  const pool = [candidate({ claimId: 1 })];
+  const USAGE = { promptTokens: 500, completionTokens: 80, costUsd: 0.001 };
+
+  beforeEach(() => {
+    p3.streamAnswerMock.mockReset();
+    p3.watchStop.mockClear();
+  });
+
+  it("flag ON + real sink: streams, emits answer.validating, terminal payload through the SAME assemble path", async () => {
+    envPaidV2();
+    vi.stubEnv("ASK_STREAM_ANSWER", "1");
+    p3.streamAnswerMock.mockResolvedValue({
+      content: "Streamed answer [c1].",
+      refusal: "",
+      finishReason: "stop",
+      usage: USAGE,
+      denialLed: false,
+      cancelled: false,
+      releasedCount: 1,
+    });
+    const sink = fakeSink();
+    const res = await answerFromEvidence("q", retrievalV2({ claims: pool }), ranked({ claims: pool }), {
+      sink,
+      runId: "11111111-2222-4333-8444-555555555555",
+    });
+
+    expect(p3.streamAnswerMock).toHaveBeenCalledTimes(1);
+    expect(mocks.createMock).not.toHaveBeenCalled(); // the non-streaming call never fires
+    expect(sink.events.map((e) => e.type)).toContain("answer.validating");
+    expect(res.state).toBe("answered");
+    expect(res.answer).toBe("Streamed answer [c1].");
+    expect(res.citedClaimIds).toEqual([1]); // terminal reconciliation ran the same filter
+    expect(res.answerModel).toBeTruthy();
+    expect(p3.watchStop).toHaveBeenCalled(); // the cancel watch was cleaned up
+  });
+
+  it("a cancelled stream returns the provider 'cancelled' payload the route maps to run.cancelled", async () => {
+    envPaidV2();
+    vi.stubEnv("ASK_STREAM_ANSWER", "1");
+    p3.streamAnswerMock.mockResolvedValue({
+      content: "partial",
+      refusal: "",
+      finishReason: "cancelled",
+      usage: USAGE,
+      denialLed: false,
+      cancelled: true,
+      releasedCount: 0,
+    });
+    const res = await answerFromEvidence("q", retrievalV2({ claims: pool }), ranked({ claims: pool }), {
+      sink: fakeSink(),
+      runId: "11111111-2222-4333-8444-555555555555",
+    });
+    expect(res.provider).toBe("cancelled");
+    expect(res.state).toBe("error");
+    expect(res.answer).toContain("stopped");
+  });
+
+  it("a refusal outcome maps through the identical refused terminal", async () => {
+    envPaidV2();
+    vi.stubEnv("ASK_STREAM_ANSWER", "1");
+    p3.streamAnswerMock.mockResolvedValue({
+      content: "",
+      refusal: "cannot",
+      finishReason: "stop",
+      usage: USAGE,
+      denialLed: false,
+      cancelled: false,
+      releasedCount: 0,
+    });
+    const res = await answerFromEvidence("q", retrievalV2({ claims: pool }), ranked({ claims: pool }), {
+      sink: fakeSink(),
+    });
+    expect(res.state).toBe("refused");
+  });
+
+  it("G3: a stream that DIED with empty content maps to state 'error' (interrupted), never a model refusal", async () => {
+    envPaidV2();
+    vi.stubEnv("ASK_STREAM_ANSWER", "1");
+    p3.streamAnswerMock.mockResolvedValue({
+      content: "",
+      refusal: "",
+      finishReason: "error", // the synthetic death marker
+      usage: USAGE,
+      denialLed: false,
+      cancelled: false,
+      releasedCount: 0,
+    });
+    const res = await answerFromEvidence("q", retrievalV2({ claims: pool }), ranked({ claims: pool }), {
+      sink: fakeSink(),
+    });
+    expect(res.state).toBe("error");
+    expect(res.answer).toContain("interrupted");
+    expect(res.usage).toEqual(USAGE); // billed usage attributed
+  });
+
+  it("G3: a dispatch failure (StreamDispatchError) reports the settled ceiling usage and the model in the error payload", async () => {
+    envPaidV2();
+    vi.stubEnv("ASK_STREAM_ANSWER", "1");
+    const { StreamDispatchError } = await import("./answer-stream");
+    const ceiling = { promptTokens: 30_000, completionTokens: 2500, costUsd: 0.006 };
+    p3.streamAnswerMock.mockRejectedValue(new StreamDispatchError(new Error("dispatch failed"), ceiling));
+    const res = await answerFromEvidence("q", retrievalV2({ claims: pool }), ranked({ claims: pool }), {
+      sink: fakeSink(),
+    });
+    expect(res.state).toBe("error");
+    expect(res.usage).toEqual(ceiling); // the billed ceiling is not dropped
+    expect(res.answerModel).toBeTruthy();
+  });
+
+  it("flag OFF: the non-streaming path runs even with a real sink (default behavior preserved)", async () => {
+    envPaidV2();
+    mocks.createMock.mockResolvedValue(completion({ content: "Non-streamed [c1]." }));
+    const res = await answerFromEvidence("q", retrievalV2({ claims: pool }), ranked({ claims: pool }), {
+      sink: fakeSink(),
+    });
+    expect(p3.streamAnswerMock).not.toHaveBeenCalled();
+    expect(mocks.createMock).toHaveBeenCalledTimes(1);
+    expect(res.answer).toBe("Non-streamed [c1].");
+  });
+
+  it("flag ON without a sink (action/eval paths): non-streaming, byte-identical", async () => {
+    envPaidV2();
+    vi.stubEnv("ASK_STREAM_ANSWER", "1");
+    mocks.createMock.mockResolvedValue(completion({ content: "Non-streamed [c1]." }));
+    const res = await answerFromEvidence("q", retrievalV2({ claims: pool }), ranked({ claims: pool }));
+    expect(p3.streamAnswerMock).not.toHaveBeenCalled();
+    expect(res.answer).toBe("Non-streamed [c1].");
+  });
+});

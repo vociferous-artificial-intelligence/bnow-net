@@ -56,11 +56,14 @@ describe("payload allowlist (contract §2 made testable)", () => {
   });
 
   it("no allowlist entry admits prose-bearing keys like message/prompt/stack/answer", () => {
-    for (const keys of Object.values(EVENT_PAYLOAD_ALLOWLIST)) {
-      for (const banned of ["message", "prompt", "stack", "answer", "text"]) {
-        // "result" carries the terminal payload by design; raw prose keys never appear
-        expect(keys).not.toContain(banned);
+    for (const [type, keys] of Object.entries(EVENT_PAYLOAD_ALLOWLIST)) {
+      for (const banned of ["message", "prompt", "stack", "answer"]) {
+        expect(keys, type).not.toContain(banned);
       }
+      // "text" is admitted ONLY for answer.section — VALIDATED released prose
+      // (citation-filtered + fidelity-checked before emit), the same content
+      // class as run.completed's result payload. Everything else stays text-free.
+      if (type !== "answer.section") expect(keys, type).not.toContain("text");
     }
   });
 });
@@ -116,8 +119,8 @@ describe("replay + encoding", () => {
     expect(rec).toBe('id: 7\nevent: run.failed\ndata: {"errorClass":"x"}\n\n');
   });
 
-  it("terminal set is exactly run.completed + run.failed", () => {
-    expect([...TERMINAL_EVENT_TYPES].sort()).toEqual(["run.completed", "run.failed"]);
+  it("terminal set is exactly run.completed + run.failed + run.cancelled (Phase 3)", () => {
+    expect([...TERMINAL_EVENT_TYPES].sort()).toEqual(["run.cancelled", "run.completed", "run.failed"]);
   });
 });
 

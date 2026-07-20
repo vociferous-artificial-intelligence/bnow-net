@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Pool } from "@neondatabase/serverless";
 import { requireAcceptedUser } from "@/lib/gate";
 import {
+  CANCEL_SEQ_BASE,
   encodeSseEvent,
   readRunEvents,
   SSE_HEARTBEAT,
@@ -56,7 +57,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
           controller.enqueue(encoder.encode(chunk));
         } catch {}
       };
+      // The poll cursor advances ONLY through the orchestrator's 1..N seq range.
+      // Cancel markers live at seq >= CANCEL_SEQ_BASE (a second writer): letting
+      // one advance the cursor blinds every later poll to the orchestrator's
+      // events — including the terminal (supplementary Gate 2 finding, executed
+      // probe). Markers are forwarded once, tracked separately.
       let lastSeq = after;
+      const forwardedMarkers = new Set<number>();
       let sawTerminal = false;
       const started = Date.now();
       let lastBeat = started;
@@ -64,11 +71,20 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         for (;;) {
           const events = await readRunEvents(id, lastSeq);
           for (const e of events) {
+            if (e.seq >= CANCEL_SEQ_BASE) {
+              if (forwardedMarkers.has(e.seq)) continue;
+              forwardedMarkers.add(e.seq);
+              send(encodeSseEvent(e));
+              continue; // never advances the poll cursor
+            }
             send(encodeSseEvent(e));
             lastSeq = e.seq;
             if (TERMINAL_EVENT_TYPES.has(e.type)) sawTerminal = true;
           }
           if (sawTerminal) break;
+          // The socket is gone: stop polling Postgres on its behalf (the run
+          // keeps executing; the client reconnects read-only).
+          if (req.signal?.aborted) break;
           if (Date.now() - started > TAIL_CUTOFF_MS) break; // client reconnects with lastSeq
           if (Date.now() - lastBeat >= HEARTBEAT_EVERY_MS) {
             send(SSE_HEARTBEAT);

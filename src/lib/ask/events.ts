@@ -58,8 +58,18 @@ export interface AskRunEventPayloads {
   "rerank.completed": { selectedClaimIds: number[]; relevantCount?: number };
   "rerank.skipped": { reasonClass: "pool_fits" | "offline" | "fallback" };
   "answer.started": Record<string, never>;
+  /** Phase 3 Increment B: one VALIDATED released section — complete sentences
+   *  whose citations resolved and whose named-person fidelity passed (or was
+   *  deterministically replaced) BEFORE release. Never a raw token delta. */
+  "answer.section": { text: string; citedClaimIds: number[] };
+  /** Phase 3: the terminal validation pass is running (the client shows
+   *  "checking citations"; the final payload may replace streamed text). */
+  "answer.validating": Record<string, never>;
   "run.completed": { result: AskAnswerV2 };
   "run.failed": { errorClass: string };
+  /** Phase 3: the run was cancelled (Stop / cancel marker). Terminal; billed
+   *  usage settled exactly once before this fires. */
+  "run.cancelled": Record<string, never>;
   cancel_requested: Record<string, never>;
 }
 
@@ -89,8 +99,11 @@ export const EVENT_PAYLOAD_ALLOWLIST: { [T in AskRunEventType]: ReadonlyArray<st
   "rerank.completed": ["selectedClaimIds", "relevantCount"],
   "rerank.skipped": ["reasonClass"],
   "answer.started": [],
+  "answer.section": ["text", "citedClaimIds"],
+  "answer.validating": [],
   "run.completed": ["result"],
   "run.failed": ["errorClass"],
+  "run.cancelled": [],
   cancel_requested: [],
 };
 
@@ -246,7 +259,16 @@ export async function persistEvidenceSnapshot(runId: string, snapshot: EvidenceS
 export const TERMINAL_EVENT_TYPES: ReadonlySet<AskRunEventType> = new Set([
   "run.completed",
   "run.failed",
+  "run.cancelled",
 ]);
+
+/** Marker seq range base: the cancel route writes its cancel_requested marker
+ *  at seq >= this so it can never collide with the orchestrating invocation's
+ *  in-process counter. EVERY reader of ask_run_events must treat this range as
+ *  out-of-band: the client reducer caps its lastSeq below it, and the events
+ *  route's tail loop must not advance its poll cursor into it (a cursor at
+ *  1e6 goes blind to all later orchestrator events — supplementary Gate 2). */
+export const CANCEL_SEQ_BASE = 1_000_000;
 
 /** One SSE record for an event (id = seq so Last-Event-ID semantics work). */
 export function encodeSseEvent(e: AskRunEvent): string {

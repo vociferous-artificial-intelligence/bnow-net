@@ -543,6 +543,13 @@ const en: Dict = {
   "ask.progress.sample_suffix": "matching",
   "ask.progress.current_through": "data current through",
   "ask.progress.failed": "The connection to this run was lost before a result arrived. It was not charged twice — you can submit the question again.",
+  "ask.progress.reconnect_exhausted": "The connection to this run could not be re-established. The run may still be completing on the server — refresh this page to check for its result at no extra charge.",
+  "ask.progress.run_gone": "This run is no longer available on the server, so it cannot be resumed. It was not charged twice — you can submit the question again.",
+  "ask.progress.finalizing": "Answer complete — loading source panels…",
+  "ask.progress.sections_label": "Answer (validated so far)",
+  "ask.progress.sections_count_word": "validated sections",
+  "ask.progress.stop": "Stop",
+  "ask.progress.cancelled": "This run was stopped. Usage already incurred was settled; nothing further will be charged.",
 
   // Free claim search (/search) — deterministic lexical retrieval, no model
   // calls, no per-query cost. The count line reuses already-established tokens.
@@ -887,6 +894,13 @@ const uk: Dict = {
   "ask.progress.sample_suffix": "збігів", // uk: needs native review
   "ask.progress.current_through": "дані актуальні до", // uk: needs native review
   "ask.progress.failed": "З'єднання з цим запитом перервалося до отримання результату. Подвійної оплати не було — можете надіслати запит ще раз.", // uk: needs native review
+  "ask.progress.reconnect_exhausted": "Не вдалося відновити з'єднання з цим запитом. Він може ще виконуватися на сервері — оновіть сторінку, щоб перевірити результат без додаткової оплати.", // uk: needs native review
+  "ask.progress.run_gone": "Цей запит більше не доступний на сервері, тому його не можна відновити. Подвійної оплати не було — можете надіслати запит ще раз.", // uk: needs native review
+  "ask.progress.finalizing": "Відповідь готова — завантажуємо панелі джерел…", // uk: needs native review
+  "ask.progress.sections_label": "Відповідь (перевірено дотепер)", // uk: needs native review
+  "ask.progress.sections_count_word": "перевірених фрагментів", // uk: needs native review
+  "ask.progress.stop": "Зупинити", // uk: needs native review
+  "ask.progress.cancelled": "Цей запит зупинено. Вже використані ресурси обліковано; більше нічого не буде нараховано.", // uk: needs native review
   "search.title": "Пошук тверджень", // uk: needs native review
   "search.breadcrumb": "пошук тверджень", // uk: needs native review
   "search.intro": "Повнотекстовий пошук у базі тверджень. Детермінований збіг — без викликів моделі, без бюджету на запити. Кожен результат має посилання на дайджест і джерельні документи.", // uk: needs native review
