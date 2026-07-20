@@ -21,4 +21,9 @@ Environment: local WSL2, node 24.14.0, next 16.2.10, vitest; no paid provider ca
 production writes, no deploys anywhere in this phase. The eval matrix run is deliberately
 NOT executed (operator approval required — see the decision register).
 
-Post-gate reruns (fixes from Gate 0 findings) are appended below when they occur.
+Post-gate reruns (fixes from Gate 0 findings):
+
+| # | Command | Result | Duration | Notes |
+|---|---|---|---|---|
+| 10 | `npx tsx scripts/.gate0-matrix.ts` (temp harness, removed after) | **PASS — 34/34 cases** | ~5s | every Gate-0-reviewer dodge FAILS and every reviewer faithful/negating phrasing PASSES through the real scorer against the reworked fixtures, before anything was committed |
+| 11 | `npm run typecheck` + `npm test` + `npm run lint` (fix commit `598dcb2`) | **PASS — 1,698/1,698, 140 files** | ~80s total | +20 tests over row 5 (negation/state-short-circuit/malformed scorer tests + the 34-case permanent fixture matrix replacing the old pairs) |

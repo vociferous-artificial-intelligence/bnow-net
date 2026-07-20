@@ -55,6 +55,24 @@ blockers accumulated by the unattended workstream. Revisit-markers are explicit.
 - None encountered in Phase 0. The concurrent Paddle workstream has no in-tree schema
   work yet; migration number 0021 was claimed in `docs/PROGRESS.md` at branch time.
 
+### Post-Gate-0 additions
+
+9. **Deploy-before-migrate is a forbidden window** (Gate 0 F5): migration 0021 must be
+   applied to production before any deploy containing the Phase 0 commits — logUsage's
+   fail-soft INSERT would otherwise silently freeze the ask_usage ledger (and both /ask
+   ledger gates) until migrate runs. Recorded in the workstream index; no deploy is
+   authorized in this workstream.
+10. **Fidelity mustNotMatch is negation-aware by heuristic** (Gate 0 F1 fix): a
+    standalone negator (not/no/never/nor/without/cannot/n't) within a 40-char in-sentence
+    scope, unbroken by an adversative (", but/however/yet/although"), exempts a match.
+    Negated adjectives ("unconfirmed") deliberately do NOT negate. Contrived
+    double-negation can still slip either way — accepted residual softness of regex
+    gold; the structural check is Phase 3's AnswerValidator.
+11. **Accepted non-"answered" fidelity states skip text checks** (Gate 0 F3 fix): the
+    pipeline's insufficient copy is deterministic name-free prose, so name/predicate
+    patterns cannot apply to it. acceptStates:["answered"] fixtures still fail
+    over-suppression.
+
 ### Revisit list
 
 - If Next.js is upgraded past 16.2.x, re-verify the server-action maxDuration

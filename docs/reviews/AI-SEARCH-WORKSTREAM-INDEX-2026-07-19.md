@@ -20,7 +20,7 @@ are retained after merge for inspection.
 
 | Phase | Branch | Status | Gate | Reports |
 |---|---|---|---|---|
-| 0 — measurement, UX honesty, eval foundation | `codex/ai-search-ask-p0-measure` | implemented; gate in progress | Gate 0 (adversarial multi-lens) | `AI-SEARCH-PHASE-0-measure-2026-07-19.md`, `AI-SEARCH-GATE-0-2026-07-19.md` |
+| 0 — measurement, UX honesty, eval foundation | `codex/ai-search-ask-p0-measure` | **PASSED Gate 0 after fixes** (`598dcb2`); merged to integration | Gate 0 (adversarial multi-lens; 2 high + 6 med confirmed, all fixed; 0 refuted) | `AI-SEARCH-PHASE-0-measure-2026-07-19.md`, `AI-SEARCH-GATE-0-2026-07-19.md` |
 | 1 — runs, idempotency, atomic reservations | — | not started (blocked on Gate 0) | Gate 1 (independent money review) | — |
 | 2 — progressive retrieval | — | not started | Gate 2 | — |
 | 3 — validator + validated streaming | — | not started | Gate 3 (red-team) | — |
@@ -34,6 +34,13 @@ are retained after merge for inspection.
 | Number | Name | Phase | Contents | Status |
 |---|---|---|---|---|
 | 0021 | `0021_blushing_shiver_man.sql` | 0 | ask_usage += run_id (uuid, unique idx), started_at, stage_timings_ms jsonb, first_content_at, route_policy — purely additive | generated via drizzle-kit; **applied + contract-verified on a disposable Neon fork only; NOT applied to production** (production writes are out of authorization) |
+
+> **HARD enablement order (Gate 0 finding F5):** apply migration 0021 to production
+> (`npm run db:migrate`) BEFORE deploying any build containing the Phase 0 commits.
+> logUsage's INSERT names the new columns and its failures are deliberately fail-soft, so
+> a deploy-first window would silently freeze every ask_usage insert — and with it the
+> per-user daily count and global-budget SUM — until migrate runs (SpendGuard provider
+> caps still bound actual spend). No deploy is authorized inside this workstream.
 
 `9999_claim_source_trigger.sql` still sorts and applies last (verified on the fork).
 The concurrent Paddle/billing workstream had no schema work in-tree at claim time
@@ -55,6 +62,8 @@ Phase 0's measurement columns are passive (no flag needed; rollback = stop writi
 | `6e94ede` | ask: run ids + monotonic stage timings on ask_usage; pin /ask maxDuration |
 | `c8ee6ff` | ask: honest single-line working copy; typed but disabled ask_started event |
 | `7fb6e23` | evals: answer-model matrix configs + named-person source-fidelity fixtures |
+| `5f6aad1` | docs: Phase 0 implementation report + workstream ledgers |
+| `598dcb2` | ask/evals: Gate 0 fixes — negation-aware fidelity scoring, fixture hardening, timing lows |
 
 ## Cumulative ledgers
 

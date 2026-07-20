@@ -3,10 +3,13 @@
 **Date:** 2026-07-19 · **Branch:** `codex/ai-search-ask-p0-measure` (from
 `codex/ai-search-ask-integration-20260719` @ main `6c21b17`)
 **Commits:** `6e94ede` (measurement plumbing), `c8ee6ff` (UX honesty + disabled
-ask_started), `7fb6e23` (eval matrix + fidelity fixtures)
+ask_started), `7fb6e23` (eval matrix + fidelity fixtures), `598dcb2` (Gate 0 fixes —
+see the gate report)
 **Authorization:** 2026-07-19 unattended phased workstream (AGENTS decision log);
 executable contract `docs/prompts/2026-07-19-ai-search-ask-phased-implementation.md` §7.
-**Independent gate:** `AI-SEARCH-GATE-0-2026-07-19.md` (separate adversarial pass).
+**Independent gate:** `AI-SEARCH-GATE-0-2026-07-19.md` — **PASSED after fixes** (2 high
++ 6 medium confirmed findings, 0 refuted, all fixed in `598dcb2`; final suite
+1,698/1,698).
 
 ## What was built
 
