@@ -546,6 +546,8 @@ const en: Dict = {
   "ask.progress.reconnect_exhausted": "The connection to this run could not be re-established. The run may still be completing on the server — refresh this page to check for its result at no extra charge.",
   "ask.progress.run_gone": "This run is no longer available on the server, so it cannot be resumed. It was not charged twice — you can submit the question again.",
   "ask.progress.finalizing": "Answer complete — loading source panels…",
+  "ask.cached.note": "Cached answer — served from your earlier identical question at no extra cost",
+  "ask.cached.as_of": "data as of",
   "ask.progress.sections_label": "Answer (validated so far)",
   "ask.progress.sections_count_word": "validated sections",
   "ask.progress.stop": "Stop",
@@ -897,6 +899,8 @@ const uk: Dict = {
   "ask.progress.reconnect_exhausted": "Не вдалося відновити з'єднання з цим запитом. Він може ще виконуватися на сервері — оновіть сторінку, щоб перевірити результат без додаткової оплати.", // uk: needs native review
   "ask.progress.run_gone": "Цей запит більше не доступний на сервері, тому його не можна відновити. Подвійної оплати не було — можете надіслати запит ще раз.", // uk: needs native review
   "ask.progress.finalizing": "Відповідь готова — завантажуємо панелі джерел…", // uk: needs native review
+  "ask.cached.note": "Кешована відповідь — з вашого попереднього ідентичного запиту, без додаткової оплати", // uk: needs native review
+  "ask.cached.as_of": "дані станом на", // uk: needs native review
   "ask.progress.sections_label": "Відповідь (перевірено дотепер)", // uk: needs native review
   "ask.progress.sections_count_word": "перевірених фрагментів", // uk: needs native review
   "ask.progress.stop": "Зупинити", // uk: needs native review

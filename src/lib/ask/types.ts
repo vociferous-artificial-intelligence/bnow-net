@@ -138,4 +138,10 @@ export interface AskAnswerV2 {
    *  keys onto it (Gate 1 finding: the replay gesture's timings would overwrite
    *  the original's). */
   replayed?: boolean;
+  /** OPTIONAL (additive, AI Search Phase 4): "exact" when this payload was
+   *  served from the per-user exact answer cache — $0, zero provider calls,
+   *  dataCurrentThrough shows the ORIGINAL answer's currency (the honest
+   *  "as of"), and hydration resolves cited evidence from the frozen
+   *  EvidenceSnapshot (F11: live claim ids may have churned). */
+  cacheStatus?: "exact";
 }

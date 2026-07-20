@@ -5,6 +5,7 @@ import { brandSiteBaseUrl } from "@/lib/site-url";
 import type { ClaimSourceDoc } from "@/components/claim-evidence-model";
 import type { AskResultLike, ResolvedClaim } from "@/app/ask/ask-result";
 import type { AskAnswerV2 } from "./types";
+import type { EvidenceSnapshot, SnapshotClaim } from "./events";
 
 // Phase 2 extraction: the post-answer source-hydration query the server action
 // has always run, shared verbatim with the progressive result endpoint so the
@@ -55,8 +56,18 @@ export interface HydratedClaims {
 }
 
 /** Resolve cited + related claim ids, owning digests, and every attached source
- *  document — exactly the action's historical behavior. */
+ *  document — exactly the action's historical behavior. Cache-hit payloads
+ *  (Phase 4, `cacheStatus: "exact"`) resolve from the run's frozen
+ *  EvidenceSnapshot instead: digest regeneration replaces claim rows (F11), so
+ *  live-id hydration would silently drop or MIS-attribute the cached answer's
+ *  citations; snapshot content + stable raw_documents ids stay correct. */
 export async function hydrateResultClaims(result: AskAnswerV2): Promise<HydratedClaims> {
+  if (result.cacheStatus === "exact" && result.runId) {
+    const fromSnapshot = await hydrateFromRunSnapshot(result);
+    if (fromSnapshot) return fromSnapshot;
+    // snapshot unavailable (lost row): fall through to live hydration — ids
+    // that still resolve render; vanished ids drop (the pre-cache behavior)
+  }
   let cited: ResolvedClaim[] = [];
   let related: ResolvedClaim[] = [];
   const relatedIds = (result as AskResultLike).relatedClaimIds ?? [];
@@ -117,4 +128,109 @@ export async function hydrateResultClaims(result: AskAnswerV2): Promise<Hydrated
   cited = result.citedClaimIds.map((id) => byId.get(id)).filter((c): c is ResolvedClaim => !!c);
   related = relatedIds.map((id) => byId.get(id)).filter((c): c is ResolvedClaim => !!c);
   return { cited, related };
+}
+
+interface SnapshotDocRow {
+  doc_id: number;
+  doc_url: string | null;
+  doc_title: string | null;
+  adapter: string;
+  source_id: number | null;
+  source_name: string | null;
+  source_key: string | null;
+  source_domain: string | null;
+  source_platform: string | null;
+  reliability: number | string | null;
+  published_at: string | null;
+  fetched_at: string;
+}
+
+/** Phase 4 (F11): resolve a cache-hit's cited/related evidence from the run's
+ *  frozen EvidenceSnapshot. Claim CONTENT comes from the snapshot verbatim
+ *  ("as retrieved"); source documents resolve live by their STABLE
+ *  raw_documents ids. No digest anchor is linked (the live claim id may have
+ *  churned — §7.4's rule). Returns null when no snapshot exists. */
+async function hydrateFromRunSnapshot(result: AskAnswerV2): Promise<HydratedClaims | null> {
+  const rows = (await rawSql.query(`SELECT evidence_snapshot FROM ask_runs WHERE id = $1`, [
+    result.runId,
+  ])) as Array<{ evidence_snapshot: EvidenceSnapshot | null }>;
+  const snapshot = rows[0]?.evidence_snapshot;
+  if (!snapshot || !Array.isArray(snapshot.candidates)) return null;
+
+  const byId = new Map<number, SnapshotClaim>(snapshot.candidates.map((c) => [c.claimId, c]));
+  const relatedIds = (result as AskResultLike).relatedClaimIds ?? [];
+  const wantedIds = [...new Set([...result.citedClaimIds, ...relatedIds])].filter((id) =>
+    byId.has(id),
+  );
+  if (wantedIds.length === 0) return { cited: [], related: [] };
+
+  const docIds = [
+    ...new Set(wantedIds.flatMap((id) => byId.get(id)!.sourceDocIds ?? [])),
+  ];
+  const docRows =
+    docIds.length === 0
+      ? []
+      : ((await rawSql.query(
+          `SELECT rd.id AS doc_id, rd.url AS doc_url, rd.title AS doc_title, rd.adapter,
+                  s.id AS source_id, s.name AS source_name, s.canonical_url AS source_key,
+                  s.domain AS source_domain, s.platform::text AS source_platform,
+                  s.reliability_score AS reliability,
+                  rd.published_at::text AS published_at,
+                  rd.fetched_at::text AS fetched_at
+           FROM raw_documents rd
+           LEFT JOIN sources s ON s.id = rd.source_id
+           WHERE rd.id = ANY($1::int[])`,
+          [docIds],
+        )) as SnapshotDocRow[]);
+  const docById = new Map<number, ClaimSourceDoc>(
+    docRows.map((row) => [
+      row.doc_id,
+      {
+        docId: row.doc_id,
+        url: row.doc_url,
+        title: row.doc_title,
+        adapter: row.adapter,
+        sourceId: row.source_id,
+        sourceName: row.source_name,
+        sourceKey: row.source_key,
+        sourceDomain: row.source_domain,
+        platform: row.source_platform,
+        reliability: row.reliability === null ? null : Number(row.reliability),
+        publishedAt: row.published_at,
+        firstSeenAt: row.fetched_at,
+      },
+    ]),
+  );
+
+  const locale = await getLocale();
+  const resolve = (id: number): ResolvedClaim | null => {
+    const c = byId.get(id);
+    if (!c) return null;
+    const asOf = c.claimDate ? formatDate(locale, c.claimDate) : null;
+    return {
+      id: c.claimId,
+      text: c.text,
+      hedging: c.hedging,
+      iso2: c.countryIso2,
+      countryName: c.countryIso2.toUpperCase(),
+      digestDate: null, // no live digest anchor — the claim id is unstable (F11)
+      copyPayload: {
+        claimId: c.claimId,
+        text: c.text,
+        hedging: c.hedging,
+        asOf,
+        countryName: c.countryIso2.toUpperCase(),
+        countryIso2: c.countryIso2,
+        claimUrl: null,
+        docs: (c.sourceDocIds ?? [])
+          .map((d) => docById.get(d))
+          .filter((d): d is ClaimSourceDoc => !!d),
+        showScores: true,
+      },
+    };
+  };
+  return {
+    cited: result.citedClaimIds.map(resolve).filter((c): c is ResolvedClaim => !!c),
+    related: relatedIds.map(resolve).filter((c): c is ResolvedClaim => !!c),
+  };
 }

@@ -2278,3 +2278,29 @@ proven 10/10). Unit 1,860/1,860 · itest 52/52 (disposable fork) · browser
 10/10 + 4/4 + 4/4 with screenshots. Production enablement stays BLOCKED
 (ASK_STREAM_ANSWER unset). Merging Phase 3 --no-ff into
 codex/ai-search-ask-integration-20260719; Phase 4 (routing + exact cache) next.
+
+## 2026-07-20 14:15 EDT — AI Search Phase 4: measured routing + exact caching
+
+Phase 3 merged at `17268e4`. Branch `codex/ai-search-ask-p4-routing-cache`.
+Migration number 0024 CLAIMED for `ask_answer_cache` (billing workstream still
+has no in-tree schema work; src/lib/billing absent). Scope (master prompt §11,
+recovery-brief bounds):
+1. `registry.ts` — versioned capability/price registry mirroring the current
+   PRICES_PER_MTOK values exactly (price-parity test); conservative unknown
+   fallback retained.
+2. `router.ts` — pure `route(features)` with policyVersion; Auto reproduces
+   today's model/K/rerank behavior EXACTLY (equivalence pinned); Fast/Deep are
+   policy shapes only, disabled without a passing scorecard (none exists — the
+   paid matrix is enablement-blocked). ASK_ROUTER default OFF (constants path
+   untouched); no mode-selector UI while off.
+3. `cache.ts` + migration 0024 — per-user EXACT answer cache keyed by
+   normalized question + window + policy/prompt/retrieval/corpus versions;
+   stores result + frozen EvidenceSnapshot; hits are $0, render "as of"
+   currency, and hydrate cited evidence FROM THE SNAPSHOT (stable
+   raw_documents ids) so citations survive claim-ID churn (F11).
+   ASK_EXACT_CACHE default OFF. Semantic cache NOT built (suggestion-only
+   class deferred; registered).
+4. Focused tests + full suite + itest (cache on real Postgres incl. corpus-
+   version invalidation) + Gate 4 independent review.
+No paid calls, production writes, deploys, pushes; adaptive-K/rerank-skip and
+Fast/Deep enablement stay blocked on the paid scorecard.
