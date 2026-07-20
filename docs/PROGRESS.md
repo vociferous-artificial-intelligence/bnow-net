@@ -2223,3 +2223,25 @@ Work blocks (per the master prompt §9):
 6. Gate 2: evidence-truth/state-machine/reconnect/a11y/money lenses + measured
    p50 time-to-first-candidate target <2s on production-shaped data.
 No paid calls, production writes, deploys, or pushes.
+
+## 2026-07-19 23:05 EDT — AI Search Phase 3: AnswerValidator + validated streaming
+
+Phase 2 PASSED Gate 2 (inline §5-fallback pass after the multi-agent attempt died on
+session limits — 4 findings fixed in `04e0318`; supplementary independent pass queued
+post-reset) and merged at `a0c6e85`. This phase:
+`codex/ai-search-ask-p3-validation-stream`. Two increments under independent flags
+(master prompt §10):
+
+A. Extract the pure `AnswerValidator` (citation filter, denial-prefix check, terminal
+   refusal/empty/truncation mapping) into `src/lib/ask/validator.ts`, shared by the
+   streaming and non-streaming paths with BYTE-EQUIVALENCE tests against current
+   outputs; add the §4 source-fidelity matrix for name-bearing sentences (identity/
+   category/predicate/status/certainty/timing + governing attribution against the
+   cited EvidenceSnapshot; deterministic cited-claim fallback — never name
+   suppression). Whole-answer release first.
+B. Buffered validated sections behind `ASK_STREAM_ANSWER` (default OFF): server-side
+   provider stream, sentence-boundary buffering, 250-char denial holdback, per-chunk
+   citation validation, terminal reconciliation, Stop/cancel wiring, exactly-once
+   settlement on all stream-death paths.
+Gate 3 REQUIRES the independent red-team (post-reset). No paid calls, production
+writes, deploys, pushes; production enablement stays blocked.
