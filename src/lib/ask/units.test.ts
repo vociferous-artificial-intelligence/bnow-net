@@ -41,11 +41,16 @@ describe("analysisUnits — the §9.5 unit policy, table-tested", () => {
     ["limit refusal", result({ state: "limit", provider: "limit" }), 0],
     ["error refusal", result({ state: "error", provider: "error" }), 0],
     ["replayed cache-ish payload", result({ replayed: true, cacheStatus: "exact" }), 0],
+    ["stub offline answer (kill-switch — NO provider exchange)", result({ state: "answered", provider: "stub" }), 0],
+    ["budget-degraded answer (BNOW's own cap refused the call)", result({ state: "answered", provider: "budget" }), 0],
+    ["cancelled run (beta decision: 0 — re-decide before live billing)", result({ state: "error", provider: "cancelled" }), 0],
   ])("%s → %i units", (_label, r, expected) => {
     expect(analysisUnits(r)).toBe(expected);
   });
 
-  it("deep is a 3-unit POLICY SHAPE only (no Deep route can serve — scorecard-gated)", () => {
+  it("deep mode bills UNITS_DEEP through the SAME policy function (no dead constant)", () => {
+    expect(analysisUnits(result({ state: "answered" }), "deep")).toBe(UNITS_DEEP);
+    expect(analysisUnits(result({ state: "answered", cacheStatus: "exact" }), "deep")).toBe(0); // hits stay free in every mode
     expect(UNITS_DEEP).toBe(3);
   });
 });
@@ -103,13 +108,16 @@ describe("import-graph: no billing/Paddle in the Ask pipeline (§9.4 / Gate 7 st
     return out;
   }
 
-  it("retrieval/rerank/generation/validation/events/rendering import no billing or Paddle module", () => {
+  it("retrieval/rerank/generation/validation/events/rendering — AND the guard layer + schema — import no billing or Paddle module in ANY form", () => {
     const SRC = join(__dirname, "..", "..");
     const offenders: string[] = [];
-    for (const dir of ["lib/ask", "lib/llm", "lib/embeddings", "app/ask", "app/api/ask", "components"]) {
+    // G7 fix: lib/usage (the cap-override vector — billing must never reach
+    // INTO the guard layer) and db are scanned too; the pattern catches bare
+    // side-effect imports, export-from, require() and dynamic import().
+    for (const dir of ["lib/ask", "lib/llm", "lib/embeddings", "lib/usage", "db", "app/ask", "app/api/ask", "components"]) {
       for (const file of walk(join(SRC, dir))) {
         const src = readFileSync(file, "utf8");
-        if (/(?:from\s+|require\(\s*|import\(\s*)["'][^"']*(?:billing|paddle)[^"']*["']/i.test(src)) {
+        if (/(?:from\s+|import\s+|require\(\s*|import\(\s*)["'][^"']*(?:billing|paddle)[^"']*["']/i.test(src)) {
           offenders.push(file.slice(SRC.length + 1));
         }
       }
@@ -117,11 +125,15 @@ describe("import-graph: no billing/Paddle in the Ask pipeline (§9.4 / Gate 7 st
     expect(offenders).toEqual([]);
   });
 
-  it("payment can never override SpendGuard: units/access modules import nothing from the usage layer", () => {
+  it("payment can never override SpendGuard: units/access modules import nothing from the usage layer in ANY form", () => {
     const SRC = join(__dirname, "..", "..");
     for (const f of ["lib/ask/units.ts", "lib/ask/access-context.ts"]) {
       const src = readFileSync(join(SRC, f), "utf8");
-      expect(/from\s+["'][^"']*usage\//.test(src), `${f} must not touch the guard layer`).toBe(false);
+      // static, bare, export-from, require, dynamic, and barrel forms
+      expect(
+        /(?:from\s+|import\s+|require\(\s*|import\(\s*)["'][^"']*usage(?:\/|["'])/.test(src),
+        `${f} must not touch the guard layer`,
+      ).toBe(false);
     }
   });
 });

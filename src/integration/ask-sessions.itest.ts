@@ -137,8 +137,10 @@ describe("sessions on real Postgres (Phase 6)", () => {
       [r.result.runId],
     );
     expect((run[0] as { evidence_snapshot: EvidenceSnapshot }).evidence_snapshot).toEqual(SNAPSHOT);
-    // Phase 7: an answered reuse turn settles ONE analysis unit (§9.5)
-    expect((run[0] as { units: number }).units).toBe(1);
+    // Phase 7 (post-Gate-7): this itest runs OFFLINE, so the answer is the
+    // deterministic stub — a DEGRADED provider bills 0 units (a real paid
+    // reuse turn bills 1; units.test.ts pins both classes).
+    expect((run[0] as { units: number }).units).toBe(0);
   });
 
   it("§7.7 delete: owner removes turns + content EVERYWHERE (runs, events, cache, usage question); accounting rows survive; foreign delete inert", async () => {

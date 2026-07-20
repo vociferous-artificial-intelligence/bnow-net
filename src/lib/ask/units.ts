@@ -26,13 +26,25 @@ export const UNITS_STANDARD = 1;
 export const UNITS_CACHE_HIT = 0;
 export const UNITS_DEEP = 3; // unservable today (no Deep route can pass the scorecard gate)
 
-/** Pure unit computation for a terminal payload. */
-export function analysisUnits(result: AskAnswerV2): number {
+/** Providers that mark a DEGRADED answer — no real provider exchange
+ *  happened (stub = offline/kill-switch; budget = BNOW's own cap refused the
+ *  call). Billing a full unit for a deterministic claim list during a
+ *  degraded window would charge for the thing the product says it is not
+ *  (Gate 7 high finding). */
+const DEGRADED_PROVIDERS = new Set(["stub", "budget"]);
+
+/** Pure unit computation for a terminal payload. Registered beta decisions
+ *  (re-decide before LIVE billing — decision register): cancelled runs bill
+ *  0 units (validated sections may have been delivered; align
+ *  CANCELLED_MESSAGE copy when this changes); model-refusal bills 1 while
+ *  truncation bills 0 (both full-cost, zero-value — asymmetry registered). */
+export function analysisUnits(result: AskAnswerV2, mode: "auto" | "fast" | "deep" = "auto"): number {
   if (result.replayed) return 0;
   if (result.cacheStatus === "exact") return UNITS_CACHE_HIT;
   if (result.state === "limit" || result.state === "error") return 0;
+  if (DEGRADED_PROVIDERS.has(result.provider)) return 0; // degraded ≠ analysis
   // answered / insufficient / refused: a real analysis exchange
-  return UNITS_STANDARD;
+  return mode === "deep" ? UNITS_DEEP : UNITS_STANDARD;
 }
 
 export interface UnitsAggregate {

@@ -33,9 +33,11 @@ export interface AccessContext {
 export type ResolveAccessContext = (userEmail: string) => Promise<AccessContext>;
 
 /** The BETA stub: everything the existing gates allow, nothing more granted.
- *  Fail-closed shape parity: if the future billing module throws, the caller
- *  must refuse paid Ask (limit state) — mirrored by stubResolveAccessContext
- *  never throwing (it grants nothing the current gates don't already govern). */
+ *  Fail-closed is the FUTURE CALLER'S obligation, not something a stub can
+ *  encode (Gate 7): when the billing module lands, the run-creation boundary
+ *  must refuse paid Ask (limit state) on a resolveAccessContext throw — that
+ *  behavior is untestable until the wiring exists and sits on the
+ *  enablement-blocked checklist for the joint gate. */
 export const stubResolveAccessContext: ResolveAccessContext = async () => ({
   tier: "beta",
   modesAllowed: ["auto"],
