@@ -2343,3 +2343,11 @@ still absent from the tree). Bounded scope — the retention decision (register
    existing guarded stages, snapshot re-persisted for F11 turn reproducibility.
 6. Unit + real-Postgres itest incl. ownership/delete/export; Gate 6.
 No paid calls, production writes, deploys, pushes.
+
+## 2026-07-20 15:55 EDT — Gate 6 PASSED; Phase 6 merging; Phase 7 next
+
+Sessions core (schema/lifecycle/classifier/compaction/reuse path/delete/
+export) gated: 1 high (incomplete §7.7 deletion — fixed across all four
+content surfaces) + 5 med + 3 low, all fixed (`10f9d54`). Unit 1,945/1,945 ·
+itest 61/61. Rollout stays retention-blocked; no UI. Merging --no-ff;
+Phase 7 (Ask-owned entitlement units — billing module still absent) next.

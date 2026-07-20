@@ -119,3 +119,12 @@ Post-gate reruns (fixes from Gate 0 findings):
 | P5-2 | `npm run test:integration` | **PASS — 56/56, 10 files** | ~26s | disposable branch `br-flat-sea-atuy9hp5`, deleted |
 | P5-3 | Gate 5 reviewer probe: SDK prototype-patch byte-parity over all 7 moved dispatch constructions vs `0f79b4d` + import-graph evasion demo | parity PASS; 1 med + 4 low findings (G5-1..5) | ~11min | dispositions in the gate report |
 | P5-4 | post-fix: `npm run typecheck` + `npm test` | **PASS — 1,915/1,915** | ~6min | regex hardening is test-file-only; LlmBudgetError.reason additive |
+
+## Phase 6 (branch `codex/ai-search-ask-p6-sessions`)
+
+| # | Command | Result | Duration | Notes |
+|---|---|---|---|---|
+| P6-1 | `npm test` (core `c98786a`) | **PASS — 1,937/1,937, 156 files** (+22) | 6s | classifier/compaction/ownership/delete-export/reuse-tripwire suites |
+| P6-2 | `npm run test:integration` | **PASS — 61/61, 11 files** (+5) | ~27s | disposable branch `br-fancy-mud-atlv1npo`, deleted: sessions on real Postgres (start/ownership/reuse-$0/delete/export) |
+| P6-3 | Gate 6 reviewer probes (CJS interception harness: SQL capture, enforce refusal payloads, pure batteries) | 1 high + 5 med + 3 low CONFIRMED (G6-1..9) | ~15min | gate report |
+| P6-4 | post-fix (`10f9d54`): `npm test` + `npm run test:integration` + build | **PASS — 1,945/1,945** unit; **61/61** itest (branch `br-cold-frog-atewraaq`, deleted) | ~8min | +8 pins: complete §7.7 deletion (4 surfaces), refusal/replay turn semantics, $0 pre-checks, run_ineligible, race refusal, pipeline_legacy, deleted-replay copy, classifier |

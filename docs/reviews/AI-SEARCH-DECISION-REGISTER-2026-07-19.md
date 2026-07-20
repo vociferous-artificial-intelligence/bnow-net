@@ -342,6 +342,30 @@ blockers accumulated by the unattended workstream. Revisit-markers are explicit.
     helpers would land in askWithLimits' catch instead of answer.ts's own —
     no triggering input exists; ruling 9 holds via the upstream catch.
 
+## Phase 6
+
+### Accepted assumptions / structural decisions
+
+63. **Sessions core ships flag-off with NO UI** — rollout (and the retention
+    sweep design) blocks on the operator retention decision (§7.7; the same
+    class as #13/#30). Delete/export landed FIRST per the master prompt.
+64. **Turn eligibility = owner's run WITH a frozen snapshot** (G6-5/7): a
+    snapshotless run can never become a turn, so the session's CURRENT
+    snapshot is always the latest turn's. Expand/new turns therefore require
+    the progressive path (which freezes snapshots) until the action path
+    gains snapshot freezing.
+65. **Refusal payloads (state limit/error) never consume turns**; cap/ended/
+    idle refuse for $0 BEFORE the paid call; post-call append refusals return
+    the billed result (G6-2/3).
+66. **Content-deleted replays get a dedicated honest copy** (G6-8); the §7.7
+    delete covers ask_runs content, ask_run_events, ask_answer_cache, and
+    ask_usage.question (accounting columns retained) (G6-1).
+67. **`pipeline_legacy` refusal** (G6-6): reuse follow-ups require the v2
+    pipeline; the legacy rollback cannot silently widen a scoped turn.
+68. **Snapshot entities are not carried** (the reuse turn's evidence is
+    claims-only; the entity list re-derives only on expand/new) — registered
+    bound.
+
 ### Revisit list
 
 - If Next.js is upgraded past 16.2.x, re-verify the server-action maxDuration

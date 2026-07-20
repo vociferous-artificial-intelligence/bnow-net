@@ -26,7 +26,7 @@ are retained after merge for inspection.
 | 3 — validator + validated streaming | `codex/ai-search-ask-p3-validation-stream` | **PASSED Gate 3 after fixes** (red-team fixes `e48149c` + browser-battery fix `27ed1de`; 2 high + 7 med + 4 low confirmed by executed probes + 1 browser-only high-class, all fixed and pinned); unit 1,860/1,860, itest 52/52, browser 10/10+4/4+4/4; merged to integration | Gate 3 (independent 3-battery red-team, executed probes + production-build browser battery) | `AI-SEARCH-PHASE-3-validation-stream-2026-07-20.md`, `AI-SEARCH-RECOVERY-2026-07-20.md`, `AI-SEARCH-GATE-3-2026-07-20.md` |
 | 4 — routing + exact cache | `codex/ai-search-ask-p4-routing-cache` | **PASSED Gate 4 after fixes** (`a335cd4` impl + `3f4242c` fixes; 0 blocker/high, 3 med + 6 low all fixed); unit 1,896/1,896, itest 56/56; merged to integration | Gate 4 (independent 2-lens review, executed probes) | `AI-SEARCH-PHASE-4-routing-cache-2026-07-20.md`, `AI-SEARCH-GATE-4-2026-07-20.md` |
 | 5 — provider gateway | `codex/ai-search-ask-p5-provider-gateway` | **PASSED Gate 5 after fixes** (`2e01e9c` + `c701970`; 0 blocker/high, 1 med + 4 low; SDK byte-parity probe over all 7 moved dispatches); unit 1,915/1,915, itest 56/56; merged to integration | Gate 5 (1 independent reviewer + inline pass + mechanical equivalence) | `AI-SEARCH-PHASE-5-provider-gateway-2026-07-20.md`, `AI-SEARCH-GATE-5-2026-07-20.md` |
-| 6 — investigation sessions | — | not started | Gate 6 | — |
+| 6 — investigation sessions | `codex/ai-search-ask-p6-sessions` | **PASSED Gate 6 after fixes** (`c98786a` + `10f9d54`; 1 high + 5 med + 3 low all fixed); unit 1,945/1,945, itest 61/61; merged to integration. NO UI; rollout retention-blocked | Gate 6 (1 independent reviewer, executed probes) | `AI-SEARCH-PHASE-6-sessions-2026-07-20.md`, `AI-SEARCH-GATE-6-2026-07-20.md` |
 | 7 — entitlements (Ask side) | — | not started | Gate 7 (joint boundary) | — |
 
 ## Migrations claimed
@@ -38,6 +38,7 @@ are retained after merge for inspection.
 | 0022 | `0022_reflective_callisto.sql` | 1 | ask_runs + ask_allowance_reservations + provider_usage_reservations — purely additive, passive until `ASK_RUNS_ENFORCE=1` | generated via drizzle-kit; applied + exercised on disposable Neon forks only; NOT applied to production |
 | 0023 | `0023_yielding_triathlon.sql` | 2 | ask_run_events (unique run_id+seq) + ask_runs.evidence_snapshot + the #22 partial expiry index — purely additive, passive until `ASK_PROGRESSIVE=1` | generated via drizzle-kit; applied + exercised on disposable Neon forks only; NOT applied to production |
 | 0024 | `0024_marvelous_dark_beast.sql` | 4 | ask_answer_cache (unique user_email+cache_key, created_at index) — purely additive, passive until `ASK_EXACT_CACHE=1` | generated via drizzle-kit; applied + exercised on disposable Neon forks only; NOT applied to production |
+| 0025 | `0025_confused_ulik.sql` | 6 | ask_sessions + ask_turns (unique session+seq; unique run) — purely additive, passive until `ASK_SESSIONS=1` | generated via drizzle-kit; applied + exercised on disposable Neon forks only; NOT applied to production |
 
 > **HARD enablement order (Gate 0 finding F5; applies to 0022 equally):** apply migration 0021 to production
 > (`npm run db:migrate`) BEFORE deploying any build containing the Phase 0 commits.
@@ -63,6 +64,7 @@ The concurrent Paddle/billing workstream had no schema work in-tree at claim tim
 | `ASK_ROUTER` | unset (constants path; router never consulted) | recording-only telemetry — safe anytime after prod migration; routing models THROUGH the policy requires the paid scorecard + a hard autoPolicy scorecard check (register #52) |
 | `ASK_EXACT_CACHE` | unset (no cache reads/writes) | operator enablement after prod migration (0024); per-user only; hits $0 with disclosed "as of" |
 | Fast/Deep routes + mode selector UI | not servable (scorecard refusals; no UI) | the paid answer-model matrix (~$1–3, operator-blocked) incl. the fidelity fixtures, then registry scorecard entries |
+| `ASK_SESSIONS` | unset (every session path unreachable; no UI exists) | the operator retention decision (§7.7) + prod migration (0025) + UI build |
 
 Phase 0's measurement columns are passive (no flag needed; rollback = stop writing them).
 
