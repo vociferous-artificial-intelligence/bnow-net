@@ -41,6 +41,16 @@ NOT executed (operator approval required — see the decision register).
 | P2-4 | `npm test` + `npm run lint` + `npm run build` (client commit `67b93bd`) | **PASS — 1,778/1,778, 146 files** | ~3min | run-controller reducer/parser/transport tests (one POST per gesture; dropped stream resumes read-only; failed submit no-retry; resume-from-storage; ownership 404), jsdom progressive form tests (one POST + zero action calls + hydrated render; mount-resume zero POSTs; flag off fully inert) |
 | P2-5 | Browser verification, PRODUCTION build (`next start`, disposable branch `br-nameless-shadow-atvw230x`, LLM_DISABLE=1 + empty key overrides beating .env.local, ASK_PROGRESSIVE=1, anonymous gate-off) | **PASS — 8/8 checks** | ~4min | real Chrome (`/usr/bin/google-chrome`): terminal render via the progressive path (both outcomes exercised: the no-coverage callout for a "this week" window past currency, then the full stub answer + cited-evidence panels for a non-temporal question); exactly ONE paid POST; resume ref cleared on terminal; GET ?q= prefill-only zero POSTs; forged ?intent= zero calls; unknown-run events 404; zero unexpected console errors. Screenshots: `docs/reviews/assets/p2-ask-{idle,terminal}.png`. Branch deleted; server stopped |
 
+## Phase 3 (branch `codex/ai-search-ask-p3-validation-stream`)
+
+| # | Command | Result | Duration | Notes |
+|---|---|---|---|---|
+| P3-1 | `npm test` (Increment A, `71e557a`) | **PASS — 1,796/1,796, 147 files** | ~90s | validator extraction byte-equivalent (existing ask suite unchanged); 15 validator tests covering the red-team classes at unit level (identity/predicate/certainty/status + over-suppression-must-not-happen) |
+| P3-2 | `npm test` + `npm run lint` + `npm run build` (Increment B, `9418f13`) | **PASS — 1,819/1,819, 148 files** | ~3min | +23: SectionReleaser §6.3 matrix (holdback, denial-led releases nothing, partial marker never renders, unresolved held-then-stripped, fidelity replacement at release), streamAnswer money paths (reserve-before, exactly-once settle on clean/death/abort/dispatch-fail, refusal suppresses release, ceiling on missing usage frame), cancel watcher, ask()-level flag wiring (ON+sink streams; OFF or no sink byte-identical) |
+
+Gate 3 red-team (independent, executed-probe instructions) + the supplementary Gate 2
+independent pass run in background; their rows and verdicts append on completion.
+
 Post-Gate-1 reruns (fix commit `1309d46`):
 
 | # | Command | Result | Duration | Notes |

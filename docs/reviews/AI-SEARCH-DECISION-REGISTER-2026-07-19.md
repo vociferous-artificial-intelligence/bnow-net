@@ -183,6 +183,38 @@ blockers accumulated by the unattended workstream. Revisit-markers are explicit.
     /api/ask/runs/[id]/result** (ownership-gated, $0), sharing the action's
     hydration module verbatim — one render contract, two transports.
 
+## Phase 3
+
+### Accepted assumptions / structural decisions
+
+36. **The §4 fidelity matrix is structural-deterministic** (sentence regex families
+    + cited-claim text; never an LLM judge). Documented heuristic bounds: novel
+    predicate paraphrases outside the encoded families pass through to the
+    citation filter alone; the encoded families cover the §4 strengthening modes
+    (conviction, confirmed death, sanction/designation, arrest, charge). Rollback:
+    `ASK_FIDELITY_FALLBACK=0` disables sentence replacement only.
+37. **`answer.section` admits a `text` payload key** — the ONE prose-bearing event
+    besides the terminal result, restricted to VALIDATED released sections
+    (citation-filtered + fidelity-checked before emit); the allowlist test pins
+    that no other event admits text.
+38. **Cancellation maps to provider `"cancelled"` + state `"error"`** in the
+    payload (the `AnswerState` union and the PostHog `ask_completed` enum stay
+    untouched); the runs route emits the single `run.cancelled` terminal instead
+    of `run.completed`; the cancelled payload is finalized on the run row so
+    replays stay honest.
+39. **Stream-death settlement is the conservative ceiling** (30K input estimate +
+    the output-token ceiling) when no usage frame arrived — same conservatism
+    class as reservation expiry; later corrections are new records. A clean end
+    settles the provider's terminal usage frame exactly once (`settled` gate +
+    the atomic guard's conditional transition).
+40. **`answer-stream.ts` imports nothing from `answer.ts`** (the caller supplies
+    model/messages/ceiling), so the modules cannot cycle; its `streamFactory`
+    seam is the shape the Phase 5 gateway adopts.
+41. **Streamed sections render OUTSIDE the aria-live region** (the status line
+    announces stage changes; sections are reachable, not force-announced) —
+    flagged for the Gate 3 red-team's a11y verdict on whether section-level
+    announcements should be added.
+
 ### Revisit list
 
 - If Next.js is upgraded past 16.2.x, re-verify the server-action maxDuration
