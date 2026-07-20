@@ -387,7 +387,15 @@ async function finalizeSafe(opts: Parameters<typeof finalizeRun>[0]): Promise<vo
 export async function askWithLimits(
   question: string,
   userEmail: string | null,
-  opts?: { idempotencyKey?: string; sink?: RunEventSink; runId?: string },
+  opts?: {
+    idempotencyKey?: string;
+    sink?: RunEventSink;
+    runId?: string;
+    /** Phase 6 (sessions): a follow-up turn answered from this frozen
+     *  snapshot — zero retrieval/embed; the exact cache is bypassed (a
+     *  session turn is scoped to ITS snapshot, never the global cache). */
+    sessionReuse?: { snapshot: EvidenceSnapshot; historyBlock?: string };
+  },
 ): Promise<AskAnswerV2> {
   const email = userEmail ?? "anonymous";
   const run = createAskRunMeta(opts?.runId);
@@ -519,8 +527,9 @@ export async function askWithLimits(
     let cacheCtx: { key: string; corpus: string } | null = null;
     // Anonymous identities never touch the cache (Gate 4: with the auth gate
     // off, every visitor folds to one "anonymous" namespace — caching there
-    // would pool answers across people).
-    if (askExactCache() && userEmail !== null) {
+    // would pool answers across people). Session reuse turns bypass it too:
+    // their answer is scoped to the SESSION's frozen snapshot.
+    if (askExactCache() && userEmail !== null && !opts?.sessionReuse) {
       try {
         const corpus = await corpusVersion(pool);
         const key = cacheKey({ question, window: parseTimeWindow(question), corpusVersion: corpus });
@@ -564,6 +573,14 @@ export async function askWithLimits(
         // (shadow/default), every stage builds its legacy SpendGuard as always.
         ...(enforce ? { guards: buildAskRunGuards(run.runId) } : {}),
         ...(progressive ? { sink, snapshotRunId: run.runId } : {}),
+        ...(opts?.sessionReuse
+          ? {
+              reuseSnapshot: opts.sessionReuse.snapshot,
+              historyBlock: opts.sessionReuse.historyBlock,
+              // the reuse turn's run row still records its snapshot (F11)
+              snapshotRunId: run.runId,
+            }
+          : {}),
       });
     } catch (e) {
       // ask() is designed to degrade internally (ruling 9), not throw. If it throws
