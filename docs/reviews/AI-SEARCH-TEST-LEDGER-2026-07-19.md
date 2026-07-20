@@ -110,3 +110,12 @@ Post-gate reruns (fixes from Gate 0 findings):
 |---|---|---|---|---|
 | 10 | `npx tsx scripts/.gate0-matrix.ts` (temp harness, removed after) | **PASS — 34/34 cases** | ~5s | every Gate-0-reviewer dodge FAILS and every reviewer faithful/negating phrasing PASSES through the real scorer against the reworked fixtures, before anything was committed |
 | 11 | `npm run typecheck` + `npm test` + `npm run lint` (fix commit `598dcb2`) | **PASS — 1,698/1,698, 140 files** | ~80s total | +20 tests over row 5 (negation/state-short-circuit/malformed scorer tests + the 34-case permanent fixture matrix replacing the old pairs) |
+
+## Phase 5 (branch `codex/ai-search-ask-p5-provider-gateway`)
+
+| # | Command | Result | Duration | Notes |
+|---|---|---|---|---|
+| P5-1 | `npm test` (extraction `2e01e9c`) | **PASS — 1,915/1,915, 154 files** (+19; the 1,896 pre-existing pins ALL unchanged = byte-equivalence evidence) | 6s | contract suite (openai mocked + stub, 17 cases) + import-graph rule |
+| P5-2 | `npm run test:integration` | **PASS — 56/56, 10 files** | ~26s | disposable branch `br-flat-sea-atuy9hp5`, deleted |
+| P5-3 | Gate 5 reviewer probe: SDK prototype-patch byte-parity over all 7 moved dispatch constructions vs `0f79b4d` + import-graph evasion demo | parity PASS; 1 med + 4 low findings (G5-1..5) | ~11min | dispositions in the gate report |
+| P5-4 | post-fix: `npm run typecheck` + `npm test` | **PASS — 1,915/1,915** | ~6min | regex hardening is test-file-only; LlmBudgetError.reason additive |

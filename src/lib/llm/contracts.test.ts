@@ -3,8 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // Phase 5 contract suite: the SAME fixtures run against the OpenAI adapter
 // (SDK mocked) and the stub adapter — pinning the normalized shapes, the
 // guard discipline (reserve BEFORE dispatch, record AFTER it and BEFORE any
-// body read — rulings 4/8), and metering on anomalous outputs. A future real
-// provider must pass exactly this suite.
+// body read — rulings 4/8), and metering on anomalous outputs.
+//
+// FUTURE-PROVIDER checklist (Gate 5 note — register #61): the dispatch-order
+// and anomalous-output assertions below observe the OPENAI mock's dispatch;
+// a new provider added to describe.each MUST also supply its own dispatch
+// spy so reserve<dispatch<record ordering and the five anomalous-output
+// fixtures run against ITS transport — the generic rows alone are not a
+// sufficient gate.
 
 const h = vi.hoisted(() => ({
   createMock: vi.fn(),

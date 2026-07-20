@@ -230,7 +230,8 @@ export async function rerankCandidates(
       );
     } catch (e) {
       if (e instanceof LlmBudgetError) {
-        console.warn(`ask rerank: budget refusal — ${e.message}; composite fallback`);
+        // e.reason (not .message) keeps the exact pre-gateway log wording
+        console.warn(`ask rerank: budget refusal — ${e.reason}; composite fallback`);
         return compositeFallback(candidates, k);
       }
       throw e; // provider/transport error: the outer catch's fallback

@@ -40,7 +40,10 @@ describe("import-graph: no vendor SDK in the Ask product path", () => {
         const rel = file.slice(REPO_SRC.length + 1).replace(/\\/g, "/");
         if (ALLOWED.has(rel)) continue;
         const src = readFileSync(file, "utf8");
-        if (/from\s+["']openai["']|require\(["']openai["']\)/.test(src)) {
+        // Gate 5 fix: match subpath specifiers ("openai/streaming") and the
+        // dynamic import()/require() forms too — the SDK's subpaths export
+        // runtime classes, so a narrow static-only match was evadable.
+        if (/(?:from\s+|require\(\s*|import\(\s*)["']openai(?:\/[^"']*)?["']/.test(src)) {
           offenders.push(rel);
         }
       }

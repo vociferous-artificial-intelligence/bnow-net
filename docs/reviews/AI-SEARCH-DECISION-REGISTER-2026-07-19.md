@@ -318,6 +318,30 @@ blockers accumulated by the unattended workstream. Revisit-markers are explicit.
     selector UI: NOT built** — each blocked on the paid scorecard / per-intent
     evals / a live router (enablement-blocked list).
 
+## Phase 5
+
+### Accepted assumptions / structural decisions
+
+59. **Streaming lifecycle stays in answer-stream.ts** (dispatch-only
+    `stream()` on the adapter): register #40 designated the factory as the
+    gateway seam, and Gate 3's hardened reserve/settle/abort semantics do not
+    move for a naming win. A second provider's streaming adapter supplies a
+    factory; the lifecycle code is provider-neutral already.
+60. **Out-of-scope vendor seams** (registered): the digest AnalysisProvider
+    (`openai-provider.ts`, `synthesize.ts`), the validation matcher
+    (`llm-match.ts`), and the entity-audit cron keep their own OpenAI imports
+    — they predate the gateway, have their own guard discipline, and migrate
+    when they next change. The import-graph rule covers the Ask product path.
+61. **Future-provider checklist** (Gate 5 G5-4): a provider added to the
+    contract suite MUST supply its own dispatch spy so reserve<dispatch<record
+    ordering and the anomalous-output fixtures run against ITS transport; the
+    generic describe.each rows alone are not a sufficient gate. Plus: key +
+    fail-closed cap envs in ALL environments BEFORE deploy, and a paid
+    scorecard (incl. fidelity fixtures) before routing.
+62. **G5-5 residual accepted**: a throw from the pure budget-degradation
+    helpers would land in askWithLimits' catch instead of answer.ts's own —
+    no triggering input exists; ruling 9 holds via the upstream catch.
+
 ### Revisit list
 
 - If Next.js is upgraded past 16.2.x, re-verify the server-action maxDuration
