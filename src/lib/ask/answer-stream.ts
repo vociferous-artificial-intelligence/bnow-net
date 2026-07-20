@@ -1,8 +1,7 @@
-import OpenAI from "openai";
 import { Pool } from "@neondatabase/serverless";
+import { openaiGeneration } from "../llm/openai";
 import { askGuardFromEnv, LlmBudgetError } from "../usage/llm-guard";
 import { estimateCostUsd } from "./limits";
-import { chatParamsForModel } from "./llm-params";
 import type { AskStageGuards } from "./run-guards";
 import type { RunEventSink } from "./events";
 import { fidelityFallbackEnabled, SectionReleaser, type FidelityEvidence } from "./validator";
@@ -140,6 +139,9 @@ export async function streamAnswer(opts: {
   // diverged from the terminal answer whenever the knob was off).
   const releaser = new SectionReleaser(evidenceById, validIds, fidelityFallbackEnabled());
 
+  // Phase 5: the default factory delegates to the gateway adapter (dispatch
+  // only — this module keeps the reserve/settle lifecycle and §6.3 release
+  // discipline; contracts.ts documents the split).
   const makeStream =
     opts.streamFactory ??
     (async (p: {
@@ -147,19 +149,14 @@ export async function streamAnswer(opts: {
       messages: Array<{ role: "system" | "user"; content: string }>;
       maxOutputTokens: number;
       signal?: AbortSignal;
-    }) => {
-      const client = new OpenAI();
-      return client.chat.completions.create(
-        {
-          model: p.model,
-          messages: p.messages,
-          stream: true,
-          stream_options: { include_usage: true },
-          ...chatParamsForModel(p.model, p.maxOutputTokens, { reasoningEffort: "low" }),
-        },
-        { signal: p.signal },
-      ) as Promise<AsyncIterable<AnswerStreamChunk>>;
-    });
+    }) =>
+      openaiGeneration.stream({
+        model: p.model,
+        messages: p.messages,
+        maxOutputTokens: p.maxOutputTokens,
+        reasoningEffort: "low",
+        signal: p.signal,
+      }) as Promise<AsyncIterable<AnswerStreamChunk>>);
 
   let settled = false;
   const settleOnce = async (usage: StageUsage) => {

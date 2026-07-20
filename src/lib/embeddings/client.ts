@@ -8,8 +8,7 @@
 // Stub vectors are IN-MEMORY ONLY — the persist layer refuses to store them
 // (truth-in-UI analog of standing ruling 3).
 
-import OpenAI from "openai";
-import { LlmBudgetError } from "../usage/llm-guard";
+import { openaiEmbedBatches } from "../llm/openai";
 import type { StageGuard } from "../usage/reservations";
 
 /** ASK_EMBED_MODEL default. 1536-dim, matches the claim_embeddings vector width. */
@@ -25,9 +24,6 @@ export const EMBED_USD_PER_1M_TOKENS = 0.02;
 export const EMBED_USD_PER_TOKEN = EMBED_USD_PER_1M_TOKENS / 1e6;
 /** provider string returned (and stored) when a real embedding was computed. */
 export const EMBED_STUB_PROVIDER = "stub";
-
-const MAX_RETRIES = 3;
-const RETRY_BASE_MS = 500;
 
 export interface EmbedResult {
   vectors: number[][];
@@ -101,34 +97,9 @@ export function stubVector(text: string, dims = EMBED_DIMS): number[] {
 }
 
 // -- retry ----------------------------------------------------------------------
-
-function isRetryable(e: unknown): boolean {
-  const status = (e as { status?: number } | null)?.status;
-  return status === 429 || (typeof status === "number" && status >= 500 && status < 600);
-}
-
-const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
-/** Exponential-backoff retry on 429/5xx only (pure, injectable sleep for tests). */
-export async function withRetry<T>(
-  fn: () => Promise<T>,
-  opts?: { maxRetries?: number; baseMs?: number; sleep?: (ms: number) => Promise<void> },
-): Promise<T> {
-  const maxRetries = opts?.maxRetries ?? MAX_RETRIES;
-  const baseMs = opts?.baseMs ?? RETRY_BASE_MS;
-  const sleep = opts?.sleep ?? defaultSleep;
-  let lastErr: unknown;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await fn();
-    } catch (e) {
-      lastErr = e;
-      if (!isRetryable(e) || attempt === maxRetries) throw e;
-      await sleep(baseMs * 2 ** attempt);
-    }
-  }
-  throw lastErr;
-}
+// Phase 5: moved verbatim into the gateway layer; re-exported so every
+// historical import keeps working.
+export { withRetry } from "../llm/retry";
 
 // -- main -----------------------------------------------------------------------
 
@@ -154,30 +125,17 @@ export async function embedTexts(
   }
 
   const model = embedModel();
-  const guard = opts?.guard;
-  const client = new OpenAI();
-  const vectors: number[][] = [];
-  let tokens = 0;
-  let costUsd = 0;
-
-  for (let i = 0; i < inputs.length; i += EMBED_MAX_INPUTS_PER_REQUEST) {
-    const batch = inputs.slice(i, i + EMBED_MAX_INPUTS_PER_REQUEST);
-    // Reserve BEFORE the billed request; a refusal throws (fail closed) before we call.
-    if (guard) {
-      const r = await guard.tryReserve();
-      if (!r.ok) throw new LlmBudgetError(r.reason);
-    }
-    const resp = await withRetry(() => client.embeddings.create({ model, input: batch }));
-    const batchTokens = resp.usage?.total_tokens ?? 0;
-    const batchCost = embedCostUsd(batchTokens);
-    tokens += batchTokens;
-    costUsd += batchCost;
-    // Record AFTER the request: 1 request, batch.length units, measured cost.
-    if (guard) await guard.record(1, batch.length, batchCost);
-    // Defensive: OpenAI returns data in input order, but sort on index anyway.
-    const sorted = [...resp.data].sort((a, b) => a.index - b.index);
-    for (const d of sorted) vectors.push(d.embedding as number[]);
-  }
+  // Phase 5: the batched guarded dispatch (per-batch reserve → request →
+  // record, retry, index-order defense) moved VERBATIM into the OpenAI
+  // adapter; this stage keeps the stub path, truncation, price constant, and
+  // provider naming.
+  const { vectors, tokens, costUsd } = await openaiEmbedBatches({
+    model,
+    inputs,
+    batchSize: EMBED_MAX_INPUTS_PER_REQUEST,
+    costPerToken: EMBED_USD_PER_TOKEN,
+    guard: opts?.guard,
+  });
 
   return { vectors, tokens, costUsd, provider: `openai:${model}` };
 }

@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { openaiGeneration, openaiLegacyChatCompletion } from "../llm/openai";
 import { askGuardFromEnv, isLlmDisabled, LlmBudgetError } from "../usage/llm-guard";
 import { envNum } from "../usage/spend-guard";
 import { retrieve, type RetrievalResult, type RetrievedEntity } from "./retrieve";
@@ -33,7 +33,6 @@ import {
 } from "./validator";
 
 export { beginsWithDenial };
-import { chatParamsForModel } from "./llm-params";
 import { dataCurrentThrough } from "./currency";
 import { parseTimeWindow } from "./window";
 import { selectRelatedClaimIds } from "./related";
@@ -197,10 +196,11 @@ async function legacyAnswer(question: string): Promise<AskAnswer> {
     };
   }
 
-  const client = new OpenAI();
   const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
   try {
-    const completion = await client.chat.completions.create({
+    // Phase 5: SDK construction moved to the adapter (raw passthrough — the
+    // legacy request payload is byte-identical; charter: nothing improved).
+    const completion = await openaiLegacyChatCompletion({
       model,
       messages: [
         { role: "system", content: SYSTEM },
@@ -663,49 +663,42 @@ export async function answerFromEvidence(
   const tAnswer = monotonicMs();
   try {
     // Phase 1 seam: enforce mode injects an atomic reservation-backed guard with
-    // the SAME surface; awaiting the legacy guard's synchronous tryReserve is a
-    // no-op. Reserve-before-call / record-after-call discipline is unchanged.
+    // the SAME surface. The reserve/record lifecycle now runs INSIDE the
+    // adapter (Phase 5); a budget refusal throws LlmBudgetError BEFORE any
+    // dispatch and the catch below degrades to the deterministic path with
+    // provider "budget" — never an unguarded call (standing ruling 4).
     const guard = opts?.guards?.answer ?? askGuardFromEnv();
-    await guard.init();
-    // Reserve BEFORE the billed call; a refusal degrades to the deterministic path with
-    // provider "budget" — never an unguarded call (standing ruling 4). No call => no
-    // answerModel.
-    const reserve = await guard.tryReserve();
-    if (!reserve.ok) {
-      const det = deterministicAnswer(ranked.claims, retrieval.entities);
-      return assembleV2(retrieval, ranked, det.answer, det.citedClaimIds, "budget", "answered", undefined, undefined, currency);
-    }
 
-    const client = new OpenAI();
-    const completion = await client.chat.completions.create({
-      model,
-      messages: [
-        { role: "system", content: SYSTEM_V2 },
-        {
-          role: "user",
-          content: `Question: ${question}\n\nEvidence:\n${evidenceBlockV2(ranked, retrieval)}${currencyContextLine(currency, retrieval.window)}`,
-        },
-      ],
-      ...chatParamsForModel(model, answerMaxOutputTokens(), { reasoningEffort: "low" }),
-    });
-
-    // Meter AFTER the request but BEFORE any read of the response body, so even a
-    // shape-anomalous completion (no choices) is recorded — it was billed in full
-    // (ruling 8; same discipline as rerank.ts post-review).
-    const promptTokens = completion.usage?.prompt_tokens ?? 0;
-    const completionTokens = completion.usage?.completion_tokens ?? 0;
-    const costUsd = estimateCostUsd(model, promptTokens, completionTokens);
-    await guard.record(1, promptTokens + completionTokens, costUsd);
+    // Phase 5: the guarded dispatch (reserve → call → record) moved VERBATIM
+    // into the OpenAI adapter — one gateway primitive, identical discipline
+    // (ruling 8's record-before-body-read included).
+    const r = await openaiGeneration.generate(
+      {
+        model,
+        messages: [
+          { role: "system", content: SYSTEM_V2 },
+          {
+            role: "user",
+            content: `Question: ${question}\n\nEvidence:\n${evidenceBlockV2(ranked, retrieval)}${currencyContextLine(currency, retrieval.window)}`,
+          },
+        ],
+        maxOutputTokens: answerMaxOutputTokens(),
+        reasoningEffort: "low",
+      },
+      guard,
+    );
     billedAnswerModel = model; // a paid answer call has now been billed
     // The paid boundary is complete (metered): record its duration before any
     // interpretation of the body begins.
     recordStage(timings, "answerMs", monotonicMs() - tAnswer);
-    const answerUsage: StageUsage = { promptTokens, completionTokens, costUsd };
-    const choice = completion.choices?.[0];
+    const answerUsage: StageUsage = r.usage;
 
     // The shared terminal classification (validator.ts) — the identical mapping
     // the streaming path (Increment B) applies, so the two cannot drift.
-    const terminal = classifyCompletion(choice);
+    const terminal = classifyCompletion({
+      message: { content: r.content, refusal: r.refusal },
+      finish_reason: r.finishReason ?? undefined,
+    });
     if (terminal === "refused" || terminal === "empty_refused") {
       // Explicit decline / empty content without a length stop — billed, so
       // usage AND answerModel are still reported (D7).
@@ -718,7 +711,7 @@ export async function answerFromEvidence(
       // still reported.
       return assembleV2(retrieval, ranked, TRUNCATED_MESSAGE, [], `openai:${model}`, "error", answerUsage, billedAnswerModel, currency);
     }
-    const content = choice!.message!.content!;
+    const content = r.content!;
 
     return timeStageSync(timings, "validateMs", () => {
       const cited = parseCitedIds(content);
@@ -733,7 +726,9 @@ export async function answerFromEvidence(
     // validation block) must not overwrite the paid-boundary duration with one that
     // includes validation time (Gate 0 finding). On error rows answerMs therefore
     // means "time in the answer boundary until it failed" (documented in timings.ts).
-    if (timings && timings.answerMs === undefined) {
+    // Budget refusals (thrown by the adapter BEFORE dispatch since Phase 5)
+    // record no answerMs — no paid boundary ran (the Gate 0 contract).
+    if (!(e instanceof LlmBudgetError) && timings && timings.answerMs === undefined) {
       recordStage(timings, "answerMs", monotonicMs() - tAnswer);
     }
     if (e instanceof LlmBudgetError) {
