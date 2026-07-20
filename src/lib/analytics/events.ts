@@ -21,6 +21,14 @@ export interface ProductEventProperties {
   source_link_clicked: { surface: AnalyticsSurface; theater: AnalyticsTheater; platform: EvidencePlatform };
   search_completed: { has_results: boolean; result_count_bucket: ResultCountBucket; window_present: boolean };
   ask_completed: { state: "answered" | "insufficient" | "refused" | "error" | "limit"; evidence_count_bucket: EvidenceCountBucket; retrieval_mode: "legacy" | "v2" | "v2-lexical-only"; window_present: boolean };
+  /** Typed but DISABLED (AI Search Phase 0, 2026-07-19): no operator approval
+   *  exists for this event yet, so every emission site MUST gate on
+   *  askStartedEventEnabled() below, which no environment turns on. `entry`
+   *  distinguishes a hand-submitted form from the home one-click intent handoff.
+   *  The architecture review sketches {mode, window_present, entry}; mode exists
+   *  only from Phase 4 (router) and window_present is server-parsed — both are
+   *  added at enablement time, with the approval. Content-free by construction. */
+  ask_started: { entry: "form" | "intent" };
   signal_detail_viewed: { theater: AnalyticsTheater; signal_type: "purge" | "procurement_surge" | "data_dark" | "trade_divergence" | "pressure_spike"; evidence_count_bucket: EvidenceCountBucket };
   feedback_initiated: { surface: "digest_error" | "source_suggestion"; theater?: AnalyticsTheater };
   claim_copied: { surface: AnalyticsSurface; copy_mode: "report" | "link" | "evidence" | "text"; theater: AnalyticsTheater; hedging_class: HedgingClass; evidence_count_bucket: EvidenceCountBucket };
@@ -30,9 +38,18 @@ export interface ProductEventProperties {
 export type ProductEventName = keyof ProductEventProperties;
 export const PRODUCT_EVENT_NAMES = new Set<ProductEventName>([
   "product_session_started", "digest_viewed", "evidence_opened", "source_link_clicked",
-  "search_completed", "ask_completed", "signal_detail_viewed", "feedback_initiated",
+  "search_completed", "ask_completed", "ask_started", "signal_detail_viewed", "feedback_initiated",
   "claim_copied", "digest_print_initiated",
 ]);
+
+/** Enablement gate for the ask_started event. Build-time public env, set in NO
+ *  Vercel environment — flipping it on is an operator step that carries the
+ *  PostHog-event approval (AGENTS decision-log entry required). Until then the
+ *  emission site in ask-form.tsx is a no-op and nothing reaches the analytics
+ *  client, sanitizer, or network. */
+export function askStartedEventEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_ANALYTICS_ASK_STARTED === "1";
+}
 
 const STATIC_ROUTES = new Map<string, EntrySurface>([
   ["/", "home"], ["/countries", "countries"], ["/scoreboard", "scoreboard"],

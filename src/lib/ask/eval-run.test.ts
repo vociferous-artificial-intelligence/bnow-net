@@ -11,6 +11,7 @@ import {
   buildKSensitivityTable,
   computeGate,
   computeQuestionMetrics,
+  configAnswerModel,
   configEvidenceK,
   emptyResultsFile,
   estimatedCostPerQuestionUsd,
@@ -19,10 +20,12 @@ import {
   isNegativeAnswerHonest,
   isV2Config,
   mergeResults,
+  parseEvalConfig,
   pendingQuestions,
   renderScorecardMarkdown,
   resolveGoldRefs,
   resolveQuestionGold,
+  scoreFidelity,
   selectOnlyQuestions,
   toDetailRows,
   type ConfigAggregate,
@@ -592,6 +595,7 @@ describe("aggregateConfig", () => {
       windowExpected: undefined,
       windowCorrect: null,
       negativeHonest: null,
+      fidelityPass: null,
       unresolvedGoldCount: 0,
       costUsd: 0.01,
       latencyMs: 100,
@@ -677,6 +681,7 @@ describe("buildKSensitivityTable", () => {
       evidenceRecall: { hit: recallPct / 10, denom: 10, pct: recallPct },
       citation: { citedCount: 5, allAnswerableDenom: 10, evidenceFoundDenom: 8, pctOfAllAnswerable: 50, pctOfEvidenceFound: 62.5 },
       negativeHonesty: { honest: 0, total: 0, fraction: NaN },
+      fidelity: { pass: 0, total: 0 },
       windowEcho: { hit: 0, denom: 0, pct: NaN },
       cost: { meanUsd: 0.01, p50Usd: 0.01 },
       latency: { meanMs: 500, p50Ms: 500 },
@@ -712,6 +717,7 @@ describe("computeGate — D4 criteria", () => {
       evidenceRecall: { hit: 0, denom: 5, pct: 0 },
       citation: { citedCount: 0, allAnswerableDenom: 5, evidenceFoundDenom: 0, pctOfAllAnswerable: 0, pctOfEvidenceFound: NaN },
       negativeHonesty: { honest: 4, total: 5, fraction: 0.8 },
+      fidelity: { pass: 0, total: 0 },
       windowEcho: { hit: 0, denom: 0, pct: NaN },
       cost: { meanUsd: 0.01, p50Usd: 0.01 },
       latency: { meanMs: 100, p50Ms: 100 },
@@ -873,5 +879,211 @@ describe("renderScorecardMarkdown", () => {
     });
     expect(md).toContain("headline table skipped");
     expect(md).toContain("GATE not computed");
+  });
+});
+
+// ---- AI Search Phase 0: answer-model matrix configs ------------------------------
+
+describe("parseEvalConfig — answer-model matrix", () => {
+  it("base configs parse with no model override", () => {
+    expect(parseEvalConfig("legacy")).toEqual({ base: "legacy", answerModel: null });
+    expect(parseEvalConfig("v2-k60")).toEqual({ base: "v2-k60", answerModel: null });
+  });
+
+  it("v2 matrix configs parse base + answer model", () => {
+    expect(parseEvalConfig("v2-k60+gpt-5-mini")).toEqual({ base: "v2-k60", answerModel: "gpt-5-mini" });
+    expect(parseEvalConfig("v2-k40+gpt-5-nano")).toEqual({ base: "v2-k40", answerModel: "gpt-5-nano" });
+  });
+
+  it("rejects legacy matrix, empty model, double plus, and unknown bases", () => {
+    expect(parseEvalConfig("legacy+gpt-5-mini")).toBeNull();
+    expect(parseEvalConfig("v2-k60+")).toBeNull();
+    expect(parseEvalConfig("v2-k60+a+b")).toBeNull();
+    expect(parseEvalConfig("v2-k55+gpt-5-mini")).toBeNull();
+    expect(parseEvalConfig("bogus")).toBeNull();
+  });
+
+  it("matrix configs inherit K, count as v2, and expose their answer model", () => {
+    expect(configEvidenceK("v2-k60+gpt-5-mini")).toBe(60);
+    expect(configEvidenceK("v2-k100+gpt-5-nano")).toBe(100);
+    expect(isV2Config("v2-k60+gpt-5-mini")).toBe(true);
+    expect(configAnswerModel("v2-k60+gpt-5-mini")).toBe("gpt-5-mini");
+    expect(configAnswerModel("v2-k60")).toBeNull();
+    expect(isEvalConfig("v2-k60+gpt-5-mini")).toBe(true);
+    expect(isEvalConfig("legacy")).toBe(true);
+    expect(isEvalConfig("legacy+x")).toBe(false);
+  });
+});
+
+// ---- AI Search Phase 0: named-person source-fidelity scoring ---------------------
+
+describe("scoreFidelity", () => {
+  const spec = {
+    evidence: [],
+    mustMatch: ["Ruslan Zhurov", "designat|sanction"],
+    mustNotMatch: ["convicted", "arrest"],
+  };
+
+  it("a faithful answer passes: name present, exact action, no strengthening", () => {
+    const r = scoreFidelity(
+      "OFAC designated Ruslan Zhurov on 2026-06-12 under EO 14024 [c900001].",
+      "answered",
+      spec,
+    );
+    expect(r.pass).toBe(true);
+    expect(r.mustMatchMisses).toEqual([]);
+    expect(r.mustNotMatchHits).toEqual([]);
+  });
+
+  it("dropping the name fails a mustMatch (over-suppression is a failure)", () => {
+    const r = scoreFidelity("An individual was designated by OFAC [c900001].", "answered", spec);
+    expect(r.pass).toBe(false);
+    expect(r.mustMatchMisses).toEqual(["Ruslan Zhurov"]);
+  });
+
+  it("predicate strengthening fires a mustNotMatch", () => {
+    const r = scoreFidelity(
+      "Ruslan Zhurov was designated and later convicted of sanctions violations [c900001].",
+      "answered",
+      spec,
+    );
+    expect(r.pass).toBe(false);
+    expect(r.mustNotMatchHits).toEqual(["convicted"]);
+  });
+
+  it("an unaccepted terminal state fails via stateOk (suppressing a supported fact)", () => {
+    const r = scoreFidelity("No claims in the covered data address this.", "insufficient", spec);
+    expect(r.pass).toBe(false);
+    expect(r.stateOk).toBe(false);
+  });
+
+  it("an accepted non-answered state passes WITHOUT text checks (state short-circuit — the fix for the dead acceptStates path)", () => {
+    // mustMatch is non-empty and the deterministic insufficient copy cannot
+    // contain the name — pre-Gate-0 this path was unreachable (always failed).
+    const r = scoreFidelity(
+      "No claims in the covered data address this question.",
+      "insufficient",
+      {
+        evidence: [],
+        mustMatch: ["Bondar"],
+        mustNotMatch: ["was arrested"],
+        acceptStates: ["answered", "insufficient"],
+      },
+    );
+    expect(r.pass).toBe(true);
+    expect(r.stateShortCircuit).toBe(true);
+    expect(r.mustMatchMisses).toEqual([]);
+  });
+
+  it("matching is case-insensitive; a malformed pattern in EITHER list is a HARD failure (fail-closed)", () => {
+    expect(scoreFidelity("ruslan zhurov was DESIGNATED.", "answered", spec).pass).toBe(true);
+    const badNot = scoreFidelity("anything", "answered", { evidence: [], mustMatch: ["any"], mustNotMatch: ["("] });
+    expect(badNot.pass).toBe(false); // a silently-dead mustNotMatch must not fail open (Gate 0)
+    expect(badNot.malformedPatterns).toEqual(["("]);
+    const badMust = scoreFidelity("anything", "answered", { evidence: [], mustMatch: ["("], mustNotMatch: [] });
+    expect(badMust.pass).toBe(false);
+    expect(badMust.malformedPatterns).toEqual(["("]);
+  });
+
+  it("mustNotMatch is negation-aware: an explicitly negated strengthening does not fire; the affirmative does", () => {
+    const negSpec = { evidence: [], mustMatch: [], mustNotMatch: ["confirmed match", "under sanctions"] };
+    // faithful negations — exempt
+    expect(scoreFidelity("It is not a confirmed match.", "answered", negSpec).pass).toBe(true);
+    expect(scoreFidelity("She is not under sanctions.", "answered", negSpec).pass).toBe(true);
+    // affirmative assertions — fire
+    expect(scoreFidelity("OpenSanctions returned a confirmed match.", "answered", negSpec).pass).toBe(false);
+    expect(scoreFidelity("She is under sanctions.", "answered", negSpec).pass).toBe(false);
+    // a negated ADJECTIVE earlier in the sentence is not a negator of the later clause
+    expect(
+      scoreFidelity("Initially unconfirmed, it is now a confirmed match.", "answered", negSpec).pass,
+    ).toBe(false);
+    // an adversative break ends the negation scope
+    expect(
+      scoreFidelity("It was not initially clear, but he is under sanctions.", "answered", negSpec).pass,
+    ).toBe(false);
+  });
+});
+
+describe("fidelity metrics + aggregation + scorecard wiring", () => {
+  function fidelityQuestion(id: string): EvalQuestion {
+    return {
+      id,
+      type: "fidelity",
+      question: "Is X sanctioned?",
+      gold: [],
+      acceptableAlternates: [],
+      fidelity: { evidence: [], mustMatch: ["Zhurov"], mustNotMatch: ["convicted"] },
+    };
+  }
+  function answerV2(text: string): AskAnswerV2 {
+    return {
+      answer: text,
+      citedClaimIds: [900001],
+      evidenceCount: 1,
+      terms: [],
+      provider: "openai:gpt-5",
+      state: "answered",
+      relatedClaimIds: [],
+      window: null,
+      totalMatching: 1,
+      sampled: false,
+      retrievalMode: "v2",
+    };
+  }
+
+  it("computeQuestionMetrics scores fidelity questions and never counts them answerable/without-gold", () => {
+    const m = computeQuestionMetrics({
+      question: fidelityQuestion("fidelity-x"),
+      resolvedGoldIds: [],
+      unresolvedGoldCount: 0,
+      candidateIds: [900001],
+      evidenceIds: [900001],
+      answer: answerV2("Zhurov was designated [c900001]."),
+      latencyMs: 100,
+      costUsd: 0.005,
+      openaiKeySet: true,
+    });
+    expect(m.fidelityPass).toBe(true);
+    expect(m.answerable).toBe(false);
+    expect(m.candidateHit).toBeNull();
+
+    const agg = aggregateConfig("v2-k60", [m]);
+    expect(agg.fidelity).toEqual({ pass: 1, total: 1 });
+    expect(agg.questionsWithoutGold).toBe(0); // fidelity is not "gold missing"
+  });
+
+  it("a strengthened answer fails and the scorecard renders the fidelity section", () => {
+    const m = computeQuestionMetrics({
+      question: fidelityQuestion("fidelity-x"),
+      resolvedGoldIds: [],
+      unresolvedGoldCount: 0,
+      candidateIds: [900001],
+      evidenceIds: [900001],
+      answer: answerV2("Zhurov was convicted [c900001]."),
+      latencyMs: 100,
+      costUsd: 0.005,
+      openaiKeySet: true,
+    });
+    expect(m.fidelityPass).toBe(false);
+    expect(m.fidelityDetail?.mustNotMatchHits).toEqual(["convicted"]);
+
+    const agg = aggregateConfig("v2-k60+gpt-5-mini", [m]);
+    const md = renderScorecardMarkdown({
+      meta: {
+        generatedAt: "t",
+        evalSetPath: "p",
+        evalSetCreatedAt: "t0",
+        corpus: { claimCount: 1, minDate: null, maxDate: null },
+        dbHost: "h",
+        configsRun: ["v2-k60+gpt-5-mini"],
+      },
+      aggregates: [agg],
+      kSensitivity: [],
+      gate: null,
+      detailRows: toDetailRows("v2-k60+gpt-5-mini", [m]),
+    });
+    expect(md).toContain("Named-person source-fidelity");
+    expect(md).toContain("| v2-k60+gpt-5-mini | 0/1 |");
+    expect(md).toContain("| fidelity |"); // per-question type column
   });
 });

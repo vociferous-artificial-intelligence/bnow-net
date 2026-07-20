@@ -16,8 +16,10 @@ vi.mock("@/i18n/server", () => ({
 }));
 
 const askWithLimitsMock = vi.fn();
+const recordEntryTimingsMock = vi.fn().mockResolvedValue(undefined);
 vi.mock("@/lib/ask/limits", () => ({
   askWithLimits: (...args: unknown[]) => askWithLimitsMock(...args),
+  recordEntryTimings: (...args: unknown[]) => recordEntryTimingsMock(...args),
 }));
 
 const queryMock = vi.fn();
@@ -46,6 +48,7 @@ function fullAnswer(): AskAnswerV2 {
 afterEach(() => {
   askWithLimitsMock.mockReset();
   queryMock.mockReset();
+  recordEntryTimingsMock.mockClear();
 });
 
 function formWith(question: string): FormData {
@@ -224,5 +227,40 @@ describe("askAction — the money-path guard's server half", () => {
     const long = "a".repeat(500);
     await askAction(null, formWith(long));
     expect(askWithLimitsMock).toHaveBeenCalledWith("a".repeat(400), "user@example.com");
+  });
+});
+
+// ---- Phase 0 measurement: the action patches ONLY its own run's row --------------
+
+describe("askAction — entry-point timing patch", () => {
+  it("patches hydrateMs + totalMs by the run's own runId when the payload carries one", async () => {
+    askWithLimitsMock.mockResolvedValue({
+      ...fullAnswer(),
+      runId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    });
+    queryMock.mockResolvedValue([]);
+
+    await askAction(null, formWith("did russia strike kyiv today"));
+
+    expect(recordEntryTimingsMock).toHaveBeenCalledTimes(1);
+    const [runId, patch] = recordEntryTimingsMock.mock.calls[0] as [string, Record<string, number>];
+    expect(runId).toBe("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee");
+    // The action's OWN keys only — apiTotalMs belongs to the JSON route, and the
+    // pipeline keys were already written by askWithLimits (Gate 0: no conflation).
+    expect(Object.keys(patch).sort()).toEqual(["hydrateMs", "totalMs"]);
+    expect(patch.hydrateMs).toBeGreaterThanOrEqual(0);
+    expect(patch.totalMs).toBeGreaterThanOrEqual(patch.hydrateMs);
+  });
+
+  it("skips the patch entirely when the payload has no runId (limit/gate refusals wrote no row)", async () => {
+    askWithLimitsMock.mockResolvedValue({
+      ...fullAnswer(),
+      state: "limit",
+      provider: "limit",
+      citedClaimIds: [],
+      relatedClaimIds: [],
+    });
+    await askAction(null, formWith("what happened in kherson"));
+    expect(recordEntryTimingsMock).not.toHaveBeenCalled();
   });
 });

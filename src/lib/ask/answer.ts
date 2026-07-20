@@ -21,6 +21,13 @@ import { chatParamsForModel } from "./llm-params";
 import { dataCurrentThrough } from "./currency";
 import { parseTimeWindow } from "./window";
 import { selectRelatedClaimIds } from "./related";
+import {
+  monotonicMs,
+  recordStage,
+  timeStage,
+  timeStageSync,
+  type StageTimings,
+} from "./timings";
 import type {
   AnswerState,
   AskAnswerV2,
@@ -470,12 +477,21 @@ function assembleV2(
 /** V2 answer stage over already-ranked evidence. Exported so the eval runner (F2) can
  *  compose retrieveV2 -> rerankCandidates -> this directly. Never throws for a user
  *  surface: budget stops degrade deterministically, provider errors become state
- *  "error" (ruling 9). */
+ *  "error" (ruling 9).
+ *
+ *  opts.timings (Phase 0, optional): answerMs = the paid-call boundary (guard
+ *  init/reserve, the chat completion, guard record — what the user actually waits
+ *  on); validateMs = the synchronous post-response citation-parse + assembly.
+ *  Timing wraps AROUND the existing metering statements; it never reorders them
+ *  (ruling 8's record-before-body-read discipline is untouched). Offline, budget,
+ *  and short-circuit paths record no answerMs — no paid boundary ran. */
 export async function answerFromEvidence(
   question: string,
   retrieval: RetrievalV2Result,
   ranked: RankedEvidence,
+  opts?: { timings?: StageTimings },
 ): Promise<AskAnswerV2> {
+  const timings = opts?.timings;
   // One currency read per question (cached; fail-soft to null). Threaded onto every
   // outcome so the freshness-honest UI callout works, and stated to the model below.
   const currency = await safeCurrency();
@@ -511,6 +527,7 @@ export async function answerFromEvidence(
   // record()). The catch below then reports answerModel for an error-after-call while
   // leaving it absent when the call threw before billing (contract addendum).
   let billedAnswerModel: string | undefined;
+  const tAnswer = monotonicMs();
   try {
     const guard = askGuardFromEnv();
     await guard.init();
@@ -544,6 +561,9 @@ export async function answerFromEvidence(
     const costUsd = estimateCostUsd(model, promptTokens, completionTokens);
     await guard.record(1, promptTokens + completionTokens, costUsd);
     billedAnswerModel = model; // a paid answer call has now been billed
+    // The paid boundary is complete (metered): record its duration before any
+    // interpretation of the body begins.
+    recordStage(timings, "answerMs", monotonicMs() - tAnswer);
     const answerUsage: StageUsage = { promptTokens, completionTokens, costUsd };
     const choice = completion.choices?.[0];
 
@@ -566,12 +586,22 @@ export async function answerFromEvidence(
       return assembleV2(retrieval, ranked, REFUSED_MESSAGE, [], `openai:${model}`, "refused", answerUsage, billedAnswerModel, currency);
     }
 
-    const cited = [...content.matchAll(/\[c(\d+)\]/g)].map((m) => parseInt(m[1], 10));
-    return assembleV2(retrieval, ranked, content, cited, `openai:${model}`, "answered", answerUsage, billedAnswerModel, currency);
+    return timeStageSync(timings, "validateMs", () => {
+      const cited = [...content.matchAll(/\[c(\d+)\]/g)].map((m) => parseInt(m[1], 10));
+      return assembleV2(retrieval, ranked, content, cited, `openai:${model}`, "answered", answerUsage, billedAnswerModel, currency);
+    });
   } catch (e) {
     // A budget stop degrades (never surfaces as an error); any other throw is state
     // "error" with today's message shape — never a 500 for a user surface (ruling 9).
     // billedAnswerModel is set only if the call already billed (error-after-call).
+    // Record the failed boundary's duration ONLY if the success path hasn't already
+    // recorded the metered value — a throw AFTER guard.record (e.g. inside the
+    // validation block) must not overwrite the paid-boundary duration with one that
+    // includes validation time (Gate 0 finding). On error rows answerMs therefore
+    // means "time in the answer boundary until it failed" (documented in timings.ts).
+    if (timings && timings.answerMs === undefined) {
+      recordStage(timings, "answerMs", monotonicMs() - tAnswer);
+    }
     if (e instanceof LlmBudgetError) {
       const det = deterministicAnswer(ranked.claims, retrieval.entities);
       return assembleV2(retrieval, ranked, det.answer, det.citedClaimIds, "budget", "answered", undefined, undefined, currency);
@@ -591,9 +621,21 @@ export async function answerFromEvidence(
 }
 
 /** ASK entry point (consumed by src/lib/ask/limits.ts). Dispatches on ASK_PIPELINE:
- *  the legacy rollback vs the v2 pipeline. */
-export async function ask(question: string): Promise<AskAnswerV2> {
+ *  the legacy rollback vs the v2 pipeline.
+ *
+ *  opts.timings (Phase 0, optional): the request-scoped stage collector minted by
+ *  askWithLimits. Stage keys land as each boundary completes; a stage that throws
+ *  still leaves its predecessors recorded (the collector is shared by reference).
+ *  Absent (eval runner / direct callers) every timing wrapper is a no-op. */
+export async function ask(
+  question: string,
+  opts?: { timings?: StageTimings },
+): Promise<AskAnswerV2> {
+  const timings = opts?.timings;
   if (askPipeline() !== "v2") {
+    // Legacy rollback path stays measurement-free by design (DL-6: nothing
+    // "improved"); the row still carries run_id/started_at/pipelineMs from
+    // askWithLimits.
     return toV2FromLegacy(await legacyAnswer(question));
   }
 
@@ -602,7 +644,7 @@ export async function ask(question: string): Promise<AskAnswerV2> {
   // the corpus's newest claim (window.from > currency, strict yyyy-mm-dd compare); a
   // window that straddles or predates currency runs the real pipeline. Fail-open:
   // currency null (no DB) never short-circuits. Rollback: ASK_NO_COVERAGE_SHORTCIRCUIT=0.
-  const currency = await safeCurrency();
+  const currency = await timeStage(timings, "currencyMs", safeCurrency);
   if (askNoCoverageShortcircuit() && currency != null) {
     const window = parseTimeWindow(question);
     if (window?.from && window.from > currency) {
@@ -610,11 +652,13 @@ export async function ask(question: string): Promise<AskAnswerV2> {
     }
   }
 
-  const retrieval = await retrieveV2(question);
+  const retrieval = await retrieveV2(question, { timings });
   // No-evidence short-circuit BEFORE rerank/LLM (step 1): no paid call at all.
   if (retrieval.claims.length === 0 && retrieval.entities.length === 0) {
     return noEvidenceV2(retrieval, currency);
   }
-  const ranked = await rerankCandidates(question, retrieval.claims);
-  return answerFromEvidence(question, retrieval, ranked);
+  const ranked = await timeStage(timings, "rerankMs", () =>
+    rerankCandidates(question, retrieval.claims),
+  );
+  return answerFromEvidence(question, retrieval, ranked, { timings });
 }

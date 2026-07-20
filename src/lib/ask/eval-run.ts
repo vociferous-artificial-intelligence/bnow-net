@@ -18,6 +18,7 @@ import {
   type EvalQuestion,
   type EvalQuestionType,
   type EvalSet,
+  type FidelitySpec,
 } from "./eval-set";
 
 // ============================================================================
@@ -25,20 +26,54 @@ import {
 // ============================================================================
 
 export const EVAL_CONFIGS = ["legacy", "v2-k40", "v2-k60", "v2-k100"] as const;
-export type EvalConfig = (typeof EVAL_CONFIGS)[number];
+export type BaseEvalConfig = (typeof EVAL_CONFIGS)[number];
+
+/** A config is a base config, optionally suffixed `+<answerModel>` on a v2 base
+ *  — the AI Search Phase 0 answer-model matrix (retrieval and rerank held fixed
+ *  while ASK_ANSWER_MODEL is overridden per run; e.g. `v2-k60+gpt-5-mini`).
+ *  Legacy takes no suffix: the matrix exists to compare answer models on the
+ *  production pipeline shape, not to resurrect the rollback path. */
+export type EvalConfig = BaseEvalConfig | `${Exclude<BaseEvalConfig, "legacy">}+${string}`;
+
+export interface ParsedEvalConfig {
+  base: BaseEvalConfig;
+  /** non-null only for matrix configs — the ASK_ANSWER_MODEL override */
+  answerModel: string | null;
+}
+
+/** Parse/validate a config string; null when it names neither a base config nor
+ *  a well-formed v2 matrix config. The model suffix is free-form (the price
+ *  table's conservative unknown-model fallback covers unknown ids) but must be
+ *  non-empty and must not itself contain `+`. */
+export function parseEvalConfig(s: string): ParsedEvalConfig | null {
+  const plus = s.indexOf("+");
+  const baseStr = plus === -1 ? s : s.slice(0, plus);
+  if (!(EVAL_CONFIGS as readonly string[]).includes(baseStr)) return null;
+  const base = baseStr as BaseEvalConfig;
+  if (plus === -1) return { base, answerModel: null };
+  const model = s.slice(plus + 1);
+  if (base === "legacy" || model === "" || model.includes("+")) return null;
+  return { base, answerModel: model };
+}
 
 export function isEvalConfig(s: string): s is EvalConfig {
-  return (EVAL_CONFIGS as readonly string[]).includes(s);
+  return parseEvalConfig(s) !== null;
 }
 
 export function isV2Config(config: EvalConfig): boolean {
-  return config !== "legacy";
+  return parseEvalConfig(config)?.base !== "legacy";
 }
 
-/** ASK_EVIDENCE_K for a v2 config; null for legacy (fixed top-40 candidates that
- *  double as the evidence set — no separate rerank stage). */
+/** The matrix config's answer-model override; null for base configs. */
+export function configAnswerModel(config: EvalConfig): string | null {
+  return parseEvalConfig(config)?.answerModel ?? null;
+}
+
+/** ASK_EVIDENCE_K for a v2 config (matrix suffixes inherit their base's K);
+ *  null for legacy (fixed top-40 candidates that double as the evidence set —
+ *  no separate rerank stage). */
 export function configEvidenceK(config: EvalConfig): number | null {
-  switch (config) {
+  switch (parseEvalConfig(config)?.base) {
     case "v2-k40":
       return 40;
     case "v2-k60":
@@ -227,6 +262,17 @@ export interface QuestionMetrics {
   windowCorrect: boolean | null;
   /** null when type !== "negative" */
   negativeHonest: boolean | null;
+  /** null when type !== "fidelity"; otherwise scoreFidelity().pass */
+  fidelityPass: boolean | null;
+  /** audit detail for fidelity questions — which patterns missed/fired (the
+   *  verdict stays replayable offline from answerSnippet + the eval set) */
+  fidelityDetail?: {
+    mustMatchMisses: string[];
+    mustNotMatchHits: string[];
+    malformedPatterns: string[];
+    stateOk: boolean;
+    stateShortCircuit: boolean;
+  };
   unresolvedGoldCount: number;
   costUsd: number;
   latencyMs: number;
@@ -314,6 +360,131 @@ export function isNegativeAnswerHonest(
   return DENIAL_LANGUAGE_PATTERN.test(answerText.slice(0, NEGATIVE_DENIAL_LEAD_CHARS));
 }
 
+// ---- named-person source-fidelity scoring (AI Search Phase 0, 2026-07-19) -------
+
+export interface FidelityCheck {
+  pass: boolean;
+  /** mustMatch patterns that failed to match the answer */
+  mustMatchMisses: string[];
+  /** mustNotMatch patterns that fired AFFIRMATIVELY (the strengthening hits) */
+  mustNotMatchHits: string[];
+  /** patterns (either list) that failed to compile — ALWAYS a hard failure
+   *  (Gate 0 fix: a silently-dead mustNotMatch would fail OPEN otherwise) */
+  malformedPatterns: string[];
+  /** whether the terminal state was in acceptStates — over-suppression (a
+   *  supported official fact answered as "insufficient" when the spec accepts
+   *  only "answered") fails HERE, deliberately: suppressing a name or a
+   *  supported fact is a fidelity failure, not a safe default. */
+  stateOk: boolean;
+  /** true when a non-"answered" accepted state short-circuited the text checks
+   *  (the pipeline's insufficient copy is deterministic, name-free prose — the
+   *  name/predicate patterns cannot meaningfully apply to it) */
+  stateShortCircuit: boolean;
+}
+
+/** Standalone negator tokens that flip a clause's polarity. Deliberately does
+ *  NOT include negated adjectives like "unconfirmed" — "initially unconfirmed,
+ *  his death is now confirmed" is an AFFIRMATIVE strengthening and must fire. */
+const NEGATOR_RE = /\b(?:not|no|never|nor|without|cannot)\b|n['’]t\b/gi;
+
+/** Chars a negator's scope reaches forward within its sentence. */
+const NEGATION_SCOPE_CHARS = 40;
+
+/** An adversative break ends a negator's scope: "not initially clear, but he
+ *  was convicted" is an affirmative conviction. */
+const SCOPE_BREAK_RE = /,\s*(?:but|however|yet|although)\b/i;
+
+/** True when `pattern` matches `text` in an AFFIRMATIVE context: some match in
+ *  some sentence has no in-scope standalone negator shortly before it. This is
+ *  the Gate 0 fix for negation-blind mustNotMatch — a faithful answer that
+ *  explicitly NEGATES the forbidden strengthening ("it is not a confirmed
+ *  match", "she is not under sanctions", "not a criminal conviction") must not
+ *  fire the pattern, while the affirmative assertion still does. Documented
+ *  heuristic: contrived double-negation can still slip either way; the
+ *  structural check is Phase 3's AnswerValidator. Exported for tests. */
+export function firesAffirmatively(pattern: RegExp, text: string): boolean {
+  for (const sentence of text.split(/(?<=[.!?])\s+/)) {
+    const global = new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : pattern.flags + "g");
+    for (let m = global.exec(sentence); m !== null; m = global.exec(sentence)) {
+      const before = sentence.slice(0, m.index);
+      let negated = false;
+      NEGATOR_RE.lastIndex = 0;
+      for (let n = NEGATOR_RE.exec(before); n !== null; n = NEGATOR_RE.exec(before)) {
+        const between = before.slice(n.index + n[0].length);
+        if (between.length <= NEGATION_SCOPE_CHARS && !SCOPE_BREAK_RE.test(between)) {
+          negated = true;
+          break;
+        }
+      }
+      if (!negated) return true;
+      if (m.index === global.lastIndex) global.lastIndex++; // zero-width safety
+    }
+  }
+  return false;
+}
+
+/** Deterministic fidelity verdict over the rendered answer text. Pure; the
+ *  patterns' quality is proven by fixture tests (a faithful answer passes, a
+ *  category/predicate/certainty/status/identity-strengthened answer fails).
+ *  Case-insensitive on purpose — strengthening does not become acceptable by
+ *  changing case.
+ *
+ *  Semantics (revised at Gate 0):
+ *  - a pattern that fails to compile is a HARD failure either way (fail-closed);
+ *  - mustNotMatch fires only affirmatively (see firesAffirmatively);
+ *  - an accepted NON-"answered" state (e.g. acceptStates includes
+ *    "insufficient") passes WITHOUT text checks: the pipeline's insufficient
+ *    copy is deterministic name-free prose, so name/predicate patterns cannot
+ *    apply — previously that path was unreachable (dead acceptStates). */
+export function scoreFidelity(
+  answerText: string,
+  state: AnswerState,
+  spec: FidelitySpec,
+): FidelityCheck {
+  const accept = spec.acceptStates ?? ["answered"];
+  const stateOk = accept.includes(state);
+
+  const malformedPatterns: string[] = [];
+  const compile = (pattern: string): RegExp | null => {
+    try {
+      return new RegExp(pattern, "i");
+    } catch {
+      malformedPatterns.push(pattern);
+      return null;
+    }
+  };
+  const mustMatch = spec.mustMatch.map((p) => ({ p, re: compile(p) }));
+  const mustNotMatch = spec.mustNotMatch.map((p) => ({ p, re: compile(p) }));
+
+  if (stateOk && state !== "answered") {
+    return {
+      pass: malformedPatterns.length === 0,
+      mustMatchMisses: [],
+      mustNotMatchHits: [],
+      malformedPatterns,
+      stateOk,
+      stateShortCircuit: true,
+    };
+  }
+
+  const mustMatchMisses = mustMatch.filter(({ re }) => re !== null && !re.test(answerText)).map(({ p }) => p);
+  const mustNotMatchHits = mustNotMatch
+    .filter(({ re }) => re !== null && firesAffirmatively(re, answerText))
+    .map(({ p }) => p);
+  return {
+    pass:
+      stateOk &&
+      malformedPatterns.length === 0 &&
+      mustMatchMisses.length === 0 &&
+      mustNotMatchHits.length === 0,
+    mustMatchMisses,
+    mustNotMatchHits,
+    malformedPatterns,
+    stateOk,
+    stateShortCircuit: false,
+  };
+}
+
 /** windowExpected `{}` (both bounds undefined, used by ambiguous seed templates
  *  like "since last Monday") is satisfied by an answer window that ALSO has both
  *  bounds undefined (including a null window) — a documented, deliberate reading
@@ -329,7 +500,8 @@ function windowMatches(
 export function computeQuestionMetrics(r: QuestionRunResult): QuestionMetrics {
   const { question, resolvedGoldIds, candidateIds, evidenceIds, answer } = r;
   const isNegative = question.type === "negative";
-  const answerable = !isNegative && resolvedGoldIds.length > 0;
+  const isFidelity = question.type === "fidelity";
+  const answerable = !isNegative && !isFidelity && resolvedGoldIds.length > 0;
   const goldSet = new Set(resolvedGoldIds);
 
   const candidateHit = answerable ? candidateIds.some((id) => goldSet.has(id)) : null;
@@ -340,6 +512,8 @@ export function computeQuestionMetrics(r: QuestionRunResult): QuestionMetrics {
   const negativeHonest = isNegative
     ? isNegativeAnswerHonest(answer.state, answer.answer, answer.citedClaimIds.length)
     : null;
+  const fidelityCheck =
+    isFidelity && question.fidelity ? scoreFidelity(answer.answer, answer.state, question.fidelity) : null;
   const degraded = isDegradedResult({
     retrievalMode: answer.retrievalMode,
     provider: answer.provider,
@@ -357,6 +531,18 @@ export function computeQuestionMetrics(r: QuestionRunResult): QuestionMetrics {
     windowExpected: question.windowExpected,
     windowCorrect,
     negativeHonest,
+    fidelityPass: fidelityCheck ? fidelityCheck.pass : null,
+    ...(fidelityCheck
+      ? {
+          fidelityDetail: {
+            mustMatchMisses: fidelityCheck.mustMatchMisses,
+            mustNotMatchHits: fidelityCheck.mustNotMatchHits,
+            malformedPatterns: fidelityCheck.malformedPatterns,
+            stateOk: fidelityCheck.stateOk,
+            stateShortCircuit: fidelityCheck.stateShortCircuit,
+          },
+        }
+      : {}),
     unresolvedGoldCount: r.unresolvedGoldCount,
     costUsd: r.costUsd,
     latencyMs: r.latencyMs,
@@ -494,6 +680,9 @@ export interface ConfigAggregate {
     pctOfEvidenceFound: number;
   };
   negativeHonesty: { honest: number; total: number; fraction: number };
+  /** named-person source-fidelity fixtures (type "fidelity"): passes / total.
+   *  total 0 when the eval set carries none — render "—", never 0%. */
+  fidelity: { pass: number; total: number };
   windowEcho: RatioStat;
   cost: { meanUsd: number; p50Usd: number };
   latency: { meanMs: number; p50Ms: number };
@@ -511,18 +700,22 @@ export interface ConfigAggregate {
 export function aggregateConfig(config: EvalConfig, metrics: QuestionMetrics[]): ConfigAggregate {
   const answerable = metrics.filter((m) => m.answerable);
   const negatives = metrics.filter((m) => m.type === "negative");
+  const fidelities = metrics.filter((m) => m.type === "fidelity");
   const candidateHits = answerable.filter((m) => m.candidateHit === true).length;
   const evidenceHits = answerable.filter((m) => m.evidenceHit === true).length;
   const citedCount = answerable.filter((m) => m.cited === true).length;
   const evidenceFoundCount = evidenceHits;
   const honestCount = negatives.filter((m) => m.negativeHonest === true).length;
+  const fidelityPassCount = fidelities.filter((m) => m.fidelityPass === true).length;
   const windowApplicable = metrics.filter((m) => m.windowCorrect !== null);
   const windowCorrectCount = windowApplicable.filter((m) => m.windowCorrect === true).length;
   const costs = metrics.map((m) => m.costUsd);
   const latencies = metrics.map((m) => m.latencyMs);
   const unresolvedGoldCount = metrics.reduce((s, m) => s + m.unresolvedGoldCount, 0);
+  // fidelity questions carry inline evidence, never gold — they are not
+  // "questions with no gold curated yet" and must not inflate that warning.
   const questionsWithoutGold = metrics.filter(
-    (m) => m.type !== "negative" && !m.answerable && m.unresolvedGoldCount === 0,
+    (m) => m.type !== "negative" && m.type !== "fidelity" && !m.answerable && m.unresolvedGoldCount === 0,
   ).length;
   const degradedRunCount = metrics.filter((m) => m.degraded).length;
 
@@ -546,6 +739,7 @@ export function aggregateConfig(config: EvalConfig, metrics: QuestionMetrics[]):
       total: negatives.length,
       fraction: negatives.length > 0 ? honestCount / negatives.length : NaN,
     },
+    fidelity: { pass: fidelityPassCount, total: fidelities.length },
     windowEcho: ratio(windowCorrectCount, windowApplicable.length),
     cost: { meanUsd: mean(costs), p50Usd: p50(costs) },
     latency: { meanMs: mean(latencies), p50Ms: p50(latencies) },
@@ -675,6 +869,7 @@ export interface QuestionDetailRow {
   candidateHit: boolean | null;
   evidenceHit: boolean | null;
   cited: boolean | null;
+  fidelityPass: boolean | null;
   state: AnswerState;
   costUsd: number;
 }
@@ -690,6 +885,7 @@ export function toDetailRows(config: EvalConfig, metrics: QuestionMetrics[]): Qu
       candidateHit: m.candidateHit,
       evidenceHit: m.evidenceHit,
       cited: m.cited,
+      fidelityPass: m.fidelityPass,
       state: m.state,
       costUsd: m.costUsd,
     }));
@@ -789,6 +985,27 @@ export function renderScorecardMarkdown(input: {
     lines.push("");
   }
 
+  lines.push("## Named-person source-fidelity (per config)");
+  lines.push("");
+  const withFidelity = aggregates.filter((a) => a.fidelity.total > 0);
+  if (withFidelity.length > 0) {
+    lines.push("| config | fidelity fixtures passed |");
+    lines.push("|---|---|");
+    for (const a of withFidelity) {
+      lines.push(`| ${a.config} | ${a.fidelity.pass}/${a.fidelity.total} |`);
+    }
+    lines.push("");
+    lines.push(
+      "_Deterministic regex gold checks (heuristic proxy for the §4 source-fidelity matrix; " +
+        "structural enforcement is the Phase 3 AnswerValidator). A model/route may not serve " +
+        "Auto or Fast without a passing fidelity scorecard._",
+    );
+    lines.push("");
+  } else {
+    lines.push("_no fidelity fixtures recorded for the selected configs._");
+    lines.push("");
+  }
+
   lines.push("## K sweep (v2-k40 / v2-k60 / v2-k100)");
   lines.push("");
   if (kSensitivity.length > 0) {
@@ -826,12 +1043,12 @@ export function renderScorecardMarkdown(input: {
 
   lines.push("## Per-question detail");
   lines.push("");
-  lines.push("| config | question id | type | candidate hit | evidence hit | cited | state | cost |");
-  lines.push("|---|---|---|---|---|---|---|---|");
+  lines.push("| config | question id | type | candidate hit | evidence hit | cited | fidelity | state | cost |");
+  lines.push("|---|---|---|---|---|---|---|---|---|");
   for (const row of detailRows) {
     lines.push(
       `| ${row.config} | ${row.questionId} | ${row.type} | ${boolStr(row.candidateHit)} | ${boolStr(row.evidenceHit)} ` +
-        `| ${boolStr(row.cited)} | ${row.state} | ${usdStr(row.costUsd)} |`,
+        `| ${boolStr(row.cited)} | ${boolStr(row.fidelityPass)} | ${row.state} | ${usdStr(row.costUsd)} |`,
     );
   }
   lines.push("");

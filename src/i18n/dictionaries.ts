@@ -522,9 +522,12 @@ const en: Dict = {
   // server-reported stage and never a fake progress percentage.
   "ask.working.title": "Working on your question",
   "ask.working.question_label": "Your question",
-  "ask.working.stage.searching": "Searching BNOW evidence…",
-  "ask.working.stage.ranking": "Ranking the most relevant claims…",
-  "ask.working.stage.answering": "Preparing an evidence-linked answer…",
+  // One honest line while the pipeline runs (Phase 0, 2026-07-19). The server
+  // reports no stage signal yet, so the UI must not pretend one exists — the old
+  // rotating searching/ranking/answering labels were client-elapsed-time fiction
+  // and are removed. Real per-stage copy returns in Phase 2, driven by persisted
+  // server events only.
+  "ask.working.preparing": "Searching the claim database and preparing a cited answer…",
   "ask.working.elapsed": "Elapsed",
 
   // Free claim search (/search) — deterministic lexical retrieval, no model
@@ -856,9 +859,7 @@ const uk: Dict = {
   "ask.nocoverage.currency": "Дані актуальні станом на", // uk: needs native review
   "ask.working.title": "Опрацьовуємо ваш запит", // uk: needs native review
   "ask.working.question_label": "Ваш запит", // uk: needs native review
-  "ask.working.stage.searching": "Пошук у доказовій базі BNOW…", // uk: needs native review
-  "ask.working.stage.ranking": "Ранжуємо найрелевантніші твердження…", // uk: needs native review
-  "ask.working.stage.answering": "Готуємо відповідь із посиланнями на докази…", // uk: needs native review
+  "ask.working.preparing": "Шукаємо в базі тверджень і готуємо відповідь із цитуваннями…", // uk: needs native review
   "ask.working.elapsed": "Минуло", // uk: needs native review
   "search.title": "Пошук тверджень", // uk: needs native review
   "search.breadcrumb": "пошук тверджень", // uk: needs native review

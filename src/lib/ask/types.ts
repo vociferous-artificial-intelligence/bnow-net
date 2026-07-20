@@ -116,4 +116,18 @@ export interface AskAnswerV2 {
    *  assembleV2/noEvidenceV2 result). Drives the freshness-honest UI callout; absent
    *  on the legacy path and whenever the read returned null. */
   dataCurrentThrough?: string;
+  /** OPTIONAL (additive, AI Search Phase 0 2026-07-19): the run's opaque UUID —
+   *  matches ask_usage.run_id so the entry point (server action / JSON route) can
+   *  patch its own hydration/wrapper timing onto exactly this run's row.
+   *
+   *  PRESENT IFF askWithLimits wrote an ask_usage row for this result: the
+   *  answered/insufficient/refused/error-from-pipeline paths carry it (including
+   *  the thrown-pipeline error row). It is ABSENT on limit refusals and the
+   *  gate-unavailable error (no row exists to patch) and on results that never
+   *  passed through askWithLimits (the eval runner composes stages directly).
+   *  Consumers MUST treat it as optional — never key persistence or retry logic
+   *  on its presence for refusal payloads (Gate 0 finding: this comment
+   *  previously claimed the opposite). Carries no user data — safe in the
+   *  client payload. */
+  runId?: string;
 }

@@ -2138,3 +2138,33 @@ branches/worktrees, a dedicated integration branch, independent critical-gate re
 per-phase plus cumulative reports. The 2026-07-17 live decision was moved verbatim to
 `docs/DECISIONS.md` to keep `AGENTS.md` compact. No application code, paid call, production write,
 external mutation, Paddle work, deployment, push, or merge to `main` was performed.
+
+## 2026-07-19 19:57 EDT — AI Search/Ask Phase 0: measurement, UX honesty, eval foundation
+
+Work block (≤2h), per the 2026-07-19 unattended phased workstream authorization and
+`docs/prompts/2026-07-19-ai-search-ask-phased-implementation.md` §7. Branches:
+`codex/ai-search-ask-integration-20260719` (integration, from main `6c21b17`) and
+`codex/ai-search-ask-p0-measure` (this phase). Migration number claimed: **0021**
+(next free index; the concurrent billing workstream has no schema work in-tree yet —
+`src/lib/billing/` absent, working tree clean at branch time).
+
+1. Additive migration 0021: `ask_usage` += `run_id` (uuid, unique), `started_at`,
+   `stage_timings_ms` (jsonb), `first_content_at` (null until Phase 3), `route_policy`
+   (null until Phase 4).
+2. Request-scoped run meta + monotonic stage-timings collector threaded
+   `askWithLimits` → `ask()` → `retrieveV2`/rerank/answer → `logUsage`; metering
+   call sites untouched. Server action measures source hydration and patches ONLY its
+   run's row; the JSON route records its own wrapper total, hydration stays null.
+3. Honest pending copy on /ask (single "searching and preparing" line + real elapsed;
+   the rotating client-inferred stage labels are removed).
+4. `ask_started` analytics event implemented typed + DISABLED (flag default off; no
+   PostHog allowlist enablement without operator approval).
+5. `maxDuration` pinned on the /ask page segment after verifying Next 16 server-action
+   inheritance against the installed next dist.
+6. Eval runner: answer-model matrix configs (`v2-k60+<model>`, retrieval/rerank held
+   fixed) + 8 named-person source-fidelity gold fixtures with deterministic scoring.
+   The ~$1–3 paid matrix run itself is enablement-blocked (no operator approval) and
+   is recorded as such in the Gate 0 report.
+7. Tests in layers; adversarial Gate 0 review; phase + gate reports; merge to the
+   integration branch only if Gate 0 passes. No deploy, no push, no paid calls, no
+   production writes.

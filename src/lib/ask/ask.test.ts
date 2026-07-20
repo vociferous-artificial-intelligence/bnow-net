@@ -876,3 +876,105 @@ describe("beginsWithDenial anchor", () => {
     ).toBe(false);
   });
 });
+
+// ---- Phase 0 stage timings + metering invariance (2026-07-19) --------------------
+
+describe("stage timings — terminal paths and metering invariance", () => {
+  const pool = [candidate({ claimId: 1 }), candidate({ claimId: 2 })];
+
+  it("answered path records answerMs + validateMs; metering args identical with and without the collector", async () => {
+    envPaidV2();
+    mocks.createMock.mockResolvedValue(
+      completion({ content: "Answer [c1].", promptTokens: 500, completionTokens: 80 }),
+    );
+    const retrieval = retrievalV2({ claims: pool });
+    const rk = ranked({ claims: pool });
+
+    // Baseline: no collector.
+    const baseline = await answerFromEvidence("q", retrieval, rk);
+    expect(baseline.state).toBe("answered");
+    const baselineRecordArgs = mocks.guard.record.mock.calls[0];
+
+    // With collector: same metering call, byte-identical args.
+    mocks.guard.record.mockClear();
+    mocks.guard.tryReserve.mockClear();
+    const timings: Record<string, number> = {};
+    const res = await answerFromEvidence("q", retrieval, rk, { timings });
+    expect(res.state).toBe("answered");
+    expect(mocks.guard.tryReserve).toHaveBeenCalledTimes(1);
+    expect(mocks.guard.record).toHaveBeenCalledTimes(1);
+    expect(mocks.guard.record.mock.calls[0]).toEqual(baselineRecordArgs);
+    expect(timings.answerMs).toBeGreaterThanOrEqual(0);
+    expect(timings.validateMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("refusal path records answerMs (billed call) without validateMs (deterministic copy)", async () => {
+    envPaidV2();
+    mocks.createMock.mockResolvedValue(completion({ refusal: "cannot help" }));
+    const timings: Record<string, number> = {};
+    const res = await answerFromEvidence("q", retrievalV2({ claims: pool }), ranked({ claims: pool }), { timings });
+    expect(res.state).toBe("refused");
+    expect(timings.answerMs).toBeGreaterThanOrEqual(0);
+    expect(timings.validateMs).toBeUndefined();
+    expect(mocks.guard.record).toHaveBeenCalledTimes(1); // billed exactly once, unchanged
+  });
+
+  it("provider-throw path still records answerMs on the error result", async () => {
+    envPaidV2();
+    mocks.createMock.mockRejectedValue(new Error("boom"));
+    const timings: Record<string, number> = {};
+    const res = await answerFromEvidence("q", retrievalV2({ claims: pool }), ranked({ claims: pool }), { timings });
+    expect(res.state).toBe("error");
+    expect(timings.answerMs).toBeGreaterThanOrEqual(0);
+    expect(mocks.guard.record).not.toHaveBeenCalled(); // threw before billing — unchanged behavior
+  });
+
+  it("budget-refusal path records NO answerMs (no paid boundary ran) and no metering", async () => {
+    envPaidV2();
+    mocks.guard.tryReserve.mockReturnValue({ ok: false, reason: "cap" });
+    const timings: Record<string, number> = {};
+    const res = await answerFromEvidence("q", retrievalV2({ claims: pool }), ranked({ claims: pool }), { timings });
+    expect(res.provider).toBe("budget");
+    expect(timings.answerMs).toBeUndefined();
+    expect(mocks.createMock).not.toHaveBeenCalled();
+    expect(mocks.guard.record).not.toHaveBeenCalled();
+  });
+
+  it("offline path records NO answerMs and makes no call", async () => {
+    vi.stubEnv("ASK_PIPELINE", "v2");
+    vi.stubEnv("OPENAI_API_KEY", "");
+    const timings: Record<string, number> = {};
+    const res = await answerFromEvidence("q", retrievalV2({ claims: pool }), ranked({ claims: pool }), { timings });
+    expect(res.provider).toBe("stub");
+    expect(timings.answerMs).toBeUndefined();
+    expect(mocks.createMock).not.toHaveBeenCalled();
+  });
+
+  it("ask() v2 records currencyMs + rerankMs and threads the collector into retrieveV2", async () => {
+    envPaidV2();
+    mocks.currencyMock.mockResolvedValue("2026-07-18");
+    mocks.retrieveV2Mock.mockResolvedValue(retrievalV2({ claims: pool }));
+    mocks.rerankMock.mockResolvedValue(ranked({ claims: pool }));
+    mocks.createMock.mockResolvedValue(completion({ content: "Answer [c1]." }));
+
+    const timings: Record<string, number> = {};
+    const res = await ask("what happened in kherson", { timings });
+    expect(res.state).toBe("answered");
+    expect(timings.currencyMs).toBeGreaterThanOrEqual(0);
+    expect(timings.rerankMs).toBeGreaterThanOrEqual(0);
+    expect(mocks.retrieveV2Mock).toHaveBeenCalledWith("what happened in kherson", { timings });
+  });
+
+  it("ask() short-circuits (no evidence) still record currencyMs; no rerank/answer keys", async () => {
+    envPaidV2();
+    mocks.currencyMock.mockResolvedValue("2026-07-18");
+    mocks.retrieveV2Mock.mockResolvedValue(retrievalV2({ claims: [], entities: [] }));
+
+    const timings: Record<string, number> = {};
+    const res = await ask("nothing matches", { timings });
+    expect(res.state).toBe("insufficient");
+    expect(timings.currencyMs).toBeGreaterThanOrEqual(0);
+    expect(timings.rerankMs).toBeUndefined();
+    expect(timings.answerMs).toBeUndefined();
+  });
+});

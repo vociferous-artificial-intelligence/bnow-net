@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   useActionState,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -14,6 +15,8 @@ import type { Locale } from "@/i18n/dictionaries";
 import type { ClaimEvidenceLabels } from "@/components/claim-evidence-model";
 import type { ClaimCopyLabels } from "@/components/claim-copy-model";
 import { askIntentStorageKey } from "@/lib/ask/intent";
+import { askStartedEventEnabled } from "@/lib/analytics/events";
+import { captureProductEvent } from "@/lib/analytics/client";
 import { askAction, type AskActionState } from "./actions";
 import { AskResult, type Translate } from "./ask-result";
 import { AskCompletedMarker } from "@/components/analytics/product-event-markers";
@@ -41,21 +44,13 @@ export interface AskFormProps {
   copyLabels: ClaimCopyLabels;
 }
 
-// Client-side elapsed-time stages for the working panel. These are an HONEST
-// estimate of the pipeline's fixed retrieve → rank → answer order — never a
-// server-reported progress signal and never a percentage. The thresholds only
-// pace the copy; the elapsed counter shows the real number of seconds.
-const STAGE_KEYS = [
-  "ask.working.stage.searching",
-  "ask.working.stage.ranking",
-  "ask.working.stage.answering",
-] as const;
-
-function stageKeyForElapsed(seconds: number): (typeof STAGE_KEYS)[number] {
-  if (seconds < 4) return STAGE_KEYS[0];
-  if (seconds < 9) return STAGE_KEYS[1];
-  return STAGE_KEYS[2];
-}
+// Phase 0 UX honesty (2026-07-19): while the pipeline runs the panel shows ONE
+// line — "searching the claim database and preparing a cited answer" — plus the
+// real elapsed seconds. The previous rotating searching/ranking/answering labels
+// were paced by CLIENT elapsed time, not server state (a slow embed was labelled
+// "answering", a fast retrieval "searching"), and an analyst product must not
+// infer stages it cannot observe. Real per-stage copy returns in Phase 2, driven
+// exclusively by persisted server events.
 
 /**
  * The form's interactive fields and pending state. Split out of AskForm because
@@ -129,11 +124,11 @@ function WorkingPanel({ t }: { t: Translate }) {
 }
 
 /**
- * The visible working panel. role=status + aria-live=polite announce the stage
- * transitions to assistive tech; the once-per-second elapsed counter is
- * aria-hidden so a screen reader is not spammed every tick. Stage copy advances
- * on CLIENT elapsed time (honest estimate of the retrieve → rank → answer order)
- * — never a server-reported stage and never a fake percentage.
+ * The visible working panel. role=status + aria-live=polite announce the single
+ * status line once to assistive tech; the once-per-second elapsed counter is
+ * aria-hidden so a screen reader is not spammed every tick. The status line is
+ * static and honest — no client-inferred stages, no fake percentage; the only
+ * moving number is the real elapsed time.
  */
 function WorkingPanelBody({ t, question }: { t: Translate; question: string }) {
   const [elapsed, setElapsed] = useState(0);
@@ -146,7 +141,7 @@ function WorkingPanelBody({ t, question }: { t: Translate; question: string }) {
     return () => clearInterval(id);
   }, []);
 
-  const stage = t(stageKeyForElapsed(elapsed));
+  const stage = t("ask.working.preparing");
 
   return (
     <div
@@ -236,6 +231,24 @@ export function AskForm({
   const formRef = useRef<HTMLFormElement>(null);
   const [busy, setBusy] = useState(false);
 
+  // ask_started (typed but DISABLED — askStartedEventEnabled() is off in every
+  // environment; enabling is an operator approval, see events.ts). Emits once per
+  // submit gesture on the pending rising edge; `entry` records whether the home
+  // one-click intent auto-submitted or the user pressed submit here. Content-free.
+  const entryRef = useRef<"form" | "intent">("form");
+  const startedRef = useRef(false);
+  const handlePendingChange = useCallback((pending: boolean) => {
+    setBusy(pending);
+    if (pending && !startedRef.current) {
+      startedRef.current = true;
+      if (askStartedEventEnabled()) {
+        captureProductEvent("ask_started", { entry: entryRef.current });
+      }
+      entryRef.current = "form"; // one-shot: only the intent-dispatched submit is "intent"
+    }
+    if (!pending) startedRef.current = false;
+  }, []);
+
   // One-shot handoff from the home Ask box. This is the ONLY automatic submission in
   // the app, and it is deliberately hard to replay: the intent is consumed (removed)
   // before the submit is dispatched, the stored question must equal the ?q= we
@@ -269,6 +282,7 @@ export function AskForm({
     // Exact match only. A stale entry, a tampered ?q=, or a question that drifted
     // between the two pages must not silently ask something the user didn't submit.
     if (stored === null || stored !== initialQuestion) return;
+    entryRef.current = "intent"; // the pending rising edge this dispatch causes is intent-entry
     formRef.current?.requestSubmit();
   }, [intent, initialQuestion]);
 
@@ -279,7 +293,7 @@ export function AskForm({
           initialQuestion={initialQuestion}
           t={t}
           formRef={formRef}
-          onPendingChange={setBusy}
+          onPendingChange={handlePendingChange}
         />
         <WorkingPanel t={t} />
       </form>

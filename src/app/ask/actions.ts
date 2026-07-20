@@ -1,7 +1,8 @@
 "use server";
 
 import { requireAcceptedUser } from "@/lib/gate";
-import { askWithLimits } from "@/lib/ask/limits";
+import { askWithLimits, recordEntryTimings } from "@/lib/ask/limits";
+import { clampMs, monotonicMs } from "@/lib/ask/timings";
 import { rawSql } from "@/db";
 import { getLocale } from "@/i18n/server";
 import { formatDate } from "@/i18n/format";
@@ -71,6 +72,9 @@ export async function askAction(
   // pipeline call, no charge, no error page (mirrors the API route's floor).
   if (question.length < 3) return prevState;
 
+  // Phase 0 measurement: this action owns the run's hydrateMs + totalMs (the
+  // user-felt web total). Monotonic clock only — never wall-clock subtraction.
+  const tAction = monotonicMs();
   const result = await askWithLimits(question, user?.email ?? null);
 
   // Resolve cited + related claim ids, owning digests, and every attached source
@@ -80,6 +84,7 @@ export async function askAction(
   // legacy shape — defensive ?? [] per the frozen contract, src/lib/ask/types.ts).
   let cited: ResolvedClaim[] = [];
   let related: ResolvedClaim[] = [];
+  const tHydrate = monotonicMs();
   const relatedIds = (result as AskResultLike).relatedClaimIds ?? [];
   const allIds = [...new Set([...result.citedClaimIds, ...relatedIds])];
   if (allIds.length > 0) {
@@ -139,6 +144,18 @@ export async function askAction(
       .map((id) => byId.get(id))
       .filter((c): c is ResolvedClaim => !!c);
     related = relatedIds.map((id) => byId.get(id)).filter((c): c is ResolvedClaim => !!c);
+  }
+
+  // Patch THIS run's row (matched by run_id) with the action-scope timings.
+  // runId is present only when askWithLimits wrote a row (limit/gate refusals
+  // carry none — nothing to patch). Awaited so a serverless response can't cut
+  // the write; recordEntryTimings itself is fail-soft and never throws.
+  if (result.runId) {
+    const end = monotonicMs();
+    await recordEntryTimings(result.runId, {
+      hydrateMs: clampMs(end - tHydrate),
+      totalMs: clampMs(end - tAction),
+    });
   }
 
   return { analyticsCompletionKey: crypto.randomUUID(), question, result, cited, related };

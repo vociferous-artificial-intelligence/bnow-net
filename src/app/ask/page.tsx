@@ -9,6 +9,15 @@ import { AskForm } from "./ask-form";
 
 export const dynamic = "force-dynamic";
 
+// Phase 0 (2026-07-19): the paid pipeline runs from this page's server action, and a
+// server action POSTs to its page's own route — Next folds this segment's config into
+// that route's function config (verified against next@16.2.10
+// dist/build/utils.js reduceAppConfig), so this pin bounds askAction invocations.
+// 60s matches the JSON route's existing pin and covers the measured p50 ≈ 10–13s with
+// tail ≈ 30s. Without it a slow run dies at the deployment default with no usage row
+// (the Phase 1 run-persistence fix needs this floor under it).
+export const maxDuration = 60;
+
 // Money-path rule (OPEN-TASKS #48 + the double-billing architecture bug it sits on
 // top of): GET /ask?q=... PREFILLS the input and NEVER executes the paid pipeline —
 // refresh, back-navigation, shared links, and prefetchers must never re-bill. The

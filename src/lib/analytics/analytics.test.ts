@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { analyticsPublicConfig, canonicalAnalyticsRuntime } from "./config";
-import { daysSinceSignupBucket, routeSurface } from "./events";
+import { askStartedEventEnabled, daysSinceSignupBucket, routeSurface } from "./events";
 import { normalizedPagePath, sanitizeOutgoingEvent, sanitizeProductProperties } from "./sanitize";
 
 const INTERNAL_UUID = "6b326af1-2f44-4cd8-a08b-8d885fb198e0";
@@ -32,6 +32,29 @@ describe("analytics configuration and route policy", () => {
     expect(daysSinceSignupBucket("2026-07-14T01:00:00Z", now)).toBe("0");
     expect(daysSinceSignupBucket("2026-07-10T01:00:00Z", now)).toBe("3-7");
     expect(daysSinceSignupBucket("2026-06-01T01:00:00Z", now)).toBe("15+");
+  });
+});
+
+describe("ask_started — typed but DISABLED (AI Search Phase 0, 2026-07-19)", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("the enablement gate is OFF by default and in every current environment", () => {
+    expect(askStartedEventEnabled()).toBe(false);
+    vi.stubEnv("NEXT_PUBLIC_ANALYTICS_ASK_STARTED", "");
+    expect(askStartedEventEnabled()).toBe(false);
+    vi.stubEnv("NEXT_PUBLIC_ANALYTICS_ASK_STARTED", "true"); // only the literal "1" enables
+    expect(askStartedEventEnabled()).toBe(false);
+    vi.stubEnv("NEXT_PUBLIC_ANALYTICS_ASK_STARTED", "1");
+    expect(askStartedEventEnabled()).toBe(true);
+  });
+
+  it("the typed shape is content-free: entry enum only, everything else rejected", () => {
+    expect(sanitizeProductProperties("ask_started", { entry: "form" })).toEqual({ entry: "form" });
+    expect(sanitizeProductProperties("ask_started", { entry: "intent" })).toEqual({ entry: "intent" });
+    expect(sanitizeProductProperties("ask_started", { entry: "other" })).toBeNull();
+    expect(sanitizeProductProperties("ask_started", { entry: "form", question: "secret" })).toBeNull();
+    expect(sanitizeProductProperties("ask_started", { entry: "form", q: "secret" })).toBeNull();
+    expect(sanitizeProductProperties("ask_started", {})).toBeNull();
   });
 });
 

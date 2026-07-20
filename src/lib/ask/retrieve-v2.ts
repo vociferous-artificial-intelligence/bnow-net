@@ -9,6 +9,7 @@ import { isLlmDisabled } from "../usage/llm-guard";
 import { embedModel, embedTexts } from "../embeddings/client";
 import { embedGuardFromEnv } from "../embeddings/guard";
 import { lexicalClaimSearch, windowClause } from "./lexical";
+import { monotonicMs, recordStage, timeStage, type StageTimings } from "./timings";
 
 // Retrieval v2: deterministic time-window parse + hybrid (vector union lexical)
 // candidate generation + composite pre-rank. Same anti-hallucination boundary as
@@ -72,9 +73,15 @@ function toCandidate(r: ClaimRow, vectorHit: boolean): CandidateClaim {
 
 export async function retrieveV2(
   question: string,
-  opts?: { now?: Date },
+  opts?: { now?: Date; timings?: StageTimings },
 ): Promise<RetrievalV2Result> {
   const now = opts?.now ?? new Date();
+  // Phase 0 stage timings (optional, no-op when absent): embedMs = the embedTexts
+  // network call; vectorMs = the pgvector SQL; lexicalMs = lexicalClaimSearch (its
+  // two round-trips); entityMs = the per-claim entities SQL + top-15 entity SQL,
+  // summed; mergeMs = the synchronous union/scoring/sort sections, summed. Guard
+  // init/reserve/record calls are NOT reordered or wrapped individually.
+  const timings = opts?.timings;
   const window = parseTimeWindow(question, now);
 
   // Temporal words must not leak into search terms: strip the consumed phrase
@@ -84,6 +91,14 @@ export async function retrieveV2(
     : question;
   const terms = extractTerms(qStripped);
   const pattern = terms.map((t) => `%${t}%`);
+
+  // entityMs/mergeMs accumulate across their split sections (the entity SQL sits
+  // between the union build and the scoring pass). Declared OUTSIDE the try and
+  // flushed in the finally so a mid-retrieval throw still leaves the completed
+  // sections' timings on the shared collector for the error row (Gate 0 finding).
+  let entityAccumMs = 0;
+  let mergeAccumMs = 0;
+  let accumSectionsStarted = false;
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
@@ -96,23 +111,27 @@ export async function retrieveV2(
       try {
         const guard = embedGuardFromEnv();
         await guard.init();
-        const { vectors, tokens, costUsd, provider } = await embedTexts([question], { guard });
+        const { vectors, tokens, costUsd, provider } = await timeStage(timings, "embedMs", () =>
+          embedTexts([question], { guard }),
+        );
         if (provider !== STUB_PROVIDER && vectors[0]) {
           embedUsage = { promptTokens: tokens, completionTokens: 0, costUsd };
           const params: unknown[] = [toVectorLiteral(vectors[0]), embedModel()];
           const wc = windowClause(window, params);
           params.push(askVectorTop());
-          const { rows } = await pool.query(
-            `SELECT cl.id, cl.text, cl.hedging, cl.claim_date::text AS d, c.iso2, dg.track,
-                    cl.confidence, 1 - (ce.embedding <=> $1::vector) AS vector_score
-             FROM claim_embeddings ce
-             JOIN claims cl ON cl.id = ce.claim_id
-             JOIN countries c ON c.id = cl.country_id
-             LEFT JOIN digests dg ON dg.id = cl.digest_id
-             WHERE ce.model = $2${wc}
-             ORDER BY ce.embedding <=> $1::vector
-             LIMIT $${params.length}`,
-            params,
+          const { rows } = await timeStage(timings, "vectorMs", () =>
+            pool.query(
+              `SELECT cl.id, cl.text, cl.hedging, cl.claim_date::text AS d, c.iso2, dg.track,
+                      cl.confidence, 1 - (ce.embedding <=> $1::vector) AS vector_score
+               FROM claim_embeddings ce
+               JOIN claims cl ON cl.id = ce.claim_id
+               JOIN countries c ON c.id = cl.country_id
+               LEFT JOIN digests dg ON dg.id = cl.digest_id
+               WHERE ce.model = $2${wc}
+               ORDER BY ce.embedding <=> $1::vector
+               LIMIT $${params.length}`,
+              params,
+            ),
           );
           vectorRows = rows as ClaimRow[];
           // Zero rows means "no embeddings for the current model" — a v2-lexical-only
@@ -136,14 +155,21 @@ export async function retrieveV2(
     // Delegated to lexical.ts (shared with /search): same SQL, params, ordering,
     // caps, and the "no predicate -> no query at all" degraded path as before —
     // only the pool.query calls moved module.
-    const { rows: lexicalRows, matchCount: lexicalMatchCount } = await lexicalClaimSearch(pool, {
-      qStripped,
-      terms,
-      window,
-      limit: askLexicalTop(),
-    });
+    const { rows: lexicalRows, matchCount: lexicalMatchCount } = await timeStage(
+      timings,
+      "lexicalMs",
+      () =>
+        lexicalClaimSearch(pool, {
+          qStripped,
+          terms,
+          window,
+          limit: askLexicalTop(),
+        }),
+    );
 
     // ---- union (dedupe by claimId) ------------------------------------------
+    accumSectionsStarted = true;
+    const tUnion = monotonicMs();
     const byId = new Map<number, CandidateClaim>();
     for (const r of vectorRows) byId.set(r.id, toCandidate(r, true));
     for (const r of lexicalRows) {
@@ -152,16 +178,19 @@ export async function retrieveV2(
       else byId.set(r.id, toCandidate(r, false));
     }
     const unionSize = byId.size;
+    mergeAccumMs += monotonicMs() - tUnion;
 
     // entities per claim — one batched query, exactly like retrieve.ts
     const claimIds = [...byId.keys()];
     if (claimIds.length > 0) {
+      const tEnt = monotonicMs();
       const { rows: er } = await pool.query(
         `SELECT ce.claim_id, e.name FROM claim_entities ce
          JOIN entities e ON e.id = ce.entity_id
          WHERE ce.claim_id = ANY($1::int[])`,
         [claimIds],
       );
+      entityAccumMs += monotonicMs() - tEnt;
       const entByClaim = new Map<number, string[]>();
       for (const row of er as Array<{ claim_id: number; name: string }>) {
         entByClaim.set(row.claim_id, [...(entByClaim.get(row.claim_id) ?? []), row.name]);
@@ -170,6 +199,7 @@ export async function retrieveV2(
     }
 
     // composite pre-rank, then cap
+    const tScore = monotonicMs();
     const claims = [...byId.values()];
     for (const cand of claims) {
       cand.compositeScore = scoreCandidate(
@@ -185,12 +215,14 @@ export async function retrieveV2(
     }
     claims.sort((a, b) => b.compositeScore - a.compositeScore || b.claimId - a.claimId);
     const capped = claims.slice(0, askCandidates());
+    mergeAccumMs += monotonicMs() - tScore;
 
     const totalMatching = Math.max(unionSize, lexicalMatchCount);
 
     // ---- entities list (top 15 by pressure) — legacy query, DUPLICATED (D3) --
     let entities: RetrievedEntity[] = [];
     if (terms.length > 0) {
+      const tEntList = monotonicMs();
       const { rows: entRows } = await pool.query(
         `SELECT e.id, e.name, e.kind,
                 CASE WHEN coalesce((e.meta->'opensanctions'->>'stub')::boolean, false)
@@ -206,6 +238,7 @@ export async function retrieveV2(
          LIMIT 15`,
         [pattern],
       );
+      entityAccumMs += monotonicMs() - tEntList;
       entities = (
         entRows as Array<{ id: number; name: string; kind: string; sanctioned: boolean | null; pressure: number }>
       ).map((r) => ({
@@ -219,6 +252,10 @@ export async function retrieveV2(
 
     return { claims: capped, entities, terms, window, totalMatching, mode, embedUsage };
   } finally {
+    if (accumSectionsStarted) {
+      recordStage(timings, "entityMs", entityAccumMs);
+      recordStage(timings, "mergeMs", mergeAccumMs);
+    }
     await pool.end();
   }
 }
