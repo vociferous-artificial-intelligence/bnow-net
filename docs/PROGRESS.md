@@ -2195,3 +2195,31 @@ Gate 0 (2 high + 6 medium confirmed, 0 refuted, all fixed in `598dcb2`) and merg
    cap, all-time cap, envelope isolation, replay, expiry, idempotent settlement).
 7. Independent adversarial money review at Gate 1; reports; merge only on pass.
    No paid calls, production writes, deploys, or pushes.
+
+## 2026-07-19 22:05 EDT — AI Search Phase 2: progressive retrieval, evidence-first UX
+
+Phase 1 PASSED Gate 1 (1 high + 6 medium confirmed — incl. the reopened-F7 snapshot
+race, now closed with a single-statement union read — 0 unfixed; 1 refuted) and merged
+`--no-ff` at `82f93a8`. This phase: `codex/ai-search-ask-p2-progressive` from that HEAD.
+Migration number claimed: **0023** (ask_run_events + evidence snapshot storage + the
+register-#22 partial index on ask_runs(finished_at) for the expiry sweep).
+
+Work blocks (per the master prompt §9):
+1. Transport spike FIRST: prove the production-shaped SSE/replay design — a
+   reconnecting GET authenticates, verifies run ownership, replays persisted
+   `seq > after` events, tails Postgres with bounded polling + heartbeats, makes zero
+   provider calls; no process-local emitter anywhere. Design note committed before the
+   full build; EvidenceSnapshot shape + retention class frozen in the same note.
+2. Migration 0023 + `src/lib/ask/events.ts` (typed event union, payload allowlist) +
+   snapshot persistence (claim CONTENT + stable raw_documents ids — F11).
+3. Orchestrator extraction (`src/lib/ask/orchestrator.ts`): ask() becomes a thin
+   wrapper over it with a null event sink; retrieval arms go concurrent
+   (Promise.allSettled) with an onPartial lexical event and a determinism test.
+4. SSE routes (POST /api/ask/runs → stream; GET /api/ask/runs/[id]/events?after=;
+   stub cancel route) — owner-gated, heartbeats, maxDuration pinned.
+5. Client run-controller + candidate panel (candidate ≠ selected ≠ cited labels),
+   ASK_PROGRESSIVE flag; server-action path stays the no-JS fallback; browser
+   verification against a PRODUCTION build (dev never hydrates on this box, #74).
+6. Gate 2: evidence-truth/state-machine/reconnect/a11y/money lenses + measured
+   p50 time-to-first-candidate target <2s on production-shaped data.
+No paid calls, production writes, deploys, or pushes.
