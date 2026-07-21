@@ -12,8 +12,12 @@
  *  rule for the accepted private-beta Signals view (names shown to accepted invitees
  *  are cited source claims, not BNOW's assertions). */
 export const CURRENT_TERMS_VERSION = "1.1";
-/** Bump when the Privacy Notice changes materially. Returning users then re-acknowledge. */
-export const CURRENT_PRIVACY_VERSION = "1.2";
+/** Bump when the Privacy Notice changes materially. Returning users then re-acknowledge.
+ *  1.3 (2026-07-21): §9 replaces the "no fixed automatic deletion period" statement with
+ *  the operator-configured Ask retention windows (question/answer/evidence content ≤30
+ *  days; stream/progress events ≤7 days; exact-answer cache ≤7 days), disclosed BEFORE
+ *  any Ask persistence-backed feature is enabled in production. */
+export const CURRENT_PRIVACY_VERSION = "1.3";
 
 /** The acceptance clickwrap event kind stored on every record. */
 export const ACCEPTANCE_METHOD = "first_login_clickwrap";
@@ -27,13 +31,14 @@ export const ACCEPTANCE_METHOD = "first_login_clickwrap";
 // occur on 07-15). Keep in sync with the deploy.
 export const TERMS_EFFECTIVE_DATE = "2026-07-16";
 export const TERMS_EFFECTIVE_DATE_DISPLAY = "July 16, 2026";
-// Privacy 1.2 (analyst-beta remediation): corrects the now-false "activation
-// pending" copy to the live PostHog posture (US project, GeoIP-derived coarse
-// location disclosed, 7-year event retention). Re-acknowledgement is driven by
-// the version STRING above, not this date. July 15 is the actual production
-// deployment date for Privacy 1.2.
-export const PRIVACY_EFFECTIVE_DATE = "2026-07-15";
-export const PRIVACY_EFFECTIVE_DATE_DISPLAY = "July 15, 2026";
+// Privacy 1.3 (AI Search/Ask release): discloses the fixed Ask retention windows
+// (content 30 days, events 7 days, exact-answer cache 7 days) that the operator
+// configured for the persistence-backed Ask features, replacing 1.2's "no fixed
+// automatic deletion period" statement. Re-acknowledgement is driven by the
+// version STRING above, not this date. July 21 is the actual production release
+// date for Privacy 1.3 (the retention envs are set in the same release).
+export const PRIVACY_EFFECTIVE_DATE = "2026-07-21";
+export const PRIVACY_EFFECTIVE_DATE_DISPLAY = "July 21, 2026";
 
 // Backward-compatible aliases for the unchanged Terms document. Privacy passes its own
 // effective date to the shared document chrome so a Privacy-only revision never makes the

@@ -2448,3 +2448,27 @@ defect found BY the battery and fixed: a Stop in the provider dispatch
 window now classifies as cancelled (d302231). Zero paid calls, zero
 production writes, nothing pushed or deployed; main untouched. Next: merge
 --no-ff into codex/ai-search-ask-integration-20260719 only.
+
+## 2026-07-21 16:10 ET — Production release plan (branch codex/ai-search-ask-release-20260721)
+
+Operator authorized the production release of the Ask release candidate
+(integration tip 1ccf986, hardening merge 9ade369) with binding config:
+retention 30/7/7 days (content/events/cache), ASK_BILLING_CUTOVER_AT absent,
+ASK_FIDELITY_FALLBACK default-on, every new flag (progressive/enforce/
+stream/cache/sessions/router/analytics) OFF, then an ASK_RUNS_SHADOW=1 soak.
+Plan:
+1. Reconcile ancestry (origin/main 9d556cf ⊂ local main 6c21b17 ⊂ integration
+   1ccf986; migrations 0021–0027 additive; 9999 last) — DONE, no divergence.
+2. Privacy 1.3: §9 fixed Ask retention windows replace the 1.2 "no fixed
+   automatic deletion period" statement; effective 2026-07-21; forces
+   re-acknowledgement; Terms unchanged at 1.1. Tests + docs updated.
+3. Merge release branch → integration only; full gates (typecheck, lint,
+   unit, Neon-branch itest, build, diff --check, browser smoke on the
+   production build).
+4. Production DB: recoverable Neon backup branch, then migrate 0021–0027 +
+   9999 (idempotency re-run proof), verify _migrations/columns/trigger.
+5. Configure prod envs (retention set; all new flags off), deploy the exact
+   release commit, verify /health + baseline ($0 GET /ask, /search, no
+   ask_runs rows), ff main only after migration success, push.
+6. ASK_RUNS_SHADOW=1, redeploy same commit, verify shadow posture, begin
+   48–72h soak with monitoring; release-and-shadow report.
