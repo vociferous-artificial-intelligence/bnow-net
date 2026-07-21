@@ -2524,3 +2524,22 @@ Branch `opensanctions-match-safety`; no deploy/push/production writes/migrations
 6. Docs: OPEN-TASKS #17 update (containment ≠ closure), AGENTS.md decision-log
    append, CURRENT-STATE correction, review doc
    `docs/reviews/OPENSANCTIONS-MATCH-SAFETY-2026-07-21.md`. Local commit only.
+
+## 2026-07-21 18:45 ET — OpenSanctions match-safety repair COMPLETE (branch only)
+
+All six plan items done on `opensanctions-match-safety` (`c74aaba`, local only —
+no push/deploy/production writes/migrations/paid calls):
+- Matcher fail-closed (accepted-only; rejected → non-assertive diagnostics);
+  `os-read.ts` single read authority contains the stale
+  `matched:false, sanctioned:true` production rows unmutated.
+- /entities list+detail: OpenSanctions admin-only qualified candidate review;
+  non-admins get zero OS markup (list SQL never selects it).
+- Ask: no OpenSanctions categorical assertions (projection + SANCTIONED marker
+  removed, legacy + v2); sample question replaced; claim-text sanctions evidence
+  and validator rules unchanged.
+- Gates: typecheck/lint clean · unit 2,049/2,049 (161 files, +21) · itest 72/72
+  (disposable fork br-holy-feather-atg4y0ca, deleted) · build PASS.
+- Docs: AGENTS decision log, OPEN-TASKS #17 (containment, NOT closure),
+  CURRENT-STATE, docs/reviews/OPENSANCTIONS-MATCH-SAFETY-2026-07-21.md.
+Remaining (separate approvals): human-review workflow before any public
+sanctions/PEP assertion; stronger identifiers; #61-gated stale-row cleanup.
