@@ -125,7 +125,8 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   The signed-in home Ask box is a one-click handoff (LIVE 2026-07-17, `dpl_5jAidKc8rnSKmSG1gK5rP4KehwJv`):
   a single-use per-tab intent key, consumed once by AskForm on mount; #48 holds — every GET /ask is free,
   re-proven in production (direct `?q=` and a forged `?intent=` both prefill-only, zero paid calls).
-- **Legal/analytics/email:** Terms 1.1 (2026-07-16) + Privacy 1.2; current clickwrap required.
+- **Legal/analytics/email:** Terms 1.1 (2026-07-16) + Privacy 1.3 (2026-07-21 — fixed Ask
+  retention disclosure: content ≤30d, events ≤7d, cache ≤7d); current clickwrap required.
   Postmark `BNOW.NET <no-reply@bnow.net>` is live; magic-link guidance is single-use/24h and
   copy-before-opening. PostHog is production-only, explicit opt-in, allowlist-sanitized, UUID
   identity, no Ask/Search/source text; GeoIP is retained per disclosed operator ruling.
@@ -259,6 +260,19 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   `ASK_BILLING_CUTOVER_AT` operator entry); migrations now apply atomically per file. Gates on
   the final tree: unit 2,027/2,027 · itest 72/72 · lint 0/0 · build PASS · 9/9 production-build
   browser scenarios; zero paid calls; production and `main` untouched.
+
+- **2026-07-21 (Privacy 1.3 — Ask retention disclosure precedes persistence)** Operator set
+  binding retention values (`ASK_CONTENT_RETENTION_DAYS=30`, `ASK_EVENTS_RETENTION_DAYS=7`,
+  `ASK_CACHE_TTL_DAYS=7`) for the production release of the Ask release candidate. Privacy 1.2's
+  "no fixed automatic deletion period" statement is incompatible with enabling any
+  persistence-backed Ask surface, so the Privacy Notice §9 now discloses the fixed windows
+  (question/answer/evidence ≤30 days; stream/progress events ≤7 days; exact-answer cache ≤7
+  days; billing/accounting metadata retained separately without extending content retention) and
+  `CURRENT_PRIVACY_VERSION` bumps 1.2→1.3 (effective 2026-07-21, the actual release date),
+  forcing re-acknowledgement for every existing user through the standard clickwrap. Terms stay
+  at 1.1 (no Terms change). The disclosure is truthful against the shipped sweep
+  (`src/lib/ask/retention.ts`): it redacts/deletes ALL Ask content surfaces — including legacy
+  `ask_usage.question` — keyed on the raw retention envs, surviving full flag rollback.
 
 ## Conventions
 

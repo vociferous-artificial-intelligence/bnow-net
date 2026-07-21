@@ -178,7 +178,9 @@ export default function PrivacyPage() {
         <LegalP>
           Under current service settings, BNOW stores the text of submitted Ask questions together
           with the account email and related usage metadata. Stored questions support rate limits,
-          cost controls, diagnostics, account history, and the recent-questions feature.
+          cost controls, diagnostics, account history, and the recent-questions feature. Stored
+          question, answer, and evidence content is automatically deleted or redacted under the
+          fixed periods described under Retention below.
         </LegalP>
         <LegalP>
           BNOW sends submitted questions and selected supporting evidence to AI service providers to
@@ -308,9 +310,27 @@ export default function PrivacyPage() {
           obligations.
         </LegalP>
         <LegalP>
-          Under current settings, Ask questions may remain associated with an account until the
-          account or data is deleted, deidentified, or removed under an applicable retention process.
-          We do not currently promise a fixed automatic deletion period for stored questions.
+          Ask content is subject to fixed automatic retention periods under current service
+          settings:
+        </LegalP>
+        <LegalUL>
+          <li>
+            The text of a submitted Ask question, and any stored answer or supporting-evidence
+            content produced for it, is retained for no longer than 30 days after submission,
+            after which it is automatically deleted or redacted from the associated records.
+          </li>
+          <li>
+            Stream and progress events generated while an Ask answer is produced are retained
+            for no longer than 7 days.
+          </li>
+          <li>Exact-answer cache entries are retained for no longer than 7 days.</li>
+        </LegalUL>
+        <LegalP>
+          Usage, billing, and accounting metadata associated with an Ask request — such as
+          timestamps, token and cost figures, provider and model identifiers, and outcome
+          status — may be retained separately for as long as legally or operationally
+          required. That metadata does not include the question, answer, or evidence content,
+          and its retention does not extend the content periods above.
         </LegalP>
         <LegalP>
           Authentication sessions and verification tokens expire according to the service’s

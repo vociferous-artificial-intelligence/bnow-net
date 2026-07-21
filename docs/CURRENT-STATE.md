@@ -205,12 +205,16 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
 - **Legal acceptance (versioned clickwrap, shipped 2026-07-12):** public `/privacy` +
   `/terms` (**Terms of Use v1.1 effective 2026-07-16** — §9 adds the named-person
   source-attribution / non-endorsement rule for the accepted-invitee Signals view, deployed
-  2026-07-16; v1.0 was effective 2026-07-12 + **Privacy Notice v1.2 effective
-  2026-07-15** — corrects the now-live PostHog posture, discloses the dedicated US project,
-  GeoIP-derived approximate location, and seven-year event retention; Privacy v1.1 was effective
-  2026-07-14 and introduced optional analytics consent). The Terms 1.1 bump forces ALL users to
-  re-accept on next visit; the earlier Privacy 1.2 bump likewise forces re-acceptance on next
-  visit, where the acceptance form now also carries an optional, initially unchecked
+  2026-07-16; v1.0 was effective 2026-07-12. **Privacy Notice v1.3 effective 2026-07-21** —
+  §9 replaces v1.2's "no fixed automatic deletion period" statement with the operator-set
+  Ask retention windows (question/answer/evidence content ≤30 days; stream/progress events
+  ≤7 days; exact-answer cache ≤7 days; billing/accounting metadata retained separately
+  without extending content retention), disclosed BEFORE any Ask persistence-backed feature
+  enablement; v1.2 effective 2026-07-15 corrected the live PostHog posture — dedicated US
+  project, GeoIP-derived approximate location, seven-year event retention; Privacy v1.1 was
+  effective 2026-07-14 and introduced optional analytics consent). Each version bump forces
+  ALL users to re-accept on next visit — the Privacy 1.3 bump does so now — and the
+  acceptance form also carries an optional, initially unchecked
   "Allow optional product analytics" checkbox — unchecked/missing records `denied`, a
   stale grant cannot survive re-acceptance;
   `src/components/legal-document.tsx` shared layout, DB-free, indexable, in sitemap);

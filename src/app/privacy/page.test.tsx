@@ -25,13 +25,27 @@ describe("/privacy (public Privacy Notice)", () => {
   it("shows the version and effective date prominently", () => {
     const { container } = render(PrivacyPage());
     const text = container.textContent ?? "";
-    expect(text).toContain("Version 1.2");
-    expect(text).toContain("July 15, 2026");
+    expect(text).toContain("Version 1.3");
+    expect(text).toContain("July 21, 2026");
   });
 
   it("explicitly states that Ask questions are STORED", () => {
     const text = render(PrivacyPage()).container.textContent ?? "";
     expect(text).toContain("stores the text of submitted Ask questions");
+  });
+
+  it("discloses the fixed Ask retention periods (1.3) and drops the no-fixed-period claim", () => {
+    const text = render(PrivacyPage()).container.textContent ?? "";
+    // question/answer/evidence content window
+    expect(text).toContain("retained for no longer than 30 days");
+    // stream/progress events and exact-answer cache windows
+    expect(text).toContain("Stream and progress events");
+    expect(text).toContain("Exact-answer cache entries are retained for no longer than 7 days");
+    // billing/accounting metadata is separate and does NOT imply indefinite content retention
+    expect(text).toContain("does not include the question, answer, or evidence content");
+    // the 1.2-era statement must be gone
+    expect(text).not.toContain("We do not currently promise a fixed automatic deletion period");
+    expect(text).not.toContain("may remain associated with an account until the account or data is deleted");
   });
 
   it("does NOT claim questions or emails are anonymous/pseudonymous/ephemeral", () => {
