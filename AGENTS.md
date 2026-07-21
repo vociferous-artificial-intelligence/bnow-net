@@ -257,7 +257,7 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   snapshot-verified hits; additive migration 0027 adds ask_runs billing_policy/billing_eligible
   (default false — nothing is invoice-eligible without a future explicit
   `ASK_BILLING_CUTOVER_AT` operator entry); migrations now apply atomically per file. Gates on
-  the final tree: unit 2,026/2,026 · itest 72/72 · lint 0/0 · build PASS · 9/9 production-build
+  the final tree: unit 2,027/2,027 · itest 72/72 · lint 0/0 · build PASS · 9/9 production-build
   browser scenarios; zero paid calls; production and `main` untouched.
 
 ## Conventions

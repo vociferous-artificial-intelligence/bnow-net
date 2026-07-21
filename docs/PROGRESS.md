@@ -2436,7 +2436,7 @@ and 9999 untouched; rulings 1–5 and 20 preserved; free /search and $0 GET
 
 All 11 areas landed in 11 area-prefixed commits (b5150e9..d302231; report:
 docs/reviews/AI-SEARCH-RELEASE-HARDENING-2026-07-21.md). Final gates on the
-finished tree: typecheck PASS · lint 0 errors/0 warnings · unit 2,026/2,026
+finished tree: typecheck PASS · lint 0 errors/0 warnings · unit 2,027/2,027
 (159 files) · integration 72/72 (14 files, two disposable Neon branches used
 across the session, all deleted) · build PASS · git diff --check clean ·
 browser battery 9/9 scenarios on the production build against a disposable

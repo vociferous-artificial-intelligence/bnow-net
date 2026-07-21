@@ -139,7 +139,7 @@ Post-gate reruns (fixes from Gate 0 findings):
 
 ## Release hardening 2026-07-21 (codex/ai-search-ask-release-hardening-20260721)
 
-- Unit: **2,026/2,026 across 159 files** (from 1,963/157). New/extended:
+- Unit: **2,027/2,027 across 159 files** (from 1,963/157). New/extended:
   llm/contracts (SDK maxRetries pin, per-attempt embed reservations,
   no-unreserved-second-dispatch), ask/features (dependency lattice +
   fail-closed combos + cohort), ask/retention (sweep decisions + throttle),

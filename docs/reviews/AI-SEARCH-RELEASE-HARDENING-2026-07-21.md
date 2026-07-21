@@ -30,7 +30,7 @@ work, or edits to migrations 0021–0026/9999; rulings 1–5 and 20 preserved; f
 |---|---|
 | `npm run typecheck` | PASS |
 | `npm run lint` | PASS — **0 errors, 0 warnings** (the pre-existing warning fixed) |
-| `npm test` | **2,026/2,026** across 159 files (was 1,963/157 at integration HEAD) |
+| `npm test` | **2,027/2,027** across 159 files (was 1,963/157 at integration HEAD) |
 | `npm run test:integration` | **72/72** across 14 files on a disposable Neon branch (created → migrated 0021–**0027**+9999 → exercised → deleted); re-run on the final tree |
 | `npm run build` | PASS (production build; the browser battery ran against it) |
 | `git diff --check` | clean |
