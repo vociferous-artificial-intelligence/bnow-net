@@ -1,11 +1,22 @@
 import Link from "next/link";
 import { rawSql } from "@/db";
+import { currentRole } from "@/lib/gate";
+import { readOsMeta } from "@/lib/enrich/os-read";
 
 export const dynamic = "force-dynamic";
 
 // "Who's on the outs" — entities ranked by recent prosecution/pressure signals.
+//
+// OpenSanctions data on this surface is ADMIN-ONLY (2026-07-21 match-safety
+// ruling): it is name+type candidate-identity screening, not human-reviewed fact,
+// so non-admins get zero OpenSanctions markup — the metadata is not even selected
+// for them. Admins see a neutral candidate indicator (no categorical red badge);
+// the qualified candidate-review detail lives on the entity page.
 
 export default async function EntitiesPage() {
+  // fail closed: currentRole() degrades to "user" on any lookup uncertainty
+  const isAdmin = (await currentRole()) === "admin";
+
   const rows = (await rawSql.query(
     `SELECT e.id, e.name, e.kind,
             count(DISTINCT ce.claim_id)::int AS claims,
@@ -13,15 +24,9 @@ export default async function EntitiesPage() {
               WHERE ce.role IN ('defendant','target','dismissed')
             )::int AS pressure,
             max(cl.claim_date)::text AS last_seen,
-            array_agg(DISTINCT ce.role) AS roles,
-            CASE WHEN coalesce((e.meta->'opensanctions'->>'stub')::boolean, false)
-                   OR e.meta->'opensanctions'->>'osId' LIKE 'NK-stub%'
-                 THEN NULL
-                 ELSE (e.meta->'opensanctions'->>'sanctioned')::boolean END AS sanctioned,
-            CASE WHEN coalesce((e.meta->'opensanctions'->>'stub')::boolean, false)
-                   OR e.meta->'opensanctions'->>'osId' LIKE 'NK-stub%'
-                 THEN NULL
-                 ELSE (e.meta->'opensanctions'->'topics') END AS os_topics
+            array_agg(DISTINCT ce.role) AS roles${
+              isAdmin ? `,\n            e.meta->'opensanctions' AS os` : ""
+            }
      FROM entities e
      JOIN claim_entities ce ON ce.entity_id = e.id
      JOIN claims cl ON cl.id = ce.claim_id
@@ -32,7 +37,7 @@ export default async function EntitiesPage() {
   )) as Array<{
     id: number; name: string; kind: string; claims: number;
     pressure: number; last_seen: string | null; roles: string[];
-    sanctioned: boolean | null; os_topics: string[] | null;
+    os?: unknown;
   }>;
 
   return (
@@ -59,23 +64,22 @@ export default async function EntitiesPage() {
           </tr>
         </thead>
         <tbody>
-          {rows.map((e) => (
+          {rows.map((e) => {
+            // admin-only, fail-closed: only an ACCEPTED algorithm match shows the
+            // neutral indicator; rejected/stale/stub metadata renders nothing here
+            const osView = isAdmin ? readOsMeta({ opensanctions: e.os }) : null;
+            return (
             <tr key={e.id} className="border-b border-gray-100 dark:border-gray-800">
               <td className="py-1.5">
                 <Link href={`/entities/${e.id}`} className="font-medium hover:underline">
                   {e.name}
                 </Link>
-                {e.sanctioned && (
+                {osView?.state === "accepted" && (
                   <span
-                    className="ml-2 rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white"
-                    title={`OpenSanctions: ${(e.os_topics ?? []).join(", ")}`}
+                    className="ml-2 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gray-700 dark:bg-gray-700 dark:text-gray-200"
+                    title="OpenSanctions accepted a name/type identity candidate — not human-reviewed. Details on the entity page. (Admin-only.)"
                   >
-                    sanctioned
-                  </span>
-                )}
-                {!e.sanctioned && (e.os_topics ?? []).includes("role.pep") && (
-                  <span className="ml-2 rounded bg-orange-500 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white">
-                    PEP
+                    OS candidate
                   </span>
                 )}
               </td>
@@ -91,7 +95,8 @@ export default async function EntitiesPage() {
               <td className="text-xs text-gray-500">{e.roles.join(", ")}</td>
               <td className="text-xs tabular-nums">{e.last_seen?.slice(0, 10) ?? "—"}</td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
       {rows.length === 0 && (

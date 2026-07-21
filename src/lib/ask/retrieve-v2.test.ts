@@ -253,11 +253,16 @@ describe("retrieveV2 — term extraction and lexical-arm predicates", () => {
       lexCount: 1,
       lexical: [lrow(1)],
       entities: [{ claim_id: 1, name: "FSB" }, { claim_id: 1, name: "Shoigu" }],
-      entityList: [{ id: 42, name: "Shoigu", kind: "person", sanctioned: true, pressure: 4 }],
+      entityList: [{ id: 42, name: "Shoigu", kind: "person", pressure: 4 }],
     });
     const r = await retrieveV2("shoigu sanctions", { now: NOW });
     expect(r.claims[0].entities).toEqual(["FSB", "Shoigu"]);
-    expect(r.entities).toEqual([{ entityId: 42, name: "Shoigu", kind: "person", pressure: 4, sanctioned: true }]);
+    expect(r.entities).toEqual([{ entityId: 42, name: "Shoigu", kind: "person", pressure: 4 }]);
+    // 2026-07-21 match-safety ruling: the entity arm carries NO OpenSanctions
+    // metadata into Ask — the SQL must not even reference it
+    const entitySql = callWith("ORDER BY pressure")![0] as string;
+    expect(entitySql).not.toContain("opensanctions");
+    expect(entitySql).not.toContain("sanctioned");
   });
 });
 
@@ -270,7 +275,7 @@ describe("retrieveV2 — stage timings", () => {
       lexCount: 2,
       lexical: [lrow(1), lrow(2)],
       entities: [{ claim_id: 1, name: "OFAC" }],
-      entityList: [{ id: 9, name: "OFAC", kind: "org", sanctioned: null, pressure: 3 }],
+      entityList: [{ id: 9, name: "OFAC", kind: "org", pressure: 3 }],
     });
     const timings: Record<string, number> = {};
     const r = await retrieveV2("sanctions oil exports", { now: NOW, timings });

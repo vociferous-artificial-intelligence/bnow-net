@@ -302,6 +302,29 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   (`scripts/ask-shadow-soak-check.ts`) plus an explicit operator decision. Report:
   `docs/reviews/AI-SEARCH-RELEASE-2026-07-21.md`.
 
+- **2026-07-21 (OpenSanctions match-safety repair — fail-closed, branch only)** The matcher's
+  `results.find(match) ?? results[0]` fallback persisted REJECTED name-only candidates as
+  sanctions assertions (production holds `matched:false, sanctioned:true` rows), and downstream
+  consumers ignored `matched`. Repaired on branch `opensanctions-match-safety` (no deploy/push/
+  production writes/paid calls): (1) only `match === true` results populate assertive fields;
+  rejected candidates fail closed to clean-unmatched with non-assertive nested diagnostics;
+  (2) `src/lib/enrich/os-read.ts` is now the ONE read authority — a usable match requires
+  not-stub + not-`NK-stub` + `matched === true`; neither `sanctioned:true` nor a topic alone
+  ever suffices; stale rows are contained unmutated; (3) OpenSanctions presentation is
+  ADMIN-ONLY (gate.ts `currentRole()`, fail-closed) as neutral candidate review — accepted/
+  rejected labelled, score labelled identity-match confidence (never risk), topics uncollapsed
+  (PEP ≠ sanction), name+type-only + not-human-reviewed qualification, checkedAt shown; no
+  public badge/topic/score markup of any kind; (4) Ask receives NO OpenSanctions-derived
+  categorical assertion — `sanctioned` projection removed from both retrievals and
+  `RetrievedEntity`, `SANCTIONED` marker removed from both evidence blocks, unsupported sample
+  question replaced; source-backed sanctions CLAIM text still flows (ruling 20 validator rules
+  untouched). Binding until superseded: OpenSanctions data is candidate-identity screening
+  metadata; sanctions/PEP assertions stay internal/admin-only pending a human-review workflow +
+  product review; restoring any public assertion requires a new decision-log entry. Stale-row
+  cleanup/re-match stays with #61 + separate spend approval. Gates: typecheck/lint clean, unit
+  2,049/2,049 (161 files), build PASS. Review:
+  `docs/reviews/OPENSANCTIONS-MATCH-SAFETY-2026-07-21.md`.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).

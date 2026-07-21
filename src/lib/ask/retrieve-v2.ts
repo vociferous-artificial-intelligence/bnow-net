@@ -272,16 +272,13 @@ export async function retrieveV2(
 
     const totalMatching = Math.max(unionSize, lexicalMatchCount);
 
-    // ---- entities list (top 15 by pressure) — legacy query, DUPLICATED (D3) --
+    // ---- entities list (top 15 by pressure) — legacy query, DUPLICATED (D3);
+    // no OpenSanctions columns (2026-07-21 match-safety ruling — see retrieve.ts) --
     let entities: RetrievedEntity[] = [];
     if (terms.length > 0) {
       const tEntList = monotonicMs();
       const { rows: entRows } = await pool.query(
         `SELECT e.id, e.name, e.kind,
-                CASE WHEN coalesce((e.meta->'opensanctions'->>'stub')::boolean, false)
-                       OR e.meta->'opensanctions'->>'osId' LIKE 'NK-stub%'
-                     THEN NULL
-                     ELSE (e.meta->'opensanctions'->>'sanctioned')::boolean END AS sanctioned,
                 count(DISTINCT ce.claim_id) FILTER (WHERE ce.role IN ('defendant','target','dismissed'))::int AS pressure
          FROM entities e
          LEFT JOIN claim_entities ce ON ce.entity_id = e.id
@@ -293,13 +290,12 @@ export async function retrieveV2(
       );
       entityAccumMs += monotonicMs() - tEntList;
       entities = (
-        entRows as Array<{ id: number; name: string; kind: string; sanctioned: boolean | null; pressure: number }>
+        entRows as Array<{ id: number; name: string; kind: string; pressure: number }>
       ).map((r) => ({
         entityId: r.id,
         name: r.name,
         kind: r.kind,
         pressure: r.pressure,
-        sanctioned: r.sanctioned,
       }));
     }
 

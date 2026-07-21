@@ -67,9 +67,19 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   authenticated malformed cutoff still 400s before `withCronRun` / provider work; ledger identical
   before and after. The cleanup dry run still proposes 79 unsafe cross-kind merges, so the paid
   rescore remains CLOSED until the kind-safe #61 fix is deployed, cleanup is approved/applied, the
-  population/month quota are recounted, and spend is separately authorized. The #17 match-score/
-  caption requirement also remains open. Neither the 07-16 audit nor the #17 deploy made a cleanup
-  mutation or a paid OpenSanctions call.
+  population/month quota are recounted, and spend is separately authorized. Neither the 07-16 audit
+  nor the #17 deploy made a cleanup mutation or a paid OpenSanctions call.
+  **Match-safety repair IMPLEMENTED 2026-07-21 on branch `opensanctions-match-safety` (NOT yet
+  merged/deployed):** the matcher now accepts only `match === true` results (a rejected candidate
+  can no longer persist as a sanctions assertion; rejected diagnostics are non-assertive);
+  `src/lib/enrich/os-read.ts` is the single fail-closed read authority (usable match = not stub +
+  not `NK-stub` + `matched === true`), containing the stale `matched:false, sanctioned:true`
+  production rows without mutating them; OpenSanctions presentation on `/entities` is now
+  ADMIN-ONLY qualified candidate review (no public badge/PEP/topic/score/caption/freshness markup;
+  score labelled identity-match confidence, not risk); Ask receives NO OpenSanctions-derived
+  categorical assertion (`sanctioned` projection and the `SANCTIONED` evidence marker removed from
+  legacy + v2; sanctions facts reach Ask only as source-backed claim text). Review:
+  `docs/reviews/OPENSANCTIONS-MATCH-SAFETY-2026-07-21.md`.
 - **Map stage:** all eligible ru/ua/ir docs since 06-29 mapped once per
   (track, extractor_version) → `doc_claims` (~33K current-version atomic claims at
   the 2026-07-14 snapshot), persistent dedup verdicts

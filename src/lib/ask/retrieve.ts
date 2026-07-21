@@ -14,12 +14,15 @@ export interface RetrievedClaim {
   entities: string[];
 }
 
+// NOTE (2026-07-21 match-safety ruling): OpenSanctions-derived categorical entity
+// metadata (sanctioned/PEP/topics) is deliberately ABSENT here. Until a human-review
+// workflow exists, Ask receives no OpenSanctions assertion — sanctions facts reach
+// Ask only as ordinary source-backed claim text.
 export interface RetrievedEntity {
   entityId: number;
   name: string;
   kind: string;
   pressure: number;
-  sanctioned: boolean | null;
 }
 
 export interface RetrievalResult {
@@ -91,13 +94,9 @@ export async function retrieve(question: string, opts?: { limit?: number }): Pro
       countryIso2: r.iso2, track: r.track, entities: entByClaim.get(r.id) ?? [],
     }));
 
-    // entities matching a term
+    // entities matching a term — no OpenSanctions columns (see RetrievedEntity note)
     const { rows: entRows } = await pool.query(
       `SELECT e.id, e.name, e.kind,
-              CASE WHEN coalesce((e.meta->'opensanctions'->>'stub')::boolean, false)
-                     OR e.meta->'opensanctions'->>'osId' LIKE 'NK-stub%'
-                   THEN NULL
-                   ELSE (e.meta->'opensanctions'->>'sanctioned')::boolean END AS sanctioned,
               count(DISTINCT ce.claim_id) FILTER (WHERE ce.role IN ('defendant','target','dismissed'))::int AS pressure
        FROM entities e
        LEFT JOIN claim_entities ce ON ce.entity_id = e.id
@@ -108,7 +107,7 @@ export async function retrieve(question: string, opts?: { limit?: number }): Pro
       [pattern],
     );
     const entities: RetrievedEntity[] = entRows.map((r) => ({
-      entityId: r.id, name: r.name, kind: r.kind, pressure: r.pressure, sanctioned: r.sanctioned,
+      entityId: r.id, name: r.name, kind: r.kind, pressure: r.pressure,
     }));
 
     return { claims, entities, terms };

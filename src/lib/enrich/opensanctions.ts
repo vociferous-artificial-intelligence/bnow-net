@@ -1,23 +1,47 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-// OpenSanctions enrichment: resolve BNOW entities to sanctions/PEP status.
+// OpenSanctions enrichment: candidate-identity screening for BNOW entities.
 // Live against api.opensanctions.org when OPENSANCTIONS_API_KEY is set; otherwise a
-// deterministic fixture stub (so tests + dev work, entity badges still render for
-// seeded names). Licensing note in docs/BLOCKERS.md — commercial API needs a paid key.
+// deterministic fixture stub (so tests + dev work; stub answers are sanitized before
+// persist and never render). Licensing note in docs/BLOCKERS.md — commercial API
+// needs a paid key.
+//
+// SEMANTICS (2026-07-21 match-safety ruling): the query carries name + entity type
+// ONLY, so a match is a candidate identity, never proof that BNOW's entity is the
+// listed person/org. `score` is the algorithm's identity-match confidence — not risk
+// or severity. Assertive fields (topics/datasets/osId/caption/sanctioned) are
+// populated ONLY from a result the algorithm ACCEPTED (`match === true`); rejected
+// candidates fail closed to a clean unmatched record, optionally keeping
+// non-assertive diagnostics in `rejected`.
 
 export interface OsResult {
+  /** true ONLY when the OpenSanctions algorithm accepted a result (match === true).
+   *  Every consumer must require this before treating any other field as an
+   *  accepted-match assertion. */
   matched: boolean;
+  /** true ONLY for an accepted result whose topics contain the exact "sanction"
+   *  topic. Never derived from a rejected candidate. */
   sanctioned: boolean;
-  topics: string[]; // e.g. ["sanction", "role.pep"]
+  topics: string[]; // accepted result's topics, e.g. ["sanction", "role.pep"]; [] otherwise
   datasets: string[];
   osId: string | null;
-  score: number; // 0-1 match confidence
+  score: number; // 0-1 ALGORITHMIC IDENTITY-MATCH confidence (never risk/severity)
   caption: string | null;
   checkedAt: string; // ISO; stamped by caller for resume-safety
   /** true = fixture stub answered (no API key). Stub matches are demo/test data:
    *  they must never be persisted as fact or rendered as a badge. */
   stub?: boolean;
+  /** Non-assertive diagnostics for the top REJECTED candidate, kept only when the
+   *  algorithm accepted nothing. These fields are NOT facts about the BNOW entity —
+   *  the algorithm itself rejected the identity — and no consumer may surface them
+   *  as topics/sanctions/PEP assertions. Admin candidate-review display only. */
+  rejected?: {
+    caption: string | null;
+    score: number;
+    topics: string[];
+    osId: string | null;
+  };
 }
 
 /** What the enrich run is allowed to persist for a stub answer: the check is
@@ -94,19 +118,37 @@ export async function matchEntity(name: string, kind: string): Promise<OsResult 
       responses?: { q1?: { results?: OsMatchResult[] } };
     };
     const results = json.responses?.q1?.results ?? [];
-    const best = results.find((r) => r.match) ?? results[0];
-    if (!best) {
-      return { matched: false, sanctioned: false, topics: [], datasets: [], osId: null, score: 0, caption: null, checkedAt: "" };
+    // FAIL CLOSED: only a result the algorithm ACCEPTED (match === true) may
+    // populate assertive fields. The old `?? results[0]` fallback promoted the
+    // top REJECTED candidate's topics into a persisted "sanctioned" assertion.
+    const accepted = results.find((r) => r.match === true);
+    if (!accepted) {
+      const top = results[0];
+      return {
+        matched: false, sanctioned: false, topics: [], datasets: [], osId: null,
+        score: 0, caption: null, checkedAt: "",
+        // rejected-candidate diagnostics are non-assertive by contract (see OsResult)
+        ...(top
+          ? {
+              rejected: {
+                caption: top.caption ?? null,
+                score: top.score ?? 0,
+                topics: top.properties?.topics ?? [],
+                osId: top.id ?? null,
+              },
+            }
+          : {}),
+      };
     }
-    const topics = best.properties?.topics ?? [];
+    const topics = accepted.properties?.topics ?? [];
     return {
-      matched: !!best.match,
+      matched: true,
       sanctioned: topics.includes("sanction"),
       topics,
-      datasets: best.datasets ?? [],
-      osId: best.id ?? null,
-      score: best.score ?? 0,
-      caption: best.caption ?? null,
+      datasets: accepted.datasets ?? [],
+      osId: accepted.id ?? null,
+      score: accepted.score ?? 0,
+      caption: accepted.caption ?? null,
       checkedAt: "",
     };
   } catch {

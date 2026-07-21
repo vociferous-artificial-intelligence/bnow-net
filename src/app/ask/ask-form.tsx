@@ -29,10 +29,12 @@ import { RunProgress } from "./run-progress";
 import { AskCompletedMarker } from "@/components/analytics/product-event-markers";
 import { deriveAnswerState } from "./ask-result";
 
+// No example may imply OpenSanctions-derived entity status (2026-07-21 ruling):
+// Ask answers sanctions questions from source-backed claim text only.
 const EXAMPLES = [
   "Which Russian officials were prosecuted recently?",
   "What is happening with Iran's nuclear enrichment?",
-  "Which entities are sanctioned and under pressure?",
+  "What sanctions actions were reported recently?",
   "What strikes were reported in Ukraine this week?",
 ];
 

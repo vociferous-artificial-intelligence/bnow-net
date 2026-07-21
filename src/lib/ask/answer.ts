@@ -155,6 +155,9 @@ function answerOffline(): boolean {
 
 // ---- legacy path (byte-identical behaviour, wrapped into AskAnswerV2) ----------
 
+// Entity lines carry NO OpenSanctions-derived categorical assertion (no
+// "SANCTIONED"/PEP marker — 2026-07-21 match-safety ruling): sanctions facts
+// reach the model only as source-backed claim text in the CLAIMS block.
 function evidenceBlock(r: RetrievalResult): string {
   const claims = r.claims
     .map(
@@ -163,7 +166,7 @@ function evidenceBlock(r: RetrievalResult): string {
     )
     .join("\n");
   const ents = r.entities
-    .map((e) => `[e${e.entityId}] ${e.name} (${e.kind}${e.sanctioned ? ", SANCTIONED" : ""}, pressure ${e.pressure})`)
+    .map((e) => `[e${e.entityId}] ${e.name} (${e.kind}, pressure ${e.pressure})`)
     .join("\n");
   return `CLAIMS:\n${claims || "(none)"}\n\nENTITIES:\n${ents || "(none)"}`;
 }
@@ -260,7 +263,8 @@ function toV2FromLegacy(res: AskAnswer): AskAnswerV2 {
 /** Enriched per-claim evidence line (D7): the legacy tuple plus `reliability` (the
  *  claim's mean-source-reliability confidence, 2dp or "?") and a fixed `entities`
  *  field (up to 4). Claims come from ranked.claims ONLY; the entities block matches
- *  the legacy format from retrieval.entities. */
+ *  the legacy format from retrieval.entities — and, like it, carries no
+ *  OpenSanctions-derived categorical assertion (2026-07-21 match-safety ruling). */
 function evidenceBlockV2(ranked: RankedEvidence, retrieval: RetrievalV2Result): string {
   const claims = ranked.claims
     .map((c) => {
@@ -270,7 +274,7 @@ function evidenceBlockV2(ranked: RankedEvidence, retrieval: RetrievalV2Result): 
     })
     .join("\n");
   const ents = retrieval.entities
-    .map((e) => `[e${e.entityId}] ${e.name} (${e.kind}${e.sanctioned ? ", SANCTIONED" : ""}, pressure ${e.pressure})`)
+    .map((e) => `[e${e.entityId}] ${e.name} (${e.kind}, pressure ${e.pressure})`)
     .join("\n");
   return `CLAIMS:\n${claims || "(none)"}\n\nENTITIES:\n${ents || "(none)"}`;
 }

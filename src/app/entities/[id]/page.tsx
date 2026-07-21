@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { rawSql } from "@/db";
+import { currentRole } from "@/lib/gate";
+import { readOsMeta } from "@/lib/enrich/os-read";
 import { getLocale } from "@/i18n/server";
 import { makeT } from "@/i18n/dictionaries";
 import { formatDate } from "@/i18n/format";
@@ -30,13 +32,14 @@ export default async function EntityDetailPage({
   }>;
   if (entRows.length === 0) notFound();
   const entity = entRows[0];
-  const osRaw = (entity.meta?.opensanctions ?? null) as {
-    sanctioned?: boolean; topics?: string[]; datasets?: string[]; osId?: string | null;
-    caption?: string | null; checkedAt?: string; stub?: boolean;
-  } | null;
-  // truth-in-UI: stub enrichment is demo data — a fabricated sanctions badge on a
-  // real person is unacceptable, so stub-derived results render as nothing at all
-  const os = osRaw && !osRaw.stub && !osRaw.osId?.startsWith("NK-stub") ? osRaw : null;
+  // OpenSanctions candidate-review panel is ADMIN-ONLY (2026-07-21 match-safety
+  // ruling): name+type screening data, not human-reviewed fact. readOsMeta is the
+  // fail-closed authority — stub/NK-stub/unparseable render nothing, and a stale
+  // `matched:false, sanctioned:true` row can only ever appear as REJECTED
+  // diagnostics, never as a sanctions/PEP assertion. Role lookup itself fails
+  // closed to "user" (gate.ts), so uncertainty renders nothing.
+  const isAdmin = (await currentRole()) === "admin";
+  const os = isAdmin ? readOsMeta(entity.meta) : ({ state: "none" } as const);
 
   const [claimsRaw, linksRaw] = await Promise.all([
     rawSql.query(
@@ -134,39 +137,71 @@ export default async function EntityDetailPage({
         Search all claims for {entity.name} →
       </Link>
 
-      {os && (os.sanctioned || (os.topics ?? []).length > 0) && (
+      {os.state !== "none" && (
         <div className="mb-6 rounded-lg border border-gray-200 p-3 text-sm dark:border-gray-800">
           <div className="mb-1 flex flex-wrap items-center gap-2">
-            {os.sanctioned && (
-              <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-semibold uppercase text-white">
-                sanctioned
-              </span>
-            )}
-            {(os.topics ?? []).map((t) => (
-              <span key={t} className="rounded bg-gray-200 px-2 py-0.5 text-xs dark:bg-gray-700">
-                {t}
-              </span>
-            ))}
+            <span className="rounded bg-gray-200 px-2 py-0.5 text-xs font-semibold uppercase text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+              OpenSanctions candidate review
+            </span>
+            <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
+              {os.state === "accepted"
+                ? "algorithm accepted a candidate"
+                : "algorithm rejected all candidates — no accepted identity match"}
+            </span>
           </div>
-          <p className="text-xs text-gray-500">
-            {os.caption ?? "OpenSanctions match"}
-            {(os.datasets ?? []).length > 0 && ` · lists: ${(os.datasets ?? []).join(", ")}`}
-            {os.osId && !os.osId.startsWith("NK-stub") && (
-              <>
-                {" · "}
-                <a
-                  href={`https://www.opensanctions.org/entities/${os.osId}/`}
-                  rel="nofollow noopener"
-                  className="underline"
-                >
-                  OpenSanctions profile →
-                </a>
-              </>
-            )}
+          {os.state === "accepted" && (
+            <>
+              <p className="text-xs text-gray-600 dark:text-gray-300">
+                Candidate: {os.accepted.caption ?? "(no caption)"} · identity-match
+                confidence {os.accepted.score != null ? os.accepted.score.toFixed(2) : "n/a"}{" "}
+                (algorithmic name/type similarity, not risk)
+              </p>
+              {os.accepted.topics.length > 0 && (
+                <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-gray-500">
+                  <span>Candidate record topics (distinct categories, not verdicts):</span>
+                  {os.accepted.topics.map((t) => (
+                    <span key={t} className="rounded bg-gray-200 px-1.5 py-0.5 dark:bg-gray-700">
+                      {t}
+                    </span>
+                  ))}
+                </p>
+              )}
+              <p className="mt-1 text-xs text-gray-500">
+                {os.accepted.datasets.length > 0 && `Lists: ${os.accepted.datasets.join(", ")}`}
+                {os.accepted.osId && (
+                  <>
+                    {os.accepted.datasets.length > 0 && " · "}
+                    <a
+                      href={`https://www.opensanctions.org/entities/${os.accepted.osId}/`}
+                      rel="nofollow noopener"
+                      className="underline"
+                    >
+                      OpenSanctions profile →
+                    </a>
+                  </>
+                )}
+              </p>
+            </>
+          )}
+          {os.state === "rejected" && os.rejected && (
+            <p className="text-xs text-gray-500">
+              Top rejected candidate (diagnostics only — the algorithm judged this is
+              NOT the same identity): {os.rejected.caption ?? "(no caption)"}
+              {os.rejected.score != null &&
+                ` · identity-match confidence ${os.rejected.score.toFixed(2)}`}
+              {os.rejected.topics.length > 0 &&
+                ` · candidate record topics: ${os.rejected.topics.join(", ")}`}
+            </p>
+          )}
+          <p className="mt-1 text-xs text-gray-400">
+            Admin-only screening data. The query used name and entity type only — this
+            is a candidate identity, not verified via DOB, nationality, or registration
+            number, and has not been human-reviewed. Checked{" "}
+            {os.checkedAt ? `${os.checkedAt.slice(0, 10)} (UTC)` : "date unknown"}.
           </p>
         </div>
       )}
-      {!os && <div className="mb-6" />}
+      {os.state === "none" && <div className="mb-6" />}
 
       {links.length > 0 && (
         <section className="mb-8">

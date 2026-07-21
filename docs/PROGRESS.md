@@ -2500,3 +2500,27 @@ Release commit 836b46e (merge 356cba5; Privacy 1.3 b293712) deployed:
   deploys; first scripts/ask-shadow-soak-check.ts pass: PASS.
 - Cohort activation: HOLD — needs clean 48–72h soak + reviewed nonempty
   ASK_PROGRESSIVE_COHORT + operator decision-log entry.
+
+## 2026-07-21 18:28 ET — plan: OpenSanctions match-safety repair (fail-closed)
+
+Branch `opensanctions-match-safety`; no deploy/push/production writes/migrations/paid calls.
+
+1. Fix `matchEntity` selection: accept only `result.match === true`; no-accepted →
+   clean unmatched (empty topics/datasets/null osId); optional non-assertive
+   `rejected` diagnostics nested; unit tests incl. mocked-fetch live shapes.
+2. Add fail-closed read model `src/lib/enrich/os-read.ts` (usable match = not stub,
+   not NK-stub id, `matched === true`); regression fixtures for the stale
+   `matched:false, sanctioned:true, topics:["sanction"]` shape.
+3. Entities list + detail: OpenSanctions presentation becomes admin-only
+   (`currentRole()` from gate.ts, fail-closed) with neutral candidate-review copy
+   (accepted/rejected label, identity-match confidence, uncollapsed topics,
+   datasets/profile link, checkedAt); non-admins get zero OS markup. jsdom tests.
+4. Ask: remove OpenSanctions `sanctioned` projection from retrieve.ts +
+   retrieve-v2.ts + `RetrievedEntity`; drop `, SANCTIONED` from both evidence
+   blocks in answer.ts; replace the unsupported sample question in ask-form.tsx;
+   prove source-backed sanctions claim text still flows; keep validator rules.
+5. Gates: targeted vitest, typecheck, lint, full unit, build; itest if the
+   disposable-branch path is clean. Adversarial diff review.
+6. Docs: OPEN-TASKS #17 update (containment ≠ closure), AGENTS.md decision-log
+   append, CURRENT-STATE correction, review doc
+   `docs/reviews/OPENSANCTIONS-MATCH-SAFETY-2026-07-21.md`. Local commit only.

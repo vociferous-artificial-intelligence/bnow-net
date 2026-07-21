@@ -242,7 +242,7 @@ describe("answerFromEvidence() — v2 answer stage", () => {
     envPaidV2();
     const retrieval = retrievalV2({
       claims: pool, // pre-rerank pool of 5 => candidatesCount 5
-      entities: [{ entityId: 9, name: "FSB", kind: "org", pressure: 3, sanctioned: false }],
+      entities: [{ entityId: 9, name: "FSB", kind: "org", pressure: 3 }],
       terms: ["strike"],
       totalMatching: 500, // > askCandidates() 300 => sampled
       embedUsage: EMBED_USAGE,
@@ -461,6 +461,68 @@ describe("answerFromEvidence() — v2 answer stage", () => {
     expect(userMessage).toContain(
       "[c7] (ua/-, undated, unknown, reliability ?, entities: ) Undated unreliable claim.",
     );
+  });
+});
+
+// ---- 2026-07-21 match-safety ruling: no OpenSanctions categorical assertions ----
+
+describe("Ask prompts carry no OpenSanctions-derived categorical entity assertion", () => {
+  it("v2 evidence block: entity lines have no SANCTIONED/PEP marker; source-backed sanctions claim text still flows", async () => {
+    envPaidV2();
+    const c = candidate({
+      claimId: 11,
+      text: "OFAC sanctioned Aurora Logistics LLC on 2026-06-01, freezing its US assets.",
+      hedging: "confirmed",
+    });
+    const retrieval = retrievalV2({
+      claims: [c],
+      entities: [{ entityId: 9, name: "Aurora Logistics LLC", kind: "company", pressure: 2 }],
+      totalMatching: 1,
+    });
+    const rk = ranked({ claims: [c], rerankUsed: false });
+    mocks.createMock.mockResolvedValue(completion({ content: "Noted [c11]." }));
+
+    await answerFromEvidence("was aurora logistics sanctioned?", retrieval, rk);
+
+    const userMessage = mocks.createMock.mock.calls[0][0].messages[1].content as string;
+    // ordinary claim evidence about a sanctions ACTION flows through verbatim
+    expect(userMessage).toContain(
+      "OFAC sanctioned Aurora Logistics LLC on 2026-06-01, freezing its US assets.",
+    );
+    // …but the entity line carries no categorical marker
+    expect(userMessage).toContain("[e9] Aurora Logistics LLC (company, pressure 2)");
+    expect(userMessage).not.toContain("SANCTIONED");
+    expect(userMessage).not.toMatch(/\bPEP\b/);
+  });
+
+  it("legacy evidence block: entity lines have no SANCTIONED marker either", async () => {
+    vi.stubEnv("ASK_PIPELINE", "legacy");
+    vi.stubEnv("OPENAI_API_KEY", "sk-test");
+    vi.stubEnv("ANALYSIS_PROVIDER", "");
+    vi.stubEnv("LLM_DISABLE", "");
+    mocks.retrieveMock.mockResolvedValue({
+      claims: [
+        {
+          claimId: 3,
+          text: "The EU added two officials to its sanctions list.",
+          hedging: "reported",
+          claimDate: "2026-07-05",
+          countryIso2: "ru",
+          track: null,
+          entities: [],
+        },
+      ],
+      entities: [{ entityId: 9, name: "FSB", kind: "org", pressure: 3 }],
+      terms: ["sanctions"],
+    });
+    mocks.createMock.mockResolvedValue(completion({ content: "Reported [c3]." }));
+
+    await ask("who was sanctioned?");
+
+    const userMessage = mocks.createMock.mock.calls[0][0].messages[1].content as string;
+    expect(userMessage).toContain("The EU added two officials to its sanctions list.");
+    expect(userMessage).toContain("[e9] FSB (org, pressure 3)");
+    expect(userMessage).not.toContain("SANCTIONED");
   });
 });
 
