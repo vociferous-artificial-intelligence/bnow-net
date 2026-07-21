@@ -261,6 +261,25 @@ describe("streamAnswer — Gate 3 red-team regression pins (2026-07-20)", () => 
     expect(h.guard.record).toHaveBeenCalledTimes(1); // the same usage was settled
   });
 
+  it("release hardening: a Stop landing in the DISPATCH window (abort before first byte) resolves CANCELLED, not error, with the ceiling settled once", async () => {
+    const controller = new AbortController();
+    const outcome = await streamAnswer({
+      ...BASE,
+      sink: sinkSpy(),
+      signal: controller.signal,
+      streamFactory: async () => {
+        controller.abort(); // the Stop lands while the request is in flight
+        const e = new Error("aborted");
+        e.name = "AbortError";
+        throw e;
+      },
+    });
+    expect(outcome.cancelled).toBe(true);
+    expect(outcome.finishReason).toBe("cancelled");
+    expect(outcome.usage.promptTokens).toBe(STREAM_DEATH_INPUT_EST_TOKENS); // conservative ceiling
+    expect(h.guard.record).toHaveBeenCalledTimes(1); // settled exactly once
+  });
+
   it("ASK_FIDELITY_FALLBACK=0 binds the STREAMING path too: unfaithful sections release raw (matching the terminal's knob-off behavior)", async () => {
     vi.stubEnv("ASK_FIDELITY_FALLBACK", "0");
     try {
