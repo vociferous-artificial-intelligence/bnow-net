@@ -3,6 +3,12 @@ import { Pool } from "@neondatabase/serverless";
 import { requireAcceptedUser } from "@/lib/gate";
 import { CANCEL_SEQ_BASE } from "@/lib/ask/events";
 
+// Release hardening note: cancel is deliberately OWNERSHIP-gated only, never
+// feature-flag-gated — during a rollback (progressive turned off mid-run) the
+// owner of a still-executing billed run must keep a working Stop; the marker
+// write is $0 and inert without an orchestrator watching it. A forged POST
+// against a nonexistent run 404s on the ownership check below.
+//
 // Phase 3 cancel (contract §1.3): ownership-gated; records ONE idempotent
 // cancel_requested marker event that the orchestrator's watchCancelMarker
 // polls (aborting generation mid-stream; settlement is exactly-once server-

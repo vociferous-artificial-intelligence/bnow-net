@@ -25,6 +25,7 @@ const h = vi.hoisted(() => {
     askMock, queryMock, endMock, poolCtor,
     createRunMock, reserveAllowanceMock, finalizeRunMock, expireStaleRunsMock, buildGuardsMock,
     cacheKeyMock, cacheLookupMock, cacheStoreMock, corpusVersionMock,
+    sweepRetentionMock: vi.fn(),
   };
 });
 
@@ -34,13 +35,15 @@ vi.mock("@neondatabase/serverless", () => ({ Pool: h.poolCtor }));
 // is covered by runs.test.ts and the real-Postgres integration suite; here we
 // pin askWithLimits' MODE LOGIC (shadow vs enforce).
 vi.mock("./runs", () => ({
-  askRunsEnforce: () => process.env.ASK_RUNS_ENFORCE === "1",
   createRun: h.createRunMock,
   reserveAllowance: h.reserveAllowanceMock,
   finalizeRun: h.finalizeRunMock,
   expireStaleRuns: h.expireStaleRunsMock,
 }));
 vi.mock("./run-guards", () => ({ buildAskRunGuards: h.buildGuardsMock }));
+// Release hardening: the retention sweep is mocked (its SQL is covered by
+// retention.test.ts + the itest); here we pin WHEN it rides the money path.
+vi.mock("./retention", () => ({ sweepAskRetentionThrottled: h.sweepRetentionMock }));
 // Phase 4: the exact-cache module is mocked (its own SQL is covered by
 // cache.test.ts + the real-Postgres itest); here we pin the WIRING —
 // flag-gating, hit short-circuit, store policy.
@@ -104,7 +107,11 @@ let usage = { user_count: 0, global_cost: 0 };
 beforeEach(() => {
   delete process.env.ASK_USER_DAILY_LIMIT;
   delete process.env.ASK_GLOBAL_DAILY_BUDGET_USD;
-  delete process.env.ASK_RUNS_ENFORCE; // default: shadow mode
+  delete process.env.ASK_RUNS_ENFORCE; // default: persistence OFF
+  delete process.env.ASK_RUNS_SHADOW;
+  delete process.env.ASK_PROGRESSIVE;
+  delete process.env.ASK_CONTENT_RETENTION_DAYS;
+  delete process.env.ASK_CACHE_TTL_DAYS;
   usage = { user_count: 0, global_cost: 0 };
   h.askMock.mockReset();
   h.queryMock.mockReset();
@@ -121,6 +128,8 @@ beforeEach(() => {
   h.cacheStoreMock.mockReset();
   h.corpusVersionMock.mockReset();
   h.cacheStoreMock.mockResolvedValue(undefined);
+  h.sweepRetentionMock.mockReset();
+  h.sweepRetentionMock.mockResolvedValue(undefined);
   delete process.env.ASK_EXACT_CACHE;
   delete process.env.ASK_ROUTER;
   // shadow-mode defaults: run writes succeed quietly and change nothing
@@ -133,8 +142,9 @@ beforeEach(() => {
   h.expireStaleRunsMock.mockResolvedValue(undefined);
   h.buildGuardsMock.mockReturnValue({ embed: "G_EMBED", rerank: "G_RERANK", answer: "G_ANSWER" });
   h.queryMock.mockImplementation(async (text: string) => {
-    if (String(text).includes("INSERT INTO ask_usage")) return { rows: [] };
-    return { rows: [{ user_count: usage.user_count, global_cost: usage.global_cost }] };
+    if (String(text).includes("INSERT INTO ask_usage")) return { rows: [], rowCount: 1 };
+    // rowCount 1 so persistEvidenceSnapshot's verified-success check passes
+    return { rows: [{ user_count: usage.user_count, global_cost: usage.global_cost }], rowCount: 1 };
   });
 });
 
@@ -599,6 +609,7 @@ describe("recordEntryTimings — entry-point patch", () => {
 describe("askWithLimits — Phase 1 enforce mode", () => {
   beforeEach(() => {
     process.env.ASK_RUNS_ENFORCE = "1";
+    process.env.ASK_CONTENT_RETENTION_DAYS = "30"; // enforce requires retention (features.ts)
   });
 
   it("threads the atomic stage guards into ask() and finalizes the run with the settled cost", async () => {
@@ -738,6 +749,12 @@ describe("askWithLimits — Phase 1 enforce mode", () => {
 });
 
 describe("askWithLimits — Phase 1 shadow mode stays byte-equivalent", () => {
+  beforeEach(() => {
+    // Release hardening: shadow persistence is an explicit opt-in + retention.
+    process.env.ASK_RUNS_SHADOW = "1";
+    process.env.ASK_CONTENT_RETENTION_DAYS = "30";
+  });
+
   it("shadow createRun failure never blocks the request", async () => {
     h.createRunMock.mockRejectedValue(new Error("ask_runs table missing"));
     h.askMock.mockResolvedValue(v2Full());
@@ -765,6 +782,15 @@ describe("askWithLimits — Phase 1 shadow mode stays byte-equivalent", () => {
 
 describe("askWithLimits — Phase 4 exact cache (ASK_EXACT_CACHE)", () => {
   const SNAPSHOT = { version: 1, candidates: [], selectedClaimIds: [] };
+
+  beforeEach(() => {
+    // Release hardening: exact cache is effective only on the full progressive
+    // stack (enforce + retention + progressive + cache TTL — features.ts).
+    process.env.ASK_RUNS_ENFORCE = "1";
+    process.env.ASK_CONTENT_RETENTION_DAYS = "30";
+    process.env.ASK_PROGRESSIVE = "1";
+    process.env.ASK_CACHE_TTL_DAYS = "7";
+  });
 
   it("flag OFF (default): the cache module is never consulted", async () => {
     h.askMock.mockResolvedValue(v2Full());
@@ -856,6 +882,27 @@ describe("askWithLimits — Phase 4 exact cache (ASK_EXACT_CACHE)", () => {
     expect(h.cacheStoreMock).not.toHaveBeenCalled();
   });
 
+  it("release hardening: a HIT whose snapshot persist fails is demoted to a MISS (the pipeline runs; no lying evidence panel)", async () => {
+    h.corpusVersionMock.mockResolvedValue("100:50");
+    h.cacheKeyMock.mockReturnValue("key-abc");
+    h.cacheLookupMock.mockResolvedValue({
+      result: v2Full({ answer: "Cached answer [c1]." }),
+      snapshot: SNAPSHOT,
+      createdAt: "2026-07-20",
+    });
+    h.askMock.mockResolvedValue(v2Full({ answer: "Fresh pipeline answer [c1]." }));
+    h.queryMock.mockImplementation(async (sql: string) => {
+      if (String(sql).includes("INSERT INTO ask_usage")) return { rows: [], rowCount: 1 };
+      if (String(sql).includes("SET evidence_snapshot")) return { rows: [], rowCount: 0 }; // persist fails every attempt
+      if (String(sql).includes("evidence_snapshot")) return { rows: [{ evidence_snapshot: null }] };
+      return { rows: [{ user_count: 0, global_cost: 0 }], rowCount: 1 };
+    });
+    const res = await askWithLimits("cached question", "u@x.com");
+    expect(res.answer).toBe("Fresh pipeline answer [c1].");
+    expect(res.cacheStatus).toBeUndefined(); // never served as a hit
+    expect(h.askMock).toHaveBeenCalledTimes(1); // the paid pipeline ran (miss semantics)
+  });
+
   it("a cache-path failure is a MISS, never a failed question", async () => {
     vi.stubEnv("ASK_EXACT_CACHE", "1");
     h.corpusVersionMock.mockRejectedValue(new Error("cache db down"));
@@ -881,5 +928,63 @@ describe("askWithLimits — Phase 4 route recording (ASK_ROUTER)", () => {
     const usageInsert = h.queryMock.mock.calls.find((c) => String(c[0]).includes("INSERT INTO ask_usage"));
     expect(String(usageInsert![1][27])).toMatch(/^route-v1:auto:/);
     expect(h.askMock).toHaveBeenCalledTimes(1); // same single pipeline call as ever
+  });
+});
+
+// ---- release hardening: durable terminal results ---------------------------------
+
+describe("askWithLimits — durability verdict (release hardening)", () => {
+  beforeEach(() => {
+    process.env.ASK_RUNS_ENFORCE = "1";
+    process.env.ASK_CONTENT_RETENTION_DAYS = "30";
+  });
+
+  it("a transient finalize failure is retried (DB write only) and the payload reports durable: true", async () => {
+    h.finalizeRunMock
+      .mockRejectedValueOnce(new Error("transient outage"))
+      .mockRejectedValueOnce(new Error("transient outage"))
+      .mockResolvedValueOnce(true);
+    h.askMock.mockResolvedValue(v2Full());
+    const res = await askWithLimits("q", "u@x.com", { idempotencyKey: "key-1" });
+    expect(res.state).toBe("answered");
+    expect(res.durable).toBe(true);
+    expect(h.finalizeRunMock).toHaveBeenCalledTimes(3); // bounded retry
+    expect(h.askMock).toHaveBeenCalledTimes(1); // the provider was NEVER rerun
+  });
+
+  it("a persistent finalize failure returns the billed answer with durable: false — never a lost answer, never a re-run", async () => {
+    h.finalizeRunMock.mockRejectedValue(new Error("db down"));
+    h.askMock.mockResolvedValue(v2Full());
+    const res = await askWithLimits("q", "u@x.com", { idempotencyKey: "key-1" });
+    expect(res.state).toBe("answered");
+    expect(res.answer).toBe("Answer text [c1].");
+    expect(res.durable).toBe(false);
+    expect(h.finalizeRunMock).toHaveBeenCalledTimes(3);
+    expect(h.askMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("a required-snapshot persist failure downgrades durable to false even when finalize succeeded", async () => {
+    h.askMock.mockResolvedValue({ ...v2Full(), snapshotPersisted: false });
+    const res = await askWithLimits("q", "u@x.com", { idempotencyKey: "key-1" });
+    expect(res.durable).toBe(false);
+    expect(h.finalizeRunMock).toHaveBeenCalled(); // the row still finalized (result recoverable via replay)
+  });
+
+  it("a run with no snapshot obligation (snapshotPersisted absent) is durable on finalize alone", async () => {
+    h.askMock.mockResolvedValue(v2Full());
+    const res = await askWithLimits("q", "u@x.com", { idempotencyKey: "key-1" });
+    expect(res.durable).toBe(true);
+  });
+
+  it("an idempotent replay returns the stored result with ZERO new provider calls and ZERO new finalizes", async () => {
+    h.createRunMock.mockResolvedValue({
+      run: { id: "orig", userEmail: "u", question: "q", status: "finished", state: "answered", result: v2Full(), finishedAt: "t", expired: false },
+      replayed: true,
+    });
+    const res = await askWithLimits("q", "u@x.com", { idempotencyKey: "key-1" });
+    expect(res.replayed).toBe(true);
+    expect(res.runId).toBe("orig");
+    expect(h.askMock).not.toHaveBeenCalled(); // replay never re-bills
+    expect(h.finalizeRunMock).not.toHaveBeenCalled();
   });
 });

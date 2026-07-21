@@ -299,6 +299,7 @@ describe("askWithLimits enforce mode — end-to-end replay ($0, stub pipeline)",
     // is pinned high so prod-fork same-day ask_usage history can never make
     // this test flake (Gate 1 low finding).
     process.env.ASK_RUNS_ENFORCE = "1";
+    process.env.ASK_CONTENT_RETENTION_DAYS = "30";
     process.env.ASK_GLOBAL_DAILY_BUDGET_USD = "1000";
     try {
       const key = crypto.randomUUID();
@@ -322,6 +323,7 @@ describe("askWithLimits enforce mode — end-to-end replay ($0, stub pipeline)",
     } finally {
       if (SAVED.enforce === undefined) delete process.env.ASK_RUNS_ENFORCE;
       else process.env.ASK_RUNS_ENFORCE = SAVED.enforce;
+      delete process.env.ASK_CONTENT_RETENTION_DAYS;
       if (SAVED.budget === undefined) delete process.env.ASK_GLOBAL_DAILY_BUDGET_USD;
       else process.env.ASK_GLOBAL_DAILY_BUDGET_USD = SAVED.budget;
     }
@@ -414,6 +416,7 @@ describe("Gate 1 additions — concurrent create race, guard wiring, replay sema
   it("replaying an EXPIRED run returns the honest 'did not complete' copy, not a false promise", async () => {
     await cleanup();
     process.env.ASK_RUNS_ENFORCE = "1";
+    process.env.ASK_CONTENT_RETENTION_DAYS = "30";
     process.env.ASK_GLOBAL_DAILY_BUDGET_USD = "1000";
     try {
       const key = crypto.randomUUID();
@@ -429,6 +432,7 @@ describe("Gate 1 additions — concurrent create race, guard wiring, replay sema
       expect(replay.replayed).toBe(true);
     } finally {
       delete process.env.ASK_RUNS_ENFORCE;
+      delete process.env.ASK_CONTENT_RETENTION_DAYS;
       delete process.env.ASK_GLOBAL_DAILY_BUDGET_USD;
     }
   });
@@ -436,6 +440,7 @@ describe("Gate 1 additions — concurrent create race, guard wiring, replay sema
   it("a reused key with a DIFFERENT question refuses honestly instead of returning the wrong answer", async () => {
     await cleanup();
     process.env.ASK_RUNS_ENFORCE = "1";
+    process.env.ASK_CONTENT_RETENTION_DAYS = "30";
     process.env.ASK_GLOBAL_DAILY_BUDGET_USD = "1000";
     try {
       const key = crypto.randomUUID();
@@ -451,6 +456,7 @@ describe("Gate 1 additions — concurrent create race, guard wiring, replay sema
       expect(replay.answer).toBe(first.answer);
     } finally {
       delete process.env.ASK_RUNS_ENFORCE;
+      delete process.env.ASK_CONTENT_RETENTION_DAYS;
       delete process.env.ASK_GLOBAL_DAILY_BUDGET_USD;
     }
   });

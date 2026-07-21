@@ -48,7 +48,7 @@ describe("payload allowlist (contract §2 made testable)", () => {
   });
 
   it("the sink REFUSES to persist a payload with unlisted keys (fail-closed, no partial write)", async () => {
-    const sink = new PgRunEventSink("11111111-2222-4333-8444-555555555555");
+    const sink = new PgRunEventSink("11111111-2222-4333-8444-555555555555", { query: h.queryMock });
     await expect(
       sink.emit("run.failed", { errorClass: "x", stack: "secret" } as never),
     ).rejects.toThrow("outside the allowlist");
@@ -75,7 +75,7 @@ describe("PgRunEventSink", () => {
       order.push("persist");
       return { rows: [{ at: "t" }] };
     });
-    const sink = new PgRunEventSink("11111111-2222-4333-8444-555555555555", () => {
+    const sink = new PgRunEventSink("11111111-2222-4333-8444-555555555555", { query: h.queryMock }, () => {
       order.push("forward");
     });
     await sink.emit("run.created", {});
@@ -89,7 +89,7 @@ describe("PgRunEventSink", () => {
 
   it("a persist failure THROWS to the orchestrator (an unreplayable event must not be skipped)", async () => {
     h.queryMock.mockRejectedValue(new Error("insert failed"));
-    const sink = new PgRunEventSink("11111111-2222-4333-8444-555555555555");
+    const sink = new PgRunEventSink("11111111-2222-4333-8444-555555555555", { query: h.queryMock });
     await expect(sink.emit("run.created", {})).rejects.toThrow("insert failed");
   });
 

@@ -244,6 +244,22 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   enablement-blocked` with defaults unchanged. No paid calls, production writes, deploys, pushes,
   external/account/provider/cap/analytics changes, or Paddle work; those need later approval.
 
+- **2026-07-21 (AI Search/Ask release hardening on the integration branch)** Operator-directed
+  11-area hardening executed on `codex/ai-search-ask-release-hardening-20260721` and merged to
+  the integration branch only (report: `docs/reviews/AI-SEARCH-RELEASE-HARDENING-2026-07-21.md`;
+  register #72–#82). Standing consequences: SDK auto-retries are disabled in the Ask gateway
+  (one reservation per physical dispatch, absolute); `src/lib/ask/features.ts` is the single
+  server-side flag authority (progressive⇒enforce⇒retention lattice, fail-closed, cohort
+  allowlist); shadow run persistence became explicit opt-in (`ASK_RUNS_SHADOW`, default OFF —
+  a deploy alone stores nothing new) and every persistence-backed feature requires operator
+  retention envs, enforced by lazy redaction/deletion sweeps; enforce-mode terminals carry an
+  explicit durability verdict; sessions are transactional; exact-cache TTL binds at lookup with
+  snapshot-verified hits; additive migration 0027 adds ask_runs billing_policy/billing_eligible
+  (default false — nothing is invoice-eligible without a future explicit
+  `ASK_BILLING_CUTOVER_AT` operator entry); migrations now apply atomically per file. Gates on
+  the final tree: unit 2,026/2,026 · itest 72/72 · lint 0/0 · build PASS · 9/9 production-build
+  browser scenarios; zero paid calls; production and `main` untouched.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).

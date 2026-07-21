@@ -2387,3 +2387,64 @@ with passing gates (Phase 7's joint leg enablement-blocked on billing). Final
 audit in the workstream index. main (6c21b17) untouched; nothing pushed,
 deployed, or written to production; zero paid calls across the entire
 recovery session.
+
+## 2026-07-21 14:05 ET — Release-hardening workstream opened (codex/ai-search-ask-release-hardening-20260721)
+
+Operator-directed hardening pass to turn integration HEAD `063a32d` into a
+production-safe Ask release candidate. Plan (11 areas, small area-prefixed
+commits, all gates re-run at the end):
+
+1. llm: disable OpenAI SDK auto-retries everywhere in src/lib/llm/openai.ts;
+   per-attempt reservations for embed retries (never >1 physical dispatch per
+   reservation); 429/5xx tests.
+2. ask: server-only effective-feature resolver (features.ts) — progressive
+   requires enforce, stream requires progressive, cache requires progressive,
+   sessions require enforce+retention; invalid combos fail closed; cohort
+   allowlist; POST /api/ask/runs gated at the boundary; events/result stay
+   owner-read-only during rollback; page.tsx + APIs share the resolver.
+3. ask: shadow persistence becomes explicit opt-in (default OFF); operator
+   retention envs gate persistence-backed features; configurable
+   cleanup/redaction sweeps (runs content, events, cache, sessions, usage
+   question) preserving accounting metadata.
+4. ask: durable terminal results — bounded finalize/terminal-event/snapshot
+   persistence retries (never re-running the provider), coherent
+   finalize→terminal ordering, honest non-durable wire fallback, replay
+   never re-bills; injected-failure tests.
+5. ask: request-scoped Pool reuse through SSE invocations (sink + events
+   tail); no per-event/per-poll Pool churn; construction-count tests.
+6. ask: transactional sessions (start-from-run, append-turn+last_active,
+   delete) — single-transaction atomicity + concurrency tests.
+7. ask: exact-cache TTL enforced at lookup; hit returns only after
+   snapshot+result persist, else treated as miss; progressive-only
+   enforcement; TTL/churn/persistence-failure tests.
+8. db: migration 0027 (additive) — ask_runs billing_policy +
+   billing_eligible (default false); finalize stamps policy; aggregateUnits
+   exposes billable strictly by eligibility; nothing pre-cutover/shadow/
+   replay/cache/degraded/cancelled ever eligible.
+9. scripts: migrations-lib applies each file + its marker in ONE
+   transaction (rollback leaves no partial DDL, rerun succeeds); Neon-branch
+   proof.
+10. defaults: everything stays off; ASK_FIDELITY_FALLBACK stays default-ON
+    (documented); adversarial fidelity suite run without paid calls.
+11. cleanup: ask-form.test.tsx lint warning; AGENTS.md/PROGRESS/review doc.
+
+Constraints: no pushes/deploys/prod writes/paid calls; migrations 0021–0026
+and 9999 untouched; rulings 1–5 and 20 preserved; free /search and $0 GET
+/ask preserved. Merge target: codex/ai-search-ask-integration-20260719 only.
+
+## 2026-07-21 15:05 ET — Release hardening COMPLETE (branch codex/ai-search-ask-release-hardening-20260721)
+
+All 11 areas landed in 11 area-prefixed commits (b5150e9..d302231; report:
+docs/reviews/AI-SEARCH-RELEASE-HARDENING-2026-07-21.md). Final gates on the
+finished tree: typecheck PASS · lint 0 errors/0 warnings · unit 2,026/2,026
+(159 files) · integration 72/72 (14 files, two disposable Neon branches used
+across the session, all deleted) · build PASS · git diff --check clean ·
+browser battery 9/9 scenarios on the production build against a disposable
+fork with a $0 local mock provider (zero console errors; free-GET and
+/search zero-cost contracts re-proven; injected terminal-persistence
+failures rendered honestly). Migration 0027 (additive billing
+policy/eligibility) generated; 0021–0026 and 9999 untouched. One product
+defect found BY the battery and fixed: a Stop in the provider dispatch
+window now classifies as cancelled (d302231). Zero paid calls, zero
+production writes, nothing pushed or deployed; main untouched. Next: merge
+--no-ff into codex/ai-search-ask-integration-20260719 only.

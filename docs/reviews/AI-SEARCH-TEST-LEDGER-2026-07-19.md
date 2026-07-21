@@ -136,3 +136,26 @@ Post-gate reruns (fixes from Gate 0 findings):
 | P7-1 | `npm test` (subset `9578584`) | **PASS — 1,960/1,960, 157 files** (+15) | 6s | unit policy table, aggregate shape, stub contract, import-graph |
 | P7-2 | Gate 7 subset reviewer (executed probes: all 10 finalize-able payload classes, regex-evasion battery) | 1 high + 4 med + 3 low CONFIRMED (G7-1..8) | ~7min | JOINT leg BLOCKED on billing — gate report |
 | P7-3 | post-fix (`528731e`): `npm test` + `npm run test:integration` + build | **PASS — 1,963/1,963** unit; **61/61** itest (branches `br-lingering-river-atf5i9a9` → fix → `br-divine-smoke-atpncuk3`, deleted) | ~8min | degraded=0 pins; unskippable finalize policy; hardened import-graph |
+
+## Release hardening 2026-07-21 (codex/ai-search-ask-release-hardening-20260721)
+
+- Unit: **2,026/2,026 across 159 files** (from 1,963/157). New/extended:
+  llm/contracts (SDK maxRetries pin, per-attempt embed reservations,
+  no-unreserved-second-dispatch), ask/features (dependency lattice +
+  fail-closed combos + cohort), ask/retention (sweep decisions + throttle),
+  limits (durability verdicts, finalize retry, snapshot-failure cache-miss
+  demotion, off/shadow/enforce mode logic), runs-routes (boundary gate,
+  terminal coherence, pool lifecycle incl. abort/404 cleanup), events (sink
+  takes the invocation connection), cache (TTL-at-lookup, corrupt-snapshot
+  miss, per-gesture-field stripping), sessions (transaction envelopes, typed
+  refusals), units (billing eligibility lattice), migrations guard (0027
+  additivity), ask-form (durable:false wire rendering, no-POST resume guard),
+  answer-stream (dispatch-window Stop = cancelled), ask (snapshotPersisted
+  threading).
+- Integration: **72/72 across 14 files** on disposable Neon branches (new:
+  ask-retention, ask-billing, migrations-atomic; extended: ask-sessions
+  concurrency/no-orphan proofs, ask-cache TTL boundary). Final tree re-run;
+  every branch deleted.
+- Production-build browser battery: **9/9 scenarios** (report
+  `AI-SEARCH-RELEASE-HARDENING-2026-07-21.md`); zero console errors; zero
+  paid calls (mock provider / LLM_DISABLE; fork-only writes).

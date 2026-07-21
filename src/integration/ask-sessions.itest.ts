@@ -13,6 +13,7 @@ for (const k of ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "X_API_KEY", "OPENSANCTI
 }
 process.env.ASK_SESSIONS = "1";
 process.env.ASK_RUNS_ENFORCE = "1";
+process.env.ASK_CONTENT_RETENTION_DAYS = "30"; // enforce/sessions require retention (features.ts)
 process.env.ASK_GLOBAL_DAILY_BUDGET_USD = "1000";
 
 const { runMigrations } = await import("../../scripts/migrations-lib");
@@ -77,6 +78,7 @@ beforeAll(async () => {
 afterAll(async () => {
   delete process.env.ASK_SESSIONS;
   delete process.env.ASK_RUNS_ENFORCE;
+  delete process.env.ASK_CONTENT_RETENTION_DAYS;
   delete process.env.ASK_GLOBAL_DAILY_BUDGET_USD;
   await cleanup();
   await pool.end();
@@ -221,5 +223,90 @@ describe("sessions on real Postgres (Phase 6)", () => {
     );
     const r = await startSessionFromRun({ userEmail: USER, runId: bare, title: "no snapshot" });
     expect(r).toEqual({ ok: false, reason: "no_snapshot" });
+  });
+});
+
+describe("transactional sessions (release hardening)", () => {
+  it("startSessionFromRun is ATOMIC: a run already claimed by another session refuses run_in_session with ZERO new session rows", async () => {
+    const runId = await seedRun(USER, "atomicity origin");
+    const first = await startSessionFromRun({ userEmail: USER, runId, title: "First claim" });
+    expect(first.ok).toBe(true);
+
+    const before = await pool.query(`SELECT count(*)::int AS n FROM ask_sessions WHERE user_email = $1`, [USER]);
+    const second = await startSessionFromRun({ userEmail: USER, runId, title: "Second claim" });
+    expect(second).toEqual({ ok: false, reason: "run_in_session" });
+    const after = await pool.query(`SELECT count(*)::int AS n FROM ask_sessions WHERE user_email = $1`, [USER]);
+    // the rolled-back transaction left no turnless orphan session behind
+    expect(after.rows[0].n).toBe(before.rows[0].n);
+  });
+
+  it("two CONCURRENT starts from the same run: exactly one session wins, the loser leaves no orphan", async () => {
+    const runId = await seedRun(USER, "concurrent start origin");
+    const [a, b] = await Promise.all([
+      startSessionFromRun({ userEmail: USER, runId, title: "racer A" }),
+      startSessionFromRun({ userEmail: USER, runId, title: "racer B" }),
+    ]);
+    const winners = [a, b].filter((r) => r.ok);
+    expect(winners).toHaveLength(1);
+    const loser = [a, b].find((r) => !r.ok)!;
+    expect(loser.ok === false && loser.reason).toBe("run_in_session");
+    const turns = await pool.query(`SELECT count(*)::int AS n FROM ask_turns WHERE run_id = $1`, [runId]);
+    expect(turns.rows[0].n).toBe(1);
+    // every surviving session for this user has at least one turn (no orphans)
+    const orphans = await pool.query(
+      `SELECT count(*)::int AS n FROM ask_sessions s
+       WHERE s.user_email = $1 AND NOT EXISTS (SELECT 1 FROM ask_turns t WHERE t.session_id = s.id)`,
+      [USER],
+    );
+    expect(orphans.rows[0].n).toBe(0);
+  });
+
+  it("two CONCURRENT appends to one session get DISTINCT seqs (FOR UPDATE serializes; last_active_at bumped)", async () => {
+    const origin = await seedRun(USER, "concurrent append origin");
+    const started = await startSessionFromRun({ userEmail: USER, runId: origin, title: "Concurrent appends" });
+    expect(started.ok).toBe(true);
+    const sessionId = started.ok ? started.session.id : "";
+    const runA = await seedRun(USER, "turn A");
+    const runB = await seedRun(USER, "turn B");
+
+    const beforeActive = (
+      await pool.query(`SELECT last_active_at FROM ask_sessions WHERE id = $1`, [sessionId])
+    ).rows[0].last_active_at as string;
+
+    const [ra, rb] = await Promise.all([
+      appendTurn({ sessionId, userEmail: USER, runId: runA, scope: "reuse" }),
+      appendTurn({ sessionId, userEmail: USER, runId: runB, scope: "reuse" }),
+    ]);
+    expect(ra.ok).toBe(true);
+    expect(rb.ok).toBe(true);
+    const seqs = [ra, rb].map((r) => (r.ok ? r.seq : -1)).sort();
+    expect(seqs).toEqual([2, 3]); // distinct, gap-free — the lock serialized them
+
+    const afterActive = (
+      await pool.query(`SELECT last_active_at FROM ask_sessions WHERE id = $1`, [sessionId])
+    ).rows[0].last_active_at as string;
+    expect(new Date(afterActive).getTime()).toBeGreaterThan(new Date(beforeActive).getTime());
+  });
+
+  it("deleteSession racing an append never yields a partially-deleted session or an orphan turn", async () => {
+    const origin = await seedRun(USER, "delete-race origin");
+    const started = await startSessionFromRun({ userEmail: USER, runId: origin, title: "Delete race" });
+    expect(started.ok).toBe(true);
+    const sessionId = started.ok ? started.session.id : "";
+    const runC = await seedRun(USER, "turn C");
+
+    const [del, app] = await Promise.all([
+      deleteSession(sessionId, USER),
+      appendTurn({ sessionId, userEmail: USER, runId: runC, scope: "reuse" }),
+    ]);
+    expect(del.deleted).toBe(true);
+    // the append either landed BEFORE the delete (its turn was removed with the
+    // session) or lost the lock race and refused not_found — never a raw throw
+    if (!app.ok) expect(app.reason).toBe("not_found");
+    // in both cases: no turns survive for a deleted session
+    const leftover = await pool.query(`SELECT count(*)::int AS n FROM ask_turns WHERE session_id = $1`, [sessionId]);
+    expect(leftover.rows[0].n).toBe(0);
+    const sessionRow = await pool.query(`SELECT 1 FROM ask_sessions WHERE id = $1`, [sessionId]);
+    expect(sessionRow.rows).toHaveLength(0);
   });
 });

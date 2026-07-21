@@ -8,9 +8,10 @@
 // decision (§7.7 / registers #13/#30) — delete/export ownership lands FIRST,
 // per the master prompt.
 
-import { Pool } from "@neondatabase/serverless";
+import { Pool, type PoolClient } from "@neondatabase/serverless";
 import { askWithLimits } from "./limits";
 import { askPipeline } from "./config";
+import { effectiveAskFeatures } from "./features";
 import type { AskAnswerV2 } from "./types";
 import type { EvidenceSnapshot } from "./events";
 
@@ -19,8 +20,11 @@ export const MAX_SESSION_TURNS = 20;
 /** Idle TTL after which a session is no longer "active" for follow-ups. */
 export const SESSION_IDLE_TTL_MS = 24 * 60 * 60 * 1000;
 
+/** Sessions are effective only through the feature resolver (release
+ *  hardening): ASK_SESSIONS=1 alone is NOT sufficient — enforce mode and
+ *  valid retention settings are prerequisites (features.ts). */
 export function askSessionsEnabled(): boolean {
-  return process.env.ASK_SESSIONS === "1";
+  return effectiveAskFeatures().sessions;
 }
 
 export type FollowupScope = "reuse" | "expand" | "new";
@@ -131,6 +135,33 @@ function pool(): Pool {
   return new Pool({ connectionString: process.env.DATABASE_URL });
 }
 
+/** One interactive transaction (release hardening): session mutations that
+ *  touch multiple rows commit or roll back TOGETHER — no partial deletions,
+ *  no orphan sessions, no turn without its last_active_at bump. */
+async function withTxn<T>(fn: (c: PoolClient) => Promise<T>): Promise<T> {
+  const p = pool();
+  const c = await p.connect();
+  try {
+    await c.query("BEGIN");
+    const out = await fn(c);
+    await c.query("COMMIT");
+    return out;
+  } catch (e) {
+    try {
+      await c.query("ROLLBACK");
+    } catch {}
+    throw e;
+  } finally {
+    c.release();
+    await p.end();
+  }
+}
+
+function isUniqueViolation(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e);
+  return msg.includes("duplicate key") || msg.includes("23505");
+}
+
 export async function createSession(userEmail: string, title: string): Promise<AskSession> {
   const p = pool();
   try {
@@ -197,8 +228,14 @@ export type AppendRefusal =
 /** Append a turn. Owner-gated via the session row AND the run row (Gate 6:
  *  a run must belong to the same owner AND carry a frozen snapshot — a
  *  snapshotless turn would silently regress the session's scope to an older
- *  snapshot). Refuses past MAX_SESSION_TURNS and on ended/idle sessions; a
- *  concurrent same-seq append loses as a TYPED "race" refusal, never a raw
+ *  snapshot). Refuses past MAX_SESSION_TURNS and on ended/idle sessions.
+ *
+ *  ATOMIC + concurrency-safe (release hardening): validation, the seq-
+ *  computing INSERT (cap enforced in its HAVING), and the last_active_at
+ *  bump run in ONE transaction; `FOR UPDATE` on the session row serializes
+ *  concurrent appends to the same session, so distinct turns get distinct
+ *  seqs and the bump can never be lost or orphaned. A duplicate run_id
+ *  (unique constraint) still loses as a TYPED "race" refusal, never a raw
  *  driver throw after a paid call. */
 export async function appendTurn(opts: {
   sessionId: string;
@@ -206,43 +243,38 @@ export async function appendTurn(opts: {
   runId: string;
   scope: FollowupScope;
 }): Promise<{ ok: true; seq: number } | { ok: false; reason: AppendRefusal }> {
-  const p = pool();
   try {
-    const { rows } = await p.query(
-      `SELECT status, last_active_at,
-              (SELECT coalesce(max(seq), 0) FROM ask_turns WHERE session_id = $1) AS max_seq,
-              EXISTS (SELECT 1 FROM ask_runs WHERE id = $3 AND user_email = $2 AND evidence_snapshot IS NOT NULL) AS run_ok
-       FROM ask_sessions WHERE id = $1 AND user_email = $2`,
-      [opts.sessionId, opts.userEmail, opts.runId],
-    );
-    const r = rows[0] as
-      | { status: string; last_active_at: string; max_seq: number; run_ok: boolean }
-      | undefined;
-    if (!r) return { ok: false, reason: "not_found" };
-    if (r.status !== "active") return { ok: false, reason: "ended" };
-    if (Date.now() - new Date(r.last_active_at).getTime() > SESSION_IDLE_TTL_MS) {
-      return { ok: false, reason: "idle" };
-    }
-    if (!r.run_ok) return { ok: false, reason: "run_ineligible" };
-    const seq = Number(r.max_seq) + 1;
-    if (seq > MAX_SESSION_TURNS) return { ok: false, reason: "turn_cap" };
-    try {
-      await p.query(
-        `INSERT INTO ask_turns (session_id, seq, run_id, scope) VALUES ($1, $2, $3, $4)`,
-        [opts.sessionId, seq, opts.runId, opts.scope],
+    return await withTxn(async (c) => {
+      const { rows } = await c.query(
+        `SELECT status, last_active_at,
+                EXISTS (SELECT 1 FROM ask_runs WHERE id = $3 AND user_email = $2 AND evidence_snapshot IS NOT NULL) AS run_ok
+         FROM ask_sessions WHERE id = $1 AND user_email = $2 FOR UPDATE`,
+        [opts.sessionId, opts.userEmail, opts.runId],
       );
-    } catch (e) {
-      // unique (session_id, seq) or unique (run_id): the concurrent loser
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("duplicate key") || msg.includes("23505")) {
-        return { ok: false, reason: "race" };
+      const r = rows[0] as { status: string; last_active_at: string; run_ok: boolean } | undefined;
+      if (!r) return { ok: false as const, reason: "not_found" as const };
+      if (r.status !== "active") return { ok: false as const, reason: "ended" as const };
+      if (Date.now() - new Date(r.last_active_at).getTime() > SESSION_IDLE_TTL_MS) {
+        return { ok: false as const, reason: "idle" as const };
       }
-      throw e;
-    }
-    await p.query(`UPDATE ask_sessions SET last_active_at = now() WHERE id = $1`, [opts.sessionId]);
-    return { ok: true, seq };
-  } finally {
-    await p.end();
+      if (!r.run_ok) return { ok: false as const, reason: "run_ineligible" as const };
+      const ins = await c.query(
+        `INSERT INTO ask_turns (session_id, seq, run_id, scope)
+         SELECT $1, coalesce(max(seq), 0) + 1, $2, $3
+         FROM ask_turns WHERE session_id = $1
+         HAVING coalesce(max(seq), 0) < $4
+         RETURNING seq`,
+        [opts.sessionId, opts.runId, opts.scope, MAX_SESSION_TURNS],
+      );
+      if ((ins.rows?.length ?? 0) === 0) return { ok: false as const, reason: "turn_cap" as const };
+      await c.query(`UPDATE ask_sessions SET last_active_at = now() WHERE id = $1`, [opts.sessionId]);
+      return { ok: true as const, seq: Number((ins.rows[0] as { seq: number }).seq) };
+    });
+  } catch (e) {
+    // unique (run_id) — the run already IS a turn somewhere — or an exotic
+    // (session_id, seq) collision despite the lock: the concurrent loser.
+    if (isUniqueViolation(e)) return { ok: false, reason: "race" };
+    throw e;
   }
 }
 
@@ -262,15 +294,17 @@ export async function deleteSession(
   id: string,
   userEmail: string,
 ): Promise<{ deleted: boolean; turnsRemoved: number }> {
-  const p = pool();
-  try {
-    const { rows } = await p.query(
-      `SELECT 1 FROM ask_sessions WHERE id = $1 AND user_email = $2`,
+  // ONE transaction (release hardening): either EVERY content surface is
+  // removed/redacted and the session+turns die, or nothing changes — a §7.7
+  // delete can never leave a partially-scrubbed session behind.
+  return await withTxn(async (c) => {
+    const { rows } = await c.query(
+      `SELECT 1 FROM ask_sessions WHERE id = $1 AND user_email = $2 FOR UPDATE`,
       [id, userEmail],
     );
     if (rows.length === 0) return { deleted: false, turnsRemoved: 0 };
     // event payloads carry claim text + streamed answer prose
-    await p.query(
+    await c.query(
       `DELETE FROM ask_run_events WHERE run_id IN (
          SELECT t.run_id FROM ask_turns t JOIN ask_runs r ON r.id = t.run_id
          WHERE t.session_id = $1 AND r.user_email = $2)`,
@@ -278,30 +312,28 @@ export async function deleteSession(
     );
     // cache rows store question + result + snapshot — remove BEFORE the runs'
     // questions are redacted (the join needs the original text)
-    await p.query(
+    await c.query(
       `DELETE FROM ask_answer_cache WHERE user_email = $2 AND question IN (
          SELECT r.question FROM ask_turns t JOIN ask_runs r ON r.id = t.run_id
          WHERE t.session_id = $1 AND r.user_email = $2)`,
       [id, userEmail],
     );
     // usage QUESTION text is content; the cost/token columns are accounting
-    await p.query(
+    await c.query(
       `UPDATE ask_usage SET question = '[deleted]'
        WHERE user_email = $2 AND run_id IN (SELECT run_id FROM ask_turns WHERE session_id = $1)`,
       [id, userEmail],
     );
     // content removal on the runs this session owns (ownership double-checked)
-    await p.query(
+    await c.query(
       `UPDATE ask_runs SET result = NULL, question = '[deleted]', evidence_snapshot = NULL
        WHERE user_email = $2 AND id IN (SELECT run_id FROM ask_turns WHERE session_id = $1)`,
       [id, userEmail],
     );
-    const del = await p.query(`DELETE FROM ask_turns WHERE session_id = $1`, [id]);
-    await p.query(`DELETE FROM ask_sessions WHERE id = $1 AND user_email = $2`, [id, userEmail]);
+    const del = await c.query(`DELETE FROM ask_turns WHERE session_id = $1`, [id]);
+    await c.query(`DELETE FROM ask_sessions WHERE id = $1 AND user_email = $2`, [id, userEmail]);
     return { deleted: true, turnsRemoved: del.rowCount ?? 0 };
-  } finally {
-    await p.end();
-  }
+  });
 }
 
 export interface SessionExport {
@@ -318,28 +350,53 @@ export interface SessionExport {
 
 /** Start a session from an EXISTING completed run the user owns (the run must
  *  carry a frozen snapshot — the session's continuity unit). Turn 1 = that
- *  run, scope "new". */
+ *  run, scope "new".
+ *
+ *  ATOMIC (release hardening): validation, session creation, and the first
+ *  turn commit or roll back TOGETHER — a failed first turn can no longer
+ *  leave a turnless orphan session behind. A run already claimed by another
+ *  session (unique run_id) refuses as "run_in_session" with zero rows
+ *  written. */
 export async function startSessionFromRun(opts: {
   userEmail: string;
   runId: string;
   title: string;
-}): Promise<{ ok: true; session: AskSession } | { ok: false; reason: "not_found" | "no_snapshot" | "flag_off" }> {
+}): Promise<
+  | { ok: true; session: AskSession }
+  | { ok: false; reason: "not_found" | "no_snapshot" | "flag_off" | "run_in_session" }
+> {
   if (!askSessionsEnabled()) return { ok: false, reason: "flag_off" };
-  const p = pool();
   try {
-    const { rows } = await p.query(
-      `SELECT evidence_snapshot, question FROM ask_runs WHERE id = $1 AND user_email = $2 AND finished_at IS NOT NULL`,
-      [opts.runId, opts.userEmail],
-    );
-    const r = rows[0] as { evidence_snapshot: EvidenceSnapshot | null; question: string } | undefined;
-    if (!r) return { ok: false, reason: "not_found" };
-    if (!r.evidence_snapshot) return { ok: false, reason: "no_snapshot" };
-  } finally {
-    await p.end();
+    return await withTxn(async (c) => {
+      const { rows } = await c.query(
+        `SELECT evidence_snapshot FROM ask_runs WHERE id = $1 AND user_email = $2 AND finished_at IS NOT NULL`,
+        [opts.runId, opts.userEmail],
+      );
+      const r = rows[0] as { evidence_snapshot: EvidenceSnapshot | null } | undefined;
+      if (!r) return { ok: false as const, reason: "not_found" as const };
+      if (!r.evidence_snapshot) return { ok: false as const, reason: "no_snapshot" as const };
+      const created = await c.query(
+        `INSERT INTO ask_sessions (user_email, title) VALUES ($1, $2)
+         RETURNING id, user_email, title, status, created_at::text AS created_at, last_active_at::text AS last_active_at`,
+        [opts.userEmail, opts.title.slice(0, 200)],
+      );
+      const s = created.rows[0] as Record<string, string>;
+      await c.query(
+        `INSERT INTO ask_turns (session_id, seq, run_id, scope) VALUES ($1, 1, $2, 'new')`,
+        [s.id, opts.runId],
+      );
+      return {
+        ok: true as const,
+        session: {
+          id: s.id, userEmail: s.user_email, title: s.title, status: s.status,
+          createdAt: s.created_at, lastActiveAt: s.last_active_at,
+        },
+      };
+    });
+  } catch (e) {
+    if (isUniqueViolation(e)) return { ok: false, reason: "run_in_session" };
+    throw e;
   }
-  const session = await createSession(opts.userEmail, opts.title);
-  await appendTurn({ sessionId: session.id, userEmail: opts.userEmail, runId: opts.runId, scope: "new" });
-  return { ok: true, session };
 }
 
 /** Load the session's CURRENT snapshot: the latest turn's run that has one. */

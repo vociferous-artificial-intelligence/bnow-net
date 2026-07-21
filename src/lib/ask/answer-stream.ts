@@ -189,6 +189,22 @@ export async function streamAnswer(opts: {
     // ceiling conservatively; never leave a possibly-billed call unrecorded.
     const settled = ceilingUsage();
     await settleOnce(settled);
+    // Release hardening: a Stop landing in the DISPATCH window (request sent,
+    // no first byte yet — the provider "thinking" delay, often seconds) is a
+    // CANCELLATION, not a failure. Same conservative ceiling settlement as a
+    // mid-stream abort, honest cancelled classification instead of an error
+    // terminal (the Gate 3 rules covered aborts only from the first byte on).
+    if (opts.signal?.aborted || (e instanceof Error && e.name === "AbortError")) {
+      return {
+        content: "",
+        refusal: "",
+        finishReason: "cancelled",
+        usage: settled,
+        denialLed: false,
+        cancelled: true,
+        releasedCount,
+      };
+    }
     throw new StreamDispatchError(e, settled);
   }
 

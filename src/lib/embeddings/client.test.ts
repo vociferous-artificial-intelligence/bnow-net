@@ -15,7 +15,6 @@ vi.mock("openai", () => ({
 
 const {
   embedTexts,
-  withRetry,
   stubVector,
   truncateInput,
   embedCostUsd,
@@ -184,39 +183,5 @@ describe("stubVector + truncateInput units", () => {
   it("truncateInput caps at the guard length, leaves short text untouched", () => {
     expect(truncateInput("short")).toBe("short");
     expect(truncateInput("y".repeat(EMBED_MAX_INPUT_CHARS + 1))).toHaveLength(EMBED_MAX_INPUT_CHARS);
-  });
-});
-
-describe("withRetry", () => {
-  it("retries 429 with exponential backoff, then succeeds", async () => {
-    let n = 0;
-    const fn = vi.fn(async () => {
-      n++;
-      if (n < 3) throw { status: 429 };
-      return "ok";
-    });
-    const sleeps: number[] = [];
-    const out = await withRetry(fn, { baseMs: 10, sleep: async (ms) => void sleeps.push(ms) });
-    expect(out).toBe("ok");
-    expect(fn).toHaveBeenCalledTimes(3);
-    expect(sleeps).toEqual([10, 20]); // 10*2^0, 10*2^1
-  });
-
-  it("gives up after maxRetries (initial + 3) and rethrows the last error", async () => {
-    const err = { status: 503 };
-    const fn = vi.fn(async () => {
-      throw err;
-    });
-    await expect(withRetry(fn, { maxRetries: 3, sleep: async () => {} })).rejects.toBe(err);
-    expect(fn).toHaveBeenCalledTimes(4);
-  });
-
-  it("does NOT retry non-retryable errors (e.g. 400)", async () => {
-    const err = { status: 400 };
-    const fn = vi.fn(async () => {
-      throw err;
-    });
-    await expect(withRetry(fn, { sleep: async () => {} })).rejects.toBe(err);
-    expect(fn).toHaveBeenCalledTimes(1);
   });
 });

@@ -9,7 +9,6 @@ import {
   type StageTimings,
 } from "./timings";
 import {
-  askRunsEnforce,
   createRun,
   expireStaleRuns,
   finalizeRun,
@@ -18,10 +17,12 @@ import {
 } from "./runs";
 import { buildAskRunGuards } from "./run-guards";
 import { NULL_EVENT_SINK, persistEvidenceSnapshot, type EvidenceSnapshot, type RunEventSink } from "./events";
-import { askExactCache, askRouter } from "./config";
+import { askRouter } from "./config";
+import { effectiveAskFeatures } from "./features";
+import { sweepAskRetentionThrottled } from "./retention";
 import { cacheKey, cacheLookup, cacheStore, corpusVersion } from "./cache";
 import { route, routePolicyString } from "./router";
-import { analysisUnits } from "./units";
+import { analysisUnits, billingEligibility } from "./units";
 import { parseTimeWindow } from "./window";
 
 // /ask spend control: an authenticated user could otherwise run up LLM cost with
@@ -97,6 +98,7 @@ type RawAskResult = AskAnswer &
       | "rerankModel"
       | "answerModel"
       | "dataCurrentThrough"
+      | "snapshotPersisted"
     >
   >;
 
@@ -121,6 +123,8 @@ function normalizeV2(raw: RawAskResult): AskAnswerV2 {
     // additive (W1): surfaced to the UI so the insufficient/no-coverage callout can
     // state data currency; undefined on the legacy path and when the read was null.
     dataCurrentThrough: raw.dataCurrentThrough,
+    // release hardening: the snapshot-persist outcome feeds the durable verdict
+    snapshotPersisted: raw.snapshotPersisted,
   };
 }
 
@@ -370,15 +374,39 @@ async function shadowSafe<T>(what: string, fn: () => Promise<T>): Promise<T | nu
   }
 }
 
-/** Finalize the run row, fail-soft in BOTH modes: the answer already exists and
- *  the reservations already settled — a lost finalize leaves the run open for
- *  the lazy expiry sweep, never a lost answer. */
-async function finalizeSafe(opts: Parameters<typeof finalizeRun>[0]): Promise<void> {
-  try {
-    await finalizeRun(opts);
-  } catch (e) {
-    console.warn(`askWithLimits: finalize failed (expiry will reconcile): ${e instanceof Error ? e.message : e}`);
+/** Finalize the run row with a BOUNDED DB-write retry (release hardening —
+ *  never a provider rerun: the only statement retried is the conditional
+ *  UPDATE). Returns true when a terminal row durably exists — either this
+ *  finalize landed or a concurrent path already terminalized (finalizeRun's
+ *  false). Returns false only when every attempt threw: the answer already
+ *  exists and the reservations settled, so the request still succeeds, but
+ *  the payload's `durable` verdict tells the transport not to claim replay
+ *  durability; the lazy expiry sweep reconciles the open row. */
+const FINALIZE_ATTEMPTS = 3;
+const FINALIZE_BACKOFF_MS = 100;
+
+async function finalizeDurably(opts: Parameters<typeof finalizeRun>[0]): Promise<boolean> {
+  // Every enforce-mode finalize carries the explicit billing stamp (migration
+  // 0027): units by the unskippable policy, eligibility by the cutover rules.
+  const units = opts.units ?? analysisUnits(opts.result);
+  const enriched: Parameters<typeof finalizeRun>[0] = {
+    ...opts,
+    units,
+    billing: opts.billing ?? billingEligibility({ units, mode: "enforce", result: opts.result }),
+  };
+  for (let i = 0; i < FINALIZE_ATTEMPTS; i++) {
+    try {
+      await finalizeRun(enriched);
+      return true;
+    } catch (e) {
+      if (i === FINALIZE_ATTEMPTS - 1) {
+        console.warn(`askWithLimits: finalize failed after ${FINALIZE_ATTEMPTS} attempts (expiry will reconcile): ${e instanceof Error ? e.message : e}`);
+        return false;
+      }
+      await new Promise((r) => setTimeout(r, FINALIZE_BACKOFF_MS * (i + 1)));
+    }
   }
+  return false;
 }
 
 /** Gate + run + log. Both the /ask page and the API route go through here.
@@ -420,7 +448,12 @@ export async function askWithLimits(
     if ("mode" in policy) run.routePolicy = routePolicyString(policy);
   }
   const t0 = monotonicMs();
-  const enforce = askRunsEnforce();
+  // Release hardening: the effective-feature resolver is the ONE authority —
+  // enforce requires valid retention settings; shadow persistence is an
+  // explicit opt-in (default OFF: a plain deploy stores nothing new).
+  const features = effectiveAskFeatures();
+  const enforce = features.runsPersistence === "enforce";
+  const shadow = features.runsPersistence === "shadow";
   // Phase 2: the progressive transport's event sink. run.created/run.authorized
   // are emitted HERE (the one money path); the pipeline events come from ask();
   // the route emits the terminal event with the returned payload. NULL sink =
@@ -433,6 +466,11 @@ export async function askWithLimits(
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
     let created: CreateRunResult | null = null;
+    // Retention housekeeping rides EVERY ask (throttled, fail-soft, no-op
+    // without retention config): even after a full flag rollback, previously
+    // persisted content keeps aging out as long as the operator retention
+    // settings stand — disabling a feature never suspends its data hygiene.
+    await sweepAskRetentionThrottled();
     if (enforce) {
       await expireStaleRuns(); // lazy sweep, fail-soft internally
       try {
@@ -470,13 +508,15 @@ export async function askWithLimits(
         }
         return duplicateInFlightAnswer(existing.id);
       }
-    } else {
+    } else if (shadow) {
       created = await shadowSafe("createRun", () =>
         createRun({ runId: run.runId, userEmail: email, question, idempotencyKey }),
       );
       // Shadow replay detection changes NOTHING (legacy gates stay authoritative);
       // the collision is only visible in the soak telemetry.
     }
+    // runsPersistence "off" (the DEFAULT): zero ask_runs writes — behavior
+    // byte-equivalent to Phase 0; `created` stays null so no finalize fires.
     if (progressive) await sink.emit("run.created", {});
 
     let usage: { count: number; cost: number };
@@ -489,8 +529,8 @@ export async function askWithLimits(
       console.warn(`askWithLimits: usage gate unavailable — refusing without ask(): ${e instanceof Error ? e.message : e}`);
       const err = errorAnswer(new Error("usage gate unavailable; question refused"));
       if (enforce) {
-        await finalizeSafe({ runId: run.runId, state: "error", result: err, settledCostUsd: 0, errorClass: "gate_unavailable" });
-        return { ...err, runId: run.runId };
+        const finalized = await finalizeDurably({ runId: run.runId, state: "error", result: err, settledCostUsd: 0, errorClass: "gate_unavailable" });
+        return { ...err, runId: run.runId, durable: finalized };
       }
       return err;
     }
@@ -503,8 +543,8 @@ export async function askWithLimits(
       const globalGate = evaluateAllowance(0, usage.cost, limit, globalDailyBudgetUsd());
       if (!globalGate.allowed) {
         const refusal = limitAnswer(limitMessage(globalGate, limit));
-        await finalizeSafe({ runId: run.runId, state: "limit", result: refusal, settledCostUsd: 0 });
-        return { ...refusal, runId: run.runId };
+        const finalized = await finalizeDurably({ runId: run.runId, state: "limit", result: refusal, settledCostUsd: 0 });
+        return { ...refusal, runId: run.runId, durable: finalized };
       }
       const slot = await reserveAllowance({ runId: run.runId, userEmail: email, limit });
       if (slot.ok && progressive) await sink.emit("run.authorized", {});
@@ -518,14 +558,14 @@ export async function askWithLimits(
                 ),
               )
             : errorAnswer(new Error("allowance gate unavailable; question refused"));
-        await finalizeSafe({
+        const finalized = await finalizeDurably({
           runId: run.runId,
           state: slot.reason === "user_limit" ? "limit" : "error",
           result: refusal,
           settledCostUsd: 0,
           errorClass: slot.reason === "user_limit" ? undefined : "allowance_unavailable",
         });
-        return { ...refusal, runId: run.runId };
+        return { ...refusal, runId: run.runId, durable: finalized };
       }
     } else {
       const allowance = evaluateAllowance(usage.count, usage.cost, limit, globalDailyBudgetUsd());
@@ -549,35 +589,55 @@ export async function askWithLimits(
     // off, every visitor folds to one "anonymous" namespace — caching there
     // would pool answers across people). Session reuse turns bypass it too:
     // their answer is scoped to the SESSION's frozen snapshot.
-    if (askExactCache() && userEmail !== null && !opts?.sessionReuse) {
+    if (features.exactCache && userEmail !== null && !opts?.sessionReuse) {
       try {
         const corpus = await corpusVersion(pool);
         const key = cacheKey({ question, window: parseTimeWindow(question), corpusVersion: corpus });
         cacheCtx = { key, corpus };
         const hit = await cacheLookup(email, key);
         if (hit) {
-          const payload: AskAnswerV2 = { ...hit.result, runId: run.runId, cacheStatus: "exact" };
-          recordStage(run.timings, "pipelineMs", monotonicMs() - t0);
-          try {
-            // The hit's accounting row must not replay the ORIGINAL run's paid
-            // stage columns (Gate 4: a $0 row asserting stage costs is
-            // incoherent and double-counts in any stage aggregation). The
-            // provider marker makes hit rows queryable; the payload the USER
-            // sees keeps its true provider.
-            const hitRow = { ...payload, provider: "cache:exact", usage: undefined, usageByStage: undefined };
-            await logUsage(pool, email, question, hitRow as RawAskResult, 0, run);
-          } catch (logErr) {
-            console.warn(`askWithLimits: cache-hit usage row failed (answer still returned): ${logErr instanceof Error ? logErr.message : logErr}`);
+          // The frozen snapshot must be recoverable from THIS run BEFORE the
+          // hit is served (release hardening): hydration resolves cited
+          // evidence from the run row's snapshot, and falling back to live
+          // claim ids after corpus churn is exactly the F11 failure the
+          // snapshot exists to prevent. A failed snapshot persist therefore
+          // demotes the hit to a MISS (the paid pipeline runs instead) —
+          // never a hit whose evidence panel silently lies.
+          const snapOk = await persistEvidenceSnapshot(run.runId, hit.snapshot);
+          if (!snapOk) {
+            console.warn("askWithLimits: cache-hit snapshot persist failed — treating as a miss");
+          } else {
+            const payload: AskAnswerV2 = {
+              ...hit.result,
+              runId: run.runId,
+              cacheStatus: "exact",
+              snapshotPersisted: true,
+            };
+            recordStage(run.timings, "pipelineMs", monotonicMs() - t0);
+            try {
+              // The hit's accounting row must not replay the ORIGINAL run's paid
+              // stage columns (Gate 4: a $0 row asserting stage costs is
+              // incoherent and double-counts in any stage aggregation). The
+              // provider marker makes hit rows queryable; the payload the USER
+              // sees keeps its true provider.
+              const hitRow = { ...payload, provider: "cache:exact", usage: undefined, usageByStage: undefined };
+              await logUsage(pool, email, question, hitRow as RawAskResult, 0, run);
+            } catch (logErr) {
+              console.warn(`askWithLimits: cache-hit usage row failed (answer still returned): ${logErr instanceof Error ? logErr.message : logErr}`);
+            }
+            if (enforce) {
+              payload.durable = await finalizeDurably({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: 0, units: analysisUnits(payload) });
+            } else if (created) {
+              await shadowSafe("finalizeRun", () =>
+                finalizeRun({
+                  runId: run.runId, state: payload.state, result: payload, settledCostUsd: 0,
+                  units: analysisUnits(payload),
+                  billing: billingEligibility({ units: analysisUnits(payload), mode: "shadow", result: payload }),
+                }),
+              );
+            }
+            return payload;
           }
-          await persistEvidenceSnapshot(run.runId, hit.snapshot);
-          if (enforce) {
-            await finalizeSafe({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: 0, units: analysisUnits(payload) });
-          } else if (created) {
-            await shadowSafe("finalizeRun", () =>
-              finalizeRun({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: 0, units: analysisUnits(payload) }),
-            );
-          }
-          return payload;
         }
       } catch (e) {
         // A cache problem is a MISS, never a failed question.
@@ -618,12 +678,15 @@ export async function askWithLimits(
         // failure the user needs reported (E adversarial review finding 2).
         console.warn(`askWithLimits: error-row insert failed: ${logErr instanceof Error ? logErr.message : logErr}`);
       }
-      const errPayload = { ...errRow, runId: run.runId };
+      const errPayload: AskAnswerV2 = { ...errRow, runId: run.runId };
       if (enforce) {
-        await finalizeSafe({ runId: run.runId, state: "error", result: errPayload, settledCostUsd: 0, errorClass: "pipeline_throw" });
+        errPayload.durable = await finalizeDurably({ runId: run.runId, state: "error", result: errPayload, settledCostUsd: 0, errorClass: "pipeline_throw" });
       } else if (created) {
         await shadowSafe("finalizeRun", () =>
-          finalizeRun({ runId: run.runId, state: "error", result: errPayload, settledCostUsd: 0, errorClass: "pipeline_throw" }),
+          finalizeRun({
+            runId: run.runId, state: "error", result: errPayload, settledCostUsd: 0, errorClass: "pipeline_throw",
+            billing: billingEligibility({ units: 0, mode: "shadow", result: errPayload }),
+          }),
         );
       }
       return errPayload;
@@ -642,12 +705,21 @@ export async function askWithLimits(
       // per-stage SpendGuard caps (provider_usage recorded inside each stage).
       console.warn(`askWithLimits: usage-row insert failed (answer still returned): ${logErr instanceof Error ? logErr.message : logErr}`);
     }
-    const payload = { ...normalizeV2(raw), runId: run.runId };
+    const payload: AskAnswerV2 = { ...normalizeV2(raw), runId: run.runId };
     if (enforce) {
-      await finalizeSafe({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: totalCost, units: analysisUnits(payload) });
+      // Durability verdict (release hardening): a paid success is reported
+      // durably completed ONLY when the run row finalized AND any required
+      // snapshot persisted. The answer itself is returned regardless — the
+      // transport just must not claim replay durability it cannot honor.
+      const finalized = await finalizeDurably({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: totalCost, units: analysisUnits(payload) });
+      payload.durable = finalized && payload.snapshotPersisted !== false;
     } else if (created) {
       await shadowSafe("finalizeRun", () =>
-        finalizeRun({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: totalCost, units: analysisUnits(payload) }),
+        finalizeRun({
+          runId: run.runId, state: payload.state, result: payload, settledCostUsd: totalCost,
+          units: analysisUnits(payload),
+          billing: billingEligibility({ units: analysisUnits(payload), mode: "shadow", result: payload }),
+        }),
       );
     }
     // ---- Phase 4: exact-cache store (flag-gated; fail-soft) ---------------------

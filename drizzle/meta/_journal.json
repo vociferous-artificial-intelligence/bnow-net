@@ -190,6 +190,13 @@
       "when": 1784573521066,
       "tag": "0026_lumpy_the_fallen",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1784658616196,
+      "tag": "0027_numerous_lord_tyger",
+      "breakpoints": true
     }
   ]
 }

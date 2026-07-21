@@ -14,8 +14,8 @@ import {
   askRelevanceBoundaryEnabled,
   askRelevantEvidenceFloor,
   askRerankModel,
-  askStreamAnswer,
 } from "./config";
+import { effectiveAskFeatures } from "./features";
 // Phase 3 Increment A: every deterministic answer check lives in the shared
 // pure validator (citation filter, denial prefix, insufficient copy, terminal
 // classification, the ruling-20 source-fidelity matrix) so the streaming and
@@ -575,7 +575,7 @@ export async function answerFromEvidence(
   // sections were validated by the identical validator functions, and the
   // terminal payload governs the client render (structural reconciliation).
   const sink = opts?.sink;
-  if (sink && sink !== NULL_EVENT_SINK && askStreamAnswer()) {
+  if (sink && sink !== NULL_EVENT_SINK && effectiveAskFeatures().streamAnswer) {
     const tStream = monotonicMs();
     const controller = new AbortController();
     const stopWatch = opts?.runId
@@ -834,16 +834,19 @@ export async function ask(
       claims: selected.length > 0 ? selected : claims,
       rerankUsed: false,
     };
+    let reuseSnapshotPersisted: boolean | undefined;
     if (opts.snapshotRunId) {
-      await persistEvidenceSnapshot(opts.snapshotRunId, snap);
+      reuseSnapshotPersisted = await persistEvidenceSnapshot(opts.snapshotRunId, snap);
     }
-    return answerFromEvidence(question, retrieval, ranked, {
+    const reuseResult = await answerFromEvidence(question, retrieval, ranked, {
       timings,
       guards: opts?.guards,
       sink,
       runId: opts?.snapshotRunId,
       historyBlock: opts?.historyBlock,
     });
+    if (reuseSnapshotPersisted !== undefined) reuseResult.snapshotPersisted = reuseSnapshotPersisted;
+    return reuseResult;
   }
 
   if (askPipeline() !== "v2") {
@@ -919,6 +922,7 @@ export async function ask(
 
   const ranked = await rankedPromise;
 
+  let snapshotPersisted: boolean | undefined;
   if (progressive) {
     if (ranked.rerankUsed) {
       await sink.emit("rerank.completed", {
@@ -949,16 +953,21 @@ export async function ask(
         selectedClaimIds: ranked.claims.map((c) => c.claimId),
         ...(ranked.relevantCount !== undefined ? { relevantCount: ranked.relevantCount } : {}),
       };
-      await persistEvidenceSnapshot(opts.snapshotRunId, snapshot);
+      snapshotPersisted = await persistEvidenceSnapshot(opts.snapshotRunId, snapshot);
     }
     await sink.emit("answer.started", {});
   }
 
-  return answerFromEvidence(question, retrieval, ranked, {
+  const result = await answerFromEvidence(question, retrieval, ranked, {
     timings,
     guards: opts?.guards,
     // Phase 3: the streaming variant activates only with a real sink AND the
     // ASK_STREAM_ANSWER flag; runId feeds the cancel-marker watch.
     ...(progressive ? { sink, runId: opts?.snapshotRunId } : {}),
   });
+  // Release hardening: the snapshot-persist outcome rides the payload so
+  // limits.ts can compute the durable verdict (and the cache-store policy can
+  // refuse a snapshotless answer) without another read.
+  if (snapshotPersisted !== undefined) result.snapshotPersisted = snapshotPersisted;
+  return result;
 }

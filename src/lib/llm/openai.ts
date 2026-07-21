@@ -17,7 +17,6 @@ import { LlmBudgetError } from "../usage/llm-guard";
 import type { StageGuard } from "../usage/reservations";
 import { chatParamsForModel } from "../ask/llm-params";
 import { estimateCostUsd } from "./pricing";
-import { withRetry } from "./retry";
 import type {
   EmbedBatchesRequest,
   EmbedBatchesResult,
@@ -27,6 +26,17 @@ import type {
   StreamChunk,
 } from "./contracts";
 
+// Release hardening 2026-07-21: EVERY client here is constructed with SDK
+// auto-retries DISABLED. The SDK default (maxRetries: 2) re-dispatches 429/
+// 5xx/connection failures invisibly, so one successful guard.tryReserve()
+// could cover up to three physical billed attempts — a structural breach of
+// the one-reservation-per-dispatch rule (contract §2). Retries, where they
+// exist at all, are explicit loops that take a FRESH reservation per attempt
+// (see openaiEmbedBatches).
+function client(): OpenAI {
+  return new OpenAI({ maxRetries: 0 });
+}
+
 export const openaiGeneration: GenerationProvider = {
   async generate(req: GenerationRequest, guard: StageGuard): Promise<GenerationResult> {
     await guard.init();
@@ -35,8 +45,7 @@ export const openaiGeneration: GenerationProvider = {
     const reserve = await guard.tryReserve();
     if (!reserve.ok) throw new LlmBudgetError(reserve.reason);
 
-    const client = new OpenAI();
-    const completion = await client.chat.completions.create({
+    const completion = await client().chat.completions.create({
       model: req.model,
       messages: req.messages,
       ...(req.responseFormat
@@ -77,8 +86,7 @@ export const openaiGeneration: GenerationProvider = {
   async stream(
     req: Omit<GenerationRequest, "responseFormat"> & { signal?: AbortSignal },
   ): Promise<AsyncIterable<StreamChunk>> {
-    const client = new OpenAI();
-    return client.chat.completions.create(
+    return client().chat.completions.create(
       {
         model: req.model,
         messages: req.messages,
@@ -104,30 +112,71 @@ export async function openaiLegacyChatCompletion(req: {
   messages: Array<{ role: "system" | "user"; content: string }>;
   temperature: number;
 }): Promise<OpenAI.Chat.Completions.ChatCompletion> {
-  const client = new OpenAI();
-  return client.chat.completions.create({
+  return client().chat.completions.create({
     model: req.model,
     messages: req.messages,
     temperature: req.temperature,
   });
 }
 
+const EMBED_MAX_RETRIES = 3;
+const EMBED_RETRY_BASE_MS = 500;
+
+/** HTTP status of a provider rejection, or null for connection-class errors
+ *  whose dispatch outcome is unknown (nothing definitive came back). */
+function errorStatus(e: unknown): number | null {
+  const status = (e as { status?: unknown } | null)?.status;
+  return typeof status === "number" ? status : null;
+}
+
 /** Guarded batched embeddings (moved from embedTexts' loop). Vectors return in
- *  input order; each batch reserves before its request and records after it. */
+ *  input order. Retry discipline (release hardening, contract §2): every
+ *  PHYSICAL dispatch takes its own reservation immediately beforehand — a
+ *  429/5xx retry first settles its failed attempt ($0: the server definitively
+ *  rejected the call, nothing was billed) and then reserves afresh, so a
+ *  refused re-reservation stops the retry BEFORE dispatch (fail closed). A
+ *  connection-class failure (no HTTP status) leaves its reservation open for
+ *  the conservative ceiling-settle expiry path — the dispatch outcome is
+ *  unknown and is never retried. */
 export async function openaiEmbedBatches(req: EmbedBatchesRequest): Promise<EmbedBatchesResult> {
-  const client = new OpenAI();
+  const c = client();
   const vectors: number[][] = [];
   let tokens = 0;
   let costUsd = 0;
+  const maxRetries = req.retry?.maxRetries ?? EMBED_MAX_RETRIES;
+  const baseMs = req.retry?.baseMs ?? EMBED_RETRY_BASE_MS;
+  const sleep = req.retry?.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
 
   for (let i = 0; i < req.inputs.length; i += req.batchSize) {
     const batch = req.inputs.slice(i, i + req.batchSize);
-    // Reserve BEFORE the billed request; a refusal throws (fail closed) before we call.
-    if (req.guard) {
-      const r = await req.guard.tryReserve();
-      if (!r.ok) throw new LlmBudgetError(r.reason);
+    let resp: Awaited<ReturnType<typeof c.embeddings.create>> & {
+      usage?: { total_tokens?: number };
+      data: Array<{ index: number; embedding: unknown }>;
+    };
+    for (let attempt = 0; ; attempt++) {
+      // Reserve BEFORE the billed request; a refusal throws (fail closed)
+      // before we call. Each loop iteration is a NEW reservation.
+      if (req.guard) {
+        const r = await req.guard.tryReserve();
+        if (!r.ok) throw new LlmBudgetError(r.reason);
+      }
+      try {
+        resp = (await c.embeddings.create({ model: req.model, input: batch })) as typeof resp;
+        break;
+      } catch (e) {
+        const status = errorStatus(e);
+        if (status !== null) {
+          // Definitive server rejection: settle THIS attempt's reservation as a
+          // dispatched-but-unbilled request so a retry can never ride on it.
+          if (req.guard) await req.guard.record(1, 0, 0);
+          if ((status === 429 || (status >= 500 && status < 600)) && attempt < maxRetries) {
+            await sleep(baseMs * 2 ** attempt);
+            continue;
+          }
+        }
+        throw e;
+      }
     }
-    const resp = await withRetry(() => client.embeddings.create({ model: req.model, input: batch }));
     const batchTokens = resp.usage?.total_tokens ?? 0;
     const batchCost = batchTokens * req.costPerToken;
     tokens += batchTokens;

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 process.env.DATABASE_URL ??= "postgres://test:test@localhost:5432/test";
@@ -15,9 +15,13 @@ const h = vi.hoisted(() => ({
   queryMock: vi.fn(),
   endMock: vi.fn(),
   askWithLimitsMock: vi.fn(),
+  poolCount: { n: 0 },
 }));
 vi.mock("@neondatabase/serverless", () => ({
   Pool: class {
+    constructor() {
+      h.poolCount.n++;
+    }
     query = h.queryMock;
     end = h.endMock;
   },
@@ -30,12 +34,27 @@ const { POST: postRun } = await import("./route");
 const { GET: getEvents } = await import("./[id]/events/route");
 const { POST: postCancel } = await import("./[id]/cancel/route");
 
+// Release hardening: no route module may construct a Pool at import time —
+// a build-time import must stay connection-free.
+const POOLS_AT_IMPORT = h.poolCount.n;
+
 const RUN_ID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  h.poolCount.n = 0;
   h.endMock.mockResolvedValue(undefined);
   h.queryMock.mockResolvedValue({ rows: [{ at: "2026-07-19T00:00:00Z" }] });
+  // Release hardening: the POST boundary consults the effective-feature
+  // resolver — enable the progressive stack so the route semantics under test
+  // are reachable; individual tests unset these to pin the boundary gate.
+  vi.stubEnv("ASK_RUNS_ENFORCE", "1");
+  vi.stubEnv("ASK_CONTENT_RETENTION_DAYS", "30");
+  vi.stubEnv("ASK_PROGRESSIVE", "1");
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 function req(url: string, init?: RequestInit): NextRequest {
@@ -262,5 +281,192 @@ describe("POST /api/ask/runs/[id]/cancel — Phase 2 stub", () => {
     });
     expect(res.status).toBe(404);
     expect(h.queryMock.mock.calls.some((c) => String(c[0]).includes("INSERT"))).toBe(false);
+  });
+});
+
+// ---- release hardening: server-side feature/cohort boundary ----------------------
+
+describe("POST /api/ask/runs — effective-feature + cohort boundary (release hardening)", () => {
+  const post = () =>
+    postRun(
+      req("/api/ask/runs", {
+        method: "POST",
+        body: JSON.stringify({ question: "what happened in kherson" }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+  it("404s BEFORE any money path when ASK_PROGRESSIVE is off", async () => {
+    vi.stubEnv("ASK_PROGRESSIVE", "");
+    const res = await post();
+    expect(res.status).toBe(404);
+    expect(h.askWithLimitsMock).not.toHaveBeenCalled();
+  });
+
+  it("404s when ASK_PROGRESSIVE=1 but enforce is not effective (no retention) — fail closed", async () => {
+    vi.stubEnv("ASK_CONTENT_RETENTION_DAYS", "");
+    const res = await post();
+    expect(res.status).toBe(404);
+    expect(h.askWithLimitsMock).not.toHaveBeenCalled();
+  });
+
+  it("404s for a user outside ASK_PROGRESSIVE_COHORT; serves a cohort member", async () => {
+    vi.stubEnv("ASK_PROGRESSIVE_COHORT", "insider@example.com");
+    const refused = await post();
+    expect(refused.status).toBe(404);
+    expect(h.askWithLimitsMock).not.toHaveBeenCalled();
+
+    vi.stubEnv("ASK_PROGRESSIVE_COHORT", "Insider@example.com, user@example.com");
+    h.askWithLimitsMock.mockResolvedValue({
+      answer: "A.", state: "answered", provider: "openai:gpt-5", citedClaimIds: [], evidenceCount: 0,
+      terms: [], relatedClaimIds: [], window: null, totalMatching: 0, sampled: false, retrievalMode: "v2",
+    });
+    const served = await post();
+    expect(served.status).toBe(200);
+    expect(h.askWithLimitsMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("read-only events GET stays available with every feature flag off (rollback never orphans runs)", async () => {
+    vi.stubEnv("ASK_PROGRESSIVE", "");
+    vi.stubEnv("ASK_RUNS_ENFORCE", "");
+    h.queryMock.mockImplementation(async (sql: string) => {
+      if (String(sql).includes("SELECT user_email")) return { rows: [{ user_email: "user@example.com" }] };
+      return {
+        rows: [
+          { seq: 1, type: "run.completed", at: "t", payload: { result: { answer: "A." } } },
+        ],
+      };
+    });
+    const res = await getEvents(req(`/api/ask/runs/${RUN_ID}/events`), {
+      params: Promise.resolve({ id: RUN_ID }),
+    });
+    expect(res.status).toBe(200);
+    const body = await new Response(res.body).text();
+    expect(body).toContain("event: run.completed");
+  });
+
+  it("cancel POST stays owner-gated but NOT feature-gated (Stop works during rollback)", async () => {
+    vi.stubEnv("ASK_PROGRESSIVE", "");
+    vi.stubEnv("ASK_RUNS_ENFORCE", "");
+    h.queryMock.mockImplementation(async (sql: string) => {
+      if (String(sql).includes("SELECT user_email")) return { rows: [{ user_email: "user@example.com" }] };
+      return { rows: [] };
+    });
+    const res = await postCancel(req(`/api/ask/runs/${RUN_ID}/cancel`, { method: "POST" }), {
+      params: Promise.resolve({ id: RUN_ID }),
+    });
+    expect(res.status).toBe(200);
+  });
+});
+
+// ---- release hardening: request-scoped connection lifecycle ----------------------
+
+describe("connection lifecycle — one Pool per SSE invocation", () => {
+  it("no Pool is constructed at module import time (build-safe)", () => {
+    expect(POOLS_AT_IMPORT).toBe(0);
+  });
+
+  it("POST /api/ask/runs: N persisted events use ONE Pool, ended exactly once", async () => {
+    h.askWithLimitsMock.mockImplementation(
+      async (_q: string, _e: string, opts: { sink: { emit(t: string, p: object): Promise<void> } }) => {
+        await opts.sink.emit("run.created", {});
+        await opts.sink.emit("run.authorized", {});
+        await opts.sink.emit("answer.started", {});
+        return { answer: "A.", state: "answered", provider: "openai:gpt-5", citedClaimIds: [], evidenceCount: 0, terms: [], relatedClaimIds: [], window: null, totalMatching: 0, sampled: false, retrievalMode: "v2" };
+      },
+    );
+    const res = await postRun(
+      req("/api/ask/runs", { method: "POST", body: JSON.stringify({ question: "what happened" }), headers: { "content-type": "application/json" } }),
+    );
+    await new Response(res.body).text(); // drain to completion
+    expect(h.poolCount.n).toBe(1); // one request-scoped pool, not one per event
+    expect(h.endMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("events GET: multiple tail polls share ONE Pool; the terminal closes it exactly once", async () => {
+    let polls = 0;
+    h.queryMock.mockImplementation(async (sql: string) => {
+      if (String(sql).includes("SELECT user_email")) return { rows: [{ user_email: "user@example.com" }] };
+      polls++;
+      if (polls < 3) return { rows: [] }; // two empty polls first
+      return { rows: [{ seq: 1, type: "run.completed", at: "t", payload: { result: { answer: "A." } } }] };
+    });
+    const res = await getEvents(req(`/api/ask/runs/${RUN_ID}/events`), {
+      params: Promise.resolve({ id: RUN_ID }),
+    });
+    await new Response(res.body).text();
+    expect(polls).toBeGreaterThanOrEqual(3);
+    expect(h.poolCount.n).toBe(1); // owner check + every poll on one pool
+    expect(h.endMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("events GET: a client disconnect (aborted signal) stops polling and cleans up the pool", async () => {
+    h.queryMock.mockImplementation(async (sql: string) => {
+      if (String(sql).includes("SELECT user_email")) return { rows: [{ user_email: "user@example.com" }] };
+      return { rows: [] }; // never a terminal — only the abort can end the loop
+    });
+    const controller = new AbortController();
+    controller.abort();
+    const aborted = new NextRequest(`https://bnow.net/api/ask/runs/${RUN_ID}/events`, {
+      signal: controller.signal,
+    } as never);
+    const res = await getEvents(aborted, { params: Promise.resolve({ id: RUN_ID }) });
+    await new Response(res.body).text(); // resolves because the loop breaks on abort
+    expect(h.poolCount.n).toBe(1);
+    expect(h.endMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("events GET: an ownership 404 still ends the pool it opened", async () => {
+    h.queryMock.mockImplementation(async () => ({ rows: [] })); // unknown run
+    const res = await getEvents(req(`/api/ask/runs/${RUN_ID}/events`), {
+      params: Promise.resolve({ id: RUN_ID }),
+    });
+    expect(res.status).toBe(404);
+    expect(h.poolCount.n).toBe(1);
+    expect(h.endMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---- release hardening: durable terminal coherence -------------------------------
+
+describe("POST /api/ask/runs — terminal durability coherence (release hardening)", () => {
+  const answered = (extra: object = {}) => ({
+    answer: "Billed answer.", state: "answered", provider: "openai:gpt-5", citedClaimIds: [],
+    evidenceCount: 0, terms: [], relatedClaimIds: [], window: null, totalMatching: 0,
+    sampled: false, retrievalMode: "v2", runId: RUN_ID, ...extra,
+  });
+  const post = () =>
+    postRun(
+      req("/api/ask/runs", { method: "POST", body: JSON.stringify({ question: "what happened" }), headers: { "content-type": "application/json" } }),
+    );
+
+  it("durable:false → the event log NEVER claims completion; the terminal is wire-only (no id line)", async () => {
+    h.askWithLimitsMock.mockResolvedValue(answered({ durable: false }));
+    const res = await post();
+    const body = await new Response(res.body).text();
+    // no run.completed INSERT was ever attempted against the event log
+    const terminalInserts = h.queryMock.mock.calls.filter((c) => (c[1] as unknown[])?.[2] === "run.completed");
+    expect(terminalInserts).toHaveLength(0);
+    // the wire terminal is delivered id-less and carries the honest durable flag
+    expect(body).toMatch(/\nevent: run\.completed\ndata: /);
+    expect(body).not.toMatch(/id: \d+\nevent: run\.completed/);
+    expect(body).toContain('"durable":false');
+  });
+
+  it("a TRANSIENT terminal-persist failure is retried and lands in the event log (no wire fallback)", async () => {
+    h.askWithLimitsMock.mockResolvedValue(answered({ durable: true }));
+    let terminalAttempts = 0;
+    h.queryMock.mockImplementation(async (_sql: string, params?: unknown[]) => {
+      if (params?.[2] === "run.completed") {
+        terminalAttempts++;
+        if (terminalAttempts === 1) throw new Error("transient insert failure");
+      }
+      return { rows: [{ at: "t" }] };
+    });
+    const res = await post();
+    const body = await new Response(res.body).text();
+    expect(terminalAttempts).toBe(2); // failed once, retried once, persisted
+    expect(body).toMatch(/id: \d+\nevent: run\.completed/); // the PERSISTED terminal reached the wire
+    expect(body).not.toContain("run.failed");
   });
 });

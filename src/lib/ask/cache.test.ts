@@ -106,6 +106,16 @@ describe("corpusVersion", () => {
 });
 
 describe("cacheLookup / cacheStore", () => {
+  // Release hardening: the lookup TTL comes from the effective-feature
+  // resolver, which requires the full cache stack.
+  beforeEach(() => {
+    vi.stubEnv("ASK_RUNS_ENFORCE", "1");
+    vi.stubEnv("ASK_CONTENT_RETENTION_DAYS", "30");
+    vi.stubEnv("ASK_PROGRESSIVE", "1");
+    vi.stubEnv("ASK_EXACT_CACHE", "1");
+    vi.stubEnv("ASK_CACHE_TTL_DAYS", "7");
+  });
+
   const RESULT = { answer: "A [c1].", state: "answered", citedClaimIds: [1], provider: "openai:gpt-5", evidenceCount: 1, terms: [], relatedClaimIds: [], window: null, totalMatching: 1, sampled: false, retrievalMode: "v2", runId: "orig-run", replayed: undefined } as unknown as AskAnswerV2;
   const SNAPSHOT = { version: 1, candidates: [], selectedClaimIds: [], retrievalMode: "v2", window: null, totalMatching: 1, candidatesCount: 1, corpusCurrentThrough: null } as unknown as EvidenceSnapshot;
 
@@ -117,7 +127,27 @@ describe("cacheLookup / cacheStore", () => {
     expect(hit?.result.answer).toBe("A [c1].");
     const sql = String(h.queryMock.mock.calls[0][0]);
     expect(sql).toContain("hit_count = hit_count + 1");
-    expect(h.queryMock.mock.calls[0][1]).toEqual(["u@example.com", "k1"]);
+    // TTL enforced IN the lookup predicate (release hardening): an expired
+    // row can neither hit nor have its hit accounting bumped — the UPDATE's
+    // WHERE excludes it in the same statement.
+    expect(sql).toContain("created_at >= now() - ($3 || ' days')::interval");
+    expect(h.queryMock.mock.calls[0][1]).toEqual(["u@example.com", "k1", "7"]);
+  });
+
+  it("release hardening: an entry outside the TTL window is a MISS (zero rows updated -> null)", async () => {
+    h.queryMock.mockResolvedValue({ rows: [] }); // the TTL predicate matched nothing
+    expect(await cacheLookup("u@example.com", "k1")).toBeNull();
+  });
+
+  it("release hardening: without a valid TTL configuration the lookup is a structural miss (no query at all)", async () => {
+    vi.stubEnv("ASK_CACHE_TTL_DAYS", "");
+    expect(await cacheLookup("u@example.com", "k1")).toBeNull();
+    expect(h.queryMock).not.toHaveBeenCalled();
+  });
+
+  it("release hardening: a row whose snapshot is missing/corrupt is a MISS, never a live-claim-id hydration", async () => {
+    h.queryMock.mockResolvedValue({ rows: [{ result: RESULT, snapshot: null, created_at: "2026-07-20" }] });
+    expect(await cacheLookup("u@example.com", "k1")).toBeNull();
   });
 
   it("lookup fails SOFT to a miss on a DB error", async () => {
@@ -131,7 +161,7 @@ describe("cacheLookup / cacheStore", () => {
       key: "k1",
       corpusVersion: "100:50",
       question: "q",
-      result: { ...RESULT, cacheStatus: "exact" } as AskAnswerV2,
+      result: { ...RESULT, cacheStatus: "exact", durable: true, snapshotPersisted: true } as AskAnswerV2,
       snapshot: SNAPSHOT,
     });
     const sql = String(h.queryMock.mock.calls[0][0]);
@@ -140,10 +170,14 @@ describe("cacheLookup / cacheStore", () => {
     expect(storedResult.runId).toBeUndefined();
     expect(storedResult.replayed).toBeUndefined();
     expect(storedResult.cacheStatus).toBeUndefined();
+    expect(storedResult.durable).toBeUndefined(); // per-gesture persistence verdicts never stored
+    expect(storedResult.snapshotPersisted).toBeUndefined();
     expect(storedResult.answer).toBe("A [c1].");
-    // Gate 4: the lazy retention sweep runs with the store (orphaned rows die)
+    // Gate 4: the lazy retention sweep runs with the store (orphaned rows die),
+    // at the SAME operator TTL the lookup enforces (release hardening)
     const sweep = h.queryMock.mock.calls.find((c) => String(c[0]).includes("DELETE FROM ask_answer_cache"));
-    expect(String(sweep?.[0] ?? "")).toContain("interval '7 days'");
+    expect(String(sweep?.[0] ?? "")).toContain("($1 || ' days')::interval");
+    expect(sweep?.[1]).toEqual(["7"]);
   });
 
   it("store fails SOFT (the answer was already returned)", async () => {

@@ -20,8 +20,7 @@ vi.mock("../usage/reservations", () => ({
   expireStaleReservations: h.expireResvMock,
 }));
 
-const { askRunsEnforce, createRun, finalizeRun, reserveAllowance, expireStaleRuns } =
-  await import("./runs");
+const { createRun, finalizeRun, reserveAllowance, expireStaleRuns } = await import("./runs");
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -42,16 +41,6 @@ const RUN_ROW = {
   finished_at: null,
   expired: false,
 };
-
-describe("askRunsEnforce", () => {
-  it("only the literal '1' enforces", () => {
-    expect(askRunsEnforce()).toBe(false);
-    vi.stubEnv("ASK_RUNS_ENFORCE", "true");
-    expect(askRunsEnforce()).toBe(false);
-    vi.stubEnv("ASK_RUNS_ENFORCE", "1");
-    expect(askRunsEnforce()).toBe(true);
-  });
-});
 
 describe("createRun", () => {
   it("fresh insert returns replayed=false", async () => {

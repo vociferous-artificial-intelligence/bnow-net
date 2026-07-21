@@ -62,3 +62,20 @@ describe("claim_must_have_source survives schema regeneration", () => {
     expect(files[files.length - 1]).toBe("9999_claim_source_trigger.sql");
   });
 });
+
+describe("migration 0027 — billing policy/eligibility metadata (release hardening)", () => {
+  it("exists, is purely additive (ADD COLUMN only), and defaults eligibility to FALSE", () => {
+    const file = readdirSync(DIR).find((f) => f.startsWith("0027_"));
+    expect(file).toBeTruthy();
+    const sql = readFileSync(join(DIR, file!), "utf8");
+    const statements = sql.split("--> statement-breakpoint").map((s) => s.trim()).filter(Boolean);
+    for (const stmt of statements) {
+      expect(stmt).toMatch(/^ALTER TABLE "ask_runs" ADD COLUMN/);
+      expect(stmt).not.toMatch(/DROP|DELETE|TRUNCATE|UPDATE/i);
+    }
+    expect(sql).toContain(`"billing_policy" text`);
+    expect(sql).toContain(`"billing_eligible" boolean DEFAULT false NOT NULL`);
+    // filename ordering keeps 9999 last
+    expect(file! < "9999_claim_source_trigger.sql").toBe(true);
+  });
+});

@@ -15,15 +15,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({
   createMock: vi.fn(),
   embeddingsMock: vi.fn(),
+  ctorOpts: [] as unknown[],
 }));
 vi.mock("openai", () => ({
   default: class {
+    constructor(opts?: unknown) {
+      h.ctorOpts.push(opts);
+    }
     chat = { completions: { create: h.createMock } };
     embeddings = { create: h.embeddingsMock };
   },
 }));
 
-const { openaiGeneration, openaiEmbedBatches } = await import("./openai");
+const { openaiGeneration, openaiEmbedBatches, openaiLegacyChatCompletion } = await import("./openai");
 const { stubGeneration, stubEmbedBatches } = await import("./stub");
 const { LlmBudgetError } = await import("../usage/llm-guard");
 import type { GenerationProvider } from "./contracts";
@@ -57,6 +61,7 @@ const REQ = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  h.ctorOpts.length = 0;
 });
 
 describe.each([
@@ -235,5 +240,114 @@ describe.each([
     });
     const r = await embed({ model: "m", inputs: ["a", "b"], batchSize: 2, costPerToken: 0 });
     expect(r.vectors).toEqual([[0], [1]]);
+  });
+});
+
+// ---- release hardening 2026-07-21: retry/spend discipline --------------------------
+// One successful reservation covers exactly ONE physical dispatch, always. The
+// SDK's hidden auto-retry (default maxRetries: 2) is disabled on every client;
+// the only retry loop (embed batches) reserves afresh per attempt.
+
+describe("retry/spend discipline — SDK auto-retries disabled, per-attempt reservations", () => {
+  const noSleep = { baseMs: 1, sleep: async () => {} };
+
+  it("every SDK client is constructed with maxRetries: 0 (generate/stream/legacy/embed)", async () => {
+    h.createMock.mockResolvedValue({
+      choices: [{ message: { content: "x" }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 1, completion_tokens: 1 },
+    });
+    h.embeddingsMock.mockResolvedValue({ data: [{ index: 0, embedding: [1] }], usage: { total_tokens: 1 } });
+    await openaiGeneration.generate(REQ, guardSpy() as never);
+    h.createMock.mockResolvedValue((async function* () {})());
+    await openaiGeneration.stream(REQ);
+    h.createMock.mockResolvedValue({ choices: [], usage: {} });
+    await openaiLegacyChatCompletion({ model: "m", messages: [{ role: "user", content: "q" }], temperature: 0.1 });
+    await openaiEmbedBatches({ model: "m", inputs: ["a"], batchSize: 1, costPerToken: 0 });
+    expect(h.ctorOpts.length).toBe(4);
+    for (const opts of h.ctorOpts) expect(opts).toEqual({ maxRetries: 0 });
+  });
+
+  it("generate: a 429 propagates after exactly ONE dispatch — no hidden second dispatch", async () => {
+    h.createMock.mockRejectedValue({ status: 429 });
+    const guard = guardSpy();
+    await expect(openaiGeneration.generate(REQ, guard as never)).rejects.toEqual({ status: 429 });
+    expect(h.createMock).toHaveBeenCalledTimes(1);
+    expect(guard.tryReserve).toHaveBeenCalledTimes(1);
+    // no $0 settle: the reservation stays open for the conservative expiry path
+    expect(guard.record).not.toHaveBeenCalled();
+  });
+
+  it("embed: a 429 retry settles the failed attempt $0 and takes a NEW reservation before the second dispatch", async () => {
+    h.embeddingsMock
+      .mockRejectedValueOnce({ status: 429 })
+      .mockResolvedValueOnce({ data: [{ index: 0, embedding: [1] }], usage: { total_tokens: 4 } });
+    const guard = guardSpy();
+    const r = await openaiEmbedBatches({
+      model: "m", inputs: ["a"], batchSize: 1, costPerToken: 0.001, guard: guard as never, retry: noSleep,
+    });
+    expect(r.tokens).toBe(4);
+    expect(h.embeddingsMock).toHaveBeenCalledTimes(2);
+    expect(guard.tryReserve).toHaveBeenCalledTimes(2); // one reservation PER dispatch
+    expect(guard.record.mock.calls).toEqual([[1, 0, 0], [1, 1, 0.004]]);
+    // strict interleaving: reserve1 < dispatch1 < settle1 < reserve2 < dispatch2 < record2
+    const order = [
+      guard.tryReserve.mock.invocationCallOrder[0],
+      h.embeddingsMock.mock.invocationCallOrder[0],
+      guard.record.mock.invocationCallOrder[0],
+      guard.tryReserve.mock.invocationCallOrder[1],
+      h.embeddingsMock.mock.invocationCallOrder[1],
+      guard.record.mock.invocationCallOrder[1],
+    ];
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  it("embed: a refused re-reservation stops the retry BEFORE any second dispatch", async () => {
+    h.embeddingsMock.mockRejectedValue({ status: 503 });
+    let calls = 0;
+    const guard = {
+      init: async () => {},
+      tryReserve: vi.fn(async () => (++calls >= 2 ? { ok: false as const, reason: "cap" } : { ok: true as const })),
+      record: vi.fn(async () => {}),
+    };
+    await expect(
+      openaiEmbedBatches({ model: "m", inputs: ["a"], batchSize: 1, costPerToken: 0, guard: guard as never, retry: noSleep }),
+    ).rejects.toThrow(LlmBudgetError);
+    expect(h.embeddingsMock).toHaveBeenCalledTimes(1); // the retry never dispatched
+  });
+
+  it("embed: persistent 5xx exhausts the bounded retries — one reservation per dispatch — then throws", async () => {
+    h.embeddingsMock.mockRejectedValue({ status: 502 });
+    const guard = guardSpy();
+    await expect(
+      openaiEmbedBatches({
+        model: "m", inputs: ["a"], batchSize: 1, costPerToken: 0, guard: guard as never,
+        retry: { ...noSleep, maxRetries: 1 },
+      }),
+    ).rejects.toEqual({ status: 502 });
+    expect(h.embeddingsMock).toHaveBeenCalledTimes(2); // initial + 1 retry
+    expect(guard.tryReserve).toHaveBeenCalledTimes(2);
+    expect(guard.record.mock.calls).toEqual([[1, 0, 0], [1, 0, 0]]);
+  });
+
+  it("embed: a non-retryable 400 settles its attempt $0 and throws without retrying", async () => {
+    h.embeddingsMock.mockRejectedValue({ status: 400 });
+    const guard = guardSpy();
+    await expect(
+      openaiEmbedBatches({ model: "m", inputs: ["a"], batchSize: 1, costPerToken: 0, guard: guard as never, retry: noSleep }),
+    ).rejects.toEqual({ status: 400 });
+    expect(h.embeddingsMock).toHaveBeenCalledTimes(1);
+    expect(guard.record.mock.calls).toEqual([[1, 0, 0]]);
+  });
+
+  it("embed: a connection-class failure (no status) leaves the reservation OPEN and never retries", async () => {
+    h.embeddingsMock.mockRejectedValue(new Error("socket hang up"));
+    const guard = guardSpy();
+    await expect(
+      openaiEmbedBatches({ model: "m", inputs: ["a"], batchSize: 1, costPerToken: 0, guard: guard as never, retry: noSleep }),
+    ).rejects.toThrow("socket hang up");
+    expect(h.embeddingsMock).toHaveBeenCalledTimes(1);
+    expect(guard.tryReserve).toHaveBeenCalledTimes(1);
+    // dispatch outcome unknown → NO $0 settle; expiry ceiling-settles conservatively
+    expect(guard.record).not.toHaveBeenCalled();
   });
 });
