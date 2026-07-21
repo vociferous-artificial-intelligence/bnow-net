@@ -22,7 +22,6 @@
 //     is a miss even before this sweep reaches it.
 
 import { Pool } from "@neondatabase/serverless";
-import { effectiveAskFeatures } from "./features";
 
 export interface RetentionSweepResult {
   runsRedacted: number;
@@ -43,20 +42,29 @@ function ttlDays(): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+function posDays(name: string): number | null {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 /** One retention pass. Returns null (and does nothing) when no valid retention
- *  configuration exists — persistence-backed features are off in that state,
- *  so there is nothing this sweep is responsible for. Throws on DB failure;
- *  callers on the money path wrap it fail-soft. */
+ *  configuration exists. Deliberately keyed on the RAW retention envs, not the
+ *  effective-feature resolver: after a rollback (every flag off) previously
+ *  persisted content must KEEP aging out as long as the operator retention
+ *  settings stand — disabling a feature must never suspend its data hygiene.
+ *  Throws on DB failure; callers on the money path wrap it fail-soft. */
 export async function sweepAskRetention(now: Date = new Date()): Promise<RetentionSweepResult | null> {
-  const features = effectiveAskFeatures();
-  const retention = features.retention;
-  if (retention === null) return null;
-  const contentCutoff = cutoffIso(now, retention.contentDays);
-  const eventsCutoff = cutoffIso(now, retention.eventsDays);
+  const contentDays = posDays("ASK_CONTENT_RETENTION_DAYS");
+  if (contentDays === null) return null;
+  const eventsDays = posDays("ASK_EVENTS_RETENTION_DAYS") ?? contentDays;
+  const contentCutoff = cutoffIso(now, contentDays);
+  const eventsCutoff = cutoffIso(now, eventsDays);
   // Cache rows are content: sweep them at the cache TTL when configured, and
   // never let them outlive the content retention itself.
   const cacheTtl = ttlDays();
-  const cacheCutoff = cutoffIso(now, Math.min(cacheTtl ?? retention.contentDays, retention.contentDays));
+  const cacheCutoff = cutoffIso(now, Math.min(cacheTtl ?? contentDays, contentDays));
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {

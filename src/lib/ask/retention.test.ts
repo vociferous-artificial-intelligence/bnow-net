@@ -38,8 +38,15 @@ describe("sweepAskRetention", () => {
     expect(h.queryMock).not.toHaveBeenCalled();
   });
 
+  it("rollback safety: sweeps on RAW retention config even with every feature flag off", async () => {
+    // no ASK_RUNS_ENFORCE / ASK_RUNS_SHADOW — flags fully rolled back
+    vi.stubEnv("ASK_CONTENT_RETENTION_DAYS", "30");
+    const r = await sweepAskRetention(NOW);
+    expect(r).not.toBeNull();
+    expect(h.queryMock).toHaveBeenCalled(); // hygiene continues during rollback
+  });
+
   it("redacts run/usage content, deletes events/cache/idle sessions at the configured cutoffs; accounting survives", async () => {
-    vi.stubEnv("ASK_RUNS_ENFORCE", "1");
     vi.stubEnv("ASK_CONTENT_RETENTION_DAYS", "30");
     vi.stubEnv("ASK_EVENTS_RETENTION_DAYS", "7");
     const r = await sweepAskRetention(NOW);
@@ -68,7 +75,6 @@ describe("sweepAskRetention", () => {
   });
 
   it("cache rows sweep at min(cache TTL, content retention)", async () => {
-    vi.stubEnv("ASK_RUNS_SHADOW", "1");
     vi.stubEnv("ASK_CONTENT_RETENTION_DAYS", "30");
     vi.stubEnv("ASK_CACHE_TTL_DAYS", "3");
     await sweepAskRetention(NOW);
@@ -79,7 +85,6 @@ describe("sweepAskRetention", () => {
 
 describe("sweepAskRetentionThrottled", () => {
   it("runs at most once per interval and never throws on failure", async () => {
-    vi.stubEnv("ASK_RUNS_ENFORCE", "1");
     vi.stubEnv("ASK_CONTENT_RETENTION_DAYS", "30");
     await sweepAskRetentionThrottled(NOW);
     const first = h.queryMock.mock.calls.length;

@@ -466,9 +466,11 @@ export async function askWithLimits(
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
     let created: CreateRunResult | null = null;
-    // Retention housekeeping rides the persisted paths only (throttled,
-    // fail-soft): with persistence off there is nothing to govern.
-    if (enforce || shadow) await sweepAskRetentionThrottled();
+    // Retention housekeeping rides EVERY ask (throttled, fail-soft, no-op
+    // without retention config): even after a full flag rollback, previously
+    // persisted content keeps aging out as long as the operator retention
+    // settings stand — disabling a feature never suspends its data hygiene.
+    await sweepAskRetentionThrottled();
     if (enforce) {
       await expireStaleRuns(); // lazy sweep, fail-soft internally
       try {
