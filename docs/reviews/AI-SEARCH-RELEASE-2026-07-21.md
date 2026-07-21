@@ -67,15 +67,20 @@ persistence-backed Ask surface. Changes (this branch):
 
 ## Final-tree gates (release commit, pre-deploy)
 
+Release commit: `b293712` on the release branch; integration tip after the
+`--no-ff` merge: **`356cba5`** (the release candidate deployed to production).
+
 | Gate | Result |
 |---|---|
-| `npm run typecheck` | (recorded below) |
-| `npm run lint` | (recorded below) |
-| `npm test` | (recorded below) |
-| `npm run test:integration` | (recorded below) |
-| `npm run build` | (recorded below) |
-| `git diff --check` | (recorded below) |
-| Production-build browser smoke | (recorded below) |
+| `npm run typecheck` | PASS |
+| `npm run lint` | PASS — 0 errors, 0 warnings |
+| `npm test` | **2,028/2,028** across 159 files (2,027 + the new retention-disclosure test) |
+| `npm run test:integration` | **72/72** across 14 files on a disposable Neon branch (created → migrated → exercised → deleted) |
+| `npm run build` | PASS (production build; the smoke ran against it) |
+| `git diff --check` | clean |
+| Legal-version/reacceptance tests | 54/54 targeted (policies, acceptance, welcome/legal form+actions+page, privacy page, account) — also inside `npm test` |
+| Production-build browser smoke | **6/6** scenarios on `next start` :3131 against a disposable Neon fork (host verified ≠ production; deleted after): privacy13 (1.3 copy + old claim gone) · routes (/, /search, /terms, /signin, /access, /countries all 200) · freeget (`?q=` + forged `?intent=` → ZERO POSTs) · search (zero POSTs, zero /api/ask) · askpost (server-action answer with `LLM_DISABLE=1`; `POST /api/ask/runs` → 404; **0 ask_runs rows after**) · welcome (/welcome/legal → /signin for anonymous). Zero console/page errors everywhere. |
+| Migration dry-run (same fork = copy of production) | 0021–0027 applied cleanly (22 → 29 markers, each exactly once); re-run idempotent ("migrations up to date"); `billing_eligible` boolean NOT NULL DEFAULT false; `claim_must_have_source` trigger intact; existing rows intact (1,698 claims / 189,098 raw_documents) |
 
 ## Phase 3 — production migration · Phase 4 — baseline deploy · Phase 5 — shadow soak
 
