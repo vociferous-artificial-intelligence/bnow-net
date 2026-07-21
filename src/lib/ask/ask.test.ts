@@ -1012,7 +1012,33 @@ describe("ask() — Phase 2 progressive event emission", () => {
     p2.fetchDocsMock.mockReset();
     p2.persistSnapMock.mockReset();
     p2.fetchDocsMock.mockResolvedValue(new Map([[1, [100]], [2, [100, 101]]]));
-    p2.persistSnapMock.mockResolvedValue(undefined);
+    p2.persistSnapMock.mockResolvedValue(true);
+  });
+
+  it("release hardening: the snapshot-persist outcome rides the result as snapshotPersisted (true and false)", async () => {
+    vi.stubEnv("ASK_PIPELINE", "v2");
+    vi.stubEnv("OPENAI_API_KEY", "");
+    mocks.currencyMock.mockResolvedValue("2026-07-18");
+    mocks.retrieveV2Mock.mockResolvedValue(retrievalV2({ claims: pool, totalMatching: 5 }));
+    mocks.rerankMock.mockResolvedValue(ranked({ claims: pool, rerankUsed: false }));
+
+    const ok = await ask("what happened in kherson", {
+      sink: fakeSink(),
+      snapshotRunId: "11111111-2222-4333-8444-555555555555",
+    });
+    expect(ok.snapshotPersisted).toBe(true);
+
+    p2.persistSnapMock.mockResolvedValue(false); // injected persist failure (bounded retries exhausted)
+    const lost = await ask("what happened in kherson", {
+      sink: fakeSink(),
+      snapshotRunId: "11111111-2222-4333-8444-555555555555",
+    });
+    expect(lost.snapshotPersisted).toBe(false); // honest — feeds the durable verdict
+    expect(lost.provider).toBe("stub"); // the answer itself is unaffected ($0 offline path)
+
+    // no snapshot obligation (no sink/runId) → the field stays absent
+    const plain = await ask("what happened in kherson");
+    expect(plain.snapshotPersisted).toBeUndefined();
   });
 
   it("emits lexical_partial -> retrieval.completed -> rerank.skipped -> answer.started in order and freezes the snapshot ($0 offline path)", async () => {

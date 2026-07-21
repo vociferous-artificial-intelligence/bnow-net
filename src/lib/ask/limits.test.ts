@@ -908,3 +908,61 @@ describe("askWithLimits — Phase 4 route recording (ASK_ROUTER)", () => {
     expect(h.askMock).toHaveBeenCalledTimes(1); // same single pipeline call as ever
   });
 });
+
+// ---- release hardening: durable terminal results ---------------------------------
+
+describe("askWithLimits — durability verdict (release hardening)", () => {
+  beforeEach(() => {
+    process.env.ASK_RUNS_ENFORCE = "1";
+    process.env.ASK_CONTENT_RETENTION_DAYS = "30";
+  });
+
+  it("a transient finalize failure is retried (DB write only) and the payload reports durable: true", async () => {
+    h.finalizeRunMock
+      .mockRejectedValueOnce(new Error("transient outage"))
+      .mockRejectedValueOnce(new Error("transient outage"))
+      .mockResolvedValueOnce(true);
+    h.askMock.mockResolvedValue(v2Full());
+    const res = await askWithLimits("q", "u@x.com", { idempotencyKey: "key-1" });
+    expect(res.state).toBe("answered");
+    expect(res.durable).toBe(true);
+    expect(h.finalizeRunMock).toHaveBeenCalledTimes(3); // bounded retry
+    expect(h.askMock).toHaveBeenCalledTimes(1); // the provider was NEVER rerun
+  });
+
+  it("a persistent finalize failure returns the billed answer with durable: false — never a lost answer, never a re-run", async () => {
+    h.finalizeRunMock.mockRejectedValue(new Error("db down"));
+    h.askMock.mockResolvedValue(v2Full());
+    const res = await askWithLimits("q", "u@x.com", { idempotencyKey: "key-1" });
+    expect(res.state).toBe("answered");
+    expect(res.answer).toBe("Answer text [c1].");
+    expect(res.durable).toBe(false);
+    expect(h.finalizeRunMock).toHaveBeenCalledTimes(3);
+    expect(h.askMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("a required-snapshot persist failure downgrades durable to false even when finalize succeeded", async () => {
+    h.askMock.mockResolvedValue({ ...v2Full(), snapshotPersisted: false });
+    const res = await askWithLimits("q", "u@x.com", { idempotencyKey: "key-1" });
+    expect(res.durable).toBe(false);
+    expect(h.finalizeRunMock).toHaveBeenCalled(); // the row still finalized (result recoverable via replay)
+  });
+
+  it("a run with no snapshot obligation (snapshotPersisted absent) is durable on finalize alone", async () => {
+    h.askMock.mockResolvedValue(v2Full());
+    const res = await askWithLimits("q", "u@x.com", { idempotencyKey: "key-1" });
+    expect(res.durable).toBe(true);
+  });
+
+  it("an idempotent replay returns the stored result with ZERO new provider calls and ZERO new finalizes", async () => {
+    h.createRunMock.mockResolvedValue({
+      run: { id: "orig", userEmail: "u", question: "q", status: "finished", state: "answered", result: v2Full(), finishedAt: "t", expired: false },
+      replayed: true,
+    });
+    const res = await askWithLimits("q", "u@x.com", { idempotencyKey: "key-1" });
+    expect(res.replayed).toBe(true);
+    expect(res.runId).toBe("orig");
+    expect(h.askMock).not.toHaveBeenCalled(); // replay never re-bills
+    expect(h.finalizeRunMock).not.toHaveBeenCalled();
+  });
+});

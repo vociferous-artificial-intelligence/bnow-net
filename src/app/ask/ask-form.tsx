@@ -284,6 +284,14 @@ export function AskForm({
     // (supplementary Gate 2 finding: the transport id 404'd and the evidence
     // panels silently vanished on replays).
     const hydrateId = finalState.result?.runId ?? finalState.runId;
+    // Release hardening: durable === false means the server could not persist
+    // this run's terminal state — /result would 404 and event replay has no
+    // terminal. Render the live-wire payload directly and claim nothing about
+    // replay durability (the answer itself is real and billed).
+    if (finalState.result?.durable === false) {
+      setHydrated({ result: finalState.result, cited: [], related: [] });
+      return;
+    }
     try {
       const res = await fetch(`/api/ask/runs/${hydrateId}/result`);
       if (res.ok) {

@@ -698,4 +698,45 @@ describe("AskForm: progressive transport (ASK_PROGRESSIVE client path)", () => {
       vi.unstubAllGlobals();
     }
   });
+  it("release hardening: a durable:false terminal renders the live-wire answer WITHOUT a /result fetch (no replay-durability claim)", async () => {
+    const wireResult = { answer: "Unpersisted but billed answer.", state: "answered", provider: "openai:gpt-5", citedClaimIds: [], evidenceCount: 0, terms: [], relatedClaimIds: [], window: null, totalMatching: 0, sampled: false, retrievalMode: "v2", runId: RUN_ID, durable: false };
+    const events = [
+      `event: run.ref\ndata: {"runId":"${RUN_ID}"}\n\n`,
+      "id: 1\nevent: run.created\ndata: {}\n\n",
+      // wire-only terminal: NO id line (the server could not persist it)
+      `event: run.completed\ndata: ${JSON.stringify({ result: wireResult })}\n\n`,
+    ];
+    const fetchMock = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url) === "/api/ask/runs" && init?.method === "POST") {
+        return new Response(sseStream(events), { status: 200 });
+      }
+      throw new Error(`unexpected fetch ${String(url)}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const user = userEvent.setup();
+      render(<AskForm {...formProps} progressive />);
+      await user.type(
+        screen.getByPlaceholderText(strings["ask.placeholder"]),
+        "did russia strike kyiv today",
+      );
+      await user.click(screen.getByRole("button", { name: strings["ask.submit"] }));
+
+      await screen.findByText("Unpersisted but billed answer.");
+      // /result was never fetched — it would 404 and the client must not
+      // depend on replay durability the server did not achieve
+      expect(
+        fetchMock.mock.calls.some((c) => String(c[0]).includes("/result")),
+      ).toBe(false);
+      // the resume ref is cleared: nothing invites a replay of this run
+      expect(window.sessionStorage.getItem("bnow_ask_active_run")).toBeNull();
+      // exactly one paid POST all the same
+      const posts = fetchMock.mock.calls.filter(
+        (c) => (c[1] as RequestInit | undefined)?.method === "POST",
+      );
+      expect(posts).toHaveLength(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

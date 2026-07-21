@@ -426,3 +426,47 @@ describe("connection lifecycle — one Pool per SSE invocation", () => {
     expect(h.endMock).toHaveBeenCalledTimes(1);
   });
 });
+
+// ---- release hardening: durable terminal coherence -------------------------------
+
+describe("POST /api/ask/runs — terminal durability coherence (release hardening)", () => {
+  const answered = (extra: object = {}) => ({
+    answer: "Billed answer.", state: "answered", provider: "openai:gpt-5", citedClaimIds: [],
+    evidenceCount: 0, terms: [], relatedClaimIds: [], window: null, totalMatching: 0,
+    sampled: false, retrievalMode: "v2", runId: RUN_ID, ...extra,
+  });
+  const post = () =>
+    postRun(
+      req("/api/ask/runs", { method: "POST", body: JSON.stringify({ question: "what happened" }), headers: { "content-type": "application/json" } }),
+    );
+
+  it("durable:false → the event log NEVER claims completion; the terminal is wire-only (no id line)", async () => {
+    h.askWithLimitsMock.mockResolvedValue(answered({ durable: false }));
+    const res = await post();
+    const body = await new Response(res.body).text();
+    // no run.completed INSERT was ever attempted against the event log
+    const terminalInserts = h.queryMock.mock.calls.filter((c) => (c[1] as unknown[])?.[2] === "run.completed");
+    expect(terminalInserts).toHaveLength(0);
+    // the wire terminal is delivered id-less and carries the honest durable flag
+    expect(body).toMatch(/\nevent: run\.completed\ndata: /);
+    expect(body).not.toMatch(/id: \d+\nevent: run\.completed/);
+    expect(body).toContain('"durable":false');
+  });
+
+  it("a TRANSIENT terminal-persist failure is retried and lands in the event log (no wire fallback)", async () => {
+    h.askWithLimitsMock.mockResolvedValue(answered({ durable: true }));
+    let terminalAttempts = 0;
+    h.queryMock.mockImplementation(async (_sql: string, params?: unknown[]) => {
+      if (params?.[2] === "run.completed") {
+        terminalAttempts++;
+        if (terminalAttempts === 1) throw new Error("transient insert failure");
+      }
+      return { rows: [{ at: "t" }] };
+    });
+    const res = await post();
+    const body = await new Response(res.body).text();
+    expect(terminalAttempts).toBe(2); // failed once, retried once, persisted
+    expect(body).toMatch(/id: \d+\nevent: run\.completed/); // the PERSISTED terminal reached the wire
+    expect(body).not.toContain("run.failed");
+  });
+});

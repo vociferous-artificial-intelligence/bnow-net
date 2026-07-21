@@ -249,18 +249,37 @@ export async function fetchSourceDocIds(claims: CandidateClaim[]): Promise<Map<n
   }
 }
 
-/** Persist the frozen snapshot onto the run row. Fail-soft: the Phase 2 UI
- *  renders from events; a lost snapshot costs Phase 4 cache/Phase 6 session
- *  reuse for this one run, never the answer (registered behavior). */
-export async function persistEvidenceSnapshot(runId: string, snapshot: EvidenceSnapshot): Promise<void> {
+/** Persist the frozen snapshot onto the run row, with a bounded DB-write
+ *  retry (never a provider rerun). Returns TRUE only when the snapshot
+ *  verifiably landed (a row was updated) — release hardening: the caller
+ *  threads this into the payload's `snapshotPersisted`, which feeds the
+ *  `durable` verdict and the cache-store/hit policy. Still fail-soft (a lost
+ *  snapshot costs reuse for this one run, never the answer). */
+export async function persistEvidenceSnapshot(
+  runId: string,
+  snapshot: EvidenceSnapshot,
+  opts?: { attempts?: number; backoffMs?: number },
+): Promise<boolean> {
+  const attempts = opts?.attempts ?? 3;
+  const backoffMs = opts?.backoffMs ?? 100;
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
-    await pool.query(`UPDATE ask_runs SET evidence_snapshot = $2::jsonb WHERE id = $1`, [
-      runId,
-      JSON.stringify(snapshot),
-    ]);
-  } catch (e) {
-    console.warn(`persistEvidenceSnapshot failed (non-fatal): ${e instanceof Error ? e.message : e}`);
+    for (let i = 0; i < attempts; i++) {
+      try {
+        const r = await pool.query(`UPDATE ask_runs SET evidence_snapshot = $2::jsonb WHERE id = $1`, [
+          runId,
+          JSON.stringify(snapshot),
+        ]);
+        return (r.rowCount ?? 0) > 0;
+      } catch (e) {
+        if (i === attempts - 1) {
+          console.warn(`persistEvidenceSnapshot failed (non-fatal): ${e instanceof Error ? e.message : e}`);
+          return false;
+        }
+        await new Promise((r) => setTimeout(r, backoffMs * (i + 1)));
+      }
+    }
+    return false;
   } finally {
     await pool.end();
   }

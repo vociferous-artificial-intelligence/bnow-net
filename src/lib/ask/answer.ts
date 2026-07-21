@@ -834,16 +834,19 @@ export async function ask(
       claims: selected.length > 0 ? selected : claims,
       rerankUsed: false,
     };
+    let reuseSnapshotPersisted: boolean | undefined;
     if (opts.snapshotRunId) {
-      await persistEvidenceSnapshot(opts.snapshotRunId, snap);
+      reuseSnapshotPersisted = await persistEvidenceSnapshot(opts.snapshotRunId, snap);
     }
-    return answerFromEvidence(question, retrieval, ranked, {
+    const reuseResult = await answerFromEvidence(question, retrieval, ranked, {
       timings,
       guards: opts?.guards,
       sink,
       runId: opts?.snapshotRunId,
       historyBlock: opts?.historyBlock,
     });
+    if (reuseSnapshotPersisted !== undefined) reuseResult.snapshotPersisted = reuseSnapshotPersisted;
+    return reuseResult;
   }
 
   if (askPipeline() !== "v2") {
@@ -919,6 +922,7 @@ export async function ask(
 
   const ranked = await rankedPromise;
 
+  let snapshotPersisted: boolean | undefined;
   if (progressive) {
     if (ranked.rerankUsed) {
       await sink.emit("rerank.completed", {
@@ -949,16 +953,21 @@ export async function ask(
         selectedClaimIds: ranked.claims.map((c) => c.claimId),
         ...(ranked.relevantCount !== undefined ? { relevantCount: ranked.relevantCount } : {}),
       };
-      await persistEvidenceSnapshot(opts.snapshotRunId, snapshot);
+      snapshotPersisted = await persistEvidenceSnapshot(opts.snapshotRunId, snapshot);
     }
     await sink.emit("answer.started", {});
   }
 
-  return answerFromEvidence(question, retrieval, ranked, {
+  const result = await answerFromEvidence(question, retrieval, ranked, {
     timings,
     guards: opts?.guards,
     // Phase 3: the streaming variant activates only with a real sink AND the
     // ASK_STREAM_ANSWER flag; runId feeds the cancel-marker watch.
     ...(progressive ? { sink, runId: opts?.snapshotRunId } : {}),
   });
+  // Release hardening: the snapshot-persist outcome rides the payload so
+  // limits.ts can compute the durable verdict (and the cache-store policy can
+  // refuse a snapshotless answer) without another read.
+  if (snapshotPersisted !== undefined) result.snapshotPersisted = snapshotPersisted;
+  return result;
 }

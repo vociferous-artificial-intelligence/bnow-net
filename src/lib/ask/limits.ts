@@ -98,6 +98,7 @@ type RawAskResult = AskAnswer &
       | "rerankModel"
       | "answerModel"
       | "dataCurrentThrough"
+      | "snapshotPersisted"
     >
   >;
 
@@ -122,6 +123,8 @@ function normalizeV2(raw: RawAskResult): AskAnswerV2 {
     // additive (W1): surfaced to the UI so the insufficient/no-coverage callout can
     // state data currency; undefined on the legacy path and when the read was null.
     dataCurrentThrough: raw.dataCurrentThrough,
+    // release hardening: the snapshot-persist outcome feeds the durable verdict
+    snapshotPersisted: raw.snapshotPersisted,
   };
 }
 
@@ -371,15 +374,31 @@ async function shadowSafe<T>(what: string, fn: () => Promise<T>): Promise<T | nu
   }
 }
 
-/** Finalize the run row, fail-soft in BOTH modes: the answer already exists and
- *  the reservations already settled — a lost finalize leaves the run open for
- *  the lazy expiry sweep, never a lost answer. */
-async function finalizeSafe(opts: Parameters<typeof finalizeRun>[0]): Promise<void> {
-  try {
-    await finalizeRun(opts);
-  } catch (e) {
-    console.warn(`askWithLimits: finalize failed (expiry will reconcile): ${e instanceof Error ? e.message : e}`);
+/** Finalize the run row with a BOUNDED DB-write retry (release hardening —
+ *  never a provider rerun: the only statement retried is the conditional
+ *  UPDATE). Returns true when a terminal row durably exists — either this
+ *  finalize landed or a concurrent path already terminalized (finalizeRun's
+ *  false). Returns false only when every attempt threw: the answer already
+ *  exists and the reservations settled, so the request still succeeds, but
+ *  the payload's `durable` verdict tells the transport not to claim replay
+ *  durability; the lazy expiry sweep reconciles the open row. */
+const FINALIZE_ATTEMPTS = 3;
+const FINALIZE_BACKOFF_MS = 100;
+
+async function finalizeDurably(opts: Parameters<typeof finalizeRun>[0]): Promise<boolean> {
+  for (let i = 0; i < FINALIZE_ATTEMPTS; i++) {
+    try {
+      await finalizeRun(opts);
+      return true;
+    } catch (e) {
+      if (i === FINALIZE_ATTEMPTS - 1) {
+        console.warn(`askWithLimits: finalize failed after ${FINALIZE_ATTEMPTS} attempts (expiry will reconcile): ${e instanceof Error ? e.message : e}`);
+        return false;
+      }
+      await new Promise((r) => setTimeout(r, FINALIZE_BACKOFF_MS * (i + 1)));
+    }
   }
+  return false;
 }
 
 /** Gate + run + log. Both the /ask page and the API route go through here.
@@ -500,8 +519,8 @@ export async function askWithLimits(
       console.warn(`askWithLimits: usage gate unavailable — refusing without ask(): ${e instanceof Error ? e.message : e}`);
       const err = errorAnswer(new Error("usage gate unavailable; question refused"));
       if (enforce) {
-        await finalizeSafe({ runId: run.runId, state: "error", result: err, settledCostUsd: 0, errorClass: "gate_unavailable" });
-        return { ...err, runId: run.runId };
+        const finalized = await finalizeDurably({ runId: run.runId, state: "error", result: err, settledCostUsd: 0, errorClass: "gate_unavailable" });
+        return { ...err, runId: run.runId, durable: finalized };
       }
       return err;
     }
@@ -514,8 +533,8 @@ export async function askWithLimits(
       const globalGate = evaluateAllowance(0, usage.cost, limit, globalDailyBudgetUsd());
       if (!globalGate.allowed) {
         const refusal = limitAnswer(limitMessage(globalGate, limit));
-        await finalizeSafe({ runId: run.runId, state: "limit", result: refusal, settledCostUsd: 0 });
-        return { ...refusal, runId: run.runId };
+        const finalized = await finalizeDurably({ runId: run.runId, state: "limit", result: refusal, settledCostUsd: 0 });
+        return { ...refusal, runId: run.runId, durable: finalized };
       }
       const slot = await reserveAllowance({ runId: run.runId, userEmail: email, limit });
       if (slot.ok && progressive) await sink.emit("run.authorized", {});
@@ -529,14 +548,14 @@ export async function askWithLimits(
                 ),
               )
             : errorAnswer(new Error("allowance gate unavailable; question refused"));
-        await finalizeSafe({
+        const finalized = await finalizeDurably({
           runId: run.runId,
           state: slot.reason === "user_limit" ? "limit" : "error",
           result: refusal,
           settledCostUsd: 0,
           errorClass: slot.reason === "user_limit" ? undefined : "allowance_unavailable",
         });
-        return { ...refusal, runId: run.runId };
+        return { ...refusal, runId: run.runId, durable: finalized };
       }
     } else {
       const allowance = evaluateAllowance(usage.count, usage.cost, limit, globalDailyBudgetUsd());
@@ -582,7 +601,7 @@ export async function askWithLimits(
           }
           await persistEvidenceSnapshot(run.runId, hit.snapshot);
           if (enforce) {
-            await finalizeSafe({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: 0, units: analysisUnits(payload) });
+            payload.durable = await finalizeDurably({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: 0, units: analysisUnits(payload) });
           } else if (created) {
             await shadowSafe("finalizeRun", () =>
               finalizeRun({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: 0, units: analysisUnits(payload) }),
@@ -629,9 +648,9 @@ export async function askWithLimits(
         // failure the user needs reported (E adversarial review finding 2).
         console.warn(`askWithLimits: error-row insert failed: ${logErr instanceof Error ? logErr.message : logErr}`);
       }
-      const errPayload = { ...errRow, runId: run.runId };
+      const errPayload: AskAnswerV2 = { ...errRow, runId: run.runId };
       if (enforce) {
-        await finalizeSafe({ runId: run.runId, state: "error", result: errPayload, settledCostUsd: 0, errorClass: "pipeline_throw" });
+        errPayload.durable = await finalizeDurably({ runId: run.runId, state: "error", result: errPayload, settledCostUsd: 0, errorClass: "pipeline_throw" });
       } else if (created) {
         await shadowSafe("finalizeRun", () =>
           finalizeRun({ runId: run.runId, state: "error", result: errPayload, settledCostUsd: 0, errorClass: "pipeline_throw" }),
@@ -653,9 +672,14 @@ export async function askWithLimits(
       // per-stage SpendGuard caps (provider_usage recorded inside each stage).
       console.warn(`askWithLimits: usage-row insert failed (answer still returned): ${logErr instanceof Error ? logErr.message : logErr}`);
     }
-    const payload = { ...normalizeV2(raw), runId: run.runId };
+    const payload: AskAnswerV2 = { ...normalizeV2(raw), runId: run.runId };
     if (enforce) {
-      await finalizeSafe({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: totalCost, units: analysisUnits(payload) });
+      // Durability verdict (release hardening): a paid success is reported
+      // durably completed ONLY when the run row finalized AND any required
+      // snapshot persisted. The answer itself is returned regardless — the
+      // transport just must not claim replay durability it cannot honor.
+      const finalized = await finalizeDurably({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: totalCost, units: analysisUnits(payload) });
+      payload.durable = finalized && payload.snapshotPersisted !== false;
     } else if (created) {
       await shadowSafe("finalizeRun", () =>
         finalizeRun({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: totalCost, units: analysisUnits(payload) }),

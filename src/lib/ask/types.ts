@@ -144,4 +144,20 @@ export interface AskAnswerV2 {
    *  "as of"), and hydration resolves cited evidence from the frozen
    *  EvidenceSnapshot (F11: live claim ids may have churned). */
   cacheStatus?: "exact";
+  /** OPTIONAL (additive, release hardening 2026-07-21): false when this run
+   *  SHOULD have frozen an EvidenceSnapshot (progressive/session-reuse path)
+   *  but its bounded-retry persist ultimately failed; true when it persisted;
+   *  absent on paths that freeze no snapshot. Feeds the `durable` verdict and
+   *  the exact-cache store policy (an answer whose snapshot is lost must not
+   *  be cached or claimed replay-complete). */
+  snapshotPersisted?: boolean;
+  /** OPTIONAL (additive, release hardening 2026-07-21): the DURABILITY verdict
+   *  for a terminal payload under enforce mode. true = the run row finalized
+   *  (bounded retry) AND any required snapshot persisted — replay/result are
+   *  recoverable. false = persistence ultimately failed: the answer on the
+   *  wire is real and billed, but replay durability is NOT claimed (the runs
+   *  route then delivers the terminal wire-only instead of persisting a
+   *  run.completed event that would contradict the run row). Absent in
+   *  shadow/off modes, where no durability was ever promised. */
+  durable?: boolean;
 }
