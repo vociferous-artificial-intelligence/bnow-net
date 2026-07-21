@@ -123,7 +123,7 @@ describe("exact cache on real Postgres (Phase 4)", () => {
     const key = cacheKey({ question, window: null, corpusVersion: corpus });
     await cacheStore({ userEmail: USER, key, corpusVersion: corpus, question, result: RESULT, snapshot: SNAPSHOT });
 
-    const sink = new PgRunEventSink(crypto.randomUUID());
+    const sink = new PgRunEventSink(crypto.randomUUID(), pool);
     void sink; // progressive machinery not needed for the hit path
     const res = await askWithLimits(question, USER, { idempotencyKey: `itc-${Date.now()}` });
 

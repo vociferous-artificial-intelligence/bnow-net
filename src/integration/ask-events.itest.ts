@@ -49,7 +49,7 @@ describe("run-event transport on real Postgres (contract §6)", () => {
   it("a $0 orchestrated run persists the exact event sequence; replay matches; snapshot frozen with content + doc ids", async () => {
     const runId = crypto.randomUUID();
     const streamed: Array<{ seq: number; type: string }> = [];
-    const sink = new PgRunEventSink(runId, (e) => {
+    const sink = new PgRunEventSink(runId, pool, (e) => {
       streamed.push({ seq: e.seq, type: e.type });
     });
 
@@ -106,7 +106,7 @@ describe("run-event transport on real Postgres (contract §6)", () => {
 
   it("replay/tail reads make zero provider calls and zero new events (read-only by construction)", async () => {
     const runId = crypto.randomUUID();
-    const sink = new PgRunEventSink(runId);
+    const sink = new PgRunEventSink(runId, pool);
     await sink.emit("run.created", {});
     await sink.emit("run.completed", { result: { answer: "x" } as never });
 

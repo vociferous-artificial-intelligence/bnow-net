@@ -133,17 +133,30 @@ export const NULL_EVENT_SINK: RunEventSink = {
   async emit() {},
 };
 
+/** The minimal query surface the sink/replay reader needs. A request-scoped
+ *  Pool satisfies it; tests pass spies. Connection lifecycle (release
+ *  hardening): the ROUTE INVOCATION owns one Pool for its whole lifetime and
+ *  ends it in its finally — never a Pool per event or per poll, and never a
+ *  Pool constructed at module import time. */
+export interface PgQueryable {
+  query(text: string, params?: unknown[]): Promise<{ rows: unknown[]; rowCount?: number | null }>;
+}
+
 /** Postgres-backed sink for one run. seq is assigned in-process — exactly one
  *  orchestrating invocation writes a given run's events (the reconnect route
  *  only reads), so a plain counter is race-free. Persist failures THROW to the
  *  orchestrator, which downgrades the run honestly (an event the client may
  *  never be able to replay must not be silently skipped); the onEmitted hook
- *  lets the SSE encoder forward the row that was just persisted. */
+ *  lets the SSE encoder forward the row that was just persisted.
+ *
+ *  `db` is REQUIRED (release hardening): the owning invocation supplies its
+ *  request-scoped connection; the sink never constructs or ends one. */
 export class PgRunEventSink implements RunEventSink {
   private seq = 0;
 
   constructor(
     private readonly runId: string,
+    private readonly db: PgQueryable,
     private readonly onEmitted?: (event: AskRunEvent) => void | Promise<void>,
   ) {}
 
@@ -157,27 +170,25 @@ export class PgRunEventSink implements RunEventSink {
       throw new Error(`ask run event ${type}: payload keys outside the allowlist: ${violations.join(", ")}`);
     }
     const seq = ++this.seq;
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    try {
-      const { rows } = await pool.query(
-        `INSERT INTO ask_run_events (run_id, seq, type, payload)
-         VALUES ($1, $2, $3, $4::jsonb)
-         RETURNING at::text AS at`,
-        [this.runId, seq, type, JSON.stringify(payload)],
-      );
-      const at = (rows[0] as { at: string }).at;
-      await this.onEmitted?.({ seq, type, at, payload });
-    } finally {
-      await pool.end();
-    }
+    const { rows } = await this.db.query(
+      `INSERT INTO ask_run_events (run_id, seq, type, payload)
+       VALUES ($1, $2, $3, $4::jsonb)
+       RETURNING at::text AS at`,
+      [this.runId, seq, type, JSON.stringify(payload)],
+    );
+    const at = (rows[0] as { at: string }).at;
+    await this.onEmitted?.({ seq, type, at, payload });
   }
 }
 
-/** Read a run's persisted events with seq > after, in order (replay). */
-export async function readRunEvents(runId: string, after = 0): Promise<AskRunEvent[]> {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+/** Read a run's persisted events with seq > after, in order (replay). With a
+ *  `db` the caller's request-scoped connection is reused (the events route
+ *  polls this every 500ms — a Pool per poll was pure churn); without one, a
+ *  Pool is created and ended for this single call. */
+export async function readRunEvents(runId: string, after = 0, db?: PgQueryable): Promise<AskRunEvent[]> {
+  const own = db ? null : new Pool({ connectionString: process.env.DATABASE_URL });
   try {
-    const { rows } = await pool.query(
+    const { rows } = await (db ?? own!).query(
       `SELECT seq, type, at::text AS at, payload FROM ask_run_events
        WHERE run_id = $1 AND seq > $2 ORDER BY seq`,
       [runId, after],
@@ -189,7 +200,7 @@ export async function readRunEvents(runId: string, after = 0): Promise<AskRunEve
       payload: r.payload as never,
     }));
   } finally {
-    await pool.end();
+    await own?.end();
   }
 }
 

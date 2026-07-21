@@ -28,14 +28,9 @@ const TAIL_CUTOFF_MS = 50_000;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const encoder = new TextEncoder();
 
-async function runOwner(runId: string): Promise<string | null> {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  try {
-    const { rows } = await pool.query(`SELECT user_email FROM ask_runs WHERE id = $1`, [runId]);
-    return (rows[0] as { user_email: string } | undefined)?.user_email ?? null;
-  } finally {
-    await pool.end();
-  }
+async function runOwner(pool: Pool, runId: string): Promise<string | null> {
+  const { rows } = await pool.query(`SELECT user_email FROM ask_runs WHERE id = $1`, [runId]);
+  return (rows[0] as { user_email: string } | undefined)?.user_email ?? null;
 }
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -43,9 +38,22 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const { id } = await ctx.params;
   if (!UUID_RE.test(id)) return new NextResponse(null, { status: 404 });
 
-  const owner = await runOwner(id);
+  // ONE request-scoped Pool for the ownership check AND every tail poll
+  // (release hardening — previously a fresh Pool per 500ms poll). Ended in
+  // the stream's finally on terminal, client disconnect, and route cutoff.
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  let owner: string | null;
+  try {
+    owner = await runOwner(pool, id);
+  } catch (e) {
+    await pool.end().catch(() => {});
+    throw e;
+  }
   const email = user?.email ?? "anonymous";
-  if (owner === null || owner !== email) return new NextResponse(null, { status: 404 });
+  if (owner === null || owner !== email) {
+    await pool.end().catch(() => {});
+    return new NextResponse(null, { status: 404 });
+  }
 
   const afterRaw = Number(req.nextUrl.searchParams.get("after") ?? "0");
   const after = Number.isFinite(afterRaw) && afterRaw > 0 ? Math.trunc(afterRaw) : 0;
@@ -69,7 +77,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       let lastBeat = started;
       try {
         for (;;) {
-          const events = await readRunEvents(id, lastSeq);
+          const events = await readRunEvents(id, lastSeq, pool);
           for (const e of events) {
             if (e.seq >= CANCEL_SEQ_BASE) {
               if (forwardedMarkers.has(e.seq)) continue;
@@ -93,6 +101,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
           await new Promise((r) => setTimeout(r, POLL_MS));
         }
       } finally {
+        try {
+          await pool.end();
+        } catch {}
         try {
           controller.close();
         } catch {}

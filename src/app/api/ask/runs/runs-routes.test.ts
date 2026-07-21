@@ -15,9 +15,13 @@ const h = vi.hoisted(() => ({
   queryMock: vi.fn(),
   endMock: vi.fn(),
   askWithLimitsMock: vi.fn(),
+  poolCount: { n: 0 },
 }));
 vi.mock("@neondatabase/serverless", () => ({
   Pool: class {
+    constructor() {
+      h.poolCount.n++;
+    }
     query = h.queryMock;
     end = h.endMock;
   },
@@ -30,10 +34,15 @@ const { POST: postRun } = await import("./route");
 const { GET: getEvents } = await import("./[id]/events/route");
 const { POST: postCancel } = await import("./[id]/cancel/route");
 
+// Release hardening: no route module may construct a Pool at import time —
+// a build-time import must stay connection-free.
+const POOLS_AT_IMPORT = h.poolCount.n;
+
 const RUN_ID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  h.poolCount.n = 0;
   h.endMock.mockResolvedValue(undefined);
   h.queryMock.mockResolvedValue({ rows: [{ at: "2026-07-19T00:00:00Z" }] });
   // Release hardening: the POST boundary consults the effective-feature
@@ -347,5 +356,73 @@ describe("POST /api/ask/runs — effective-feature + cohort boundary (release ha
       params: Promise.resolve({ id: RUN_ID }),
     });
     expect(res.status).toBe(200);
+  });
+});
+
+// ---- release hardening: request-scoped connection lifecycle ----------------------
+
+describe("connection lifecycle — one Pool per SSE invocation", () => {
+  it("no Pool is constructed at module import time (build-safe)", () => {
+    expect(POOLS_AT_IMPORT).toBe(0);
+  });
+
+  it("POST /api/ask/runs: N persisted events use ONE Pool, ended exactly once", async () => {
+    h.askWithLimitsMock.mockImplementation(
+      async (_q: string, _e: string, opts: { sink: { emit(t: string, p: object): Promise<void> } }) => {
+        await opts.sink.emit("run.created", {});
+        await opts.sink.emit("run.authorized", {});
+        await opts.sink.emit("answer.started", {});
+        return { answer: "A.", state: "answered", provider: "openai:gpt-5", citedClaimIds: [], evidenceCount: 0, terms: [], relatedClaimIds: [], window: null, totalMatching: 0, sampled: false, retrievalMode: "v2" };
+      },
+    );
+    const res = await postRun(
+      req("/api/ask/runs", { method: "POST", body: JSON.stringify({ question: "what happened" }), headers: { "content-type": "application/json" } }),
+    );
+    await new Response(res.body).text(); // drain to completion
+    expect(h.poolCount.n).toBe(1); // one request-scoped pool, not one per event
+    expect(h.endMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("events GET: multiple tail polls share ONE Pool; the terminal closes it exactly once", async () => {
+    let polls = 0;
+    h.queryMock.mockImplementation(async (sql: string) => {
+      if (String(sql).includes("SELECT user_email")) return { rows: [{ user_email: "user@example.com" }] };
+      polls++;
+      if (polls < 3) return { rows: [] }; // two empty polls first
+      return { rows: [{ seq: 1, type: "run.completed", at: "t", payload: { result: { answer: "A." } } }] };
+    });
+    const res = await getEvents(req(`/api/ask/runs/${RUN_ID}/events`), {
+      params: Promise.resolve({ id: RUN_ID }),
+    });
+    await new Response(res.body).text();
+    expect(polls).toBeGreaterThanOrEqual(3);
+    expect(h.poolCount.n).toBe(1); // owner check + every poll on one pool
+    expect(h.endMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("events GET: a client disconnect (aborted signal) stops polling and cleans up the pool", async () => {
+    h.queryMock.mockImplementation(async (sql: string) => {
+      if (String(sql).includes("SELECT user_email")) return { rows: [{ user_email: "user@example.com" }] };
+      return { rows: [] }; // never a terminal — only the abort can end the loop
+    });
+    const controller = new AbortController();
+    controller.abort();
+    const aborted = new NextRequest(`https://bnow.net/api/ask/runs/${RUN_ID}/events`, {
+      signal: controller.signal,
+    } as never);
+    const res = await getEvents(aborted, { params: Promise.resolve({ id: RUN_ID }) });
+    await new Response(res.body).text(); // resolves because the loop breaks on abort
+    expect(h.poolCount.n).toBe(1);
+    expect(h.endMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("events GET: an ownership 404 still ends the pool it opened", async () => {
+    h.queryMock.mockImplementation(async () => ({ rows: [] })); // unknown run
+    const res = await getEvents(req(`/api/ask/runs/${RUN_ID}/events`), {
+      params: Promise.resolve({ id: RUN_ID }),
+    });
+    expect(res.status).toBe(404);
+    expect(h.poolCount.n).toBe(1);
+    expect(h.endMock).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Pool } from "@neondatabase/serverless";
 import { requireAcceptedUser } from "@/lib/gate";
 import { askWithLimits } from "@/lib/ask/limits";
 import { progressiveAllowedFor } from "@/lib/ask/features";
@@ -65,7 +66,10 @@ export async function POST(req: NextRequest) {
       // needs the run id + its own last seq to reconnect. Heartbeat-class data.
       send(`event: run.ref\ndata: ${JSON.stringify({ runId })}\n\n`);
 
-      const sink = new PgRunEventSink(runId, (e: AskRunEvent) => send(encodeSseEvent(e)));
+      // ONE request-scoped Pool for every event this invocation persists
+      // (release hardening — previously a Pool per event); ended in finally.
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      const sink = new PgRunEventSink(runId, pool, (e: AskRunEvent) => send(encodeSseEvent(e)));
       try {
         let result: Awaited<ReturnType<typeof askWithLimits>> | null = null;
         try {
@@ -111,6 +115,9 @@ export async function POST(req: NextRequest) {
           }
         }
       } finally {
+        try {
+          await pool.end();
+        } catch {}
         try {
           controller.close();
         } catch {}
