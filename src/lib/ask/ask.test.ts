@@ -1127,6 +1127,11 @@ describe("answerFromEvidence — ASK_STREAM_ANSWER wiring", () => {
   beforeEach(() => {
     p3.streamAnswerMock.mockReset();
     p3.watchStop.mockClear();
+    // Release hardening (features.ts): streaming is effective only on the full
+    // progressive stack — enforce (with retention) + progressive + the flag.
+    vi.stubEnv("ASK_RUNS_ENFORCE", "1");
+    vi.stubEnv("ASK_CONTENT_RETENTION_DAYS", "30");
+    vi.stubEnv("ASK_PROGRESSIVE", "1");
   });
 
   it("flag ON + real sink: streams, emits answer.validating, terminal payload through the SAME assemble path", async () => {

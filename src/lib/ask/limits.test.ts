@@ -25,6 +25,7 @@ const h = vi.hoisted(() => {
     askMock, queryMock, endMock, poolCtor,
     createRunMock, reserveAllowanceMock, finalizeRunMock, expireStaleRunsMock, buildGuardsMock,
     cacheKeyMock, cacheLookupMock, cacheStoreMock, corpusVersionMock,
+    sweepRetentionMock: vi.fn(),
   };
 });
 
@@ -34,13 +35,15 @@ vi.mock("@neondatabase/serverless", () => ({ Pool: h.poolCtor }));
 // is covered by runs.test.ts and the real-Postgres integration suite; here we
 // pin askWithLimits' MODE LOGIC (shadow vs enforce).
 vi.mock("./runs", () => ({
-  askRunsEnforce: () => process.env.ASK_RUNS_ENFORCE === "1",
   createRun: h.createRunMock,
   reserveAllowance: h.reserveAllowanceMock,
   finalizeRun: h.finalizeRunMock,
   expireStaleRuns: h.expireStaleRunsMock,
 }));
 vi.mock("./run-guards", () => ({ buildAskRunGuards: h.buildGuardsMock }));
+// Release hardening: the retention sweep is mocked (its SQL is covered by
+// retention.test.ts + the itest); here we pin WHEN it rides the money path.
+vi.mock("./retention", () => ({ sweepAskRetentionThrottled: h.sweepRetentionMock }));
 // Phase 4: the exact-cache module is mocked (its own SQL is covered by
 // cache.test.ts + the real-Postgres itest); here we pin the WIRING —
 // flag-gating, hit short-circuit, store policy.
@@ -104,7 +107,11 @@ let usage = { user_count: 0, global_cost: 0 };
 beforeEach(() => {
   delete process.env.ASK_USER_DAILY_LIMIT;
   delete process.env.ASK_GLOBAL_DAILY_BUDGET_USD;
-  delete process.env.ASK_RUNS_ENFORCE; // default: shadow mode
+  delete process.env.ASK_RUNS_ENFORCE; // default: persistence OFF
+  delete process.env.ASK_RUNS_SHADOW;
+  delete process.env.ASK_PROGRESSIVE;
+  delete process.env.ASK_CONTENT_RETENTION_DAYS;
+  delete process.env.ASK_CACHE_TTL_DAYS;
   usage = { user_count: 0, global_cost: 0 };
   h.askMock.mockReset();
   h.queryMock.mockReset();
@@ -121,6 +128,8 @@ beforeEach(() => {
   h.cacheStoreMock.mockReset();
   h.corpusVersionMock.mockReset();
   h.cacheStoreMock.mockResolvedValue(undefined);
+  h.sweepRetentionMock.mockReset();
+  h.sweepRetentionMock.mockResolvedValue(undefined);
   delete process.env.ASK_EXACT_CACHE;
   delete process.env.ASK_ROUTER;
   // shadow-mode defaults: run writes succeed quietly and change nothing
@@ -599,6 +608,7 @@ describe("recordEntryTimings — entry-point patch", () => {
 describe("askWithLimits — Phase 1 enforce mode", () => {
   beforeEach(() => {
     process.env.ASK_RUNS_ENFORCE = "1";
+    process.env.ASK_CONTENT_RETENTION_DAYS = "30"; // enforce requires retention (features.ts)
   });
 
   it("threads the atomic stage guards into ask() and finalizes the run with the settled cost", async () => {
@@ -738,6 +748,12 @@ describe("askWithLimits — Phase 1 enforce mode", () => {
 });
 
 describe("askWithLimits — Phase 1 shadow mode stays byte-equivalent", () => {
+  beforeEach(() => {
+    // Release hardening: shadow persistence is an explicit opt-in + retention.
+    process.env.ASK_RUNS_SHADOW = "1";
+    process.env.ASK_CONTENT_RETENTION_DAYS = "30";
+  });
+
   it("shadow createRun failure never blocks the request", async () => {
     h.createRunMock.mockRejectedValue(new Error("ask_runs table missing"));
     h.askMock.mockResolvedValue(v2Full());
@@ -765,6 +781,15 @@ describe("askWithLimits — Phase 1 shadow mode stays byte-equivalent", () => {
 
 describe("askWithLimits — Phase 4 exact cache (ASK_EXACT_CACHE)", () => {
   const SNAPSHOT = { version: 1, candidates: [], selectedClaimIds: [] };
+
+  beforeEach(() => {
+    // Release hardening: exact cache is effective only on the full progressive
+    // stack (enforce + retention + progressive + cache TTL — features.ts).
+    process.env.ASK_RUNS_ENFORCE = "1";
+    process.env.ASK_CONTENT_RETENTION_DAYS = "30";
+    process.env.ASK_PROGRESSIVE = "1";
+    process.env.ASK_CACHE_TTL_DAYS = "7";
+  });
 
   it("flag OFF (default): the cache module is never consulted", async () => {
     h.askMock.mockResolvedValue(v2Full());

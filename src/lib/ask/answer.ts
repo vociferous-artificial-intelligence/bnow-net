@@ -14,8 +14,8 @@ import {
   askRelevanceBoundaryEnabled,
   askRelevantEvidenceFloor,
   askRerankModel,
-  askStreamAnswer,
 } from "./config";
+import { effectiveAskFeatures } from "./features";
 // Phase 3 Increment A: every deterministic answer check lives in the shared
 // pure validator (citation filter, denial prefix, insufficient copy, terminal
 // classification, the ruling-20 source-fidelity matrix) so the streaming and
@@ -575,7 +575,7 @@ export async function answerFromEvidence(
   // sections were validated by the identical validator functions, and the
   // terminal payload governs the client render (structural reconciliation).
   const sink = opts?.sink;
-  if (sink && sink !== NULL_EVENT_SINK && askStreamAnswer()) {
+  if (sink && sink !== NULL_EVENT_SINK && effectiveAskFeatures().streamAnswer) {
     const tStream = monotonicMs();
     const controller = new AbortController();
     const stopWatch = opts?.runId

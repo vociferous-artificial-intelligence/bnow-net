@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAcceptedUser } from "@/lib/gate";
 import { askWithLimits } from "@/lib/ask/limits";
+import { progressiveAllowedFor } from "@/lib/ask/features";
 import {
   encodeSseEvent,
   PgRunEventSink,
@@ -27,6 +28,15 @@ const encoder = new TextEncoder();
 
 export async function POST(req: NextRequest) {
   const user = await requireAcceptedUser();
+  // Release hardening: the progressive transport is gated AT THE BOUNDARY by
+  // the same server-side resolver + cohort policy page.tsx renders from. A
+  // hand-crafted POST while the feature stack is off (or from outside the
+  // cohort) is refused BEFORE any money path — the route behaves as absent.
+  // The read-only events/result GETs stay ungated by feature flags so a
+  // rollback never orphans already-created (possibly billed) runs.
+  if (!progressiveAllowedFor(user?.email ?? null)) {
+    return new NextResponse(null, { status: 404 });
+  }
   const body = (await req.json().catch(() => ({}))) as {
     question?: string;
     idempotencyKey?: string;

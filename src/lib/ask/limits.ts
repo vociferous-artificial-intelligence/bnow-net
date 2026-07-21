@@ -9,7 +9,6 @@ import {
   type StageTimings,
 } from "./timings";
 import {
-  askRunsEnforce,
   createRun,
   expireStaleRuns,
   finalizeRun,
@@ -18,7 +17,9 @@ import {
 } from "./runs";
 import { buildAskRunGuards } from "./run-guards";
 import { NULL_EVENT_SINK, persistEvidenceSnapshot, type EvidenceSnapshot, type RunEventSink } from "./events";
-import { askExactCache, askRouter } from "./config";
+import { askRouter } from "./config";
+import { effectiveAskFeatures } from "./features";
+import { sweepAskRetentionThrottled } from "./retention";
 import { cacheKey, cacheLookup, cacheStore, corpusVersion } from "./cache";
 import { route, routePolicyString } from "./router";
 import { analysisUnits } from "./units";
@@ -420,7 +421,12 @@ export async function askWithLimits(
     if ("mode" in policy) run.routePolicy = routePolicyString(policy);
   }
   const t0 = monotonicMs();
-  const enforce = askRunsEnforce();
+  // Release hardening: the effective-feature resolver is the ONE authority —
+  // enforce requires valid retention settings; shadow persistence is an
+  // explicit opt-in (default OFF: a plain deploy stores nothing new).
+  const features = effectiveAskFeatures();
+  const enforce = features.runsPersistence === "enforce";
+  const shadow = features.runsPersistence === "shadow";
   // Phase 2: the progressive transport's event sink. run.created/run.authorized
   // are emitted HERE (the one money path); the pipeline events come from ask();
   // the route emits the terminal event with the returned payload. NULL sink =
@@ -433,6 +439,9 @@ export async function askWithLimits(
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
     let created: CreateRunResult | null = null;
+    // Retention housekeeping rides the persisted paths only (throttled,
+    // fail-soft): with persistence off there is nothing to govern.
+    if (enforce || shadow) await sweepAskRetentionThrottled();
     if (enforce) {
       await expireStaleRuns(); // lazy sweep, fail-soft internally
       try {
@@ -470,13 +479,15 @@ export async function askWithLimits(
         }
         return duplicateInFlightAnswer(existing.id);
       }
-    } else {
+    } else if (shadow) {
       created = await shadowSafe("createRun", () =>
         createRun({ runId: run.runId, userEmail: email, question, idempotencyKey }),
       );
       // Shadow replay detection changes NOTHING (legacy gates stay authoritative);
       // the collision is only visible in the soak telemetry.
     }
+    // runsPersistence "off" (the DEFAULT): zero ask_runs writes — behavior
+    // byte-equivalent to Phase 0; `created` stays null so no finalize fires.
     if (progressive) await sink.emit("run.created", {});
 
     let usage: { count: number; cost: number };
@@ -549,7 +560,7 @@ export async function askWithLimits(
     // off, every visitor folds to one "anonymous" namespace — caching there
     // would pool answers across people). Session reuse turns bypass it too:
     // their answer is scoped to the SESSION's frozen snapshot.
-    if (askExactCache() && userEmail !== null && !opts?.sessionReuse) {
+    if (features.exactCache && userEmail !== null && !opts?.sessionReuse) {
       try {
         const corpus = await corpusVersion(pool);
         const key = cacheKey({ question, window: parseTimeWindow(question), corpusVersion: corpus });

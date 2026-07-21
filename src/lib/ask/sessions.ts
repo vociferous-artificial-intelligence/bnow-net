@@ -11,6 +11,7 @@
 import { Pool } from "@neondatabase/serverless";
 import { askWithLimits } from "./limits";
 import { askPipeline } from "./config";
+import { effectiveAskFeatures } from "./features";
 import type { AskAnswerV2 } from "./types";
 import type { EvidenceSnapshot } from "./events";
 
@@ -19,8 +20,11 @@ export const MAX_SESSION_TURNS = 20;
 /** Idle TTL after which a session is no longer "active" for follow-ups. */
 export const SESSION_IDLE_TTL_MS = 24 * 60 * 60 * 1000;
 
+/** Sessions are effective only through the feature resolver (release
+ *  hardening): ASK_SESSIONS=1 alone is NOT sufficient — enforce mode and
+ *  valid retention settings are prerequisites (features.ts). */
 export function askSessionsEnabled(): boolean {
-  return process.env.ASK_SESSIONS === "1";
+  return effectiveAskFeatures().sessions;
 }
 
 export type FollowupScope = "reuse" | "expand" | "new";

@@ -5,6 +5,7 @@ import { dict, makeT } from "@/i18n/dictionaries";
 import { makeClaimEvidenceLabels } from "@/components/claim-evidence-labels";
 import { claimCopyLabels } from "@/components/claim-copy-model";
 import { isAskIntentId } from "@/lib/ask/intent";
+import { progressiveAllowedFor } from "@/lib/ask/features";
 import { AskForm } from "./ask-form";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ export default async function AskPage({
 }: {
   searchParams: Promise<{ q?: string; intent?: string }>;
 }) {
-  await requireAcceptedUser(); // page gate matches the layout + action + API (acceptance too)
+  const user = await requireAcceptedUser(); // page gate matches the layout + action + API (acceptance too)
   const locale = await getLocale();
   const t = makeT(locale);
   const { q, intent } = await searchParams;
@@ -69,9 +70,11 @@ export default async function AskPage({
       <AskForm
         initialQuestion={initialQuestion}
         intent={askIntent}
-        // Phase 2 flag, read server-side: the client transport switch. Off
-        // (default/rollback) keeps the server-action path byte-identical.
-        progressive={process.env.ASK_PROGRESSIVE === "1"}
+        // Release hardening: the server-side effective-feature resolver + the
+        // per-user cohort policy decide the transport — the SAME check the
+        // runs POST boundary enforces, so this prop is presentation only.
+        // Off (default/rollback) keeps the server-action path byte-identical.
+        progressive={progressiveAllowedFor(user?.email ?? null)}
         strings={askStrings}
         locale={locale}
         evidenceLabels={makeClaimEvidenceLabels(t)}

@@ -13,6 +13,7 @@ for (const k of ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "X_API_KEY", "OPENSANCTI
 }
 process.env.ASK_SESSIONS = "1";
 process.env.ASK_RUNS_ENFORCE = "1";
+process.env.ASK_CONTENT_RETENTION_DAYS = "30"; // enforce/sessions require retention (features.ts)
 process.env.ASK_GLOBAL_DAILY_BUDGET_USD = "1000";
 
 const { runMigrations } = await import("../../scripts/migrations-lib");
@@ -77,6 +78,7 @@ beforeAll(async () => {
 afterAll(async () => {
   delete process.env.ASK_SESSIONS;
   delete process.env.ASK_RUNS_ENFORCE;
+  delete process.env.ASK_CONTENT_RETENTION_DAYS;
   delete process.env.ASK_GLOBAL_DAILY_BUDGET_USD;
   await cleanup();
   await pool.end();

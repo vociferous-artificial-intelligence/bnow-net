@@ -70,6 +70,9 @@ beforeAll(async () => {
 afterAll(async () => {
   delete process.env.ASK_EXACT_CACHE;
   delete process.env.ASK_RUNS_ENFORCE;
+  delete process.env.ASK_CONTENT_RETENTION_DAYS;
+  delete process.env.ASK_PROGRESSIVE;
+  delete process.env.ASK_CACHE_TTL_DAYS;
   await cleanup();
   await pool.end();
 });
@@ -110,6 +113,10 @@ describe("exact cache on real Postgres (Phase 4)", () => {
   it("end-to-end $0 hit through askWithLimits (enforce mode): stored payload returns, no pipeline, snapshot re-persisted onto the new run", async () => {
     process.env.ASK_RUNS_ENFORCE = "1";
     process.env.ASK_EXACT_CACHE = "1";
+    // release hardening: the cache stack requires retention + progressive + TTL
+    process.env.ASK_CONTENT_RETENTION_DAYS = "30";
+    process.env.ASK_PROGRESSIVE = "1";
+    process.env.ASK_CACHE_TTL_DAYS = "7";
     process.env.ASK_GLOBAL_DAILY_BUDGET_USD = "1000";
     const question = "Itest cache end to end question";
     const corpus = await corpusVersion(pool);

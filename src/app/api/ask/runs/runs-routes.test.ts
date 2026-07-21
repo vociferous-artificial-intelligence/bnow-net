@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 process.env.DATABASE_URL ??= "postgres://test:test@localhost:5432/test";
@@ -36,6 +36,16 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.endMock.mockResolvedValue(undefined);
   h.queryMock.mockResolvedValue({ rows: [{ at: "2026-07-19T00:00:00Z" }] });
+  // Release hardening: the POST boundary consults the effective-feature
+  // resolver — enable the progressive stack so the route semantics under test
+  // are reachable; individual tests unset these to pin the boundary gate.
+  vi.stubEnv("ASK_RUNS_ENFORCE", "1");
+  vi.stubEnv("ASK_CONTENT_RETENTION_DAYS", "30");
+  vi.stubEnv("ASK_PROGRESSIVE", "1");
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 function req(url: string, init?: RequestInit): NextRequest {
@@ -262,5 +272,80 @@ describe("POST /api/ask/runs/[id]/cancel — Phase 2 stub", () => {
     });
     expect(res.status).toBe(404);
     expect(h.queryMock.mock.calls.some((c) => String(c[0]).includes("INSERT"))).toBe(false);
+  });
+});
+
+// ---- release hardening: server-side feature/cohort boundary ----------------------
+
+describe("POST /api/ask/runs — effective-feature + cohort boundary (release hardening)", () => {
+  const post = () =>
+    postRun(
+      req("/api/ask/runs", {
+        method: "POST",
+        body: JSON.stringify({ question: "what happened in kherson" }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+  it("404s BEFORE any money path when ASK_PROGRESSIVE is off", async () => {
+    vi.stubEnv("ASK_PROGRESSIVE", "");
+    const res = await post();
+    expect(res.status).toBe(404);
+    expect(h.askWithLimitsMock).not.toHaveBeenCalled();
+  });
+
+  it("404s when ASK_PROGRESSIVE=1 but enforce is not effective (no retention) — fail closed", async () => {
+    vi.stubEnv("ASK_CONTENT_RETENTION_DAYS", "");
+    const res = await post();
+    expect(res.status).toBe(404);
+    expect(h.askWithLimitsMock).not.toHaveBeenCalled();
+  });
+
+  it("404s for a user outside ASK_PROGRESSIVE_COHORT; serves a cohort member", async () => {
+    vi.stubEnv("ASK_PROGRESSIVE_COHORT", "insider@example.com");
+    const refused = await post();
+    expect(refused.status).toBe(404);
+    expect(h.askWithLimitsMock).not.toHaveBeenCalled();
+
+    vi.stubEnv("ASK_PROGRESSIVE_COHORT", "Insider@example.com, user@example.com");
+    h.askWithLimitsMock.mockResolvedValue({
+      answer: "A.", state: "answered", provider: "openai:gpt-5", citedClaimIds: [], evidenceCount: 0,
+      terms: [], relatedClaimIds: [], window: null, totalMatching: 0, sampled: false, retrievalMode: "v2",
+    });
+    const served = await post();
+    expect(served.status).toBe(200);
+    expect(h.askWithLimitsMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("read-only events GET stays available with every feature flag off (rollback never orphans runs)", async () => {
+    vi.stubEnv("ASK_PROGRESSIVE", "");
+    vi.stubEnv("ASK_RUNS_ENFORCE", "");
+    h.queryMock.mockImplementation(async (sql: string) => {
+      if (String(sql).includes("SELECT user_email")) return { rows: [{ user_email: "user@example.com" }] };
+      return {
+        rows: [
+          { seq: 1, type: "run.completed", at: "t", payload: { result: { answer: "A." } } },
+        ],
+      };
+    });
+    const res = await getEvents(req(`/api/ask/runs/${RUN_ID}/events`), {
+      params: Promise.resolve({ id: RUN_ID }),
+    });
+    expect(res.status).toBe(200);
+    const body = await new Response(res.body).text();
+    expect(body).toContain("event: run.completed");
+  });
+
+  it("cancel POST stays owner-gated but NOT feature-gated (Stop works during rollback)", async () => {
+    vi.stubEnv("ASK_PROGRESSIVE", "");
+    vi.stubEnv("ASK_RUNS_ENFORCE", "");
+    h.queryMock.mockImplementation(async (sql: string) => {
+      if (String(sql).includes("SELECT user_email")) return { rows: [{ user_email: "user@example.com" }] };
+      return { rows: [] };
+    });
+    const res = await postCancel(req(`/api/ask/runs/${RUN_ID}/cancel`, { method: "POST" }), {
+      params: Promise.resolve({ id: RUN_ID }),
+    });
+    expect(res.status).toBe(200);
   });
 });

@@ -41,11 +41,22 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.endMock.mockResolvedValue(undefined);
   h.queryMock.mockResolvedValue({ rows: [] });
+  // Release hardening (features.ts): ASK_SESSIONS is only effective under
+  // enforce mode with valid retention — stub the prerequisites so the
+  // per-test ASK_SESSIONS stubs keep their original meaning.
+  vi.stubEnv("ASK_RUNS_ENFORCE", "1");
+  vi.stubEnv("ASK_CONTENT_RETENTION_DAYS", "30");
 });
 afterEach(() => vi.unstubAllEnvs());
 
 describe("flag", () => {
   it("sessions are OFF by default", () => {
+    expect(askSessionsEnabled()).toBe(false);
+  });
+
+  it("ASK_SESSIONS=1 alone (no enforce/retention) stays OFF — fail closed", () => {
+    vi.stubEnv("ASK_RUNS_ENFORCE", "");
+    vi.stubEnv("ASK_SESSIONS", "1");
     expect(askSessionsEnabled()).toBe(false);
   });
 });
@@ -249,8 +260,11 @@ describe("runReuseFollowupTurn — the $-bearing wiring", () => {
   it("G6: ASK_PIPELINE=legacy refuses instead of drifting to live retrieval", async () => {
     vi.stubEnv("ASK_SESSIONS", "1");
     vi.stubEnv("ASK_PIPELINE", "legacy");
+    // Release hardening: the feature resolver now forces sessions OFF on the
+    // legacy pipeline, so the refusal fires even earlier as flag_off; the
+    // in-module pipeline_legacy check remains as defense in depth.
     const r = await runReuseFollowupTurn({ sessionId: "s", userEmail: "u", question: "q" });
-    expect(r).toEqual({ ok: false, reason: "pipeline_legacy" });
+    expect(r).toEqual({ ok: false, reason: "flag_off" });
     expect(h.askWithLimitsMock).not.toHaveBeenCalled();
   });
 

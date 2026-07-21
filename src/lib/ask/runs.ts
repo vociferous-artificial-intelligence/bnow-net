@@ -2,23 +2,22 @@
 // (atomic allowance slot), terminalize (exactly once), lazy expiry.
 // Contract: docs/designs/ASK-RUNS-RESERVATION-CONTRACT-2026-07-19.md.
 //
-// Two operating modes, selected by the CALLER (limits.ts) via askRunsEnforce():
-//  - shadow (flag off, default): every write here is best-effort — a failure
-//    logs and returns a null-ish result, the legacy gates stay authoritative,
-//    and behavior remains byte-equivalent to Phase 0.
-//  - enforce (ASK_RUNS_ENFORCE=1): createRun/authorize failures FAIL CLOSED at
-//    the caller (a run that cannot be recorded must not spend).
+// Operating modes are selected by the CALLER (limits.ts) via the
+// effective-feature resolver (features.ts — release hardening: the raw env
+// read is no longer authority anywhere):
+//  - off (DEFAULT): limits.ts never calls into here — zero ask_runs writes.
+//  - shadow (ASK_RUNS_SHADOW=1 + valid retention): every write here is
+//    best-effort — a failure logs and returns a null-ish result, the legacy
+//    gates stay authoritative.
+//  - enforce (ASK_RUNS_ENFORCE=1 + valid retention): createRun/authorize
+//    failures FAIL CLOSED at the caller (a run that cannot be recorded must
+//    not spend).
 
 import { Pool } from "@neondatabase/serverless";
 import { analysisUnits } from "./units";
 import { utcDayIso } from "../usage/spend-guard";
 import { expireStaleReservations } from "../usage/reservations";
 import type { AnswerState, AskAnswerV2 } from "./types";
-
-/** Enforce flag: unset/anything-but-"1" = shadow mode. */
-export function askRunsEnforce(): boolean {
-  return process.env.ASK_RUNS_ENFORCE === "1";
-}
 
 /** Non-terminal runs older than this are expired by the lazy sweep. Must be
  *  comfortably above the 60s route maxDuration so an in-flight run can never

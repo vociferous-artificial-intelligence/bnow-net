@@ -33,11 +33,13 @@ beforeAll(async () => {
   pool = new Pool({ connectionString: URL });
   await cleanup();
   process.env.ASK_RUNS_ENFORCE = "1";
+  process.env.ASK_CONTENT_RETENTION_DAYS = "30"; // enforce requires retention (features.ts)
   process.env.ASK_GLOBAL_DAILY_BUDGET_USD = "1000";
 });
 
 afterAll(async () => {
   delete process.env.ASK_RUNS_ENFORCE;
+  delete process.env.ASK_CONTENT_RETENTION_DAYS;
   delete process.env.ASK_GLOBAL_DAILY_BUDGET_USD;
   await cleanup();
   await pool.end();
