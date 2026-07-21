@@ -80,6 +80,10 @@ export interface EmbedBatchesRequest {
   /** flat per-input-token price — the embed stage owns its price constant */
   costPerToken: number;
   guard?: StageGuard;
+  /** Explicit 429/5xx retry knobs (release hardening): every retry attempt
+   *  takes its OWN reservation — one reservation never covers two physical
+   *  dispatches. Injectable sleep keeps tests off the wall clock. */
+  retry?: { maxRetries?: number; baseMs?: number; sleep?: (ms: number) => Promise<void> };
 }
 
 export interface EmbedBatchesResult {

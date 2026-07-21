@@ -96,11 +96,6 @@ export function stubVector(text: string, dims = EMBED_DIMS): number[] {
   return v;
 }
 
-// -- retry ----------------------------------------------------------------------
-// Phase 5: moved verbatim into the gateway layer; re-exported so every
-// historical import keeps working.
-export { withRetry } from "../llm/retry";
-
 // -- main -----------------------------------------------------------------------
 
 /** Embed texts. Batched (<=128/request), retried, metered through `guard` when
