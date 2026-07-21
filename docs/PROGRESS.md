@@ -2431,3 +2431,20 @@ commits, all gates re-run at the end):
 Constraints: no pushes/deploys/prod writes/paid calls; migrations 0021–0026
 and 9999 untouched; rulings 1–5 and 20 preserved; free /search and $0 GET
 /ask preserved. Merge target: codex/ai-search-ask-integration-20260719 only.
+
+## 2026-07-21 15:05 ET — Release hardening COMPLETE (branch codex/ai-search-ask-release-hardening-20260721)
+
+All 11 areas landed in 11 area-prefixed commits (b5150e9..d302231; report:
+docs/reviews/AI-SEARCH-RELEASE-HARDENING-2026-07-21.md). Final gates on the
+finished tree: typecheck PASS · lint 0 errors/0 warnings · unit 2,026/2,026
+(159 files) · integration 72/72 (14 files, two disposable Neon branches used
+across the session, all deleted) · build PASS · git diff --check clean ·
+browser battery 9/9 scenarios on the production build against a disposable
+fork with a $0 local mock provider (zero console errors; free-GET and
+/search zero-cost contracts re-proven; injected terminal-persistence
+failures rendered honestly). Migration 0027 (additive billing
+policy/eligibility) generated; 0021–0026 and 9999 untouched. One product
+defect found BY the battery and fixed: a Stop in the provider dispatch
+window now classifies as cancelled (d302231). Zero paid calls, zero
+production writes, nothing pushed or deployed; main untouched. Next: merge
+--no-ff into codex/ai-search-ask-integration-20260719 only.

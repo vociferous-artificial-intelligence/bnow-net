@@ -28,6 +28,7 @@ are retained after merge for inspection.
 | 5 — provider gateway | `codex/ai-search-ask-p5-provider-gateway` | **PASSED Gate 5 after fixes** (`2e01e9c` + `c701970`; 0 blocker/high, 1 med + 4 low; SDK byte-parity probe over all 7 moved dispatches); unit 1,915/1,915, itest 56/56; merged to integration | Gate 5 (1 independent reviewer + inline pass + mechanical equivalence) | `AI-SEARCH-PHASE-5-provider-gateway-2026-07-20.md`, `AI-SEARCH-GATE-5-2026-07-20.md` |
 | 6 — investigation sessions | `codex/ai-search-ask-p6-sessions` | **PASSED Gate 6 after fixes** (`c98786a` + `10f9d54`; 1 high + 5 med + 3 low all fixed); unit 1,945/1,945, itest 61/61; merged to integration. NO UI; rollout retention-blocked | Gate 6 (1 independent reviewer, executed probes) | `AI-SEARCH-PHASE-6-sessions-2026-07-20.md`, `AI-SEARCH-GATE-6-2026-07-20.md` |
 | 7 — entitlements (Ask side) | `codex/ai-search-ask-p7-entitlements` | **Subset PASSED Gate 7 after fixes** (`9578584` + `528731e`); **JOINT boundary leg BLOCKED on the absent billing contract** (checklist in the gate report); unit 1,963/1,963, itest 61/61; merged to integration | Gate 7 (independent subset review; joint leg blocked, honestly recorded) | `AI-SEARCH-PHASE-7-entitlements-2026-07-20.md`, `AI-SEARCH-GATE-7-2026-07-20.md` |
+| RH — release hardening 2026-07-21 | `codex/ai-search-ask-release-hardening-20260721` | 11-area operator-directed hardening pass (retry/spend, feature resolver, retention, durable terminals, connection lifecycle, transactional sessions, cache TTL, billing cutover metadata, atomic migrations, defaults, cleanup); merged to integration | full gate battery re-run (see report) | `AI-SEARCH-RELEASE-HARDENING-2026-07-21.md` |
 
 ## Migrations claimed
 
@@ -40,6 +41,7 @@ are retained after merge for inspection.
 | 0024 | `0024_marvelous_dark_beast.sql` | 4 | ask_answer_cache (unique user_email+cache_key, created_at index) — purely additive, passive until `ASK_EXACT_CACHE=1` | generated via drizzle-kit; applied + exercised on disposable Neon forks only; NOT applied to production |
 | 0025 | `0025_confused_ulik.sql` | 6 | ask_sessions + ask_turns (unique session+seq; unique run) — purely additive, passive until `ASK_SESSIONS=1` | generated via drizzle-kit; applied + exercised on disposable Neon forks only; NOT applied to production |
 | 0026 | `0026_lumpy_the_fallen.sql` | 7 | ask_runs.units (nullable) — purely additive; written at finalize by the units.ts policy | generated via drizzle-kit; applied + exercised on disposable Neon forks only; NOT applied to production |
+| 0027 | `0027_numerous_lord_tyger.sql` | RH | ask_runs.billing_policy (text, NULL historical) + ask_runs.billing_eligible (boolean NOT NULL DEFAULT false) — purely additive; eligibility set ONLY by units.ts billingEligibility() (needs enforce + ASK_BILLING_CUTOVER_AT + units>0); aggregate billable figures filter on it strictly | generated via drizzle-kit; applied + exercised on disposable Neon forks only; NOT applied to production |
 
 > **HARD enablement order (Gate 0 finding F5; applies to 0022 equally):** apply migration 0021 to production
 > (`npm run db:migrate`) BEFORE deploying any build containing the Phase 0 commits.
@@ -58,14 +60,16 @@ The concurrent Paddle/billing workstream had no schema work in-tree at claim tim
 |---|---|---|
 | `NEXT_PUBLIC_ANALYTICS_ASK_STARTED` | unset (event never emits) | operator approval of the new PostHog event + decision-log entry |
 | Paid answer-model matrix eval run (~$1–3) | not run | operator approval (recorded as enablement-blocked in Gate 0) |
-| `ASK_RUNS_ENFORCE` | unset (shadow: rows only, legacy gates authoritative) | operator enablement AFTER prod migration (0021+0022) + deploy + shadow soak |
-| `ASK_PROGRESSIVE` | unset (server-action transport; run routes exist but the client never calls them) | operator enablement after prod migration (0023) + SSE-through-production-proxy verification + internal cohort; **enable together with `ASK_RUNS_ENFORCE=1`** (register #44 — replay semantics hold only under enforce) |
+| `ASK_RUNS_ENFORCE` | unset (**OFF — release hardening: default no longer shadow-writes anything**) | operator enablement AFTER prod migration (0021+0022+0027) + valid `ASK_CONTENT_RETENTION_DAYS` (enforce is INEFFECTIVE without retention — features.ts) + deploy + an explicit `ASK_RUNS_SHADOW=1` soak |
+| `ASK_RUNS_SHADOW` | unset (no ask_runs writes at all) | operator opt-in for the shadow soak; requires valid retention settings |
+| `ASK_PROGRESSIVE` | unset (server-action transport; the runs POST 404s at the boundary) | operator enablement after prod migration (0023) + SSE-through-production-proxy verification; **structurally requires effective `ASK_RUNS_ENFORCE` on v2** (features.ts enforces register #44); `ASK_PROGRESSIVE_COHORT` scopes the rollout to an allowlist server-side |
 | `ASK_STREAM_ANSWER` | unset (whole-answer release) | Gate 3 pass + operator cohort decision; only effective with ASK_PROGRESSIVE |
 | `ASK_FIDELITY_FALLBACK` | ON by default (deterministic, $0) | rollback knob only — set 0 to disable sentence replacement (binds BOTH the whole-answer and streaming paths since Gate 3) |
 | `ASK_ROUTER` | unset (constants path; router never consulted) | recording-only telemetry — safe anytime after prod migration; routing models THROUGH the policy requires the paid scorecard + a hard autoPolicy scorecard check (register #52) |
-| `ASK_EXACT_CACHE` | unset (no cache reads/writes) | operator enablement after prod migration (0024); per-user only; hits $0 with disclosed "as of" |
+| `ASK_EXACT_CACHE` | unset (no cache reads/writes) | operator enablement after prod migration (0024); structurally requires effective `ASK_PROGRESSIVE` + valid `ASK_CACHE_TTL_DAYS` (features.ts); TTL enforced at lookup; hits are snapshot-verified or demoted to misses |
 | Fast/Deep routes + mode selector UI | not servable (scorecard refusals; no UI) | the paid answer-model matrix (~$1–3, operator-blocked) incl. the fidelity fixtures, then registry scorecard entries |
-| `ASK_SESSIONS` | unset (every session path unreachable; no UI exists) | the operator retention decision (§7.7) + prod migration (0025) + UI build |
+| `ASK_SESSIONS` | unset (every session path unreachable; no UI exists) | the operator retention decision (§7.7 — now the concrete `ASK_CONTENT_RETENTION_DAYS` env) + prod migration (0025) + UI build; structurally requires effective enforce on v2 (features.ts) |
+| `ASK_BILLING_CUTOVER_AT` | unset (**nothing is ever invoice-eligible**) | the billing contract + Gate 7 joint leg + an explicit operator decision-log entry |
 
 Phase 0's measurement columns are passive (no flag needed; rollback = stop writing them).
 

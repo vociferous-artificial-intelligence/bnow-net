@@ -395,3 +395,94 @@ blockers accumulated by the unattended workstream. Revisit-markers are explicit.
   regex gold to validator-verdict gold (keep the regex layer as a scorecard fallback).
 - `validateMs` currently measures only the answered-path parse+assembly; if Phase 3
   moves validation into a dedicated stage, re-point the key rather than adding another.
+
+## Release hardening (2026-07-21, codex/ai-search-ask-release-hardening-20260721)
+
+### Structural decisions
+
+72. **One reservation per physical dispatch, absolutely.** Every OpenAI client
+    in the gateway adapter is constructed `maxRetries: 0` (the SDK default of
+    2 hidden retries could put three billed attempts behind one reservation);
+    the only retry loop (embed batches) takes a FRESH reservation per attempt,
+    settles definitive server rejections at $0 before retrying, and leaves
+    connection-class unknowns open for the conservative ceiling-settle expiry.
+    The legacy pipeline's SDK client also lost its hidden retries — a
+    deliberate, minimal deviation from its "byte-faithful" charter, money-
+    safety over fidelity. `withRetry` was deleted (caller-less, and a standing
+    invitation to re-wrap a guarded dispatch).
+73. **features.ts is the single flag authority.** Effectiveness lattice:
+    enforce/shadow require valid retention; progressive requires enforce+v2;
+    streaming requires progressive; exact cache requires progressive + TTL;
+    sessions require enforce+v2. Invalid combinations fail closed and warn
+    once. Register #23's legacy+enforce combination now RESOLVES (enforce
+    retained for money atomicity; every v2 feature forced off) instead of
+    being documentation-only.
+74. **Shadow persistence is opt-in** (`ASK_RUNS_SHADOW=1`, default OFF): a
+    plain deploy of this tree stores NO ask_runs questions/results. The
+    "deploy = soak" plan from register #13 is superseded — the soak now
+    requires the explicit shadow flag plus retention settings.
+75. **Retention is operator-owned and enforced lazily**
+    (`ASK_CONTENT_RETENTION_DAYS`, `ASK_EVENTS_RETENTION_DAYS` defaulting to
+    content, `ASK_CACHE_TTL_DAYS`): run content redacts (question/result/
+    snapshot; idempotency key rotates to `expired:<id>` — the key frees, a
+    resubmission is honestly a new gesture), events/cache/idle-session rows
+    delete, accounting survives. Sweep is throttled (5 min/process) on the
+    persisted money path; cache TTL is ALSO enforced in cacheLookup's own
+    predicate (an expired entry can neither hit nor bump hit accounting).
+76. **Cohort policy** (`ASK_PROGRESSIVE_COHORT`): unset = every accepted user
+    once the stack is effective; set = comma-separated allowlist,
+    case-insensitive; anonymous (gate-off dev) is OUT when a cohort is set.
+    page.tsx and the runs POST boundary consult the SAME function; events/
+    result GETs and cancel stay owner-gated but flag-UNgated so rollback
+    never orphans billed runs (cancel is inert without an orchestrator).
+77. **Durability verdict** (`result.durable`): enforce-mode terminals carry
+    an explicit verdict = run row finalized (bounded 3-attempt DB retry,
+    provider never rerun) AND any required snapshot persisted
+    (`snapshotPersisted`, itself verified + retried). The runs route persists
+    the terminal event ONLY when durable (an event log claiming completion
+    must never contradict a row the sweep will expire); otherwise wire-only
+    terminal, and the client renders it without /result and claims no replay
+    durability. Terminal-event persist retries burn seqs on failure — seq
+    GAPS are tolerated by every reader (ordering, not contiguity).
+78. **Connection lifecycle:** the SSE routes own ONE request-scoped Pool each
+    (sink + tail polls included); PgRunEventSink takes the invocation's
+    connection and never constructs/ends its own; no module builds a Pool at
+    import time. Register #26/#33's per-operation pools inside
+    askWithLimits/runs.ts remain registered debt (bounded, beta scale).
+79. **Sessions are transactional:** start-from-run, append-turn (+
+    last_active bump, cap in the INSERT's HAVING, session-row FOR UPDATE),
+    and §7.7 delete each commit or roll back whole. New typed refusal
+    `run_in_session`; `pipeline_legacy` is now defense-in-depth (the resolver
+    refuses sessions on legacy first, as flag_off).
+80. **Cache hits are snapshot-verified:** a hit is served only after its
+    frozen snapshot verifiably persists onto THIS run's row; a failed persist
+    demotes to a miss and runs the pipeline (F11: hydration may never fall
+    back to live claim ids). Register #54's hit-counts-against-allowance
+    stance is unchanged; register #55 is now ENFORCED server-side (cache
+    requires the progressive stack) rather than registered-only.
+81. **Billing cutover metadata (migration 0027):** ask_runs.billing_policy +
+    billing_eligible (default false). Eligible = enforce mode AND
+    ASK_BILLING_CUTOVER_AT (unset by default; invalid ⇒ unset) in the past
+    AND units > 0, with belt-and-braces payload re-checks (replay/cache/
+    degraded/cancelled/refusal never eligible even if the unit policy
+    drifts). aggregateUnits' units/runs stay INFORMATIONAL; only
+    billableUnits/billableRuns (strict billing_eligible filter) may feed an
+    invoice. Setting the cutover env is an operator action requiring a
+    decision-log entry; no Paddle/entitlement code exists.
+82. **Migrations apply atomically per file** (statements + _migrations marker
+    in one transaction over an interactive client); a midway failure leaves
+    no partial DDL and no marker; rerun-after-fix applies fresh. 9999 still
+    sorts last. (No existing migration file was edited.)
+
+### Deferred operator decisions (added by this session)
+
+- Retention values themselves (`ASK_CONTENT_RETENTION_DAYS` etc.) — the
+  §7.7-class decision is now a concrete pair of envs; nothing persists until
+  they are set. The public Privacy Notice will need a retention disclosure
+  BEFORE any persistence-backed feature is enabled in production (the notice
+  currently describes no Ask run/result storage; defaults-off keeps it
+  accurate today).
+- `ASK_BILLING_CUTOVER_AT` — must stay unset until the Paddle/billing
+  contract exists and the Gate 7 joint leg passes.
+- `ASK_PROGRESSIVE_COHORT` membership for the first internal rollout.
+- ASK_FIDELITY_FALLBACK stays DEFAULT-ON (re-affirmed; rollback knob only).
