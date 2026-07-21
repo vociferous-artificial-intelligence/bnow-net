@@ -456,7 +456,10 @@ describe("AskForm: progressive transport (ASK_PROGRESSIVE client path)", () => {
     const tail = [
       `id: 2\nevent: run.completed\ndata: ${JSON.stringify({ result: { answer: "Resumed answer.", state: "answered", provider: "openai:gpt-5", citedClaimIds: [], evidenceCount: 0, terms: [], relatedClaimIds: [], window: null, totalMatching: 0, sampled: false, retrievalMode: "v2" } })}\n\n`,
     ];
-    const fetchMock = vi.fn(async (url: RequestInfo | URL, _init?: RequestInit) => {
+    const fetchMock = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      // resume is a pure read — fail LOUDLY on any paid POST, and the param
+      // stays referenced (the unused-var warning this replaces was real noise)
+      if (init?.method === "POST") throw new Error(`unexpected paid POST ${String(url)}`);
       if (String(url).startsWith(`/api/ask/runs/${RUN_ID}/events`)) {
         return new Response(sseStream(tail), { status: 200 });
       }
