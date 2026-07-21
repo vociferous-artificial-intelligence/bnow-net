@@ -11,6 +11,10 @@
 //
 // Isolation: strictly per-user (unique (user_email, cache_key)); cross-user/
 // org pooling is an explicit operator decision that has NOT been made (§13.2).
+// EXACT CACHE REQUIRES THE PROGRESSIVE STACK (release hardening): only
+// snapshot-carrying runs are F11-safely cacheable, so features.ts makes
+// ASK_EXACT_CACHE effective only when ASK_PROGRESSIVE is effective (plus a
+// valid ASK_CACHE_TTL_DAYS) — enforced server-side, not just documented.
 // Store policy: only completed ANSWERED, non-replayed, provider-billed runs
 // WITH a frozen snapshot (progressive runs persist one; snapshotless answers
 // are not cacheable F11-safely — registered bound). All writes fail-soft: a
@@ -29,6 +33,7 @@ import {
   askVectorTop,
 } from "./config";
 import { route, type RoutePolicy } from "./router";
+import { effectiveAskFeatures } from "./features";
 import { fidelityFallbackEnabled } from "./validator";
 import { SYSTEM_V2 } from "./answer";
 
@@ -111,16 +116,25 @@ export interface CacheHit {
 }
 
 /** Read a cache entry (exact key). Fail-soft to null — a cache outage must
- *  never fail a question. Updates hit accounting best-effort. */
+ *  never fail a question.
+ *
+ *  TTL is enforced HERE, in the lookup predicate (release hardening): an
+ *  entry past ASK_CACHE_TTL_DAYS is a MISS whose hit accounting is never
+ *  incremented — expiry does not depend on the store-time sweep having
+ *  reached the row. A missing/invalid TTL configuration is a structural
+ *  miss (fail closed; the feature resolver should have kept the cache off). */
 export async function cacheLookup(userEmail: string, key: string): Promise<CacheHit | null> {
+  const ttlDays = effectiveAskFeatures().cacheTtlDays;
+  if (ttlDays === null) return null;
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
     const { rows } = await pool.query(
       `UPDATE ask_answer_cache
        SET hit_count = hit_count + 1, last_hit_at = now()
        WHERE user_email = $1 AND cache_key = $2
+         AND created_at >= now() - ($3 || ' days')::interval
        RETURNING result, snapshot, created_at::text AS created_at`,
-      [userEmail, key],
+      [userEmail, key, String(ttlDays)],
     );
     const row = rows[0] as
       | { result: AskAnswerV2; snapshot: EvidenceSnapshot; created_at: string }
@@ -148,11 +162,15 @@ export async function cacheStore(opts: {
 }): Promise<void> {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
-    // the stored payload must not carry per-gesture fields
+    // the stored payload must not carry per-gesture fields (durable and
+    // snapshotPersisted are THIS gesture's persistence verdicts, recomputed
+    // for every hit — release hardening)
     const stored: Record<string, unknown> = { ...opts.result };
     delete stored.runId;
     delete stored.replayed;
     delete stored.cacheStatus;
+    delete stored.durable;
+    delete stored.snapshotPersisted;
     await pool.query(
       `INSERT INTO ask_answer_cache (user_email, cache_key, corpus_version, question, result, snapshot)
        VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb)
@@ -171,8 +189,12 @@ export async function cacheStore(opts: {
     // Lazy retention sweep (Gate 4): every corpus move permanently orphans
     // prior entries (their key can never be recomputed), so old rows are pure
     // dead weight. Piggybacked on store — no new cron; the created_at index
-    // covers it; §9.2 prescribes TTL ≤ corpus cadence, 7 days is generous.
-    await pool.query(`DELETE FROM ask_answer_cache WHERE created_at < now() - interval '7 days'`);
+    // covers it. The window is the SAME operator TTL the lookup enforces
+    // (release hardening); expiry itself never depends on this sweep.
+    const ttlDays = effectiveAskFeatures().cacheTtlDays ?? 7;
+    await pool.query(`DELETE FROM ask_answer_cache WHERE created_at < now() - ($1 || ' days')::interval`, [
+      String(ttlDays),
+    ]);
   } catch (e) {
     console.warn(`ask cache store failed (ignored): ${e instanceof Error ? e.message : e}`);
   } finally {

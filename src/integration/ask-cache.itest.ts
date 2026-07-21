@@ -13,6 +13,13 @@ process.env.DATABASE_URL = URL;
 for (const k of ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "X_API_KEY", "OPENSANCTIONS_API_KEY"]) {
   delete process.env[k];
 }
+// Release hardening: cacheLookup enforces the operator TTL via the feature
+// resolver, so the full cache stack is required for EVERY lookup in this suite.
+process.env.ASK_RUNS_ENFORCE = "1";
+process.env.ASK_CONTENT_RETENTION_DAYS = "30";
+process.env.ASK_PROGRESSIVE = "1";
+process.env.ASK_EXACT_CACHE = "1";
+process.env.ASK_CACHE_TTL_DAYS = "7";
 
 const { runMigrations } = await import("../../scripts/migrations-lib");
 const { cacheKey, cacheLookup, cacheStore, corpusVersion, normalizeQuestion } = await import(
@@ -111,12 +118,6 @@ describe("exact cache on real Postgres (Phase 4)", () => {
   });
 
   it("end-to-end $0 hit through askWithLimits (enforce mode): stored payload returns, no pipeline, snapshot re-persisted onto the new run", async () => {
-    process.env.ASK_RUNS_ENFORCE = "1";
-    process.env.ASK_EXACT_CACHE = "1";
-    // release hardening: the cache stack requires retention + progressive + TTL
-    process.env.ASK_CONTENT_RETENTION_DAYS = "30";
-    process.env.ASK_PROGRESSIVE = "1";
-    process.env.ASK_CACHE_TTL_DAYS = "7";
     process.env.ASK_GLOBAL_DAILY_BUDGET_USD = "1000";
     const question = "Itest cache end to end question";
     const corpus = await corpusVersion(pool);
@@ -162,5 +163,39 @@ describe("exact cache on real Postgres (Phase 4)", () => {
     const b = cacheKey({ question: "what happened in kherson", window: null, corpusVersion: corpus });
     expect(normalizeQuestion("  What   HAPPENED in kherson?? ")).toBe("what happened in kherson");
     expect(a).toBe(b);
+  });
+});
+
+describe("exact cache TTL at lookup (release hardening)", () => {
+  it("an entry past ASK_CACHE_TTL_DAYS is a MISS and its hit accounting stays untouched", async () => {
+    const corpus = await corpusVersion(pool);
+    const key = cacheKey({ question: "TTL boundary question?", window: null, corpusVersion: corpus });
+    await cacheStore({ userEmail: USER, key, corpusVersion: corpus, question: "TTL boundary question?", result: RESULT, snapshot: SNAPSHOT });
+
+    // age the entry just past the 7-day TTL
+    await pool.query(
+      `UPDATE ask_answer_cache SET created_at = now() - interval '8 days'
+       WHERE user_email = $1 AND cache_key = $2`,
+      [USER, key],
+    );
+    expect(await cacheLookup(USER, key)).toBeNull();
+    const aged = await pool.query(
+      `SELECT hit_count, last_hit_at FROM ask_answer_cache WHERE user_email = $1 AND cache_key = $2`,
+      [USER, key],
+    );
+    // the expired row may or may not still exist (sweeps are lazy) but its
+    // accounting was NOT bumped by the miss
+    if (aged.rows.length > 0) {
+      expect((aged.rows[0] as { hit_count: number }).hit_count).toBe(0);
+      expect((aged.rows[0] as { last_hit_at: string | null }).last_hit_at).toBeNull();
+    }
+
+    // just INSIDE the window it hits
+    await pool.query(
+      `UPDATE ask_answer_cache SET created_at = now() - interval '6 days'
+       WHERE user_email = $1 AND cache_key = $2`,
+      [USER, key],
+    );
+    expect(await cacheLookup(USER, key)).not.toBeNull();
   });
 });

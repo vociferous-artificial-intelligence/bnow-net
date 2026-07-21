@@ -142,8 +142,9 @@ beforeEach(() => {
   h.expireStaleRunsMock.mockResolvedValue(undefined);
   h.buildGuardsMock.mockReturnValue({ embed: "G_EMBED", rerank: "G_RERANK", answer: "G_ANSWER" });
   h.queryMock.mockImplementation(async (text: string) => {
-    if (String(text).includes("INSERT INTO ask_usage")) return { rows: [] };
-    return { rows: [{ user_count: usage.user_count, global_cost: usage.global_cost }] };
+    if (String(text).includes("INSERT INTO ask_usage")) return { rows: [], rowCount: 1 };
+    // rowCount 1 so persistEvidenceSnapshot's verified-success check passes
+    return { rows: [{ user_count: usage.user_count, global_cost: usage.global_cost }], rowCount: 1 };
   });
 });
 
@@ -879,6 +880,27 @@ describe("askWithLimits — Phase 4 exact cache (ASK_EXACT_CACHE)", () => {
     h.askMock.mockResolvedValue(v2Full({ provider: "stub" }));
     await askWithLimits("q", "u@x.com");
     expect(h.cacheStoreMock).not.toHaveBeenCalled();
+  });
+
+  it("release hardening: a HIT whose snapshot persist fails is demoted to a MISS (the pipeline runs; no lying evidence panel)", async () => {
+    h.corpusVersionMock.mockResolvedValue("100:50");
+    h.cacheKeyMock.mockReturnValue("key-abc");
+    h.cacheLookupMock.mockResolvedValue({
+      result: v2Full({ answer: "Cached answer [c1]." }),
+      snapshot: SNAPSHOT,
+      createdAt: "2026-07-20",
+    });
+    h.askMock.mockResolvedValue(v2Full({ answer: "Fresh pipeline answer [c1]." }));
+    h.queryMock.mockImplementation(async (sql: string) => {
+      if (String(sql).includes("INSERT INTO ask_usage")) return { rows: [], rowCount: 1 };
+      if (String(sql).includes("SET evidence_snapshot")) return { rows: [], rowCount: 0 }; // persist fails every attempt
+      if (String(sql).includes("evidence_snapshot")) return { rows: [{ evidence_snapshot: null }] };
+      return { rows: [{ user_count: 0, global_cost: 0 }], rowCount: 1 };
+    });
+    const res = await askWithLimits("cached question", "u@x.com");
+    expect(res.answer).toBe("Fresh pipeline answer [c1].");
+    expect(res.cacheStatus).toBeUndefined(); // never served as a hit
+    expect(h.askMock).toHaveBeenCalledTimes(1); // the paid pipeline ran (miss semantics)
   });
 
   it("a cache-path failure is a MISS, never a failed question", async () => {

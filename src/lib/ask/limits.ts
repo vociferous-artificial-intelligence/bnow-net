@@ -586,28 +586,44 @@ export async function askWithLimits(
         cacheCtx = { key, corpus };
         const hit = await cacheLookup(email, key);
         if (hit) {
-          const payload: AskAnswerV2 = { ...hit.result, runId: run.runId, cacheStatus: "exact" };
-          recordStage(run.timings, "pipelineMs", monotonicMs() - t0);
-          try {
-            // The hit's accounting row must not replay the ORIGINAL run's paid
-            // stage columns (Gate 4: a $0 row asserting stage costs is
-            // incoherent and double-counts in any stage aggregation). The
-            // provider marker makes hit rows queryable; the payload the USER
-            // sees keeps its true provider.
-            const hitRow = { ...payload, provider: "cache:exact", usage: undefined, usageByStage: undefined };
-            await logUsage(pool, email, question, hitRow as RawAskResult, 0, run);
-          } catch (logErr) {
-            console.warn(`askWithLimits: cache-hit usage row failed (answer still returned): ${logErr instanceof Error ? logErr.message : logErr}`);
+          // The frozen snapshot must be recoverable from THIS run BEFORE the
+          // hit is served (release hardening): hydration resolves cited
+          // evidence from the run row's snapshot, and falling back to live
+          // claim ids after corpus churn is exactly the F11 failure the
+          // snapshot exists to prevent. A failed snapshot persist therefore
+          // demotes the hit to a MISS (the paid pipeline runs instead) —
+          // never a hit whose evidence panel silently lies.
+          const snapOk = await persistEvidenceSnapshot(run.runId, hit.snapshot);
+          if (!snapOk) {
+            console.warn("askWithLimits: cache-hit snapshot persist failed — treating as a miss");
+          } else {
+            const payload: AskAnswerV2 = {
+              ...hit.result,
+              runId: run.runId,
+              cacheStatus: "exact",
+              snapshotPersisted: true,
+            };
+            recordStage(run.timings, "pipelineMs", monotonicMs() - t0);
+            try {
+              // The hit's accounting row must not replay the ORIGINAL run's paid
+              // stage columns (Gate 4: a $0 row asserting stage costs is
+              // incoherent and double-counts in any stage aggregation). The
+              // provider marker makes hit rows queryable; the payload the USER
+              // sees keeps its true provider.
+              const hitRow = { ...payload, provider: "cache:exact", usage: undefined, usageByStage: undefined };
+              await logUsage(pool, email, question, hitRow as RawAskResult, 0, run);
+            } catch (logErr) {
+              console.warn(`askWithLimits: cache-hit usage row failed (answer still returned): ${logErr instanceof Error ? logErr.message : logErr}`);
+            }
+            if (enforce) {
+              payload.durable = await finalizeDurably({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: 0, units: analysisUnits(payload) });
+            } else if (created) {
+              await shadowSafe("finalizeRun", () =>
+                finalizeRun({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: 0, units: analysisUnits(payload) }),
+              );
+            }
+            return payload;
           }
-          await persistEvidenceSnapshot(run.runId, hit.snapshot);
-          if (enforce) {
-            payload.durable = await finalizeDurably({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: 0, units: analysisUnits(payload) });
-          } else if (created) {
-            await shadowSafe("finalizeRun", () =>
-              finalizeRun({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: 0, units: analysisUnits(payload) }),
-            );
-          }
-          return payload;
         }
       } catch (e) {
         // A cache problem is a MISS, never a failed question.
