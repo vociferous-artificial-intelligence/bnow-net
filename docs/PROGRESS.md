@@ -2472,3 +2472,31 @@ Plan:
    ask_runs rows), ff main only after migration success, push.
 6. ASK_RUNS_SHADOW=1, redeploy same commit, verify shadow posture, begin
    48–72h soak with monitoring; release-and-shadow report.
+
+## 2026-07-21 17:20 ET — RELEASED to production + shadow soak started
+
+Release commit 836b46e (merge 356cba5; Privacy 1.3 b293712) deployed:
+- Gates: typecheck PASS · lint 0/0 · unit 2,028/2,028 (159 files) · itest
+  72/72 (14 files, disposable branch) · build PASS · diff-check clean ·
+  6/6 production-build browser smoke on a disposable fork (privacy 1.3,
+  routes, free-GET $0, search $0, ask flags-off with 0 ask_runs rows,
+  welcome gate) · fork migration dry-run + idempotency.
+- Production DB: backup branch backup-pre-ask-release-2026-07-21
+  (br-small-poetry-atf9x253) taken; 0021–0027 applied, each marker once
+  (29 total), re-run idempotent; billing_eligible DEFAULT false; 9999
+  trigger verified present; 0 claims without source link.
+- Baseline deploy dpl_GNuFfB2qqX61cRtuMdjpJTT2sLfR (flags off, retention
+  30/7/7): /health = 836b46e on bnow.net; Privacy 1.3 + forced
+  reacceptance proven live (magic link via Postmark API; analytics stayed
+  denied; acceptances 6→7 = Terms 1.1 + Privacy 1.3); free-GET/forged-
+  intent/search all $0; one paid Ask ($0.0089) → ZERO ask_runs rows.
+  Pushed origin/main 9d556cf→836b46e (no Vercel Git integration — CLI is
+  the only deploy path; no competing builds).
+- Shadow: ASK_RUNS_SHADOW=1 + same-commit redeploy
+  dpl_5scfsMfttrHZbLFWgdkAKdpBAHFT; probe Ask ($0.016) → EXACTLY one
+  shadow row (finished/answered, result persisted, units 1,
+  ask-units-v1:shadow, billing_eligible FALSE, no reservations/events/
+  cache); free GET + search persist nothing; crons green across both
+  deploys; first scripts/ask-shadow-soak-check.ts pass: PASS.
+- Cohort activation: HOLD — needs clean 48–72h soak + reviewed nonempty
+  ASK_PROGRESSIVE_COHORT + operator decision-log entry.

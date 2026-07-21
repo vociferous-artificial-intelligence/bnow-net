@@ -35,21 +35,21 @@ are retained after merge for inspection.
 
 | Number | Name | Phase | Contents | Status |
 |---|---|---|---|---|
-| 0021 | `0021_blushing_shiver_man.sql` | 0 | ask_usage += run_id (uuid, unique idx), started_at, stage_timings_ms jsonb, first_content_at, route_policy — purely additive | generated via drizzle-kit; **applied + contract-verified on a disposable Neon fork only; NOT applied to production** (production writes are out of authorization) |
+| 0021 | `0021_blushing_shiver_man.sql` | 0 | ask_usage += run_id (uuid, unique idx), started_at, stage_timings_ms jsonb, first_content_at, route_policy — purely additive | generated via drizzle-kit; fork-verified; **APPLIED TO PRODUCTION 2026-07-21** (release `836b46e`; marker exactly once; idempotent re-run proven) |
 
-| 0022 | `0022_reflective_callisto.sql` | 1 | ask_runs + ask_allowance_reservations + provider_usage_reservations — purely additive, passive until `ASK_RUNS_ENFORCE=1` | generated via drizzle-kit; applied + exercised on disposable Neon forks only; NOT applied to production |
-| 0023 | `0023_yielding_triathlon.sql` | 2 | ask_run_events (unique run_id+seq) + ask_runs.evidence_snapshot + the #22 partial expiry index — purely additive, passive until `ASK_PROGRESSIVE=1` | generated via drizzle-kit; applied + exercised on disposable Neon forks only; NOT applied to production |
-| 0024 | `0024_marvelous_dark_beast.sql` | 4 | ask_answer_cache (unique user_email+cache_key, created_at index) — purely additive, passive until `ASK_EXACT_CACHE=1` | generated via drizzle-kit; applied + exercised on disposable Neon forks only; NOT applied to production |
-| 0025 | `0025_confused_ulik.sql` | 6 | ask_sessions + ask_turns (unique session+seq; unique run) — purely additive, passive until `ASK_SESSIONS=1` | generated via drizzle-kit; applied + exercised on disposable Neon forks only; NOT applied to production |
-| 0026 | `0026_lumpy_the_fallen.sql` | 7 | ask_runs.units (nullable) — purely additive; written at finalize by the units.ts policy | generated via drizzle-kit; applied + exercised on disposable Neon forks only; NOT applied to production |
-| 0027 | `0027_numerous_lord_tyger.sql` | RH | ask_runs.billing_policy (text, NULL historical) + ask_runs.billing_eligible (boolean NOT NULL DEFAULT false) — purely additive; eligibility set ONLY by units.ts billingEligibility() (needs enforce + ASK_BILLING_CUTOVER_AT + units>0); aggregate billable figures filter on it strictly | generated via drizzle-kit; applied + exercised on disposable Neon forks only; NOT applied to production |
+| 0022 | `0022_reflective_callisto.sql` | 1 | ask_runs + ask_allowance_reservations + provider_usage_reservations — purely additive, passive until `ASK_RUNS_ENFORCE=1` | generated via drizzle-kit; fork-exercised; **APPLIED TO PRODUCTION 2026-07-21** (release `836b46e`) |
+| 0023 | `0023_yielding_triathlon.sql` | 2 | ask_run_events (unique run_id+seq) + ask_runs.evidence_snapshot + the #22 partial expiry index — purely additive, passive until `ASK_PROGRESSIVE=1` | generated via drizzle-kit; fork-exercised; **APPLIED TO PRODUCTION 2026-07-21** (release `836b46e`) |
+| 0024 | `0024_marvelous_dark_beast.sql` | 4 | ask_answer_cache (unique user_email+cache_key, created_at index) — purely additive, passive until `ASK_EXACT_CACHE=1` | generated via drizzle-kit; fork-exercised; **APPLIED TO PRODUCTION 2026-07-21** (release `836b46e`) |
+| 0025 | `0025_confused_ulik.sql` | 6 | ask_sessions + ask_turns (unique session+seq; unique run) — purely additive, passive until `ASK_SESSIONS=1` | generated via drizzle-kit; fork-exercised; **APPLIED TO PRODUCTION 2026-07-21** (release `836b46e`) |
+| 0026 | `0026_lumpy_the_fallen.sql` | 7 | ask_runs.units (nullable) — purely additive; written at finalize by the units.ts policy | generated via drizzle-kit; fork-exercised; **APPLIED TO PRODUCTION 2026-07-21** (release `836b46e`) |
+| 0027 | `0027_numerous_lord_tyger.sql` | RH | ask_runs.billing_policy (text, NULL historical) + ask_runs.billing_eligible (boolean NOT NULL DEFAULT false) — purely additive; eligibility set ONLY by units.ts billingEligibility() (needs enforce + ASK_BILLING_CUTOVER_AT + units>0); aggregate billable figures filter on it strictly | generated via drizzle-kit; fork-exercised; **APPLIED TO PRODUCTION 2026-07-21** (release `836b46e`) |
 
-> **HARD enablement order (Gate 0 finding F5; applies to 0022 equally):** apply migration 0021 to production
+> **HARD enablement order (Gate 0 finding F5; applies to 0022 equally) — SATISFIED 2026-07-21 (migrated before deploy):** apply migration 0021 to production
 > (`npm run db:migrate`) BEFORE deploying any build containing the Phase 0 commits.
 > logUsage's INSERT names the new columns and its failures are deliberately fail-soft, so
 > a deploy-first window would silently freeze every ask_usage insert — and with it the
 > per-user daily count and global-budget SUM — until migrate runs (SpendGuard provider
-> caps still bound actual spend). No deploy is authorized inside this workstream.
+> caps still bound actual spend). No deploy was authorized inside the implementation workstream; the 2026-07-21 release applied 0021–0027 BEFORE deploying (see `AI-SEARCH-RELEASE-2026-07-21.md`).
 
 `9999_claim_source_trigger.sql` still sorts and applies last (verified on the fork).
 The concurrent Paddle/billing workstream had no schema work in-tree at claim time
@@ -62,7 +62,7 @@ The concurrent Paddle/billing workstream had no schema work in-tree at claim tim
 | `NEXT_PUBLIC_ANALYTICS_ASK_STARTED` | unset (event never emits) | operator approval of the new PostHog event + decision-log entry |
 | Paid answer-model matrix eval run (~$1–3) | not run | operator approval (recorded as enablement-blocked in Gate 0) |
 | `ASK_RUNS_ENFORCE` | unset (**OFF — release hardening: default no longer shadow-writes anything**) | operator enablement AFTER prod migration (0021+0022+0027) + valid `ASK_CONTENT_RETENTION_DAYS` (enforce is INEFFECTIVE without retention — features.ts) + deploy + an explicit `ASK_RUNS_SHADOW=1` soak |
-| `ASK_RUNS_SHADOW` | unset (no ask_runs writes at all) | operator opt-in for the shadow soak; requires valid retention settings |
+| `ASK_RUNS_SHADOW` | **ON in Production since 2026-07-21** (soak; retention 30/7/7 set; one-probe shadow row verified complete, billing_eligible false) | rollback = unset + redeploy; keep retention envs |
 | `ASK_PROGRESSIVE` | unset (server-action transport; the runs POST 404s at the boundary) | operator enablement after prod migration (0023) + SSE-through-production-proxy verification; **structurally requires effective `ASK_RUNS_ENFORCE` on v2** (features.ts enforces register #44); `ASK_PROGRESSIVE_COHORT` scopes the rollout to an allowlist server-side |
 | `ASK_STREAM_ANSWER` | unset (whole-answer release) | Gate 3 pass + operator cohort decision; only effective with ASK_PROGRESSIVE |
 | `ASK_FIDELITY_FALLBACK` | ON by default (deterministic, $0) | rollback knob only — set 0 to disable sentence replacement (binds BOTH the whole-answer and streaming paths since Gate 3) |

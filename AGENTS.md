@@ -98,10 +98,15 @@ place whenever reality changes. Historical narrative: `docs/PROGRESS.md` + `docs
 debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
 
 - **Live/repository:** https://bnow.net · Vercel `bnow-net` / team `vociferous`; production
-  `dpl_5jAidKc8rnSKmSG1gK5rP4KehwJv` from main `f0d34d3`; rollback
-  `dpl_7useRyXz71PVkyFgYqZTXKJXf8mv` / `df79411`; origin/main == local main at last
-  reconciliation. Deployment URLs are SSO-walled — verify through the project domain
-  (`/health` renders the 7-char commit stamp; it is set even on CLI deploys).
+  `dpl_5scfsMfttrHZbLFWgdkAKdpBAHFT` from main `836b46e` (AI Search/Ask release +
+  `ASK_RUNS_SHADOW=1` soak, 2026-07-21); flag rollback = unset `ASK_RUNS_SHADOW` + redeploy
+  (baseline flags-off deploy of the same commit: `dpl_GNuFfB2qqX61cRtuMdjpJTT2sLfR`); full
+  code rollback `dpl_5jAidKc8rnSKmSG1gK5rP4KehwJv` / `f0d34d3` (pre-release, additive
+  migrations are compatible). origin/main == local main (`836b46e`). Deployment URLs are
+  SSO-walled — verify through the project domain (`/health` renders the 7-char commit
+  stamp; it is set even on CLI deploys). Production DB backup branch
+  `backup-pre-ask-release-2026-07-21` (`br-small-poetry-atf9x253`) — keep until the soak
+  clears.
 - **Coverage/data:** Russia, Ukraine, Iran live; Israel/Gulf shallow; bh/kw scaffolded; China
   deferred. Registry: 6,985 ISW-derived sources / 251K citations / 1,565 reports. Live ingest:
   29 RSS, GDELT (flaky), Telegram web + MTProto, twitterapi.io X, procurement (proxy-blocked).
@@ -125,13 +130,17 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   The signed-in home Ask box is a one-click handoff (LIVE 2026-07-17, `dpl_5jAidKc8rnSKmSG1gK5rP4KehwJv`):
   a single-use per-tab intent key, consumed once by AskForm on mount; #48 holds — every GET /ask is free,
   re-proven in production (direct `?q=` and a forged `?intent=` both prefill-only, zero paid calls).
+  The **AI Search/Ask release candidate is LIVE (2026-07-21, `836b46e`)** with every new flag
+  off except the `ASK_RUNS_SHADOW=1` soak (retention 30/7/7 set; user-visible Ask unchanged;
+  enforce/progressive/stream/cache/sessions/router/billing/analytics all off; cohort
+  activation awaits the 48–72h soak verdict — `scripts/ask-shadow-soak-check.ts`).
 - **Legal/analytics/email:** Terms 1.1 (2026-07-16) + Privacy 1.3 (2026-07-21 — fixed Ask
   retention disclosure: content ≤30d, events ≤7d, cache ≤7d); current clickwrap required.
   Postmark `BNOW.NET <no-reply@bnow.net>` is live; magic-link guidance is single-use/24h and
   copy-before-opening. PostHog is production-only, explicit opt-in, allowlist-sanitized, UUID
   identity, no Ask/Search/source text; GeoIP is retained per disclosed operator ruling.
-- **Quality/ops:** 1,612 unit tests / 137 files on main + 32 real-Postgres integration tests /
-  7 files, all green.
+- **Quality/ops:** 2,028 unit tests / 159 files on main + 72 real-Postgres integration tests /
+  14 files, all green. Production DB migrated through 0027 (2026-07-21, verified + idempotent).
   Enforced pre-push gate = typecheck+lint+test. Crons: fast */15; telegram :10; X :20;
   MTProto :35;
   map :40; digest 4×/day; validate/enrich/datadark daily; trade/materials monthly.
@@ -273,6 +282,25 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   at 1.1 (no Terms change). The disclosure is truthful against the shipped sweep
   (`src/lib/ask/retention.ts`): it redacts/deletes ALL Ask content surfaces — including legacy
   `ask_usage.question` — keyed on the raw retention envs, surviving full flag rollback.
+
+- **2026-07-21 (AI Search/Ask production release + shadow soak start)** Release commit
+  `836b46e` (integration merge `356cba5` atop hardening tip; app code byte-identical to the
+  gated tree) deployed to production after full gates (unit 2,028/2,028 · itest 72/72 · lint
+  0/0 · build PASS · 6/6 production-build browser smoke on a disposable fork). Production DB:
+  backup branch `backup-pre-ask-release-2026-07-21` (`br-small-poetry-atf9x253`) taken first;
+  migrations 0021–0027 applied (each marker exactly once, 29 total; re-run idempotent;
+  `billing_eligible` DEFAULT false NOT NULL; `claim_must_have_source` trigger intact; data
+  intact). Baseline deploy `dpl_GNuFfB2qqX61cRtuMdjpJTT2sLfR` (flags off, retention 30/7/7
+  set) verified on bnow.net: /health stamps `836b46e`, Privacy 1.3 live and reacceptance
+  enforced (live magic-link pass; analytics stayed denied), signed-out and signed-in free-GET
+  contracts hold, /search $0, one paid Ask ($0.0089) produced ZERO ask_runs rows. Then
+  `ASK_RUNS_SHADOW=1` + redeploy same commit (`dpl_5scfsMfttrHZbLFWgdkAKdpBAHFT`): one paid
+  probe Ask ($0.016) produced EXACTLY one shadow row (finished/answered, result persisted,
+  units=1, `ask-units-v1:shadow`, billing_eligible=false, zero reservations/events/cache);
+  free GETs and Search persist nothing. `ASK_BILLING_CUTOVER_AT` remains ABSENT. Cohort
+  activation is NOT authorized by this entry — it requires a clean 48–72h soak
+  (`scripts/ask-shadow-soak-check.ts`) plus an explicit operator decision. Report:
+  `docs/reviews/AI-SEARCH-RELEASE-2026-07-21.md`.
 
 ## Conventions
 

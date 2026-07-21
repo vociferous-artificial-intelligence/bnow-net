@@ -5,11 +5,21 @@ this file is **not append-only**: correct it in place whenever live product, ope
 deployment, test, credential, or repository state changes. Historical narrative belongs in
 `PROGRESS.md`, review notes, and `DECISIONS.md`.
 
-## Current state — snapshot (verified through 2026-07-16; correct in place when it changes)
+## Current state — snapshot (verified through 2026-07-21; correct in place when it changes)
 
 Live at **https://bnow.net** (Vercel project `bnow-net`, team `vociferous`;
 deployment URLs are SSO-walled — always use the project domain). History/narrative:
 `docs/PROGRESS.md` + `docs/reviews/`; debt: `docs/OPEN-TASKS.md`.
+
+- **AI Search/Ask release (2026-07-21):** release commit `836b46e` LIVE
+  (`dpl_5scfsMfttrHZbLFWgdkAKdpBAHFT`); production DB migrated 0021–0027 (backup branch
+  `backup-pre-ask-release-2026-07-21` retained); Privacy 1.3 live with forced
+  reacknowledgement; retention envs 30/7/7 set; **`ASK_RUNS_SHADOW=1` soak running** —
+  every other new flag (enforce/progressive/stream/cache/sessions/router/billing
+  cutover/Ask analytics) off/absent; user-visible Ask unchanged (server-action path);
+  soak monitoring via `scripts/ask-shadow-soak-check.ts`; full evidence in
+  `docs/reviews/AI-SEARCH-RELEASE-2026-07-21.md`. Unit suite 2,028/159 files;
+  integration 72/14 files.
 
 - **Registry:** 6,985 ISW-derived sources / 251K citations / 1,565 reports (97.65% parse);
   per-theater aggregates in `source_theater_stats` (ru/ir).
