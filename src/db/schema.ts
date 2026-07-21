@@ -690,6 +690,17 @@ export const askRuns = pgTable(
      *  rows and refusals. Billing reads the AGGREGATE (units.ts), never
      *  stage internals. */
     units: integer("units"),
+    /** Release hardening 2026-07-21 (migration 0027): the Ask-owned billing
+     *  policy applied at finalize (e.g. "ask-units-v1:enforce"); NULL for
+     *  historical/pre-policy rows and sweep-expired runs. */
+    billingPolicy: text("billing_policy"),
+    /** Release hardening 2026-07-21 (migration 0027): explicit invoice
+     *  eligibility, DEFAULT FALSE — historical, shadow, replay, cache-hit,
+     *  degraded, cancelled, and pre-cutover runs can never become billable
+     *  by accident. Set true ONLY by units.ts billingEligibility() once the
+     *  operator cutover (ASK_BILLING_CUTOVER_AT) exists; billing aggregates
+     *  filter on THIS column, never on units alone. */
+    billingEligible: boolean("billing_eligible").notNull().default(false),
     errorClass: text("error_class"),
     // Phase 2: the frozen EvidenceSnapshot (claim CONTENT + stable raw_documents
     // ids — F11-safe; contract §3). Same retention class as `result`.

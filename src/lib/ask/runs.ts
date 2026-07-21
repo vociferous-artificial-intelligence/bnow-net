@@ -14,7 +14,7 @@
 //    not spend).
 
 import { Pool } from "@neondatabase/serverless";
-import { analysisUnits } from "./units";
+import { analysisUnits, type BillingStamp } from "./units";
 import { utcDayIso } from "../usage/spend-guard";
 import { expireStaleReservations } from "../usage/reservations";
 import type { AnswerState, AskAnswerV2 } from "./types";
@@ -202,15 +202,30 @@ export async function finalizeRun(opts: {
    *  only the expiry sweep leaves NULL, meaning "never finalized with a
    *  payload"). */
   units?: number;
+  /** Release hardening (migration 0027): the explicit billing stamp from
+   *  units.ts billingEligibility(). ABSENT (direct/test callers) writes
+   *  policy NULL + eligible FALSE — a finalize that skipped the policy can
+   *  never mint invoice-eligible usage. */
+  billing?: BillingStamp;
 }): Promise<boolean> {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
     const r = await pool.query(
       `UPDATE ask_runs
        SET status = 'finished', state = $2, result = $3::jsonb,
-           settled_cost_usd = $4, error_class = $5, units = $6, finished_at = now()
+           settled_cost_usd = $4, error_class = $5, units = $6,
+           billing_policy = $7, billing_eligible = $8, finished_at = now()
        WHERE id = $1 AND finished_at IS NULL`,
-      [opts.runId, opts.state, JSON.stringify(opts.result), opts.settledCostUsd, opts.errorClass ?? null, opts.units ?? analysisUnits(opts.result)],
+      [
+        opts.runId,
+        opts.state,
+        JSON.stringify(opts.result),
+        opts.settledCostUsd,
+        opts.errorClass ?? null,
+        opts.units ?? analysisUnits(opts.result),
+        opts.billing?.policy ?? null,
+        opts.billing?.eligible ?? false,
+      ],
     );
     return (r.rowCount ?? 0) > 0;
   } finally {

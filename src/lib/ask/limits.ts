@@ -22,7 +22,7 @@ import { effectiveAskFeatures } from "./features";
 import { sweepAskRetentionThrottled } from "./retention";
 import { cacheKey, cacheLookup, cacheStore, corpusVersion } from "./cache";
 import { route, routePolicyString } from "./router";
-import { analysisUnits } from "./units";
+import { analysisUnits, billingEligibility } from "./units";
 import { parseTimeWindow } from "./window";
 
 // /ask spend control: an authenticated user could otherwise run up LLM cost with
@@ -386,9 +386,17 @@ const FINALIZE_ATTEMPTS = 3;
 const FINALIZE_BACKOFF_MS = 100;
 
 async function finalizeDurably(opts: Parameters<typeof finalizeRun>[0]): Promise<boolean> {
+  // Every enforce-mode finalize carries the explicit billing stamp (migration
+  // 0027): units by the unskippable policy, eligibility by the cutover rules.
+  const units = opts.units ?? analysisUnits(opts.result);
+  const enriched: Parameters<typeof finalizeRun>[0] = {
+    ...opts,
+    units,
+    billing: opts.billing ?? billingEligibility({ units, mode: "enforce", result: opts.result }),
+  };
   for (let i = 0; i < FINALIZE_ATTEMPTS; i++) {
     try {
-      await finalizeRun(opts);
+      await finalizeRun(enriched);
       return true;
     } catch (e) {
       if (i === FINALIZE_ATTEMPTS - 1) {
@@ -619,7 +627,11 @@ export async function askWithLimits(
               payload.durable = await finalizeDurably({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: 0, units: analysisUnits(payload) });
             } else if (created) {
               await shadowSafe("finalizeRun", () =>
-                finalizeRun({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: 0, units: analysisUnits(payload) }),
+                finalizeRun({
+                  runId: run.runId, state: payload.state, result: payload, settledCostUsd: 0,
+                  units: analysisUnits(payload),
+                  billing: billingEligibility({ units: analysisUnits(payload), mode: "shadow", result: payload }),
+                }),
               );
             }
             return payload;
@@ -669,7 +681,10 @@ export async function askWithLimits(
         errPayload.durable = await finalizeDurably({ runId: run.runId, state: "error", result: errPayload, settledCostUsd: 0, errorClass: "pipeline_throw" });
       } else if (created) {
         await shadowSafe("finalizeRun", () =>
-          finalizeRun({ runId: run.runId, state: "error", result: errPayload, settledCostUsd: 0, errorClass: "pipeline_throw" }),
+          finalizeRun({
+            runId: run.runId, state: "error", result: errPayload, settledCostUsd: 0, errorClass: "pipeline_throw",
+            billing: billingEligibility({ units: 0, mode: "shadow", result: errPayload }),
+          }),
         );
       }
       return errPayload;
@@ -698,7 +713,11 @@ export async function askWithLimits(
       payload.durable = finalized && payload.snapshotPersisted !== false;
     } else if (created) {
       await shadowSafe("finalizeRun", () =>
-        finalizeRun({ runId: run.runId, state: payload.state, result: payload, settledCostUsd: totalCost, units: analysisUnits(payload) }),
+        finalizeRun({
+          runId: run.runId, state: payload.state, result: payload, settledCostUsd: totalCost,
+          units: analysisUnits(payload),
+          billing: billingEligibility({ units: analysisUnits(payload), mode: "shadow", result: payload }),
+        }),
       );
     }
     // ---- Phase 4: exact-cache store (flag-gated; fail-soft) ---------------------

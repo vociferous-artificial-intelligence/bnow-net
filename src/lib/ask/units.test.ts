@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
@@ -12,8 +12,16 @@ vi.mock("@neondatabase/serverless", () => ({
   },
 }));
 
-const { aggregateUnits, analysisUnits, UNITS_CACHE_HIT, UNITS_DEEP, UNITS_STANDARD } =
-  await import("./units");
+const {
+  aggregateUnits,
+  analysisUnits,
+  ASK_BILLING_POLICY_VERSION,
+  billingCutoverAt,
+  billingEligibility,
+  UNITS_CACHE_HIT,
+  UNITS_DEEP,
+  UNITS_STANDARD,
+} = await import("./units");
 const { stubResolveAccessContext } = await import("./access-context");
 import type { AskAnswerV2 } from "./types";
 
@@ -30,6 +38,7 @@ beforeEach(() => {
   h.endMock.mockResolvedValue(undefined);
   h.queryMock.mockResolvedValue({ rows: [] });
 });
+afterEach(() => vi.unstubAllEnvs());
 
 describe("analysisUnits — the §9.5 unit policy, table-tested", () => {
   it.each([
@@ -58,13 +67,18 @@ describe("analysisUnits — the §9.5 unit policy, table-tested", () => {
 describe("aggregateUnits — the billing feed (aggregate only, no internals)", () => {
   it("sums units/runs/settled cost per user over the period; the SQL exposes no question/answer columns", async () => {
     h.queryMock.mockResolvedValue({
-      rows: [{ user_email: "a@x.com", units: 5, runs: 7, settled_cost_usd: 0.08 }],
+      rows: [{ user_email: "a@x.com", units: 5, runs: 7, settled_cost_usd: 0.08, billable_units: 2, billable_runs: 2 }],
     });
     const rows = await aggregateUnits({ from: "2026-07-01", to: "2026-08-01" });
-    expect(rows).toEqual([{ userEmail: "a@x.com", units: 5, runs: 7, settledCostUsd: 0.08 }]);
+    expect(rows).toEqual([
+      { userEmail: "a@x.com", units: 5, runs: 7, settledCostUsd: 0.08, billableUnits: 2, billableRuns: 2 },
+    ]);
     const sql = String(h.queryMock.mock.calls[0][0]);
     expect(sql).toContain("GROUP BY user_email");
     expect(sql).not.toMatch(/question|result|answer|snapshot|prompt/i); // aggregate ONLY
+    // release hardening: the invoice-shaped figures filter STRICTLY on the
+    // explicit eligibility column — shadow/pre-cutover usage cannot leak in
+    expect(sql).toContain("FILTER (WHERE billing_eligible)");
   });
 
   it("scopes to one user when asked", async () => {
@@ -135,5 +149,59 @@ describe("import-graph: no billing/Paddle in the Ask pipeline (§9.4 / Gate 7 st
         `${f} must not touch the guard layer`,
       ).toBe(false);
     }
+  });
+});
+
+// ---- release hardening: billing policy / cutover eligibility (migration 0027) ----
+
+describe("billingEligibility — nothing becomes invoice-eligible by accident", () => {
+  const NOW = new Date("2026-08-01T00:00:00Z");
+
+  it("cutover unset (the default): NOTHING is eligible, ever", () => {
+    const stamp = billingEligibility({ units: 1, mode: "enforce", result: result({}), now: NOW });
+    expect(stamp).toEqual({ policy: `${ASK_BILLING_POLICY_VERSION}:enforce`, eligible: false });
+  });
+
+  it("an invalid cutover value behaves as unset (fail closed)", () => {
+    vi.stubEnv("ASK_BILLING_CUTOVER_AT", "not-a-date");
+    expect(billingCutoverAt()).toBeNull();
+    expect(billingEligibility({ units: 1, mode: "enforce", result: result({}), now: NOW }).eligible).toBe(false);
+  });
+
+  it("a run finalized BEFORE the cutover instant is ineligible", () => {
+    vi.stubEnv("ASK_BILLING_CUTOVER_AT", "2026-09-01T00:00:00Z");
+    expect(billingEligibility({ units: 1, mode: "enforce", result: result({}), now: NOW }).eligible).toBe(false);
+  });
+
+  it("post-cutover enforce-mode billed run: eligible", () => {
+    vi.stubEnv("ASK_BILLING_CUTOVER_AT", "2026-07-01T00:00:00Z");
+    const stamp = billingEligibility({ units: 1, mode: "enforce", result: result({}), now: NOW });
+    expect(stamp.eligible).toBe(true);
+    expect(stamp.policy).toBe(`${ASK_BILLING_POLICY_VERSION}:enforce`);
+  });
+
+  it("shadow mode is NEVER eligible, even post-cutover with units", () => {
+    vi.stubEnv("ASK_BILLING_CUTOVER_AT", "2026-07-01T00:00:00Z");
+    const stamp = billingEligibility({ units: 1, mode: "shadow", result: result({}), now: NOW });
+    expect(stamp).toEqual({ policy: `${ASK_BILLING_POLICY_VERSION}:shadow`, eligible: false });
+  });
+
+  it.each([
+    ["replay", result({ replayed: true })],
+    ["exact cache hit", result({ cacheStatus: "exact" })],
+    ["stub-degraded", result({ provider: "stub" })],
+    ["budget-degraded", result({ provider: "budget" })],
+    ["cancelled", result({ state: "error", provider: "cancelled" })],
+    ["limit refusal", result({ state: "limit", provider: "limit" })],
+    ["error refusal", result({ state: "error", provider: "error" })],
+  ])("post-cutover %s stays ineligible even if a future unit-policy edit billed it units", (_l, r) => {
+    vi.stubEnv("ASK_BILLING_CUTOVER_AT", "2026-07-01T00:00:00Z");
+    // belt-and-braces: force units=1 to prove the payload re-checks hold alone
+    expect(billingEligibility({ units: 1, mode: "enforce", result: r, now: NOW }).eligible).toBe(false);
+  });
+
+  it("zero-unit runs are ineligible regardless of cutover/mode", () => {
+    vi.stubEnv("ASK_BILLING_CUTOVER_AT", "2026-07-01T00:00:00Z");
+    expect(billingEligibility({ units: 0, mode: "enforce", result: result({}), now: NOW }).eligible).toBe(false);
   });
 });

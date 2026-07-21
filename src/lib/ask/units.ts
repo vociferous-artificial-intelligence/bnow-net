@@ -47,16 +47,81 @@ export function analysisUnits(result: AskAnswerV2, mode: "auto" | "fast" | "deep
   return mode === "deep" ? UNITS_DEEP : UNITS_STANDARD;
 }
 
+// ---- billing policy / cutover eligibility (release hardening, migration 0027) ----
+
+/** Version stamp of the unit policy above; written to ask_runs.billing_policy
+ *  at finalize as `<version>:<mode>`. Bump when the unit rules change. */
+export const ASK_BILLING_POLICY_VERSION = "ask-units-v1";
+
+/** Operator cutover instant. UNSET (the default, and the required state until
+ *  a billing contract exists) = NOTHING is invoice-eligible; an invalid value
+ *  behaves as unset (fail closed). Setting this env is an explicit operator
+ *  action recorded in the decision log — never part of a code deploy. */
+export function billingCutoverAt(): Date | null {
+  const raw = process.env.ASK_BILLING_CUTOVER_AT;
+  if (raw === undefined || raw.trim() === "") return null;
+  const d = new Date(raw.trim());
+  return Number.isFinite(d.getTime()) ? d : null;
+}
+
+export interface BillingStamp {
+  /** e.g. "ask-units-v1:enforce" / "ask-units-v1:shadow" */
+  policy: string;
+  eligible: boolean;
+}
+
+/** The explicit invoice-eligibility decision stamped onto a run at finalize.
+ *  Eligible requires ALL of: enforce mode (shadow rows are soak telemetry,
+ *  never invoices), an operator cutover in the past, and units > 0 — which
+ *  by the unit policy above already excludes replays, cache hits, degraded
+ *  (stub/budget) answers, refusals, and cancelled runs; the explicit payload
+ *  re-checks are belt-and-braces so a future unit-policy edit cannot widen
+ *  eligibility silently. Historical rows keep the migration default
+ *  (billing_policy NULL, billing_eligible false) forever. */
+export function billingEligibility(opts: {
+  units: number;
+  mode: "enforce" | "shadow";
+  result: AskAnswerV2;
+  now?: Date;
+}): BillingStamp {
+  const policy = `${ASK_BILLING_POLICY_VERSION}:${opts.mode}`;
+  const cutover = billingCutoverAt();
+  const eligible =
+    opts.mode === "enforce" &&
+    cutover !== null &&
+    (opts.now ?? new Date()).getTime() >= cutover.getTime() &&
+    opts.units > 0 &&
+    opts.result.replayed !== true &&
+    opts.result.cacheStatus === undefined &&
+    !DEGRADED_PROVIDERS.has(opts.result.provider) &&
+    opts.result.provider !== "cancelled" &&
+    opts.result.state !== "limit" &&
+    opts.result.state !== "error";
+  return { policy, eligible };
+}
+
 export interface UnitsAggregate {
   userEmail: string;
   units: number;
   runs: number;
   settledCostUsd: number;
+  /** invoice-eligible units ONLY (billing_eligible rows) — the figure a
+   *  billing integration may consume; shadow/pre-cutover/replay/cache/
+   *  degraded/cancelled usage NEVER appears here */
+  billableUnits: number;
+  /** count of invoice-eligible runs */
+  billableRuns: number;
 }
 
 /** The aggregate feed billing consumes (§9.4): settled units/runs/cost per
  *  user over a UTC period. Read-only; exposes NO stage internals, NO
- *  questions, NO answers. */
+ *  questions, NO answers.
+ *
+ *  Release hardening: `units`/`runs` remain INFORMATIONAL (all finalized
+ *  rows, shadow included — the soak telemetry). Anything invoice-shaped
+ *  must consume `billableUnits`/`billableRuns`, which filter STRICTLY on
+ *  ask_runs.billing_eligible (migration 0027) — shadow and pre-cutover
+ *  usage is structurally excluded there. */
 export async function aggregateUnits(opts: {
   from: string; // inclusive ISO date/timestamp
   to: string; // exclusive
@@ -68,7 +133,9 @@ export async function aggregateUnits(opts: {
       `SELECT user_email,
               coalesce(sum(units), 0)::int AS units,
               count(*)::int AS runs,
-              coalesce(sum(settled_cost_usd), 0)::float AS settled_cost_usd
+              coalesce(sum(settled_cost_usd), 0)::float AS settled_cost_usd,
+              coalesce(sum(units) FILTER (WHERE billing_eligible), 0)::int AS billable_units,
+              count(*) FILTER (WHERE billing_eligible)::int AS billable_runs
        FROM ask_runs
        WHERE finished_at >= $1 AND finished_at < $2
          AND ($3::text IS NULL OR user_email = $3)
@@ -81,6 +148,8 @@ export async function aggregateUnits(opts: {
       units: Number(r.units),
       runs: Number(r.runs),
       settledCostUsd: Number(r.settled_cost_usd),
+      billableUnits: Number(r.billable_units),
+      billableRuns: Number(r.billable_runs),
     }));
   } finally {
     await pool.end();
