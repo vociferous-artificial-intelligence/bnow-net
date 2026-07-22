@@ -98,12 +98,15 @@ place whenever reality changes. Historical narrative: `docs/PROGRESS.md` + `docs
 debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
 
 - **Live/repository:** https://bnow.net · Vercel `bnow-net` / team `vociferous`; production
-  `dpl_5scfsMfttrHZbLFWgdkAKdpBAHFT` from main `836b46e` (AI Search/Ask release +
-  `ASK_RUNS_SHADOW=1` soak, 2026-07-21); flag rollback = unset `ASK_RUNS_SHADOW` + redeploy
-  (baseline flags-off deploy of the same commit: `dpl_GNuFfB2qqX61cRtuMdjpJTT2sLfR`); full
-  code rollback `dpl_5jAidKc8rnSKmSG1gK5rP4KehwJv` / `f0d34d3` (pre-release, additive
-  migrations are compatible). origin/main == local main (`836b46e`). Deployment URLs are
-  SSO-walled — verify through the project domain (`/health` renders the 7-char commit
+  `dpl_E5ysiLJSg1ynNmqJkgmpDjrzZD32` from main `441ee09` (OpenSanctions match-safety
+  fail-closed release atop the AI Search/Ask release, 2026-07-22; no migration, no env change,
+  all Ask flags preserved — `ASK_RUNS_SHADOW=1` soak, retention 30/7/7). Code rollback target
+  = the prior Ask release `dpl_5scfsMfttrHZbLFWgdkAKdpBAHFT` / `836b46e` (additive-only history,
+  no migration/env delta to reverse). Flag rollback still = unset `ASK_RUNS_SHADOW` + redeploy.
+  Ask shadow-soak window RESTARTED at 2026-07-22T01:10:37Z (Ask retrieval/evidence code
+  changed). origin/main == local main (`441ee09`, plus one docs-only commit for this release
+  record — the deployed app SHA is `441ee09`; do NOT redeploy for the docs commit). Deployment
+  URLs are SSO-walled — verify through the project domain (`/health` renders the 7-char commit
   stamp; it is set even on CLI deploys). Production DB backup branch
   `backup-pre-ask-release-2026-07-21` (`br-small-poetry-atf9x253`) — keep until the soak
   clears.
@@ -139,7 +142,7 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   Postmark `BNOW.NET <no-reply@bnow.net>` is live; magic-link guidance is single-use/24h and
   copy-before-opening. PostHog is production-only, explicit opt-in, allowlist-sanitized, UUID
   identity, no Ask/Search/source text; GeoIP is retained per disclosed operator ruling.
-- **Quality/ops:** 2,028 unit tests / 159 files on main + 72 real-Postgres integration tests /
+- **Quality/ops:** 2,049 unit tests / 161 files on main + 72 real-Postgres integration tests /
   14 files, all green. Production DB migrated through 0027 (2026-07-21, verified + idempotent).
   Enforced pre-push gate = typecheck+lint+test. Crons: fast */15; telegram :10; X :20;
   MTProto :35;
@@ -148,6 +151,12 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   subset) is deployed — every /match candidate and the `remaining` count now require ≥1
   `claim_entities` row, so the 186 zero-link missing/stub rows can no longer be billed. Paid
   rescore remains closed pending #61 cleanup/recount and separate spend authorization.
+  **OpenSanctions match-safety is LIVE (441ee09, 2026-07-22):** fail-closed read model
+  (`os-read.ts`) + admin-only neutral candidate-review presentation; non-admin/public surfaces
+  render ZERO OpenSanctions markup (verified live: the pre-release non-admin profile-link leak
+  is gone); Ask receives no OpenSanctions-derived categorical assertion. OpenSanctions data is
+  candidate-identity screening metadata only; restoring any public sanctions/PEP assertion needs
+  a human-review workflow + stronger identifiers + product review + a new decision-log entry.
 
 ## Standing rulings (distilled from the decision log; binding until a log entry supersedes)
 
@@ -323,6 +332,45 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   product review; restoring any public assertion requires a new decision-log entry. Stale-row
   cleanup/re-match stays with #61 + separate spend approval. Gates: typecheck/lint clean, unit
   2,049/2,049 (161 files), build PASS. Review:
+  `docs/reviews/OPENSANCTIONS-MATCH-SAFETY-2026-07-21.md`.
+
+- **2026-07-22 (OpenSanctions match-safety — production release + smoke)** The branch-only
+  repair above (`441ee09` = `c74aaba` fix + `441ee09` docs, atop the Ask release base
+  `addd2be`) was merged to `main` fast-forward-only (linear, no merge commit; src tree
+  byte-identical to the reviewed branch) and pushed (`addd2be..441ee09`). Release gates on
+  merged main: `git diff --check` clean · typecheck clean · lint clean · unit 2,049/2,049
+  (161 files) · build PASS (the 72/72 itest was proven on the reviewed branch's disposable
+  Neon fork; not re-run — no tree drift). Deployed to production via CLI
+  (`npx vercel deploy --prod`) as `dpl_E5ysiLJSg1ynNmqJkgmpDjrzZD32`, READY, aliased to
+  bnow.net; `/health` stamps `441ee09`, DB OK. NO migration (release touches no `drizzle/`),
+  NO env change (all Ask flags preserved: `ASK_RUNS_SHADOW=1`, retention 30/7/7,
+  `ASK_BILLING_CUTOVER_AT` absent, every enforce/progressive/stream/cache/sessions/router flag
+  absent). Ask shadow-soak window RESTARTED at 2026-07-22T01:10:37Z (Ask retrieval/evidence
+  code changed). Smoke (through bnow.net, zero paid calls): signed-out `/entities` + `/ask?q=`
+  → 307 `/signin`; **non-admin (accepted test account) sees ZERO OpenSanctions markup** on
+  accepted/rejected entities + list — the pre-release non-admin `opensanctions.org/entities/`
+  profile-link leak on entity 4 (present on `836b46e`) is GONE on `441ee09`; Ask sample now
+  "What sanctions actions were reported recently?" and signed-in `GET /ask?q=` is prefill-only
+  (200, zero POSTs); signed-in `/search` deterministic, no OpenSanctions markup, no `/api/ask`;
+  runtime logs show only info GETs, no 5xx. Zero paid provider calls (only pre-deploy scheduled
+  `openai_map` cron at 00:41Z), zero `ask_runs` from the GET-only smoke, zero DB writes
+  (session counts unchanged; all queries read-only), no cron manually invoked. Rollback target =
+  the prior Ask release `dpl_5scfsMfttrHZbLFWgdkAKdpBAHFT` / `836b46e` (not needed). **Not live-
+  verified:** the admin neutral-panel positive render — the sole admin identity has not accepted
+  Privacy 1.3, so its session redirects to `/welcome/legal`; per authorization I did NOT
+  manufacture an acceptance. That render is covered by `entities/[id]/page.test.tsx` (rejected
+  labelled "rejected…never sanctioned"; accepted shows identity-match-confidence-not-risk,
+  uncollapsed topics, datasets, profile link, "Checked … (UTC)", "name and entity type only",
+  "not been human-reviewed") — smoke recorded PARTIAL on that one sub-check, not a regression.
+  Data-reality note (does NOT edit the append-only branch-only entry above): the current
+  production `entities.meta.opensanctions` set holds ZERO `matched:false, sanctioned:true` rows
+  and zero rejected rows with promoted topics — 425 clean-rejected, 388 accepted-unsanctioned,
+  200 accepted-sanctioned; the fail-closed read model is defensively correct regardless.
+  Binding (reaffirmed, now LIVE): OpenSanctions is admin-only candidate-identity screening
+  metadata; restoring any public sanctions/PEP assertion requires a human-review workflow +
+  stronger identifiers + product review + a NEW decision-log entry; stale-row cleanup/re-match
+  and paid rescore stay separately gated (#61 + spend approval). Cohort activation / Ask billing
+  cutover remain out of scope and unauthorized by this entry. Report:
   `docs/reviews/OPENSANCTIONS-MATCH-SAFETY-2026-07-21.md`.
 
 ## Conventions

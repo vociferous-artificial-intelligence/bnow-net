@@ -125,3 +125,62 @@ separate spend authorization.
    still gated).
 4. Analyst-facing match-review presentation (the non-admin half of the old #17 UI
    requirement) remains an open product decision.
+
+## Release outcome (2026-07-22)
+
+Merged to `main` fast-forward-only (`addd2be..441ee09`, linear, no merge commit; src tree
+byte-identical to the reviewed branch) and pushed. Release gates on merged main:
+`git diff --check` clean · typecheck clean · lint clean · unit **2,049/2,049 (161 files)** ·
+build PASS. (Integration 72/72 was proven on the reviewed branch's disposable Neon fork; not
+re-run — no tree drift.)
+
+Deployed to production via the established CLI path (`npx vercel deploy --prod`) as
+**`dpl_E5ysiLJSg1ynNmqJkgmpDjrzZD32`**, READY, aliased to bnow.net; `/health` stamps `441ee09`,
+DB OK. **No migration** (release touches no `drizzle/`), **no env change** — all Ask flags
+preserved (`ASK_RUNS_SHADOW=1`, retention 30/7/7, `ASK_BILLING_CUTOVER_AT` absent, every
+enforce/progressive/stream/cache/sessions/router flag absent). The Ask shadow-soak window
+**restarted at 2026-07-22T01:10:37Z** because Ask retrieval/evidence code changed.
+
+Smoke (through bnow.net, zero paid calls):
+
+- **Health/availability:** `/health` 200 `441ee09` DB OK; `/`, `/signin` 200; `/entities`,
+  `/ask`, `/search` 307→`/signin` (auth gate); no 5xx; runtime logs show only info GETs.
+- **Signed-out:** `/entities` and `/ask?q=` both 307→`/signin`; GET redirects before any Ask
+  logic (no POST, no paid call).
+- **Non-admin (accepted test account) — CRITICAL CONTAINMENT VERIFIED:** on accepted
+  (`/entities/4`, `/5`), rejected (`/entities/1`), and the list, **zero** OpenSanctions markers
+  (panel / profile link / confidence / accepted-rejected text / screening footnote / topics /
+  "OS candidate" badge). Before/after proof: the same account on the pre-release build
+  (`836b46e`) received the `opensanctions.org/entities/` profile link on entity 4
+  (`profileLink:true`, htmlLen 38 755); on `441ee09` it is gone (`profileLink:false`, htmlLen
+  35 594).
+- **Admin positive render — NOT live-verified (PARTIAL):** the sole admin identity has not
+  accepted Privacy 1.3, so its session redirects 307→`/welcome/legal` before any entity page.
+  Per the release authorization an acceptance was **not** manufactured. The admin neutral panel
+  is covered by `entities/[id]/page.test.tsx` (rejected labelled "rejected…never sanctioned";
+  accepted shows identity-match-confidence-not-risk, uncollapsed topics, datasets, profile link,
+  "Checked … (UTC)", "name and entity type only", "not been human-reviewed"). Not a regression —
+  an acceptance-gate limitation.
+- **Ask/Search:** live signed-in `/ask` shows the new sample "What sanctions actions were
+  reported recently?" (old one gone); signed-in `GET /ask?q=` is prefill-only (200, query
+  prefilled, zero POSTs); signed-in `/search?q=Rotenberg` deterministic 200, no OpenSanctions
+  markup, no `/api/ask`. The `SANCTIONED`/PEP marker omission from both evidence blocks is
+  proven by `ask.test.ts` (source-backed sanctions claim text still flows).
+- **Invariants:** zero paid provider calls (only a pre-deploy scheduled `openai_map` cron at
+  00:41Z); zero `ask_runs` from the GET-only smoke; zero DB writes (session counts unchanged;
+  all queries read-only); no cron manually invoked; no migration.
+
+**Data-reality note:** the "production still holds `matched:false, sanctioned:true` rows"
+statement in the pre-release sections above (and the branch-only decision-log entry) is
+retained verbatim as the recorded rationale, but a read-only audit at release found the current
+production `entities.meta.opensanctions` set carries **zero** such contradictory rows and zero
+rejected rows with promoted topics (425 clean-rejected / 388 accepted-unsanctioned / 200
+accepted-sanctioned). The fail-closed read model is defensively correct regardless.
+
+Rollback target (not needed): the prior Ask release `dpl_5scfsMfttrHZbLFWgdkAKdpBAHFT` /
+`836b46e` — additive-only history, no migration/env delta to reverse.
+
+**Verdict: RELEASE VERIFIED** on deployment + the critical non-admin/public containment; the
+admin positive-render smoke sub-check is PARTIAL (acceptance-gated, unit-test-covered). Cohort
+activation, Ask billing cutover, public sanctions/PEP restoration, and stale-row cleanup/rescore
+remain out of scope and separately gated.

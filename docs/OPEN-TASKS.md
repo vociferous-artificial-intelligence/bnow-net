@@ -73,8 +73,10 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     rescore × candidate / `remaining`), so selection and the completion count share one population.
     Post-deploy read-only proof: 1,012 eligible / 475 claim-linked / 537 zero-link; normal
     candidates 232 → 46, blocking the 186 zero-link missing/stub rows the cron would have spent on.
-    **Match-safety subset ✅ IMPLEMENTED 2026-07-21** (branch `opensanctions-match-safety`, zero
-    paid calls, zero production writes — see `docs/reviews/OPENSANCTIONS-MATCH-SAFETY-2026-07-21.md`):
+    **Match-safety subset ✅ LIVE 2026-07-22** (`441ee09`, `dpl_E5ysiLJSg1ynNmqJkgmpDjrzZD32`;
+    merged fast-forward-only + deployed, zero paid calls, zero production writes/migrations/env
+    changes; non-admin live-verified to render ZERO OpenSanctions markup, pre-release non-admin
+    profile-link leak closed — see `docs/reviews/OPENSANCTIONS-MATCH-SAFETY-2026-07-21.md`):
     the `results.find(match) ?? results[0]` defect that persisted REJECTED candidates as
     sanctions assertions is fixed (accepted-only selection; rejected candidates fail closed with
     non-assertive nested diagnostics); every read path now requires not-stub + not-NK-stub +
@@ -84,9 +86,11 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     score/caption surfacing exists now, but ADMIN-only, not analyst-facing); Ask no longer
     receives any OpenSanctions-derived categorical assertion (`sanctioned` projection +
     `SANCTIONED` prompt marker removed from legacy and v2).
-    **Still open (do NOT close this item):** (a) stale contradictory rows
-    (`matched:false, sanctioned:true`) remain in production, contained by fail-closed reads but
-    not mutated/rescored — cleanup/re-match belongs with #61 and needs separate spend approval;
+    **Still open (do NOT close this item):** (a) a read-only audit at release found the current
+    production set carries ZERO `matched:false, sanctioned:true` rows and zero rejected rows with
+    promoted topics (425 clean-rejected / 388 accepted-unsanctioned / 200 accepted-sanctioned);
+    the fail-closed reads contain any that appear without mutating/rescoring — cleanup/re-match
+    still belongs with #61 and needs separate spend approval;
     (b) matching still queries name + entity type only — stronger identifiers (DOB, nationality,
     registration numbers) are unimplemented; (c) NO human-review workflow exists, so
     sanctions/PEP assertions stay internal/admin-only until one is approved by product review;

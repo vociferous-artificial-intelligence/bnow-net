@@ -2543,3 +2543,34 @@ no push/deploy/production writes/migrations/paid calls):
   CURRENT-STATE, docs/reviews/OPENSANCTIONS-MATCH-SAFETY-2026-07-21.md.
 Remaining (separate approvals): human-review workflow before any public
 sanctions/PEP assertion; stronger identifiers; #61-gated stale-row cleanup.
+
+## 2026-07-22 01:10 UTC — OpenSanctions match-safety RELEASED to production
+
+Authorized merge + deploy + smoke of the independently reviewed repair.
+- Merge: `main` fast-forward-only `addd2be..441ee09` (linear, no merge commit; src
+  byte-identical to reviewed branch); pushed to origin. `addd2be` (the base) was
+  docs + an ops script only, so the deploy shipped exactly the reviewed `src/` delta.
+- Gates on merged main: `git diff --check` clean · typecheck clean · lint clean ·
+  unit 2,049/2,049 (161 files) · build PASS. (Itest 72/72 proven on the branch's
+  disposable Neon fork; not re-run — no tree drift.)
+- Deploy: `npx vercel deploy --prod` → `dpl_E5ysiLJSg1ynNmqJkgmpDjrzZD32`, READY,
+  aliased to bnow.net; `/health` stamps `441ee09`, DB OK. No migration, no env change
+  (all Ask flags preserved: `ASK_RUNS_SHADOW=1`, retention 30/7/7, billing cutover
+  absent). Ask shadow-soak window RESTARTED 2026-07-22T01:10:37Z (Ask code changed).
+- Smoke (zero paid calls): signed-out `/entities`+`/ask?q=` → 307 `/signin`;
+  **non-admin sees ZERO OpenSanctions markup** on accepted/rejected entities + list —
+  the pre-release non-admin `opensanctions.org/entities/` profile-link leak on entity 4
+  (present on `836b46e`) is GONE on `441ee09`; new Ask sample live; signed-in
+  `GET /ask?q=` prefill-only; signed-in `/search` deterministic, no `/api/ask`; runtime
+  logs info-only. Admin positive-render NOT live-verified — sole admin hasn't accepted
+  Privacy 1.3 (→ `/welcome/legal`); acceptance NOT manufactured; unit-test covered
+  (`entities/[id]/page.test.tsx`) → smoke PARTIAL on that sub-check only.
+- Invariants: zero paid provider calls / zero `ask_runs` / zero DB writes / no cron
+  invoked / no migration. Rollback target (unused) = `dpl_5scfsMfttrHZbLFWgdkAKdpBAHFT`
+  / `836b46e`.
+- Data-reality: read-only audit found ZERO `matched:false, sanctioned:true` rows in
+  current production (425 clean-rejected / 388 accepted-unsanctioned / 200 accepted-
+  sanctioned); fail-closed read model is defensively correct regardless.
+- Verdict: RELEASE VERIFIED (deployment + critical containment); admin positive-render
+  PARTIAL/unit-covered. Cohort activation, Ask billing cutover, public sanctions/PEP
+  restoration, and stale-row cleanup/rescore remain separately gated.

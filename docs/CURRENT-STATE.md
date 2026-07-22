@@ -11,6 +11,20 @@ Live at **https://bnow.net** (Vercel project `bnow-net`, team `vociferous`;
 deployment URLs are SSO-walled — always use the project domain). History/narrative:
 `docs/PROGRESS.md` + `docs/reviews/`; debt: `docs/OPEN-TASKS.md`.
 
+- **OpenSanctions match-safety release (2026-07-22):** release commit `441ee09` LIVE
+  (`dpl_E5ysiLJSg1ynNmqJkgmpDjrzZD32`, aliased to bnow.net, `/health` stamps `441ee09`,
+  DB OK). Fail-closed OpenSanctions read model (`src/lib/enrich/os-read.ts`) + admin-only
+  neutral candidate-review presentation on `/entities`; non-admin/public surfaces render ZERO
+  OpenSanctions markup (verified live — the pre-release non-admin `opensanctions.org/entities/`
+  profile-link leak is closed); Ask receives no OpenSanctions-derived categorical assertion,
+  sample question replaced. NO migration, NO env change (all Ask flags preserved); Ask
+  shadow-soak window RESTARTED 2026-07-22T01:10:37Z (Ask retrieval/evidence code changed). Zero
+  paid calls / DB writes / migrations during release + smoke. Rollback target = prior Ask
+  release `dpl_5scfsMfttrHZbLFWgdkAKdpBAHFT` / `836b46e`. Admin neutral-panel positive render
+  not live-verified (sole admin has not accepted Privacy 1.3 → `/welcome/legal`; unit-test
+  covered). Unit suite 2,049/161 files; integration 72/14 files. Evidence:
+  `docs/reviews/OPENSANCTIONS-MATCH-SAFETY-2026-07-21.md`.
+
 - **AI Search/Ask release (2026-07-21):** release commit `836b46e` LIVE
   (`dpl_5scfsMfttrHZbLFWgdkAKdpBAHFT`); production DB migrated 0021–0027 (backup branch
   `backup-pre-ask-release-2026-07-21` retained); Privacy 1.3 live with forced
@@ -69,12 +83,15 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   rescore remains CLOSED until the kind-safe #61 fix is deployed, cleanup is approved/applied, the
   population/month quota are recounted, and spend is separately authorized. Neither the 07-16 audit
   nor the #17 deploy made a cleanup mutation or a paid OpenSanctions call.
-  **Match-safety repair IMPLEMENTED 2026-07-21 on branch `opensanctions-match-safety` (NOT yet
-  merged/deployed):** the matcher now accepts only `match === true` results (a rejected candidate
+  **Match-safety repair LIVE 2026-07-22 (`441ee09`, `dpl_E5ysiLJSg1ynNmqJkgmpDjrzZD32`):** the
+  matcher now accepts only `match === true` results (a rejected candidate
   can no longer persist as a sanctions assertion; rejected diagnostics are non-assertive);
   `src/lib/enrich/os-read.ts` is the single fail-closed read authority (usable match = not stub +
-  not `NK-stub` + `matched === true`), containing the stale `matched:false, sanctioned:true`
-  production rows without mutating them; OpenSanctions presentation on `/entities` is now
+  not `NK-stub` + `matched === true`), containing any stale/contradictory rows without mutating
+  them (a read-only audit at release found the current production set carries ZERO
+  `matched:false, sanctioned:true` rows and zero rejected rows with promoted topics — 425
+  clean-rejected / 388 accepted-unsanctioned / 200 accepted-sanctioned; the read model is
+  defensively correct regardless); OpenSanctions presentation on `/entities` is now
   ADMIN-ONLY qualified candidate review (no public badge/PEP/topic/score/caption/freshness markup;
   score labelled identity-match confidence, not risk); Ask receives NO OpenSanctions-derived
   categorical assertion (`sanctioned` projection and the `SANCTIONED` evidence marker removed from
