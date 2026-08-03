@@ -104,8 +104,11 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   = the prior Ask release `dpl_5scfsMfttrHZbLFWgdkAKdpBAHFT` / `836b46e` (additive-only history,
   no migration/env delta to reverse). Flag rollback still = unset `ASK_RUNS_SHADOW` + redeploy.
   Ask shadow-soak window RESTARTED at 2026-07-22T01:10:37Z (Ask retrieval/evidence code
-  changed). origin/main == local main (`441ee09`, plus one docs-only commit for this release
-  record — the deployed app SHA is `441ee09`; do NOT redeploy for the docs commit). Deployment
+  changed). **main is AHEAD of production as of 2026-08-03: the authorization-bypass repair
+  (ruling 21) is merged to `main` but NOT deployed — the deployed app SHA is still `441ee09`.
+  Deploying that merge is the next production action; until it happens, every gated page in
+  production still enforces authorization only in its layout and leaks its rendered output to
+  anonymous callers.** Deployment
   URLs are SSO-walled — verify through the project domain (`/health` renders the 7-char commit
   stamp; it is set even on CLI deploys). Production DB backup branch
   `backup-pre-ask-release-2026-07-21` (`br-small-poetry-atf9x253`) — keep until the soak
@@ -179,6 +182,9 @@ Invariants — absolute, each owned here:
    one. `9999_claim_source_trigger.sql` re-asserts without DROP, always applies last —
    never renumber it or let drizzle-kit regeneration drop it.
 
+Ruling 21 below is invariant-grade too (authorization placement); it sits at the end
+because the decision log cites rulings 6–20 by number and must not be renumbered.
+
 Operational rulings:
 
 6. LLM proposals are never auto-applied — entity audit is propose-only with human review.
@@ -244,6 +250,27 @@ Operational rulings:
     timing. OpenSanctions name matches are candidate identities; sanction/PEP/RCA/POI topics stay
     distinct and name-only matches need stronger identifiers or analyst review for definitive
     identity. Ask enforces source fidelity; it does not port ruling 19's single-doc drop rule.
+21. **Authorization lives in the PAGE, never only in a layout (2026-08-03; invariant-grade).**
+    A `layout.tsx` is NOT an authorization boundary in the App Router: layout and page render
+    as SIBLING tasks, so a layout's `redirect()`/`notFound()` errors only the layout's own
+    task — the page's queries still run and its output is still serialized. An anonymous
+    caller recovers that output two ways (both reproduced here against a production build):
+    an `RSC: 1` header returns HTTP 200 `text/x-component` holding the whole rendered page,
+    and a bare GET returns the rendered HTML as the BODY of the 307 (a browser discards it,
+    curl keeps it). Every gated page therefore calls its gate — `requireAdmin` /
+    `requireAcceptedUser` / `requireAdminOr404` from `@/lib/gate` — as the FIRST statement of
+    the page component, before any `db.execute` / `rawSql.query` / `Pool` query /
+    `lexicalClaimSearch`; the layout gate STAYS as defense in depth. `currentRole()`
+    authorizes nothing: it only shapes presentation (registry view policy, admin-only
+    OpenSanctions markup) and never substitutes for a gate. Guarded by
+    `src/integration/authz-page-gate.itest.ts`, which boots a real production build and
+    asserts over HTTP that no privileged token appears in any response BODY — status codes
+    are deliberately not trusted, since the leaking response was a 307. Unit tests that
+    invoke page components directly CANNOT see this class of bug over HTTP; a new gated route
+    needs a row in that test's ROUTES table. Because that itest needs a Neon secret and is
+    excluded from `npm test`, the four unit-tested gated pages ALSO assert the gate ran before
+    their first query (`page-level authorization gate` case per file), so the pre-push gate
+    catches a deleted or reordered call.
 
 ## Decision log (append-only, dated)
 
@@ -372,6 +399,64 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   and paid rescore stay separately gated (#61 + spend approval). Cohort activation / Ask billing
   cutover remain out of scope and unauthorized by this entry. Report:
   `docs/reviews/OPENSANCTIONS-MATCH-SAFETY-2026-07-21.md`.
+
+- **2026-08-03 (authorization-bypass repair — gates moved into the pages; branch only)**
+  Authorization had been enforced ONLY in `layout.tsx` files, which is not an authorization
+  boundary: layout and page render as sibling tasks, so a layout's redirect/404 never
+  cancelled the page's task and the page's fully rendered output was still serialized to
+  anonymous callers — recoverable via an `RSC: 1` GET (HTTP 200 flight payload) or from the
+  body streamed inside the 307. TEN pages were affected: `/admin/access`, `/admin/ingest`,
+  `/digests/[country]`, `/digests/[country]/[date]`, `/search`, `/entities`,
+  `/entities/[id]`, `/registry`, `/registry/[id]`, `/middle-east`. Repair: the matching gate
+  from `@/lib/gate` is now the FIRST statement of each page component, before any data
+  access (`requireAdmin` on the two admin pages; `requireAcceptedUser` on digests/search/
+  entities; `requireAdminOr404` on registry/registry-detail/middle-east); every layout gate
+  was KEPT as defense in depth (zero layout files changed), and the entities pages'
+  data-layer gating (non-admin SQL omits `e.meta->'opensanctions'`; detail short-circuits to
+  `{state:"none"}`) plus `/signals` were left untouched. Ruling 21 records the standing rule.
+  Evidence — a new real-HTTP regression test (`src/integration/authz-page-gate.itest.ts`,
+  30 tests: bare GET + `RSC: 1` GET + an accepted-admin positive control per route, asserting
+  on the response BODY, never the status code) run against a production build on a disposable
+  Neon fork: BEFORE the fix 20 failed / 10 passed — every anonymous assertion failed on both
+  request modes while all ten positive controls passed, so the failures were the vulnerability
+  and not the harness; AFTER the fix 30/30 pass. Because that itest is excluded from `npm
+  test` and skipped in CI when the Neon secret is absent, the four existing unit test files
+  that had to mock `@/lib/gate` mock it as a SPY, not a no-op, and each adds a
+  `page-level authorization gate` case asserting the gate was called and that its
+  `invocationCallOrder` precedes the first query's — so the always-run suite (and the
+  pre-push hook) now fails if a future refactor deletes or reorders a gate call "because the
+  layout already gates it". Proven by mutation: deleting `await requireAcceptedUser()` from
+  those four pages fails exactly the 6 new cases and no others. Their pre-existing
+  OpenSanctions/money-path assertions still route through `currentRole()` and are unweakened.
+  Gates: typecheck clean · lint clean · unit 2,055/2,055 (161 files) · integration 102/102
+  (15 files, up from 72/14). Zero paid provider calls, zero production
+  writes, no migration, no env change, no deploy, no push — branch/working-tree only.
+  **Flagged, deliberately NOT fixed (legal/product track):** `requireAcceptedUser()` sends a
+  signed-in-but-unaccepted user to `/welcome/legal`, so the same layout-only enforcement was
+  also bypassing the CURRENT clickwrap on `/search`, `/entities` and `/digests`; the forced
+  re-acceptance of 2026-07-21 (Privacy 1.3) means real users sit in that state now. This
+  repair closes the content leak for those users as a side effect, but the acceptance flow
+  itself was not touched and is not adjudicated here (OPEN-TASKS #75).
+
+- **2026-08-03 (authorization-bypass repair — merged to main; deploy deliberately separate)**
+  Operator authorized shipping the repair above. It was committed on branch
+  `fix/layout-gate-authz-bypass` and merged to `main` (linear, fast-forward — no merge
+  commit), then pushed. Gates re-verified on the exact merged tree by this session:
+  typecheck clean · lint clean · unit 2,055/2,055 (161 files) · integration 102/102 (15
+  files) against a disposable Neon fork, with every paid provider key blanked and
+  `LLM_DISABLE=1` — zero paid provider calls, zero production writes, no migration, no env
+  change. One supporting change rides along: `scripts/test-integration.sh` now forwards extra
+  args to vitest so a single itest file can be run. **This session did NOT deploy** — the
+  production deploy is a separate operator action, so between this entry and that deploy the
+  Current-state snapshot above is authoritative: production still runs `441ee09` and remains
+  vulnerable. Nothing else changed: no flag, cap, cron, or Ask/OpenSanctions behaviour is
+  touched by this repair.
+  **OPEN-TASKS #75 adjudicated won't-fix by the operator** in the same authorization: the
+  clickwrap-bypass window opened by the 2026-07-21 forced re-acceptance needs no
+  record-keeping or user-facing follow-up, because every existing account is one of the
+  owner's own disposable email aliases — there is no third-party user-acceptance exposure.
+  The acceptance flow itself is unchanged and was not touched. If real third-party users are
+  admitted before that flow is revisited, the question re-opens as a fresh item.
 
 ## Conventions
 

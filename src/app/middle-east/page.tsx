@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { rawSql } from "@/db";
 import { getT } from "@/i18n/server";
-import { currentRole } from "@/lib/gate";
+import { currentRole, requireAdminOr404 } from "@/lib/gate";
 import { registryView } from "@/lib/registry/view-policy";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +19,10 @@ export default async function MiddleEastPage({
 }: {
   searchParams: Promise<{ platform?: string; q?: string; page?: string }>;
 }) {
+  // Page-level gate: the /middle-east layout gate stays as defense in depth,
+  // but a layout is not an authorization boundary — the page task still renders
+  // (and its output serializes) when only the layout throws.
+  await requireAdminOr404();
   const sp = await searchParams;
   const platform = PLATFORMS.includes(sp.platform as never) ? sp.platform : undefined;
   const q = sp.q?.slice(0, 80);

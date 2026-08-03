@@ -1,15 +1,20 @@
 import { sql as dsql } from "drizzle-orm";
 import { db } from "@/db";
+import { requireAdmin } from "@/lib/gate";
 
 export const dynamic = "force-dynamic";
 
 // Operator review surface for beta access requests (subscribe_intents), newest
-// first. Gated by the /admin layout's requireAdmin(). Approval is the one-field
-// update that makes SIGNIN_MODE=invite admit the requester:
+// first. Gated by requireAdmin() below — the /admin layout's gate stays as
+// defense in depth, but a layout is NOT an authorization boundary (layout and
+// page render as sibling tasks; a layout redirect does not cancel the page's
+// render, so its serialized output still leaks on RSC/307 responses). Approval
+// is the one-field update that makes SIGNIN_MODE=invite admit the requester:
 //   UPDATE subscribe_intents SET request_status='approved' WHERE id=<id>;
 // (runnable via scripts/sqlq.ts until a write UI exists).
 
 export default async function AccessRequestsPage() {
+  await requireAdmin();
   const [recent, counts] = await Promise.all([
     db.execute(dsql`
       SELECT id, email, request_status, linkedin_url, use_case, source, plan_code,

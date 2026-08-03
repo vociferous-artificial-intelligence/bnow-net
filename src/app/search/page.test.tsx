@@ -27,6 +27,16 @@ vi.mock("@/i18n/server", () => ({
   getLocale: async () => "en",
 }));
 
+// AGENTS.md ruling 21: the page must call its own gate BEFORE any data access — a
+// layout gate does not cancel the page's render, so gating only there leaks the
+// serialized page. Spied so this always-run suite fails if the call is ever
+// deleted or reordered; the HTTP-level proof lives in
+// src/integration/authz-page-gate.itest.ts, which npm test does not run.
+const gateMock = vi.hoisted(() => vi.fn(async () => ({ email: "user@example.com" })));
+vi.mock("@/lib/gate", () => ({
+  requireAcceptedUser: gateMock,
+}));
+
 const askWithLimitsMock = vi.fn<(...args: unknown[]) => never>(() => {
   throw new Error("askWithLimits must never be called from /search");
 });
@@ -241,5 +251,27 @@ describe("/search never touches the paid ASK pipeline surface", () => {
       result_count_bucket: "0",
       window_present: false,
     });
+  });
+});
+
+// AGENTS.md ruling 21 — the page is its own authorization boundary. The /search
+// layout also gates, but a layout redirect does not cancel the page's render, so
+// the gate must run HERE and must run before the first query. Deleting
+// `await requireAcceptedUser()` from page.tsx fails this test.
+describe("page-level authorization gate", () => {
+  it("calls requireAcceptedUser before issuing any query", async () => {
+    await SearchPage({ searchParams: Promise.resolve({ q: "anything" }) });
+
+    expect(gateMock).toHaveBeenCalled();
+    expect(gateMock.mock.invocationCallOrder[0]).toBeLessThan(
+      queryMock.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("gates even the no-query render, which issues no SQL at all", async () => {
+    await SearchPage({ searchParams: Promise.resolve({}) });
+
+    expect(gateMock).toHaveBeenCalled();
+    expect(queryMock).not.toHaveBeenCalled();
   });
 });

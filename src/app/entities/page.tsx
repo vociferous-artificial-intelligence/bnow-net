@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { rawSql } from "@/db";
-import { currentRole } from "@/lib/gate";
+import { currentRole, requireAcceptedUser } from "@/lib/gate";
 import { readOsMeta } from "@/lib/enrich/os-read";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +14,11 @@ export const dynamic = "force-dynamic";
 // the qualified candidate-review detail lives on the entity page.
 
 export default async function EntitiesPage() {
+  // Page-level gate: the /entities layout gate stays as defense in depth, but a
+  // layout is not an authorization boundary — the page task still renders (and
+  // its output serializes) when only the layout throws. currentRole() below
+  // authorizes nothing; it only shapes the admin-only OpenSanctions markup.
+  await requireAcceptedUser();
   // fail closed: currentRole() degrades to "user" on any lookup uncertainty
   const isAdmin = (await currentRole()) === "admin";
 

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Pool } from "@neondatabase/serverless";
+import { requireAcceptedUser } from "@/lib/gate";
 import { getLocale } from "@/i18n/server";
 import { makeT } from "@/i18n/dictionaries";
 import { formatDate } from "@/i18n/format";
@@ -100,6 +101,10 @@ export default async function SearchPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
+  // Page-level gate: the /search layout gate stays as defense in depth, but a
+  // layout is not an authorization boundary — the page task still renders (and
+  // its output serializes) when only the layout throws.
+  await requireAcceptedUser();
   const locale = await getLocale();
   const t = makeT(locale);
   const evidenceLabels = makeClaimEvidenceLabels(t);

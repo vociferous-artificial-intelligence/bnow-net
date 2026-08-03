@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { rawSql } from "@/db";
-import { currentRole } from "@/lib/gate";
+import { currentRole, requireAcceptedUser } from "@/lib/gate";
 import { readOsMeta } from "@/lib/enrich/os-read";
 import { getLocale } from "@/i18n/server";
 import { makeT } from "@/i18n/dictionaries";
@@ -20,6 +20,11 @@ export default async function EntityDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  // Page-level gate: the /entities layout gate stays as defense in depth, but a
+  // layout is not an authorization boundary — the page task still renders (and
+  // its output serializes) when only the layout throws. currentRole() below
+  // authorizes nothing; it only shapes the admin-only OpenSanctions panel.
+  await requireAcceptedUser();
   const { id } = await params;
   if (!/^\d+$/.test(id)) notFound();
   const locale = await getLocale();

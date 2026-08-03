@@ -2,6 +2,8 @@
 # Integration test runner: create a disposable Neon branch (copy-on-write fork of
 # production), run *.itest.ts against it, delete the branch — always, even on
 # failure. Usage: npm run test:integration
+# Extra args pass through to vitest, e.g. a single file:
+#   npm run test:integration -- src/integration/authz-page-gate.itest.ts
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -17,4 +19,4 @@ cleanup() {
 }
 trap cleanup EXIT
 
-INTEGRATION_DATABASE_URL="$CONN" npx vitest run --config vitest.integration.config.ts
+INTEGRATION_DATABASE_URL="$CONN" npx vitest run --config vitest.integration.config.ts "$@"

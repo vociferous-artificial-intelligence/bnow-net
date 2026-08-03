@@ -6,7 +6,16 @@ const queryMock = vi.fn();
 vi.mock("@/db", () => ({ rawSql: { query: (...args: unknown[]) => queryMock(...args) } }));
 
 const roleMock = vi.fn();
-vi.mock("@/lib/gate", () => ({ currentRole: () => roleMock() }));
+// AGENTS.md ruling 21: the page must call its own gate BEFORE any data access — a
+// layout gate does not cancel the page's render, so gating only there leaks the
+// serialized page. Spied (not a bare no-op) so this always-run suite fails if the
+// call is ever deleted or reordered; the HTTP-level proof lives in
+// src/integration/authz-page-gate.itest.ts, which npm test does not run.
+const gateMock = vi.fn(async () => null);
+vi.mock("@/lib/gate", () => ({
+  currentRole: () => roleMock(),
+  requireAcceptedUser: () => gateMock(),
+}));
 
 const EntitiesPage = (await import("./page")).default;
 
@@ -14,6 +23,7 @@ afterEach(() => {
   cleanup();
   queryMock.mockReset();
   roleMock.mockReset();
+  gateMock.mockClear();
 });
 
 // The pre-2026-07-21 matcher bug's persisted shape: a REJECTED candidate whose
@@ -82,5 +92,23 @@ describe("entity tracker list — OpenSanctions is admin-only and fail-closed", 
     const { container } = render(await EntitiesPage());
     expect(container.innerHTML).not.toContain("OS candidate");
     expect(container.innerHTML).not.toMatch(/opensanctions/i);
+  });
+});
+
+// AGENTS.md ruling 21 — the page is its own authorization boundary. The /entities
+// layout also gates, but a layout redirect does not cancel the page's render, so
+// the gate must run HERE and must run before the first query. Deleting
+// `await requireAcceptedUser()` from page.tsx fails this test.
+describe("page-level authorization gate", () => {
+  it("calls requireAcceptedUser before issuing any query", async () => {
+    roleMock.mockResolvedValue("user");
+    queryMock.mockResolvedValueOnce([row(1, "Someone")]);
+
+    await EntitiesPage();
+
+    expect(gateMock).toHaveBeenCalled();
+    expect(gateMock.mock.invocationCallOrder[0]).toBeLessThan(
+      queryMock.mock.invocationCallOrder[0],
+    );
   });
 });

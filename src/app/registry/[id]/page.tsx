@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { rawSql } from "@/db";
 import { getT } from "@/i18n/server";
-import { currentRole } from "@/lib/gate";
+import { currentRole, requireAdminOr404 } from "@/lib/gate";
 import { registryView } from "@/lib/registry/view-policy";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +21,10 @@ export default async function SourceDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  // Page-level gate: the /registry layout gate stays as defense in depth, but a
+  // layout is not an authorization boundary — the page task still renders (and
+  // its output serializes) when only the layout throws.
+  await requireAdminOr404();
   const { id } = await params;
   if (!/^\d+$/.test(id)) notFound();
 

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { rawSql } from "@/db";
+import { requireAcceptedUser } from "@/lib/gate";
 import { getProfile, PROFILES } from "@/lib/profiles/config";
 import { rankEvents, type RankableEvent } from "@/lib/profiles/rank";
 import { feedbackMailto } from "@/lib/feedback";
@@ -156,6 +157,10 @@ export default async function DigestPage({
   params: Promise<{ country: string; date: string }>;
   searchParams: Promise<{ profile?: string }>;
 }) {
+  // Page-level gate: the /digests layout gate stays as defense in depth, but a
+  // layout is not an authorization boundary — the page task still renders (and
+  // its output serializes) when only the layout throws.
+  await requireAcceptedUser();
   const { country, date } = await params;
   const { profile: profileKey } = await searchParams;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^[a-z]{2}$/.test(country)) notFound();

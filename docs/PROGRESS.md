@@ -2574,3 +2574,52 @@ Authorized merge + deploy + smoke of the independently reviewed repair.
 - Verdict: RELEASE VERIFIED (deployment + critical containment); admin positive-render
   PARTIAL/unit-covered. Cohort activation, Ask billing cutover, public sanctions/PEP
   restoration, and stale-row cleanup/rescore remain separately gated.
+
+## 2026-08-03 11:15 UTC — Authorization-bypass repair: gates moved into the pages
+
+Ten gated pages enforced authorization ONLY in their `layout.tsx`. A layout is not an
+authorization boundary — layout and page render as sibling tasks, so the layout's
+redirect/404 never cancelled the page task and the page's rendered output was still
+serialized to anonymous callers.
+
+- **Reproduced both vectors** against a production build on a disposable Neon fork:
+  `RSC: 1` GET → HTTP 200 `text/x-component` carrying the whole page (captured a full
+  `/registry/[id]` payload including the seeded source URL); bare GET → the rendered HTML
+  streamed as the BODY of the 307.
+- **Fix:** the matching `@/lib/gate` call is now the FIRST statement of each page component,
+  before any data access — `requireAdmin` (`/admin/access`, `/admin/ingest`),
+  `requireAcceptedUser` (`/digests/[country]`, `/digests/[country]/[date]`, `/search`,
+  `/entities`, `/entities/[id]`), `requireAdminOr404` (`/registry`, `/registry/[id]`,
+  `/middle-east`). Every layout gate KEPT (zero layout files changed). The entities pages'
+  data-layer gating and `/signals` untouched. AGENTS.md ruling 21 records the standing rule.
+- **New regression test** `src/integration/authz-page-gate.itest.ts` (30 tests): per route a
+  bare GET, an `RSC: 1` GET, and an accepted-admin positive control, asserting on the response
+  BODY — status codes are deliberately not trusted, since the leaking response was a 307.
+  Boots `next build` + `next start` on port 3132 against the fork with explicit
+  `DATABASE_URL` and `LLM_DISABLE=1`; seeds/cleans its own fixtures and restores
+  `next-env.d.ts`.
+- **Two harness hardenings from the adversarial review** (both were latent, both fixed):
+  (a) the readiness poll could have adopted an ORPHANED `next start` on 3132 from an aborted
+  run — it answers `/health` in milliseconds, before our own child fails with EADDRINUSE and
+  trips the exitCode guard — which would silently grade a stale build against a stale
+  database and could manufacture a false "fix verified"; `assertPortFree()` now refuses to
+  run if anything answers on the port. (b) Deleting provider keys bound only the vitest
+  process — `next build`/`next start` run @next/env, which reloads `.env.local` and
+  re-populates anything ABSENT; the child now gets those keys BLANKED (`""`) in `serverEnv()`
+  instead, which @next/env will not override. Neither was exploitable here (no route under
+  test reaches a paid provider, and `LLM_DISABLE=1` was already set), but both would rot.
+- **Before/after:** pre-fix 20 failed / 10 passed — all 20 anonymous assertions failed on
+  both request modes while all 10 positive controls passed, proving the harness was sound and
+  the failures were the vulnerability. Post-fix 30/30 pass.
+- **Always-run net:** the itest is excluded from `npm test` and skipped in CI without the
+  Neon secret, so the four unit test files that had to mock `@/lib/gate` mock it as a SPY and
+  each adds a `page-level authorization gate` case asserting the gate ran and that its
+  `invocationCallOrder` precedes the first query's. Mutation-proven: deleting
+  `await requireAcceptedUser()` from those four pages fails exactly those 6 cases and no
+  others (31 other cases in the same files still pass). Pre-existing OpenSanctions/money-path
+  assertions still route through `currentRole()` and are unweakened.
+- **Gates:** typecheck clean · lint clean · unit 2,055/2,055 (161 files) · integration
+  102/102 (15 files, up from 72/14).
+- **Not done (deliberate):** no commit, push, deploy, migration, env change, or paid call —
+  branch/working-tree only. Clickwrap consequence flagged as OPEN-TASKS #75 for the
+  legal/product track, not fixed here.

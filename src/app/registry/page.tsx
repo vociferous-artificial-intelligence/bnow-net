@@ -2,7 +2,7 @@ import { and, count, desc, eq, ilike, sql as dsql } from "drizzle-orm";
 import Link from "next/link";
 import { db, rawSql, schema } from "@/db";
 import { getT } from "@/i18n/server";
-import { currentRole } from "@/lib/gate";
+import { currentRole, requireAdminOr404 } from "@/lib/gate";
 import { registryView, resolveRegistrySort } from "@/lib/registry/view-policy";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +19,10 @@ export default async function RegistryPage({
 }: {
   searchParams: Promise<{ platform?: string; q?: string; page?: string; sort?: string }>;
 }) {
+  // Page-level gate: the /registry layout gate stays as defense in depth, but a
+  // layout is not an authorization boundary — the page task still renders (and
+  // its output serializes) when only the layout throws.
+  await requireAdminOr404();
   const params = await searchParams;
   const platform = PLATFORMS.includes(params.platform as never)
     ? (params.platform as (typeof PLATFORMS)[number])

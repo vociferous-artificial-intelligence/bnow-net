@@ -658,3 +658,21 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     masks it. `next build` + `next start` hydrates correctly. **Verify React UI against a
     production build until this is fixed**; a dev-server click test proves nothing here.
     Not an application defect (reproduced on untouched components).
+75. **[CLOSED 2026-08-03 — won't-fix by operator decision; no third-party exposure]** The
+    clickwrap was bypassable on `/search`, `/entities` and `/digests` for the same
+    layout-only-gate reason. `requireAcceptedUser()` redirects a signed-in-but-unaccepted
+    user to `/welcome/legal`, but while that gate ran only in the layout, the redirect never
+    cancelled the page's own render — so an unaccepted user still received the page content
+    (HTML in the 307 body, or a 200 flight payload with `RSC: 1`). The 2026-08-03 page-gate
+    repair (AGENTS.md ruling 21 + its decision-log entry) CLOSED the leak: those users now
+    get the redirect with no content.
+    **Resolution — won't-fix.** The remaining item was the legal/product question of the
+    acceptance window: the forced re-acceptance of 2026-07-21 (Privacy 1.3) left existing
+    accounts unaccepted, so some consumed subscriber surfaces without having accepted the
+    current Terms/Privacy pair. The operator adjudicated this as needing no remediation:
+    every existing account is one of the owner's own email aliases and is disposable, so
+    there is no third-party user-acceptance exposure to record or disclose. No
+    record-keeping, no user-facing follow-up, and no change to the acceptance flow. This
+    closes the legal/product track only — the code repair stands on its own, and ruling 21
+    continues to bind every new gated page. Should real third-party users be admitted
+    before the acceptance flow is revisited, re-open this as a fresh item.

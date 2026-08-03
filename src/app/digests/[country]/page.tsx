@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { rawSql } from "@/db";
+import { requireAcceptedUser } from "@/lib/gate";
 import { getLocale } from "@/i18n/server";
 import { makeT } from "@/i18n/dictionaries";
 
@@ -17,6 +18,10 @@ export default async function DigestArchivePage({
 }: {
   params: Promise<{ country: string }>;
 }) {
+  // Page-level gate: the /digests layout gate stays as defense in depth, but a
+  // layout is not an authorization boundary — the page task still renders (and
+  // its output serializes) when only the layout throws.
+  await requireAcceptedUser();
   const { country } = await params;
   if (!/^[a-z]{2}$/.test(country)) notFound();
 

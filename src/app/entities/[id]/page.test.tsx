@@ -9,7 +9,16 @@ vi.mock("@/i18n/server", () => ({ getLocale: async () => "en" }));
 // OpenSanctions presentation is admin-only (2026-07-21 match-safety ruling);
 // default every test to the fail-closed non-admin role.
 const roleMock = vi.fn();
-vi.mock("@/lib/gate", () => ({ currentRole: () => roleMock() }));
+// AGENTS.md ruling 21: the page must call its own gate BEFORE any data access — a
+// layout gate does not cancel the page's render, so gating only there leaks the
+// serialized page. Spied (not a bare no-op) so this always-run suite fails if the
+// call is ever deleted or reordered; the HTTP-level proof lives in
+// src/integration/authz-page-gate.itest.ts, which npm test does not run.
+const gateMock = vi.fn(async () => null);
+vi.mock("@/lib/gate", () => ({
+  currentRole: () => roleMock(),
+  requireAcceptedUser: () => gateMock(),
+}));
 
 const EntityDetailPage = (await import("./page")).default;
 
@@ -17,6 +26,7 @@ afterEach(() => {
   cleanup();
   queryMock.mockReset();
   roleMock.mockReset();
+  gateMock.mockClear();
 });
 
 beforeEach(() => {
@@ -195,5 +205,25 @@ describe("entity detail — OpenSanctions is admin-only, qualified, fail-closed"
     // no categorical badge — the old red assertion style is gone for good
     expect(html).not.toMatch(/\bsanctioned\b/i);
     expect(container.querySelector(".bg-red-600")).toBeNull();
+  });
+});
+
+// AGENTS.md ruling 21 — the page is its own authorization boundary. The /entities
+// layout also gates, but a layout redirect does not cancel the page's render, so
+// the gate must run HERE and must run before the first query. Deleting
+// `await requireAcceptedUser()` from page.tsx fails this test.
+describe("page-level authorization gate", () => {
+  it("calls requireAcceptedUser before issuing any query", async () => {
+    queryMock
+      .mockResolvedValueOnce([ENTITY])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    await EntityDetailPage({ params: Promise.resolve({ id: "7" }) });
+
+    expect(gateMock).toHaveBeenCalled();
+    expect(gateMock.mock.invocationCallOrder[0]).toBeLessThan(
+      queryMock.mock.invocationCallOrder[0],
+    );
   });
 });

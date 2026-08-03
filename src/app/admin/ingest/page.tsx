@@ -1,9 +1,14 @@
 import { sql as dsql } from "drizzle-orm";
 import { db } from "@/db";
+import { requireAdmin } from "@/lib/gate";
 
 export const dynamic = "force-dynamic";
 
 export default async function IngestStatusPage() {
+  // Page-level gate: the /admin layout's requireAdmin() is kept as defense in
+  // depth, but a layout is not an authorization boundary — the page task still
+  // renders (and its output serializes) when only the layout throws.
+  await requireAdmin();
   const [byAdapter, recent, total] = await Promise.all([
     db.execute(dsql`
       SELECT adapter,
