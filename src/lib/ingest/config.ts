@@ -49,7 +49,27 @@ export const RSS_FEEDS: RssFeedConfig[] = [
   // Iran/Gulf depth (2026-07-06, verified reachable): regional + Iranian state.
   { url: "https://www.middleeasteye.net/rss", sourceKey: "middleeasteye.net", lang: "en", countryIso2: "ir", name: "Middle East Eye" },
   { url: "https://www.al-monitor.com/rss", sourceKey: "al-monitor.com", lang: "en", countryIso2: "ir", name: "Al-Monitor" },
-  { url: "https://www.presstv.ir/rss.xml", sourceKey: "presstv.ir", lang: "en", countryIso2: "ir", name: "Press TV (Iran state)" },
+  // presstv.ir's own TLS chain broke and now 301s to presstv.co.uk — the feeds
+  // are item-identical and every item link still points at presstv.ir, so the
+  // registry identity (sourceKey) stays presstv.ir; only the transport URL
+  // changed (probed 2026-08-15, 200 + XML, fresh; items carry no pubDate —
+  // publishedAt falls back to fetched_at by design).
+  { url: "https://www.presstv.co.uk/rss.xml", sourceKey: "presstv.ir", lang: "en", countryIso2: "ir", name: "Press TV (Iran state)" },
+  // Iran validation recovery roster (2026-08-15; probed from this box + Vercel
+  // egress, 200 + XML + fresh same-day items unless noted; ISW Iran Updates
+  // cite these outlets directly — counts recorded in
+  // docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md). Arabic/Persian feeds
+  // pin countryIso2 explicitly (coverage lens, ruling 11 — never routed by
+  // language); state-affiliated outlets are attributed primary voices, not
+  // verified truth (their reliability comes from ISW citation hedging).
+  { url: "https://en.mehrnews.com/rss", sourceKey: "en.mehrnews.com", lang: "en", countryIso2: "ir", name: "Mehr News (EN, Iran state-affiliated)" },
+  { url: "https://www.radiofarda.com/api/", sourceKey: "radiofarda.com", lang: "fa", countryIso2: "ir", name: "Radio Farda (RFE/RL Persian)" },
+  { url: "https://www.sabanew.net/rss.php?lang=ar", sourceKey: "sabanew.net", lang: "ar", countryIso2: "ir", name: "Saba News (Yemen, Aden government)" },
+  { url: "https://sanaacenter.org/feed", sourceKey: "sanaacenter.org", lang: "en", countryIso2: "ir", name: "Sana'a Center for Strategic Studies" },
+  // politics-section feed on purpose: the root /rss is a 1.1MB full-site feed
+  // (sports/culture) that would pollute the ir corpus; /rss/politics is 35
+  // fresh politics items (probed 2026-08-15, 200 + XML, minutes-fresh)
+  { url: "https://www.alaraby.co.uk/rss/politics", sourceKey: "alaraby.co.uk", lang: "ar", countryIso2: "ir", name: "Al-Araby Al-Jadeed (The New Arab, AR politics)" },
 ];
 
 // Curated must-watch Telegram channels (state + mil-blogger + OSINT mix).
