@@ -15,7 +15,9 @@ import { neon } from "@neondatabase/serverless";
 //   (unknown = ISW unhedged declarative — mid-trust by design)
 // Decay: last cited > 12 months before the newest report in the SAME theater.
 
-const sql = neon(process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL!);
+// `||` on purpose: an EMPTY DATABASE_URL_UNPOOLED falls through to the pooled
+// DSN (the .env.local unpooled credentials have gone stale before)
+const sql = neon(process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL!);
 
 async function main() {
   // 1. per-theater aggregates — DELETE + rebuild in ONE transaction so readers
