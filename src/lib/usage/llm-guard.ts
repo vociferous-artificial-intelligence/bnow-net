@@ -5,7 +5,7 @@
 // (docs/reviews/PIPELINE-AUDIT-2026-07.md §7c) — wrote nothing to provider_usage
 // and passed no guard: OPENAI_API_KEY alone enabled uncapped spend.
 
-import { SpendGuard, envCap, envNum, pgUsageStore } from "./spend-guard";
+import { SpendGuard, envCap, envNum, pgUsageStore, type ReserveCode } from "./spend-guard";
 
 /** provider_usage.provider for the digest extract call (audit Site A). */
 export const DIGEST_PROVIDER = "openai_digest";
@@ -50,6 +50,10 @@ export class LlmBudgetError extends Error {
     /** the raw refusal reason (additive, Gate 5: callers logging the reason
      *  keep exact pre-gateway log wording) */
     public readonly reason: string,
+    /** machine-readable refusal code (SpendGuard ReserveCode), so callers can
+     *  distinguish a per-run ceiling from a daily/total cap without string
+     *  matching the reason. Optional: older throw sites omit it. */
+    public readonly reserveCode?: ReserveCode,
   ) {
     super(`llm: budget stop — ${reason}`);
     this.name = "LlmBudgetError";
@@ -126,20 +130,48 @@ export function entityAuditGuardFromEnv(): SpendGuard {
 
 /** Resolved per-day USD cap for the map worker. Same fail-closed contract as the
  *  digest cap, but its OWN env var: production with MAP_USD_CAP_DAILY unset must
- *  not map. */
-export function mapDailyUsdCap(): number | null {
-  return envCap("MAP_USD_CAP_DAILY") ?? (isProduction() ? null : MAP_DAILY_USD_CAP_DEFAULT);
+ *  not map.
+ *
+ *  Bounded recovery override (2026-08-15 Iran validation recovery): when BOTH
+ *  MAP_USD_CAP_DAILY_OVERRIDE_USD and MAP_USD_CAP_DAILY_OVERRIDE_UNTIL are set,
+ *  the override value applies ONLY while `now` is strictly before the UNTIL
+ *  instant. Fail-closed rules, all test-pinned:
+ *  - the base cap must itself resolve (unset base in production stays null —
+ *    an override can never turn a fail-closed guard on);
+ *  - UNTIL must be a valid ISO-8601 instant WITH an explicit timezone
+ *    (Z or ±hh[:]mm) — a timezone-less or unparseable value disables the
+ *    override entirely (never guesses a zone);
+ *  - at or after UNTIL the base cap applies again with no code change or
+ *    redeploy (the elevation expires by itself). */
+export function mapDailyUsdCap(now: Date = new Date()): number | null {
+  const base = envCap("MAP_USD_CAP_DAILY") ?? (isProduction() ? null : MAP_DAILY_USD_CAP_DEFAULT);
+  if (base === null) return null;
+  const overrideUsd = envCap("MAP_USD_CAP_DAILY_OVERRIDE_USD");
+  const untilRaw = process.env.MAP_USD_CAP_DAILY_OVERRIDE_UNTIL;
+  if (overrideUsd === null || !untilRaw) return base;
+  if (!/(?:Z|[+-]\d{2}:?\d{2})$/.test(untilRaw.trim())) return base;
+  const untilMs = Date.parse(untilRaw.trim());
+  if (!Number.isFinite(untilMs)) return base;
+  return now.getTime() < untilMs ? overrideUsd : base;
+}
+
+/** All-time backstop for the map worker: MAP_SPRINT_USD_CAP when set (its own
+ *  ceiling, so raising it grants zero headroom to any other OpenAI path), else
+ *  the shared LLM_SPRINT_USD_CAP. Both unset -> null -> the guard fails closed. */
+export function mapTotalUsdCap(): number | null {
+  return envCap("MAP_SPRINT_USD_CAP") ?? envCap("LLM_SPRINT_USD_CAP");
 }
 
 /** Guard for the map worker. One instance per run (the worker makes many calls
  *  per run, unlike the digest's one-reservation cycle); daily/total caps are
- *  DB-backed so they hold across runs regardless. LLM_SPRINT_USD_CAP stays the
- *  all-time backstop every OpenAI path honours. */
+ *  DB-backed so they hold across runs regardless. The all-time backstop is
+ *  mapTotalUsdCap() — map-specific when MAP_SPRINT_USD_CAP is set, else the
+ *  shared LLM_SPRINT_USD_CAP every other OpenAI path honours. */
 export function mapGuardFromEnv(): SpendGuard {
   return new SpendGuard(
     {
       provider: MAP_PROVIDER,
-      totalCapUsd: envCap("LLM_SPRINT_USD_CAP"),
+      totalCapUsd: mapTotalUsdCap(),
       dailyUsdCap: mapDailyUsdCap(),
       dailyRequestCap: envNum("MAP_DAILY_REQUEST_CAP", 1500),
       runRequestCap: envNum("MAP_RUN_REQUEST_CAP", 80),

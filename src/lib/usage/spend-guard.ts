@@ -181,7 +181,13 @@ export type StopCategory =
 
 export function stopCategory(res: ReserveResult, period: TotalPeriod = "all_time"): StopCategory {
   if (res.ok) return null;
-  switch (res.code) {
+  return stopCategoryOfCode(res.code, period);
+}
+
+/** Code-based variant for callers that carry only the ReserveCode (e.g. a
+ *  LlmBudgetError propagated out of a worker pool). */
+export function stopCategoryOfCode(code: ReserveCode, period: TotalPeriod = "all_time"): StopCategory {
+  switch (code) {
     case "run_requests":
       return "run_cap";
     case "daily_usd":
