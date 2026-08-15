@@ -1,5 +1,6 @@
 import { Pool } from "@neondatabase/serverless";
 import { politeFetch } from "../fetch-cache";
+import { refreshReportCitations } from "../isw/load";
 import { extractTakeawaysWithText } from "./isw-extract";
 import { classifyTakeawayTheater } from "./keywords";
 import { llmMatchTakeaways } from "./llm-match";
@@ -22,13 +23,36 @@ export function iranUpdateUrlForDate(date: string): string {
   return `https://understandingwar.org/research/middle-east/iran-update-special-report-${MONTH_NAMES[m - 1]}-${d}-${y}/`;
 }
 
-// Map a country/theater to its ISW reference: theater key + url builder.
+/** Every observed 2026-era Iran Update slug shape, most-likely first. The
+ *  corpus shows four live prefixes (special-report 131, plain 928 historical,
+ *  evening- 17, morning- 13); probing only the first left six recent report
+ *  days undiscovered (2026-08-15 audit). One slug per probe, ordered so the
+ *  common case still costs a single request. */
+export function iranUpdateUrlCandidatesForDate(date: string): string[] {
+  const [y, m, d] = date.split("-").map((n) => parseInt(n, 10));
+  const md = `${MONTH_NAMES[m - 1]}-${d}-${y}`;
+  const base = "https://understandingwar.org/research/middle-east/";
+  return [
+    `${base}iran-update-special-report-${md}/`,
+    `${base}iran-update-evening-special-report-${md}/`,
+    `${base}iran-update-morning-special-report-${md}/`,
+    `${base}iran-update-${md}/`,
+  ];
+}
+
+// Map a country/theater to its ISW reference: theater key + url builders.
 // Only countries with a same-day expert benchmark are validatable.
-export function referenceFor(countryIso2: string): { theater: string; urlForDate: (d: string) => string } | null {
+export function referenceFor(
+  countryIso2: string,
+): { theater: string; urlForDate: (d: string) => string; urlCandidatesForDate: (d: string) => string[] } | null {
   if (countryIso2 === "ru" || countryIso2 === "ua")
-    return { theater: "ru", urlForDate: iswUrlForDate };
+    return { theater: "ru", urlForDate: iswUrlForDate, urlCandidatesForDate: (d) => [iswUrlForDate(d)] };
   if (countryIso2 === "ir")
-    return { theater: "ir", urlForDate: iranUpdateUrlForDate };
+    return {
+      theater: "ir",
+      urlForDate: iranUpdateUrlForDate,
+      urlCandidatesForDate: iranUpdateUrlCandidatesForDate,
+    };
   return null; // Gulf states have no daily reference yet
 }
 
@@ -71,19 +95,29 @@ export async function validateDigest(
     );
     if (reports.length === 0) {
       // steady-state: report not yet in the corpus — ISW slugs are predictable
-      const url = reference.urlForDate(date);
-      const probe = await politeFetch(url);
-      if (probe && probe.status === 200 && probe.html.length > 10_000) {
+      // but Iran Updates publish under several shapes; probe candidates in
+      // likelihood order (politeFetch spaces same-host requests)
+      let found: string | null = null;
+      let lastStatus: number | string = "failed";
+      for (const url of reference.urlCandidatesForDate(date)) {
+        const probe = await politeFetch(url);
+        lastStatus = probe?.status ?? "failed";
+        if (probe && probe.status === 200 && probe.html.length > 10_000) {
+          found = url;
+          break;
+        }
+      }
+      if (found) {
         const ins = await pool.query(
           `INSERT INTO isw_reports (url, theater, report_date, fetched_at, parse_status)
            VALUES ($1, $2, $3, now(), 'pending')
            ON CONFLICT (url) DO UPDATE SET fetched_at = now()
            RETURNING id, url`,
-          [url, reference.theater, date],
+          [found, reference.theater, date],
         );
         reports = ins.rows;
       } else {
-        return { error: `no reference report for ${countryIso2} ${date} (probe ${probe?.status ?? "failed"})` };
+        return { error: `no reference report for ${countryIso2} ${date} (probe ${lastStatus})` };
       }
     }
     const report = reports[0];
@@ -91,6 +125,20 @@ export async function validateDigest(
     const page = await politeFetch(report.url);
     if (!page || page.status !== 200 || page.html.length < 1000)
       return { error: `isw page fetch failed (${page?.status})` };
+
+    // Citation auto-refresh (2026-08-15): parse this report's endnotes from the
+    // SAME fetched HTML and load them into sources/source_citations, so a
+    // validation-discovered report never stays 'pending' with zero citations.
+    // Idempotent (unique keys absorb replays), never throws, and deliberately
+    // BEFORE the takeaway early-return — citations still land for reports whose
+    // Key Takeaways block fails to parse. ISW prose stays transient throughout.
+    const citationRefresh = await refreshReportCitations(
+      (sql, params) => pool.query(sql, params).then((r) => r.rows),
+      report.id,
+      report.url,
+      reference.theater,
+      page.html,
+    );
 
     const extraction = extractTakeawaysWithText(page.html);
     if (extraction.takeaways.length === 0) return { error: "no takeaways parsed" };
@@ -193,6 +241,17 @@ export async function validateDigest(
           // publish vs the headline (final) coverage_pct — same denominator.
           ...(score.atPublish ? { atPublish: score.atPublish } : {}),
           ...(outcome?.votes ? { votes: outcome.votes, voteRounds: outcome.voteRounds } : {}),
+          // audit trail for the citation auto-refresh (counts + action only)
+          ...(citationRefresh
+            ? {
+                citationRefresh: {
+                  action: citationRefresh.action,
+                  citations: citationRefresh.citationCount,
+                  inserted: citationRefresh.citationsInserted,
+                  sourcesCreated: citationRefresh.sourcesCreated,
+                },
+              }
+            : {}),
         }),
       ],
     );
