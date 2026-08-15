@@ -2623,3 +2623,20 @@ serialized to anonymous callers.
 - **Not done (deliberate):** no commit, push, deploy, migration, env change, or paid call —
   branch/working-tree only. Clickwrap consequence flagged as OPEN-TASKS #75 for the
   legal/product track, not fixed here.
+
+## 2026-08-14 19:30 UTC — `.ai` admin promotion and X incident diagnosis
+
+- Updated Vercel Production `ADMIN_EMAILS` from `go@vociferous.nyc` to
+  `go@vociferous.nyc,go@vociferous.ai`, then redeployed the exact existing `441ee09` production
+  artifact as `dpl_GPNNsDBjuzsgJ7GKUfvdrbG3YMmC`. No code, migration, database, or other env
+  value changed; the unreleased authorization-bypass repair on main remains undeployed.
+- `go@vociferous.ai` accepted Terms 1.1 and Privacy 1.3, and its live session opened
+  `/admin/ingest` successfully. The dashboard showed 175,842 X documents total, 3,603 in the
+  last 24h, 360 contributing sources, and last fetch 2026-08-14 19:21:24 UTC.
+- Read-only production audit found the Aug 10 X interruption was provider request failures,
+  never a credit or BNOW budget stop (`budgetStops=0`). Usage was $43.8075 cumulative of the
+  $75 cap; Aug 10 was $0.7386 and Aug 13 $1.6575, below the $2.50 daily cap.
+- The deployed automatic recovery naturally resumed and inserted 560 + 9,069 + 764 = 10,393
+  documents on Aug 13, completed, recorded recovery state, and returned to healthy hourly runs.
+  This closes OPEN-TASKS #66. #38 remains narrowed to independent mailbox-delivery proof for
+  the alert email; database state proves evaluation and recovery, not receipt.

@@ -5,14 +5,15 @@ this file is **not append-only**: correct it in place whenever live product, ope
 deployment, test, credential, or repository state changes. Historical narrative belongs in
 `PROGRESS.md`, review notes, and `DECISIONS.md`.
 
-## Current state — snapshot (verified through 2026-07-21; correct in place when it changes)
+## Current state — snapshot (verified through 2026-08-14; correct in place when it changes)
 
 Live at **https://bnow.net** (Vercel project `bnow-net`, team `vociferous`;
 deployment URLs are SSO-walled — always use the project domain). History/narrative:
 `docs/PROGRESS.md` + `docs/reviews/`; debt: `docs/OPEN-TASKS.md`.
 
 - **OpenSanctions match-safety release (2026-07-22):** release commit `441ee09` LIVE
-  (`dpl_E5ysiLJSg1ynNmqJkgmpDjrzZD32`, aliased to bnow.net, `/health` stamps `441ee09`,
+  (current env-only redeploy `dpl_GPNNsDBjuzsgJ7GKUfvdrbG3YMmC`, original deploy
+  `dpl_E5ysiLJSg1ynNmqJkgmpDjrzZD32`, aliased to bnow.net, `/health` stamps `441ee09`,
   DB OK). Fail-closed OpenSanctions read model (`src/lib/enrich/os-read.ts`) + admin-only
   neutral candidate-review presentation on `/entities`; non-admin/public surfaces render ZERO
   OpenSanctions markup (verified live — the pre-release non-admin `opensanctions.org/entities/`
@@ -20,9 +21,11 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   sample question replaced. NO migration, NO env change (all Ask flags preserved); Ask
   shadow-soak window RESTARTED 2026-07-22T01:10:37Z (Ask retrieval/evidence code changed). Zero
   paid calls / DB writes / migrations during release + smoke. Rollback target = prior Ask
-  release `dpl_5scfsMfttrHZbLFWgdkAKdpBAHFT` / `836b46e`. Admin neutral-panel positive render
-  not live-verified (sole admin has not accepted Privacy 1.3 → `/welcome/legal`; unit-test
-  covered). Unit suite 2,049/161 files; integration 72/14 files. Evidence:
+  release `dpl_5scfsMfttrHZbLFWgdkAKdpBAHFT` / `836b46e`. On 2026-08-14 the operator added
+  `go@vociferous.ai` to Production `ADMIN_EMAILS` and redeployed this same artifact: that identity
+  accepted Terms 1.1 + Privacy 1.3 and live-opened `/admin/ingest`; the OpenSanctions neutral
+  panel itself still has not been manually inspected as admin (unit-test covered). Unit suite
+  2,049/161 files; integration 72/14 files. Evidence:
   `docs/reviews/OPENSANCTIONS-MATCH-SAFETY-2026-07-21.md`.
 
 - **AI Search/Ask release (2026-07-21):** release commit `836b46e` LIVE
@@ -61,9 +64,14 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   health alerts DEPLOYED 2026-07-16** in `dpl_DhMh12dn4fdXCesEhXnpxw546Qkw`: the first real
   scheduled run on that build (cron 1555) persisted `mode=1`, `alertEvaluated=1`, a clean
   `x_api_health` state, 382 docs / 46 requests, and zero failures/truncations/stops. That proves
-  the new monitor executes in production; OPEN-TASKS #38/#66 remain open until a natural scheduled
-  park proves checkpoint resume→completion, unhealthy delivery, recovery notice, and the following
-  healthy poll (no paid incident is manufactured)), GDELT
+  the new monitor executes in production. **Natural production proof completed 2026-08-10–14:**
+  scheduled X runs encountered provider request failures (`budgetStops=0`, no billable usage on
+  Aug 11–12), entered bounded catch-up, then inserted 560 + 9,069 + 764 = **10,393** documents on
+  Aug 13 and returned to healthy hourly polls. The two large completions recorded recovery state;
+  #66 is closed. #38 now retains only independent verification that the external alert email was
+  delivered. This was not provider-credit or app-cap exhaustion: cumulative X spend was $43.8075
+  of $75; Aug 10 was $0.7386 of $2.50/day; Aug 13 was $1.6575. On Aug 14 the live admin dashboard
+  showed 175,842 X documents total, 3,603 in the last 24h, and last fetch 19:21:24 UTC), GDELT
   (wired, upstream-flaky), zakupki
   procurement (wired, blocked — needs proxy).
 - **OpenSanctions enrichment:** live gap-fill remains active. Calendar-month quota accounting +
@@ -194,7 +202,9 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   `docs/reviews/ASK-POLISH-NOTE-2026-07-12.md`). **Role model
   (2026-07-12):** `users.role` (`user`<`analyst`<`admin`, migration 0016) +
   `src/lib/gate.ts` helpers back the registry/signals gating above; `ADMIN_EMAILS`
-  bootstraps admin pre-grant, live in Vercel **Production only** (absent
+  bootstraps admin pre-grant, live in Vercel **Production only** as
+  `go@vociferous.nyc,go@vociferous.ai` (the `.ai` gate was live-verified on `/admin/ingest`
+  2026-08-14; absent
   Preview/Development — fails closed to reduced views there). **Signed-in home
   (rebuilt 2026-07-12 analyst-trust R3):** compact one-line headline (no hero/CTAs),
   quick-links rail, cadence-aware theater panels (whole-card click → latest digest;
