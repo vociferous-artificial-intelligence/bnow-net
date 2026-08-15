@@ -2,7 +2,7 @@ import { Pool } from "@neondatabase/serverless";
 import OpenAI from "openai";
 import { STUB_CONTENT_PREFIX } from "../adapters/stubs";
 import { LlmBudgetError, assertLlmEnabled, estimateUsd, mapGuardFromEnv } from "../usage/llm-guard";
-import type { SpendGuard } from "../usage/spend-guard";
+import { stopCategoryOfCode, type SpendGuard } from "../usage/spend-guard";
 import { dedupGate, type DedupDoc } from "./map-dedup";
 import { verifyQuote } from "./quote-verify";
 import {
@@ -426,14 +426,16 @@ async function cycle(
     quoteMisses: 0,
     batchErrors: 0,
   };
-  let budgetStop: string | null = null;
+  // holder object: TS control-flow narrowing cannot see closure writes to a
+  // plain let, but property reads re-widen after the await below
+  const budgetStop: { current: LlmBudgetError | null } = { current: null };
 
   // small worker pool over independent batches; a budget refusal stops every
   // worker (daily/total caps are checked before each billed call regardless —
   // concurrent in-flight calls can overshoot by at most concurrency-1 batches)
   let nextBatch = 0;
   const runWorker = async () => {
-    while (!budgetStop) {
+    while (!budgetStop.current) {
       const i = nextBatch++;
       if (i >= batches.length) return;
       const b = batches[i];
@@ -445,7 +447,7 @@ async function cycle(
         stats.omittedDocs += b.docs.length - perDoc.size;
       } catch (e) {
         if (e instanceof LlmBudgetError) {
-          budgetStop = e.message;
+          budgetStop.current = e;
           return;
         }
         stats.batchErrors++;
@@ -469,7 +471,17 @@ async function cycle(
   }
   counts.processedMarked = doneIds.length + mirrors.length;
   Object.assign(counts, stats, guardCounts(guard));
-  if (budgetStop) counts.budgetStop = budgetStop;
+  const stop = budgetStop.current;
+  if (stop) {
+    // message + machine-readable classification: "run_cap" is the benign
+    // per-invocation ceiling (the next run resumes); "daily_cap" pauses until
+    // the next UTC day; "total_cap"/"cap_unset" need operator intervention.
+    counts.budgetStop = stop.message;
+    if (stop.reserveCode) {
+      counts.budgetStopCode = stop.reserveCode;
+      counts.budgetStopCategory = stopCategoryOfCode(stop.reserveCode) ?? undefined;
+    }
+  }
   return counts;
 }
 
@@ -492,7 +504,7 @@ async function extractBatch(
 ): Promise<Map<number, MapClaim[]>> {
   const reserve = () => {
     const r = guard.tryReserve();
-    if (!r.ok) throw new LlmBudgetError(r.reason);
+    if (!r.ok) throw new LlmBudgetError(r.reason, r.code);
   };
   const request = () =>
     openai.chat.completions.create({
