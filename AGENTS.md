@@ -91,16 +91,17 @@ drizzle/            migrations 0000–00NN + 9999_claim_source_trigger.sql (appl
 data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails)
 ```
 
-## Current state — compact snapshot (verified 2026-07-17; correct in place)
+## Current state — compact snapshot (verified 2026-08-14; correct in place)
 
 Detailed operational/product state lives in `docs/CURRENT-STATE.md` and is corrected in
 place whenever reality changes. Historical narrative: `docs/PROGRESS.md` + `docs/reviews/`;
 debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
 
 - **Live/repository:** https://bnow.net · Vercel `bnow-net` / team `vociferous`; production
-  `dpl_E5ysiLJSg1ynNmqJkgmpDjrzZD32` from main `441ee09` (OpenSanctions match-safety
-  fail-closed release atop the AI Search/Ask release, 2026-07-22; no migration, no env change,
-  all Ask flags preserved — `ASK_RUNS_SHADOW=1` soak, retention 30/7/7). Code rollback target
+  `dpl_GPNNsDBjuzsgJ7GKUfvdrbG3YMmC` is a 2026-08-14 env-only redeploy of the existing
+  OpenSanctions match-safety release from main `441ee09` (original deploy
+  `dpl_E5ysiLJSg1ynNmqJkgmpDjrzZD32`; no code or migration change; only `ADMIN_EMAILS`
+  changed; all Ask flags preserved — `ASK_RUNS_SHADOW=1` soak, retention 30/7/7). Code rollback target
   = the prior Ask release `dpl_5scfsMfttrHZbLFWgdkAKdpBAHFT` / `836b46e` (additive-only history,
   no migration/env delta to reverse). Flag rollback still = unset `ASK_RUNS_SHADOW` + redeploy.
   Ask shadow-soak window RESTARTED at 2026-07-22T01:10:37Z (Ask retrieval/evidence code
@@ -118,9 +119,11 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   29 RSS, GDELT (flaky), Telegram web + MTProto, twitterapi.io X, procurement (proxy-blocked).
   Stub/fixture sources never persist or render as fact.
 - **X/Telegram operations:** X July 9–13 gap recovered cursor-complete; automatic bounded
-  long-park catch-up + health alerts deployed. #38/#66 await a natural scheduled unhealthy →
-  recovery proof; do not manufacture paid failure. MTProto is live/top-120 ROCA-only; non-fatal
-  GramJS peer-type `CastError` noise remains #69.
+  long-park catch-up + health alerts deployed. A natural 2026-08-10 provider-request-failure
+  episode (zero budget stops) production-proved checkpoint resume and completion: scheduled
+  catch-up inserted 10,393 documents on 2026-08-13, recorded recovery state, and returned to
+  healthy hourly polls (#66 closed; #38 now tracks only independent alert-email delivery proof).
+  MTProto is live/top-120 ROCA-only; non-fatal GramJS peer-type `CastError` noise remains #69.
 - **Analysis:** versioned map stage feeds the production `mapreduce` digest engine; K=5 voting,
   majority-gid fill, publication-safety guard, and thin-regeneration guard are binding. Gulf
   theaters fall back to legacy where map claims are absent. Validation uses k=5 LLM matching
@@ -458,6 +461,19 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   The acceptance flow itself is unchanged and was not touched. If real third-party users are
   admitted before that flow is revisited, the question re-opens as a fresh item.
 
+- **2026-08-14 (operator admin promotion + X incident diagnosis)** Operator explicitly made
+  `go@vociferous.ai` an administrator. Production `ADMIN_EMAILS` changed from
+  `go@vociferous.nyc` to `go@vociferous.nyc,go@vociferous.ai`; the existing production release
+  was redeployed as `dpl_GPNNsDBjuzsgJ7GKUfvdrbG3YMmC` from the same `441ee09` artifact, with
+  no code, migration, database, or other env change. The `.ai` identity accepted Terms 1.1 and
+  Privacy 1.3 and live-opened `/admin/ingest`, proving the admin gate. The dashboard and database
+  audit also resolved the suspected X-credit failure: the 2026-08-10 episode recorded provider
+  request failures with `budgetStops=0`; cumulative X spend was $43.8075 of the $75 total cap,
+  and the incident-day spend was $0.7386 of the $2.50 daily cap. Automatic scheduled catch-up
+  resumed and inserted 560 + 9,069 + 764 = 10,393 documents on 2026-08-13, then returned to
+  healthy hourly polls. This closes #66's natural recovery proof; #38 remains only for an
+  independent confirmation that the external alert email was delivered.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).
@@ -483,7 +499,7 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
 | Sign-in policy | `SIGNIN_MODE` | **Production invite-only since 2026-07-15** (existing user OR admin allowlist OR approved access request) | Vercel environment |
 | Cron auth | `CRON_SECRET` | **live** | (already set) |
 | Auth.js | `AUTH_SECRET` | **live** (hashes magic-link tokens: rotating it invalidates every unclicked link) | (already set) |
-| X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live, gap-recovered; self-heal + alerts deployed** (`$75` sprint / `$2.50` daily; #38/#66 await natural scheduled alert/recovery proof) | api.twitterapi.io |
+| X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live, gap-recovered; self-heal production-proven 2026-08-13** (`$75` sprint / `$2.50` daily; #66 closed, #38 retains external alert-email delivery proof only) | api.twitterapi.io |
 | OpenSanctions | `OPENSANCTIONS_API_KEY` + caps | **live gap-fill; monthly accounting + fixed-cutoff rescore + claim-linked spend eligibility deployed** (rescore `f9aaa9e`; #17 spend subset `be0ebf1` / `dpl_2p13bnGVNv2VfVVNQkVe4nW3CEaj` 2026-07-16, zero paid calls; fresh 2026-07-16: 1,012 eligible / 475 claim-linked / 232 missing-or-stub of which only 46 are billable; July ledger 780 calls / $85.8000; #17 match-score/caption, kind-safe cleanup #61 + paid #41 remain gated) | opensanctions.org |
 | Telegram MTProto | `TELEGRAM_API_ID/HASH` + `TELEGRAM_SESSION` (all in prod env) | **live** (session added 2026-07-11; first fetch + repeated hourly runs verified; registry top-120 ROCA roster) | my.telegram.org |
 | PostHog (product analytics) | `NEXT_PUBLIC_POSTHOG_KEY` + `_HOST` (Production only) + `POSTHOG_PERSONAL_API_KEY`/`POSTHOG_PROJECT_ID` (.env.local, ops) | **LIVE opt-in-only** (US project 512327 "BNOW.NET"; rollback = remove key + redeploy; billing limit configured 2026-07-15; project-membership review remains) | us.posthog.com |
