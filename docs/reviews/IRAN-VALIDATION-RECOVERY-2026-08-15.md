@@ -206,6 +206,11 @@ Registry ir-citation counts (pre-refresh, newest parsed report 2026-07-03):
 | sanaacenter.org | 22 | `/feed` WordPress, 200 XML | clean | **ACTIVATE** (weekly cadence; Yemen think-tank depth, near-zero cost) |
 | sabanew.net | 13 | `/rss.php?lang=ar`, 200 XML, same-day items | permissive (no UA rules) | **ACTIVATE** (Aden-government Saba — attributed primary voice for the Yemen axis; marginal citation count acknowledged, named priority in the tasking) |
 
+**Live proof (first fast cron after the deploy, 19:30:39Z):** presstv.ir 77 docs ·
+alaraby.co.uk 36 · en.mehrnews.com 30 · radiofarda.com 22 · sabanew.net 20 ·
+sanaacenter.org 20 — every document attributed to the intended existing canonical
+sources row (no duplicate identities created), countryIso2='ir', correct language tags.
+
 Activated roster = **5 new feeds + 1 transport repair = 6 slots** (the authorized maximum):
 en.mehrnews.com (en), radiofarda.com (fa), sabanew.net (ar), sanaacenter.org (en),
 alaraby.co.uk (ar politics), presstv.ir URL repair. All Arabic/Persian entries pin
@@ -278,3 +283,170 @@ configured); indirect overlap via X/Telegram reposts remains unmeasured — ackn
 - **Deployment/rollback:** roster ships with the single release deploy; feed rollback =
   revert the config entry (or the whole commit) + redeploy; sources/citations created by
   the load are additive registry data protected by the backup branch.
+
+## Execution record (2026-08-15 → 08-16; all figures re-verified read-only at closeout)
+
+### Deployment and rollback
+
+- **Release deploy (deploy 1 of ≤3):** `dpl_9xyqCLfZn6n8WTifQ6BpgpV9wJja`, created
+  2026-08-15 19:27:49Z from the worktree, READY, aliased to bnow.net +
+  bnow-net.vercel.app. Deployed application tree = commit **`70b2aa9`**; branch commits
+  after it (`5499a5b` + this closeout) are documentation only. The build carries the
+  ruling-21 authorization repair (first deploy since it merged) — verified live:
+  anonymous bare-GET and `RSC: 1` bodies on `/search` and `/registry` contain only
+  public chrome. **Verification caveat:** the CLI deploy from a git worktree shipped no
+  git metadata, so `/health` renders an EMPTY commit stamp on this deployment
+  (`data-dpl-id` + behavioral probes used instead; OPEN-TASKS #78). One reviewed fix
+  (`registry-materialize` empty-DSN fallthrough) was uncommitted at upload time and was
+  committed immediately after as `70b2aa9` — the deployed tree is byte-identical to it.
+- **Env changes (all values plain/readable, read back exactly):**
+  `MAP_SPRINT_USD_CAP=40` (Production+Preview+Development),
+  `MAP_USD_CAP_DAILY_OVERRIDE_USD=20` + `MAP_USD_CAP_DAILY_OVERRIDE_UNTIL=
+  2026-08-17T13:00:00Z` (Production). Base `MAP_USD_CAP_DAILY=4` was NEVER edited.
+- **Rollback paths:** code → redeploy `dpl_GPNNsDBjuzsgJ7GKUfvdrbG3YMmC` (`441ee09`);
+  env → remove the three plain vars + redeploy; data → backup branch
+  `backup-pre-iran-recovery-2026-08-15` (`br-polished-block-atu0r968`, taken
+  19:23:40Z before any historical write; retain until the operator releases it);
+  sources → revert the config commit `c1314fb` + redeploy.
+
+### Cap state at closeout (2026-08-16 ~12:30Z)
+
+The weekend override pair **remains installed** and the elevated $20/day window stays
+active until **2026-08-17T13:00:00Z**, at which instant the DEPLOYED guard reverts to
+the untouched $4 base by code (`mapDailyUsdCap()`, boundary test-pinned; no redeploy
+needed). Removing the two override envs after expiry is optional hygiene, not a
+correctness requirement. `MAP_SPRINT_USD_CAP=40` is the standing map all-time ceiling
+(ruling 4 updated); `LLM_SPRINT_USD_CAP=10` unchanged for every other provider.
+
+### Spend (measured from the 2026-08-15T19:27:07Z baseline, all-OpenAI $15.6248)
+
+- All-OpenAI settled at closeout: **$17.4987** ⇒ **recovery-attributable spend $1.87 of
+  the $20 envelope** (9.4%). By provider: openai_map $10.0083 → **$11.6424** (+$1.6341 —
+  Iran drive + the resumed steady cron incl. ru/ua drain), openai_reduce +$0.1943
+  (17 Iran digest regenerations + resumed mapreduce crons), llm_match +$0.0156
+  (validation reruns), digest/embed remainder ≈ +$0.03. Modelled backlog was $8.91 —
+  actuals ran far below because the drive was Iran-constrained and actuals track ~60%
+  of model.
+- No second cap raise occurred; no other paid provider (Ask, OpenSanctions, X) was used.
+
+### Mapping recovery results
+
+- Iran window 2026-07-30→08-14: **47,090 → 20 unprocessed** (99.96%; the 20 are
+  repeat-omission docs deliberately left to the hourly cron), plus 2026-08-15 drained
+  after the UTC rollover. Per-day disposition coverage 07-30→08-15 is 100% processed
+  under current extractor versions, ~12–13% of docs carrying ≥1 current-version claim
+  (consistent with the shadow-era yield). No version drift (extractor versions unchanged
+  since sprint 2); no cross-theater spill (the driver was `--theater ir` throughout).
+- Drive mechanics: ~2.5h wall-clock at cap 400 (later 200) docs/route-call; local
+  transport flakiness (undici ~300s client aborts + `fetch failed`) was absorbed by the
+  driver's bounded retries; one resumable abort at 08-12 resumed cleanly. The 2026-08-16
+  scheduled map runs are productive and healthy (e.g. 11:40Z: ok=true, 351 claims, no
+  stop, no new alert).
+
+### Citation recovery results
+
+- **42 Iran reports** (2026-07-04→08-14) parsed: all 36 pending drained + 6
+  previously-undiscovered days recovered at their plain slugs (07-30, 07-31, 08-01,
+  08-11, 08-12, 08-13 — the production probes those mornings had failed transiently, not
+  publication gaps). Parsed citation total 3,688 across 2,206 endnotes; **3,294 stored
+  `source_citations` rows** (delta = self-citations/unresolvables, by design); ~46 new
+  sources; registry freshness now **2026-08-14** (was 2026-07-03). Full transactional
+  materialize: ir theater 3,654 stat rows, zero zombies.
+- The validation-path auto-refresh is live in production: post-release validation runs
+  carry `details.citationRefresh.action='parsed'` — a fetched report can no longer stay
+  `pending` with zero citations.
+
+### Validation before/after (ISW-date basis; matcher unchanged: llm-majority, K=5)
+
+| ISW date | digest claims | coverage % | agreements |
+|---|---|---|---|
+| 07-30 | 3 → 5 | unscored → 14.3 | – → 1 |
+| 07-31 | none → 7 | unscored → 33.3 | – → 1 |
+| 08-01 | 2 → 8 | unscored → 50.0 | – → 2 |
+| 08-02 | 2 → 10 | 20.0 → 40.0 | 1 → 2 |
+| 08-03 | 5 → 9 | 20.0 → **0.0** | 1 → 0 |
+| 08-04 | 2 → 9 | 16.7 → 83.3 | 1 → 5 |
+| 08-05 | 3 → 8 | 0.0 → 100.0 | 0 → 2 |
+| 08-06 | 3 → 12 | 10.0 → 20.0 | 1 → 2 |
+| 08-07 | 3 → 8 | 0.0 → 0.0 | 0 → 0 |
+| 08-08 | 3 → 9 | 50.0 → 100.0 | 1 → 2 |
+| 08-09 | 3 → 8 | 66.7 → 66.7 | 2 → 2 |
+| 08-10 | 3 → 15 | 25.0 → 25.0 | 2 → 2 |
+| 08-11 | 4 → 9 | unscored → 0.0 | – → 0 |
+| 08-12 | 3 → 9 | unscored → 50.0 | – → 1 |
+| 08-13 | 3 → 14 | unscored → 25.0 | – → 1 |
+| 08-14 | 3 → 9 | 0.0 → 0.0 | 0 → 0 |
+
+**Honest aggregate:** on the 10 previously-scored days mean coverage went **20.8% →
+43.5% (+22.7 pts)** — 5 improved, 4 unchanged, **1 worsened** (08-03, 20→0: richer
+digest, different extraction emphases; retained as-is, nothing forced). Six previously
+unscorable days now score (mean 28.8%). All 16 recovered dates average **38.0%** —
+better than the degraded-period 23.2% but below the pre-incident July-15–23 60.4%;
+several 0% days remain (08-07, 08-11, 08-14 — days whose ISW emphases our corpus did
+not match; recorded honestly). Digest claims/day ~3.0 → ~9.3, all 17 digests
+07-30→08-15 (incl. the previously MISSING 07-31) now `openai:gpt-4o-mini+mapreduce`.
+- **Fidelity sample (bounded):** 9 sampled agreements from 08-04/05/08 are concrete,
+  day-central assertions (Hormuz/Oman reopening negotiation, Najran drone strike, vessel
+  sinking, US Navy blockade boardings); matcher config untouched; multiple honest 0%
+  days survived — no evidence of semantic loosening.
+- No ISW report exists for 2026-08-15 (all four slug shapes probed at the 07:00Z cron —
+  genuine gap or late publication; nothing fabricated). 2026-08-16's digest (intraday,
+  mapreduce, 9 claims) validates at the normal 2026-08-17 07:00Z cron.
+
+### Current Iran pipeline smoke (2026-08-16, all read-only)
+
+- 02:00Z finalize regenerated ir 2026-08-15 on mapreduce (12 claims) **autonomously**;
+  the 08-16 intraday digest is mapreduce (9 claims) — the engine fallback era is over.
+- Scheduled map runs green and productive (10:40Z 328 claims / 11:40Z 351 claims,
+  ok=true, no budget stop). Iran unprocessed backlog = 1,602 docs (today's inflow only).
+- New feeds ingesting since 19:30:39Z on 08-15 (first-pass 205 docs, correctly
+  attributed/tagged); `/scoreboard` + `/scoreboard/ir/<date>` render (divergence detail
+  200); `/health` DB OK.
+
+### Recovery-window operational runbook (from the temporary drive tooling, now removed)
+
+- **Drive:** `npx tsx scripts/map-backfill.ts --from <d1> --to <d2> --theater ir
+  --budget <usd> --cap 200 --apply` (cap 200 keeps each route call ≈8–16s server-side,
+  inside local undici client timeouts; the driver's bounded transport retries + the
+  resumable daily/total stop classification handle the rest; client-side aborts do NOT
+  kill the server-side run — it completes and the next call re-selects idempotently).
+- **Stranded-lock janitor (until #77 lands):** a stranded holder is advisory lock
+  `0x6d617031` held by an `idle` pgbouncer backend, `state_change` >45s old, with NO
+  open `map`/`map:backfill` cron_runs row; clear with `pg_terminate_backend(pid)`.
+  Never terminate when an open map run row exists — a live cycle's lock session idles
+  by design while worker connections do the work.
+- **Digest regen:** `GET /api/cron/digest?date=<d>&country=ir&track=military` (CRON
+  secret); the client fetch may abort at ~300s while the serverless run completes —
+  poll the digest row's provider/created_at rather than retrying (a retry is guarded
+  but wastes a run). Validate with `GET /api/cron/validate?date=<d>&country=ir`.
+
+### Completed / deferred / remaining
+
+**Completed:** Workstreams A–F end-to-end; release deployed; Iran map corpus current
+through the last complete UTC day; citation registry current with auto-refresh live;
+6-slot source roster active; 17 digests regenerated; 16 validations re-run honestly;
+alert + recovery observability live (one real alert episode already narrowing as
+theaters recover: `stale_ru,stale_ua` at closeout, refired 2026-08-16 07:43Z on the
+episode change).
+
+**Deferred by authorization (deliberate):** RU ROCA historical citation drain (#79);
+paid rescore/OpenSanctions/X work (unchanged gates); FORCE_REGEN never used;
+`main` not pushed (branch + draft PR only).
+
+**Remaining work / risks:**
+- ru/ua map backlog 52,161 + 19,064 docs drains autonomously at ~1,000 docs/hour
+  (≈3 days; ≈$2.6/day, inside the normal $4 cap once the override expires). Until it
+  clears, `map_health` correctly reports `stale_ru,stale_ua`, and Iran's HOURLY
+  freshness is queue-limited behind it (oldest-first selection): if ir intraday lag
+  matters before ~Tuesday, one `--theater ir --from <today>` driver pass per day covers
+  it. The 20 straggler docs in the Iran window drain with the queue.
+- Residual 0% Iran days (08-07, 08-11, 08-14) and the 08-03 regression stand as
+  honest results; corpus depth (X-dependency #19/#42) remains the lever.
+- Override envs still installed until Monday 13:00Z auto-expiry (removal afterwards is
+  hygiene); MAP_DAILY_REQUEST_CAP's hidden value never bound during recovery.
+- Advisory-lock pooler strand (#77) is a REAL production defect observed against the
+  deployed route; fix with a transaction-scoped lock.
+- Alert emails: Postmark accepted the unhealthy/recovery notices (`alertDelivery=1`);
+  mailbox receipt is NOT independently verified (same narrowing as #38).
+- Worktree CLI deploys ship no commit stamp (#78); GramJS CastError noise (#69)
+  unchanged; shafaq outreach (#76); stale unpooled DSN (#80).

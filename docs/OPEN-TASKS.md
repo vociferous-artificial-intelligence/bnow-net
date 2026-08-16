@@ -689,3 +689,44 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     closes the legal/product track only — the code repair stands on its own, and ruling 21
     continues to bind every new gated page. Should real third-party users be admitted
     before the acceptance flow is revisited, re-open this as a fresh item.
+
+### New (from the Iran validation recovery — 2026-08-15,
+docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md)
+
+76. **[Tier 2 — source acquisition] shafaq.com is the most-cited unreachable Iran source.**
+    1,398 ir citations (149 since 2026-07-15 alone, cited through 2026-08-14), fresh feeds
+    exist (`/{lang}?rss=1`), but robots.txt explicitly disallows the feed roots for
+    `User-agent: *` — the roster review rejected it on the robots gate rather than
+    ingesting against operator intent. Worth direct outreach for feed permission; do not
+    ingest via the section-feed loophole.
+77. **[Tier 1 — reliability] The map worker's session advisory lock strands on the Neon
+    pooler.** Observed twice on 2026-08-15 (a local dry run, then production's own route
+    during the recovery drive): with the pooled DSN, `pg_advisory_unlock` can route to a
+    DIFFERENT pgbouncer server connection than the lock's, leaving the lock held by an
+    idle backend and every later cycle recording `skipped`. The hourly cron has survived
+    only because pgbouncer usually re-hands the same hot server connection (advisory locks
+    are session-reentrant). A stranded holder is precisely identifiable — advisory lock
+    0x6d617031 held + backend idle >45s + NO open `map`/`map:backfill` cron_runs row —
+    and safe to `pg_terminate_backend`. Durable fix: transaction-scoped
+    `pg_try_advisory_xact_lock` on a connection that stays pinned for the cycle (or a
+    provider_state lease like x-lease). Interim recovery tooling used a janitor with the
+    exact predicate above.
+78. **[Tier 2 — release hygiene] A CLI deploy from a git WORKTREE ships no commit stamp.**
+    A worktree's `.git` is a FILE (gitdir pointer), which defeats the Vercel CLI's git
+    metadata detection: `/health` on `dpl_9xyqCLfZn6n8WTifQ6BpgpV9wJja` renders an empty
+    build stamp, so release verification had to fall back to `data-dpl-id` + behavioral
+    probes. Options: deploy from a plain clone, set `VERCEL_GIT_COMMIT_SHA` explicitly at
+    deploy time, or render a fallback stamp baked at build. Also add a pre-deploy
+    clean-tree check to the release checklist (this release briefly had one uncommitted
+    reviewed fix in the uploaded tree; committed immediately after as `70b2aa9`, tree
+    byte-identical to the deploy).
+79. **[Tier 2] RU ROCA citation registry has the same historical staleness Iran had.**
+    36 ru reports (2026-07-04→08-14) are `pending` with zero citations; newest parsed ru
+    report is 2026-07-03. The 2026-08-15 validation hook refreshes citations for every
+    report validation fetches GOING FORWARD (theater-agnostic), but the historical rows
+    need one authorized run: `npx tsx scripts/isw-refresh.ts --theater ru` + a full
+    `registry-materialize` (minutes, $0). Deliberately not run during the Iran recovery —
+    outside that task's production-write authorization.
+80. **[maintenance] `.env.local`'s `DATABASE_URL_UNPOOLED` credentials are stale** (auth
+    fails). Operator: re-pull from the Neon console. Until then scripts fall through to
+    the pooled DSN (`registry-materialize` now treats an empty override as absent).

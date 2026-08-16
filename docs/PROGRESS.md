@@ -2640,3 +2640,39 @@ serialized to anonymous callers.
   documents on Aug 13, completed, recorded recovery state, and returned to healthy hourly runs.
   This closes OPEN-TASKS #66. #38 remains narrowed to independent mailbox-delivery proof for
   the alert email; database state proves evaluation and recovery, not receipt.
+
+## 2026-08-15 19:00 → 08-16 13:00 UTC — Iran validation recovery executed end to end
+
+Prompt: `docs/prompts/2026-08-15-iran-validation-recovery.md`; branch
+`claude/iran-validation-recovery-20260815` (isolated worktree from origin/main);
+full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
+
+- **Root cause reconfirmed:** openai_map hit the shared $10 all-time backstop
+  2026-07-29 08:40Z; 418 hourly runs recorded ok=true with zero claims; digests fell
+  back to legacy; Iran coverage collapsed. The observability defect — a deliberate
+  SpendGuard refusal masquerading as job health — is repaired and mutation-tested.
+- **Built:** MAP_SPRINT_USD_CAP (map-only all-time cap) + auto-expiring daily-cap
+  override in llm-guard; budget-stop classification through worker/route/driver
+  (cron_runs.ok=false on non-run_cap stops); map-health evaluator with per-theater/
+  current-version freshness + episode-deduped operator alerts; shared idempotent ISW
+  citation loader + validation-path auto-refresh + slug-variant discovery +
+  scripts/isw-refresh runbook tool; 6-slot Iran/Gulf source roster. Gates: unit
+  2,122/2,122 (167 files) · itest 106/106 (17 files) · typecheck/lint/build clean ·
+  zero paid test calls.
+- **Operational actions (all inside the operator envelope):** backup branch
+  `backup-pre-iran-recovery-2026-08-15`; 3 plain env adds; release deploy
+  `dpl_9xyqCLfZn6n8WTifQ6BpgpV9wJja` (tree `70b2aa9`; also takes the ruling-21 authz
+  repair live, verified); 42 Iran ISW reports parsed → 3,294 stored citations, registry
+  freshness 2026-07-03 → 2026-08-14; Iran map window 07-30→08-15 drained 47,090→20 docs
+  (`--theater ir`, oldest-first, guards binding); 17 digests regenerated onto mapreduce
+  (missing 07-31 created; claims/day ~3→~9.3); 16 dates revalidated honestly.
+- **Results:** comparable-day coverage 20.8% → 43.5% (+22.7; 5 improved, 4 unchanged,
+  1 worsened — kept); all-16 mean 38.0%; 0% days remain (08-07/11/14). The 08-15/16
+  digests regenerated on mapreduce AUTONOMOUSLY via the normal crons. Spend: $1.87 of
+  the $20 envelope (map total $11.6424 of $40).
+- **State at closeout:** override pair stays installed until its 2026-08-17T13:00Z
+  code-level auto-expiry (base cap was never changed); ru/ua backlog (52K+19K docs)
+  drains autonomously ~3 days at cron pace; `map_health` correctly reports
+  `stale_ru,stale_ua`. New debt: #76 shafaq outreach, #77 advisory-lock pooler strand
+  (real production defect, observed), #78 worktree-deploy commit stamp, #79 RU citation
+  drain, #80 stale unpooled DSN. Branch pushed + draft PR only; `main` untouched.
