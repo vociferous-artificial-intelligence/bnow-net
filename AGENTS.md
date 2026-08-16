@@ -91,25 +91,28 @@ drizzle/            migrations 0000–00NN + 9999_claim_source_trigger.sql (appl
 data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails)
 ```
 
-## Current state — compact snapshot (verified 2026-08-14; correct in place)
+## Current state — compact snapshot (verified 2026-08-16; correct in place)
 
 Detailed operational/product state lives in `docs/CURRENT-STATE.md` and is corrected in
 place whenever reality changes. Historical narrative: `docs/PROGRESS.md` + `docs/reviews/`;
 debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
 
 - **Live/repository:** https://bnow.net · Vercel `bnow-net` / team `vociferous`; production
-  `dpl_9xyqCLfZn6n8WTifQ6BpgpV9wJja` is the **2026-08-15 Iran-validation-recovery release**,
-  deployed from branch `claude/iran-validation-recovery-20260815` (tree = commit `70b2aa9`,
-  which contains `origin/main` `e66438b` — so the ruling-21 authorization repair is now
-  LIVE, verified: anonymous bare + `RSC: 1` GETs on gated routes return no privileged
-  body) plus the map-observability / citation-refresh / source-roster work; the branch is
-  PR-only, `main` not pushed. No migration; all Ask flags preserved (`ASK_RUNS_SHADOW=1`
-  soak, retention 30/7/7; the Ask soak window is unaffected — no Ask code changed). Code
-  rollback target = `dpl_GPNNsDBjuzsgJ7GKUfvdrbG3YMmC` / `441ee09`. **Caveat:** this deploy
-  was made via CLI from a git WORKTREE, whose `.git` FILE defeats the CLI's git-metadata
-  detection — `/health` renders an EMPTY commit stamp on this deployment (verify via
-  `data-dpl-id` + behavior instead; OPEN-TASKS #78). Ask shadow-soak window still dates
-  from 2026-07-22T01:10:37Z. Production DB backup branches:
+  `dpl_Dg713ne5Vu6aiGGsbfs6uxgPKZNC` (READY, aliased bnow.net) was CLI-deployed 2026-08-16
+  from the PR #2 merge commit `26989f7` ("Merge PR #2: Iran validation recovery") —
+  **production and `origin/main` are ALIGNED at `26989f7`**, and local `main` fast-forwarded
+  to the same commit on 2026-08-16 (the merge tree is byte-identical to the reviewed branch
+  tip `bc632f0`). Live in this artifact: the ruling-21 authorization repair (`e66438b`,
+  first deployed 2026-08-15, verified then: anonymous bare + `RSC: 1` GETs on gated routes
+  return no privileged body), the Iran-validation-recovery series (map observability,
+  citation auto-refresh, source roster), and the PR-#2-review citation-replay self-heal fix
+  (`bc632f0` — newly live in this deploy; production no longer runs the pre-fix loader). No
+  migration; all Ask flags preserved (`ASK_RUNS_SHADOW=1` soak, retention 30/7/7; Ask soak
+  window still dates from 2026-07-22T01:10:37Z). Code rollback target = the prior release
+  `dpl_9xyqCLfZn6n8WTifQ6BpgpV9wJja` (2026-08-15, tree `70b2aa9`). **Caveat:** `/health`
+  renders an EMPTY commit stamp on this deployment too — Vercel deployment metadata
+  identifies the commit; verify via `data-dpl-id` + behavior instead (OPEN-TASKS #78).
+  Production DB backup branches:
   `backup-pre-ask-release-2026-07-21` (`br-small-poetry-atf9x253`) and
   `backup-pre-iran-recovery-2026-08-15` (`br-polished-block-atu0r968`) — keep both until
   their windows clear.
@@ -163,8 +166,10 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   Postmark `BNOW.NET <no-reply@bnow.net>` is live; magic-link guidance is single-use/24h and
   copy-before-opening. PostHog is production-only, explicit opt-in, allowlist-sanitized, UUID
   identity, no Ask/Search/source text; GeoIP is retained per disclosed operator ruling.
-- **Quality/ops:** 2,049 unit tests / 161 files on main + 72 real-Postgres integration tests /
-  14 files, all green. Production DB migrated through 0027 (2026-07-21, verified + idempotent).
+- **Quality/ops:** 2,123 unit tests / 166 files on main (re-run 2026-08-16 at `26989f7`) +
+  107 real-Postgres integration tests / 17 files (recorded 2026-08-16 on the byte-identical
+  `bc632f0` tree), all green. Production DB migrated through 0027 (2026-07-21, verified +
+  idempotent).
   Enforced pre-push gate = typecheck+lint+test. Crons: fast */15; telegram :10; X :20;
   MTProto :35;
   map :40; digest 4×/day; validate/enrich/datadark daily; trade/materials monthly.
@@ -559,6 +564,36 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   ceiling (ruling 4 updated); a non-run_cap map budget stop is UNHEALTHY by contract; the
   override pair is the sanctioned bounded-recovery mechanism; branch is PR-only — `main`
   not pushed. Report: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
+
+- **2026-08-16 (PR #2 merged + merged main deployed; repository reconciled to the live
+  state)** The Iran-validation-recovery branch (tip `bc632f0`, including the citation-replay
+  self-heal review fix) was merged to `origin/main` via PR #2 as merge commit `26989f7`, and
+  that merge was CLI-deployed to production as `dpl_Dg713ne5Vu6aiGGsbfs6uxgPKZNC` (READY,
+  aliased bnow.net; Vercel deployment metadata identifies commit `26989f7` / "Merge PR #2:
+  Iran validation recovery"; created 2026-08-16 ~15:22Z). This supersedes the "branch is
+  PR-only — `main` not pushed" repository state recorded at the 2026-08-15/16 closeout and
+  takes the `bc632f0` loader fix live — production no longer runs the pre-fix loader. The
+  merge tree is byte-identical to `bc632f0`'s tree, so the closeout gates ran on exactly the
+  tree now deployed. The `/health` commit stamp renders BLANK on this deployment as well
+  (#78 stays open); identification is via Vercel deployment metadata + the page's
+  `data-dpl-id`. The deploy itself was an operator action — NOT performed by the
+  reconciliation session this entry records. That session then reconciled the repository:
+  local `main` (11 commits behind at `e66438b`, with an uncommitted working tree holding the
+  2026-08-14 admin-promotion/X-diagnosis closeout docs) was snapshotted verbatim onto local
+  branch `codex/preserve-pre-reconcile-docs-20260816`, then fast-forwarded (ff-only, no
+  merge commit) to `origin/main` `26989f7`; the dirty closeout content was already on `main`
+  verbatim (carried by branch commit `5499a5b`), so nothing was lost and nothing was
+  re-merged. Standing sections here and in `docs/CURRENT-STATE.md`/`docs/OPEN-TASKS.md`
+  were corrected in place to the deployed reality; the 2026-08-10 local-development
+  bootstrap prompt was added to `docs/prompts/` (its README updated, including the stale
+  `/home/go/code/bnow.net` path). Documentation-only change: the reconciliation performed
+  no deploy, push-to-main, env/cap/flag change, migration, database write, cron
+  invocation, or paid-provider call; the Iran worktree
+  (`.claude/worktrees/iran-validation-recovery`, `bc632f0`) is retained. Gates re-run on
+  the reconciled tree: typecheck clean · unit 2,123/2,123 (166 files) · tracked-tree lint
+  clean (0 problems; bare `npm run lint` from this checkout fails only on the retained
+  worktree's `.next/` artifacts under `.claude/worktrees/` — a pre-existing environmental
+  gap recorded in CURRENT-STATE, out of scope to fix here).
 
 ## Conventions
 

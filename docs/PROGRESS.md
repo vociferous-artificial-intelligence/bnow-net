@@ -2707,3 +2707,33 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
   now recorded — production still runs the pre-fix loader until redeployed; test
   inventory corrected), 3 findings refuted. Zero paid calls, zero production writes,
   no deploy, no env change; branch commit + push to PR #2 only.
+
+## 2026-08-16 17:45 UTC — PR #2 merged + deployed; repository reconciled to the live state
+
+- **PR #2 (Iran validation recovery) is merged and deployed.** `origin/main` is the merge
+  commit `26989f7` (tree byte-identical to the reviewed branch tip `bc632f0`), and the
+  operator CLI-deployed it as `dpl_Dg713ne5Vu6aiGGsbfs6uxgPKZNC` (READY, aliased bnow.net,
+  created ~15:22Z). Production now runs the merged main: the citation-replay self-heal fix
+  is live, closing the "production still runs the pre-fix loader" caveat in the previous
+  entry. `/health` still renders an empty commit stamp (#78, updated) — the commit is
+  identified by Vercel deployment metadata and the page's `data-dpl-id`.
+- **Local repository reconciled (this session; documentation-only).** Local `main` was 11
+  commits behind at `e66438b` with a dirty working tree holding the 2026-08-14
+  admin-promotion/X-diagnosis closeout docs. That state was committed verbatim to the
+  safety branch `codex/preserve-pre-reconcile-docs-20260816` (not pushed), then `main` was
+  fast-forwarded (ff-only) to `26989f7` — the dirty closeout content was already on `main`
+  verbatim via branch commit `5499a5b`, so nothing was lost and nothing was re-merged. The
+  untracked Iran recovery prompt file was byte-identical to the tracked copy on `main`.
+- **Docs corrected in place** (AGENTS.md snapshot + new decision-log entry,
+  CURRENT-STATE, OPEN-TASKS #78): production/`origin/main` alignment at `26989f7`, the
+  deployment chain reframed as history, the blank `/health` stamp recorded without
+  claiming it displays the commit. Added `docs/prompts/2026-08-10-local-development-bootstrap.md`
+  and updated the prompts README (stale `/home/go/code/bnow.net` path fixed).
+- **Gates on the reconciled tree:** typecheck clean · unit 2,123/2,123 (166 files) ·
+  tracked-tree lint clean (`npx eslint . --ignore-pattern '.claude/**'` → 0 problems; bare
+  `npm run lint` from this checkout fails ONLY on the retained Iran worktree's `.next/`
+  build artifacts under `.claude/worktrees/`, which predates this change — recorded in
+  CURRENT-STATE, not fixed here because config edits are out of this task's scope).
+- **Not done (deliberate):** no deploy, no push to `main`, no env/cap/flag change, no
+  migration, no database write, no cron invocation, no paid call. The Iran worktree is
+  retained; the eventual PR is review-only, not self-merged.

@@ -5,16 +5,17 @@ this file is **not append-only**: correct it in place whenever live product, ope
 deployment, test, credential, or repository state changes. Historical narrative belongs in
 `PROGRESS.md`, review notes, and `DECISIONS.md`.
 
-## Current state — snapshot (verified through 2026-08-14; correct in place when it changes)
+## Current state — snapshot (verified through 2026-08-16; correct in place when it changes)
 
 Live at **https://bnow.net** (Vercel project `bnow-net`, team `vociferous`;
 deployment URLs are SSO-walled — always use the project domain). History/narrative:
 `docs/PROGRESS.md` + `docs/reviews/`; debt: `docs/OPEN-TASKS.md`.
 
-- **OpenSanctions match-safety release (2026-07-22):** release commit `441ee09` LIVE
-  (current env-only redeploy `dpl_GPNNsDBjuzsgJ7GKUfvdrbG3YMmC`, original deploy
-  `dpl_E5ysiLJSg1ynNmqJkgmpDjrzZD32`, aliased to bnow.net, `/health` stamps `441ee09`,
-  DB OK). Fail-closed OpenSanctions read model (`src/lib/enrich/os-read.ts`) + admin-only
+- **OpenSanctions match-safety release (2026-07-22):** release commit `441ee09` — behavior
+  still live in the current artifact; its own deploys are historical (original
+  `dpl_E5ysiLJSg1ynNmqJkgmpDjrzZD32`; 2026-08-14 env-only redeploy
+  `dpl_GPNNsDBjuzsgJ7GKUfvdrbG3YMmC`; superseded as production by the 2026-08-15/16
+  releases — see Deploy below). Fail-closed OpenSanctions read model (`src/lib/enrich/os-read.ts`) + admin-only
   neutral candidate-review presentation on `/entities`; non-admin/public surfaces render ZERO
   OpenSanctions markup (verified live — the pre-release non-admin `opensanctions.org/entities/`
   profile-link leak is closed); Ask receives no OpenSanctions-derived categorical assertion,
@@ -320,8 +321,8 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   "BNOW.NET"** (operator-created; region = operator decision; key ≠ Scenefiend's);
   `NEXT_PUBLIC_POSTHOG_KEY`+`_HOST` in Vercel **Production only** — key removal + redeploy is
   the verified rollback (the keyless build `dpl_DjVLg9RgQdFgAxfpLsRh9ELya5w6` was deployed and
-  proven zero-traffic first). Activation deploy `dpl_EmHs6NneKtPA5RC9i4T3ybYSjLEx` and current
-  prod deploy `dpl_ApFhadwyVNkAyyc9T8R4W7ghgPhu` include the `$identify` signup_at ISO fix
+  proven zero-traffic first). The activation deploy `dpl_EmHs6NneKtPA5RC9i4T3ybYSjLEx` and
+  every later production deploy include the `$identify` signup_at ISO fix
   (`9e371dc` — `created_at::text`'s space format made the
   sanitizer drop $identify; to_char now). Init requires ALL of: signed-in + current legal
   acceptance + `users.analytics_preference='granted'` (migration 0020: 3-value CHECK, default
@@ -344,12 +345,19 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   Signals proof; optional analytics was left off and persisted `denied`. It remains the standing
   verification identity and was signed back out after the proof. Evidence:
   `docs/reviews/POSTHOG-ANALYTICS-IMPLEMENTATION-NOTE-2026-07-14.md`.
-- **Tests:** 2,122 unit tests / 167 files green on the recovery branch (`npm test`, ~5s) +
-  106/106 Neon-branch integration tests / 17 files (incl. `map-budget-stop.itest.ts` and
+- **Tests:** 2,123 unit tests / 166 files green on `main` `26989f7` (`npm test`, ~5s;
+  re-run 2026-08-16 during reconciliation) + 107/107 Neon-branch integration tests / 17
+  files as recorded at the 2026-08-16 PR-fix gates on `bc632f0`, whose tree is
+  byte-identical to the merge (incl. `map-budget-stop.itest.ts` and
   `isw-citation-refresh.itest.ts`, both against production forks with zero paid calls).
   The saved `NEON_API_KEY` works (disposable branches created and deleted cleanly). CI
   mirror: `.github/workflows/ci.yml`; the enforced pre-push gate is `.githooks/pre-push`
-  (typecheck+lint+test), which does not include the integration suite.
+  (typecheck+lint+test), which does not include the integration suite. Environmental
+  caveat on THIS checkout: bare `npm run lint` from the main checkout descends into the
+  retained gitignore-less `.claude/worktrees/iran-validation-recovery/.next/` build
+  artifacts and fails on them alone — the tracked tree lints clean
+  (`npx eslint . --ignore-pattern '.claude/**'` → 0 problems); `eslint.config.mjs` ignores
+  the old `.workstream/**` worktree location but not `.claude/worktrees/`.
 - **Crons (vercel.json):** ingest fast */15 · telegram :10 · x :20 · mtproto :35 ·
   map :40 (hourly) · digest 02:00 (D+1 finalize) + 04:00/10:00/19:30 (intraday, rolling window,
   delta-framed) · validate 07:00 (scores yesterday = the finalized digest) ·
@@ -357,14 +365,17 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
 - **Stubbed / off:** ACLED (fixture stub, unwired); Stripe flagged off; Resend adapter
   superseded by Postmark. (MTProto left this list 2026-07-11 — real adapter wired,
   session-gated; see Ingestion above.)
-- **Deploy:** current production `dpl_9xyqCLfZn6n8WTifQ6BpgpV9wJja` (2026-08-15 Iran
-  validation recovery release from branch `claude/iran-validation-recovery-20260815`, tree
-  `70b2aa9`, READY, aliased bnow.net; also takes the ruling-21 authorization repair live).
-  Rollback target `dpl_GPNNsDBjuzsgJ7GKUfvdrbG3YMmC` (`441ee09`). Command:
-  `npx vercel@latest deploy --prod --yes` via the machine CLI session
-  (`VERCEL_TOKEN` is expired; regen is an operator task, SETUP-NEXT-WEEK #2). Note: a CLI
-  deploy from a git WORKTREE ships no git metadata (`.git` is a file there), so `/health`'s
-  commit stamp is EMPTY on this deployment — verify via `data-dpl-id` (OPEN-TASKS #78).
+- **Deploy:** current production `dpl_Dg713ne5Vu6aiGGsbfs6uxgPKZNC` (CLI-deployed
+  2026-08-16 from the PR #2 merge commit `26989f7` "Merge PR #2: Iran validation
+  recovery"; READY, aliased bnow.net; `/health` DB OK). Production == `origin/main`.
+  Rollback target = the prior release `dpl_9xyqCLfZn6n8WTifQ6BpgpV9wJja` (2026-08-15
+  Iran-validation-recovery release from branch tree `70b2aa9`, which first took the
+  ruling-21 authorization repair live); older chain: `dpl_GPNNsDBjuzsgJ7GKUfvdrbG3YMmC`
+  (`441ee09` env-only redeploy). Command: `npx vercel@latest deploy --prod --yes` via the
+  machine CLI session (`VERCEL_TOKEN` is expired; regen is an operator task,
+  SETUP-NEXT-WEEK #2). Note: `/health`'s commit stamp is EMPTY on the current deployment
+  (as it was on the 2026-08-15 worktree deploy) — identify the commit via Vercel
+  deployment metadata / the page's `data-dpl-id`, not the stamp (OPEN-TASKS #78).
 - **This WSL2 box:** the NAT resolver times out on some domains — a DNS quirk, NOT a
   TCP block. `NODE_OPTIONS="--require ./scripts/pin-dns.cjs"` pins vercel/openai/
   understandingwar DNS to public resolvers, making local single-call LLM debugging
@@ -372,7 +383,11 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   github.com resolves slowly/flakily: pushes work, but short-timeout git commands can
   fail — retry or wait ~30s+. api.gdeltproject.org DNS still fails locally (not
   pinned). TASS/RIA/Lenta RSS unreachable → covered via their Telegram channels.
-- **Git:** the last application-code release is #73 signed-out landing contrast, merged and deployed
-  2026-07-16. At the last reconciliation origin/main == local main; the only post-deploy delta is
-  the documentation closeout recording that live proof. `codex/73-signed-out-landing-contrast` is
-  merged, and the deploy is live and aliased bnow.net.
+- **Git:** the last application-code release is the 2026-08-16 production deploy of the
+  PR #2 merge `26989f7` (Iran validation recovery + the ruling-21 authorization repair +
+  the citation-replay self-heal fix). At the 2026-08-16 reconciliation, production ==
+  `origin/main` == local `main` == `26989f7`. The merged branch/worktree
+  `claude/iran-validation-recovery-20260815` (`bc632f0`,
+  `.claude/worktrees/iran-validation-recovery`) is retained. The pre-reconciliation dirty
+  working tree (the 2026-08-14 closeout docs, already on `main` verbatim via `5499a5b`) is
+  snapshotted on local branch `codex/preserve-pre-reconcile-docs-20260816`.

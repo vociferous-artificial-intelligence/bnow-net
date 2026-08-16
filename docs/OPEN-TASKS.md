@@ -719,7 +719,12 @@ docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md)
     deploy time, or render a fallback stamp baked at build. Also add a pre-deploy
     clean-tree check to the release checklist (this release briefly had one uncommitted
     reviewed fix in the uploaded tree; committed immediately after as `70b2aa9`, tree
-    byte-identical to the deploy).
+    byte-identical to the deploy). **2026-08-16 update:** the PR #2 merge deploy
+    (`dpl_Dg713ne5Vu6aiGGsbfs6uxgPKZNC`) ALSO renders an empty `/health` commit stamp,
+    even though Vercel deployment metadata identifies its commit (`26989f7`) — so the
+    stamp gap is not confined to worktree deploys, and the baked-at-build fallback stamp
+    looks like the durable fix. Verification again fell back to `data-dpl-id` + Vercel
+    metadata.
 79. **[Tier 2] RU ROCA citation registry has the same historical staleness Iran had.**
     36 ru reports (2026-07-04→08-14) are `pending` with zero citations; newest parsed ru
     report is 2026-07-03. The 2026-08-15 validation hook refreshes citations for every

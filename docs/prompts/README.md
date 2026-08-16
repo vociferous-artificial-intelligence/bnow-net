@@ -1,7 +1,14 @@
 # Implementation prompt files
 
 Self-contained build prompts derived from the strategy docs. Each can be pasted into a
-fresh Claude Code session in /home/go/code/bnow.net. All assume you read AGENTS.md first.
+fresh coding-agent session in `/Users/go/code/bnow-net`. All assume you read `AGENTS.md`
+first.
+
+Environment/setup handoff:
+
+- **2026-08-10-local-development-bootstrap.md** — audit and safely finish local Node,
+  dependency, Vercel, Neon, environment, test, and browser setup; returns a prioritized
+  operator-action checklist without exposing secrets or mutating production.
 
 Priority order (value × buildability, from COMPETITIVE-AND-DEMAND.md §4 + IRAN-GULF-DEPTH §6):
 
