@@ -26,7 +26,10 @@ const SAVED = {
   LLM_DIGEST_USD_CAP: process.env.LLM_DIGEST_USD_CAP,
   LLM_DIGEST_MAX_OUTPUT_TOKENS: process.env.LLM_DIGEST_MAX_OUTPUT_TOKENS,
   LLM_SPRINT_USD_CAP: process.env.LLM_SPRINT_USD_CAP,
+  MAP_SPRINT_USD_CAP: process.env.MAP_SPRINT_USD_CAP,
   MAP_USD_CAP_DAILY: process.env.MAP_USD_CAP_DAILY,
+  MAP_USD_CAP_DAILY_OVERRIDE_USD: process.env.MAP_USD_CAP_DAILY_OVERRIDE_USD,
+  MAP_USD_CAP_DAILY_OVERRIDE_UNTIL: process.env.MAP_USD_CAP_DAILY_OVERRIDE_UNTIL,
   ASK_USD_CAP_DAILY: process.env.ASK_USD_CAP_DAILY,
   ASK_DAILY_REQUEST_CAP: process.env.ASK_DAILY_REQUEST_CAP,
   ASK_RUN_REQUEST_CAP: process.env.ASK_RUN_REQUEST_CAP,
@@ -155,9 +158,87 @@ describe("map daily cap resolution (own env var, never the digest's)", () => {
   it("an unset LLM_SPRINT_USD_CAP (all-time backstop) also fails closed", () => {
     process.env.MAP_USD_CAP_DAILY = "4";
     delete process.env.LLM_SPRINT_USD_CAP;
+    delete process.env.MAP_SPRINT_USD_CAP;
     const r = mapGuardFromEnv().tryReserve();
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toContain("total cap env unset");
+  });
+});
+
+describe("map all-time backstop (MAP_SPRINT_USD_CAP, 2026-08-15 recovery)", () => {
+  it("MAP_SPRINT_USD_CAP wins over the shared LLM_SPRINT_USD_CAP for the map guard only", () => {
+    process.env.MAP_USD_CAP_DAILY = "4";
+    process.env.LLM_SPRINT_USD_CAP = "10";
+    process.env.MAP_SPRINT_USD_CAP = "40";
+    expect(mapGuardFromEnv().cfg.totalCapUsd).toBe(40);
+    // the other OpenAI paths keep the shared value — no unrelated headroom
+    expect(digestGuardFromEnv().cfg.totalCapUsd).toBe(10);
+    expect(askGuardFromEnv().cfg.totalCapUsd).toBe(10);
+  });
+
+  it("falls back to the shared LLM_SPRINT_USD_CAP when MAP_SPRINT_USD_CAP is unset", () => {
+    process.env.MAP_USD_CAP_DAILY = "4";
+    process.env.LLM_SPRINT_USD_CAP = "10";
+    delete process.env.MAP_SPRINT_USD_CAP;
+    expect(mapGuardFromEnv().cfg.totalCapUsd).toBe(10);
+  });
+
+  it("both unset -> null -> the guard fails closed", () => {
+    process.env.MAP_USD_CAP_DAILY = "4";
+    delete process.env.LLM_SPRINT_USD_CAP;
+    delete process.env.MAP_SPRINT_USD_CAP;
+    expect(mapGuardFromEnv().cfg.totalCapUsd).toBeNull();
+  });
+});
+
+describe("map daily cap auto-expiring recovery override", () => {
+  const NOW_BEFORE = new Date("2026-08-16T12:00:00Z");
+  const NOW_AT = new Date("2026-08-17T13:00:00Z");
+  const NOW_AFTER = new Date("2026-08-17T13:00:01Z");
+
+  it("applies the override strictly before UNTIL and reverts at/after it with no redeploy", () => {
+    process.env.MAP_USD_CAP_DAILY = "4";
+    process.env.MAP_USD_CAP_DAILY_OVERRIDE_USD = "20";
+    process.env.MAP_USD_CAP_DAILY_OVERRIDE_UNTIL = "2026-08-17T13:00:00Z";
+    expect(mapDailyUsdCap(NOW_BEFORE)).toBe(20);
+    expect(mapDailyUsdCap(NOW_AT)).toBe(4); // expiry boundary is exact
+    expect(mapDailyUsdCap(NOW_AFTER)).toBe(4);
+  });
+
+  it("a timezone-less UNTIL disables the override (never guesses a zone)", () => {
+    process.env.MAP_USD_CAP_DAILY = "4";
+    process.env.MAP_USD_CAP_DAILY_OVERRIDE_USD = "20";
+    process.env.MAP_USD_CAP_DAILY_OVERRIDE_UNTIL = "2026-08-17T13:00:00";
+    expect(mapDailyUsdCap(NOW_BEFORE)).toBe(4);
+  });
+
+  it("an unparseable UNTIL or a missing pair member disables the override", () => {
+    process.env.MAP_USD_CAP_DAILY = "4";
+    process.env.MAP_USD_CAP_DAILY_OVERRIDE_USD = "20";
+    process.env.MAP_USD_CAP_DAILY_OVERRIDE_UNTIL = "not-a-date-Z";
+    expect(mapDailyUsdCap(NOW_BEFORE)).toBe(4);
+    process.env.MAP_USD_CAP_DAILY_OVERRIDE_UNTIL = "2026-08-17T13:00:00Z";
+    delete process.env.MAP_USD_CAP_DAILY_OVERRIDE_USD;
+    expect(mapDailyUsdCap(NOW_BEFORE)).toBe(4);
+    process.env.MAP_USD_CAP_DAILY_OVERRIDE_USD = "20";
+    delete process.env.MAP_USD_CAP_DAILY_OVERRIDE_UNTIL;
+    expect(mapDailyUsdCap(NOW_BEFORE)).toBe(4);
+  });
+
+  it("an override can never turn a fail-closed (unset) base cap on", () => {
+    delete process.env.MAP_USD_CAP_DAILY;
+    process.env.VERCEL_ENV = "production";
+    process.env.MAP_USD_CAP_DAILY_OVERRIDE_USD = "20";
+    process.env.MAP_USD_CAP_DAILY_OVERRIDE_UNTIL = "2026-08-17T13:00:00Z";
+    expect(mapDailyUsdCap(NOW_BEFORE)).toBeNull();
+  });
+
+  it("offset timezones are accepted as explicit", () => {
+    process.env.MAP_USD_CAP_DAILY = "4";
+    process.env.MAP_USD_CAP_DAILY_OVERRIDE_USD = "20";
+    process.env.MAP_USD_CAP_DAILY_OVERRIDE_UNTIL = "2026-08-17T09:00:00-04:00"; // = 13:00Z
+    expect(mapDailyUsdCap(NOW_BEFORE)).toBe(20);
+    expect(mapDailyUsdCap(NOW_AT)).toBe(4);
   });
 });
 

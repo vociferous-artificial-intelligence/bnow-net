@@ -15,12 +15,16 @@ import { neon } from "@neondatabase/serverless";
 //   (unknown = ISW unhedged declarative — mid-trust by design)
 // Decay: last cited > 12 months before the newest report in the SAME theater.
 
-const sql = neon(process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL!);
+// `||` on purpose: an EMPTY DATABASE_URL_UNPOOLED falls through to the pooled
+// DSN (the .env.local unpooled credentials have gone stale before)
+const sql = neon(process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL!);
 
 async function main() {
-  // 1. per-theater aggregates
-  await sql`DELETE FROM source_theater_stats`;
-  const theater = await sql`
+  // 1. per-theater aggregates — DELETE + rebuild in ONE transaction so readers
+  // never observe an empty source_theater_stats window (2026-08-15)
+  const [, theater] = await sql.transaction((tx) => [
+    tx`DELETE FROM source_theater_stats`,
+    tx`
     WITH corpus AS (
       SELECT theater, max(report_date) AS newest FROM isw_reports GROUP BY theater
     )
@@ -50,7 +54,8 @@ async function main() {
     FROM source_citations sc
     JOIN isw_reports ir ON ir.id = sc.report_id
     GROUP BY sc.source_id, ir.theater
-    RETURNING source_id`;
+    RETURNING source_id`,
+  ]);
   console.log(`theater stats rows: ${theater.length}`);
 
   // 2. global (all-theater) aggregates on sources

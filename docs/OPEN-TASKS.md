@@ -245,8 +245,8 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
 
 ## New (from the 2026-07-10/11 state recon — docs/reviews/STATE-2026-07-10.md)
 
-38. **[Tier 1 — live incident proof pending] X historical catch-up executed; alert/recovery
-    production proof still open.** The July 9–13 recovery ran to cursor exhaustion on the deployed
+38. **[Tier 1 — external delivery proof only] X historical catch-up executed; alert evaluator
+    and recovery production-proven.** The July 9–13 recovery ran to cursor exhaustion on the deployed
     lease-aware build (deploy `dpl_8DVZK3ac8ja1wi3xW9ALSaPGXJRJ`, main `a38a882`): checkpoint
     `x_gap_backfill:2026-07-09_2026-07-14` complete=true — 19/19 batches, 1,335 pages, 26,090
     returned, **16,007 inserted**, $3.9164, provider balance delta reconciled to the ledger to
@@ -271,7 +271,12 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     deployment finished green (`mode=1`, `alertEvaluated=1`, `alertKind=0`, 382 docs, 46 requests,
     zero truncations/failures/stops); `x_api_health` persisted a clean state. This proves the
     monitor executes on real scheduled traffic, but not its unhealthy email + recovery path.
-    **Do NOT close until a real scheduled incident proves the alert + recovery in prod.**
+    **Natural incident evidence 2026-08-10–14:** provider request failures (not budget stops)
+    parked the poller; scheduled catch-up resumed, inserted 10,393 documents, completed, recorded
+    recovery state, and was followed by healthy hourly polls. This closes the evaluator/recovery
+    behavior and #66. Keep #38 open only until the recovery/incident email is independently
+    confirmed as delivered to the configured recipient; `cron_runs` proves the transition was
+    evaluated but not mailbox receipt.
 39. **[Tier 1] No git→Vercel deploy integration.** `git push` does not deploy — after the 07-09
     auth fix, prod served the stale build ~20 min (`AUTH-EMAIL-2026-07-09.md`). Wire the Vercel Git
     integration, or codify "push then `npx vercel@latest deploy --prod`" in a release checklist so a
@@ -376,7 +381,9 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     built, in the design implementation note §5. The new registry "Scores as of" line is
     stale (2026-07-03 as of the note; still parked per the MERGE 2 deploy note) until this
     runs again — weekly cron or a scheduled operator run.
-52. **`ADMIN_EMAILS` is set in Vercel Production only.** Preview and Development are absent
+52. **`ADMIN_EMAILS` is set in Vercel Production only.** Its 2026-08-14 value is
+    `go@vociferous.nyc,go@vociferous.ai`; the `.ai` identity accepted the current policies and
+    live-opened `/admin/ingest`, proving the admin gate. Preview and Development are absent
     (verified during MERGE 2) and `.env.local` has no readable copy, so non-prod environments
     fail closed to the reduced registry/signals views for every account, including admin's.
     Correct fail-closed behavior, not a lock-out, but worth mirroring to Preview/Development
@@ -507,7 +514,7 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
 
 ### New (from the X gap recovery execution — 2026-07-14)
 
-66. **[Tier 1] Steady X poller cannot self-recover from a watermark park longer than
+66. ~~**[Tier 1] Steady X poller cannot self-recover from a watermark park longer than
     ~4–8h.** Observed live 2026-07-14 09:20Z: after an ~8h daily-cap pause, the fixed
     5-page/batch ceiling truncated 6 dense batches (`pageTruncations=6`, incomplete),
     the watermark held (correct, non-lossy), and every hourly retry re-billed the same
@@ -540,7 +547,13 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     real scheduled park → checkpoint-resume → completion sequence is proven in prod.** The first
     post-deploy scheduled run (1555, 2026-07-16 12:20Z) was correctly steady and healthy
     (`mode=1`, no auto checkpoint, watermark advanced, `x_api_health` clean); useful wiring proof,
-    but deliberately insufficient to close this item because no natural park occurred.
+    but deliberately insufficient to close this item because no natural park occurred.**~~
+    ✅ **CLOSED 2026-08-14 by natural production proof:** an Aug 10 provider-request-failure
+    episode parked the poller with zero budget stops. Scheduled catch-up resumed across runs and
+    inserted 560 + 9,069 + 764 = 10,393 documents on Aug 13, completed the checkpoint/watermark
+    recovery, recorded recovery state, and returned to healthy hourly steady polls through the
+    Aug 14 audit. Provider usage proves this was not a cap stop: $43.8075 cumulative of $75;
+    $0.7386 on Aug 10 and $1.6575 on Aug 13, both below the $2.50 daily cap.
 
 ### New (from the PostHog analytics phase-1 deploy — 2026-07-14)
 
@@ -676,3 +689,44 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     closes the legal/product track only — the code repair stands on its own, and ruling 21
     continues to bind every new gated page. Should real third-party users be admitted
     before the acceptance flow is revisited, re-open this as a fresh item.
+
+### New (from the Iran validation recovery — 2026-08-15,
+docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md)
+
+76. **[Tier 2 — source acquisition] shafaq.com is the most-cited unreachable Iran source.**
+    1,398 ir citations (149 since 2026-07-15 alone, cited through 2026-08-14), fresh feeds
+    exist (`/{lang}?rss=1`), but robots.txt explicitly disallows the feed roots for
+    `User-agent: *` — the roster review rejected it on the robots gate rather than
+    ingesting against operator intent. Worth direct outreach for feed permission; do not
+    ingest via the section-feed loophole.
+77. **[Tier 1 — reliability] The map worker's session advisory lock strands on the Neon
+    pooler.** Observed twice on 2026-08-15 (a local dry run, then production's own route
+    during the recovery drive): with the pooled DSN, `pg_advisory_unlock` can route to a
+    DIFFERENT pgbouncer server connection than the lock's, leaving the lock held by an
+    idle backend and every later cycle recording `skipped`. The hourly cron has survived
+    only because pgbouncer usually re-hands the same hot server connection (advisory locks
+    are session-reentrant). A stranded holder is precisely identifiable — advisory lock
+    0x6d617031 held + backend idle >45s + NO open `map`/`map:backfill` cron_runs row —
+    and safe to `pg_terminate_backend`. Durable fix: transaction-scoped
+    `pg_try_advisory_xact_lock` on a connection that stays pinned for the cycle (or a
+    provider_state lease like x-lease). Interim recovery tooling used a janitor with the
+    exact predicate above.
+78. **[Tier 2 — release hygiene] A CLI deploy from a git WORKTREE ships no commit stamp.**
+    A worktree's `.git` is a FILE (gitdir pointer), which defeats the Vercel CLI's git
+    metadata detection: `/health` on `dpl_9xyqCLfZn6n8WTifQ6BpgpV9wJja` renders an empty
+    build stamp, so release verification had to fall back to `data-dpl-id` + behavioral
+    probes. Options: deploy from a plain clone, set `VERCEL_GIT_COMMIT_SHA` explicitly at
+    deploy time, or render a fallback stamp baked at build. Also add a pre-deploy
+    clean-tree check to the release checklist (this release briefly had one uncommitted
+    reviewed fix in the uploaded tree; committed immediately after as `70b2aa9`, tree
+    byte-identical to the deploy).
+79. **[Tier 2] RU ROCA citation registry has the same historical staleness Iran had.**
+    36 ru reports (2026-07-04→08-14) are `pending` with zero citations; newest parsed ru
+    report is 2026-07-03. The 2026-08-15 validation hook refreshes citations for every
+    report validation fetches GOING FORWARD (theater-agnostic), but the historical rows
+    need one authorized run: `npx tsx scripts/isw-refresh.ts --theater ru` + a full
+    `registry-materialize` (minutes, $0). Deliberately not run during the Iran recovery —
+    outside that task's production-write authorization.
+80. **[maintenance] `.env.local`'s `DATABASE_URL_UNPOOLED` credentials are stale** (auth
+    fails). Operator: re-pull from the Neon console. Until then scripts fall through to
+    the pooled DSN (`registry-materialize` now treats an empty override as absent).

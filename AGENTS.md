@@ -91,40 +91,58 @@ drizzle/            migrations 0000–00NN + 9999_claim_source_trigger.sql (appl
 data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails)
 ```
 
-## Current state — compact snapshot (verified 2026-07-17; correct in place)
+## Current state — compact snapshot (verified 2026-08-14; correct in place)
 
 Detailed operational/product state lives in `docs/CURRENT-STATE.md` and is corrected in
 place whenever reality changes. Historical narrative: `docs/PROGRESS.md` + `docs/reviews/`;
 debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
 
 - **Live/repository:** https://bnow.net · Vercel `bnow-net` / team `vociferous`; production
-  `dpl_E5ysiLJSg1ynNmqJkgmpDjrzZD32` from main `441ee09` (OpenSanctions match-safety
-  fail-closed release atop the AI Search/Ask release, 2026-07-22; no migration, no env change,
-  all Ask flags preserved — `ASK_RUNS_SHADOW=1` soak, retention 30/7/7). Code rollback target
-  = the prior Ask release `dpl_5scfsMfttrHZbLFWgdkAKdpBAHFT` / `836b46e` (additive-only history,
-  no migration/env delta to reverse). Flag rollback still = unset `ASK_RUNS_SHADOW` + redeploy.
-  Ask shadow-soak window RESTARTED at 2026-07-22T01:10:37Z (Ask retrieval/evidence code
-  changed). **main is AHEAD of production as of 2026-08-03: the authorization-bypass repair
-  (ruling 21) is merged to `main` but NOT deployed — the deployed app SHA is still `441ee09`.
-  Deploying that merge is the next production action; until it happens, every gated page in
-  production still enforces authorization only in its layout and leaks its rendered output to
-  anonymous callers.** Deployment
-  URLs are SSO-walled — verify through the project domain (`/health` renders the 7-char commit
-  stamp; it is set even on CLI deploys). Production DB backup branch
-  `backup-pre-ask-release-2026-07-21` (`br-small-poetry-atf9x253`) — keep until the soak
-  clears.
+  `dpl_9xyqCLfZn6n8WTifQ6BpgpV9wJja` is the **2026-08-15 Iran-validation-recovery release**,
+  deployed from branch `claude/iran-validation-recovery-20260815` (tree = commit `70b2aa9`,
+  which contains `origin/main` `e66438b` — so the ruling-21 authorization repair is now
+  LIVE, verified: anonymous bare + `RSC: 1` GETs on gated routes return no privileged
+  body) plus the map-observability / citation-refresh / source-roster work; the branch is
+  PR-only, `main` not pushed. No migration; all Ask flags preserved (`ASK_RUNS_SHADOW=1`
+  soak, retention 30/7/7; the Ask soak window is unaffected — no Ask code changed). Code
+  rollback target = `dpl_GPNNsDBjuzsgJ7GKUfvdrbG3YMmC` / `441ee09`. **Caveat:** this deploy
+  was made via CLI from a git WORKTREE, whose `.git` FILE defeats the CLI's git-metadata
+  detection — `/health` renders an EMPTY commit stamp on this deployment (verify via
+  `data-dpl-id` + behavior instead; OPEN-TASKS #78). Ask shadow-soak window still dates
+  from 2026-07-22T01:10:37Z. Production DB backup branches:
+  `backup-pre-ask-release-2026-07-21` (`br-small-poetry-atf9x253`) and
+  `backup-pre-iran-recovery-2026-08-15` (`br-polished-block-atu0r968`) — keep both until
+  their windows clear.
 - **Coverage/data:** Russia, Ukraine, Iran live; Israel/Gulf shallow; bh/kw scaffolded; China
-  deferred. Registry: 6,985 ISW-derived sources / 251K citations / 1,565 reports. Live ingest:
-  29 RSS, GDELT (flaky), Telegram web + MTProto, twitterapi.io X, procurement (proxy-blocked).
+  deferred. Registry: ~10,015 materialized sources (ir theater 3,654) / ~351K citations /
+  1,608 reports — the Iran citation registry is CURRENT through 2026-08-14 (the 2026-08-15
+  recovery loaded 42 reports incl. 6 rediscovered days; validation now auto-refreshes
+  citations from every report it fetches, so it cannot go stale silently again). Live
+  ingest: **34 RSS** (2026-08-15 adds en.mehrnews.com, radiofarda.com, sabanew.net,
+  sanaacenter.org, alaraby.co.uk/politics to the ir lens; presstv.ir fetches via its
+  presstv.co.uk mirror — the .ir feed had been dead on a broken TLS redirect), GDELT
+  (flaky), Telegram web + MTProto, twitterapi.io X, procurement (proxy-blocked).
   Stub/fixture sources never persist or render as fact.
 - **X/Telegram operations:** X July 9–13 gap recovered cursor-complete; automatic bounded
-  long-park catch-up + health alerts deployed. #38/#66 await a natural scheduled unhealthy →
-  recovery proof; do not manufacture paid failure. MTProto is live/top-120 ROCA-only; non-fatal
-  GramJS peer-type `CastError` noise remains #69.
+  long-park catch-up + health alerts deployed. A natural 2026-08-10 provider-request-failure
+  episode (zero budget stops) production-proved checkpoint resume and completion: scheduled
+  catch-up inserted 10,393 documents on 2026-08-13, recorded recovery state, and returned to
+  healthy hourly polls (#66 closed; #38 now tracks only independent alert-email delivery proof).
+  MTProto is live/top-120 ROCA-only; non-fatal GramJS peer-type `CastError` noise remains #69.
 - **Analysis:** versioned map stage feeds the production `mapreduce` digest engine; K=5 voting,
   majority-gid fill, publication-safety guard, and thin-regeneration guard are binding. Gulf
   theaters fall back to legacy where map claims are absent. Validation uses k=5 LLM matching
   with keyword fallback and exposes coverage/divergence/timeliness/thin-source metrics.
+  **2026-07-29→08-15 map outage (Iran recovered; ru/ua backlog still draining):**
+  `openai_map` crossed the shared $10 all-time
+  backstop at 2026-07-29 08:40Z and 418 hourly runs then recorded `ok=true` with zero claims
+  while ru/ua/ir doc_claims starved and ru/ua/ir digests silently fell back to the legacy
+  engine (Iran claims/day 8.8→~3; 2026-07-31 got no ir digest at all). The 2026-08-15
+  release makes any non-run_cap budget stop record `cron_runs.ok=false` with a
+  machine-readable category, adds per-theater/current-version freshness + episode-deduped
+  operator alerts (`map-health.ts`, state in provider_state `map_health`), and the map cap
+  is now `MAP_SPRINT_USD_CAP=40` (map-only; `LLM_SPRINT_USD_CAP=10` unchanged for every
+  other path). Recovery details: the 2026-08-15 decision-log entry.
 - **Product/access:** invite-only private beta; public access request flow; pricing redirects to
   `/access`. Registry/admin surfaces remain admin-only. Signals are anonymous teaser-only and
   accepted-user detailed, with source-attributed named people + non-endorsement notice. Ask v2,
@@ -174,7 +192,12 @@ Invariants — absolute, each owned here:
    query level and HIDDEN entirely, never demo-labelled.
 4. **Spend:** every paid-provider call passes `SpendGuard.tryReserve()` first and FAILS
    CLOSED when its total-cap env is unset. Caps: `LLM_SPRINT_USD_CAP` (all-time
-   backstop), `LLM_DIGEST_USD_CAP` (daily), `MAP_USD_CAP_DAILY`, `ASK_USD_CAP_DAILY` +
+   backstop; compared against EACH provider row's own total), `MAP_SPRINT_USD_CAP`
+   (map-only all-time ceiling, 2026-08-15 — overrides the shared backstop for
+   `openai_map` alone; falls back to `LLM_SPRINT_USD_CAP` when unset),
+   `LLM_DIGEST_USD_CAP` (daily), `MAP_USD_CAP_DAILY` (daily; a bounded recovery may
+   elevate it via `MAP_USD_CAP_DAILY_OVERRIDE_USD` + `_UNTIL`, which auto-expires at an
+   explicit-timezone instant and can never enable an unset base), `ASK_USD_CAP_DAILY` +
    `EMBED_USD_CAP_DAILY` (daily, ask v2 + embeddings), `X_SPRINT_USD_CAP` +
    `X_DAILY_USD_CAP`, `OPENSANCTIONS_CALL_CAP`. Set a new cap env in ALL Vercel envs
    BEFORE deploying the guard that reads it, or you stop that pipeline.
@@ -458,6 +481,85 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   The acceptance flow itself is unchanged and was not touched. If real third-party users are
   admitted before that flow is revisited, the question re-opens as a fresh item.
 
+- **2026-08-14 (operator admin promotion + X incident diagnosis)** Operator explicitly made
+  `go@vociferous.ai` an administrator. Production `ADMIN_EMAILS` changed from
+  `go@vociferous.nyc` to `go@vociferous.nyc,go@vociferous.ai`; the existing production release
+  was redeployed as `dpl_GPNNsDBjuzsgJ7GKUfvdrbG3YMmC` from the same `441ee09` artifact, with
+  no code, migration, database, or other env change. The `.ai` identity accepted Terms 1.1 and
+  Privacy 1.3 and live-opened `/admin/ingest`, proving the admin gate. The dashboard and database
+  audit also resolved the suspected X-credit failure: the 2026-08-10 episode recorded provider
+  request failures with `budgetStops=0`; cumulative X spend was $43.8075 of the $75 total cap,
+  and the incident-day spend was $0.7386 of the $2.50 daily cap. Automatic scheduled catch-up
+  resumed and inserted 560 + 9,069 + 764 = 10,393 documents on 2026-08-13, then returned to
+  healthy hourly polls. This closes #66's natural recovery proof; #38 remains only for an
+  independent confirmation that the external alert email was delivered.
+
+- **2026-08-15/16 (Iran validation recovery — cap raise, observability release, citation
+  auto-refresh, source roster, bounded backfill; operator-authorized unattended envelope)**
+  Root cause reconfirmed: `openai_map` crossed the shared $10 all-time backstop at
+  2026-07-29 08:40:34Z and 418 hourly map runs then recorded ok=true with zero claims while
+  ru/ua/ir doc_claims starved, `openai_reduce` went idle from 07-30, ru/ua/ir digests fell
+  back to the legacy engine (ir claims/day 8.8→~3; 2026-07-31 produced NO ir digest), and
+  Iran coverage collapsed (60.4% avg Jul 15–23 → 23.2% Aug 2–10). Executed under the
+  prompt's pre-approved envelope ($40 map all-time / $20 temporary daily to
+  2026-08-17T13:00Z / ≤$20 new spend from the 2026-08-15T19:27:07Z baseline $15.6248
+  all-OpenAI): (1) `MAP_SPRINT_USD_CAP=40` in all three Vercel envs — map-only ceiling;
+  `LLM_SPRINT_USD_CAP=10` untouched (a shared raise would grant +$30 unrelated headroom per
+  provider); daily elevation via auto-expiring `MAP_USD_CAP_DAILY_OVERRIDE_USD=20` +
+  `_UNTIL=2026-08-17T13:00:00Z` (Production only; base `MAP_USD_CAP_DAILY=4` never edited;
+  guard reverts BY CODE at the instant, boundary test-pinned; the override pair remains
+  installed through the window — post-expiry removal is hygiene, not correctness). All
+  three new envs plain/readable and read back exactly. (2) Release
+  `dpl_9xyqCLfZn6n8WTifQ6BpgpV9wJja` deployed 19:27:49Z from branch
+  `claude/iran-validation-recovery-20260815` (deployed tree = `70b2aa9`; later branch
+  commits are docs-only) — also the FIRST deploy of the ruling-21 authz repair, verified
+  live (anonymous bare/RSC bodies clean). Gates: typecheck/lint clean · unit 2,122/2,122
+  (167 files) · integration 106/106 (17 files, disposable forks) · build PASS · mutation
+  proof (disabling the health classification fails exactly its 4 tests) · zero paid test
+  calls. Worktree CLI deploys ship no git metadata → /health stamp EMPTY on this
+  deployment (#78; verified via data-dpl-id + behavior). (3) Observability now binding:
+  non-run_cap budget stops record cron_runs.ok=false + machine-readable
+  `budgetStopCategory`; steady runs evaluate per-theater/current-version freshness with
+  episode-deduped alerts + one recovery notice (`map-health.ts`, state `map_health`);
+  driver classifies run/daily/total/transport stops and takes `--theater`. First
+  post-release run (19:40:37Z) mapped 536 claims and SENT the stale-theaters alert
+  (Postmark-accepted; mailbox receipt unverified, as #38). (4) Citations: backup branch
+  `backup-pre-iran-recovery-2026-08-15` (`br-polished-block-atu0r968`) first; then 42 Iran
+  reports 2026-07-04→08-14 parsed (36 pending drained + 6 undiscovered days recovered at
+  plain slugs — transient probe failures, not gaps), 3,688 parsed / 3,294 stored
+  citations, ~46 new sources, transactional materialize (ir 3,654 rows); registry
+  freshness 2026-07-03 → 2026-08-14. Go-forward: `validateDigest` parses endnotes from its
+  own fetched HTML (`src/lib/isw/load.ts` is the single upsert authority; parse failure
+  never downgrades a parsed report; ISW prose stays transient; discovery probes all four
+  observed Iran slug shapes). RU's identical historical staleness = #79. (5) Sources
+  (6 authorized slots): activated en.mehrnews.com (en), radiofarda.com (fa), sabanew.net
+  (ar), sanaacenter.org (en), alaraby.co.uk/rss/politics (ar) + repaired presstv.ir to its
+  item-identical presstv.co.uk mirror (broken .ir TLS; registry identity unchanged); all
+  robots-clean with explicit ir lens pins (ruling 11); first fast cron inserted 205
+  correctly-attributed docs. Rejected: shafaq.com (robots disallows feeds; 1,398 ir
+  citations — #76 outreach), majalla/alhadath (no feed), almasdaronline (bot-walled),
+  964media (gated). (6) Iran map backfill 2026-07-30→08-15 driven `--theater ir` through
+  the deployed route: window 47,090 → 20 unprocessed (99.96%; stragglers to the hourly
+  cron), 100% per-day disposition coverage under current versions, no cross-theater spill,
+  no version drift. (7) 17 Iran military digests 07-30→08-15 regenerated onto mapreduce
+  through the normal guarded persist path (claims/day ~3.0→~9.3; the missing 07-31
+  created; FORCE_REGEN never set) and 16 dates revalidated honestly (matcher untouched):
+  comparable-day mean coverage 20.8→43.5 (+22.7; 5 improved, 4 unchanged, 1 WORSENED —
+  08-03 20→0 retained as-is), 6 newly-scorable days mean 28.8, all-16 mean 38.0 — below
+  the pre-incident 60.4; 0% days remain (08-07/11/14). 08-15 has no ISW report (probed;
+  not fabricated). (8) Spend: **$1.87 of the $20 envelope** (map +$1.6341 → total
+  $11.6424 of the $40 ceiling; reduce +$0.1943; match +$0.0156); no second raise; no
+  other paid provider touched. DISCOVERED PRODUCTION DEFECT: the map worker's session
+  advisory lock strands on idle pgbouncer server connections (observed against the
+  deployed route; safe-clear signature + interim janitor documented in the review; durable
+  fix #77). At closeout ru/ua backlog (52K+19K docs) drains autonomously (~3 days at cron
+  pace, inside the normal $4/day once the override expires) and `map_health` correctly
+  reports `stale_ru,stale_ua` — Iran is recovered; the multi-theater corpus is NOT yet
+  fully current. Binding until superseded: MAP_SPRINT_USD_CAP is the map worker's all-time
+  ceiling (ruling 4 updated); a non-run_cap map budget stop is UNHEALTHY by contract; the
+  override pair is the sanctioned bounded-recovery mechanism; branch is PR-only — `main`
+  not pushed. Report: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).
@@ -483,7 +585,7 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
 | Sign-in policy | `SIGNIN_MODE` | **Production invite-only since 2026-07-15** (existing user OR admin allowlist OR approved access request) | Vercel environment |
 | Cron auth | `CRON_SECRET` | **live** | (already set) |
 | Auth.js | `AUTH_SECRET` | **live** (hashes magic-link tokens: rotating it invalidates every unclicked link) | (already set) |
-| X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live, gap-recovered; self-heal + alerts deployed** (`$75` sprint / `$2.50` daily; #38/#66 await natural scheduled alert/recovery proof) | api.twitterapi.io |
+| X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live, gap-recovered; self-heal production-proven 2026-08-13** (`$75` sprint / `$2.50` daily; #66 closed, #38 retains external alert-email delivery proof only) | api.twitterapi.io |
 | OpenSanctions | `OPENSANCTIONS_API_KEY` + caps | **live gap-fill; monthly accounting + fixed-cutoff rescore + claim-linked spend eligibility deployed** (rescore `f9aaa9e`; #17 spend subset `be0ebf1` / `dpl_2p13bnGVNv2VfVVNQkVe4nW3CEaj` 2026-07-16, zero paid calls; fresh 2026-07-16: 1,012 eligible / 475 claim-linked / 232 missing-or-stub of which only 46 are billable; July ledger 780 calls / $85.8000; #17 match-score/caption, kind-safe cleanup #61 + paid #41 remain gated) | opensanctions.org |
 | Telegram MTProto | `TELEGRAM_API_ID/HASH` + `TELEGRAM_SESSION` (all in prod env) | **live** (session added 2026-07-11; first fetch + repeated hourly runs verified; registry top-120 ROCA roster) | my.telegram.org |
 | PostHog (product analytics) | `NEXT_PUBLIC_POSTHOG_KEY` + `_HOST` (Production only) + `POSTHOG_PERSONAL_API_KEY`/`POSTHOG_PROJECT_ID` (.env.local, ops) | **LIVE opt-in-only** (US project 512327 "BNOW.NET"; rollback = remove key + redeploy; billing limit configured 2026-07-15; project-membership review remains) | us.posthog.com |

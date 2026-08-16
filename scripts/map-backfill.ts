@@ -1,25 +1,30 @@
 import "./env";
 
-// Map-stage backfill driver (MR sprint 2, TASK 4). Drives the DEPLOYED
-// /api/cron/map route — this box cannot reach api.openai.com (AGENTS.md), so
-// all LLM work runs on Vercel; this script only sequences days and reads
-// counters back.
+// Map-stage backfill driver (MR sprint 2, TASK 4; stop-classification +
+// --theater added 2026-08-15). Drives the DEPLOYED /api/cron/map route — this
+// box cannot reach api.openai.com (AGENTS.md), so all LLM work runs on Vercel;
+// this script only sequences days and reads counters back.
 //
 // Budget gate: phase 1 dry-runs every day (no LLM, no writes) and prints the
 // modelled cost. Phase 2 (--apply) runs only if the estimate is under budget,
-// oldest day first, logging modelled vs actual per day. A budget stop from the
-// server-side SpendGuard aborts immediately — the cap is enforced there, in
-// code, before every call; this gate is the operator-side sanity check.
+// oldest day first, logging modelled vs actual per day. Server-side SpendGuard
+// stops are classified by category (route body / counts.budgetStopCategory):
+//   run_cap    benign per-invocation ceiling — the next call resumes;
+//   daily_cap  pause until the next UTC day (--wait-daily) or abort resumable;
+//   total_cap / cap_unset  operator intervention — abort immediately;
+//   transport  transient fetch/HTTP failure — bounded retries, then abort.
 //
 //   npx tsx scripts/map-backfill.ts                estimate only
 //   npx tsx scripts/map-backfill.ts --apply        estimate, then backfill
 //   npx tsx scripts/map-backfill.ts --apply --budget 6 --from 2026-07-04
-//   npx tsx scripts/map-backfill.ts --apply --from 2026-07-09 --to 2026-07-13
+//   npx tsx scripts/map-backfill.ts --apply --from 2026-07-30 --to 2026-08-14 \
+//     --theater ir --wait-daily
 //
-// --to bounds the day list (inclusive; default today) so a windowed drain — the
-// X-gap rescore uses this — never touches days outside its range. The driver is
-// exported for composition (scripts/x-gap-rescore.ts); the CLI below runs only
-// when this file is the entrypoint.
+// --to bounds the day list (inclusive; default today); --theater restricts the
+// route's selection to one theater so an Iran-only recovery can never estimate
+// or pay for other theaters. The driver is exported for composition
+// (scripts/x-gap-rescore.ts); the CLI below runs only when this file is the
+// entrypoint.
 
 import { utcDayRange } from "../src/lib/time/day-boundary";
 
@@ -27,17 +32,48 @@ type Counts = Record<string, number | string | undefined>;
 
 const n = (c: Counts, k: string) => Number(c[k] ?? 0);
 
-export async function callMap(base: string, secret: string, params: string): Promise<Counts> {
+export interface MapCallResult {
+  counts: Counts;
+  /** the route's job-level verdict (ok:false = unhealthy budget stop) */
+  ok: boolean;
+  /** machine-readable stop classification; null when no stop happened */
+  category: string | null;
+}
+
+export class MapTransportError extends Error {}
+
+/** Classify a stop from the response body. Prefers the machine-readable
+ *  category; falls back to the legacy string heuristic for an old deployed
+ *  route (unknown stops are treated as abort-worthy, never benign). */
+function categoryOf(body: { budgetStopCategory?: unknown }, counts: Counts): string | null {
+  const fromBody = body.budgetStopCategory ?? counts.budgetStopCategory;
+  if (typeof fromBody === "string") return fromBody;
+  if (counts.budgetStop === undefined) return null;
+  return String(counts.budgetStop).includes("run requests") ? "run_cap" : "unknown";
+}
+
+export async function callMap(base: string, secret: string, params: string): Promise<MapCallResult> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 790_000);
   try {
-    const res = await fetch(`${base}/api/cron/map?${params}`, {
-      headers: { Authorization: `Bearer ${secret}` },
-      signal: ctrl.signal,
-    });
-    const body = (await res.json()) as { ok?: boolean; counts?: Counts; error?: string };
-    if (!res.ok || !body.ok) throw new Error(`map route ${res.status}: ${body.error ?? "?"}`);
-    return body.counts ?? {};
+    let res: Response;
+    try {
+      res = await fetch(`${base}/api/cron/map?${params}`, {
+        headers: { Authorization: `Bearer ${secret}` },
+        signal: ctrl.signal,
+      });
+    } catch (e) {
+      throw new MapTransportError(`map route fetch failed: ${e instanceof Error ? e.message : e}`);
+    }
+    let body: { ok?: boolean; counts?: Counts; error?: string; budgetStopCategory?: string };
+    try {
+      body = (await res.json()) as typeof body;
+    } catch {
+      throw new MapTransportError(`map route ${res.status}: unparseable body`);
+    }
+    if (!res.ok) throw new MapTransportError(`map route ${res.status}: ${body.error ?? "?"}`);
+    const counts = body.counts ?? {};
+    return { counts, ok: body.ok !== false, category: categoryOf(body, counts) };
   } finally {
     clearTimeout(t);
   }
@@ -50,33 +86,66 @@ export interface MapDriveOpts {
   to?: string; // yyyy-mm-dd, inclusive; default today (UTC)
   budgetUsd: number;
   apply: boolean;
+  /** restrict every route call to one theater (e.g. "ir") */
+  theater?: string;
+  /** on a daily-cap stop: wait for the next UTC day (true) or abort (default) */
+  waitDaily?: boolean;
   /** live-run doc cap per route call: ~20-23 micro-batches, well inside maxDuration */
   runCap?: number;
   log?: (line: string) => void;
+  /** injectable for tests; defaults to callMap */
+  call?: typeof callMap;
+  /** injectable sleep for tests */
+  sleep?: (ms: number) => Promise<void>;
 }
 
 export interface MapDriveResult {
   days: string[];
   estTotal: number;
   actualTotal: number;
-  /** set when the drain stopped early (server budget stop); estimate-over-budget
-   *  aborts before any paid call */
+  /** set when the drain stopped early; estimate-over-budget aborts before any
+   *  paid call */
   aborted?: string;
+}
+
+const TRANSPORT_RETRIES = 3;
+
+/** ms until 90s past the next UTC midnight (margin for the day-row rollover) */
+export function msToNextUtcDay(now: Date): number {
+  const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+  return next - now.getTime() + 90_000;
 }
 
 export async function driveMapBackfill(opts: MapDriveOpts): Promise<MapDriveResult> {
   const log = opts.log ?? console.log;
+  const call = opts.call ?? callMap;
+  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const runCap = opts.runCap ?? 400;
+  const theaterParam = opts.theater ? `&theater=${opts.theater}` : "";
   const days = utcDayRange(opts.from, opts.to ?? new Date().toISOString().slice(0, 10));
   if (days.length === 0) throw new Error(`empty day range ${opts.from}..${opts.to}`);
-  log(`map backfill — ${days[0]} … ${days[days.length - 1]} via ${opts.base}`);
+  log(
+    `map backfill — ${days[0]} … ${days[days.length - 1]}${opts.theater ? ` (theater ${opts.theater})` : ""} via ${opts.base}`,
+  );
   log(`\n== phase 1: estimate (dry runs — no LLM calls, no writes) ==`);
+
+  const callWithRetry = async (params: string): Promise<MapCallResult> => {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await call(opts.base, opts.secret, params);
+      } catch (e) {
+        if (!(e instanceof MapTransportError) || attempt >= TRANSPORT_RETRIES) throw e;
+        log(`  transport failure (attempt ${attempt}/${TRANSPORT_RETRIES}): ${e.message} — retrying in 30s`);
+        await sleep(30_000);
+      }
+    }
+  };
 
   let estTotal = 0;
   const estByDay = new Map<string, Counts>();
   for (const day of days) {
     // cap far above any real day so the estimate covers the WHOLE day
-    const c = await callMap(opts.base, opts.secret, `date=${day}&dry=1&cap=20000`);
+    const { counts: c } = await callWithRetry(`date=${day}&dry=1&cap=20000${theaterParam}`);
     estByDay.set(day, c);
     estTotal += n(c, "estUsd");
     log(
@@ -105,25 +174,50 @@ export async function driveMapBackfill(opts: MapDriveOpts): Promise<MapDriveResu
     let dayUsd = 0;
     let stalls = 0;
     for (let round = 1; ; round++) {
-      const c = await callMap(opts.base, opts.secret, `date=${day}&cap=${runCap}`);
+      let r: MapCallResult;
+      try {
+        r = await callWithRetry(`date=${day}&cap=${runCap}${theaterParam}`);
+      } catch (e) {
+        return {
+          days,
+          estTotal,
+          actualTotal,
+          aborted: `transient transport failure persisted at ${day} r${round}: ${e instanceof Error ? e.message : e}`,
+        };
+      }
+      const c = r.counts;
       dayUsd += n(c, "estUsd");
       actualTotal += n(c, "estUsd");
       log(
         `${day} r${round}  selected=${n(c, "selected")}  canonical=${n(c, "canonical")}  claims=${n(c, "claims")}  ` +
           `empty=${n(c, "emptyDocs")}  omitted=${n(c, "omittedDocs")}  $${n(c, "estUsd").toFixed(4)}` +
-          (c.budgetStop ? `  BUDGET STOP: ${c.budgetStop}` : "") +
+          (c.budgetStop ? `  BUDGET STOP [${r.category ?? "?"}]: ${c.budgetStop}` : "") +
           (c.skipped ? `  SKIPPED: ${c.skipped}` : ""),
       );
-      if (c.budgetStop) {
-        // a per-RUN request-cap stop is benign — the next call gets a fresh
-        // run; daily/total cap stops mean the money is gone, so abort
-        if (!String(c.budgetStop).includes("run requests")) {
-          return { days, estTotal, actualTotal, aborted: `server-side budget stop: ${c.budgetStop}` };
+      if (actualTotal > opts.budgetUsd) {
+        return {
+          days,
+          estTotal,
+          actualTotal,
+          aborted: `actual spend $${actualTotal.toFixed(4)} exceeded budget $${opts.budgetUsd}`,
+        };
+      }
+      if (r.category && r.category !== "run_cap") {
+        if (r.category === "daily_cap" && opts.waitDaily) {
+          const ms = msToNextUtcDay(new Date());
+          log(`${day}: daily cap reached — waiting ${(ms / 60000).toFixed(0)}m for the next UTC day`);
+          await sleep(ms);
+          continue;
         }
+        const advice =
+          r.category === "daily_cap"
+            ? "daily cap reached — resume after the next UTC day boundary (or rerun with --wait-daily)"
+            : "operator intervention required (all-time/monthly cap or unset cap env)";
+        return { days, estTotal, actualTotal, aborted: `server-side ${r.category} stop at ${day}: ${advice}` };
       }
       if (c.skipped) {
         // another cycle (the hourly cron) holds the lock; wait it out
-        await new Promise((r) => setTimeout(r, 60_000));
+        await sleep(60_000);
         continue;
       }
       if (n(c, "selected") === 0) break; // day fully mapped
@@ -157,6 +251,8 @@ async function main() {
     to: argVal("--to"),
     budgetUsd: Number(argVal("--budget") ?? 6),
     runCap: Number(argVal("--cap") ?? 400),
+    theater: argVal("--theater"),
+    waitDaily: args.includes("--wait-daily"),
     apply: args.includes("--apply"),
   });
   if (result.aborted) {

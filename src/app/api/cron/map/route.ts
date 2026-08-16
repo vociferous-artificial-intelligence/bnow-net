@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { runScheduledMapHealth } from "@/lib/analysis/map-health";
 import { runMapCycle } from "@/lib/analysis/map-worker";
 import { cronJobName, withCronRun } from "@/lib/usage/cron-run";
 
-// Map stage (SHADOW): hourly per-doc claim extraction into doc_claims.
+// Map stage: hourly per-doc claim extraction into doc_claims.
 // Own cron group at :40 (vercel.json) — never shares a schedule slot with the
 // digest crons, and zero writes to any digest table.
 //
@@ -11,11 +12,41 @@ import { cronJobName, withCronRun } from "@/lib/usage/cron-run";
 // ?dry=1 first for the printed cost estimate the budget gate requires.
 // ?theater=ru narrows; ?cap=N overrides docs-per-run.
 //
+// Health (2026-08-15): a run stopped by anything except the benign per-run
+// request ceiling records cron_runs.ok=false and returns ok:false with a
+// machine-readable budgetStopCategory — 418 hourly budget-stopped runs had
+// recorded ok=true while doc_claims starved for 17 days. Steady runs also
+// evaluate per-theater freshness + episode-deduped operator alerts
+// (map-health.ts). Dry runs stay zero-write, zero-paid, absent from cron_runs.
+//
 // maxDuration: a full run is ~25-40 micro-batch calls at ~5-10s each plus one
 // possible 65s 429 sleep — 800s holds it with the same margin the digest route
 // uses; measured wall-clock lands in cron_runs either way.
 export const maxDuration = 800;
 export const dynamic = "force-dynamic";
+
+/** Budget-stop categories that mean "this run could not do its job": everything
+ *  except the per-run request ceiling ("run_cap"), which the next run resumes
+ *  from and is normal pagination for the backfill driver. */
+const UNHEALTHY_STOP_CATEGORIES = new Set([
+  "daily_cap",
+  "total_cap",
+  "monthly_cap",
+  "cap_unset",
+  "not_initialized",
+]);
+
+/** Thrown inside withCronRun so the run row records ok=false + the stop reason;
+ *  caught below to still return a structured, secret-free response. */
+class MapBudgetStopError extends Error {
+  constructor(
+    message: string,
+    readonly category: string,
+  ) {
+    super(message);
+    this.name = "MapBudgetStopError";
+  }
+}
 
 export async function GET(req: NextRequest) {
   const auth = req.headers.get("authorization");
@@ -42,8 +73,33 @@ export async function GET(req: NextRequest) {
     const counts = await runMapCycle(opts, {});
     return NextResponse.json({ ok: true, dryRun: true, counts });
   }
-  return withCronRun(cronJobName("map", date ? "backfill" : null), async (counts) => {
-    await runMapCycle(opts, counts);
-    return NextResponse.json({ ok: true, counts });
-  });
+  let observed: Record<string, unknown> = {};
+  try {
+    return await withCronRun(cronJobName("map", date ? "backfill" : null), async (counts) => {
+      observed = counts;
+      await runMapCycle(opts, counts);
+      // scheduled steady runs evaluate freshness + alerts; driver-paced
+      // backfill runs skip it (the driver classifies stops itself, and a
+      // recovery must not spam per-invocation episodes)
+      if (!date) await runScheduledMapHealth(counts);
+      const category =
+        typeof counts.budgetStopCategory === "string" ? counts.budgetStopCategory : null;
+      if (category && UNHEALTHY_STOP_CATEGORIES.has(category)) {
+        throw new MapBudgetStopError(String(counts.budgetStop ?? category), category);
+      }
+      return NextResponse.json({ ok: true, counts });
+    });
+  } catch (e) {
+    if (e instanceof MapBudgetStopError) {
+      // cron_runs already holds ok=false + the error; the body carries the
+      // classification and accumulated numeric counts (no secrets, no content)
+      return NextResponse.json({
+        ok: false,
+        unhealthy: "budget_stop",
+        budgetStopCategory: e.category,
+        counts: observed,
+      });
+    }
+    throw e;
+  }
 }

@@ -5,14 +5,15 @@ this file is **not append-only**: correct it in place whenever live product, ope
 deployment, test, credential, or repository state changes. Historical narrative belongs in
 `PROGRESS.md`, review notes, and `DECISIONS.md`.
 
-## Current state — snapshot (verified through 2026-07-21; correct in place when it changes)
+## Current state — snapshot (verified through 2026-08-14; correct in place when it changes)
 
 Live at **https://bnow.net** (Vercel project `bnow-net`, team `vociferous`;
 deployment URLs are SSO-walled — always use the project domain). History/narrative:
 `docs/PROGRESS.md` + `docs/reviews/`; debt: `docs/OPEN-TASKS.md`.
 
 - **OpenSanctions match-safety release (2026-07-22):** release commit `441ee09` LIVE
-  (`dpl_E5ysiLJSg1ynNmqJkgmpDjrzZD32`, aliased to bnow.net, `/health` stamps `441ee09`,
+  (current env-only redeploy `dpl_GPNNsDBjuzsgJ7GKUfvdrbG3YMmC`, original deploy
+  `dpl_E5ysiLJSg1ynNmqJkgmpDjrzZD32`, aliased to bnow.net, `/health` stamps `441ee09`,
   DB OK). Fail-closed OpenSanctions read model (`src/lib/enrich/os-read.ts`) + admin-only
   neutral candidate-review presentation on `/entities`; non-admin/public surfaces render ZERO
   OpenSanctions markup (verified live — the pre-release non-admin `opensanctions.org/entities/`
@@ -20,9 +21,11 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   sample question replaced. NO migration, NO env change (all Ask flags preserved); Ask
   shadow-soak window RESTARTED 2026-07-22T01:10:37Z (Ask retrieval/evidence code changed). Zero
   paid calls / DB writes / migrations during release + smoke. Rollback target = prior Ask
-  release `dpl_5scfsMfttrHZbLFWgdkAKdpBAHFT` / `836b46e`. Admin neutral-panel positive render
-  not live-verified (sole admin has not accepted Privacy 1.3 → `/welcome/legal`; unit-test
-  covered). Unit suite 2,049/161 files; integration 72/14 files. Evidence:
+  release `dpl_5scfsMfttrHZbLFWgdkAKdpBAHFT` / `836b46e`. On 2026-08-14 the operator added
+  `go@vociferous.ai` to Production `ADMIN_EMAILS` and redeployed this same artifact: that identity
+  accepted Terms 1.1 + Privacy 1.3 and live-opened `/admin/ingest`; the OpenSanctions neutral
+  panel itself still has not been manually inspected as admin (unit-test covered). Unit suite
+  2,049/161 files; integration 72/14 files. Evidence:
   `docs/reviews/OPENSANCTIONS-MATCH-SAFETY-2026-07-21.md`.
 
 - **AI Search/Ask release (2026-07-21):** release commit `836b46e` LIVE
@@ -35,9 +38,22 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   `docs/reviews/AI-SEARCH-RELEASE-2026-07-21.md`. Unit suite 2,028/159 files;
   integration 72/14 files.
 
-- **Registry:** 6,985 ISW-derived sources / 251K citations / 1,565 reports (97.65% parse);
-  per-theater aggregates in `source_theater_stats` (ru/ir).
-- **Ingestion (live):** 29 RSS feeds (ru ua il ir sa ae qa om + bh/kw scaffolded),
+- **Registry:** ~10,015 materialized sources / ~351K citations / 1,608 reports; per-theater
+  aggregates in `source_theater_stats` (ru 6,985 / ir 3,654 rows). **Iran citations are
+  CURRENT through 2026-08-14** (2026-08-15 recovery: 42 Iran reports loaded — all 36
+  pending drained + 6 undiscovered days recovered at their plain slugs — ~3,000 citations,
+  ~46 new sources; full transactional materialize; validation now parses endnotes from
+  every report it fetches via `src/lib/isw/load.ts`, so a discovered report can no longer
+  sit `pending` with zero citations; Iran Update discovery probes all four observed slug
+  shapes). RU ROCA endnote loading remains the manual-script path.
+- **Ingestion (live):** **34 RSS feeds** (ru ua il ir sa ae qa om + bh/kw scaffolded;
+  2026-08-15 ir additions: en.mehrnews.com en, radiofarda.com fa, sabanew.net ar,
+  sanaacenter.org en, alaraby.co.uk/rss/politics ar — all probed 200+XML+fresh,
+  robots-clean, explicit ir coverage-lens pins; presstv.ir now fetches via its
+  item-identical presstv.co.uk mirror after the .ir TLS chain broke — the sourceKey and
+  registry identity stay presstv.ir; rejected: shafaq.com robots-disallows its feeds
+  [1,398 ir citations — operator outreach recommended], majalla/alhadath no feed,
+  almasdaronline bot-walled, 964media feed access-denied),
   registry-selected + curated Telegram via t.me/s/, Telegram MTProto (**wired
   2026-07-11; `TELEGRAM_SESSION` present in production (added 2026-07-11): operator
   login done, `ingest:mtproto` cron :35 hourly runs green — **first live fetch VERIFIED
@@ -61,9 +77,14 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   health alerts DEPLOYED 2026-07-16** in `dpl_DhMh12dn4fdXCesEhXnpxw546Qkw`: the first real
   scheduled run on that build (cron 1555) persisted `mode=1`, `alertEvaluated=1`, a clean
   `x_api_health` state, 382 docs / 46 requests, and zero failures/truncations/stops. That proves
-  the new monitor executes in production; OPEN-TASKS #38/#66 remain open until a natural scheduled
-  park proves checkpoint resume→completion, unhealthy delivery, recovery notice, and the following
-  healthy poll (no paid incident is manufactured)), GDELT
+  the new monitor executes in production. **Natural production proof completed 2026-08-10–14:**
+  scheduled X runs encountered provider request failures (`budgetStops=0`, no billable usage on
+  Aug 11–12), entered bounded catch-up, then inserted 560 + 9,069 + 764 = **10,393** documents on
+  Aug 13 and returned to healthy hourly polls. The two large completions recorded recovery state;
+  #66 is closed. #38 now retains only independent verification that the external alert email was
+  delivered. This was not provider-credit or app-cap exhaustion: cumulative X spend was $43.8075
+  of $75; Aug 10 was $0.7386 of $2.50/day; Aug 13 was $1.6575. On Aug 14 the live admin dashboard
+  showed 175,842 X documents total, 3,603 in the last 24h, and last fetch 19:21:24 UTC), GDELT
   (wired, upstream-flaky), zakupki
   procurement (wired, blocked — needs proxy).
 - **OpenSanctions enrichment:** live gap-fill remains active. Calendar-month quota accounting +
@@ -97,12 +118,26 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   categorical assertion (`sanctioned` projection and the `SANCTIONED` evidence marker removed from
   legacy + v2; sanctions facts reach Ask only as source-backed claim text). Review:
   `docs/reviews/OPENSANCTIONS-MATCH-SAFETY-2026-07-21.md`.
-- **Map stage:** all eligible ru/ua/ir docs since 06-29 mapped once per
-  (track, extractor_version) → `doc_claims` (~33K current-version atomic claims at
-  the 2026-07-14 snapshot), persistent dedup verdicts
-  (`doc_dedup`), dispositions (`doc_map_state`); hourly cron keeps it current;
-  $0.076/1K docs. Feeds the mapreduce digest engine (below). Shadow evidence:
-  `docs/reviews/MAP-SHADOW-RESULTS.md`.
+- **Map stage:** eligible ru/ua/ir docs mapped once per (track, extractor_version) →
+  `doc_claims`, persistent dedup verdicts (`doc_dedup`), dispositions (`doc_map_state`);
+  hourly cron keeps it current; $0.076/1K docs. Feeds the mapreduce digest engine (below).
+  Shadow evidence: `docs/reviews/MAP-SHADOW-RESULTS.md`. **Outage + recovery:** the
+  worker hit the shared $10 all-time backstop at 2026-07-29 08:40Z and 418 hourly runs
+  recorded ok=true with zero claims (ru/ua/ir all starved; digests fell back to legacy)
+  until the 2026-08-15 recovery release. Since that release: `MAP_SPRINT_USD_CAP=40`
+  (map-only ceiling; shared `LLM_SPRINT_USD_CAP=10` unchanged), any non-run_cap budget
+  stop records `cron_runs.ok=false` + a machine-readable `budgetStopCategory`, steady
+  runs evaluate per-theater/current-version freshness with episode-deduped operator
+  alerts + one recovery notice (`src/lib/analysis/map-health.ts`; state in
+  provider_state `map_health`; cooldown `MAP_ALERT_COOLDOWN_SEC` 6h; staleness
+  `MAP_STALE_DAYS` 2), and `scripts/map-backfill.ts` supports `--theater` + typed stop
+  classification (run/daily/total/transport). The temporary recovery daily elevation
+  (`MAP_USD_CAP_DAILY_OVERRIDE_USD=20` until `2026-08-17T13:00:00Z`) auto-expires in
+  code; base `MAP_USD_CAP_DAILY=4` was never changed. **Known trap (OPEN-TASKS #77):**
+  the worker's session advisory lock can strand on an idle pgbouncer server connection
+  (the pooled DSN routes unlock to a different backend), leaving later cycles `skipped`;
+  a stranded holder is identifiable as idle + lock held + NO open map cron_runs row and
+  is safe to pg_terminate; the durable fix is a transaction-scoped lock.
 - **Digests — two engines behind `DIGEST_ENGINE`; prod is FLIPPED to `mapreduce`
   (2026-07-09; code default is still legacy when the env is unset, which is the
   rollback):** legacy = the 100-doc batch extraction (source-mix quota, ladder);
@@ -194,7 +229,9 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   `docs/reviews/ASK-POLISH-NOTE-2026-07-12.md`). **Role model
   (2026-07-12):** `users.role` (`user`<`analyst`<`admin`, migration 0016) +
   `src/lib/gate.ts` helpers back the registry/signals gating above; `ADMIN_EMAILS`
-  bootstraps admin pre-grant, live in Vercel **Production only** (absent
+  bootstraps admin pre-grant, live in Vercel **Production only** as
+  `go@vociferous.nyc,go@vociferous.ai` (the `.ai` gate was live-verified on `/admin/ingest`
+  2026-08-14; absent
   Preview/Development — fails closed to reduced views there). **Signed-in home
   (rebuilt 2026-07-12 analyst-trust R3):** compact one-line headline (no hero/CTAs),
   quick-links rail, cadence-aware theater panels (whole-card click → latest digest;
@@ -307,11 +344,11 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   Signals proof; optional analytics was left off and persisted `denied`. It remains the standing
   verification identity and was signed back out after the proof. Evidence:
   `docs/reviews/POSTHOG-ANALYTICS-IMPLEMENTATION-NOTE-2026-07-14.md`.
-- **Tests:** 1,576 unit tests / 135 files green on main (`npm test`, ~6s) + 32/32 Neon-branch
-  integration tests / 7 files green. Commit `165c2b4` made legal-acceptance integration coverage
-  version-agnostic after the Terms 1.1 rollout; all 5 legal and all 10 enrichment integration tests
-  pass. The saved `NEON_API_KEY` works (disposable branch created and deleted cleanly). CI mirror:
-  `.github/workflows/ci.yml`; the enforced pre-push gate is `.githooks/pre-push`
+- **Tests:** 2,122 unit tests / 167 files green on the recovery branch (`npm test`, ~5s) +
+  106/106 Neon-branch integration tests / 17 files (incl. `map-budget-stop.itest.ts` and
+  `isw-citation-refresh.itest.ts`, both against production forks with zero paid calls).
+  The saved `NEON_API_KEY` works (disposable branches created and deleted cleanly). CI
+  mirror: `.github/workflows/ci.yml`; the enforced pre-push gate is `.githooks/pre-push`
   (typecheck+lint+test), which does not include the integration suite.
 - **Crons (vercel.json):** ingest fast */15 · telegram :10 · x :20 · mtproto :35 ·
   map :40 (hourly) · digest 02:00 (D+1 finalize) + 04:00/10:00/19:30 (intraday, rolling window,
@@ -320,11 +357,14 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
 - **Stubbed / off:** ACLED (fixture stub, unwired); Stripe flagged off; Resend adapter
   superseded by Postmark. (MTProto left this list 2026-07-11 — real adapter wired,
   session-gated; see Ingestion above.)
-- **Deploy:** current production `dpl_7useRyXz71PVkyFgYqZTXKJXf8mv` (main `df79411`, READY,
-  aliased bnow.net; the #73 signed-out landing contrast release on top of the analyst-experience
-  quick wins). Rollback target `dpl_CdoLhjeyxab4mvZXzN9Vjq8U7pNC` (main `87f9c12`). Command:
+- **Deploy:** current production `dpl_9xyqCLfZn6n8WTifQ6BpgpV9wJja` (2026-08-15 Iran
+  validation recovery release from branch `claude/iran-validation-recovery-20260815`, tree
+  `70b2aa9`, READY, aliased bnow.net; also takes the ruling-21 authorization repair live).
+  Rollback target `dpl_GPNNsDBjuzsgJ7GKUfvdrbG3YMmC` (`441ee09`). Command:
   `npx vercel@latest deploy --prod --yes` via the machine CLI session
-  (`VERCEL_TOKEN` is expired; regen is an operator task, SETUP-NEXT-WEEK #2).
+  (`VERCEL_TOKEN` is expired; regen is an operator task, SETUP-NEXT-WEEK #2). Note: a CLI
+  deploy from a git WORKTREE ships no git metadata (`.git` is a file there), so `/health`'s
+  commit stamp is EMPTY on this deployment — verify via `data-dpl-id` (OPEN-TASKS #78).
 - **This WSL2 box:** the NAT resolver times out on some domains — a DNS quirk, NOT a
   TCP block. `NODE_OPTIONS="--require ./scripts/pin-dns.cjs"` pins vercel/openai/
   understandingwar DNS to public resolvers, making local single-call LLM debugging

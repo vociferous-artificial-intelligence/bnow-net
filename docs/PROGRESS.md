@@ -2623,3 +2623,87 @@ serialized to anonymous callers.
 - **Not done (deliberate):** no commit, push, deploy, migration, env change, or paid call —
   branch/working-tree only. Clickwrap consequence flagged as OPEN-TASKS #75 for the
   legal/product track, not fixed here.
+
+## 2026-08-14 19:30 UTC — `.ai` admin promotion and X incident diagnosis
+
+- Updated Vercel Production `ADMIN_EMAILS` from `go@vociferous.nyc` to
+  `go@vociferous.nyc,go@vociferous.ai`, then redeployed the exact existing `441ee09` production
+  artifact as `dpl_GPNNsDBjuzsgJ7GKUfvdrbG3YMmC`. No code, migration, database, or other env
+  value changed; the unreleased authorization-bypass repair on main remains undeployed.
+- `go@vociferous.ai` accepted Terms 1.1 and Privacy 1.3, and its live session opened
+  `/admin/ingest` successfully. The dashboard showed 175,842 X documents total, 3,603 in the
+  last 24h, 360 contributing sources, and last fetch 2026-08-14 19:21:24 UTC.
+- Read-only production audit found the Aug 10 X interruption was provider request failures,
+  never a credit or BNOW budget stop (`budgetStops=0`). Usage was $43.8075 cumulative of the
+  $75 cap; Aug 10 was $0.7386 and Aug 13 $1.6575, below the $2.50 daily cap.
+- The deployed automatic recovery naturally resumed and inserted 560 + 9,069 + 764 = 10,393
+  documents on Aug 13, completed, recorded recovery state, and returned to healthy hourly runs.
+  This closes OPEN-TASKS #66. #38 remains narrowed to independent mailbox-delivery proof for
+  the alert email; database state proves evaluation and recovery, not receipt.
+
+## 2026-08-15 19:00 → 08-16 13:00 UTC — Iran validation recovery executed end to end
+
+Prompt: `docs/prompts/2026-08-15-iran-validation-recovery.md`; branch
+`claude/iran-validation-recovery-20260815` (isolated worktree from origin/main);
+full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
+
+- **Root cause reconfirmed:** openai_map hit the shared $10 all-time backstop
+  2026-07-29 08:40Z; 418 hourly runs recorded ok=true with zero claims; digests fell
+  back to legacy; Iran coverage collapsed. The observability defect — a deliberate
+  SpendGuard refusal masquerading as job health — is repaired and mutation-tested.
+- **Built:** MAP_SPRINT_USD_CAP (map-only all-time cap) + auto-expiring daily-cap
+  override in llm-guard; budget-stop classification through worker/route/driver
+  (cron_runs.ok=false on non-run_cap stops); map-health evaluator with per-theater/
+  current-version freshness + episode-deduped operator alerts; shared idempotent ISW
+  citation loader + validation-path auto-refresh + slug-variant discovery +
+  scripts/isw-refresh runbook tool; 6-slot Iran/Gulf source roster. Gates: unit
+  2,122/2,122 (167 files) · itest 106/106 (17 files) · typecheck/lint/build clean ·
+  zero paid test calls.
+- **Operational actions (all inside the operator envelope):** backup branch
+  `backup-pre-iran-recovery-2026-08-15`; 3 plain env adds; release deploy
+  `dpl_9xyqCLfZn6n8WTifQ6BpgpV9wJja` (tree `70b2aa9`; also takes the ruling-21 authz
+  repair live, verified); 42 Iran ISW reports parsed → 3,294 stored citations, registry
+  freshness 2026-07-03 → 2026-08-14; Iran map window 07-30→08-15 drained 47,090→20 docs
+  (`--theater ir`, oldest-first, guards binding); 17 digests regenerated onto mapreduce
+  (missing 07-31 created; claims/day ~3→~9.3); 16 dates revalidated honestly.
+- **Results:** comparable-day coverage 20.8% → 43.5% (+22.7; 5 improved, 4 unchanged,
+  1 worsened — kept); all-16 mean 38.0%; 0% days remain (08-07/11/14). The 08-15/16
+  digests regenerated on mapreduce AUTONOMOUSLY via the normal crons. Spend: $1.87 of
+  the $20 envelope (map total $11.6424 of $40).
+- **State at closeout:** override pair stays installed until its 2026-08-17T13:00Z
+  code-level auto-expiry (base cap was never changed); ru/ua backlog (52K+19K docs)
+  drains autonomously ~3 days at cron pace; `map_health` correctly reports
+  `stale_ru,stale_ua`. New debt: #76 shafaq outreach, #77 advisory-lock pooler strand
+  (real production defect, observed), #78 worktree-deploy commit stamp, #79 RU citation
+  drain, #80 stale unpooled DSN. Branch pushed + draft PR only; `main` untouched.
+
+## 2026-08-16 13:40 UTC — Citation-replay self-heal repair (PR #2 review fix)
+
+- **Defect (merge-blocking, flagged in PR #2 review):** `loadParsedReportById` keyed its
+  stats refresh on the citation INSERT's `ON CONFLICT DO NOTHING RETURNING` rows. A run
+  that committed citations and then lost its report update / stats refresh (an error
+  `refreshReportCitations` swallows BY DESIGN so validation survives) produced
+  conflict-only replays: zero returned rows → zero refresh → source_theater_stats and
+  sources aggregates stale indefinitely (the full materializer is manual). The unit
+  replay test pinned `statsRefreshed === 0`, so CI endorsed the unsafe behavior.
+- **Repair:** the refresh now covers EVERY source resolved from the parsed report
+  (distinct source ids of the resolvable citations), regardless of how many citations
+  the INSERT newly created — every successful parse/replay repairs aggregate state.
+  All prior contracts intact: source/citation idempotency keys, kept_prior on failed
+  parse, never-throws wrapper, upsert-only refresh (no destructive window), reliability
+  formula byte-identical, no ISW prose persisted, no migration touched.
+- **Tests:** unit fake made stateful (citations persist across invocations; injectable
+  one-shot stats-refresh outage); replay test now asserts the full-set refresh; NEW
+  regression test drives the exact sequence through `refreshReportCitations` (commit →
+  swallowed failure → conflict-only replay → complete-set repair, no duplicates). NEW
+  itest scenario proves it on real Postgres: injected first-run stats failure, replay
+  advances every cited source's `last_cited_report_date` (theater + global) to the
+  seeded far-future date with citation counts unchanged. Mutation proof: pre-fix loader
+  fails exactly the 2 encoding tests, no others.
+- **Gates:** typecheck clean · lint clean · unit 2,123/2,123 (166 files) · integration
+  107/107 (17 files, disposable Neon fork, paid keys blanked + LLM_DISABLE=1) ·
+  `git diff --check` clean. Adversarial multi-agent diff review: 2 doc-accuracy
+  findings confirmed and fixed in the recovery review doc (deployed-tree divergence
+  now recorded — production still runs the pre-fix loader until redeployed; test
+  inventory corrected), 3 findings refuted. Zero paid calls, zero production writes,
+  no deploy, no env change; branch commit + push to PR #2 only.
