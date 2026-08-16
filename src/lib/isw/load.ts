@@ -47,8 +47,12 @@ const RELIABILITY_SQL = `round((
 
 /**
  * Load one parsed report's endnote citations into the registry, keyed by an
- * EXISTING isw_reports row id. Re-running is a no-op (unique keys absorb every
- * replay). Returns honest counts; throws only on infrastructure errors.
+ * EXISTING isw_reports row id. Re-running inserts nothing new (unique keys
+ * absorb every replay) but ALWAYS recomputes stats for every source the parse
+ * resolves — so a replay repairs aggregate state left stale by an earlier
+ * partial failure (citations committed, then the report update or stats
+ * refresh died and refreshReportCitations swallowed it). Returns honest
+ * counts; throws only on infrastructure errors.
  */
 export async function loadParsedReportById(
   query: QueryFn,
@@ -136,7 +140,6 @@ export async function loadParsedReportById(
     })
     .filter((r): r is NonNullable<typeof r> => r !== null);
   let citationsInserted = 0;
-  const touchedSourceIds = new Set<number>();
   for (let i = 0; i < rows.length; i += 200) {
     const chunk = rows.slice(i, i + 200);
     const values: string[] = [];
@@ -152,7 +155,6 @@ export async function loadParsedReportById(
       params,
     );
     citationsInserted += inserted.length;
-    for (const r of inserted) touchedSourceIds.add(Number(r.source_id));
   }
 
   // 3. honest status/count update, BY ID (never ON CONFLICT (url))
@@ -162,12 +164,18 @@ export async function loadParsedReportById(
     [reportId, parsed.endnoteCount, parsed.citations.length, parsed.title || null],
   );
 
-  // 4. incremental stats refresh for the touched sources only — per-row
+  // 4. stats refresh for EVERY source resolved from this parse — not only the
+  //   sources whose citations the INSERT above newly created. Citations can be
+  //   committed by a run whose later report update / stats refresh fails (and
+  //   refreshReportCitations swallows that failure by design), after which a
+  //   replay sees only conflicts; keying the refresh on the INSERT's RETURNING
+  //   rows would leave source_theater_stats/sources stale forever. Per-row
   //   upserts, so readers never see an empty table (the full recompute in
   //   scripts/registry-materialize.ts remains the periodic backstop and also
-  //   refreshes OTHER sources' decay as the newest report advances)
-  const statsRefreshed = touchedSourceIds.size
-    ? await refreshSourceStats(query, [...touchedSourceIds], theater)
+  //   refreshes OTHER sources' decay as the newest report advances).
+  const resolvedSourceIds = new Set<number>(rows.map((r) => r.sourceId));
+  const statsRefreshed = resolvedSourceIds.size
+    ? await refreshSourceStats(query, [...resolvedSourceIds], theater)
     : 0;
 
   return {

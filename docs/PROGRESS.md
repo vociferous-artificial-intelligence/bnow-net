@@ -2676,3 +2676,34 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
   `stale_ru,stale_ua`. New debt: #76 shafaq outreach, #77 advisory-lock pooler strand
   (real production defect, observed), #78 worktree-deploy commit stamp, #79 RU citation
   drain, #80 stale unpooled DSN. Branch pushed + draft PR only; `main` untouched.
+
+## 2026-08-16 13:40 UTC — Citation-replay self-heal repair (PR #2 review fix)
+
+- **Defect (merge-blocking, flagged in PR #2 review):** `loadParsedReportById` keyed its
+  stats refresh on the citation INSERT's `ON CONFLICT DO NOTHING RETURNING` rows. A run
+  that committed citations and then lost its report update / stats refresh (an error
+  `refreshReportCitations` swallows BY DESIGN so validation survives) produced
+  conflict-only replays: zero returned rows → zero refresh → source_theater_stats and
+  sources aggregates stale indefinitely (the full materializer is manual). The unit
+  replay test pinned `statsRefreshed === 0`, so CI endorsed the unsafe behavior.
+- **Repair:** the refresh now covers EVERY source resolved from the parsed report
+  (distinct source ids of the resolvable citations), regardless of how many citations
+  the INSERT newly created — every successful parse/replay repairs aggregate state.
+  All prior contracts intact: source/citation idempotency keys, kept_prior on failed
+  parse, never-throws wrapper, upsert-only refresh (no destructive window), reliability
+  formula byte-identical, no ISW prose persisted, no migration touched.
+- **Tests:** unit fake made stateful (citations persist across invocations; injectable
+  one-shot stats-refresh outage); replay test now asserts the full-set refresh; NEW
+  regression test drives the exact sequence through `refreshReportCitations` (commit →
+  swallowed failure → conflict-only replay → complete-set repair, no duplicates). NEW
+  itest scenario proves it on real Postgres: injected first-run stats failure, replay
+  advances every cited source's `last_cited_report_date` (theater + global) to the
+  seeded far-future date with citation counts unchanged. Mutation proof: pre-fix loader
+  fails exactly the 2 encoding tests, no others.
+- **Gates:** typecheck clean · lint clean · unit 2,123/2,123 (166 files) · integration
+  107/107 (17 files, disposable Neon fork, paid keys blanked + LLM_DISABLE=1) ·
+  `git diff --check` clean. Adversarial multi-agent diff review: 2 doc-accuracy
+  findings confirmed and fixed in the recovery review doc (deployed-tree divergence
+  now recorded — production still runs the pre-fix loader until redeployed; test
+  inventory corrected), 3 findings refuted. Zero paid calls, zero production writes,
+  no deploy, no env change; branch commit + push to PR #2 only.

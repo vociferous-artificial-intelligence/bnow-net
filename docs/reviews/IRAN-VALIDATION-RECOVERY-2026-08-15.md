@@ -164,9 +164,16 @@ DO advance — so every unparsed day decays the registry-derived X/Telegram rost
   isw_reports BY ID (sidesteps the url/(theater,date) two-unique-index trap), sources
   ON CONFLICT (canonical_url) DO NOTHING, citations ON CONFLICT (report_id, raw_url,
   endnote_index) DO NOTHING; honest parse_status (a parse failure NEVER downgrades an
-  already-parsed report — `kept_prior`); incremental `refreshSourceStats` upserts
-  (source_id, theater) rows + global sources aggregates for TOUCHED sources only — no
-  destructive window. `refreshReportCitations` = never-throws wrapper for the hook.
+  already-parsed report — `kept_prior`); `refreshSourceStats` upserts (source_id,
+  theater) rows + global sources aggregates for EVERY source resolved from the parse —
+  no destructive window, and a replay whose citations all conflict still repairs
+  aggregates left stale by an earlier partial failure (as originally built it refreshed
+  only the citation INSERT's RETURNING sources, which the post-release PR review
+  flagged: a committed-citations-then-failed-refresh run could leave stats stale
+  forever because the swallowed failure produced conflict-only replays; fixed on this
+  branch 2026-08-16 — the deployed production build predates the fix, see the
+  release-deploy note in the execution record).
+  `refreshReportCitations` = never-throws wrapper for the hook.
 - **Hook (`src/lib/validation/run.ts`):** immediately after the validation fetch and BEFORE
   the takeaway early-return — the same in-memory HTML, zero extra requests, works on
   Vercel (no disk cache there). Outcome (action + counts only) audited in
@@ -182,10 +189,12 @@ DO advance — so every unparsed day decays the registry-derived X/Telegram rost
   `--dry` is DB-zero-write. `scripts/registry-materialize.ts` phase 1 now runs DELETE +
   rebuild in ONE transaction (no empty-stats read window).
 - **Fixture/tests:** real Iran Update 2026-07-24 HTML fixture (432KB; parses 10+ endnotes);
-  10 unit tests (parse shape, multi-URL endnotes, hedging enum/cue bounds, idempotent
-  replay, kept_prior on failure, honest failed status, LEGAL negative — no persisted param
+  11 unit tests (parse shape, multi-URL endnotes, hedging enum/cue bounds, replay inserts
+  zero yet refreshes every resolved source, partial-failure repair through the never-throws
+  wrapper, kept_prior on failure, honest failed status, LEGAL negative — no persisted param
   carries prose, upsert-only stats) + `isw-citation-refresh.itest.ts` (real Postgres:
-  load → verify rows/stats → replay inserts zero → parse failure keeps state).
+  load → verify rows/stats → replay inserts zero → parse failure keeps state → injected
+  stats-refresh failure repaired by a conflict-only replay).
 
 ## Workstream D — source evaluation and roster (2026-08-15)
 
@@ -291,7 +300,10 @@ configured); indirect overlap via X/Telegram reposts remains unmeasured — ackn
 - **Release deploy (deploy 1 of ≤3):** `dpl_9xyqCLfZn6n8WTifQ6BpgpV9wJja`, created
   2026-08-15 19:27:49Z from the worktree, READY, aliased to bnow.net +
   bnow-net.vercel.app. Deployed application tree = commit **`70b2aa9`**; branch commits
-  after it (`5499a5b` + this closeout) are documentation only. The build carries the
+  after it were documentation only (`5499a5b` + this closeout) until the 2026-08-16
+  citation-replay repair below, which is the first post-deploy CODE commit on the
+  branch — the deployed production build still runs the pre-fix loader (stats refresh
+  keyed on the citation INSERT's RETURNING) until this branch is deployed again. The build carries the
   ruling-21 authorization repair (first deploy since it merged) — verified live:
   anonymous bare-GET and `RSC: 1` bodies on `/search` and `/registry` contain only
   public chrome. **Verification caveat:** the CLI deploy from a git worktree shipped no
