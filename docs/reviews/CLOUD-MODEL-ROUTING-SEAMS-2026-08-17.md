@@ -418,8 +418,8 @@ or value-import of the SDK. Explicit-retry audit: the three 65s 429 loops
 attempt (`openai-provider.test.ts` proves 2 physical calls / 1 billed
 metering row for a 429-then-success); llm-match has no explicit retry (1
 reservation ↔ 1 call, asserted). Truncated/discarded responses are metered
-before interpretation at ALL FOUR completion sites — digest/map/reduce
-always did; llm-match's billed-then-parsed ordering was caught by hardening
+before interpretation at ALL FIVE completion sites — digest/map/reduce and
+entity-audit always did; llm-match's billed-then-parsed ordering was caught by hardening
 review 1 (finding 2) and FIXED: `llmMatchOnce` now records to the guard
 immediately after the response and before `JSON.parse`, so an unparseable/
 truncated validation response can no longer be billed without a
@@ -524,9 +524,9 @@ changed; no provider request was made.
 | `git diff --check` (vs 26989f7 base) | clean |
 | `npm run typecheck` | clean |
 | `npm run lint` | clean |
-| `npm test` | **2,186 passed / 2,186 (171 files)** (+32 tests / +4 files over §7) |
+| `npm test` | **2,187 passed / 2,187 (171 files)** after review-1 remediation (2,186 at `030d526`; +1 unparseable-metering test) |
 | `npm run build` (dummy never-contacted `DATABASE_URL`) | PASS (exit 0) |
-| `npm run test:integration` (disposable fork, paid keys blanked, `LLM_DISABLE=1`) | **107 passed / 107 (17 files) — GREEN** |
+| `npm run test:integration` (disposable fork, paid keys blanked, `LLM_DISABLE=1`) | **107 passed / 107 (17 files) — GREEN**, run twice: at the `030d526` tree and again on the exact final tree `f34aee8` |
 | inspector scenarios (defaults / baseline / priced-unapproved / unknown / invalid effort / non-baseline map) | all as designed (§12.8) |
 
 Note: `main` has moved ahead of this branch's base (the operator merged and
@@ -571,8 +571,36 @@ before reservation AND client construction at all five sites (spy-proven);
 prompts/schemas/K=5/guards/cron-at-start; zero paid calls/activations/
 secrets/migrations.
 
-**Hardening review 2** (fresh reviewer, corrected final tree): recorded
-below after its verdict.
+**Hardening review 2** (fresh reviewer, full `359750c..f34aee8` delta on the
+corrected final tree): **VERDICT: PASS — no BLOCKER or MAJOR.** All four
+review-1 findings verified RESOLVED against the tree (record-before-parse
+confirmed as the file's ONLY record site with 5:5:5 / 1:1:1 / 1-reserve-0-
+record cardinalities test-pinned). Its independent end-to-end pass re-proved
+every core invariant with file/line traces: pricing-AND-approval gating with
+the verified check ordering; refusal before reservation and client
+construction at all five sites (reduce's gate even precedes DB pool
+creation); the map lock (incl. `OPENAI_MODEL` fallback tripping it while the
+baseline still dispatches, and the `.env.example` no-remap claim checked
+against the worker's `processed = false` selection SQL); the repo-wide
+maxRetries:0 sweep; identity persisted from the dispatch-time object at all
+five surfaces with `provider_usage` truthfully lacking a metadata column;
+default resolution unchanged; no live stale price; §12's factual sweep
+(evidence refs, itest narrative vs code, blockers, `origin/main` at
+`9c5e9cb`) accurate. Findings, all documentation-level and applied: (MINOR)
+the §12.9 unit-count cell was one commit stale — refreshed to 2,187 with the
+reviewer's independent +33-`it()`/+4-file count corroborating; (NOTE) §12.3
+said "ALL FOUR" completion sites where five hold the invariant (entity-audit
+also meters before parse) — corrected; (NOTE) the validation registry
+evidence note now says "run-to-run matcher nondeterminism" to match what
+OPEN-TASKS #15 actually documents; (NOTE, recorded) the memoized `@/db`
+import caches a rejected promise under permanent misconfiguration —
+behavior-equivalent to the pre-memoization failure mode.
+
+Final status: **release-hardening-pass / merge-awaits-operator-review** —
+both fresh reviews PASS, every §12.9 gate green on the final tree, no paid
+call, no model activation, no environment change, no deployment. Merge and
+any deploy remain operator decisions; the §12.11 follow-ups and the §9
+activation checklist stand.
 
 ### 12.11 Remaining blockers / follow-ups
 
