@@ -92,7 +92,7 @@ their documented extension points:
 
 | Phase | Branch | Status | Evidence |
 |---|---|---|---|
-| 0 recon/contract | `codex/conflict-evaluations-p0-contract` | IN PROGRESS | this file; `docs/designs/CONFLICT-REGION-EVALUATION.md`; Phase-0 report |
+| 0 recon/contract | `codex/conflict-evaluations-p0-contract` | **PASSED** (legal PASS + science PASS-WITH-MINORS on `ea35fbf` after FAIL→remediation) | contract; P0 report; fixtures; register #1-#9 |
 | 1 domain | — | pending | |
 | 2 reference windows | — | pending | |
 | 3 evidence union | — | pending | |

@@ -100,3 +100,10 @@ Each entry: date, decision, rationale, alternatives rejected, review status.
    anti-vague-claim rule now binds generally in §6.3. (i) L2: the
    window/denominator time-asymmetry disclosed in §5. All fixture edits are
    remints (new ids) per the corpus immutability rule.
+
+9. **2026-08-17 — Gate 0 CLOSED.** Focused re-reviews on `ea35fbf`:
+   product/legal **PASS**; scope/science **PASS-WITH-MINORS** (3 NOTEs). The
+   stale retired-id note reference and the day-granularity clarification were
+   fixed in the closing commit; the vague-claim-vs-two-units fixture pin
+   (science NOTE-3) is DEFERRED to Phase 4's golden corpus by this entry.
+   Phase 0 merges to the workstream integration branch.

@@ -221,7 +221,11 @@ decision register #6; the fixture corpus pins each):**
   EXCLUSIVE end of the report date's UTC day. The END boundary is INCLUSIVE
   ("at or before") wherever an instant comparison applies. Claims are
   day-granular (`claimDate` within the window's date span); per-document
-  instants drive the cutoff/publication diagnostics.
+  instants drive the cutoff/publication diagnostics. Because claims are
+  day-granular, the END-rung choice affects ELIGIBILITY only when it changes
+  the window's END DATE (e.g. a publication instant past UTC midnight);
+  sub-day END differences drive only the per-document instant diagnostics —
+  `windowEndSource` keeps either case visible (Gate-0 science NOTE-2).
 - **Lane assignment precedence:** when actor roster and event geography
   disagree, EVENT GEOGRAPHY wins (a Houthi attack on Red Sea shipping is
   `maritime`, not `proxy_partner`; the actor still contributes to actor-level

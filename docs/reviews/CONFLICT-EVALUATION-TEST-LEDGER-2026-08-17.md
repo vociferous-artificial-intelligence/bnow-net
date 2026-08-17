@@ -30,4 +30,7 @@ Entries appended per phase below.
 Gate 0 initial verdicts: product/legal **FAIL (narrow: HIGH-1 contract
 incompleteness; fixtures legally clean)**; scope/science **FAIL (narrow: H1
 unavailable-verdict hole, H2 matcher-ladder contradiction)**. Both remediated
-(register #7/#8); focused re-review verdicts recorded below when returned.
+(register #7/#8). Focused re-reviews on `ea35fbf`: product/legal **PASS**;
+scope/evaluation-science **PASS-WITH-MINORS** (3 NOTEs — two fixed in the
+Gate-0 closing commit, the vague-claim fixture pin deferred to P4 by register
+#9). GATE 0: PASSED.
