@@ -12,6 +12,13 @@ import { cronJobName, withCronRun } from "@/lib/usage/cron-run";
 // ?dry=1 first for the printed cost estimate the budget gate requires.
 // ?theater=ru narrows; ?cap=N overrides docs-per-run.
 //
+// Remap driver (scripts/map-remap.ts, OPEN-TASKS #33): ?remap=1 switches
+// eligibility to the current-extractor-version anti-join (ignores `processed`;
+// mirrors and never-dispositioned docs excluded — see map-worker.ts), plus
+// ?after=<id> (cursor) and ?track=<track>. Remap runs record cron_runs job
+// "map:remap" and, like backfill runs, skip the steady-state health check —
+// the driver classifies stops itself.
+//
 // Health (2026-08-15): a run stopped by anything except the benign per-run
 // request ceiling records cron_runs.ok=false and returns ok:false with a
 // machine-readable budgetStopCategory — 418 hourly budget-stopped runs had
@@ -61,11 +68,26 @@ export async function GET(req: NextRequest) {
   const theater = q.get("theater");
   const cap = q.get("cap");
   const dryRun = q.get("dry") === "1";
+  const remap = q.get("remap") === "1";
+  const after = q.get("after");
+  if (after && !/^\d+$/.test(after)) {
+    return NextResponse.json({ error: "bad after" }, { status: 400 });
+  }
+  const track = q.get("track");
+  if (track && !["military", "elite_politics", "nuclear"].includes(track)) {
+    return NextResponse.json({ error: "bad track" }, { status: 400 });
+  }
+  if ((after || track) && !remap) {
+    return NextResponse.json({ error: "after/track require remap=1" }, { status: 400 });
+  }
   const opts = {
     date,
     theaters: theater ? [theater.toLowerCase()] : undefined,
     docCap: cap ? Number(cap) : undefined,
     dryRun,
+    remap,
+    afterId: after ? Number(after) : undefined,
+    track: track as "military" | "elite_politics" | "nuclear" | undefined,
   };
 
   // dry runs write nothing anywhere — keep them out of cron_runs too
@@ -75,13 +97,14 @@ export async function GET(req: NextRequest) {
   }
   let observed: Record<string, unknown> = {};
   try {
-    return await withCronRun(cronJobName("map", date ? "backfill" : null), async (counts) => {
+    const qualifier = remap ? "remap" : date ? "backfill" : null;
+    return await withCronRun(cronJobName("map", qualifier), async (counts) => {
       observed = counts;
       await runMapCycle(opts, counts);
       // scheduled steady runs evaluate freshness + alerts; driver-paced
-      // backfill runs skip it (the driver classifies stops itself, and a
-      // recovery must not spam per-invocation episodes)
-      if (!date) await runScheduledMapHealth(counts);
+      // backfill/remap runs skip it (the driver classifies stops itself, and
+      // a recovery must not spam per-invocation episodes)
+      if (!date && !remap) await runScheduledMapHealth(counts);
       const category =
         typeof counts.budgetStopCategory === "string" ? counts.budgetStopCategory : null;
       if (category && UNHEALTHY_STOP_CATEGORIES.has(category)) {

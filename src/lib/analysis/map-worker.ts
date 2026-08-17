@@ -1,6 +1,13 @@
 import { Pool } from "@neondatabase/serverless";
 import type OpenAI from "openai";
 import { STUB_CONTENT_PREFIX } from "../adapters/stubs";
+import {
+  acquireMapLease,
+  mapLeaseTtlMs,
+  pgMapLeaseDriver,
+  type MapLeaseDriver,
+  type MapLeaseHandle,
+} from "./map-lease";
 import { analysisOpenAiClient } from "./openai-client";
 import {
   analysisChatParams,
@@ -34,12 +41,35 @@ import { TRACKS, type Track } from "./tracks";
 // JSON keyed by docId -> doc_claims + doc_map_state. Idempotent and resumable:
 // a crashed run leaves processed=false and re-selects; unique keys make replays
 // no-ops; already-mapped (doc, track) pairs are skipped by anti-join.
+//
+// Concurrency: ONE map cycle at a time across the hourly cron, the backfill
+// driver, and the remap operator, serialized by the durable provider_state
+// lease in map-lease.ts (the former session advisory lock stranded on the Neon
+// pooler — OPEN-TASKS #77). The lease is acquired BEFORE any reservation or
+// dispatch, renewed at every batch boundary, and re-verified immediately
+// before every map write; a lost lease discards parsed results (their billed
+// usage is already metered) and makes no further writes.
+//
+// Remap mode (OPEN-TASKS #33, scripts/map-remap.ts): eligibility ignores
+// raw_documents.processed and instead anti-joins doc_map_state against the
+// CURRENT extractor versions, so a prompt/version bump can re-extract already-
+// dispositioned documents. Remap never resets processed, never deletes old
+// doc_claims, and never mutates historical extractor versions — superseded
+// rows stay as append-only history/rollback.
 
 /** Docs published/fetched before this UTC day are out of map scope (sprint 2
  *  backfills 2026-07-04 forward; earlier corpus was cold-start telegram-only). */
 export const MAP_EPOCH = "2026-07-04";
 
-const ADVISORY_LOCK_KEY = 0x6d61_7031; // "map1" — one map cycle at a time
+/** Thrown by the extractBatch keepalive when the lease is lost mid-batch:
+ *  stops the batch BEFORE its next reservation/dispatch. Never leaves this
+ *  module — runWorker catches it (the lost latch is already set). */
+export class MapLeaseLostError extends Error {
+  constructor() {
+    super("map-worker: lease lost mid-batch");
+    this.name = "MapLeaseLostError";
+  }
+}
 
 export function mapTheaters(): string[] {
   const raw = process.env.MAP_THEATERS ?? "ru,ua,ir";
@@ -200,8 +230,22 @@ export interface MapCycleOptions {
   date?: string | null;
   /** max docs selected this run; default env MAP_RUN_DOC_CAP (500) */
   docCap?: number;
-  /** select + dedup + batch + cost model only — no LLM call, no writes */
+  /** select + dedup + batch + cost model only — no LLM call, no writes (a dry
+   *  run also skips the lease: it must make ZERO writes, provider_state
+   *  included, and its reads race nothing) */
   dryRun?: boolean;
+  /** remap mode (OPEN-TASKS #33): eligibility ignores `processed`; selects
+   *  canonical, already-dispositioned docs missing a CURRENT-version
+   *  doc_map_state row for an applicable track. See remap notes above. */
+  remap?: boolean;
+  /** remap pagination cursor: only docs with id > afterId are selected; the
+   *  run reports maxSelectedId so the driver can advance without rescanning
+   *  docs that yield no work (e.g. lexicon-mismatch docs) */
+  afterId?: number;
+  /** remap: restrict to one track (applicability is intersected with it) */
+  track?: Track;
+  /** injectable lease driver (tests); default = the pg provider_state driver */
+  leaseDriver?: MapLeaseDriver;
 }
 
 interface MapRunStats {
@@ -217,6 +261,11 @@ interface MapRunStats {
   truncatedSingles: number;
   quoteMisses: number;
   batchErrors: number;
+  /** parsed batches discarded because the lease was lost before persistence
+   *  (their billed usage was already metered — ruling 8) */
+  leaseLostDiscards: number;
+  /** successful full-TTL renewals during this cycle */
+  leaseRenewals: number;
 }
 
 export async function runMapCycle(
@@ -226,23 +275,34 @@ export async function runMapCycle(
   const theaters = opts.theaters ?? mapTheaters();
   const docCap = opts.docCap ?? mapRunDocCap();
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  const lockClient = await pool.connect();
   try {
-    const { rows: lockRows } = await lockClient.query(
-      "SELECT pg_try_advisory_lock($1) AS locked",
-      [ADVISORY_LOCK_KEY],
-    );
-    if (!lockRows[0]?.locked) {
-      counts.skipped = "another map cycle holds the lock";
+    if (opts.dryRun) {
+      // read-only: no lease (zero writes of any kind), no cron_runs row (route)
+      return await cycle(pool, theaters, docCap, opts, counts, null);
+    }
+    const owner = opts.remap ? "map:remap" : opts.date ? "map:backfill" : "map";
+    const lease = await acquireMapLease(owner, mapLeaseTtlMs(), opts.leaseDriver ?? pgMapLeaseDriver);
+    if (!lease.handle) {
+      // busy AND driver-error both fail safe: no paid call, no map write
+      counts.skipped = lease.reason ?? "another map cycle holds the lease";
+      counts.lease = { outcome: lease.outcome };
       return counts;
     }
+    counts.lease = {
+      outcome: lease.handle.outcome,
+      fence: lease.handle.fence,
+      renewals: 0,
+      lost: 0,
+      released: 0,
+    };
     try {
-      return await cycle(pool, theaters, docCap, opts, counts);
+      return await cycle(pool, theaters, docCap, opts, counts, lease.handle);
     } finally {
-      await lockClient.query("SELECT pg_advisory_unlock($1)", [ADVISORY_LOCK_KEY]);
+      // released reflects the ACTUAL outcome: a lost/stale token's release is
+      // a refused no-op and must not read as a clean handover
+      (counts.lease as Record<string, unknown>).released = (await lease.handle.release()) ? 1 : 0;
     }
   } finally {
-    lockClient.release();
     await pool.end();
   }
 }
@@ -253,29 +313,107 @@ async function cycle(
   docCap: number,
   opts: MapCycleOptions,
   counts: Record<string, unknown>,
+  lease: MapLeaseHandle | null,
 ): Promise<Record<string, unknown>> {
-  // one UTC day (backfill driver) vs everything since the map epoch (hourly)
+  const stats: MapRunStats = {
+    llmCalls: 0,
+    promptTokens: 0,
+    completionTokens: 0,
+    claims: 0,
+    emptyDocs: 0,
+    wrongDocIds: 0,
+    duplicateEntries: 0,
+    omittedDocs: 0,
+    truncationSplits: 0,
+    truncatedSingles: 0,
+    quoteMisses: 0,
+    batchErrors: 0,
+    leaseLostDiscards: 0,
+    leaseRenewals: 0,
+  };
+  // Lost-lease latch: set the moment a renew fails. Checked before every write
+  // and every new dispatch; parsed-but-unpersisted results are discarded (their
+  // billed usage is already in provider_usage — metering precedes discarding).
+  const leaseLost = { current: false };
+  /** Re-verify ownership (full-TTL renew) immediately before a write. A write
+   *  then runs with a fresh full TTL ahead of it, so a competing takeover —
+   *  which requires PROVEN expiry — cannot begin until long after the short
+   *  transaction commits. Dry runs (lease === null) never reach any write. */
+  const stillOwner = async (): Promise<boolean> => {
+    if (lease === null) return true;
+    if (leaseLost.current) return false;
+    let ok = false;
+    try {
+      ok = await lease.renew();
+    } catch {
+      ok = false; // a DB failure mid-renew fails safe: stop writing
+    }
+    const leaseCounts = counts.lease as Record<string, unknown> | undefined;
+    if (ok) {
+      stats.leaseRenewals++;
+      if (leaseCounts) leaseCounts.renewals = stats.leaseRenewals;
+    } else {
+      leaseLost.current = true;
+      if (leaseCounts) leaseCounts.lost = 1;
+      console.warn("map-worker: lease lost — discarding unpersisted work, no further writes");
+    }
+    return ok;
+  };
+
+  // one UTC day (backfill/remap driver) vs everything since the map epoch (hourly)
   const dateOp = opts.date ? "=" : ">=";
   const dateParam = opts.date ?? MAP_EPOCH;
 
-  // 1. select unmapped candidates, oldest first (drains backlog before news)
-  const { rows: candRows } = await pool.query(
-    `SELECT rd.id, rd.title, rd.content, rd.adapter, rd.country_iso2 AS theater,
-            COALESCE(rd.published_at, rd.fetched_at)::date::text AS day,
-            s.canonical_url AS source_key, s.reliability_score AS reliability,
-            md5(trim(regexp_replace(rd.content, '\\s+', ' ', 'g'))) AS content_md5,
-            left(coalesce(rd.title, '') || ' ' || rd.content, 2000) AS text2k
-     FROM raw_documents rd
-     LEFT JOIN sources s ON s.id = rd.source_id
-     WHERE rd.processed = false
-       AND rd.country_iso2 = ANY($1)
-       AND length(rd.content) >= 40
-       AND rd.content NOT LIKE $2
-       AND COALESCE(rd.published_at, rd.fetched_at)::date ${dateOp} $3::date
-     ORDER BY COALESCE(rd.published_at, rd.fetched_at) ASC, rd.id ASC
-     LIMIT $4`,
-    [theaters, `${STUB_CONTENT_PREFIX}%`, dateParam, docCap],
-  );
+  // 1. select candidates.
+  //    Steady/backfill: unmapped docs (processed=false), oldest first (drains
+  //    backlog before news).
+  //    Remap: `processed` is NOT an eligibility gate — select canonical docs
+  //    (no doc_dedup row: mirror verdicts are permanent and mirrors are never
+  //    mapped) that the map has already dispositioned (processed=true or any
+  //    doc_map_state row); the current-version anti-join in step 3 then keeps
+  //    only docs actually missing current-version work. Never-touched
+  //    processed=false docs stay the hourly worker's job — remap must not race
+  //    the dedup gate for documents that have no mirror verdict yet. Cursor
+  //    (afterId, id order) lets the driver advance past docs that yield no
+  //    work (e.g. lexicon mismatches) without rescanning them forever.
+  const { rows: candRows } = opts.remap
+    ? await pool.query(
+        `SELECT rd.id, rd.title, rd.content, rd.adapter, rd.country_iso2 AS theater,
+                COALESCE(rd.published_at, rd.fetched_at)::date::text AS day,
+                s.canonical_url AS source_key, s.reliability_score AS reliability,
+                md5(trim(regexp_replace(rd.content, '\\s+', ' ', 'g'))) AS content_md5,
+                left(coalesce(rd.title, '') || ' ' || rd.content, 2000) AS text2k
+         FROM raw_documents rd
+         LEFT JOIN sources s ON s.id = rd.source_id
+         WHERE rd.country_iso2 = ANY($1)
+           AND length(rd.content) >= 40
+           AND rd.content NOT LIKE $2
+           AND COALESCE(rd.published_at, rd.fetched_at)::date ${dateOp} $3::date
+           AND rd.id > $4
+           AND NOT EXISTS (SELECT 1 FROM doc_dedup dd WHERE dd.raw_document_id = rd.id)
+           AND (rd.processed = true
+                OR EXISTS (SELECT 1 FROM doc_map_state dms WHERE dms.raw_document_id = rd.id))
+         ORDER BY rd.id ASC
+         LIMIT $5`,
+        [theaters, `${STUB_CONTENT_PREFIX}%`, dateParam, opts.afterId ?? 0, docCap],
+      )
+    : await pool.query(
+        `SELECT rd.id, rd.title, rd.content, rd.adapter, rd.country_iso2 AS theater,
+                COALESCE(rd.published_at, rd.fetched_at)::date::text AS day,
+                s.canonical_url AS source_key, s.reliability_score AS reliability,
+                md5(trim(regexp_replace(rd.content, '\\s+', ' ', 'g'))) AS content_md5,
+                left(coalesce(rd.title, '') || ' ' || rd.content, 2000) AS text2k
+         FROM raw_documents rd
+         LEFT JOIN sources s ON s.id = rd.source_id
+         WHERE rd.processed = false
+           AND rd.country_iso2 = ANY($1)
+           AND length(rd.content) >= 40
+           AND rd.content NOT LIKE $2
+           AND COALESCE(rd.published_at, rd.fetched_at)::date ${dateOp} $3::date
+         ORDER BY COALESCE(rd.published_at, rd.fetched_at) ASC, rd.id ASC
+         LIMIT $4`,
+        [theaters, `${STUB_CONTENT_PREFIX}%`, dateParam, docCap],
+      );
   const candidates: CandidateDoc[] = candRows.map((r) => ({
     id: r.id,
     theater: r.theater,
@@ -289,31 +427,51 @@ async function cycle(
     reliability: r.reliability !== null ? Number(r.reliability) : null,
   }));
   counts.selected = candidates.length;
+  if (opts.remap) {
+    // driver cursor: everything selected this call is "seen" whether or not it
+    // yielded work — the next call starts past it
+    counts.maxSelectedId = candidates.length ? candidates[candidates.length - 1].id : (opts.afterId ?? 0);
+  }
 
   if (candidates.length === 0) return counts;
 
-  // 2. persistent dedup gate against the rolling canonical window
-  const days = candidates.map((c) => c.day).sort();
-  const { rows: refRows } = await pool.query(
-    `SELECT rd.id, rd.country_iso2 AS theater,
-            COALESCE(rd.published_at, rd.fetched_at)::date::text AS day,
-            md5(trim(regexp_replace(rd.content, '\\s+', ' ', 'g'))) AS content_md5,
-            left(coalesce(rd.title, '') || ' ' || rd.content, 2000) AS text2k
-     FROM raw_documents rd
-     WHERE rd.processed = true
-       AND rd.country_iso2 = ANY($1)
-       AND COALESCE(rd.published_at, rd.fetched_at)::date
-             BETWEEN $2::date - 1 AND $3::date + 1
-       AND NOT EXISTS (SELECT 1 FROM doc_dedup dd WHERE dd.raw_document_id = rd.id)`,
-    [theaters, days[0], days[days.length - 1]],
-  );
-  const { mirrors, canonical } = dedupGate(candidates, refRows as DedupDoc[]);
-  counts.mirrors = mirrors.length;
-  counts.mirrorsExact = mirrors.filter((m) => m.method === "exact").length;
-  counts.mirrorsMinhash = mirrors.filter((m) => m.method === "minhash").length;
-  counts.canonical = canonical.length;
+  // 2. persistent dedup gate against the rolling canonical window. Remap skips
+  //    it entirely: remap candidates are canonical BY SELECTION (no doc_dedup
+  //    row, already dispositioned), their mirror verdicts are permanent, and
+  //    re-running the gate against a reference set that can contain the
+  //    candidates themselves would self-mirror.
+  let mirrors: ReturnType<typeof dedupGate>["mirrors"] = [];
+  let canonical: number[];
+  if (opts.remap) {
+    canonical = candidates.map((c) => c.id);
+    counts.mirrors = 0;
+    counts.canonical = canonical.length;
+  } else {
+    const days = candidates.map((c) => c.day).sort();
+    const { rows: refRows } = await pool.query(
+      `SELECT rd.id, rd.country_iso2 AS theater,
+              COALESCE(rd.published_at, rd.fetched_at)::date::text AS day,
+              md5(trim(regexp_replace(rd.content, '\\s+', ' ', 'g'))) AS content_md5,
+              left(coalesce(rd.title, '') || ' ' || rd.content, 2000) AS text2k
+       FROM raw_documents rd
+       WHERE rd.processed = true
+         AND rd.country_iso2 = ANY($1)
+         AND COALESCE(rd.published_at, rd.fetched_at)::date
+               BETWEEN $2::date - 1 AND $3::date + 1
+         AND NOT EXISTS (SELECT 1 FROM doc_dedup dd WHERE dd.raw_document_id = rd.id)`,
+      [theaters, days[0], days[days.length - 1]],
+    );
+    const gate = dedupGate(candidates, refRows as DedupDoc[]);
+    mirrors = gate.mirrors;
+    canonical = gate.canonical;
+    counts.mirrors = mirrors.length;
+    counts.mirrorsExact = mirrors.filter((m) => m.method === "exact").length;
+    counts.mirrorsMinhash = mirrors.filter((m) => m.method === "minhash").length;
+    counts.canonical = canonical.length;
+  }
 
   if (!opts.dryRun && mirrors.length > 0) {
+    if (!(await stillOwner())) return counts; // lost lease — no writes
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -342,11 +500,13 @@ async function cycle(
   const versionOf = new Map<string, string>(); // `${track}:${theater}` -> version
   const pending = new Map<number, Set<Track>>();
   for (const doc of canonicalDocs) {
-    const tracks = applicableTracks({
+    let tracks = applicableTracks({
       countryIso2: doc.theater,
       title: doc.title,
       content: doc.content,
     });
+    // remap --track: only the requested track's missing versions are work
+    if (opts.track) tracks = tracks.filter((t) => t === opts.track);
     if (tracks.length > 0) pending.set(doc.id, new Set(tracks));
     for (const t of tracks) {
       const k = `${t}:${doc.theater}`;
@@ -379,7 +539,7 @@ async function cycle(
   for (const [docId, tracks] of pending) {
     const doc = byId.get(docId)!;
     for (const t of tracks) {
-      const k = `${doc.theater} ${t}`;
+      const k = `${doc.theater}\u0000${t}`;
       const list = groups.get(k);
       if (list) list.push(doc);
       else groups.set(k, [doc]);
@@ -388,7 +548,7 @@ async function cycle(
   const batchSize = mapBatchSize();
   const batches: Array<{ theater: string; track: Track; docs: CandidateDoc[] }> = [];
   for (const [k, docs] of groups) {
-    const [theater, track] = k.split(" ") as [string, Track];
+    const [theater, track] = k.split("\u0000") as [string, Track];
     for (const part of chunk(docs, batchSize)) batches.push({ theater, track, docs: part });
   }
   const pairCount = [...groups.values()].reduce((s, d) => s + d.length, 0);
@@ -413,9 +573,14 @@ async function cycle(
     counts.estCompletionTokens = outTok;
     // model-aware estimate: non-throwing resolve (a dry run may model an
     // unpriced candidate; pricing falls back to its conservative ceiling)
-    counts.estUsd = Number(
-      estimateCostUsd(resolveWorkloadModel("map").model, inTok, outTok).toFixed(4),
-    );
+    const resolved = resolveWorkloadModel("map");
+    counts.estUsd = Number(estimateCostUsd(resolved.model, inTok, outTok).toFixed(4));
+    // remap dry runs feed the operator's pre-execution printout: the exact
+    // target model/effort and the extractor versions the work would write
+    // (dry responses are route-body only — never persisted to cron_runs)
+    counts.estModel = resolved.model;
+    counts.estEffort = resolved.reasoningEffort ?? "";
+    if (opts.remap) counts.remapVersions = Object.fromEntries(versionOf);
     return counts;
   }
   if (batches.length > 0) assertLlmEnabled("map extract");
@@ -431,39 +596,41 @@ async function cycle(
   // versions live on doc_claims/doc_map_state (release hardening 2026-08-17)
   if (dispatch) counts.dispatch = dispatchIdentity(dispatch);
 
-  // 5. extract + persist, one guard for the whole run
+  // 5. extract + persist, one guard for the whole run. The lease was acquired
+  //    BEFORE this point (before any reservation or client construction).
   const guard = mapGuardFromEnv();
   await guard.init();
   const openai = analysisOpenAiClient();
-  const stats: MapRunStats = {
-    llmCalls: 0,
-    promptTokens: 0,
-    completionTokens: 0,
-    claims: 0,
-    emptyDocs: 0,
-    wrongDocIds: 0,
-    duplicateEntries: 0,
-    omittedDocs: 0,
-    truncationSplits: 0,
-    truncatedSingles: 0,
-    quoteMisses: 0,
-    batchErrors: 0,
-  };
   // holder object: TS control-flow narrowing cannot see closure writes to a
   // plain let, but property reads re-widen after the await below
   const budgetStop: { current: LlmBudgetError | null } = { current: null };
 
-  // small worker pool over independent batches; a budget refusal stops every
-  // worker (daily/total caps are checked before each billed call regardless —
-  // concurrent in-flight calls can overshoot by at most concurrency-1 batches)
+  // small worker pool over independent batches; a budget refusal OR a lost
+  // lease stops every worker (daily/total caps are checked before each billed
+  // call regardless — concurrent in-flight calls can overshoot by at most
+  // concurrency-1 batches)
   let nextBatch = 0;
   const runWorker = async () => {
-    while (!budgetStop.current) {
+    while (!budgetStop.current && !leaseLost.current) {
       const i = nextBatch++;
       if (i >= batches.length) return;
       const b = batches[i];
       try {
-        const perDoc = await extractBatch(openai, guard, dispatch!, b.track, b.theater, b.docs, stats);
+        // keepalive renews the lease at EVERY physical provider attempt (a
+        // 429's 65s sleep or a deep truncation split could otherwise outlive
+        // the TTL with no renewal); a lost lease stops the batch BEFORE its
+        // next reservation/dispatch
+        const keepalive = async () => {
+          if (!(await stillOwner())) throw new MapLeaseLostError();
+        };
+        const perDoc = await extractBatch(openai, guard, dispatch!, b.track, b.theater, b.docs, stats, keepalive);
+        // the response is billed and metered above; ownership is re-verified
+        // (full-TTL renew) before its results may touch map state — a lost
+        // lease discards them and the docs stay eligible for the new holder
+        if (!(await stillOwner())) {
+          stats.leaseLostDiscards += perDoc.size;
+          return;
+        }
         const version = versionOf.get(`${b.track}:${b.theater}`)!;
         await persistBatch(pool, b.track, version, b.docs, perDoc, stats);
         for (const docId of perDoc.keys()) pending.get(docId)?.delete(b.track);
@@ -473,6 +640,7 @@ async function cycle(
           budgetStop.current = e;
           return;
         }
+        if (e instanceof MapLeaseLostError) return; // latch is set; stop quietly
         stats.batchErrors++;
         console.warn(
           `map ${b.theater}/${b.track} batch of ${b.docs.length}: ${e instanceof Error ? e.message : e}`,
@@ -484,15 +652,26 @@ async function cycle(
     Array.from({ length: Math.min(mapConcurrency(), batches.length) }, runWorker),
   );
 
-  // 6. final disposition: mapped for all applicable tracks, or nothing applicable
+  // 6. final disposition: mapped for all applicable tracks, or nothing
+  //    applicable. Gated on ownership like every other map write. REMAP NEVER
+  //    WRITES processed: its candidates are either already processed=true
+  //    (idempotent no-op) or partially-dispositioned processed=false leftovers
+  //    whose REMAINING tracks still belong to the hourly worker — and a
+  //    --track-restricted run sees only the filtered track set, so marking
+  //    from it would falsely finalize docs with other applicable tracks
+  //    unmapped (spend/versioning review 1, MAJOR-1).
   const doneIds = [
     ...zeroTrackIds,
     ...[...pending.entries()].filter(([, t]) => t.size === 0).map(([id]) => id),
   ];
-  if (doneIds.length > 0) {
+  let markedHere = 0;
+  if (!opts.remap && doneIds.length > 0 && (await stillOwner())) {
     await pool.query(`UPDATE raw_documents SET processed = true WHERE id = ANY($1)`, [doneIds]);
+    markedHere = doneIds.length;
   }
-  counts.processedMarked = doneIds.length + mirrors.length;
+  // mirrors were marked in their own gated transaction above (reaching this
+  // point means that write committed, or there were none)
+  counts.processedMarked = markedHere + mirrors.length;
   Object.assign(counts, stats, guardCounts(guard));
   const stop = budgetStop.current;
   if (stop) {
@@ -516,8 +695,12 @@ function guardCounts(guard: SpendGuard) {
 /** One micro-batch -> validated per-doc claims. Truncation splits the batch in
  *  half and retries each side (every billed call is metered first, including the
  *  discarded truncated one); a single doc that still truncates is skipped and
- *  stays unmapped. 429 sleeps out the TPM window once, like the digest provider. */
-async function extractBatch(
+ *  stays unmapped. 429 sleeps out the TPM window once, like the digest provider.
+ *  `keepalive` (the lease renewal) runs before EVERY physical attempt —
+ *  initial, 429 retry, and each truncation-split recursion level — so a long
+ *  batch tree cannot silently outlive the lease TTL between renewals.
+ *  Exported for the reservation/metering-cardinality unit tests only. */
+export async function extractBatch(
   openai: OpenAI,
   guard: SpendGuard,
   dispatch: AnalysisDispatchConfig,
@@ -525,8 +708,10 @@ async function extractBatch(
   theater: string,
   docs: CandidateDoc[],
   stats: MapRunStats,
+  keepalive?: () => Promise<void>,
 ): Promise<Map<number, MapClaim[]>> {
-  const reserve = () => {
+  const reserve = async () => {
+    await keepalive?.();
     const r = guard.tryReserve();
     if (!r.ok) throw new LlmBudgetError(r.reason, r.code);
   };
@@ -562,14 +747,14 @@ async function extractBatch(
       }),
     });
 
-  reserve();
+  await reserve();
   let completion;
   try {
     completion = await request();
   } catch (e) {
     if ((e as { status?: number }).status === 429) {
       await new Promise((r) => setTimeout(r, 65_000));
-      reserve();
+      await reserve();
       completion = await request();
     } else throw e;
   }
@@ -594,8 +779,8 @@ async function extractBatch(
     }
     stats.truncationSplits++;
     const mid = Math.ceil(docs.length / 2);
-    const left = await extractBatch(openai, guard, dispatch, track, theater, docs.slice(0, mid), stats);
-    const right = await extractBatch(openai, guard, dispatch, track, theater, docs.slice(mid), stats);
+    const left = await extractBatch(openai, guard, dispatch, track, theater, docs.slice(0, mid), stats, keepalive);
+    const right = await extractBatch(openai, guard, dispatch, track, theater, docs.slice(mid), stats, keepalive);
     return new Map([...left, ...right]);
   }
   const raw = choice?.message?.content;

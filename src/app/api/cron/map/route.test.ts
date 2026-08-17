@@ -67,6 +67,52 @@ describe("auth and validation", () => {
     expect(res.status).toBe(400);
     expect(runMapCycle).not.toHaveBeenCalled();
   });
+
+  it("400 on a malformed after cursor or an unknown track", async () => {
+    expect((await GET(req("?remap=1&after=abc"))).status).toBe(400);
+    expect((await GET(req("?remap=1&track=vibes"))).status).toBe(400);
+    expect(runMapCycle).not.toHaveBeenCalled();
+  });
+
+  it("400 when after/track are passed without remap=1", async () => {
+    expect((await GET(req("?after=10"))).status).toBe(400);
+    expect((await GET(req("?track=military"))).status).toBe(400);
+    expect(runMapCycle).not.toHaveBeenCalled();
+  });
+});
+
+describe("remap mode", () => {
+  it("records job map:remap, forwards remap opts, and skips the health check", async () => {
+    cycleResult({ claims: 7, maxSelectedId: 4200 });
+    const res = await GET(req("?remap=1&date=2026-07-30&theater=ir&after=100&track=military"));
+    expect(((await res.json()) as Record<string, unknown>).ok).toBe(true);
+    expect(runScheduledMapHealth).not.toHaveBeenCalled();
+    expect(runMapCycle.mock.calls[0][0]).toMatchObject({
+      date: "2026-07-30",
+      theaters: ["ir"],
+      remap: true,
+      afterId: 100,
+      track: "military",
+    });
+    const insert = dbQuery.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO cron_runs"));
+    expect((insert![1] as unknown[])[0]).toBe("map:remap");
+  });
+
+  it("a remap budget stop is classified exactly like a backfill stop", async () => {
+    cycleResult({ budgetStop: "daily", budgetStopCode: "daily_usd", budgetStopCategory: "daily_cap" });
+    const res = await GET(req("?remap=1&date=2026-07-30&theater=ir"));
+    expect(((await res.json()) as Record<string, unknown>).ok).toBe(false);
+    expect(writtenOk()).toBe(false);
+  });
+
+  it("a dry remap run writes nothing and returns the estimate counts", async () => {
+    cycleResult({ estUsd: 0.3, remapVersions: { "military:ir": "v" } });
+    const res = await GET(req("?remap=1&dry=1&date=2026-07-30&theater=ir"));
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.dryRun).toBe(true);
+    expect(dbQuery).not.toHaveBeenCalled();
+    expect(runScheduledMapHealth).not.toHaveBeenCalled();
+  });
 });
 
 describe("budget-stop health classification (cron_runs.ok)", () => {
