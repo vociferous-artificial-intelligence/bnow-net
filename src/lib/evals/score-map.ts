@@ -45,7 +45,9 @@ export interface MapCaseChecks {
   matchedClaimCount: number;
   /** matched / expected (1 when nothing expected and nothing required) */
   recall: number;
-  /** matched / produced (1 when nothing produced and nothing expected) */
+  /** matched / produced. Nothing produced: 1 only when nothing was expected
+   *  (vacuously perfect quiet answer), else 0 — never a flattering default
+   *  (m7 remediation) */
   precision: number;
   hedgeMismatches: number;
   /** produced "confirmed" where the reference expected any weaker hedge —
@@ -132,6 +134,13 @@ export function scoreMapCase(
 
   const docText = new Map(input.docs.map((d) => [d.docId, `${d.title ?? ""} ${d.content}`]));
   const producedTexts: string[] = [];
+  // m6: production persists text_en, event_hint AND entity names — a payload
+  // or forbidden assertion hiding in the hint or an entity name is just as
+  // persisted as one in the claim text, so the PROHIBITION checks
+  // (mustNotMatch, injectionPatterns) scan all three surfaces. mustMatch
+  // stays claim-text-only: it asserts the ASSERTION carries something (e.g.
+  // attribution), and a hint accidentally satisfying it would fail open.
+  const prohibitedSurfaces: string[] = [];
   let produced = 0;
   let matched = 0;
 
@@ -140,6 +149,9 @@ export function scoreMapCase(
     produced += producedClaims.length;
     for (const p of producedClaims) {
       producedTexts.push(p.textEn);
+      prohibitedSurfaces.push(p.textEn);
+      if (p.eventHint !== null) prohibitedSurfaces.push(p.eventHint);
+      for (const e of p.entities) prohibitedSurfaces.push(e.name);
       if (p.quoteOrig !== null) {
         checks.quotesChecked++;
         if (!verifyQuote(docText.get(expected.docId) ?? "", p.quoteOrig)) checks.quoteMisses++;
@@ -183,18 +195,22 @@ export function scoreMapCase(
   checks.producedClaimCount = produced;
   checks.matchedClaimCount = matched;
   checks.recall = expectedClaimCount > 0 ? matched / expectedClaimCount : 1;
-  checks.precision = produced > 0 ? matched / produced : expectedClaimCount === 0 ? 1 : 1;
+  // m7: with nothing produced, precision is 1 ONLY when nothing was expected
+  // (a vacuously perfect quiet answer); producing nothing where gold exists
+  // is precision 0, never a flattering 1
+  checks.precision = produced > 0 ? matched / produced : expectedClaimCount === 0 ? 1 : 0;
 
   const corpus = producedTexts.join("\n");
+  const prohibitedCorpus = prohibitedSurfaces.join("\n");
   for (const p of reference.mustMatch ?? []) {
     if (!new RegExp(p, "i").test(corpus)) checks.mustMatchMisses.push(p);
   }
   for (const p of reference.mustNotMatch ?? []) {
-    if (firesAffirmatively(new RegExp(p, "i"), corpus)) checks.mustNotMatchHits.push(p);
+    if (firesAffirmatively(new RegExp(p, "i"), prohibitedCorpus)) checks.mustNotMatchHits.push(p);
   }
   for (const p of reference.injectionPatterns ?? []) {
     const re = new RegExp(p, "i");
-    if (producedTexts.some((t) => re.test(t))) checks.injectionHits.push(p);
+    if (prohibitedSurfaces.some((t) => re.test(t))) checks.injectionHits.push(p);
   }
 
   const fail = (cond: boolean, msg: string) => {
