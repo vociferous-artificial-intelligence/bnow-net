@@ -5,6 +5,7 @@ import {
   assemblePublishedRetentionEvidence,
   eligibilityByClaim,
   timeAnchorTreatments,
+  EVIDENCE_MAX_INTAKE,
   type AssemblerReport,
   type CorpusRecallAssembly,
   type CorpusRecallClaimSource,
@@ -191,6 +192,75 @@ describe("fail-closed refusals (before any candidate access)", () => {
     await expect(assemblePublishedRetentionEvidence(request(), source)).rejects.toThrow(
       ConflictDomainError,
     );
+  });
+
+  it("candidate intake refuses NaN reliability, non-integer claimIds, and oversized text", async () => {
+    await expect(
+      assembleCorpusRecallEvidence(request(), sourceOf([claim({ sourceReliability: NaN })])),
+    ).rejects.toThrow(/sourceReliability/);
+    for (const claimId of [0, -3, 1.5, NaN]) {
+      await expect(
+        assembleCorpusRecallEvidence(request(), sourceOf([claim({ claimId })])),
+      ).rejects.toThrow(/claimId/);
+    }
+    await expect(
+      assembleCorpusRecallEvidence(request(), sourceOf([claim({ text: "x".repeat(4097) })])),
+    ).rejects.toThrow(/EVIDENCE_MAX_RECORD_TEXT_BYTES/);
+    // at the ceiling is fine
+    const ok = await assembleCorpusRecallEvidence(
+      request(),
+      sourceOf([claim({ text: "земля".repeat(409) + "x" })]), // 4091 UTF-8 bytes
+    );
+    expect(ok.status).toBe("assembled");
+  });
+
+  it("intake ceiling: 1000 candidates accepted, 1001 refused visibly (never truncated)", async () => {
+    expect(EVIDENCE_MAX_INTAKE).toBe(1000);
+    const mk = (n: number) => Array.from({ length: n }, (_, i) => claim({ claimId: 500_000 + i }));
+    const atLimit = await assembleCorpusRecallEvidence(request(), sourceOf(mk(1000)));
+    expect(atLimit.status).toBe("assembled");
+    if (atLimit.status === "assembled") {
+      expect(atLimit.assembly.eligibleCount).toBe(1000); // nothing silently dropped
+    }
+    await expect(assembleCorpusRecallEvidence(request(), sourceOf(mk(1001)))).rejects.toThrow(
+      /EVIDENCE_MAX_INTAKE/,
+    );
+  });
+
+  it("bad selection limits refuse in prepare(), BEFORE any source fetch", async () => {
+    let calls = 0;
+    const counting: CorpusRecallClaimSource = {
+      async corpusRecallCandidates() {
+        calls++;
+        return [claim()];
+      },
+    };
+    await expect(
+      assembleCorpusRecallEvidence(
+        request({ limits: { maxCandidates: 10, textByteBudget: 100, mixCapFraction: 0.5 } }),
+        counting,
+      ),
+    ).rejects.toThrow(ConflictDomainError);
+    await expect(
+      assembleCorpusRecallEvidence(
+        request({ limits: { maxCandidates: NaN, textByteBudget: 100, mixCapFraction: 0.4 } }),
+        counting,
+      ),
+    ).rejects.toThrow(ConflictDomainError);
+    expect(calls).toBe(0); // a bad limits object never costs a candidate query
+  });
+
+  it("a prose-bearing editionKey is a typed refusal (output-smuggling channel closed)", async () => {
+    const source = sourceOf([claim()]);
+    for (const editionKey of [
+      "roca:2026-08-10:final PLUS smuggled prose about invented events",
+      "arbitrary caller text with no key shape at all",
+      "roca:2026-08-11:final", // date segment disagrees with reportDate
+    ]) {
+      await expect(
+        assembleCorpusRecallEvidence(request({ report: { ...ROCA_REPORT, editionKey } }), source),
+      ).rejects.toThrow(/report identity invalid/);
+    }
   });
 
   it("a report object carrying keys beyond the AssemblerReport allowlist is refused", async () => {
@@ -443,6 +513,78 @@ describe("assembly mechanics", () => {
     expect(a.assembly.excluded.map((e) => e.claimId)).toEqual(
       [claims[2].claimId, claims[3].claimId].sort((x, y) => x - y),
     );
+  });
+
+  it("assemblies are BYTE-deterministic under shuffled candidates, per-claim doc order, and mirror order", async () => {
+    // toEqual is key-order-blind; these assertions are JSON.stringify equality
+    const mkDocs = (base: number, domain: string): CandidateDoc[] => [
+      doc({ docId: base + 1, sourceDomain: domain, fetchedAt: "2026-08-10T07:00:00Z" }),
+      // the SAME instant, byte-different spelling — must resolve by docId
+      doc({ docId: base + 2, sourceDomain: domain, fetchedAt: "2026-08-10T07:00:00.000+00:00" }),
+      doc({ docId: base + 3, sourceDomain: "mirror.example", mirrorOfDocId: base + 1 }),
+    ];
+    const c1 = claim({ sourceReliability: 0.9, docs: mkDocs(100, "a.example") });
+    const c2 = claim({ sourceReliability: 0.4, docs: mkDocs(200, "b.example") });
+    const c3 = claim({ stub: true, docs: mkDocs(300, "c.example") }); // excluded
+    const shuffleDocs = (c: CandidateClaim): CandidateClaim => ({
+      ...c,
+      docs: [c.docs[2], c.docs[1], c.docs[0]], // mirror first, ingest-tie reversed
+    });
+    const A = [c1, c2, c3];
+    const B = [shuffleDocs(c3), shuffleDocs(c1), shuffleDocs(c2)];
+    const a1 = await assembleCorpusRecallEvidence(request(), sourceOf(A));
+    const b1 = await assembleCorpusRecallEvidence(request(), sourceOf(B));
+    expect(JSON.stringify(b1)).toBe(JSON.stringify(a1));
+    const a2 = await assemblePublishedRetentionEvidence(request(), sourceOf(A));
+    const b2 = await assemblePublishedRetentionEvidence(request(), sourceOf(B));
+    expect(JSON.stringify(b2)).toBe(JSON.stringify(a2));
+    if (a1.status !== "assembled") throw new Error("expected assembled");
+    // canonical per-record doc order (docId asc, mirrors included) and the
+    // docId tie-break on the equal-instant ingest pair
+    expect(a1.assembly.records[0].sourceDocumentIds).toEqual([101, 102, 103]);
+    expect(a1.assembly.records[0].earliestIngestAt).toBe("2026-08-10T07:00:00Z");
+  });
+
+  it("laneDiagnostics keys are lane-sorted and byte-stable under candidate reordering", async () => {
+    // two legacy claims classifying into two DIFFERENT iran lanes, no
+    // comparable records: both lanes report unavailable_incomparable and the
+    // serialized key order is the sorted lane order either way
+    const maritime = claim({
+      theater: "bh",
+      engine: "legacy",
+      currentExtractorVersion: false,
+      text: "Gulf reporting claimed increased interceptor stocks at a base in Bahrain.",
+      claimDate: "2026-08-08",
+    });
+    const kinetic = claim({
+      theater: "sa",
+      engine: "legacy",
+      currentExtractorVersion: false,
+      text: "A drone strike reportedly struck a depot near a Saudi base on August 8.",
+      claimDate: "2026-08-08",
+    });
+    const req = request({ conflictId: "iran_regional", report: IRAN_REPORT });
+    const fwd = await assembleCorpusRecallEvidence(req, sourceOf([maritime, kinetic]));
+    const rev = await assembleCorpusRecallEvidence(req, sourceOf([kinetic, maritime]));
+    expect(JSON.stringify(rev)).toBe(JSON.stringify(fwd));
+    if (fwd.status !== "assembled") throw new Error("expected assembled");
+    const lanes = Object.keys(fwd.assembly.laneDiagnostics);
+    expect(lanes.length).toBeGreaterThanOrEqual(2);
+    expect(lanes).toEqual([...lanes].sort());
+  });
+
+  it("extra keys on source doc objects never leak into assembly output (docs rebuilt)", async () => {
+    const poisonedDoc = {
+      ...doc({ sourceDomain: "poison.example" }),
+      unitText: "SMUGGLEDREFERENCETEXT that must never serialize",
+    } as unknown as CandidateDoc;
+    const c = claim({ docs: [poisonedDoc] });
+    const corpus = await assembleCorpusRecallEvidence(request(), sourceOf([c]));
+    const retention = await assemblePublishedRetentionEvidence(request(), sourceOf([c]));
+    const out = JSON.stringify({ corpus, retention });
+    expect(out).not.toContain("SMUGGLEDREFERENCETEXT");
+    expect(out).not.toContain("unitText");
+    expect(out).toContain("poison.example"); // the real fields DID survive
   });
 
   it("timeAnchorTreatments surfaces the window's anchor classification", async () => {

@@ -57,23 +57,30 @@ import {
   computeEvaluationWindow,
   type EvaluationWindow,
 } from "./evaluation-window";
+import { SCOPE_VERSIONS } from "./editions";
 import {
   evaluateCorpusRecallEligibility,
   evaluatePublishedRetentionEligibility,
   type EligibilityContext,
   type EligibilityEvaluation,
+  type ScopeDetail,
 } from "./eligibility";
+import { validateReferenceReportIdentity } from "./reference-report";
 import type { EligibilityRecord } from "./lanes";
 import type { ConflictLaneId } from "./lanes";
 import {
+  assertSelectionLimits,
   compareEvidenceOrder,
   selectEvidence,
   DEFAULT_SELECTION_LIMITS,
+  EVIDENCE_MAX_CANDIDATES,
+  EVIDENCE_MAX_RECORD_TEXT_BYTES,
   type EvidenceSelection,
   type EvidenceSelectionLimits,
 } from "./evidence-selection";
 import {
   type CandidateClaim,
+  type CandidateDoc,
   type CorpusRecallRecord,
   type PublishedRetentionRecord,
 } from "./evidence-records";
@@ -132,11 +139,36 @@ export interface EvidenceRequest {
   limits?: EvidenceSelectionLimits;
 }
 
+/** Assembler-level candidate-intake ceiling. A source returning more than
+ *  this is refused VISIBLY (typed error) — silent truncation would bias the
+ *  population without a trace. The real backend must filter and LIMIT at the
+ *  query (see the CorpusRecallClaimSource contract below). */
+export const EVIDENCE_MAX_INTAKE = 10 * EVIDENCE_MAX_CANDIDATES;
+
 export interface CorpusRecallClaimSource {
-  /** Candidates for the corpus-recall population. A REAL implementation
-   *  filters doc_claims to current versions through map-versions.ts and joins
-   *  raw_documents for traceability; the engine still re-excludes defensively
-   *  (superseded/legacy/stub/unlinked candidates get bounded reasons). */
+  /** Candidates for the corpus-recall population.
+   *
+   *  REAL-BACKEND QUERY CONTRACT (binding for the integration phase; the
+   *  engine still re-excludes every predicate defensively — superseded/
+   *  legacy/stub/unlinked candidates get bounded reasons):
+   *
+   *    SELECT dc.<claim fields>, rd.<doc fields per claim>
+   *      FROM doc_claims dc
+   *      JOIN raw_documents rd ON rd.id = dc.raw_document_id
+   *     WHERE rd.country_iso2 = ANY(<mapped contributorTheaters of def>)
+   *       AND dc.track       = ANY(<def.contributorTracks>)
+   *       AND dc.claim_date BETWEEN <window.startDate> AND <window.endDate>
+   *       AND dc.extractor_version = ANY(<mapExtractorVersion() current set —
+   *           src/lib/analysis/map-versions.ts, the ONLY sanctioned accessor>)
+   *       AND rd.adapter NOT IN (<stub adapters — truth-in-UI, ruling 3>)
+   *     ORDER BY <registry source reliability> DESC NULLS LAST, dc.id ASC
+   *     LIMIT <= EVIDENCE_MAX_INTAKE   -- MANDATORY: the assembler REFUSES
+   *                                    -- larger batches, never truncates
+   *
+   *  Supporting indexes already present in src/db/schema.ts:
+   *  `doc_claims_track_date_idx` (track, claim_date) drives the track+window
+   *  range scan; `raw_documents_country_idx` (country_iso2) drives the
+   *  theater filter on the join side. */
   corpusRecallCandidates(
     def: ConflictDefinition,
     window: EvaluationWindow,
@@ -162,6 +194,10 @@ export interface EvidenceExclusion {
   /** all reasons that applied — the record's reason is the frozen-precedence
    *  dominant one */
   applicableExclusions: readonly string[];
+  /** bounded off_scope SUB-diagnostic (which of the four distinct causes
+   *  applied) — additive, like windowReason; the frozen §5 reason enum is
+   *  unchanged. Null when off_scope did not apply. */
+  scopeDetail: ScopeDetail | null;
 }
 
 interface AssemblyBase {
@@ -263,9 +299,34 @@ function prepare(
       `report series ${JSON.stringify(request.report.series)} is not the ${def.id} reference series ${JSON.stringify(def.referenceSeries)}`,
     );
   }
+  // the editionKey is COPIED into serialized assembly output, so it is a
+  // smuggling channel unless shape-validated: reuse the Phase 1/2 identity
+  // validator (series:reportDate:label grammar + cross-field agreement). The
+  // RAW time anchors are deliberately NOT validated here — the window ladder
+  // classifies malformed anchors, so the validator sees nulls.
+  const identityIssues = validateReferenceReportIdentity({
+    series: request.report.series,
+    editionKey: request.report.editionKey,
+    reportDate: request.report.reportDate,
+    cutoffAt: null,
+    publishedAt: null,
+    scopeVersion: SCOPE_VERSIONS[def.referenceSeries],
+  });
+  if (identityIssues.length > 0) {
+    throw new ConflictDomainError(
+      "invalid_evidence_request",
+      `report identity invalid: ${identityIssues.join("; ")}`,
+    );
+  }
   // snapshot-anchored kinds have no proving artifact in this workstream
   // (register #5): refuse honestly; only labeled retrospectives assemble
   if (request.kind !== "retrospective") return { ok: false, reason: "no_proven_snapshot" };
+
+  // limits are validated HERE, before any source fetch (the selection-time
+  // check stays as defense in depth) — a bad limits object must never cost a
+  // candidate query
+  const limits = request.limits ?? DEFAULT_SELECTION_LIMITS;
+  assertSelectionLimits(limits);
 
   const window = computeEvaluationWindow({
     reportDate: request.report.reportDate,
@@ -284,20 +345,39 @@ function prepare(
         publishedAt: request.report.publishedAt,
       },
       report: request.report,
-      limits: request.limits ?? DEFAULT_SELECTION_LIMITS,
+      limits,
     },
   };
 }
 
-/** Duplicate claimIds within one batch are a SOURCE DEFECT (doc_claims ids
- *  are unique; the fixture loader enforces global uniqueness): a duplicate
- *  would break ordering totality (compareEvidenceOrder returns 0 → input-
- *  order dependence), misfile pass-2 cap classification (capEvents matches by
- *  claimId), and last-writer-win the eligibilityByClaim projection — so the
- *  assembler refuses before evaluating anything. */
-function refuseDuplicateClaimIds(candidates: readonly CandidateClaim[]): void {
+/** Candidate-intake validation, run BEFORE any evaluation. The batch size is
+ *  capped at EVIDENCE_MAX_INTAKE (visible refusal, never silent truncation).
+ *  Duplicate claimIds are a SOURCE DEFECT — doc_claims ids are unique in the
+ *  real backend, and the fixture corpus's uniqueness is asserted by a TEST
+ *  (fixture-corpus.test.ts), not enforced by the loader, so THIS runtime
+ *  guard is the actual invariant. A duplicate would break ordering totality
+ *  (compareEvidenceOrder returns 0 → input-order dependence), misfile pass-2
+ *  cap classification (capEvents matches by claimId), and last-writer-win the
+ *  eligibilityByClaim projection. claimId must be a finite positive integer
+ *  and sourceReliability finite-or-null (NaN poisons the total order: the
+ *  comparator returns NaN, which sort() treats as 0 → input-order
+ *  dependence). Text over EVIDENCE_MAX_RECORD_TEXT_BYTES is refused — one
+ *  multi-KB "claim" would swallow the shared selection byte budget. */
+function validateCandidateIntake(candidates: readonly CandidateClaim[]): void {
+  if (candidates.length > EVIDENCE_MAX_INTAKE) {
+    throw new ConflictDomainError(
+      "invalid_evidence_request",
+      `source returned ${candidates.length} candidates — over the EVIDENCE_MAX_INTAKE ceiling of ${EVIDENCE_MAX_INTAKE}; filter and LIMIT at the query (see CorpusRecallClaimSource), never rely on assembler truncation`,
+    );
+  }
   const seen = new Set<number>();
   for (const c of candidates) {
+    if (!Number.isInteger(c.claimId) || c.claimId <= 0) {
+      throw new ConflictDomainError(
+        "invalid_candidate_claim",
+        `claimId must be a finite positive integer, got ${String(c.claimId)}`,
+      );
+    }
     if (seen.has(c.claimId)) {
       throw new ConflictDomainError(
         "invalid_candidate_claim",
@@ -305,7 +385,38 @@ function refuseDuplicateClaimIds(candidates: readonly CandidateClaim[]): void {
       );
     }
     seen.add(c.claimId);
+    if (c.sourceReliability !== null && !Number.isFinite(c.sourceReliability)) {
+      throw new ConflictDomainError(
+        "invalid_candidate_claim",
+        `sourceReliability must be finite or null on claim ${c.claimId}, got ${String(c.sourceReliability)}`,
+      );
+    }
+    if (Buffer.byteLength(c.text, "utf8") > EVIDENCE_MAX_RECORD_TEXT_BYTES) {
+      throw new ConflictDomainError(
+        "invalid_candidate_claim",
+        `claim ${c.claimId} text exceeds EVIDENCE_MAX_RECORD_TEXT_BYTES (${EVIDENCE_MAX_RECORD_TEXT_BYTES} UTF-8 bytes)`,
+      );
+    }
   }
+}
+
+/** Canonical per-record doc list: every doc REBUILT field-by-field against
+ *  the CandidateDoc shape (an extra key on a source doc object can never ride
+ *  into serialized assembly output) and ordered by docId ascending — the
+ *  record's doc list is byte-deterministic regardless of source doc order. */
+function canonicalDocs(docs: readonly CandidateDoc[]): CandidateDoc[] {
+  return docs
+    .map((d) => ({
+      docId: d.docId,
+      adapter: d.adapter,
+      platform: d.platform,
+      sourceDomain: d.sourceDomain,
+      publishedAt: d.publishedAt,
+      fetchedAt: d.fetchedAt,
+      mirrorOfDocId: d.mirrorOfDocId,
+      sourceLanguage: d.sourceLanguage,
+    }))
+    .sort((a, b) => a.docId - b.docId);
 }
 
 /** Exclusions in claimId order (ascending) — the deterministic-list rule for
@@ -319,6 +430,7 @@ function excludedOf(evaluations: readonly EligibilityEvaluation[]): EvidenceExcl
         claimId: ev.claimId,
         record: ev.record,
         applicableExclusions: ev.applicableExclusions,
+        scopeDetail: ev.scopeDetail,
       });
     }
   }
@@ -345,7 +457,7 @@ export async function assembleCorpusRecallEvidence(
   }
   const { def, ctx, limits } = gate.prepared;
   const candidates = await source.corpusRecallCandidates(def, ctx.window);
-  refuseDuplicateClaimIds(candidates);
+  validateCandidateIntake(candidates);
 
   const records: CorpusRecallRecord[] = [];
   const evaluations: EligibilityEvaluation[] = [];
@@ -357,6 +469,7 @@ export async function assembleCorpusRecallEvidence(
     const ev = evaluateCorpusRecallEligibility(ctx, candidate);
     evaluations.push(ev);
     if (ev.record.included) {
+      const docs = canonicalDocs(candidate.docs);
       records.push({
         population: "corpus_recall",
         claimId: candidate.claimId,
@@ -367,8 +480,8 @@ export async function assembleCorpusRecallEvidence(
         hedge: candidate.hedging,
         claimDate: candidate.claimDate,
         text: candidate.text,
-        sourceDocumentIds: candidate.docs.map((d) => d.docId),
-        docs: candidate.docs,
+        sourceDocumentIds: docs.map((d) => d.docId),
+        docs,
         independentSourceCount: ev.independentSourceCount,
         earliestIngestAt: ev.earliestIngestAt,
         inclusionReasons: ev.record.reasons,
@@ -395,7 +508,9 @@ export async function assembleCorpusRecallEvidence(
 
   const includedLanes = new Set(records.map((r) => r.lane));
   const laneDiagnostics: Partial<Record<ConflictLaneId, LaneDiagnostic>> = {};
-  for (const lane of legacyLanes) {
+  // lane-sorted key insertion: the serialized object is byte-identical
+  // regardless of candidate iteration order
+  for (const lane of [...legacyLanes].sort()) {
     if (!includedLanes.has(lane)) laneDiagnostics[lane] = "unavailable_incomparable";
   }
 
@@ -441,7 +556,7 @@ export async function assemblePublishedRetentionEvidence(
   }
   const { def, ctx, limits } = gate.prepared;
   const candidates = await source.publishedRetentionCandidates(def, ctx.window);
-  refuseDuplicateClaimIds(candidates);
+  validateCandidateIntake(candidates);
 
   const records: PublishedRetentionRecord[] = [];
   const evaluations: EligibilityEvaluation[] = [];
@@ -449,6 +564,7 @@ export async function assemblePublishedRetentionEvidence(
     const ev = evaluatePublishedRetentionEligibility(ctx, candidate);
     evaluations.push(ev);
     if (!ev.record.included) continue;
+    const docs = canonicalDocs(candidate.docs);
     records.push({
       population: "published_retention",
       claimId: candidate.claimId,
@@ -459,8 +575,8 @@ export async function assemblePublishedRetentionEvidence(
       hedge: candidate.hedging,
       claimDate: candidate.claimDate,
       text: candidate.text,
-      sourceDocumentIds: candidate.docs.map((d) => d.docId),
-      docs: candidate.docs,
+      sourceDocumentIds: docs.map((d) => d.docId),
+      docs,
       independentSourceCount: ev.independentSourceCount,
       earliestIngestAt: ev.earliestIngestAt,
       inclusionReasons: ev.record.reasons,
