@@ -74,3 +74,29 @@ Each entry: date, decision, rationale, alternatives rejected, review status.
    quiet-day unit reworded away from genre boilerplate with an id bump per
    the immutability rule (NOTE-1); the ledger no longer spells the sentinel
    (NOTE-3).
+
+8. **2026-08-17 — Gate-0 remediation (scope/evaluation-science review, H1/H2 +
+   M1-M5 + L1/L2).** (a) H1: no unit-level `unavailable` in headline
+   arithmetic — incomparable-coverage units stay in the denominator as misses
+   with `missDiagnostic: "incomparable_coverage"`; lane tables carry the
+   `unavailable (incomparable)` diagnostic; contract §3/§5/§6.4 amended, the
+   Gulf fixture reminted with explicit headline numerator/denominator.
+   (b) H2: "inherited unchanged" INCLUDES production's degradation ladder
+   (majority ≥3 usable rounds / single-round `llm` at 1-2 / keyword at 0);
+   the matcher fixture reminted to pin both the 1-valid→`llm` and the
+   0-valid→`keyword` rungs. (c) M1: conflict keyword-fallback keeps the full
+   declared-unit denominator with a `keywordUnmatchable` diagnostic —
+   deliberate, disclosed divergence from production `scoreDigest`, confined
+   to the conflict evaluator. (d) M2: `windowEndSource` recorded on every
+   evaluation; a rung-2 (publishedAt END) fixture added. (e) M3: the README's
+   stale/contradictory ambiguity section rewritten to point at the frozen
+   contract order (integrity BEFORE scope); an integrity∧scope-conflict
+   fixture (stub + off-scope → `stub_fixture`) and a `missing_source` fixture
+   added. (f) M4: headline numerator/denominator pins added to five key
+   scenarios (clean match 1/1, retention gap 1/1 vs 0/1, compound partial
+   0/1+diagnostic, gulf-incomparable 0/1, matcher rungs) — full-report golden
+   arithmetic remains P4's deliverable. (g) M5: legacy scoreboard-row
+   disposition assigned to the Phase 6 IA review by name. (h) L1: the
+   anti-vague-claim rule now binds generally in §6.3. (i) L2: the
+   window/denominator time-asymmetry disclosed in §5. All fixture edits are
+   remints (new ids) per the corpus immutability rule.

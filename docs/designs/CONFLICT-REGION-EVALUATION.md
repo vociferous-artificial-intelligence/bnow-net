@@ -97,6 +97,18 @@ benchmark coverage."** It is NOT whole-report coverage and is never labeled
   MISS in the headline numerator** (never as a fraction, never as a match);
   it is surfaced separately so compound-bullet under-credit is visible instead
   of silently inflated or deflated.
+- **There is NO unit-level `unavailable` verdict in headline arithmetic**
+  (Gate-0 science H1, register #8). A unit whose plausible evidence class is
+  incomparable (e.g. a Gulf-base unit with only legacy-engine theaters)
+  REMAINS in the declared-unit denominator as a `miss` carrying the
+  diagnostic sub-label `missDiagnostic: "incomparable_coverage"` — that is an
+  HONEST miss (a real product coverage gap per this section), not a
+  manufactured zero. §5's "reported unavailable rather than manufactured"
+  applies to the LANE DIAGNOSTIC TABLE: a lane whose whole eligible class is
+  incomparable shows `unavailable (incomparable evidence)` instead of a bare
+  0% that would imply comparable-but-missed. Report-LEVEL `unavailable`
+  exists only for the §6.2 snapshot-kind rules (no report / no proven
+  snapshot), never as a per-unit escape from the denominator.
 - Deliberately narrower subset scores (e.g. "kinetic/security subset") are
   permitted only as EXPLICITLY LABELED companions showing their own
   numerator/denominator beside the declared-unit result.
@@ -182,6 +194,14 @@ US/Gulf/IAEA/E3/Omani evidence in-scope for the Iran Update; unrelated
 Israeli domestic politics, generic Gulf business news, and unrelated EU news
 EXCLUDED despite region membership.
 
+**Window/denominator time-asymmetry (disclosed; science L2):** reference
+units may summarize multi-day developments while candidate claims are bounded
+to the ~3-day window; such units stay in the denominator and match only via
+in-window claims expressing the development. The asymmetry is deflationary
+(it can only lower coverage) and is accepted rather than widened away —
+window widening is exactly the M2 gaming vector `windowEndSource` makes
+visible.
+
 **Comparability honesty:** il/gulf theaters have no map-stage `doc_claims`
 (legacy engine only). Legacy-engine claims are NEVER silently treated as
 map-stage-equivalent: they enter only the published-retention population
@@ -265,9 +285,24 @@ subsystem is created.
   rendering; mirrors/reposts are never independent corroboration.
 - K=5 majority semantics are inherited unchanged for any live-compatible LLM
   adapter (production `MATCH_SYSTEM_PROMPT`/`MATCH_RESPONSE_SCHEMA`/
-  `sanitizeMatches` reused via their existing exports); the keyword fallback
-  stays honestly labeled and can never masquerade as a majority result. NO
-  paid runs in this workstream — a deterministic fixture matcher/oracle
+  `sanitizeMatches` reused via their existing exports), INCLUDING the
+  degradation ladder exactly as `llm-match.ts` implements it (register #8,
+  Gate-0 science H2): ≥3 usable rounds → majority, labeled `llm-majority`;
+  1–2 usable rounds → the single/first usable round, honestly labeled `llm`;
+  ZERO usable rounds → the keyword fallback, labeled `keyword`. The conflict
+  evaluator invents no stricter ladder; labels always disclose which rung
+  scored the day and can never masquerade as a majority result.
+- One claim may match multiple units ONLY when it is materially equivalent to
+  EACH unit independently under the rules above — topic overlap alone never
+  suffices (this binds generally, not only inside the atomization
+  experiment; Gate-0 science L1).
+- **Keyword-fallback denominator (register #8, science M1):** when the
+  keyword matcher scores a conflict evaluation, the §3 full declared-unit
+  denominator STILL applies — unlike production `scoreDigest`, which reduces
+  to its `matchable` subset, the conflict evaluator counts signal-less units
+  as automatic misses and reports a `keywordUnmatchable` diagnostic count.
+  Deflationary and honest; production's own scoreboard is untouched.
+- NO paid runs in this workstream — a deterministic fixture matcher/oracle
   drives all tests and offline reports.
 
 ### 6.4 Metrics (each with explicit numerator/denominator/missing rule)
@@ -281,7 +316,10 @@ thin-sourced and independent-source diagnostics with explicit denominators;
 information lead from BNOW ingest time (source-declared publish time shown
 separately); in-scope BNOW-only items (only inside declared conflict scope);
 matcher identity, votes, variance grouping, methodology epoch, input snapshot
-identity; `unavailable`/`insufficient_data` states distinct from zero
+identity; `windowEndSource` (`cutoff` | `published` | `report_day` — which
+rung of the §5 END ladder bounded this evaluation, so a cutoff-parser
+regression that silently widens windows is visible in every result; science
+M2); `unavailable`/`insufficient_data` states distinct from zero
 everywhere. **No composite quality score.** RENDERABLE BNOW-only items (any
 user-facing list) come from the PUBLISHED-RETENTION population only — a
 corpus-recall-only `doc_claims` item feeds internal counts, never a rendered
