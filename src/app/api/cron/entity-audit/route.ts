@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Pool } from "@neondatabase/serverless";
-import OpenAI from "openai";
+import { analysisOpenAiClient } from "@/lib/analysis/openai-client";
 import {
   ModelConfigError,
   analysisChatParams,
+  dispatchIdentity,
   workloadDispatchConfig,
   type AnalysisDispatchConfig,
 } from "@/lib/llm/model-config";
@@ -57,8 +58,9 @@ export async function GET(req: NextRequest) {
   }
 
   // Model routing (ENTITY_AUDIT_MODEL → OPENAI_MODEL → gpt-4o-mini). Fail
-  // closed BEFORE reserving or dispatching: an unpriced model or invalid
-  // ENTITY_AUDIT_REASONING_EFFORT refuses the run with a 503, spending nothing.
+  // closed BEFORE reserving, constructing a client, or dispatching: an
+  // unpriced or quality-unapproved model, or an invalid
+  // ENTITY_AUDIT_REASONING_EFFORT, refuses the run with a 503, spending nothing.
   let dispatch: AnalysisDispatchConfig;
   try {
     dispatch = workloadDispatchConfig("entity_audit");
@@ -104,7 +106,7 @@ async function run(
       )
       .join("\n");
 
-    const client = new OpenAI();
+    const client = analysisOpenAiClient();
     const completion = await client.chat.completions.create({
       model: dispatch.model,
       messages: [
@@ -121,6 +123,8 @@ async function run(
     const completionTokens = completion.usage?.completion_tokens ?? 0;
     const estUsd = estimateCostUsd(dispatch.model, promptTokens, completionTokens);
     await guard.record(1, promptTokens + completionTokens, estUsd);
+    // durable dispatch identity into cron_runs.counts (release hardening)
+    counts.dispatch = dispatchIdentity(dispatch);
     counts.entities = rows.length;
     counts.promptTokens = promptTokens;
     counts.completionTokens = completionTokens;

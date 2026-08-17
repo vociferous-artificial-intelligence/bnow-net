@@ -19,6 +19,7 @@ const { PgRunEventSink, readRunEvents } = await import("@/lib/ask/events");
 const { retrieveV2 } = await import("@/lib/ask/retrieve-v2");
 
 const USER = "itest-events@x.test";
+const SEED_MARKER = "seeded transport fixture (ask-events itest)";
 let pool: Pool;
 
 async function cleanup() {
@@ -26,12 +27,67 @@ async function cleanup() {
   await pool.query(`DELETE FROM ask_allowance_reservations WHERE user_email = $1`, [USER]);
   await pool.query(`DELETE FROM ask_usage WHERE user_email = $1`, [USER]);
   await pool.query(`DELETE FROM ask_runs WHERE user_email = $1`, [USER]);
+  // seeded retrieval fixture (claims cascade-deletes claim_sources)
+  await pool.query(`DELETE FROM claims WHERE text LIKE '%' || $1`, [SEED_MARKER]);
+  await pool.query(`DELETE FROM raw_documents WHERE title = $1`, [SEED_MARKER]);
+}
+
+/** Deterministic retrieval fixture (2026-08-17). This transport test asks
+ *  "What happened in Kherson this week?" and asserts the frozen evidence
+ *  snapshot has candidates — but it used to rely on the UNSEEDED production
+ *  corpus containing an in-window Kherson claim. That is date- and
+ *  corpus-dependent: on 2026-08-17 (a Monday) "this week" parsed to the single
+ *  day 2026-08-17, zero corpus claims mentioned Kherson that day (newest:
+ *  08-13), while three "Kherson" ENTITIES matched — so the run skipped the
+ *  no-evidence short-circuit, answered from entity evidence with state
+ *  "answered", and froze an EMPTY candidates snapshot, failing line ~100.
+ *  Every sibling ask itest seeds its fixtures; this seed makes the transport
+ *  assertions corpus- and calendar-independent: one ua claim mentioning
+ *  Kherson, dated today (inside any parse of "this week"), with a real
+ *  raw_documents source link so the deferred claim_must_have_source trigger
+ *  and the snapshot's sourceDocIds assertion both hold. */
+async function seedRetrievalFixture() {
+  const today = new Date().toISOString().slice(0, 10);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const doc = await client.query(
+      `INSERT INTO raw_documents (adapter, content, content_hash, country_iso2, title, lang)
+       VALUES ('manual', $1, $2, 'ua', $3, 'en') RETURNING id`,
+      [
+        `Source document for the ${SEED_MARKER}: Ukrainian forces repelled assaults near Kherson.`,
+        `itest-events-seed-${crypto.randomUUID()}`,
+        SEED_MARKER,
+      ],
+    );
+    const { rows: ua } = await client.query(`SELECT id FROM countries WHERE iso2 = 'ua'`);
+    const cl = await client.query(
+      `INSERT INTO claims (country_id, text, claim_type, hedging, claim_date, confidence)
+       VALUES ($1, $2, 'factual', 'claimed', $3, 0.7) RETURNING id`,
+      [
+        ua[0].id,
+        `Ukrainian forces repelled assaults near Kherson — ${SEED_MARKER}`,
+        today,
+      ],
+    );
+    await client.query(`INSERT INTO claim_sources (claim_id, raw_document_id) VALUES ($1, $2)`, [
+      cl.rows[0].id,
+      doc.rows[0].id,
+    ]);
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 beforeAll(async () => {
   await runMigrations(URL!);
   pool = new Pool({ connectionString: URL });
   await cleanup();
+  await seedRetrievalFixture();
   process.env.ASK_RUNS_ENFORCE = "1";
   process.env.ASK_CONTENT_RETENTION_DAYS = "30"; // enforce requires retention (features.ts)
   process.env.ASK_GLOBAL_DAILY_BUDGET_USD = "1000";

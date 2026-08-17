@@ -348,4 +348,204 @@ remediations are documentation-only; no code changed after review 1.
 - **Model-output quality is NOT proven by this infrastructure PR** — only the
   paid evaluation plan above can do that.
 
-Final status: **implementation-pass / enablement-and-paid-evaluation-blocked**
+Final status of the original scope above: **implementation-pass /
+enablement-and-paid-evaluation-blocked** — superseded by §12's release-
+hardening verdict below.
+
+---
+
+## 12. Release hardening — 2026-08-17 (appended; §§1–11 above are the historical record)
+
+**Why the branch was held from merge.** A release review of the original
+scope identified controls that had to land before merge: pricing was acting
+as the ONLY dispatch gate (an entry in `PRICES_PER_MTOK` implied production
+eligibility — pricing is not quality approval); the deployed gpt-5-mini price
+was wrong; the analysis SDK clients kept default auto-retries; the llm-match
+single-shot path could still spend unguarded (ruling 4); `.env.example`
+wrongly implied a MAP_MODEL change "triggers a full re-map" (map-worker
+selects `processed = false` docs only — a version bump remaps NOTHING
+historical and silently starves consumers); outputs did not durably record
+which model configuration produced them; and the integration gate was red.
+The branch was treated as NOT MERGEABLE until all of this passed.
+
+### 12.1 Workload quality registry (scorecard gate)
+
+`src/lib/llm/analysis-registry.ts` (version **analysis-reg-v1**), separate
+from Ask's registry by design. Production analysis dispatch now requires BOTH
+exact pricing AND an exact (workload, model, effort) approval;
+`workloadDispatchConfig()` fails closed BEFORE any SpendGuard reservation and
+BEFORE any provider-client construction (spy-asserted in
+`openai-provider.test.ts` and `llm-match-guard.test.ts`: zero constructor
+calls, zero DB queries on a blocked config). Seeded approvals: ONLY the
+grandfathered production baseline — gpt-4o-mini with ABSENT effort, per
+workload, status `baseline`, each citing real checked-in evidence
+(map: MAP-SHADOW-RESULTS.md; reduce: MR3-REDUCE-RESULTS.md — the K=5 A/B gate
+ran on gpt-4o-mini; digest/validation/entity-audit: grandfathered, with the
+strongest existing reference named). No entry claims a fresh candidate
+evaluation that never ran; there is NO `evaluated_candidate` entry and NO
+production bypass for unevaluated candidates. Approval is per-workload and
+per-effort (injected-registry tests pin that an approval for one workload/
+effort never authorizes another).
+
+### 12.2 gpt-5-mini pricing correction
+
+Official price verified 2026-08-17: **$0.25 in / $2.00 out** (cached input
+$0.025) per 1M. Corrected in `src/lib/llm/pricing.ts` and its mirror
+`src/lib/ask/registry.ts` (the parity test re-verified green), the
+harvest-tool table `src/lib/ask/eval-set.ts` (`GENERATION_PRICE_PER_MTOK`),
+and every dependent test constant; a dated correction is APPENDED to
+`docs/reviews/ASK-FEATURE-ASSESSMENT-2026-07-11.md` whose historical text
+stays verbatim. Repo-wide search for the stale $0.125/$1 figures: no live
+copy remains (this report's §5 recounts the discrepancy as history).
+**Operational consequence, stated plainly: Ask's measured/reserved RERANK
+cost estimates rise ~2× on deploy — provider billing never changed; the
+application had been understating it.** The estimator has no cached-input
+dimension, so cached traffic is conservatively estimated at the full input
+price.
+
+### 12.3 SDK retry audit
+
+Every analysis OpenAI client is now constructed through
+`src/lib/analysis/openai-client.ts` → `new OpenAI({ maxRetries: 0 })`
+(matching the Ask gateway's discipline). Constructor sweep of the whole repo
+found exactly seven sites: the five analysis dispatch modules (now all via
+the factory), the Ask gateway (already `maxRetries: 0`), and
+`scripts/ask-eval-harvest.ts` (Ask-scoped eval tooling, out of this branch's
+scope — flagged as a follow-up, unchanged). `openai-client.test.ts` pins the
+factory option AND source-scans the five modules for any bare `new OpenAI(`
+or value-import of the SDK. Explicit-retry audit: the three 65s 429 loops
+(digest/map/reduce) each take a FRESH reservation before the second physical
+attempt (`openai-provider.test.ts` proves 2 physical calls / 1 billed
+metering row for a 429-then-success); llm-match has no explicit retry (1
+reservation ↔ 1 call, asserted); truncated responses remain metered before
+being discarded (asserted). Ask's hardened retry behavior is untouched.
+
+### 12.4 Validation single-shot SpendGuard repair
+
+Every llm-match dispatch path now reserves before the billed call and records
+to `provider_usage` after it — including single-shot (`MATCHER_MODE=single` /
+`MATCH_VOTES=1`), which previously dispatched with NO guard and NO metering
+(ruling 4 violation, §8.3's pre-existing gap — now CLOSED). With
+`LLM_SPRINT_USD_CAP` unset or exhausted the guard fails closed and validation
+degrades to the keyword matcher with ZERO provider calls (previously
+cap-unset silently fell back to the UNGUARDED single shot). Mocked-SDK tests
+(`llm-match-guard.test.ts`, 9 tests) assert: cap unset (both paths), cap
+exhausted, reservation success + exact model-aware metering, provider
+failure, majority 5:5:5 reservation:call:metering cardinality, LLM_DISABLE,
+scorecard-blocked (zero client constructions), and the no-key short-circuit.
+Supporting fix: `spend-guard.ts` memoizes its lazy `@/db` import — concurrent
+vote-pool `record()` calls raced the un-memoized dynamic import (reproduced
+minimally under mocks); behavior-identical in production. The unmetered
+ANTHROPIC provider seam remains a separately blocked follow-up: no key exists
+in any environment, `getProvider()` cannot select it in production as
+configured, and this PR does not activate it.
+
+### 12.5 Map activation hard lock
+
+`model-config.ts` now hard-locks map dispatch to the baseline
+(`MAP_BASELINE` = gpt-4o-mini, no effort): ANY non-baseline `MAP_MODEL` /
+`MAP_REASONING_EFFORT` — even priced, even hypothetically registry-approved —
+fails closed with the typed message `MAP ACTIVATION BLOCKED: … a
+version-aware remap implementation (OPEN-TASKS #33) and explicit operator
+activation authorization are required first; pricing or scorecard approval
+alone does not unlock this`. There is deliberately NO env override. Reduce
+changes never trip the lock (test-pinned). `.env.example` corrected: a map
+version bump does NOT remap historical documents. The future dedicated remap
+PR (version-aware candidate selection, corpus-remap cost estimate,
+resume/checkpoint, consumer-filter validation, operator authorization)
+deliberately relaxes the lock. Tests prove a priced non-baseline map model
+cannot activate any map processing (`workloadDispatchConfig("map")` throws
+before guard/client/dispatch; the route records `ok=false`).
+
+### 12.6 Dispatch-identity persistence
+
+`dispatchIdentity()` (model-config.ts) builds a durable record — workload,
+exact model, reasoning effort as EXPLICIT null when absent, registry version
+`analysis-reg-v1`, approval status — from the SAME `AnalysisDispatchConfig`
+object the billed call used (never a later env read). Persisted, without any
+migration, to existing JSON surfaces: legacy digest →
+`digests.structured.stats.llmDispatch` (via `DigestAnalysis.dispatch`);
+mapreduce → `structured.stats.reduce.dispatch` (map-side identity is carried
+per-row by `doc_claims.extractor_version`); map runs →
+`cron_runs.counts.dispatch`; entity-audit → `cron_runs.counts.dispatch` (+
+the response's `model`); validation → `validation_runs.details.dispatch` (via
+`MatchOutcome.dispatch`, absent when the keyword matcher scored). The default
+baseline output carries identity too. No secret and no prompt content is
+persisted. Round-trip tests: `dispatchIdentity` shape, llm-match outcome
+identity, digest-provider identity, plus per-attempt accounting unchanged.
+provider_usage has no metadata column — truthfully not used for identity.
+Rollback/comparison implication: rows persisted before this change lack the
+identity keys; consumers must treat absence as "pre-hardening baseline
+(gpt-4o-mini, no effort)" — correct by construction, since nothing else
+could dispatch.
+
+### 12.7 Integration failure — diagnosis and green gate
+
+Diagnosed on a disposable Neon fork (created + deleted, $0):
+`parseTimeWindow("What happened in Kherson this week?")` on 2026-08-17 (a
+Monday) collapsed "this week" to the SINGLE day 2026-08-17; the fork held
+ZERO claims mentioning Kherson dated that day (newest: 2026-08-13) but THREE
+entities named "Kherson" — so retrieval returned claims=0/entities>0, the
+no-evidence short-circuit was skipped, the $0 stub answered with
+`state:"answered"`, and the frozen snapshot had `candidates: []`, failing
+`ask-events.itest.ts:100`. A deterministic date+corpus-dependent FIXTURE
+defect (the only Ask itest that relied on the unseeded production corpus),
+which also explains the 2026-08-16 reproductions on unmodified main. Fix
+(narrow, no assertion weakened, no skip, no fabricated snapshot content): the
+itest now seeds one ua claim mentioning Kherson dated today with a real
+raw_documents source link (deferred trigger satisfied in one transaction),
+cleaned up in afterAll — the snapshot is still produced by the real pipeline
+from real rows. Result: `ask-events.itest.ts` 3/3 and the FULL suite
+**107/107 GREEN**.
+
+### 12.8 Production-bound inspector
+
+`vercel env ls` (names only, read-only): NO `*_MODEL` and NO
+`*_REASONING_EFFORT` variable exists in ANY Vercel environment — not even
+`OPENAI_MODEL`. The inspector run against that (empty) routing environment
+resolves every workload to gpt-4o-mini / null effort / `approved=baseline` /
+`ok`, and Ask's models are reported read-only and unchanged. The blocked
+matrix (recorded in full during the run): non-baseline map → `MAP ACTIVATION
+BLOCKED …`; priced/unapproved (gpt-5-nano reduce, gpt-4o entity-audit) →
+`pricing alone is not quality approval`; unknown model → `refusing to
+dispatch unpriced`; invalid effort → `failing closed`. No Vercel variable was
+changed; no provider request was made.
+
+### 12.9 Gates (release hardening, exact)
+
+| Gate | Result |
+|---|---|
+| `git diff --check` (vs 26989f7 base) | clean |
+| `npm run typecheck` | clean |
+| `npm run lint` | clean |
+| `npm test` | **2,186 passed / 2,186 (171 files)** (+32 tests / +4 files over §7) |
+| `npm run build` (dummy never-contacted `DATABASE_URL`) | PASS (exit 0) |
+| `npm run test:integration` (disposable fork, paid keys blanked, `LLM_DISABLE=1`) | **107 passed / 107 (17 files) — GREEN** |
+| inspector scenarios (defaults / baseline / priced-unapproved / unknown / invalid effort / non-baseline map) | all as designed (§12.8) |
+
+Note: `main` has moved ahead of this branch's base (the operator merged and
+deployed the cron PR #4 → `9c5e9cb`); the only expected merge conflict
+remains the `docs/PROGRESS.md` EOF appends.
+
+### 12.10 Adversarial reviews (release hardening)
+
+(Two fresh isolated read-only reviews of the hardening commit; verdicts
+recorded below after each completed — the §10 PASSes are historical and do
+not approve this new code.)
+
+### 12.11 Remaining blockers / follow-ups
+
+1. Paid representative evaluation + `evaluated_candidate` registry entries —
+   still operator-gated (§9 checklist unchanged, now with the registry as the
+   enforcement point).
+2. The map remap PR (OPEN-TASKS #33) — prerequisite to ever relaxing the map
+   lock.
+3. `scripts/ask-eval-harvest.ts` still constructs an unguarded default-retry
+   client (Ask eval tooling; out of scope here).
+4. The Anthropic provider seam remains unmetered and inactive (no key
+   anywhere); wiring it through guards/registry is its own blocked follow-up.
+5. On deploy, Ask rerank cost estimates rise ~2× (§12.2) — operator should
+   expect the shift in `ask_usage`/allowance numbers and confirm
+   `ASK_USD_CAP_DAILY` headroom.
+
+Final status: recorded at the end of §12.10 after both reviews.

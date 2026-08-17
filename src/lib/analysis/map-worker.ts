@@ -1,8 +1,10 @@
 import { Pool } from "@neondatabase/serverless";
-import OpenAI from "openai";
+import type OpenAI from "openai";
 import { STUB_CONTENT_PREFIX } from "../adapters/stubs";
+import { analysisOpenAiClient } from "./openai-client";
 import {
   analysisChatParams,
+  dispatchIdentity,
   resolveWorkloadModel,
   workloadDispatchConfig,
   type AnalysisDispatchConfig,
@@ -417,15 +419,20 @@ async function cycle(
     return counts;
   }
   if (batches.length > 0) assertLlmEnabled("map extract");
-  // Fail closed BEFORE any reservation or billed call: an unpriced model or an
-  // invalid MAP_REASONING_EFFORT throws typed here, the route records ok=false,
-  // and nothing dispatches under a configuration that cannot be metered.
+  // Fail closed BEFORE any reservation, client construction, or billed call:
+  // an unpriced/unapproved model, an invalid MAP_REASONING_EFFORT, or the map
+  // activation lock throws typed here, the route records ok=false, and nothing
+  // dispatches under a configuration that cannot be metered or was never
+  // approved/authorized.
   const dispatch = batches.length > 0 ? workloadDispatchConfig("map") : null;
+  // durable dispatch identity into cron_runs.counts (per-row extractor
+  // versions live on doc_claims/doc_map_state; release hardening 2026-08-17)
+  if (dispatch) counts.dispatch = dispatchIdentity(dispatch);
 
   // 5. extract + persist, one guard for the whole run
   const guard = mapGuardFromEnv();
   await guard.init();
-  const openai = new OpenAI();
+  const openai = analysisOpenAiClient();
   const stats: MapRunStats = {
     llmCalls: 0,
     promptTokens: 0,

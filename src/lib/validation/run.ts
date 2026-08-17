@@ -241,6 +241,9 @@ export async function validateDigest(
           // publish vs the headline (final) coverage_pct — same denominator.
           ...(score.atPublish ? { atPublish: score.atPublish } : {}),
           ...(outcome?.votes ? { votes: outcome.votes, voteRounds: outcome.voteRounds } : {}),
+          // durable model-dispatch identity (release hardening 2026-08-17);
+          // absent when the keyword matcher scored the day (no dispatch)
+          ...(outcome?.dispatch ? { dispatch: outcome.dispatch } : {}),
           // audit trail for the citation auto-refresh (counts + action only)
           ...(citationRefresh
             ? {

@@ -247,7 +247,7 @@ describe("cost estimation price table", () => {
   it("prices the gpt-5 family from list price", () => {
     expect(estimateCostUsd("gpt-5", 1_000_000, 0)).toBeCloseTo(1.25, 6);
     expect(estimateCostUsd("gpt-5", 0, 1_000_000)).toBeCloseTo(10, 6);
-    expect(estimateCostUsd("gpt-5-mini", 1_000_000, 1_000_000)).toBeCloseTo(0.125 + 1, 6);
+    expect(estimateCostUsd("gpt-5-mini", 1_000_000, 1_000_000)).toBeCloseTo(0.25 + 2, 6);
     expect(estimateCostUsd("gpt-5-nano", 1_000_000, 1_000_000)).toBeCloseTo(0.05 + 0.4, 6);
   });
 

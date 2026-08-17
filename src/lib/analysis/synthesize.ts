@@ -12,9 +12,11 @@
 // survives only if a majority of runs independently produce it.
 
 import { Pool } from "@neondatabase/serverless";
-import OpenAI from "openai";
+import type OpenAI from "openai";
+import { analysisOpenAiClient } from "./openai-client";
 import {
   analysisChatParams,
+  dispatchIdentity,
   resolveWorkloadModel,
   workloadDispatchConfig,
   type AnalysisDispatchConfig,
@@ -607,7 +609,7 @@ export async function generateMapReduceDigest(
     // K synthesis votes
     const guard = reduceGuardFromEnv();
     await guard.init();
-    const openai = new OpenAI();
+    const openai = analysisOpenAiClient();
     const k = reduceVotes();
     const llmCalls: LlmUsage[] = [];
     const votes: VoteEvent[][] = [];
@@ -655,6 +657,10 @@ export async function generateMapReduceDigest(
       stats: {
         engine: "mapreduce",
         reduce: {
+          // durable dispatch identity from the exact config every vote used
+          // (release hardening 2026-08-17); map-side identity is carried by
+          // each doc_claims row's extractor_version
+          dispatch: dispatchIdentity(dispatch),
           window: { from, to, mode: windowMode },
           claims: claims.length,
           metaDropped,

@@ -3,6 +3,7 @@ import {
   ANALYSIS_WORKLOADS,
   ModelConfigError,
   analysisChatParams,
+  dispatchIdentity,
   resolveWorkloadModel,
   workloadDispatchConfig,
   workloadModelMatrix,
@@ -115,12 +116,15 @@ describe("resolveWorkloadModel — precedence", () => {
 describe("reasoning effort validation", () => {
   it("accepts the documented allowlist (case-insensitive, trimmed) on reasoning models", () => {
     clearAll();
-    process.env.MAP_MODEL = "gpt-5";
+    process.env.REDUCE_MODEL = "gpt-5";
     for (const effort of ["minimal", "low", "medium", "high", " LOW ", "High"]) {
-      process.env.MAP_REASONING_EFFORT = effort;
-      const c = resolveWorkloadModel("map");
-      expect(c.dispatchBlocked).toBeNull();
+      process.env.REDUCE_REASONING_EFFORT = effort;
+      const c = resolveWorkloadModel("reduce");
+      // effort VALIDATION passes (the value parses and applies); the config is
+      // still dispatch-blocked, but by the quality registry, never by effort
       expect(c.reasoningEffort).toBe(effort.trim().toLowerCase());
+      expect(c.dispatchBlocked).not.toMatch(/REASONING_EFFORT/);
+      expect(c.dispatchBlocked).toMatch(/approval/);
     }
   });
 
@@ -164,20 +168,27 @@ describe("reasoning effort validation", () => {
 describe("unpriced models fail closed", () => {
   it("a model with no PRICES_PER_MTOK entry cannot dispatch", () => {
     clearAll();
-    process.env.MAP_MODEL = "gpt-5.6-frontier";
-    const c = resolveWorkloadModel("map");
+    process.env.DIGEST_MODEL = "gpt-5.6-frontier";
+    const c = resolveWorkloadModel("digest");
     expect(c.priced).toBe(false);
     expect(c.dispatchBlocked).toMatch(/no entry in the metering price table/);
-    expect(() => workloadDispatchConfig("map")).toThrow(ModelConfigError);
-    expect(() => workloadDispatchConfig("map")).toThrow(/unpriced/);
+    expect(() => workloadDispatchConfig("digest")).toThrow(ModelConfigError);
+    expect(() => workloadDispatchConfig("digest")).toThrow(/unpriced/);
   });
 
-  it("every model in the price table dispatches (default effort)", () => {
+  it("pricing is NOT approval: every priced non-baseline model is quality-blocked", () => {
     clearAll();
     for (const model of Object.keys(PRICES_PER_MTOK)) {
       process.env.DIGEST_MODEL = model;
-      const d = workloadDispatchConfig("digest");
-      expect(d.model).toBe(model);
+      if (model === "gpt-4o-mini") {
+        expect(workloadDispatchConfig("digest").model).toBe(model);
+      } else {
+        const c = resolveWorkloadModel("digest");
+        expect(c.priced).toBe(true);
+        expect(c.approved).toBe(false);
+        expect(c.dispatchBlocked).toMatch(/approval/);
+        expect(() => workloadDispatchConfig("digest")).toThrow(ModelConfigError);
+      }
     }
   });
 
@@ -237,15 +248,18 @@ describe("analysisChatParams — payload compatibility", () => {
     expect(bare).toEqual({ reasoning_effort: "low" });
   });
 
-  it("end to end: gpt-5 map override yields reasoning params", () => {
+  it("end to end: the approved baseline dispatches with the historical params everywhere", () => {
     clearAll();
-    process.env.MAP_MODEL = "gpt-5";
-    process.env.MAP_REASONING_EFFORT = "low";
-    const d = workloadDispatchConfig("map");
-    expect(analysisChatParams(d, { temperature: 0.2, maxCompletionTokens: 4000 })).toEqual({
-      max_completion_tokens: 4000,
-      reasoning_effort: "low",
-    });
+    for (const w of ANALYSIS_WORKLOADS) {
+      const d = workloadDispatchConfig(w);
+      expect(d.model).toBe("gpt-4o-mini");
+      expect(d.reasoningEffort).toBeNull();
+      expect(d.approvalStatus).toBe("baseline");
+      expect(analysisChatParams(d, { temperature: 0.2, maxCompletionTokens: 4000 })).toEqual({
+        temperature: 0.2,
+        max_completion_tokens: 4000,
+      });
+    }
   });
 });
 
@@ -269,6 +283,95 @@ describe("pricing safety net behind the dispatch gate", () => {
     );
     expect(estimateCostUsd("gpt-5", 1000, 0)).toBeCloseTo(1000 * 1.25 / 1e6, 12);
     expect(estimateCostUsd("gpt-5", 0, 1000)).toBeCloseTo(1000 * 10 / 1e6, 12);
+  });
+});
+
+describe("quality-registry gate (pricing is not approval)", () => {
+  it("baseline gpt-4o-mini with absent effort is approved for every workload", () => {
+    clearAll();
+    for (const w of ANALYSIS_WORKLOADS) {
+      const c = resolveWorkloadModel(w);
+      expect(c.approved).toBe(true);
+      expect(c.approvalStatus).toBe("baseline");
+      expect(c.registryVersion).toBe("analysis-reg-v1");
+      expect(c.dispatchBlocked).toBeNull();
+    }
+  });
+
+  it("a priced but unapproved model fails closed before dispatch, per workload", () => {
+    clearAll();
+    for (const w of ANALYSIS_WORKLOADS) {
+      if (w === "map") continue; // map trips its own hard lock first — tested below
+      process.env[WORKLOAD_MODEL_ENV[w]] = "gpt-5-nano"; // priced, never approved
+      const c = resolveWorkloadModel(w);
+      expect(c.priced).toBe(true);
+      expect(c.approved).toBe(false);
+      expect(() => workloadDispatchConfig(w)).toThrow(/approval/);
+      delete process.env[WORKLOAD_MODEL_ENV[w]];
+    }
+  });
+
+  it("an approved model with a non-approved effort fails closed (baseline allows absent only)", () => {
+    clearAll();
+    // gpt-4o-mini + any effort is caught by the non-reasoning check upstream —
+    // the effort-approval rule is pinned directly in analysis-registry.test.ts;
+    // here we pin the dispatch-level outcome: no effort env means approved,
+    // and no priced+approved+effort combination exists that dispatches today.
+    process.env.VALIDATION_REASONING_EFFORT = "low";
+    expect(() => workloadDispatchConfig("validation")).toThrow(ModelConfigError);
+  });
+});
+
+describe("MAP activation hard lock", () => {
+  it("a priced (would-be-approvable) non-baseline map model is MAP ACTIVATION BLOCKED", () => {
+    clearAll();
+    process.env.MAP_MODEL = "gpt-5"; // priced and reasoning-capable
+    const c = resolveWorkloadModel("map");
+    expect(c.priced).toBe(true);
+    expect(c.dispatchBlocked).toMatch(/^MAP ACTIVATION BLOCKED/);
+    expect(c.dispatchBlocked).toMatch(/remap/);
+    expect(() => workloadDispatchConfig("map")).toThrow(/MAP ACTIVATION BLOCKED/);
+  });
+
+  it("a validated non-null map effort on a reasoning model also trips the lock", () => {
+    clearAll();
+    process.env.MAP_MODEL = "gpt-5";
+    process.env.MAP_REASONING_EFFORT = "low";
+    expect(() => workloadDispatchConfig("map")).toThrow(/MAP ACTIVATION BLOCKED/);
+  });
+
+  it("the lock cannot activate historical/scheduled map processing via env alone", () => {
+    clearAll();
+    // even the global fallback cannot move map off its baseline
+    process.env.OPENAI_MODEL = "gpt-5-mini";
+    expect(() => workloadDispatchConfig("map")).toThrow(/MAP ACTIVATION BLOCKED/);
+    // and the baseline itself still dispatches
+    delete process.env.OPENAI_MODEL;
+    expect(workloadDispatchConfig("map").model).toBe("gpt-4o-mini");
+  });
+
+  it("reduce is independent: a reduce override never trips the map lock", () => {
+    clearAll();
+    process.env.REDUCE_MODEL = "gpt-5-mini";
+    // map stays baseline-dispatchable; reduce is approval-blocked (its own gate)
+    expect(workloadDispatchConfig("map").model).toBe("gpt-4o-mini");
+    expect(() => workloadDispatchConfig("reduce")).toThrow(/approval/);
+    expect(() => workloadDispatchConfig("reduce")).not.toThrow(/MAP ACTIVATION/);
+  });
+});
+
+describe("dispatchIdentity", () => {
+  it("round-trips the exact dispatched configuration with registry identity", () => {
+    clearAll();
+    const d = workloadDispatchConfig("reduce");
+    const id = dispatchIdentity(d);
+    expect(id).toEqual({
+      workload: "reduce",
+      model: "gpt-4o-mini",
+      reasoningEffort: null, // explicit null = absent, always answerable
+      registryVersion: "analysis-reg-v1",
+      approval: "baseline",
+    });
   });
 });
 
