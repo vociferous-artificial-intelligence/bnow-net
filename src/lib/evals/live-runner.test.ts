@@ -164,6 +164,26 @@ describe("assertLivePreflight (all guards BEFORE any client construction)", () =
       expect(() => assertLivePreflight(GOOD_ARGS, env), missing).toThrow(EvalDispatchError);
     }
   });
+
+  it("refuses a live DIGEST eval when REDUCE_VOTES lowers K below the shipped 5 (ruling 18)", () => {
+    const digestArgs = { ...GOOD_ARGS, workload: "digest" };
+    vi.stubEnv("REDUCE_VOTES", "3");
+    try {
+      expect(() => assertLivePreflight(digestArgs, GOOD_ENV)).toThrow(/shipped K=5 \(ruling 18\)/);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    // with the env untouched (K resolves to the shipped 5) the same args pass
+    const ok = assertLivePreflight(digestArgs, GOOD_ENV);
+    expect(ok.cfg.workload).toBe("digest");
+    // and the K guard is digest-specific: map/validation are unaffected by it
+    vi.stubEnv("REDUCE_VOTES", "3");
+    try {
+      expect(assertLivePreflight(GOOD_ARGS, GOOD_ENV).cfg.workload).toBe("validation");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });
 
 // ---- eval guard ----------------------------------------------------------------

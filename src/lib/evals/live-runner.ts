@@ -191,6 +191,15 @@ export function assertLivePreflight(
     }
   }
   const cfg = evalDispatchConfig(args.workload, args.model, args.effort);
+  // ruling 18: K=5 synthesis votes is the SHIPPED digest configuration — a
+  // live digest eval at any other K would measure a non-shipped pipeline and
+  // its scorecard would be meaningless for activation. Refuse rather than
+  // record it (review remediation, safety MINOR-2).
+  if (cfg.workload === "digest" && reduceVotes() !== 5) {
+    throw new EvalDispatchError(
+      `REDUCE_VOTES resolves to ${reduceVotes()} — a live digest eval must run the shipped K=5 (ruling 18); unset REDUCE_VOTES`,
+    );
+  }
   return { cfg, dbHost: host, evalDatabaseUrl: url };
 }
 
