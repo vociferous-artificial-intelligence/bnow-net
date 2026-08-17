@@ -376,11 +376,37 @@ export interface EvalCaseResult {
 // Results file (one per workload+configKey; resumable by (caseId, repetition))
 // ============================================================================
 
+/** Coverage breadth a results file was produced under. Only "full" files can
+ *  ever reach a pass/fail verdict (gates.ts completeness gate); "dev"
+ *  (--dev, heldout excluded) and "subset" (--only) files verdict
+ *  insufficient_data by construction. */
+export type EvalRunScope = "full" | "dev" | "subset";
+
+/** Env-tunable pipeline knobs captured at run time (review remediation m10):
+ *  a live result is only interpretable against the knob values it ran under,
+ *  and a resume under different knobs is a different configuration (refused —
+ *  MAJOR-3 identity assertion). */
+export interface EvalEnvKnobs {
+  reduceVotes: number;
+  reduceMaxOutputTokens: number;
+  mapOutTokensPerDoc: number;
+  mapContentChars: number;
+}
+
 export interface EvalResultsFile {
   workload: AnalysisEvalWorkload;
   configKey: string;
   datasetVersion: string;
+  /** sha256 over the dataset FILE BYTES — covers inputs AND references, so a
+   *  reference edit after a run is detectable (MAJOR-1/m8) and refuses a
+   *  resume (MAJOR-3) */
+  datasetContentHash: string;
   identity: CandidateDispatchIdentity;
+  /** repetitions the run was invoked with — completeness expects every
+   *  (caseId, repetition < requestedRepetitions) key present */
+  requestedRepetitions: number;
+  scope: EvalRunScope;
+  envKnobs: EvalEnvKnobs;
   updatedAt: string;
   /** live runs: cross-checked metering invariants — a preset gate requires
    *  attempts === reservations (one FRESH reservation per physical dispatch)
