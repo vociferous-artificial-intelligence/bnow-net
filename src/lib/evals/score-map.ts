@@ -84,7 +84,10 @@ function baseChecks(batchSize: number, expectedClaimCount: number, expectedEmpty
     producedClaimCount: 0,
     matchedClaimCount: 0,
     recall: expectedClaimCount === 0 ? 1 : 0,
-    precision: 1,
+    // m7 semantics apply to the truncated/schema-invalid early returns too
+    // (re-review NEW-3): nothing usable was produced, so precision is 1 only
+    // when nothing was expected — never a flattering default
+    precision: expectedClaimCount === 0 ? 1 : 0,
     hedgeMismatches: 0,
     strengthenedHedges: 0,
     claimTypeMismatches: 0,
