@@ -93,7 +93,7 @@ export const ANALYSIS_APPROVALS: readonly AnalysisApproval[] = [
     evidence: {
       ref: "docs/OPEN-TASKS.md",
       date: "2026-07-09",
-      note: "grandfathered production baseline; #15 documents the measured per-model variance that the MATCH_VOTES=5 majority design compensates for",
+      note: "grandfathered production baseline; #15 documents the run-to-run matcher nondeterminism that the MATCH_VOTES=5 majority design compensates for",
     },
   },
   {
