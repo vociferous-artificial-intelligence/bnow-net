@@ -45,11 +45,29 @@ async function assembleBoth(scenario: ConflictFixtureScenario, kind: EvaluationK
 }
 
 describe("fixture corpus loading", () => {
-  it("loads all 39 scenarios from the three frozen files", () => {
+  it("loads all 40 scenarios from the three frozen files", () => {
     expect(CONFLICT_FIXTURE_FILES).toHaveLength(3);
-    expect(scenarios).toHaveLength(39);
-    // 48 claims total (README count)
-    expect(scenarios.reduce((n, s) => n + s.evidence.length, 0)).toBe(48);
+    expect(scenarios).toHaveLength(40);
+    // 50 claims total (README count; 48 + cc-other-in-scope-018's two)
+    expect(scenarios.reduce((n, s) => n + s.evidence.length, 0)).toBe(50);
+  });
+
+  it("loader IO and JSON-parse failures are TYPED domain errors (temp dir, never the repo)", async () => {
+    const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join: joinPath } = await import("node:path");
+    const dir = mkdtempSync(joinPath(tmpdir(), "conflict-fixture-itest-"));
+    try {
+      writeFileSync(joinPath(dir, "broken.json"), "{ not json", "utf8");
+      const { loadConflictFixtureFile } = await import("./fixture-corpus");
+      const { ConflictDomainError } = await import("./errors");
+      expect(() => loadConflictFixtureFile("broken.json", dir)).toThrowError(ConflictDomainError);
+      expect(() => loadConflictFixtureFile("broken.json", dir)).toThrow(/malformed fixture JSON/);
+      expect(() => loadConflictFixtureFile("missing.json", dir)).toThrowError(ConflictDomainError);
+      expect(() => loadConflictFixtureFile("missing.json", dir)).toThrow(/unreadable fixture file/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("keeps scenario/claim/doc ids globally unique", () => {
@@ -164,7 +182,7 @@ describe("acceptance: expected eligibility reproduced by the real engine", () =>
     });
   }
 
-  it("reproduces the README aggregate: 47 eligibility records, 34 included / 13 excluded", async () => {
+  it("reproduces the README aggregate: 49 eligibility records, 35 included / 14 excluded", async () => {
     let included = 0;
     let excluded = 0;
     for (const scenario of scenarios) {
@@ -174,9 +192,9 @@ describe("acceptance: expected eligibility reproduced by the real engine", () =>
       included += corpus.assembly.records.length;
       excluded += corpus.assembly.excluded.length;
     }
-    expect(included).toBe(34);
-    expect(excluded).toBe(13);
-    expect(included + excluded).toBe(47);
+    expect(included).toBe(35);
+    expect(excluded).toBe(14);
+    expect(included + excluded).toBe(49);
   });
 });
 

@@ -201,9 +201,32 @@ function parseScenario(fileConflictId: string, raw: unknown): ConflictFixtureSce
 // Loading
 // ---------------------------------------------------------------------------
 
-export function loadConflictFixtureFile(fileName: string): ConflictFixtureScenario[] {
-  const rawText = readFileSync(join(process.cwd(), "fixtures", "conflicts", fileName), "utf8");
-  const parsed: unknown = JSON.parse(rawText);
+export function loadConflictFixtureFile(
+  fileName: string,
+  // overridable base directory so tests can exercise IO/parse failures on a
+  // TEMP dir — production callers never pass it
+  baseDir: string = join(process.cwd(), "fixtures", "conflicts"),
+): ConflictFixtureScenario[] {
+  // IO and JSON failures surface as TYPED domain errors (house style), with
+  // the underlying driver/parser message preserved
+  let rawText: string;
+  try {
+    rawText = readFileSync(join(baseDir, fileName), "utf8");
+  } catch (e) {
+    throw new ConflictDomainError(
+      "invalid_fixture_scenario",
+      `${fileName}: unreadable fixture file: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawText);
+  } catch (e) {
+    throw new ConflictDomainError(
+      "invalid_fixture_scenario",
+      `${fileName}: malformed fixture JSON: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
   if (!isRecord(parsed)) {
     throw new ConflictDomainError("invalid_fixture_scenario", `${fileName}: not an object`);
   }
@@ -222,7 +245,7 @@ export function loadConflictFixtureFile(fileName: string): ConflictFixtureScenar
   return parsed.scenarios.map((s) => parseScenario(fileConflict, s));
 }
 
-/** All 39 scenarios across the three frozen files. */
+/** All 40 scenarios across the three frozen files. */
 export function loadConflictFixtureScenarios(): ConflictFixtureScenario[] {
   return CONFLICT_FIXTURE_FILES.flatMap((f) => loadConflictFixtureFile(f));
 }
