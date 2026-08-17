@@ -59,8 +59,6 @@ export const DEFAULT_SELECTION_LIMITS: EvidenceSelectionLimits = deepFreeze({
   mixCapFraction: EVIDENCE_MIX_CAP_FRACTION,
 });
 
-export type CapStatus = "selected" | "capped_out" | "budget_out";
-
 export interface CapEvent {
   claimId: number;
   bucketKind: "source" | "platform";
