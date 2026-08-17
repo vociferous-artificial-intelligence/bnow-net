@@ -2,6 +2,7 @@
   "workload": "digest",
   "configKey": "offline-fixtures",
   "datasetVersion": "digest-v1",
+  "datasetContentHash": "165455d206a54579c66e7a16e037baa7dede88b9e13ffdd62da8966f56e06a9c",
   "identity": {
     "provider": "stub",
     "model": "offline-fixtures",
@@ -11,7 +12,15 @@
     "promptHash": "860bbbdd727462dd0b6b5685d291fffe370be656219478d4a42335ea5e0e1279",
     "schemaVersion": "361f13aaa609d7d14245a7b408373e5216480f48832a82ece17bf96093277095"
   },
-  "updatedAt": "2026-08-17T08:36:56.198Z",
+  "requestedRepetitions": 1,
+  "scope": "full",
+  "envKnobs": {
+    "reduceVotes": 5,
+    "reduceMaxOutputTokens": 6000,
+    "mapOutTokensPerDoc": 200,
+    "mapContentChars": 1500
+  },
+  "updatedAt": "2026-08-17T09:18:09.254Z",
   "meter": {
     "attempts": 0,
     "reservations": 0,

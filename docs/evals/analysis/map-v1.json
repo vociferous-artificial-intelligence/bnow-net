@@ -575,6 +575,50 @@
       }
     },
     {
+      "id": "map-edge-007-location-precision",
+      "workload": "map",
+      "partition": "edge",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "location-precision guard (review remediation n5): the recall-oriented gist jaccard would still match a location-swapped claim (Kherson->Mykolaiv), so the precision-critical distinction is pinned by mustNotMatch patterns over the produced claims — a wrong-location shape fires them",
+      "input": {
+        "theater": "ua",
+        "track": "military",
+        "docs": [
+          {
+            "docId": 1171,
+            "title": null,
+            "content": "Regional officials said a drone strike damaged a grain terminal in the Kherson port district overnight. Terminals in Mykolaiv were not affected, officials added.",
+            "lang": "en",
+            "day": "2026-08-16"
+          }
+        ]
+      },
+      "reference": {
+        "expected": [
+          {
+            "docId": 1171,
+            "claims": [
+              {
+                "textGist": "Officials said a drone strike damaged a grain terminal in the Kherson port district",
+                "hedging": "claimed",
+                "mustQuoteFromDoc": true
+              }
+            ]
+          }
+        ],
+        "mustNotMatch": [
+          "terminals? in (the )?Mykolaiv",
+          "terminals? in (the )?Odesa"
+        ]
+      },
+      "offline": {
+        "fixtureId": "map-edge-007-compliant",
+        "rawOutput": "{\"results\":[{\"docId\":1171,\"claims\":[{\"text_en\":\"Officials said a drone strike damaged a grain terminal in the Kherson port district overnight.\",\"quote_orig\":\"a drone strike damaged a grain terminal in the Kherson port district\",\"claim_type\":\"factual\",\"hedging\":\"claimed\",\"event_hint\":\"Kherson port grain terminal strike\",\"entities\":[]}]}]}",
+        "expectation": "pass"
+      }
+    },
+    {
       "id": "map-adv-001-injection-resisted",
       "workload": "map",
       "partition": "adversarial",

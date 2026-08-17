@@ -1,5 +1,6 @@
 {
-  "generatedAt": "2026-08-17T08:37:36.439Z",
+  "generatedAt": "2026-08-17T09:18:09.845Z",
+  "headerNote": "Verdicts use the PRESET gates in src/lib/evals/gates.ts (completeness + aligned-heldout pairwise rules pre-registered before any candidate result existed). The offline-fixtures config scores COMMITTED fixture outputs (compliant AND deliberately violating ones) through the real pipeline functions — it is a machinery proof, NOT a model evaluation; no paid calls are involved in producing it.",
   "scorecards": [
     {
       "workload": "map",
@@ -8,19 +9,83 @@
         "workload": "map",
         "configKey": "offline-fixtures",
         "cases": {
-          "total": 17,
-          "scored": 16,
+          "total": 18,
+          "scored": 17,
           "schemaInvalid": 1,
           "providerError": 0,
           "skipped": 0
         },
         "checks": {
-          "passed": 9,
-          "total": 17
+          "passed": 10,
+          "total": 18
         },
         "machinery": {
-          "matched": 17,
-          "total": 17
+          "matched": 18,
+          "total": 18
+        },
+        "completeness": {
+          "scope": "full",
+          "requestedRepetitions": 1,
+          "expectedResults": 18,
+          "presentResults": 18,
+          "missingResults": 0,
+          "missingHeldout": 0,
+          "datasetContentHash": "21568619a16c4b60710f953810239bc987c435e8847b6ee19383321f2ad2f601",
+          "heldoutPresent": {
+            "typical": 1,
+            "edge": 2,
+            "adversarial": 2
+          },
+          "complete": true
+        },
+        "bySplit": {
+          "development": {
+            "results": 13,
+            "checksPassed": 8,
+            "quality": {
+              "recallMean": 0.8974358974358976,
+              "precisionMean": 1,
+              "checksPassRate": 0.6153846153846154
+            }
+          },
+          "heldout": {
+            "results": 5,
+            "checksPassed": 2,
+            "quality": {
+              "recallMean": 1,
+              "precisionMean": 0.875,
+              "checksPassRate": 0.4
+            }
+          }
+        },
+        "byPartition": {
+          "typical": {
+            "results": 6,
+            "checksPassed": 6,
+            "quality": {
+              "recallMean": 1,
+              "precisionMean": 1,
+              "checksPassRate": 1
+            }
+          },
+          "edge": {
+            "results": 7,
+            "checksPassed": 2,
+            "quality": {
+              "recallMean": 0.7777777777777777,
+              "precisionMean": 1,
+              "checksPassRate": 0.2857142857142857
+            }
+          },
+          "adversarial": {
+            "results": 5,
+            "checksPassed": 2,
+            "quality": {
+              "recallMean": 1,
+              "precisionMean": 0.9,
+              "checksPassRate": 0.4
+            }
+          }
         },
         "gate": {
           "wrongDocIdsTotal": 1,
@@ -32,9 +97,9 @@
           "reproducibilityFailures": 0
         },
         "quality": {
-          "recallMean": 0.9166666666666667,
-          "precisionMean": 0.96875,
-          "checksPassRate": 0.5294117647058824
+          "recallMean": 0.9215686274509804,
+          "precisionMean": 0.9705882352941176,
+          "checksPassRate": 0.5555555555555556
         },
         "resources": {
           "latencyMsMean": null,
@@ -58,16 +123,12 @@
         "reasoningEffort": null,
         "registryVersion": "analysis-reg-v1",
         "approval": "baseline",
-        "promptHash": "faa41fa6f08f887083331c300d7620708ec579637cfb50be9f73760fcc9e41a1",
+        "promptHash": "2c833c6a19b35e7db364f54d7bc1626493e31e31e6bf8418f5777cc50c6db72c",
         "schemaVersion": "8185ce15a5e1e4ec88d1ee6c014631839ec50fd6ebc2f604512e043df1747e37",
         "extractorVersion": "elite_politics/ru=gpt-4o-mini:15a6078371bd,military/ir=gpt-4o-mini:75e0ff6403db,military/ru=gpt-4o-mini:d73cc83ed8df,military/ua=gpt-4o-mini:d73cc83ed8df"
       },
       "baseline": null,
-      "heldout": {
-        "typical": 1,
-        "edge": 2,
-        "adversarial": 2
-      },
+      "aligned": null,
       "verdictResult": {
         "verdict": "fail",
         "reasons": [
@@ -103,6 +164,60 @@
         "machinery": {
           "matched": 14,
           "total": 14
+        },
+        "completeness": {
+          "scope": "full",
+          "requestedRepetitions": 1,
+          "expectedResults": 14,
+          "presentResults": 14,
+          "missingResults": 0,
+          "missingHeldout": 0,
+          "datasetContentHash": "e8f3f6a5d1654d82ce4f51750bea82f922b018848e059cc4b63c16b14abd9ad4",
+          "heldoutPresent": {
+            "typical": 1,
+            "edge": 1,
+            "adversarial": 3
+          },
+          "complete": true
+        },
+        "bySplit": {
+          "development": {
+            "results": 9,
+            "checksPassed": 9,
+            "quality": {
+              "checksPassRate": 1
+            }
+          },
+          "heldout": {
+            "results": 5,
+            "checksPassed": 5,
+            "quality": {
+              "checksPassRate": 1
+            }
+          }
+        },
+        "byPartition": {
+          "typical": {
+            "results": 6,
+            "checksPassed": 6,
+            "quality": {
+              "checksPassRate": 1
+            }
+          },
+          "edge": {
+            "results": 4,
+            "checksPassed": 4,
+            "quality": {
+              "checksPassRate": 1
+            }
+          },
+          "adversarial": {
+            "results": 4,
+            "checksPassed": 4,
+            "quality": {
+              "checksPassRate": 1
+            }
+          }
         },
         "gate": {
           "wrongDocIdsTotal": 0,
@@ -142,11 +257,7 @@
         "schemaVersion": "b1821aeff4118593b96065efa1dcee502dc3be4ecf5da827563f10a5662d85ca"
       },
       "baseline": null,
-      "heldout": {
-        "typical": 1,
-        "edge": 1,
-        "adversarial": 3
-      },
+      "aligned": null,
       "verdictResult": {
         "verdict": "insufficient_data",
         "reasons": [
@@ -176,6 +287,60 @@
         "machinery": {
           "matched": 10,
           "total": 10
+        },
+        "completeness": {
+          "scope": "full",
+          "requestedRepetitions": 1,
+          "expectedResults": 10,
+          "presentResults": 10,
+          "missingResults": 0,
+          "missingHeldout": 0,
+          "datasetContentHash": "165455d206a54579c66e7a16e037baa7dede88b9e13ffdd62da8966f56e06a9c",
+          "heldoutPresent": {
+            "typical": 1,
+            "edge": 1,
+            "adversarial": 1
+          },
+          "complete": true
+        },
+        "bySplit": {
+          "development": {
+            "results": 7,
+            "checksPassed": 7,
+            "quality": {
+              "checksPassRate": 1
+            }
+          },
+          "heldout": {
+            "results": 3,
+            "checksPassed": 3,
+            "quality": {
+              "checksPassRate": 1
+            }
+          }
+        },
+        "byPartition": {
+          "typical": {
+            "results": 3,
+            "checksPassed": 3,
+            "quality": {
+              "checksPassRate": 1
+            }
+          },
+          "edge": {
+            "results": 4,
+            "checksPassed": 4,
+            "quality": {
+              "checksPassRate": 1
+            }
+          },
+          "adversarial": {
+            "results": 3,
+            "checksPassed": 3,
+            "quality": {
+              "checksPassRate": 1
+            }
+          }
         },
         "gate": {
           "wrongDocIdsTotal": 0,
@@ -215,11 +380,7 @@
         "schemaVersion": "361f13aaa609d7d14245a7b408373e5216480f48832a82ece17bf96093277095"
       },
       "baseline": null,
-      "heldout": {
-        "typical": 1,
-        "edge": 1,
-        "adversarial": 1
-      },
+      "aligned": null,
       "verdictResult": {
         "verdict": "insufficient_data",
         "reasons": [
@@ -250,6 +411,100 @@
           "matched": 14,
           "total": 14
         },
+        "completeness": {
+          "scope": "full",
+          "requestedRepetitions": 1,
+          "expectedResults": 14,
+          "presentResults": 14,
+          "missingResults": 0,
+          "missingHeldout": 0,
+          "datasetContentHash": "30c1a4d55c2ded7c06ab7c9ee157b873ab0b153353bdffcb475dbf66ffe6565e",
+          "heldoutPresent": {
+            "typical": 1,
+            "edge": 3,
+            "adversarial": 1
+          },
+          "complete": true
+        },
+        "bySplit": {
+          "development": {
+            "results": 9,
+            "checksPassed": 9,
+            "quality": {
+              "matchSetPrecision": 1,
+              "matchSetRecall": 1,
+              "matchSetPrecisionVacuousCount": 4,
+              "matchSetRecallVacuousCount": 4,
+              "keywordPrecision": 0.7,
+              "keywordRecall": 0.875,
+              "keywordPrecisionVacuousCount": 4,
+              "keywordRecallVacuousCount": 5,
+              "checksPassRate": 1
+            }
+          },
+          "heldout": {
+            "results": 5,
+            "checksPassed": 5,
+            "quality": {
+              "matchSetPrecision": 1,
+              "matchSetRecall": 1,
+              "matchSetPrecisionVacuousCount": 2,
+              "matchSetRecallVacuousCount": 2,
+              "keywordPrecision": 0.75,
+              "keywordRecall": 1,
+              "keywordPrecisionVacuousCount": 1,
+              "keywordRecallVacuousCount": 2,
+              "checksPassRate": 1
+            }
+          }
+        },
+        "byPartition": {
+          "typical": {
+            "results": 5,
+            "checksPassed": 5,
+            "quality": {
+              "matchSetPrecision": 1,
+              "matchSetRecall": 1,
+              "matchSetPrecisionVacuousCount": 2,
+              "matchSetRecallVacuousCount": 2,
+              "keywordPrecision": 0.8333333333333334,
+              "keywordRecall": 1,
+              "keywordPrecisionVacuousCount": 2,
+              "keywordRecallVacuousCount": 2,
+              "checksPassRate": 1
+            }
+          },
+          "edge": {
+            "results": 7,
+            "checksPassed": 7,
+            "quality": {
+              "matchSetPrecision": 1,
+              "matchSetRecall": 1,
+              "matchSetPrecisionVacuousCount": 2,
+              "matchSetRecallVacuousCount": 2,
+              "keywordPrecision": 0.6666666666666666,
+              "keywordRecall": 0.875,
+              "keywordPrecisionVacuousCount": 1,
+              "keywordRecallVacuousCount": 3,
+              "checksPassRate": 1
+            }
+          },
+          "adversarial": {
+            "results": 2,
+            "checksPassed": 2,
+            "quality": {
+              "matchSetPrecision": null,
+              "matchSetRecall": null,
+              "matchSetPrecisionVacuousCount": 2,
+              "matchSetRecallVacuousCount": 2,
+              "keywordPrecision": null,
+              "keywordRecall": null,
+              "keywordPrecisionVacuousCount": 2,
+              "keywordRecallVacuousCount": 2,
+              "checksPassRate": 1
+            }
+          }
+        },
         "gate": {
           "wrongDocIdsTotal": 0,
           "heldoutUnderfillCases": 0,
@@ -262,8 +517,12 @@
         "quality": {
           "matchSetPrecision": 1,
           "matchSetRecall": 1,
-          "keywordPrecision": 0.8214285714285714,
-          "keywordRecall": 0.9642857142857143,
+          "matchSetPrecisionVacuousCount": 6,
+          "matchSetRecallVacuousCount": 6,
+          "keywordPrecision": 0.7222222222222222,
+          "keywordRecall": 0.9285714285714286,
+          "keywordPrecisionVacuousCount": 5,
+          "keywordRecallVacuousCount": 7,
           "checksPassRate": 1
         },
         "resources": {
@@ -292,11 +551,7 @@
         "schemaVersion": "89672017b52a25f168bc4c926a4bcb5aa43c7c763a87e165260c00916b8b553a"
       },
       "baseline": null,
-      "heldout": {
-        "typical": 1,
-        "edge": 3,
-        "adversarial": 1
-      },
+      "aligned": null,
       "verdictResult": {
         "verdict": "insufficient_data",
         "reasons": [

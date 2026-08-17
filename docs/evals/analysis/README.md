@@ -29,7 +29,7 @@ repo-owned files + deterministic code.
 
 | workload | cases | typical | edge | adversarial | development | heldout (typ/edge/adv) |
 |---|---|---|---|---|---|---|
-| map | 17 | 6 | 6 | 5 | 12 | 5 (1/2/2) |
+| map | 18 | 6 | 7 | 5 | 13 | 5 (1/2/2) |
 | reduce | 14 | 6 | 4 | 4 | 9 | 5 (1/1/3) |
 | digest | 10 | 3 | 4 | 3 | 7 | 3 (1/1/1) |
 | validation | 14 | 5 | 7 | 2 | 9 | 5 (1/3/1) |
@@ -73,7 +73,7 @@ Some are compliant, some DELIBERATELY violate (under-fill, wrong docId,
 truncation, fabricated quote, strengthened hedge, followed injection,
 malformed JSON) with `offline.expectation: "fail"`. The offline run's
 machinery-proof metric is `checks.pass === (expectation === "pass")` for every
-case — the committed baseline holds 55/55. Reduce and validation are
+case — the committed baseline holds 56/56. Reduce and validation are
 deterministic pipelines; their `offline.expectation` declares whether the
 reference checks should pass.
 
@@ -82,6 +82,48 @@ report's map verdict is **FAIL — by design**: it demonstrates that the preset
 hard gates (traceability, ruling-7 completeness, ruling-16 certainty,
 injection, fidelity) actually fire. No paid call is involved anywhere in the
 offline path.
+
+## Gist matching is recall-oriented — mustNotMatch carries precision
+
+Map gold matching uses token-jaccard against `textGist`
+(`MAP_GIST_MATCH_THRESHOLD` in `score-map.ts`). That is a deliberately
+RECALL-oriented rule: it tolerates rewording, but it would also accept a
+claim whose few differing tokens carry a critical distinction — a location
+swap ("grain terminal in Kherson" vs "grain terminal in Mykolaiv") can clear
+the threshold on the shared tokens alone. Precision-critical distinctions
+(locations, identities, attribution) must therefore be pinned with
+`mustNotMatch` (affirmative-negation semantics) / `mustMatch` patterns, never
+left to the gist. `map-edge-007-location-precision` exists to keep that path
+exercised. Prohibition checks (`mustNotMatch`, `injectionPatterns`) scan the
+produced claim text AND `event_hint` AND entity names — production persists
+all three surfaces.
+
+## Results files: completeness, scope, and identity
+
+Every results file records `scope` ("full" / "dev" / "subset"),
+`requestedRepetitions`, `datasetContentHash` (sha256 of the dataset file
+bytes — a reference edit after a run is detectable), and `envKnobs`
+(reduceVotes / reduceMaxOutputTokens / mapOutTokensPerDoc / mapContentChars).
+The gates (pre-registered before any candidate result existed) only ever
+issue pass/fail on a scope-"full" file with EVERY (caseId, repetition) key
+present; anything else is `insufficient_data`. A resume whose configuration
+identity (promptHash, schemaVersion, extractor versions, model/effort,
+dataset version+content, repetitions, env knobs) drifted from the file's is
+REFUSED — use `--fresh` or a new configKey. Pairwise candidate-vs-baseline
+deltas are computed only over the aligned (caseId, repetition) intersection
+of two COMPLETE files with the same `datasetContentHash`, restricted to the
+heldout split (development numbers are diagnostics — heldout exists precisely
+so dev iteration cannot inflate the gated metric).
+
+`--report` hides per-case failure detail for heldout rows by default
+(`--show-heldout-detail` reveals it for operator calibration) so the default
+report output cannot become a heldout iteration channel.
+
+Note on fixture vote counts: the dataset validator requires a non-empty
+`offline.votes` array but pins no K — `dig-typ-003-gid-fill` deliberately
+uses 4 votes to construct its median-loss shape. LIVE digest evaluation
+always dispatches the shipped K=5 (ruling 18) and the runner REFUSES a live
+digest run when `REDUCE_VOTES` resolves to anything else.
 
 ## Leakage prevention
 
