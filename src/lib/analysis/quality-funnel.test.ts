@@ -34,6 +34,7 @@ const doc = (id: number, adapter: string, over: Partial<EligibleDocRow> = {}): E
   adapter,
   lang: "en",
   platform: "web",
+  processed: true,
   canonicalDocId: null,
   mirrorMethod: null,
   ...over,
@@ -100,12 +101,64 @@ describe("aggregateCorpus", () => {
     expect(c.mapDispositions).toBe(2); // docs 1 and 2 only
     expect(c.docsWithClaims).toBe(1); // doc 1
     expect(c.docsNoClaims).toBe(1); // doc 2
+    // doc 3 has NO state row for this track and processed=true: the track's
+    // lexicon never applied — NOT unmapped backlog, NOT extraction loss
+    expect(c.pendingDocs).toBe(0);
+    expect(c.notApplicableDocs).toBe(1);
     expect(c.mapClaims).toBe(2); // doc 1's current rows only
     expect(c.supersededDispositions).toBe(1); // doc 1's OLD row (mirror rows excluded)
     expect(c.supersededClaims).toBe(3);
     expect(c.supersededOnly).toBe(false);
     // the anomalous mirror map rows are flagged, not silently dropped
     expect(warnings.some((w) => w.includes("MIRROR"))).toBe(true);
+  });
+
+  it("splits undispositioned canonical docs by `processed`: backlog vs lexicon skip", () => {
+    // Mutation direction: an implementation that ignores `processed` (all
+    // pending, or all notApplicable) fails BOTH assertions below.
+    const c = aggregateCorpus(
+      [
+        doc(1, "rss", { processed: false }), // genuine unmapped backlog
+        doc(2, "rss", { processed: true }), // track lexicon never matched
+      ],
+      [],
+      [],
+      CURRENT,
+      [],
+      [],
+    );
+    expect(c.pendingDocs).toBe(1);
+    expect(c.notApplicableDocs).toBe(1);
+    expect(c.mapDispositions).toBe(0);
+  });
+
+  it("a processed doc with ONLY superseded rows is a remap target — in neither split bucket", () => {
+    const c = aggregateCorpus(
+      [doc(1, "rss", { processed: true })],
+      [state(1, OLD, 2)],
+      [],
+      CURRENT,
+      [],
+      [],
+    );
+    expect(c.pendingDocs).toBe(0);
+    expect(c.notApplicableDocs).toBe(0);
+    expect(c.supersededDispositions).toBe(1);
+    expect(c.supersededOnly).toBe(true);
+  });
+
+  it("mirrors never land in the pending/notApplicable buckets", () => {
+    const c = aggregateCorpus(
+      [doc(1, "rss", { processed: false, canonicalDocId: 9, mirrorMethod: "exact" })],
+      [],
+      [],
+      CURRENT,
+      [],
+      [],
+    );
+    expect(c.pendingDocs).toBe(0);
+    expect(c.notApplicableDocs).toBe(0);
+    expect(c.mirrorDocs).toBe(1);
   });
 
   it("flags superseded-only coverage as a version bump, never a gap", () => {
@@ -325,6 +378,8 @@ describe("buildAdapterConversions", () => {
     const out = buildAdapterConversions(DOCS, STATES, CLAIM_COUNTS, links, CURRENT);
     expect(out.rss).toEqual({
       eligibleDocs: 1,
+      pendingDocs: 0,
+      notApplicableDocs: 0,
       docsWithClaims: 1,
       mapClaims: 2,
       citedDocs: 1,
@@ -335,9 +390,14 @@ describe("buildAdapterConversions", () => {
     // the mirror still counts as an eligible x_api doc, but no map stage counts it
     expect(out.x_api).toMatchObject({ eligibleDocs: 2, docsWithClaims: 0, mapClaims: 0, citedDocs: 1 });
     expect(out.x_api.linkSharePct).toBe(25);
+    // doc 3 (telegram_web) is undispositioned + processed -> per-adapter lexicon skip
+    expect(out.telegram_web.notApplicableDocs).toBe(1);
+    expect(out.telegram_web.pendingDocs).toBe(0);
     // cited-only adapter (rolling-window doc from a neighboring day): honest null rate
     expect(out.gdelt).toEqual({
       eligibleDocs: 0,
+      pendingDocs: 0,
+      notApplicableDocs: 0,
       docsWithClaims: 0,
       mapClaims: 0,
       citedDocs: 1,
@@ -350,6 +410,20 @@ describe("buildAdapterConversions", () => {
     expect(out.telegram_web.docConversionPct).toBe(0);
   });
 
+  it("per-adapter pending vs notApplicable split follows `processed` (mutation direction)", () => {
+    const out = buildAdapterConversions(
+      [doc(1, "rss", { processed: false }), doc(2, "telegram_web", { processed: true })],
+      [],
+      [],
+      [],
+      CURRENT,
+    );
+    expect(out.rss.pendingDocs).toBe(1);
+    expect(out.rss.notApplicableDocs).toBe(0);
+    expect(out.telegram_web.pendingDocs).toBe(0);
+    expect(out.telegram_web.notApplicableDocs).toBe(1);
+  });
+
   it("no links at all: every linkSharePct is null, never NaN", () => {
     const out = buildAdapterConversions(DOCS, [], [], [], CURRENT);
     expect(out.rss.linkSharePct).toBeNull();
@@ -359,11 +433,12 @@ describe("buildAdapterConversions", () => {
 // ---- SQL builders ------------------------------------------------------------
 
 describe("SQL builders", () => {
-  it("eligibleDocsSql pins theater/day/epoch/stub-exclusion as parameters", () => {
+  it("eligibleDocsSql pins theater/day/epoch/stub-exclusion and selects the processed flag", () => {
     const q = eligibleDocsSql(THEATER, DATE);
     expect(q.sql).toContain("COALESCE(rd.published_at, rd.fetched_at)::date = $2::date");
     expect(q.sql).toContain("length(rd.content) >= 40");
     expect(q.sql).toContain("content NOT LIKE $4");
+    expect(q.sql).toContain("rd.processed");
     expect(q.params).toEqual([THEATER, DATE, MAP_EPOCH, "[STUB FIXTURE]%"]);
   });
 
@@ -372,7 +447,12 @@ describe("SQL builders", () => {
     expect(docClaimCountsSql([3], TRACK).params).toEqual([[3], TRACK]);
     expect(digestRowSql(THEATER, TRACK, DATE).params).toEqual([THEATER, TRACK, DATE]);
     expect(persistedCountsSql(9).params).toEqual([9]);
-    expect(citationLinksSql(9).params).toEqual([9]);
+  });
+
+  it("citationLinksSql excludes stub docs like every other population read", () => {
+    const q = citationLinksSql(9);
+    expect(q.sql).toContain("rd.content NOT LIKE $2");
+    expect(q.params).toEqual([9, "[STUB FIXTURE]%"]);
   });
 });
 
@@ -405,9 +485,9 @@ describe("loadQualityFunnel", () => {
     const { query } = fakeQuery({
       // driver-realistic: numeric-ish values as strings survive the Number() folds
       docs: [
-        { id: "1", adapter: "rss", lang: "fa", platform: "web", canonical_doc_id: null, mirror_method: null },
-        { id: "2", adapter: "x_api", lang: "en", platform: "x", canonical_doc_id: null, mirror_method: null },
-        { id: "4", adapter: "x_api", lang: "en", platform: "x", canonical_doc_id: "2", mirror_method: "minhash" },
+        { id: "1", adapter: "rss", lang: "fa", platform: "web", processed: true, canonical_doc_id: null, mirror_method: null },
+        { id: "2", adapter: "x_api", lang: "en", platform: "x", processed: false, canonical_doc_id: null, mirror_method: null },
+        { id: "4", adapter: "x_api", lang: "en", platform: "x", processed: true, canonical_doc_id: "2", mirror_method: "minhash" },
       ],
       states: [
         { raw_document_id: "1", extractor_version: CURRENT, claim_count: "2" },
@@ -434,6 +514,10 @@ describe("loadQualityFunnel", () => {
     expect(report.corpus.mapDispositions).toBe(1); // doc 1 only
     expect(report.corpus.mapClaims).toBe(2);
     expect(report.corpus.supersededDispositions).toBe(1);
+    // doc 2: no state row + processed=false -> genuine backlog, per-adapter too
+    expect(report.corpus.pendingDocs).toBe(1);
+    expect(report.corpus.notApplicableDocs).toBe(0);
+    expect(report.adapters.x_api.pendingDocs).toBe(1);
     expect(report.digest?.digestId).toBe(77);
     expect(report.digest?.persisted).toEqual({ events: 4, claims: 9, citationLinks: 2, citedDocs: 2 });
     expect(report.adapters.rss.mapClaims).toBe(2);
