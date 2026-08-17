@@ -2806,3 +2806,30 @@ program: no deploy, no push, no PR, no paid provider calls, no production writes
    cross-workstream adversarial reviews,
    docs/reviews/QUALITY-FOUNDATION-INTEGRATION-2026-08-17.md. Worktree D only if
    A-C pass with substantial time left; else reviewed design.
+
+## 2026-08-17 quality-foundation program — closeout (local-only; merge awaits operator review)
+
+Executed per the plan above. Integration base 05fdd2c (origin/main 9c5e9cb +
+reviewed routing tip 0e469f7). All three core worktrees implemented, each
+through its own adversarial gate with remediation and focused re-review:
+
+- A evidence-quality observability (74d0f40): review PASS-WITH-MINORS ->
+  remediation -> re-review PASS.
+- B map lease + remap (c40060e): two reviews FAIL (remap semantic layer; the
+  lease core survived every attack) -> remediation e364112 -> both re-reviews
+  PASS-WITH-MINORS. Includes the escape-only fix for map-worker.ts's literal
+  NUL group-key separator (grep binary-classification trap found in review).
+- C analysis-eval control plane (ce3c985): two reviews PASS-WITH-MINORS with
+  3 shared gate-integrity MAJORs -> remediation 0c42880 -> both re-reviews
+  PASS-WITH-MINORS -> converged minors applied verbatim.
+- D delivered as its REVIEWED DESIGN (docs/designs/HUMAN-ADJUDICATION.md):
+  design review FAIL (4 MAJORs) -> remediation -> re-review PASS-WITH-MINORS
+  -> minors folded in. No admin surface, no migration built.
+
+Merged A -> B -> C (eee6a91, b4b0299, fa81c1b) into
+codex/quality-foundation-integration-20260817; the flagged cross-worktree
+reconciliation (C's evidence-recency probe -> A's canonical calculator) done
+at ba35082 with fixture pins re-derived under the canonical percentiles.
+Full report: docs/reviews/QUALITY-FOUNDATION-INTEGRATION-2026-08-17.md.
+Zero paid provider calls, zero production writes, no deploy, no push, no
+migration; disposable Neon forks only.

@@ -170,6 +170,14 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     on the affected docs. The proper tool is a budget-gated `scripts/map-remap.ts` that
     ignores `processed` and anti-joins `doc_map_state` on the *current* versions. Until it
     exists, any prompt iteration silently applies only to new docs.
+    **IMPLEMENTED ON BRANCH 2026-08-17 (NOT deployed — do not close):**
+    `scripts/map-remap.ts` + remap mode in `runMapCycle` exist on
+    `codex/quality-foundation-integration-20260817` (dry-run-first, resumable,
+    lease-safe, fail-closed on spend/config; two adversarial reviews +
+    remediation + re-reviews PASS-WITH-MINORS —
+    `docs/reviews/MAP-RELIABILITY-REMAP-2026-08-17.md`). Production still lacks
+    the path until that branch is operator-reviewed, merged, and deployed; the
+    map activation hard lock stays regardless.
 34. ~~**`doc_claims.quote_orig` is best-effort: ~15% fail verbatim containment.**~~
     ✅ 2026-07-09 (MR sprint 3): `quote_verified` stamped at insert by the map worker
     (shared normalization in `quote-verify.ts` — unicode/bidi-isolate/whitespace
@@ -711,6 +719,13 @@ docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md)
     `pg_try_advisory_xact_lock` on a connection that stays pinned for the cycle (or a
     provider_state lease like x-lease). Interim recovery tooling used a janitor with the
     exact predicate above.
+    **DURABLE FIX IMPLEMENTED ON BRANCH 2026-08-17 (NOT deployed — do not
+    close):** `src/lib/analysis/map-lease.ts` (provider_state key `map_lease`;
+    token + monotonic fence + DB-time expiry; single-statement CAS — nothing a
+    pooler can strand) replaces the session advisory lock on
+    `codex/quality-foundation-integration-20260817`, review-gated
+    (`docs/reviews/MAP-RELIABILITY-REMAP-2026-08-17.md`). Production keeps the
+    advisory lock (and the janitor predicate) until that branch deploys.
 78. **[Tier 2 — release hygiene] A CLI deploy from a git WORKTREE ships no commit stamp.**
     A worktree's `.git` is a FILE (gitdir pointer), which defeats the Vercel CLI's git
     metadata detection: `/health` on `dpl_9xyqCLfZn6n8WTifQ6BpgpV9wJja` renders an empty
