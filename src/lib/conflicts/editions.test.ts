@@ -142,6 +142,36 @@ describe("edition records", () => {
     ).toBe("invalid_edition_record"); // "final" is fixture-reserved
   });
 
+  it("cross-validates canonicalUrl against the editionKey under the current norm version", () => {
+    // matching URL/key: accepted (the default record) — pinned explicitly
+    expect(editionLabel(record().identity)).toBe("evening");
+    // a URL that normalizes to a DIFFERENT key: refused (a record can never
+    // claim a key its own URL contradicts)
+    expect(
+      code(() =>
+        record({
+          canonicalUrl:
+            "https://understandingwar.org/research/middle-east/iran-update-morning-special-report-august-5-2026/",
+        }),
+      ),
+    ).toBe("invalid_edition_record");
+    // a URL outside the versioned table: refused under the current version
+    expect(
+      code(() =>
+        record({
+          canonicalUrl: "https://understandingwar.org/research/middle-east/iran-update-weekly-digest/",
+        }),
+      ),
+    ).toBe("invalid_edition_record");
+    // a NON-current normVersion skips cross-validation (its URLs cannot be
+    // interpreted by this table) — the record stands on its other invariants
+    const legacy = record({
+      canonicalUrl: "https://understandingwar.org/research/middle-east/iran-update-weekly-digest/",
+      normVersion: "isw-edition-norm-v0",
+    });
+    expect(legacy.normVersion).toBe("isw-edition-norm-v0");
+  });
+
   it("provider fixture accepts normalized labels and the reserved final label only", () => {
     const fixture = (label: string) =>
       parseEditionRecord({
@@ -226,6 +256,37 @@ describe("deterministic daily-final selection (explicit TOTAL ordering)", () => 
     expect(selectDailyFinal(editions).selected.identity.editionKey).toBe(
       "iran_update:2026-08-05:morning",
     );
+  });
+
+  it("an edition EXPLICITLY declared not-final never outranks an undesignated sibling", () => {
+    // Gate-2 probe: {evening: explicit false, special: undesignated} must
+    // select special — "not the final" is a statement, not an absence
+    const editions = [iranEdition("evening", { designatedFinal: false }), iranEdition("special")];
+    const sel = selectDailyFinal(editions);
+    expect(sel.selected.identity.editionKey).toBe("iran_update:2026-08-05:special");
+    expect(sel.winnerExplicitlyNotFinal).toBe(false);
+    // explicit true still dominates both levels
+    const withTrue = selectDailyFinal([
+      ...editions,
+      iranEdition("morning", { designatedFinal: true }),
+    ]);
+    expect(withTrue.selected.identity.editionKey).toBe("iran_update:2026-08-05:morning");
+    expect(withTrue.winnerExplicitlyNotFinal).toBe(false);
+  });
+
+  it("an all-explicitly-not-final day still selects deterministically, with the diagnostic VISIBLE", () => {
+    const sel = selectDailyFinal([
+      iranEdition("morning", { designatedFinal: false }),
+      iranEdition("evening", { designatedFinal: false }),
+    ]);
+    expect(sel.selected.identity.editionKey).toBe("iran_update:2026-08-05:evening");
+    expect(sel.winnerExplicitlyNotFinal).toBe(true);
+  });
+
+  it("a fully undesignated day keeps rank behavior with the diagnostic unset", () => {
+    const sel = selectDailyFinal([iranEdition("morning"), iranEdition("evening")]);
+    expect(sel.selected.identity.editionKey).toBe("iran_update:2026-08-05:evening");
+    expect(sel.winnerExplicitlyNotFinal).toBe(false);
   });
 
   it("undesignated sets order by label finality rank: evening > special > plain > morning", () => {

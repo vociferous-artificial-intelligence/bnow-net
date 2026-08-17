@@ -219,6 +219,26 @@ export function validateEditionRecord(raw: unknown): string[] {
     if (typeof r.normVersion !== "string" || r.normVersion.length === 0) {
       errs.push("normVersion: required for provider isw");
     }
+    // URL↔key cross-validation, scoped to the CURRENT normalization version
+    // (an older-version record's URL cannot be interpreted by this table):
+    // the canonical URL must normalize to exactly this editionKey, so a
+    // record can never claim a key its own URL contradicts
+    if (
+      typeof r.canonicalUrl === "string" &&
+      r.canonicalUrl.length > 0 &&
+      r.normVersion === EDITION_NORMALIZATION_VERSION
+    ) {
+      try {
+        const urlIdentity = normalizeIswEditionUrl(r.canonicalUrl);
+        if (urlIdentity.editionKey !== identity.editionKey) {
+          errs.push(
+            `canonicalUrl: normalizes to ${urlIdentity.editionKey}, not ${identity.editionKey}`,
+          );
+        }
+      } catch {
+        errs.push(`canonicalUrl: not a ${EDITION_NORMALIZATION_VERSION} URL shape for provider isw`);
+      }
+    }
   } else if (r.provider === "fixture") {
     if (!normalized.includes(label) && label !== FIXTURE_FINAL_LABEL) {
       errs.push(
@@ -356,13 +376,23 @@ function anchorMsDescNullsLast(a: string | null, b: string | null): number {
   return Date.parse(b) - Date.parse(a);
 }
 
-/** TOTAL ordering, most-final FIRST: (1) explicit designatedFinal===true;
- *  (2) label finality rank desc; (3) publishedAt desc, nulls last;
- *  (4) cutoffAt desc, nulls last; (5) editionKey ascending — the last-resort
- *  tiebreak that makes the ordering total and input-order-independent. */
+/** Designation rank: explicit designatedFinal===true dominates everything;
+ *  undesignated (null) sits in the middle; an edition EXPLICITLY declared
+ *  not-final ranks BELOW every undesignated sibling — "not the final" is a
+ *  statement, not an absence, and must never silently win over a sibling
+ *  that made no claim either way. */
+function designationRank(r: ReferenceEditionRecord): number {
+  return r.designatedFinal === true ? 2 : r.designatedFinal === null ? 1 : 0;
+}
+
+/** TOTAL ordering, most-final FIRST: (1) designation rank — explicit true >
+ *  undesignated > explicit false; (2) label finality rank desc;
+ *  (3) publishedAt desc, nulls last; (4) cutoffAt desc, nulls last;
+ *  (5) editionKey ascending — the last-resort tiebreak that makes the
+ *  ordering total and input-order-independent. */
 export function compareEditionFinality(a: ReferenceEditionRecord, b: ReferenceEditionRecord): number {
-  const desA = a.designatedFinal === true ? 1 : 0;
-  const desB = b.designatedFinal === true ? 1 : 0;
+  const desA = designationRank(a);
+  const desB = designationRank(b);
   if (desA !== desB) return desB - desA;
   const rank = finalityRank(b) - finalityRank(a);
   if (rank !== 0) return rank;
@@ -396,6 +426,13 @@ export interface DailyFinalSelection {
   policy: typeof DAILY_FINAL_POLICY;
   /** the full deterministic ordering, most-final first (audit trail) */
   orderedKeys: readonly string[];
+  /** the deterministic winner carries an EXPLICIT designatedFinal===false —
+   *  possible only when no edition of the day is designated true and every
+   *  rank-superior sibling is also explicitly not-final (e.g. a lone
+   *  explicitly-not-final edition). Selection still proceeds — refusing would
+   *  make the whole day unavailable on a metadata quirk — but the oddity
+   *  stays VISIBLE here instead of being silently absorbed. */
+  winnerExplicitlyNotFinal: boolean;
 }
 
 /**
@@ -435,6 +472,7 @@ export function selectDailyFinal(editions: readonly ReferenceEditionRecord[]): D
     selected: ordered[0],
     policy: DAILY_FINAL_POLICY,
     orderedKeys: ordered.map((e) => e.identity.editionKey),
+    winnerExplicitlyNotFinal: ordered[0].designatedFinal === false,
   };
 }
 

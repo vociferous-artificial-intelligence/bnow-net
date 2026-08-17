@@ -118,6 +118,10 @@ describe("mergeEditionRecords (the one write authority)", () => {
           parseEditionRecord({
             ...base(),
             identity: { ...base().identity, editionKey: "iran_update:2026-08-05:plain" },
+            // the plain-shape URL, so the record is individually valid under
+            // the URL↔key cross-validation and the conflict is merge-level
+            canonicalUrl:
+              "https://understandingwar.org/research/middle-east/iran-update-august-5-2026/",
           }),
         ),
       ),
@@ -127,8 +131,12 @@ describe("mergeEditionRecords (the one write authority)", () => {
         mergeEditionRecords(
           base(),
           other({
+            // the SAME edition per the normalization table (http + www + no
+            // trailing slash) but byte-different — merge URL equality is
+            // BYTE-level, so this is an identity conflict, not a repair (the
+            // deferred discovery adapter should canonicalize before storage)
             canonicalUrl:
-              "https://understandingwar.org/research/middle-east/iran-update-august-5-2026/",
+              "http://www.understandingwar.org/research/middle-east/iran-update-special-report-august-5-2026",
           }),
         ),
       ),
