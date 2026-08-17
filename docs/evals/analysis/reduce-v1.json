@@ -1,0 +1,969 @@
+{
+  "datasetVersion": "reduce-v1",
+  "workload": "reduce",
+  "createdAt": "2026-08-17T00:00:00Z",
+  "cases": [
+    {
+      "id": "red-typ-001-merge-promote",
+      "workload": "reduce",
+      "partition": "typical",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "two independent domains asserting the same event: merge + corroboration promotion to confirmed",
+      "input": {
+        "theater": "ua",
+        "track": "military",
+        "claims": [
+          {
+            "id": 1,
+            "docId": 101,
+            "textEn": "A drone strike damaged the oil depot near the port of Tartus, causing a large fire.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "Tartus oil depot drone strike",
+            "claimDate": "2026-08-01",
+            "sourceDomain": "unitednews.example",
+            "sourceKey": null,
+            "reliability": 0.8,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": "2026-08-01T05:00:00Z"
+          },
+          {
+            "id": 2,
+            "docId": 102,
+            "textEn": "Drone strike set fire to an oil depot near Tartus port.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "Tartus oil depot strike",
+            "claimDate": "2026-08-01",
+            "sourceDomain": "gulfwire.example",
+            "sourceKey": null,
+            "reliability": 0.6,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": "2026-08-01T07:00:00Z"
+          }
+        ]
+      },
+      "reference": {
+        "expectTogether": [
+          [
+            1,
+            2
+          ]
+        ],
+        "expectGroupCount": 1,
+        "expectGroups": [
+          {
+            "memberId": 1,
+            "hedging": "confirmed",
+            "promoted": true,
+            "independentSources": 2,
+            "text": "A drone strike damaged the oil depot near the port of Tartus, causing a large fire."
+          }
+        ]
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "red-typ-002-different-action-apart",
+      "workload": "reduce",
+      "partition": "typical",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "same place, same day, DIFFERENT action: must stay distinct groups",
+      "input": {
+        "theater": "ru",
+        "track": "military",
+        "claims": [
+          {
+            "id": 11,
+            "docId": 111,
+            "textEn": "Air defense intercepted six drones over Belgorod region overnight.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "Belgorod air defense intercepts",
+            "claimDate": "2026-08-02",
+            "sourceDomain": "a.example",
+            "sourceKey": null,
+            "reliability": null,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          },
+          {
+            "id": 12,
+            "docId": 112,
+            "textEn": "A fuel depot in Belgorod region caught fire after a reported strike.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "Belgorod fuel depot fire",
+            "claimDate": "2026-08-02",
+            "sourceDomain": "b.example",
+            "sourceKey": null,
+            "reliability": null,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          }
+        ]
+      },
+      "reference": {
+        "expectApart": [
+          [
+            11,
+            12
+          ]
+        ],
+        "expectGroupCount": 2
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "red-typ-003-day-gate",
+      "workload": "reduce",
+      "partition": "typical",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "ruling 12: identical recurring-template text on distant days is NOT one event — the >1-day gate must keep them apart",
+      "input": {
+        "theater": "ru",
+        "track": "military",
+        "claims": [
+          {
+            "id": 21,
+            "docId": 121,
+            "textEn": "Nightly shelling report: artillery fire recorded along the northern axis.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "northern axis shelling",
+            "claimDate": "2026-08-01",
+            "sourceDomain": "a.example",
+            "sourceKey": null,
+            "reliability": null,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          },
+          {
+            "id": 22,
+            "docId": 122,
+            "textEn": "Nightly shelling report: artillery fire recorded along the northern axis.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "northern axis shelling",
+            "claimDate": "2026-08-04",
+            "sourceDomain": "b.example",
+            "sourceKey": null,
+            "reliability": null,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          }
+        ]
+      },
+      "reference": {
+        "expectApart": [
+          [
+            21,
+            22
+          ]
+        ],
+        "expectGroupCount": 2
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "red-typ-004-indoc-dupes",
+      "workload": "reduce",
+      "partition": "typical",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "in-doc near-duplicates collapse in the same pass; a single doc can never self-corroborate",
+      "input": {
+        "theater": "ua",
+        "track": "military",
+        "claims": [
+          {
+            "id": 31,
+            "docId": 131,
+            "textEn": "The bridge over the Seym river was damaged in a strike, halting truck traffic.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "Seym river bridge strike",
+            "claimDate": "2026-08-01",
+            "sourceDomain": "c.example",
+            "sourceKey": null,
+            "reliability": 0.7,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          },
+          {
+            "id": 32,
+            "docId": 131,
+            "textEn": "A strike damaged the Seym river bridge and halted truck traffic.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "Seym river bridge strike",
+            "claimDate": "2026-08-01",
+            "sourceDomain": "c.example",
+            "sourceKey": null,
+            "reliability": 0.7,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          }
+        ]
+      },
+      "reference": {
+        "expectTogether": [
+          [
+            31,
+            32
+          ]
+        ],
+        "expectGroupCount": 1,
+        "expectGroups": [
+          {
+            "memberId": 31,
+            "hedging": "claimed",
+            "promoted": false,
+            "independentSources": 1
+          }
+        ]
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "red-typ-005-single-doc-confirmed",
+      "workload": "reduce",
+      "partition": "typical",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "HARD RULE 3 pass-through: single-doc confirmed (self-corroborating evidence) stays confirmed without promotion",
+      "input": {
+        "theater": "ua",
+        "track": "military",
+        "claims": [
+          {
+            "id": 41,
+            "docId": 141,
+            "textEn": "Geolocated footage confirms a strike on the radar site near Hama.",
+            "quoteOrig": null,
+            "quoteVerified": true,
+            "claimType": "factual",
+            "hedging": "confirmed",
+            "entities": [],
+            "eventHint": "Hama radar site strike",
+            "claimDate": "2026-08-01",
+            "sourceDomain": "geo.example",
+            "sourceKey": null,
+            "reliability": 0.9,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          }
+        ]
+      },
+      "reference": {
+        "expectGroupCount": 1,
+        "expectGroups": [
+          {
+            "memberId": 41,
+            "hedging": "confirmed",
+            "promoted": false,
+            "independentSources": 1
+          }
+        ]
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "red-typ-006-mixed-type",
+      "workload": "reduce",
+      "partition": "typical",
+      "split": "heldout",
+      "provenance": "authored-2026-08-17",
+      "notes": "heldout: an assessment echoing a reported fact merges but must not drag the group into assessment-land, and must not corroborate it",
+      "input": {
+        "theater": "ua",
+        "track": "military",
+        "claims": [
+          {
+            "id": 51,
+            "docId": 151,
+            "textEn": "The armored column moved toward the eastern crossing at dawn.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "eastern crossing armored column",
+            "claimDate": "2026-08-01",
+            "sourceDomain": "a.example",
+            "sourceKey": null,
+            "reliability": 0.5,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          },
+          {
+            "id": 52,
+            "docId": 152,
+            "textEn": "The armored column movement toward the eastern crossing likely signals a new phase.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "assessment",
+            "hedging": "assessed",
+            "entities": [],
+            "eventHint": "eastern crossing armored column",
+            "claimDate": "2026-08-01",
+            "sourceDomain": "b.example",
+            "sourceKey": null,
+            "reliability": 0.6,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          }
+        ]
+      },
+      "reference": {
+        "expectTogether": [
+          [
+            51,
+            52
+          ]
+        ],
+        "expectGroupCount": 1,
+        "expectGroups": [
+          {
+            "memberId": 51,
+            "hedging": "claimed",
+            "promoted": false
+          }
+        ]
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "red-adv-001-mirror-corroboration",
+      "workload": "reduce",
+      "partition": "adversarial",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "coordinated mirrors posing as corroboration: doc_dedup mirror edge collapses the independence classes — no promotion",
+      "input": {
+        "theater": "ir",
+        "track": "military",
+        "claims": [
+          {
+            "id": 61,
+            "docId": 161,
+            "textEn": "Militia sources claim the checkpoint on highway M4 was seized at dawn.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "M4 checkpoint seized",
+            "claimDate": "2026-08-01",
+            "sourceDomain": "novapress.example",
+            "sourceKey": null,
+            "reliability": null,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          },
+          {
+            "id": 62,
+            "docId": 162,
+            "textEn": "Sources claim the M4 highway checkpoint was seized at dawn.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "M4 checkpoint seized",
+            "claimDate": "2026-08-01",
+            "sourceDomain": "mirrorwire.example",
+            "sourceKey": null,
+            "reliability": null,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          }
+        ],
+        "mirrorOf": [
+          [
+            162,
+            161
+          ]
+        ]
+      },
+      "reference": {
+        "expectTogether": [
+          [
+            61,
+            62
+          ]
+        ],
+        "expectGroupCount": 1,
+        "expectGroups": [
+          {
+            "memberId": 61,
+            "hedging": "claimed",
+            "promoted": false,
+            "independentSources": 1
+          }
+        ]
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "red-adv-002-fresh-lowrel-vs-reliable",
+      "workload": "reduce",
+      "partition": "adversarial",
+      "split": "heldout",
+      "provenance": "authored-2026-08-17",
+      "notes": "heldout: one fresh low-reliability source beside an older reliable one — representative wording must come from the reliable member",
+      "input": {
+        "theater": "ua",
+        "track": "military",
+        "claims": [
+          {
+            "id": 71,
+            "docId": 171,
+            "textEn": "Regional command reported that the pontoon crossing near Dubove was destroyed by artillery.",
+            "quoteOrig": null,
+            "quoteVerified": true,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "Dubove pontoon crossing destroyed",
+            "claimDate": "2026-08-05",
+            "sourceDomain": "steadfast.example",
+            "sourceKey": null,
+            "reliability": 0.9,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": "2026-08-05T06:00:00Z"
+          },
+          {
+            "id": 72,
+            "docId": 172,
+            "textEn": "BREAKING the pontoon crossing near Dubove was totally destroyed, army in panic",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "Dubove pontoon crossing destroyed",
+            "claimDate": "2026-08-05",
+            "sourceDomain": "hypewire.example",
+            "sourceKey": null,
+            "reliability": 0.2,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": "2026-08-05T21:00:00Z"
+          }
+        ]
+      },
+      "reference": {
+        "expectTogether": [
+          [
+            71,
+            72
+          ]
+        ],
+        "expectGroupCount": 1,
+        "expectGroups": [
+          {
+            "memberId": 72,
+            "hedging": "confirmed",
+            "promoted": true,
+            "independentSources": 2,
+            "text": "Regional command reported that the pontoon crossing near Dubove was destroyed by artillery."
+          }
+        ]
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "red-adv-003-namesakes",
+      "workload": "reduce",
+      "partition": "adversarial",
+      "split": "heldout",
+      "provenance": "authored-2026-08-17",
+      "notes": "heldout namesake collision: two FICTIONAL people sharing a surname, different events — must not merge",
+      "input": {
+        "theater": "ru",
+        "track": "elite_politics",
+        "claims": [
+          {
+            "id": 81,
+            "docId": 181,
+            "textEn": "Deputy minister Anton Velichko was appointed to head the procurement commission.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [
+              {
+                "name": "Anton Velichko",
+                "kind": "person",
+                "role": "appointee"
+              }
+            ],
+            "eventHint": "Velichko procurement appointment",
+            "claimDate": "2026-08-01",
+            "sourceDomain": "a.example",
+            "sourceKey": null,
+            "reliability": null,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          },
+          {
+            "id": 82,
+            "docId": 182,
+            "textEn": "Businessman Igor Velichko was detained at the airport in a fraud case.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [
+              {
+                "name": "Igor Velichko",
+                "kind": "person",
+                "role": "defendant"
+              }
+            ],
+            "eventHint": "Velichko airport detention",
+            "claimDate": "2026-08-01",
+            "sourceDomain": "b.example",
+            "sourceKey": null,
+            "reliability": null,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          }
+        ]
+      },
+      "reference": {
+        "expectApart": [
+          [
+            81,
+            82
+          ]
+        ],
+        "expectGroupCount": 2
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "red-edge-001-unknown-domains",
+      "workload": "reduce",
+      "partition": "edge",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "unknown source domains can never PROVE independence: zero independence classes, no promotion",
+      "input": {
+        "theater": "ua",
+        "track": "military",
+        "claims": [
+          {
+            "id": 91,
+            "docId": 191,
+            "textEn": "Volunteers reported new fortification lines being dug east of the city.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "eastern fortification lines",
+            "claimDate": "2026-08-01",
+            "sourceDomain": null,
+            "sourceKey": null,
+            "reliability": null,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          },
+          {
+            "id": 92,
+            "docId": 192,
+            "textEn": "New fortification lines are being dug east of the city, volunteers report.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "eastern fortification lines",
+            "claimDate": "2026-08-01",
+            "sourceDomain": null,
+            "sourceKey": null,
+            "reliability": null,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          }
+        ]
+      },
+      "reference": {
+        "expectTogether": [
+          [
+            91,
+            92
+          ]
+        ],
+        "expectGroupCount": 1,
+        "expectGroups": [
+          {
+            "memberId": 91,
+            "hedging": "claimed",
+            "promoted": false,
+            "independentSources": 0
+          }
+        ]
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "red-edge-002-meta-claim",
+      "workload": "reduce",
+      "partition": "edge",
+      "split": "heldout",
+      "provenance": "authored-2026-08-17",
+      "notes": "heldout: the self-referential map artifact is dropped; the genuine world-state quiet-day claim survives",
+      "input": {
+        "theater": "ua",
+        "track": "military",
+        "claims": [
+          {
+            "id": 95,
+            "docId": 195,
+            "textEn": "No significant military claims found in this document.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": null,
+            "claimDate": "2026-08-01",
+            "sourceDomain": "a.example",
+            "sourceKey": null,
+            "reliability": null,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          },
+          {
+            "id": 96,
+            "docId": 196,
+            "textEn": "No significant developments occurred along the Kupyansk axis on Friday.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "Kupyansk axis quiet day",
+            "claimDate": "2026-08-01",
+            "sourceDomain": "b.example",
+            "sourceKey": null,
+            "reliability": null,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          }
+        ]
+      },
+      "reference": {
+        "expectMetaDropped": [
+          95
+        ],
+        "expectGroupCount": 1,
+        "expectGroups": [
+          {
+            "memberId": 96,
+            "hedging": "claimed"
+          }
+        ]
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "red-edge-003-version-dupe",
+      "workload": "reduce",
+      "partition": "edge",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "superseded-extractor-version duplicate rows simulated (same doc, same text twice): they collapse and corroboration is NOT inflated. The real version filter is SQL-side (map-versions.ts) and out of pure-fixture scope — see README",
+      "input": {
+        "theater": "ua",
+        "track": "military",
+        "claims": [
+          {
+            "id": 97,
+            "docId": 197,
+            "textEn": "Sappers finished clearing the access road to the pumping station.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "pumping station road cleared",
+            "claimDate": "2026-08-01",
+            "sourceDomain": "a.example",
+            "sourceKey": null,
+            "reliability": null,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          },
+          {
+            "id": 98,
+            "docId": 197,
+            "textEn": "Sappers finished clearing the access road to the pumping station.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "pumping station road cleared",
+            "claimDate": "2026-08-01",
+            "sourceDomain": "a.example",
+            "sourceKey": null,
+            "reliability": null,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          }
+        ]
+      },
+      "reference": {
+        "expectTogether": [
+          [
+            97,
+            98
+          ]
+        ],
+        "expectGroupCount": 1,
+        "expectGroups": [
+          {
+            "memberId": 97,
+            "independentSources": 1,
+            "promoted": false
+          }
+        ]
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "red-rec-001-recency-population",
+      "workload": "reduce",
+      "partition": "edge",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "hand-computed recency population: ages [3,6,24,72]h -> median 15, p90 72, within24 75%; lags [1,1.5,8]h",
+      "input": {
+        "theater": "ua",
+        "track": "military",
+        "claims": [
+          {
+            "id": 99,
+            "docId": 199,
+            "textEn": "Repair crews restored the water supply in the riverside district.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "riverside water supply restored",
+            "claimDate": "2026-08-10",
+            "sourceDomain": "a.example",
+            "sourceKey": null,
+            "reliability": null,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          }
+        ],
+        "recencyDocs": [
+          {
+            "docId": 501,
+            "publishedAt": "2026-08-10T06:00:00Z",
+            "fetchedAt": "2026-08-10T07:00:00Z"
+          },
+          {
+            "docId": 502,
+            "publishedAt": "2026-08-09T12:00:00Z",
+            "fetchedAt": "2026-08-09T13:30:00Z"
+          },
+          {
+            "docId": 503,
+            "publishedAt": "2026-08-07T12:00:00Z",
+            "fetchedAt": "2026-08-07T20:00:00Z"
+          },
+          {
+            "docId": 504,
+            "publishedAt": null,
+            "fetchedAt": "2026-08-10T09:00:00Z"
+          },
+          {
+            "docId": 505,
+            "publishedAt": null,
+            "fetchedAt": null
+          }
+        ],
+        "recencyAsOf": "2026-08-10T12:00:00Z"
+      },
+      "reference": {
+        "expectGroupCount": 1,
+        "expectRecency": {
+          "documentCount": 5,
+          "timestampedDocumentCount": 4,
+          "timestampCoveragePct": 80,
+          "medianEvidenceAgeHours": 15,
+          "p90EvidenceAgeHours": 72,
+          "evidenceWithin24hPct": 75,
+          "publishedTimestampUsed": 3,
+          "fetchedTimestampFallbackUsed": 1,
+          "missingTimestampCount": 1,
+          "futurePublishedTimestampCount": 0,
+          "medianIngestionLagHours": 1.5,
+          "p90IngestionLagHours": 8,
+          "invalidIngestionLagCount": 0
+        }
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "red-rec-002-timestamp-adversarial",
+      "workload": "reduce",
+      "partition": "adversarial",
+      "split": "heldout",
+      "provenance": "authored-2026-08-17",
+      "notes": "heldout timestamp adversary: old article re-fetched (huge lag), negative lag, future publish, timezone-less value treated as missing — all hand-computed",
+      "input": {
+        "theater": "ua",
+        "track": "military",
+        "claims": [
+          {
+            "id": 100,
+            "docId": 200,
+            "textEn": "The ferry schedule returned to normal after the storm closure.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "ferry schedule normal",
+            "claimDate": "2026-08-10",
+            "sourceDomain": "a.example",
+            "sourceKey": null,
+            "reliability": null,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          }
+        ],
+        "recencyDocs": [
+          {
+            "docId": 511,
+            "publishedAt": "2026-07-01T00:00:00Z",
+            "fetchedAt": "2026-08-10T10:00:00Z"
+          },
+          {
+            "docId": 512,
+            "publishedAt": "2026-08-10T08:00:00Z",
+            "fetchedAt": "2026-08-10T07:00:00Z"
+          },
+          {
+            "docId": 513,
+            "publishedAt": "2026-08-11T00:00:00Z",
+            "fetchedAt": "2026-08-10T11:00:00Z"
+          },
+          {
+            "docId": 514,
+            "publishedAt": "2026-08-10T06:00:00",
+            "fetchedAt": null
+          }
+        ],
+        "recencyAsOf": "2026-08-10T12:00:00Z"
+      },
+      "reference": {
+        "expectGroupCount": 1,
+        "expectRecency": {
+          "documentCount": 4,
+          "timestampedDocumentCount": 3,
+          "timestampCoveragePct": 75,
+          "medianEvidenceAgeHours": 4,
+          "p90EvidenceAgeHours": 972,
+          "evidenceWithin24hPct": 66.67,
+          "publishedTimestampUsed": 2,
+          "fetchedTimestampFallbackUsed": 1,
+          "missingTimestampCount": 1,
+          "futurePublishedTimestampCount": 1,
+          "medianIngestionLagHours": 970,
+          "p90IngestionLagHours": 970,
+          "invalidIngestionLagCount": 2
+        }
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    }
+  ]
+}

@@ -1,0 +1,988 @@
+{
+  "datasetVersion": "validation-v1",
+  "workload": "validation",
+  "createdAt": "2026-08-17T00:00:00Z",
+  "cases": [
+    {
+      "id": "val-typ-001-agreement",
+      "workload": "validation",
+      "partition": "typical",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "clean agreement on both paths; timeliness 23:30-06:00 = 17.5h; evidence fetched before publish",
+      "input": {
+        "takeaways": [
+          {
+            "index": 0,
+            "text": "Assault units made confirmed advances near Pokrovsk on the western approaches."
+          }
+        ],
+        "claims": [
+          {
+            "claimId": 1001,
+            "text": "Ukrainian defenders reported assault attacks near Pokrovsk as enemy units advanced on the western approaches.",
+            "hedging": "claimed",
+            "docCount": 2,
+            "earliestDocAt": "2026-08-05T06:00:00Z",
+            "earliestFetchedAt": "2026-08-05T07:00:00Z"
+          }
+        ],
+        "iswPublishedAt": "2026-08-05T23:30:00Z",
+        "llmMatches": [
+          {
+            "takeawayIndex": 0,
+            "claimId": 1001,
+            "confidence": 0.9
+          }
+        ]
+      },
+      "reference": {
+        "labels": [
+          {
+            "takeawayIndex": 0,
+            "claimId": 1001
+          }
+        ],
+        "expectKeyword": {
+          "coveragePct": 100,
+          "matchedPairs": 1,
+          "thinSourcedRate": 0,
+          "timelinessHours": 17.5
+        },
+        "expectAtPublish": {
+          "coveragePct": 100,
+          "matchedBefore": 1,
+          "matchedTotal": 1
+        }
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "val-typ-002-isw-only",
+      "workload": "validation",
+      "partition": "typical",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "isw_only divergence: the takeaway has no genuine counterpart; the lone claim is thin-sourced (docCount 1, claimed)",
+      "input": {
+        "takeaways": [
+          {
+            "index": 0,
+            "text": "Strikes hit port infrastructure in Kherson overnight."
+          }
+        ],
+        "claims": [
+          {
+            "claimId": 1011,
+            "text": "Recruitment offices reported a rise in volunteer sign-ups this week.",
+            "hedging": "claimed",
+            "docCount": 1,
+            "earliestDocAt": null,
+            "earliestFetchedAt": null
+          }
+        ],
+        "iswPublishedAt": "2026-08-06T00:00:00Z",
+        "llmMatches": [
+          {
+            "takeawayIndex": 0,
+            "claimId": null,
+            "confidence": 0
+          }
+        ]
+      },
+      "reference": {
+        "labels": [
+          {
+            "takeawayIndex": 0,
+            "claimId": null
+          }
+        ],
+        "expectKeyword": {
+          "coveragePct": 0,
+          "matchedPairs": 0,
+          "thinSourcedRate": 1,
+          "timelinessHours": null
+        },
+        "expectAtPublish": {
+          "coveragePct": 0,
+          "matchedBefore": 0,
+          "matchedTotal": 0
+        }
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "val-typ-003-ours-only",
+      "workload": "validation",
+      "partition": "typical",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "ours_only divergence: our Belgorod claim has no takeaway counterpart and must carry its hedging into the record",
+      "input": {
+        "takeaways": [
+          {
+            "index": 0,
+            "text": "No notable activity reported around Sumy."
+          }
+        ],
+        "claims": [
+          {
+            "claimId": 1021,
+            "text": "A drone strike damaged an electrical substation in Belgorod region.",
+            "hedging": "claimed",
+            "docCount": 1,
+            "earliestDocAt": null,
+            "earliestFetchedAt": null
+          }
+        ],
+        "iswPublishedAt": null,
+        "llmMatches": [
+          {
+            "takeawayIndex": 0,
+            "claimId": null,
+            "confidence": 0
+          }
+        ]
+      },
+      "reference": {
+        "labels": [
+          {
+            "takeawayIndex": 0,
+            "claimId": null
+          }
+        ],
+        "expectKeyword": {
+          "coveragePct": 0,
+          "matchedPairs": 0,
+          "thinSourcedRate": 1
+        }
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "val-typ-004-mixed",
+      "workload": "validation",
+      "partition": "typical",
+      "split": "heldout",
+      "provenance": "authored-2026-08-17",
+      "notes": "heldout mixed day: hand-computed coverage 2/3, timeliness median of [8,13]h = 13, thin 1/3, at-publish 1 of 2 agreements fetched before the publish instant",
+      "input": {
+        "takeaways": [
+          {
+            "index": 0,
+            "text": "Air defenses intercepted drones over Kursk region overnight."
+          },
+          {
+            "index": 1,
+            "text": "Fighting intensified near Toretsk with assault attacks continuing."
+          },
+          {
+            "index": 2,
+            "text": "Negotiations stalled over ceasefire terms."
+          }
+        ],
+        "claims": [
+          {
+            "claimId": 1031,
+            "text": "Air defense units intercepted a drone group over Kursk region, officials said.",
+            "hedging": "claimed",
+            "docCount": 2,
+            "earliestDocAt": "2026-08-05T10:00:00Z",
+            "earliestFetchedAt": "2026-08-05T10:30:00Z"
+          },
+          {
+            "claimId": 1032,
+            "text": "Assault attacks near Toretsk continued through the day, per the evening report.",
+            "hedging": "claimed",
+            "docCount": 1,
+            "earliestDocAt": "2026-08-05T15:00:00Z",
+            "earliestFetchedAt": "2026-08-06T02:00:00Z"
+          },
+          {
+            "claimId": 1033,
+            "text": "The port reopened for grain shipments after storm damage.",
+            "hedging": "confirmed",
+            "docCount": 1,
+            "earliestDocAt": null,
+            "earliestFetchedAt": null
+          }
+        ],
+        "iswPublishedAt": "2026-08-05T23:00:00Z",
+        "llmMatches": [
+          {
+            "takeawayIndex": 0,
+            "claimId": 1031,
+            "confidence": 0.9
+          },
+          {
+            "takeawayIndex": 1,
+            "claimId": 1032,
+            "confidence": 0.85
+          },
+          {
+            "takeawayIndex": 2,
+            "claimId": null,
+            "confidence": 0
+          }
+        ]
+      },
+      "reference": {
+        "labels": [
+          {
+            "takeawayIndex": 0,
+            "claimId": 1031
+          },
+          {
+            "takeawayIndex": 1,
+            "claimId": 1032
+          },
+          {
+            "takeawayIndex": 2,
+            "claimId": null
+          }
+        ],
+        "expectKeyword": {
+          "coveragePct": 66.7,
+          "matchedPairs": 2,
+          "thinSourcedRate": 0.3333,
+          "timelinessHours": 13
+        },
+        "expectAtPublish": {
+          "coveragePct": 33.3,
+          "matchedBefore": 1,
+          "matchedTotal": 2
+        }
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "val-edge-001-same-place-diff-action",
+      "workload": "validation",
+      "partition": "edge",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "false-agreement exposure: the keyword path matches on the shared toponym alone (score 0.625 >= 0.6) — recorded as a keyword false positive against the label, NOT excused; the match-set path correctly returns null",
+      "input": {
+        "takeaways": [
+          {
+            "index": 0,
+            "text": "Air defenses intercepted drones over Kursk region."
+          }
+        ],
+        "claims": [
+          {
+            "claimId": 1041,
+            "text": "Assault units advanced near Kursk, a military channel claimed.",
+            "hedging": "claimed",
+            "docCount": 1,
+            "earliestDocAt": null,
+            "earliestFetchedAt": null
+          }
+        ],
+        "iswPublishedAt": null,
+        "llmMatches": [
+          {
+            "takeawayIndex": 0,
+            "claimId": null,
+            "confidence": 0
+          }
+        ]
+      },
+      "reference": {
+        "labels": [
+          {
+            "takeawayIndex": 0,
+            "claimId": null
+          }
+        ],
+        "expectKeyword": {
+          "coveragePct": 100,
+          "matchedPairs": 1
+        }
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "val-edge-002-multilingual-paraphrase",
+      "workload": "validation",
+      "partition": "edge",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "translation/paraphrase: the trilingual gazetteer catches the Russian-language Pokrovsk claim; the off-gazetteer village (FICTIONAL Zaturyne) is a keyword miss that the match-set path recovers",
+      "input": {
+        "takeaways": [
+          {
+            "index": 0,
+            "text": "Assault attacks continued near Pokrovsk."
+          },
+          {
+            "index": 1,
+            "text": "Assault clashes reported around the village of Zaturyne."
+          }
+        ],
+        "claims": [
+          {
+            "claimId": 1051,
+            "text": "Подразделения продолжили штурмовые действия у Покровска, сообщает штаб.",
+            "hedging": "claimed",
+            "docCount": 2,
+            "earliestDocAt": null,
+            "earliestFetchedAt": null
+          },
+          {
+            "claimId": 1052,
+            "text": "Fighting near Zaturyne village continued, per local reports.",
+            "hedging": "claimed",
+            "docCount": 1,
+            "earliestDocAt": null,
+            "earliestFetchedAt": null
+          }
+        ],
+        "iswPublishedAt": null,
+        "llmMatches": [
+          {
+            "takeawayIndex": 0,
+            "claimId": 1051,
+            "confidence": 0.9
+          },
+          {
+            "takeawayIndex": 1,
+            "claimId": 1052,
+            "confidence": 0.8
+          }
+        ]
+      },
+      "reference": {
+        "labels": [
+          {
+            "takeawayIndex": 0,
+            "claimId": 1051
+          },
+          {
+            "takeawayIndex": 1,
+            "claimId": 1052
+          }
+        ],
+        "expectKeyword": {
+          "matchedPairs": 1
+        }
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "val-edge-003-negation",
+      "workload": "validation",
+      "partition": "edge",
+      "split": "heldout",
+      "provenance": "authored-2026-08-17",
+      "notes": "heldout negation case: an absence-of-advances takeaway must NOT match a claim asserting advances — the keyword path's false positive is recorded; the match-set path mirrors the production matcher rule",
+      "input": {
+        "takeaways": [
+          {
+            "index": 0,
+            "text": "No confirmed advances occurred around Toretsk."
+          }
+        ],
+        "claims": [
+          {
+            "claimId": 1061,
+            "text": "Assault units advanced south of Toretsk, a milblogger claimed.",
+            "hedging": "claimed",
+            "docCount": 1,
+            "earliestDocAt": null,
+            "earliestFetchedAt": null
+          }
+        ],
+        "iswPublishedAt": null,
+        "llmMatches": [
+          {
+            "takeawayIndex": 0,
+            "claimId": null,
+            "confidence": 0
+          }
+        ]
+      },
+      "reference": {
+        "labels": [
+          {
+            "takeawayIndex": 0,
+            "claimId": null
+          }
+        ],
+        "expectKeyword": {
+          "coveragePct": 100,
+          "matchedPairs": 1
+        }
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "val-edge-004-theater",
+      "workload": "validation",
+      "partition": "edge",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "theater routing probes: ru-side toponyms stay ru, ua-side stay ua, 'both' toponyms and mixed/empty signals go to both — cross-theater content must not be scored against the wrong lens",
+      "input": {
+        "takeaways": [
+          {
+            "index": 0,
+            "text": "Ceasefire negotiations continued."
+          }
+        ],
+        "claims": [],
+        "iswPublishedAt": null,
+        "theaterProbes": [
+          {
+            "toponyms": [
+              "belgorod"
+            ],
+            "expect": "ru"
+          },
+          {
+            "toponyms": [
+              "pokrovsk"
+            ],
+            "expect": "ua"
+          },
+          {
+            "toponyms": [
+              "crimea"
+            ],
+            "expect": "both"
+          },
+          {
+            "toponyms": [
+              "belgorod",
+              "pokrovsk"
+            ],
+            "expect": "both"
+          },
+          {
+            "toponyms": [],
+            "expect": "both"
+          },
+          {
+            "toponyms": [
+              "north_korea"
+            ],
+            "expect": "both"
+          }
+        ]
+      },
+      "reference": {
+        "labels": [
+          {
+            "takeawayIndex": 0,
+            "claimId": null
+          }
+        ],
+        "expectKeyword": {
+          "coveragePct": 0,
+          "matchedPairs": 0
+        }
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "val-typ-005-majority",
+      "workload": "validation",
+      "partition": "typical",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "majority voting over 5 fixture rounds: 3-of-5 agreement matches; a 2-2-1 split resolves to no-match (the #15 nondeterminism compensation)",
+      "input": {
+        "takeaways": [
+          {
+            "index": 0,
+            "text": "Strikes damaged rail infrastructure near Kupyansk."
+          },
+          {
+            "index": 1,
+            "text": "Air defense activity increased over Belgorod region."
+          }
+        ],
+        "claims": [
+          {
+            "claimId": 1071,
+            "text": "A missile strike damaged rail infrastructure near Kupyansk, officials said.",
+            "hedging": "claimed",
+            "docCount": 2,
+            "earliestDocAt": null,
+            "earliestFetchedAt": null
+          },
+          {
+            "claimId": 1072,
+            "text": "Air defense units were active over Belgorod region, channels claimed.",
+            "hedging": "claimed",
+            "docCount": 1,
+            "earliestDocAt": null,
+            "earliestFetchedAt": null
+          }
+        ],
+        "iswPublishedAt": null,
+        "voteRounds": [
+          [
+            {
+              "takeawayIndex": 0,
+              "claimId": 1071,
+              "confidence": 0.9
+            },
+            {
+              "takeawayIndex": 1,
+              "claimId": 1071,
+              "confidence": 0.8
+            }
+          ],
+          [
+            {
+              "takeawayIndex": 0,
+              "claimId": 1071,
+              "confidence": 0.85
+            },
+            {
+              "takeawayIndex": 1,
+              "claimId": 1071,
+              "confidence": 0.8
+            }
+          ],
+          [
+            {
+              "takeawayIndex": 0,
+              "claimId": 1071,
+              "confidence": 0.9
+            },
+            {
+              "takeawayIndex": 1,
+              "claimId": 1072,
+              "confidence": 0.7
+            }
+          ],
+          [
+            {
+              "takeawayIndex": 0,
+              "claimId": null,
+              "confidence": 0
+            },
+            {
+              "takeawayIndex": 1,
+              "claimId": 1072,
+              "confidence": 0.7
+            }
+          ],
+          [
+            {
+              "takeawayIndex": 0,
+              "claimId": 1072,
+              "confidence": 0.65
+            },
+            {
+              "takeawayIndex": 1,
+              "claimId": null,
+              "confidence": 0
+            }
+          ]
+        ]
+      },
+      "reference": {
+        "labels": [
+          {
+            "takeawayIndex": 0,
+            "claimId": 1071
+          },
+          {
+            "takeawayIndex": 1,
+            "claimId": null
+          }
+        ],
+        "expectMajority": [
+          {
+            "takeawayIndex": 0,
+            "final": 1071
+          },
+          {
+            "takeawayIndex": 1,
+            "final": null
+          }
+        ]
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "val-edge-005-majority-k4",
+      "workload": "validation",
+      "partition": "edge",
+      "split": "heldout",
+      "provenance": "authored-2026-08-17",
+      "notes": "heldout k=4 majority: threshold floor(4/2)+1 = 3; 3-of-4 matches, a 1-1-2(null) scatter resolves to null",
+      "input": {
+        "takeaways": [
+          {
+            "index": 0,
+            "text": "Shelling struck the border districts of Kursk region."
+          },
+          {
+            "index": 1,
+            "text": "Mobilization measures expanded in the region."
+          }
+        ],
+        "claims": [
+          {
+            "claimId": 1081,
+            "text": "Shelling hit border districts of Kursk region, the governor claimed.",
+            "hedging": "claimed",
+            "docCount": 1,
+            "earliestDocAt": null,
+            "earliestFetchedAt": null
+          },
+          {
+            "claimId": 1082,
+            "text": "New mobilization measures were announced, per state media.",
+            "hedging": "claimed",
+            "docCount": 1,
+            "earliestDocAt": null,
+            "earliestFetchedAt": null
+          }
+        ],
+        "iswPublishedAt": null,
+        "voteRounds": [
+          [
+            {
+              "takeawayIndex": 0,
+              "claimId": 1081,
+              "confidence": 0.9
+            },
+            {
+              "takeawayIndex": 1,
+              "claimId": 1081,
+              "confidence": 0.6
+            }
+          ],
+          [
+            {
+              "takeawayIndex": 0,
+              "claimId": 1081,
+              "confidence": 0.85
+            },
+            {
+              "takeawayIndex": 1,
+              "claimId": 1082,
+              "confidence": 0.7
+            }
+          ],
+          [
+            {
+              "takeawayIndex": 0,
+              "claimId": 1081,
+              "confidence": 0.8
+            },
+            {
+              "takeawayIndex": 1,
+              "claimId": null,
+              "confidence": 0
+            }
+          ],
+          [
+            {
+              "takeawayIndex": 0,
+              "claimId": null,
+              "confidence": 0
+            },
+            {
+              "takeawayIndex": 1,
+              "claimId": null,
+              "confidence": 0
+            }
+          ]
+        ]
+      },
+      "reference": {
+        "labels": [
+          {
+            "takeawayIndex": 0,
+            "claimId": 1081
+          },
+          {
+            "takeawayIndex": 1,
+            "claimId": null
+          }
+        ],
+        "expectMajority": [
+          {
+            "takeawayIndex": 0,
+            "final": 1081
+          },
+          {
+            "takeawayIndex": 1,
+            "final": null
+          }
+        ]
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "val-edge-006-atpublish-unknown-ts",
+      "workload": "validation",
+      "partition": "edge",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "at-publish conservatism: an agreement with an UNKNOWN evidence timestamp never counts as in-hand — 1 of 2 agreements, denominator 2, 50%",
+      "input": {
+        "takeaways": [
+          {
+            "index": 0,
+            "text": "Strikes hit fuel depots in Rostov region."
+          },
+          {
+            "index": 1,
+            "text": "Advances continued near Lyman."
+          }
+        ],
+        "claims": [
+          {
+            "claimId": 1091,
+            "text": "A strike hit a fuel depot in Rostov region, channels claimed.",
+            "hedging": "claimed",
+            "docCount": 2,
+            "earliestDocAt": null,
+            "earliestFetchedAt": "2026-08-05T12:00:00Z"
+          },
+          {
+            "claimId": 1092,
+            "text": "Units advanced near Lyman, the evening report said.",
+            "hedging": "claimed",
+            "docCount": 2,
+            "earliestDocAt": null,
+            "earliestFetchedAt": null
+          }
+        ],
+        "iswPublishedAt": "2026-08-05T23:00:00Z",
+        "llmMatches": [
+          {
+            "takeawayIndex": 0,
+            "claimId": 1091,
+            "confidence": 0.9
+          },
+          {
+            "takeawayIndex": 1,
+            "claimId": 1092,
+            "confidence": 0.9
+          }
+        ]
+      },
+      "reference": {
+        "labels": [
+          {
+            "takeawayIndex": 0,
+            "claimId": 1091
+          },
+          {
+            "takeawayIndex": 1,
+            "claimId": 1092
+          }
+        ],
+        "expectAtPublish": {
+          "coveragePct": 50,
+          "matchedBefore": 1,
+          "matchedTotal": 2
+        }
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "val-edge-007-null-publish",
+      "workload": "validation",
+      "partition": "edge",
+      "split": "heldout",
+      "provenance": "authored-2026-08-17",
+      "notes": "heldout: unknown publish instant — timeliness and at-publish are UNDEFINED (null), never fabricated",
+      "input": {
+        "takeaways": [
+          {
+            "index": 0,
+            "text": "Drone strikes hit logistics sites around Bryansk."
+          }
+        ],
+        "claims": [
+          {
+            "claimId": 1095,
+            "text": "Drone strikes hit logistics sites around Bryansk overnight, channels claimed.",
+            "hedging": "claimed",
+            "docCount": 2,
+            "earliestDocAt": "2026-08-05T04:00:00Z",
+            "earliestFetchedAt": "2026-08-05T05:00:00Z"
+          }
+        ],
+        "iswPublishedAt": null,
+        "llmMatches": [
+          {
+            "takeawayIndex": 0,
+            "claimId": 1095,
+            "confidence": 0.9
+          }
+        ]
+      },
+      "reference": {
+        "labels": [
+          {
+            "takeawayIndex": 0,
+            "claimId": 1095
+          }
+        ],
+        "expectKeyword": {
+          "timelinessHours": null
+        },
+        "expectAtPublish": null
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "val-adv-001-fake-claimid",
+      "workload": "validation",
+      "partition": "adversarial",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "fail-closed identity: a match citing a claimId outside the provided list resolves to NO match (isw_only), exactly like the production sanitization",
+      "input": {
+        "takeaways": [
+          {
+            "index": 0,
+            "text": "Strikes reported near Dnipro."
+          }
+        ],
+        "claims": [
+          {
+            "claimId": 1101,
+            "text": "Weather remained hot across the region.",
+            "hedging": "confirmed",
+            "docCount": 1,
+            "earliestDocAt": null,
+            "earliestFetchedAt": null
+          }
+        ],
+        "iswPublishedAt": "2026-08-05T23:00:00Z",
+        "llmMatches": [
+          {
+            "takeawayIndex": 0,
+            "claimId": 999999,
+            "confidence": 0.95
+          }
+        ]
+      },
+      "reference": {
+        "labels": [
+          {
+            "takeawayIndex": 0,
+            "claimId": null
+          }
+        ],
+        "expectAtPublish": {
+          "coveragePct": 0,
+          "matchedBefore": 0,
+          "matchedTotal": 0
+        }
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "val-adv-002-thin-and-hedge",
+      "workload": "validation",
+      "partition": "adversarial",
+      "split": "heldout",
+      "provenance": "authored-2026-08-17",
+      "notes": "heldout thin-sourced arithmetic: thin = docCount<2 AND claimed/unverified — 2 of 4 (confirmed single-doc and multi-doc claimed are NOT thin)",
+      "input": {
+        "takeaways": [
+          {
+            "index": 0,
+            "text": "Shelling struck Kherson districts."
+          }
+        ],
+        "claims": [
+          {
+            "claimId": 1111,
+            "text": "The regional council claimed budget reserves doubled this quarter.",
+            "hedging": "claimed",
+            "docCount": 1,
+            "earliestDocAt": null,
+            "earliestFetchedAt": null
+          },
+          {
+            "claimId": 1112,
+            "text": "An unverified list of new checkpoints circulated on messaging channels.",
+            "hedging": "unverified",
+            "docCount": 1,
+            "earliestDocAt": null,
+            "earliestFetchedAt": null
+          },
+          {
+            "claimId": 1113,
+            "text": "The bridge reopened to traffic after repairs.",
+            "hedging": "confirmed",
+            "docCount": 1,
+            "earliestDocAt": null,
+            "earliestFetchedAt": null
+          },
+          {
+            "claimId": 1114,
+            "text": "Fuel prices rose in three districts, distributors claimed.",
+            "hedging": "claimed",
+            "docCount": 3,
+            "earliestDocAt": null,
+            "earliestFetchedAt": null
+          }
+        ],
+        "iswPublishedAt": null,
+        "llmMatches": [
+          {
+            "takeawayIndex": 0,
+            "claimId": null,
+            "confidence": 0
+          }
+        ]
+      },
+      "reference": {
+        "labels": [
+          {
+            "takeawayIndex": 0,
+            "claimId": null
+          }
+        ],
+        "expectKeyword": {
+          "coveragePct": 0,
+          "matchedPairs": 0,
+          "thinSourcedRate": 0.5
+        }
+      },
+      "offline": {
+        "expectation": "pass"
+      }
+    }
+  ]
+}
