@@ -4,6 +4,9 @@ Strategy doc (2026-07-06). Answers three questions: where we sit vs commercial
 vendors, what different buyers actually pay for (and how to raise analytical value),
 and the mirror-trade opportunity. Companion to RUSSIA-DATA-ROADMAP.md.
 
+> **Last reconciled: 2026-08-17.** Landscape refresh below (§1.1). Review cadence:
+> refresh §1/§1.1 quarterly or on any named-vendor corporate event, whichever first.
+
 ## 1. Competitive landscape — who sells what, our gaps, our edge
 
 Segments (they rarely overlap; nobody does all of it):
@@ -18,6 +21,29 @@ Segments (they rarely overlap; nobody does all of it):
 | **Dataminr** | real-time event detection from social/news, AI ([overview](https://regionalert.com/blog/best-security-intelligence-platforms-2026.html)) | $20k–$100k+/yr | speed, breadth, alerting | black-box relevance; no reliability ratings; no analytical synthesis |
 | **Recorded Future** | cyber threat intel, dark web | $$$$ | cyber depth | not geopolitical/conflict analysis |
 | **ISW / think tanks** | free daily expert assessment | free | authority, method | not a data product; not queryable; one theater cadence; no API |
+
+### 1.1 Landscape refresh (2026-08-17) — corporate events since the July table
+
+- **Recorded Future / Mastercard**: acquisition **closed Dec 2024** ($2.65B); Mastercard
+  launched a payments-fraud "Threat Intelligence" product on it (Oct 2025). Still the
+  ceiling reference; now also proof that strategic acquirers integrate rather than expand
+  into geopolitical OSINT — the conflict-intelligence lane stays open.
+- **Windward**: **taken private by FTV Capital, ~$271M (completed Mar 2025)**. PE
+  ownership typically means price discipline + roll-up appetite on the maritime side.
+- **Kpler**: acquired **Spire Maritime (Apr 2025)**, agreed to acquire **Bridgeton
+  (Dec 2025)**, on a **~$1B Sixth Street investment** — consolidating vessel-tracking +
+  commodity intelligence aggressively. Wholesale-AIS conversations now go through a much
+  bigger Kpler; the partner-first rule (no speculative AIS buy) stands.
+- **Dataminr**: raised **$85M (NightDragon/HSBC, early 2025)**; independent, still the
+  alerting benchmark (G3).
+- **Kharon**: US Treasury data/tech selection (2024) plus RegTech-2026 recognition —
+  continuing to consolidate as the compliance-grade standard our ownership-graph gap
+  (§1) is measured against.
+- **Sayari**: TPG growth investment (2024, $235M) continues to fund registry-graph depth.
+- Net read: 2025–26 consolidation validates the category and *narrows* who remains
+  independent in maritime; nobody moved onto our wedge (provenance + published accuracy +
+  cross-layer fusion at desk speed). The §1 gap table's price bands remain directionally
+  correct as of this refresh.
 
 **What everyone is missing that we have:**
 1. **Transparent, data-derived source-reliability ratings** — nobody exposes *how much
@@ -117,17 +143,19 @@ Effort: M (Comtrade adapter + monthly cron + divergence calc + page). Caveats to
 mirror data lags ~2–3 months; only ~30% of country-pairs mirror cleanly ([S&P/UNCTAD](https://www.spglobal.com/market-intelligence/en/news-insights/research/navigating-sanctions-evasion-trade-analysis-of-high-priority-goods-exports-to-russia)); needs
 importer-reliability weighting. Present as trend/estimate with confidence, per our norms.
 
-## 4. Recommended next builds (from this analysis)
+## 4. Recommended next builds (statuses 2026-08-17)
 
-1. **Mirror-trade / evasion watch** (M) — UN Comtrade adapter + divergence page. Unique,
-   buildable now (API reachable), serves commodity + compliance. Pairs with data-dark.
-2. **Buyer-profile re-weighting** (S) — config-driven emphasis (frontline/sanctioning/
-   non-aligned) over the existing claim set. Turns one feed into three products.
-3. **Thin analyst layer** (S–M) — daily "what changed & what it means" per track, all
-   sourced; scenario/anomaly flags over the entity graph.
-4. **Ownership-graph deepening** (M) — UK Companies House + OpenCorporates onto entities,
-   narrowing the Kharon/Sayari gap cheaply.
-5. **Maritime/AIS** (L, paid) — shadow-fleet + Hormuz; highest commodity/insurer value but
-   needs a paid AIS feed. Evaluate vs buying Kpler data wholesale.
+1. ~~**Mirror-trade / evasion watch**~~ ✅ SHIPPED — `/trade` live: 2,785 Comtrade rows,
+   28 dual-use rerouting flags, trade-divergence signal firing. Monthly-frequency upgrade
+   is a Comtrade premium purchase ($2k/$12k per year — GTM-STRATEGY §7).
+2. **Buyer-profile re-weighting** (S) — still open (build prompt exists:
+   `docs/prompts/BUILD-buyer-profiles.md`). Turns one feed into three products.
+3. **Thin analyst layer** (S–M) — partially shipped: `/signals` detectors live (purge
+   cluster, data-dark series, trade divergence) with gated detail; the per-track daily
+   "what changed & what it means" assessment layer remains open.
+4. **Ownership-graph deepening** (M) — blocked on keys: Companies House pending,
+   OpenCorporates unevaluated; adapter wired, stub-only (BLOCKERS 2026-07-06).
+5. **Maritime/AIS** (L, paid) — unchanged; partner/pilot-gated (see §1.1 consolidation —
+   wholesale now means Kpler/FTV-owned counterparties).
 
 ## 5. Iran & Gulf depth — see docs/IRAN-GULF-DEPTH.md

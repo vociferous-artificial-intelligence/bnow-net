@@ -20,4 +20,5 @@ coverage/
 
 # Isolated workstream checkouts (git worktrees for sandboxed agent work)
 .workstream/
+.worktrees/
 data/*.json
