@@ -165,8 +165,28 @@ describe("evidenceRecencySummary", () => {
       "2026-08-10T12:00:00Z",
     );
     expect(s.medianEvidenceAgeHours).toBe(15);
-    expect(s.p90EvidenceAgeHours).toBe(72);
+    // canonical linear-interpolation percentile (src/lib/analysis/evidence-recency.ts):
+    // ages [3,6,24,72], rank 0.9*(4-1)=2.7 -> 24 + 0.7*(72-24) = 57.6
+    expect(s.p90EvidenceAgeHours).toBe(57.6);
     expect(s.evidenceWithin24hPct).toBe(75);
+  });
+
+  it("applies the canonical clock-skew tolerance (within-skew future clamps, not an anomaly)", () => {
+    const s = evidenceRecencySummary(
+      [
+        // published 2 minutes past asOf — inside EVIDENCE_CLOCK_SKEW_MS: age
+        // clamps to 0 and it is NOT counted futurePublished
+        { docId: 1, publishedAt: "2026-08-10T12:02:00Z", fetchedAt: null },
+        // fetched 2 minutes before published — within-skew negative lag clamps
+        // to 0 and counts as a valid lag, not invalid
+        { docId: 2, publishedAt: "2026-08-10T08:00:00Z", fetchedAt: "2026-08-10T07:58:00Z" },
+      ],
+      "2026-08-10T12:00:00Z",
+    );
+    expect(s.futurePublishedTimestampCount).toBe(0);
+    expect(s.publishedTimestampUsed).toBe(2);
+    expect(s.invalidIngestionLagCount).toBe(0);
+    expect(s.medianIngestionLagHours).toBe(0);
   });
 
   it("refuses a timezone-less asOf outright", () => {

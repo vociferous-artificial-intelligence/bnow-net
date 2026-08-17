@@ -2,7 +2,7 @@
   "workload": "reduce",
   "configKey": "offline-fixtures",
   "datasetVersion": "reduce-v1",
-  "datasetContentHash": "e8f3f6a5d1654d82ce4f51750bea82f922b018848e059cc4b63c16b14abd9ad4",
+  "datasetContentHash": "c0f0957707b7ba82e464e72aa8003f3dbb250d657680420fbbacd346e4fb80d0",
   "identity": {
     "provider": "stub",
     "model": "offline-fixtures",
@@ -20,7 +20,7 @@
     "mapOutTokensPerDoc": 200,
     "mapContentChars": 1500
   },
-  "updatedAt": "2026-08-17T09:30:40.076Z",
+  "updatedAt": "2026-08-17T13:03:25.699Z",
   "meter": {
     "attempts": 0,
     "reservations": 0,
@@ -376,8 +376,8 @@
       "graderJudgments": null,
       "rawOutputDigest": "c4147a66c1eda611578c987e9c0f2d22ddd5a06e4132154fcb5ff17fdee9512f"
     },
-    "red-rec-001-recency-population#r0": {
-      "caseId": "red-rec-001-recency-population",
+    "red-rec-001-recency-population-canon#r0": {
+      "caseId": "red-rec-001-recency-population-canon",
       "datasetVersion": "reduce-v1",
       "runId": "offline-reduce-v1",
       "configKey": "offline-fixtures",
@@ -404,14 +404,14 @@
           "timestampedDocumentCount": 4,
           "timestampCoveragePct": 80,
           "medianEvidenceAgeHours": 15,
-          "p90EvidenceAgeHours": 72,
+          "p90EvidenceAgeHours": 57.6,
           "evidenceWithin24hPct": 75,
           "publishedTimestampUsed": 3,
           "fetchedTimestampFallbackUsed": 1,
           "missingTimestampCount": 1,
           "futurePublishedTimestampCount": 0,
           "medianIngestionLagHours": 1.5,
-          "p90IngestionLagHours": 8,
+          "p90IngestionLagHours": 6.7,
           "invalidIngestionLagCount": 0
         },
         "recencyMismatches": []
@@ -420,8 +420,8 @@
       "graderJudgments": null,
       "rawOutputDigest": "35a2a3b1feedc6a6757fd4b0750a85a74999a41b15c8a0f547af274a6e1930c9"
     },
-    "red-rec-002-timestamp-adversarial#r0": {
-      "caseId": "red-rec-002-timestamp-adversarial",
+    "red-rec-002-timestamp-adversarial-canon#r0": {
+      "caseId": "red-rec-002-timestamp-adversarial-canon",
       "datasetVersion": "reduce-v1",
       "runId": "offline-reduce-v1",
       "configKey": "offline-fixtures",
@@ -448,7 +448,7 @@
           "timestampedDocumentCount": 3,
           "timestampCoveragePct": 75,
           "medianEvidenceAgeHours": 4,
-          "p90EvidenceAgeHours": 972,
+          "p90EvidenceAgeHours": 778.4,
           "evidenceWithin24hPct": 66.67,
           "publishedTimestampUsed": 2,
           "fetchedTimestampFallbackUsed": 1,
