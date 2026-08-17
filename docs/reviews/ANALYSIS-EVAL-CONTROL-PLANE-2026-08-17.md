@@ -424,3 +424,49 @@ commit series / final report) · $0 CLI smokes: --validate-dataset (18/14/10/
 rows, the NEW --dev insufficient_data smoke, and the --execute-live
 no-guards refusal. The committed offline baseline artifacts were regenerated
 in the new header shape. Zero paid calls throughout.
+
+### Re-review converged minors, applied verbatim (final pass on `0c42880`)
+
+Both focused re-reviews returned PASS-WITH-MINORS with all three MAJORs
+confirmed genuinely closed, converging on two residual minors plus notes.
+These refinements were likewise applied while no candidate result exists.
+
+- **Minor 1 (report-time dataset staleness) — FIXED.** `modeReport` now
+  hashes the dataset file AS IT EXISTS NOW and passes it into
+  `buildWorkloadScorecard`; a results file whose recorded
+  `datasetContentHash` differs has its verdict degraded to
+  `insufficient_data` with the explicit "dataset changed since this run"
+  reason in BOTH artifacts (md + json), deltas dropped, and the
+  proposed-registry-entry suppressed. Unit test: a complete
+  judged+baseline pair that verdicts PASS against its recorded hash flips
+  to insufficient_data when reported against an edited dataset (changed
+  reference byte). Also smoked at the CLI for real ($0): appending one byte
+  to reduce-v1.json produced `DATASET CHANGED since this run … verdict
+  degraded to insufficient_data`; restored via git checkout.
+- **Minor 2 (--only heldout re-roll opacity) — FIXED, both halves.**
+  (a) `assertLiveOnlySelection` (pure, runner.ts) refuses a live `--only`
+  selection touching heldout cases unless the explicit
+  `--allow-heldout-rerun` flag is passed — tested both ways, dev-only and
+  null selections unaffected. (b) Aggregates and the scorecard (md + json)
+  now carry a run-provenance record: `distinctRunIds`, per-run key counts,
+  and a `MIXED-RUN FILE` indicator whenever a file holds results from more
+  than one run — a re-rolled key is visible on the report's face. Tested:
+  a one-key targeted rerun under a new runId flags mixedRun with the
+  correct per-run key counts and renders the indicator; a single-run file
+  does not.
+- **NOTE NEW-3 (early-return precision leftover) — FIXED.** `baseChecks`
+  now initializes precision with the m7 rule (1 only when nothing
+  expected, else 0), so truncated and schema-invalid map results no longer
+  contribute a flattering 1.0 anywhere (including the checks field of
+  status-filtered results). Tests assert precision 0 on both early returns
+  with gold present and 1 on the expected-quiet truncation; committed
+  offline artifacts regenerated (map precisionMean now reflects the
+  truncated case honestly).
+- **NOTE NEW-4 (map-edge-007 pattern edge) — ADJUDICATED, one documented
+  sentence** in the case's `notes` field: a truthful NEGATED
+  over-extraction ("terminals in Mykolaiv were not affected") would fire
+  the wrong-location mustNotMatch because `firesAffirmatively` scans
+  negators only BEFORE the match — a dev-split miscategorization only
+  (the failure lands as fidelity instead of precision), and such an
+  over-extraction independently fails precision against the single-claim
+  gold, so no verdict can change. No code change.
