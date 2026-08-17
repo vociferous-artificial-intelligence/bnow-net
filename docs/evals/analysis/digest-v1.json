@@ -1,0 +1,779 @@
+{
+  "datasetVersion": "digest-v1",
+  "workload": "digest",
+  "createdAt": "2026-08-17T00:00:00Z",
+  "cases": [
+    {
+      "id": "dig-typ-001-consensus",
+      "workload": "digest",
+      "partition": "typical",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "5-vote consensus: event A in 5/5, event B in 3/5 — both survive; wholly-disputed events get the R4 label on their unattributed titles",
+      "input": {
+        "theater": "ru",
+        "track": "military",
+        "date": "2026-08-05",
+        "claims": [
+          {
+            "id": 201,
+            "docId": 301,
+            "textEn": "Drone strike damaged the fuel depot at the rail junction near Vyazma.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "Vyazma fuel depot strike",
+            "claimDate": "2026-08-05",
+            "sourceDomain": "a.example",
+            "sourceKey": null,
+            "reliability": 0.7,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          },
+          {
+            "id": 202,
+            "docId": 302,
+            "textEn": "Air defense intercepted twelve drones over the western district.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "western district intercepts",
+            "claimDate": "2026-08-05",
+            "sourceDomain": "b.example",
+            "sourceKey": null,
+            "reliability": 0.6,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          },
+          {
+            "id": 203,
+            "docId": 303,
+            "textEn": "A freight rail bridge near Vyazma was closed for inspection after the strike.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "Vyazma rail bridge closed",
+            "claimDate": "2026-08-05",
+            "sourceDomain": "c.example",
+            "sourceKey": null,
+            "reliability": 0.5,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          }
+        ]
+      },
+      "reference": {
+        "expectSurvivingTitles": [
+          "Vyazma",
+          "western district"
+        ],
+        "expectEventCount": 2,
+        "expectDroppedGidRefs": 0,
+        "expectGuardStats": {
+          "retitledEvents": 2,
+          "replacedSummaries": 0,
+          "attributedClaims": 0,
+          "droppedClaims": 0,
+          "droppedEvents": 0
+        },
+        "expectHedging": [
+          {
+            "textMatch": "fuel depot",
+            "hedging": "claimed"
+          }
+        ],
+        "mustMatch": [
+          "Sources claim:"
+        ]
+      },
+      "offline": {
+        "fixtureId": "dig-typ-001-votes",
+        "votes": [
+          "{\"events\":[{\"title\":\"Strikes around Vyazma rail hub\",\"type\":\"strike\",\"summary\":\"Local sources claim a drone strike damaged the fuel depot and closed the rail bridge near Vyazma.\",\"claims\":[{\"text\":\"Sources claim a drone strike damaged the fuel depot at the Vyazma rail junction.\",\"gids\":[201]},{\"text\":\"The freight rail bridge near Vyazma was closed for inspection, per local reports.\",\"gids\":[203]}]},{\"title\":\"Drone intercepts over western district\",\"type\":\"strike\",\"summary\":\"Air defense reportedly intercepted twelve drones over the western district.\",\"claims\":[{\"text\":\"Air defense reportedly intercepted twelve drones over the western district.\",\"gids\":[202]}]}]}",
+          "{\"events\":[{\"title\":\"Strikes around Vyazma rail hub\",\"type\":\"strike\",\"summary\":\"Local sources claim a drone strike damaged the fuel depot and closed the rail bridge near Vyazma.\",\"claims\":[{\"text\":\"Sources claim a drone strike damaged the fuel depot at the Vyazma rail junction.\",\"gids\":[201]},{\"text\":\"The freight rail bridge near Vyazma was closed for inspection, per local reports.\",\"gids\":[203]}]},{\"title\":\"Drone intercepts over western district\",\"type\":\"strike\",\"summary\":\"Air defense reportedly intercepted twelve drones over the western district.\",\"claims\":[{\"text\":\"Air defense reportedly intercepted twelve drones over the western district.\",\"gids\":[202]}]}]}",
+          "{\"events\":[{\"title\":\"Strikes around Vyazma rail hub\",\"type\":\"strike\",\"summary\":\"Local sources claim a drone strike damaged the fuel depot and closed the rail bridge near Vyazma.\",\"claims\":[{\"text\":\"Sources claim a drone strike damaged the fuel depot at the Vyazma rail junction.\",\"gids\":[201]},{\"text\":\"The freight rail bridge near Vyazma was closed for inspection, per local reports.\",\"gids\":[203]}]},{\"title\":\"Drone intercepts over western district\",\"type\":\"strike\",\"summary\":\"Air defense reportedly intercepted twelve drones over the western district.\",\"claims\":[{\"text\":\"Air defense reportedly intercepted twelve drones over the western district.\",\"gids\":[202]}]}]}",
+          "{\"events\":[{\"title\":\"Strikes around Vyazma rail hub\",\"type\":\"strike\",\"summary\":\"Local sources claim a drone strike damaged the fuel depot and closed the rail bridge near Vyazma.\",\"claims\":[{\"text\":\"Sources claim a drone strike damaged the fuel depot at the Vyazma rail junction.\",\"gids\":[201]},{\"text\":\"The freight rail bridge near Vyazma was closed for inspection, per local reports.\",\"gids\":[203]}]}]}",
+          "{\"events\":[{\"title\":\"Strikes around Vyazma rail hub\",\"type\":\"strike\",\"summary\":\"Local sources claim a drone strike damaged the fuel depot and closed the rail bridge near Vyazma.\",\"claims\":[{\"text\":\"Sources claim a drone strike damaged the fuel depot at the Vyazma rail junction.\",\"gids\":[201]},{\"text\":\"The freight rail bridge near Vyazma was closed for inspection, per local reports.\",\"gids\":[203]}]}]}"
+        ],
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "dig-typ-002-majority-death",
+      "workload": "digest",
+      "partition": "typical",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "ruling 18's majority mechanism: 3-of-5 survives, 2-of-5 dies — no minority-event content may leak into the published corpus",
+      "input": {
+        "theater": "ru",
+        "track": "military",
+        "date": "2026-08-05",
+        "claims": [
+          {
+            "id": 211,
+            "docId": 311,
+            "textEn": "Artillery shelling damaged the water treatment plant in the northern district.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "northern district water plant shelling",
+            "claimDate": "2026-08-05",
+            "sourceDomain": "a.example",
+            "sourceKey": null,
+            "reliability": 0.6,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          },
+          {
+            "id": 212,
+            "docId": 312,
+            "textEn": "A military transport plane made an emergency landing at the regional airfield.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "regional airfield emergency landing",
+            "claimDate": "2026-08-05",
+            "sourceDomain": "b.example",
+            "sourceKey": null,
+            "reliability": 0.6,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          }
+        ]
+      },
+      "reference": {
+        "expectSurvivingTitles": [
+          "water treatment"
+        ],
+        "expectDeadTitles": [
+          "transport plane",
+          "emergency landing"
+        ],
+        "expectEventCount": 1,
+        "expectDroppedGidRefs": 0,
+        "expectGuardStats": {
+          "retitledEvents": 1,
+          "replacedSummaries": 0
+        }
+      },
+      "offline": {
+        "fixtureId": "dig-typ-002-votes",
+        "votes": [
+          "{\"events\":[{\"title\":\"Water treatment plant damaged in northern district\",\"type\":\"strike\",\"summary\":\"Artillery shelling reportedly damaged the water treatment plant.\",\"claims\":[{\"text\":\"Artillery shelling damaged the water treatment plant in the northern district, per local reports.\",\"gids\":[211]}]}]}",
+          "{\"events\":[{\"title\":\"Water treatment plant damaged in northern district\",\"type\":\"strike\",\"summary\":\"Artillery shelling reportedly damaged the water treatment plant.\",\"claims\":[{\"text\":\"Artillery shelling damaged the water treatment plant in the northern district, per local reports.\",\"gids\":[211]}]}]}",
+          "{\"events\":[{\"title\":\"Water treatment plant damaged in northern district\",\"type\":\"strike\",\"summary\":\"Artillery shelling reportedly damaged the water treatment plant.\",\"claims\":[{\"text\":\"Artillery shelling damaged the water treatment plant in the northern district, per local reports.\",\"gids\":[211]}]}]}",
+          "{\"events\":[{\"title\":\"Transport plane emergency landing\",\"type\":\"other\",\"summary\":\"A transport plane reportedly made an emergency landing.\",\"claims\":[{\"text\":\"A military transport plane made an emergency landing at the regional airfield, sources said.\",\"gids\":[212]}]}]}",
+          "{\"events\":[{\"title\":\"Transport plane emergency landing\",\"type\":\"other\",\"summary\":\"A transport plane reportedly made an emergency landing.\",\"claims\":[{\"text\":\"A military transport plane made an emergency landing at the regional airfield, sources said.\",\"gids\":[212]}]}]}"
+        ],
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "dig-typ-003-gid-fill",
+      "workload": "digest",
+      "partition": "typical",
+      "split": "heldout",
+      "provenance": "authored-2026-08-17",
+      "notes": "heldout majority-gid fill: gid 222 is majority-supported (3/4) but the median-length roll lost it — a deterministic fill claim with the group's own text must appear",
+      "input": {
+        "theater": "ua",
+        "track": "military",
+        "date": "2026-08-05",
+        "claims": [
+          {
+            "id": 221,
+            "docId": 321,
+            "textEn": "Sappers cleared mines from the coastal road section near the lighthouse.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "coastal road mine clearance",
+            "claimDate": "2026-08-05",
+            "sourceDomain": "a.example",
+            "sourceKey": null,
+            "reliability": 0.6,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          },
+          {
+            "id": 222,
+            "docId": 322,
+            "textEn": "Engineering units repaired the damaged section of the coastal railway.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "coastal railway repairs",
+            "claimDate": "2026-08-05",
+            "sourceDomain": "b.example",
+            "sourceKey": null,
+            "reliability": 0.6,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          }
+        ]
+      },
+      "reference": {
+        "expectSurvivingTitles": [
+          "coastal"
+        ],
+        "expectEventCount": 1,
+        "expectDroppedGidRefs": 0,
+        "expectClaimCitingGid": [
+          222
+        ],
+        "expectGuardStats": {
+          "retitledEvents": 1,
+          "replacedSummaries": 0,
+          "attributedClaims": 0,
+          "droppedClaims": 0
+        }
+      },
+      "offline": {
+        "fixtureId": "dig-typ-003-votes",
+        "votes": [
+          "{\"events\":[{\"title\":\"Coastal route clearance and repairs\",\"type\":\"other\",\"summary\":\"Engineers reported mine clearance and repairs along the coastal routes.\",\"claims\":[{\"text\":\"Sappers cleared mines from the coastal road section near the lighthouse, engineers reported.\",\"gids\":[221]},{\"text\":\"Engineering units repaired the damaged coastal railway section, officials said.\",\"gids\":[222]}]}]}",
+          "{\"events\":[{\"title\":\"Coastal works\",\"type\":\"other\",\"summary\":\"Engineers reported coastal clearance, officials said.\",\"claims\":[{\"text\":\"Mines cleared, sappers said.\",\"gids\":[221]},{\"text\":\"Railway repaired, per officials.\",\"gids\":[222]}]}]}",
+          "{\"events\":[{\"title\":\"Coastal clearance and railway repair works continue\",\"type\":\"other\",\"summary\":\"Mine clearance and railway repairs reportedly continued along the coastal sector through the day.\",\"claims\":[{\"text\":\"Sappers cleared mines from the coastal road section near the lighthouse, engineers reported to the daily brief.\",\"gids\":[221]},{\"text\":\"Engineering units repaired the damaged coastal railway section over the same period, officials said in the briefing.\",\"gids\":[222]}]}]}",
+          "{\"events\":[{\"title\":\"Coastal clearance continues\",\"type\":\"other\",\"summary\":\"Mine clearance reportedly continued on the coastal road.\",\"claims\":[{\"text\":\"Sappers cleared mines from the coastal road, per the engineer corps report.\",\"gids\":[221]}]}]}"
+        ],
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "dig-edge-001-out-of-set-gids",
+      "workload": "digest",
+      "partition": "edge",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "hallucinated gid 999 is structurally stripped by parseVote in every vote (5 total dropped refs); attributed title/summary pass R4 untouched",
+      "input": {
+        "theater": "ru",
+        "track": "military",
+        "date": "2026-08-05",
+        "claims": [
+          {
+            "id": 231,
+            "docId": 331,
+            "textEn": "Mobile air defense groups repelled a drone attack on the fuel storage site.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "fuel storage drone attack repelled",
+            "claimDate": "2026-08-05",
+            "sourceDomain": "a.example",
+            "sourceKey": null,
+            "reliability": 0.6,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          }
+        ]
+      },
+      "reference": {
+        "expectSurvivingTitles": [
+          "fuel site|fuel storage"
+        ],
+        "expectEventCount": 1,
+        "expectDroppedGidRefs": 5,
+        "expectGuardStats": {
+          "retitledEvents": 0,
+          "replacedSummaries": 0
+        }
+      },
+      "offline": {
+        "fixtureId": "dig-edge-001-votes",
+        "votes": [
+          "{\"events\":[{\"title\":\"Sources report drone attack repelled at fuel site\",\"type\":\"strike\",\"summary\":\"Mobile groups reportedly repelled a drone attack on the fuel storage site.\",\"claims\":[{\"text\":\"Mobile air defense groups repelled a drone attack on the fuel storage site, sources report.\",\"gids\":[231,999]}]}]}",
+          "{\"events\":[{\"title\":\"Sources report drone attack repelled at fuel site\",\"type\":\"strike\",\"summary\":\"Mobile groups reportedly repelled a drone attack on the fuel storage site.\",\"claims\":[{\"text\":\"Mobile air defense groups repelled a drone attack on the fuel storage site, sources report.\",\"gids\":[231,999]}]}]}",
+          "{\"events\":[{\"title\":\"Sources report drone attack repelled at fuel site\",\"type\":\"strike\",\"summary\":\"Mobile groups reportedly repelled a drone attack on the fuel storage site.\",\"claims\":[{\"text\":\"Mobile air defense groups repelled a drone attack on the fuel storage site, sources report.\",\"gids\":[231,999]}]}]}",
+          "{\"events\":[{\"title\":\"Sources report drone attack repelled at fuel site\",\"type\":\"strike\",\"summary\":\"Mobile groups reportedly repelled a drone attack on the fuel storage site.\",\"claims\":[{\"text\":\"Mobile air defense groups repelled a drone attack on the fuel storage site, sources report.\",\"gids\":[231,999]}]}]}",
+          "{\"events\":[{\"title\":\"Sources report drone attack repelled at fuel site\",\"type\":\"strike\",\"summary\":\"Mobile groups reportedly repelled a drone attack on the fuel storage site.\",\"claims\":[{\"text\":\"Mobile air defense groups repelled a drone attack on the fuel storage site, sources report.\",\"gids\":[231,999]}]}]}"
+        ],
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "dig-edge-002-attributed-r4-pass",
+      "workload": "digest",
+      "partition": "edge",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "R4's pass side: wholly-disputed non-allegation event whose title/summary already carry attribution passes byte-identical",
+      "input": {
+        "theater": "ua",
+        "track": "military",
+        "date": "2026-08-05",
+        "claims": [
+          {
+            "id": 271,
+            "docId": 371,
+            "textEn": "Local sources claim repair crews restored power to the eastern grid section.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "eastern grid power restored",
+            "claimDate": "2026-08-05",
+            "sourceDomain": "a.example",
+            "sourceKey": null,
+            "reliability": 0.5,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          }
+        ]
+      },
+      "reference": {
+        "expectEventCount": 1,
+        "expectGuardStats": {
+          "retitledEvents": 0,
+          "replacedSummaries": 0,
+          "attributedClaims": 0,
+          "droppedClaims": 0
+        }
+      },
+      "offline": {
+        "fixtureId": "dig-edge-002-votes",
+        "votes": [
+          "{\"events\":[{\"title\":\"Sources report power restored to eastern grid\",\"type\":\"other\",\"summary\":\"Local sources claim repair crews restored power to the eastern grid section.\",\"claims\":[{\"text\":\"Local sources claim repair crews restored power to the eastern grid section.\",\"gids\":[271]}]}]}",
+          "{\"events\":[{\"title\":\"Sources report power restored to eastern grid\",\"type\":\"other\",\"summary\":\"Local sources claim repair crews restored power to the eastern grid section.\",\"claims\":[{\"text\":\"Local sources claim repair crews restored power to the eastern grid section.\",\"gids\":[271]}]}]}",
+          "{\"events\":[{\"title\":\"Sources report power restored to eastern grid\",\"type\":\"other\",\"summary\":\"Local sources claim repair crews restored power to the eastern grid section.\",\"claims\":[{\"text\":\"Local sources claim repair crews restored power to the eastern grid section.\",\"gids\":[271]}]}]}",
+          "{\"events\":[{\"title\":\"Sources report power restored to eastern grid\",\"type\":\"other\",\"summary\":\"Local sources claim repair crews restored power to the eastern grid section.\",\"claims\":[{\"text\":\"Local sources claim repair crews restored power to the eastern grid section.\",\"gids\":[271]}]}]}",
+          "{\"events\":[{\"title\":\"Sources report power restored to eastern grid\",\"type\":\"other\",\"summary\":\"Local sources claim repair crews restored power to the eastern grid section.\",\"claims\":[{\"text\":\"Local sources claim repair crews restored power to the eastern grid section.\",\"gids\":[271]}]}]}"
+        ],
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "dig-edge-003-vote-collapse",
+      "workload": "digest",
+      "partition": "edge",
+      "split": "heldout",
+      "provenance": "authored-2026-08-17",
+      "notes": "heldout: 3 of 5 votes unusable -> usable 2 < majority 3 — the engine must REFUSE the digest, exactly like synthesize.ts",
+      "input": {
+        "theater": "ua",
+        "track": "military",
+        "date": "2026-08-05",
+        "claims": [
+          {
+            "id": 275,
+            "docId": 375,
+            "textEn": "The river crossing reopened to civilian traffic after inspection.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "river crossing reopened",
+            "claimDate": "2026-08-05",
+            "sourceDomain": "a.example",
+            "sourceKey": null,
+            "reliability": null,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          }
+        ]
+      },
+      "reference": {
+        "expectPipelineRefusal": true
+      },
+      "offline": {
+        "fixtureId": "dig-edge-003-votes",
+        "votes": [
+          "{\"events\":[{\"title\":\"Sources report crossing reopened\",\"type\":\"other\",\"summary\":\"The river crossing reportedly reopened to civilian traffic.\",\"claims\":[{\"text\":\"The river crossing reopened to civilian traffic after inspection, per local reports.\",\"gids\":[275]}]}]}",
+          "",
+          "not json",
+          "{",
+          "{\"events\":[{\"title\":\"Sources report crossing reopened\",\"type\":\"other\",\"summary\":\"The river crossing reportedly reopened to civilian traffic.\",\"claims\":[{\"text\":\"The river crossing reopened to civilian traffic after inspection, per local reports.\",\"gids\":[275]}]}]}"
+        ],
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "dig-edge-004-repro",
+      "workload": "digest",
+      "partition": "edge",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "canonical reproducibility case: the whole cluster->vote->merge->finalize->guard pipeline must be byte-identical across two runs (every digest case checks this; this one exists to keep the property covered even if other cases churn)",
+      "input": {
+        "theater": "ua",
+        "track": "military",
+        "date": "2026-08-05",
+        "claims": [
+          {
+            "id": 281,
+            "docId": 381,
+            "textEn": "Bridge inspections closed the river crossing for the day, per the transport ministry.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "river crossing bridge inspection closure",
+            "claimDate": "2026-08-05",
+            "sourceDomain": "a.example",
+            "sourceKey": null,
+            "reliability": 0.6,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          },
+          {
+            "id": 282,
+            "docId": 382,
+            "textEn": "Ferry service carried trucks across the river during the closure, operators said.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [],
+            "eventHint": "river ferry service closure",
+            "claimDate": "2026-08-05",
+            "sourceDomain": "b.example",
+            "sourceKey": null,
+            "reliability": 0.5,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          }
+        ]
+      },
+      "reference": {
+        "expectEventCount": 1,
+        "expectDroppedGidRefs": 0,
+        "expectGuardStats": {
+          "retitledEvents": 0,
+          "replacedSummaries": 0
+        }
+      },
+      "offline": {
+        "fixtureId": "dig-edge-004-votes",
+        "votes": [
+          "{\"events\":[{\"title\":\"Sources report crossing closed for inspections, ferries covering\",\"type\":\"other\",\"summary\":\"The crossing was reportedly closed for inspections while ferries carried trucks across.\",\"claims\":[{\"text\":\"Bridge inspections closed the river crossing for the day, per the transport ministry.\",\"gids\":[281]},{\"text\":\"Ferry service carried trucks across the river during the closure, operators said.\",\"gids\":[282]}]}]}",
+          "{\"events\":[{\"title\":\"Sources report crossing closed for inspections, ferries covering\",\"type\":\"other\",\"summary\":\"The crossing was reportedly closed for inspections while ferries carried trucks across.\",\"claims\":[{\"text\":\"Bridge inspections closed the river crossing for the day, per the transport ministry.\",\"gids\":[281]},{\"text\":\"Ferry service carried trucks across the river during the closure, operators said.\",\"gids\":[282]}]}]}",
+          "{\"events\":[{\"title\":\"Sources report crossing closed for inspections, ferries covering\",\"type\":\"other\",\"summary\":\"The crossing was reportedly closed for inspections while ferries carried trucks across.\",\"claims\":[{\"text\":\"Bridge inspections closed the river crossing for the day, per the transport ministry.\",\"gids\":[281]},{\"text\":\"Ferry service carried trucks across the river during the closure, operators said.\",\"gids\":[282]}]}]}",
+          "{\"events\":[{\"title\":\"Sources report crossing closed for inspections, ferries covering\",\"type\":\"other\",\"summary\":\"The crossing was reportedly closed for inspections while ferries carried trucks across.\",\"claims\":[{\"text\":\"Bridge inspections closed the river crossing for the day, per the transport ministry.\",\"gids\":[281]},{\"text\":\"Ferry service carried trucks across the river during the closure, operators said.\",\"gids\":[282]}]}]}",
+          "{\"events\":[{\"title\":\"Sources report crossing closed for inspections, ferries covering\",\"type\":\"other\",\"summary\":\"The crossing was reportedly closed for inspections while ferries carried trucks across.\",\"claims\":[{\"text\":\"Bridge inspections closed the river crossing for the day, per the transport ministry.\",\"gids\":[281]},{\"text\":\"Ferry service carried trucks across the river during the closure, operators said.\",\"gids\":[282]}]}]}"
+        ],
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "dig-adv-001-trailing-attribution",
+      "workload": "digest",
+      "partition": "adversarial",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "ruling 19 R2/R3 on a FICTIONAL person (Maksim Dorenko): trailing 'with reports suggesting' does NOT govern the allegation — the claim gets the label, the event gets deterministic copy, and two-outlet repetition never confirms (native-hedging recompute)",
+      "input": {
+        "theater": "ru",
+        "track": "military",
+        "date": "2026-08-05",
+        "claims": [
+          {
+            "id": 241,
+            "docId": 341,
+            "textEn": "Regional deputy Maksim Dorenko died unexpectedly, with reports suggesting corruption schemes influenced the circumstances.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [
+              {
+                "name": "Maksim Dorenko",
+                "kind": "person",
+                "role": "other"
+              }
+            ],
+            "eventHint": "Dorenko death corruption reports",
+            "claimDate": "2026-08-05",
+            "sourceDomain": "a.example",
+            "sourceKey": null,
+            "reliability": 0.5,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          },
+          {
+            "id": 242,
+            "docId": 342,
+            "textEn": "Deputy Maksim Dorenko died unexpectedly, reports suggest links to corruption schemes.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [
+              {
+                "name": "Maksim Dorenko",
+                "kind": "person",
+                "role": "other"
+              }
+            ],
+            "eventHint": "Dorenko death corruption reports",
+            "claimDate": "2026-08-05",
+            "sourceDomain": "b.example",
+            "sourceKey": null,
+            "reliability": 0.4,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          }
+        ]
+      },
+      "reference": {
+        "expectEventCount": 1,
+        "expectGuardStats": {
+          "attributedClaims": 1,
+          "retitledEvents": 1,
+          "replacedSummaries": 1,
+          "droppedClaims": 0
+        },
+        "expectHedging": [
+          {
+            "textMatch": "Dorenko died",
+            "hedging": "claimed"
+          }
+        ],
+        "mustMatch": [
+          "Sources claim:"
+        ]
+      },
+      "offline": {
+        "fixtureId": "dig-adv-001-votes",
+        "votes": [
+          "{\"events\":[{\"title\":\"Maksim Dorenko died unexpectedly amid corruption reports\",\"type\":\"political\",\"summary\":\"Regional deputy Maksim Dorenko died unexpectedly, with reports suggesting his involvement in corruption schemes may have influenced the circumstances.\",\"claims\":[{\"text\":\"Regional deputy Maksim Dorenko died unexpectedly, with reports suggesting corruption schemes influenced the circumstances.\",\"gids\":[241]}]}]}",
+          "{\"events\":[{\"title\":\"Maksim Dorenko died unexpectedly amid corruption reports\",\"type\":\"political\",\"summary\":\"Regional deputy Maksim Dorenko died unexpectedly, with reports suggesting his involvement in corruption schemes may have influenced the circumstances.\",\"claims\":[{\"text\":\"Regional deputy Maksim Dorenko died unexpectedly, with reports suggesting corruption schemes influenced the circumstances.\",\"gids\":[241]}]}]}",
+          "{\"events\":[{\"title\":\"Maksim Dorenko died unexpectedly amid corruption reports\",\"type\":\"political\",\"summary\":\"Regional deputy Maksim Dorenko died unexpectedly, with reports suggesting his involvement in corruption schemes may have influenced the circumstances.\",\"claims\":[{\"text\":\"Regional deputy Maksim Dorenko died unexpectedly, with reports suggesting corruption schemes influenced the circumstances.\",\"gids\":[241]}]}]}",
+          "{\"events\":[{\"title\":\"Maksim Dorenko died unexpectedly amid corruption reports\",\"type\":\"political\",\"summary\":\"Regional deputy Maksim Dorenko died unexpectedly, with reports suggesting his involvement in corruption schemes may have influenced the circumstances.\",\"claims\":[{\"text\":\"Regional deputy Maksim Dorenko died unexpectedly, with reports suggesting corruption schemes influenced the circumstances.\",\"gids\":[241]}]}]}",
+          "{\"events\":[{\"title\":\"Maksim Dorenko died unexpectedly amid corruption reports\",\"type\":\"political\",\"summary\":\"Regional deputy Maksim Dorenko died unexpectedly, with reports suggesting his involvement in corruption schemes may have influenced the circumstances.\",\"claims\":[{\"text\":\"Regional deputy Maksim Dorenko died unexpectedly, with reports suggesting corruption schemes influenced the circumstances.\",\"gids\":[241]}]}]}"
+        ],
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "dig-adv-002-r1-drop-wash",
+      "workload": "digest",
+      "partition": "adversarial",
+      "split": "heldout",
+      "provenance": "authored-2026-08-17",
+      "notes": "heldout ruling 19 R1+wash on a FICTIONAL person (Pavel Streshnev): a single-doc reputational allegation is DROPPED and none of its prose survives, even beside the safe confirmed subclaim that keeps the event alive",
+      "input": {
+        "theater": "ru",
+        "track": "military",
+        "date": "2026-08-05",
+        "claims": [
+          {
+            "id": 251,
+            "docId": 351,
+            "textEn": "Geolocated footage confirms the ammunition depot at the airbase was destroyed.",
+            "quoteOrig": null,
+            "quoteVerified": true,
+            "claimType": "factual",
+            "hedging": "confirmed",
+            "entities": [],
+            "eventHint": "airbase ammunition depot destroyed",
+            "claimDate": "2026-08-05",
+            "sourceDomain": "geo.example",
+            "sourceKey": null,
+            "reliability": 0.9,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          },
+          {
+            "id": 252,
+            "docId": 352,
+            "textEn": "A regional channel claimed colonel Pavel Streshnev embezzled fuel funds.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [
+              {
+                "name": "Pavel Streshnev",
+                "kind": "person",
+                "role": "defendant"
+              }
+            ],
+            "eventHint": "Streshnev fuel funds embezzlement claim",
+            "claimDate": "2026-08-05",
+            "sourceDomain": "b.example",
+            "sourceKey": null,
+            "reliability": 0.3,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          }
+        ]
+      },
+      "reference": {
+        "expectEventCount": 1,
+        "expectGuardStats": {
+          "droppedClaims": 1,
+          "retitledEvents": 1,
+          "replacedSummaries": 1,
+          "attributedClaims": 0
+        },
+        "expectHedging": [
+          {
+            "textMatch": "ammunition depot",
+            "hedging": "confirmed"
+          }
+        ],
+        "mustNotMatch": [
+          "Streshnev",
+          "embezzl"
+        ]
+      },
+      "offline": {
+        "fixtureId": "dig-adv-002-votes",
+        "votes": [
+          "{\"events\":[{\"title\":\"Airbase depot destroyed amid Streshnev embezzlement speculation\",\"type\":\"strike\",\"summary\":\"The depot was destroyed; separately, speculation ties colonel Pavel Streshnev to embezzled fuel funds.\",\"claims\":[{\"text\":\"Geolocated footage confirms the ammunition depot at the airbase was destroyed.\",\"gids\":[251]},{\"text\":\"Colonel Pavel Streshnev embezzled fuel funds, a regional channel claimed.\",\"gids\":[252]}]}]}",
+          "{\"events\":[{\"title\":\"Airbase depot destroyed amid Streshnev embezzlement speculation\",\"type\":\"strike\",\"summary\":\"The depot was destroyed; separately, speculation ties colonel Pavel Streshnev to embezzled fuel funds.\",\"claims\":[{\"text\":\"Geolocated footage confirms the ammunition depot at the airbase was destroyed.\",\"gids\":[251]},{\"text\":\"Colonel Pavel Streshnev embezzled fuel funds, a regional channel claimed.\",\"gids\":[252]}]}]}",
+          "{\"events\":[{\"title\":\"Airbase depot destroyed amid Streshnev embezzlement speculation\",\"type\":\"strike\",\"summary\":\"The depot was destroyed; separately, speculation ties colonel Pavel Streshnev to embezzled fuel funds.\",\"claims\":[{\"text\":\"Geolocated footage confirms the ammunition depot at the airbase was destroyed.\",\"gids\":[251]},{\"text\":\"Colonel Pavel Streshnev embezzled fuel funds, a regional channel claimed.\",\"gids\":[252]}]}]}",
+          "{\"events\":[{\"title\":\"Airbase depot destroyed amid Streshnev embezzlement speculation\",\"type\":\"strike\",\"summary\":\"The depot was destroyed; separately, speculation ties colonel Pavel Streshnev to embezzled fuel funds.\",\"claims\":[{\"text\":\"Geolocated footage confirms the ammunition depot at the airbase was destroyed.\",\"gids\":[251]},{\"text\":\"Colonel Pavel Streshnev embezzled fuel funds, a regional channel claimed.\",\"gids\":[252]}]}]}",
+          "{\"events\":[{\"title\":\"Airbase depot destroyed amid Streshnev embezzlement speculation\",\"type\":\"strike\",\"summary\":\"The depot was destroyed; separately, speculation ties colonel Pavel Streshnev to embezzled fuel funds.\",\"claims\":[{\"text\":\"Geolocated footage confirms the ammunition depot at the airbase was destroyed.\",\"gids\":[251]},{\"text\":\"Colonel Pavel Streshnev embezzled fuel funds, a regional channel claimed.\",\"gids\":[252]}]}]}"
+        ],
+        "expectation": "pass"
+      }
+    },
+    {
+      "id": "dig-adv-003-model-prose-wash",
+      "workload": "digest",
+      "partition": "adversarial",
+      "split": "development",
+      "provenance": "authored-2026-08-17",
+      "notes": "ruling 19 R3 wash on a FICTIONAL person (Artur Nazhmetov): governing attribution keeps the claim unprefixed, but the model's speculative purge prose is replaced by deterministic copy; promotion recompute keeps the allegation 'claimed'",
+      "input": {
+        "theater": "ru",
+        "track": "military",
+        "date": "2026-08-05",
+        "claims": [
+          {
+            "id": 261,
+            "docId": 361,
+            "textEn": "Verified imagery confirms the radar station was hit.",
+            "quoteOrig": null,
+            "quoteVerified": true,
+            "claimType": "factual",
+            "hedging": "confirmed",
+            "entities": [],
+            "eventHint": "radar station hit",
+            "claimDate": "2026-08-05",
+            "sourceDomain": "geo.example",
+            "sourceKey": null,
+            "reliability": 0.9,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          },
+          {
+            "id": 262,
+            "docId": 362,
+            "textEn": "Officials detained general Artur Nazhmetov in a corruption inquiry, state media claimed.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [
+              {
+                "name": "Artur Nazhmetov",
+                "kind": "person",
+                "role": "defendant"
+              }
+            ],
+            "eventHint": "Nazhmetov corruption inquiry detention",
+            "claimDate": "2026-08-05",
+            "sourceDomain": "a.example",
+            "sourceKey": null,
+            "reliability": 0.5,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          },
+          {
+            "id": 263,
+            "docId": 363,
+            "textEn": "State media claimed general Artur Nazhmetov was detained in a corruption inquiry.",
+            "quoteOrig": null,
+            "quoteVerified": false,
+            "claimType": "factual",
+            "hedging": "claimed",
+            "entities": [
+              {
+                "name": "Artur Nazhmetov",
+                "kind": "person",
+                "role": "defendant"
+              }
+            ],
+            "eventHint": "Nazhmetov corruption inquiry detention",
+            "claimDate": "2026-08-05",
+            "sourceDomain": "b.example",
+            "sourceKey": null,
+            "reliability": 0.5,
+            "adapter": "rss",
+            "platform": null,
+            "publishedAt": null
+          }
+        ]
+      },
+      "reference": {
+        "expectEventCount": 1,
+        "expectGuardStats": {
+          "retitledEvents": 1,
+          "replacedSummaries": 1,
+          "attributedClaims": 0,
+          "droppedClaims": 0
+        },
+        "expectHedging": [
+          {
+            "textMatch": "Nazhmetov",
+            "hedging": "claimed"
+          }
+        ],
+        "mustNotMatch": [
+          "sweeping purge"
+        ]
+      },
+      "offline": {
+        "fixtureId": "dig-adv-003-votes",
+        "votes": [
+          "{\"events\":[{\"title\":\"Nazhmetov detention points to sweeping purge\",\"type\":\"political\",\"summary\":\"The detention of general Artur Nazhmetov may signal a sweeping purge of the command staff.\",\"claims\":[{\"text\":\"State media claimed general Artur Nazhmetov was detained in a corruption inquiry.\",\"gids\":[262]},{\"text\":\"Verified imagery confirms the radar station was hit.\",\"gids\":[261]}]}]}",
+          "{\"events\":[{\"title\":\"Nazhmetov detention points to sweeping purge\",\"type\":\"political\",\"summary\":\"The detention of general Artur Nazhmetov may signal a sweeping purge of the command staff.\",\"claims\":[{\"text\":\"State media claimed general Artur Nazhmetov was detained in a corruption inquiry.\",\"gids\":[262]},{\"text\":\"Verified imagery confirms the radar station was hit.\",\"gids\":[261]}]}]}",
+          "{\"events\":[{\"title\":\"Nazhmetov detention points to sweeping purge\",\"type\":\"political\",\"summary\":\"The detention of general Artur Nazhmetov may signal a sweeping purge of the command staff.\",\"claims\":[{\"text\":\"State media claimed general Artur Nazhmetov was detained in a corruption inquiry.\",\"gids\":[262]},{\"text\":\"Verified imagery confirms the radar station was hit.\",\"gids\":[261]}]}]}",
+          "{\"events\":[{\"title\":\"Nazhmetov detention points to sweeping purge\",\"type\":\"political\",\"summary\":\"The detention of general Artur Nazhmetov may signal a sweeping purge of the command staff.\",\"claims\":[{\"text\":\"State media claimed general Artur Nazhmetov was detained in a corruption inquiry.\",\"gids\":[262]},{\"text\":\"Verified imagery confirms the radar station was hit.\",\"gids\":[261]}]}]}",
+          "{\"events\":[{\"title\":\"Nazhmetov detention points to sweeping purge\",\"type\":\"political\",\"summary\":\"The detention of general Artur Nazhmetov may signal a sweeping purge of the command staff.\",\"claims\":[{\"text\":\"State media claimed general Artur Nazhmetov was detained in a corruption inquiry.\",\"gids\":[262]},{\"text\":\"Verified imagery confirms the radar station was hit.\",\"gids\":[261]}]}]}"
+        ],
+        "expectation": "pass"
+      }
+    }
+  ]
+}
