@@ -19,7 +19,7 @@ import {
   validateReferenceReportIdentity,
   type ReferenceReportIdentity,
 } from "./reference-report";
-import { isReferenceSeriesId, type ReferenceSeriesId } from "./vocabulary";
+import { isReferenceSeriesId, type ReferenceSeriesId, type UnavailableReason } from "./vocabulary";
 
 // ---------------------------------------------------------------------------
 // Scope versions (contract §0/§9 — the series' versioned editorial scope)
@@ -491,6 +491,8 @@ export function nextStoredDayStatus(
 /** Phase 1 publication-gap vocabulary bridge: only a CONFIRMED gap maps to
  *  the `publication_gap` unavailable reason; probe_failed/unknown map to
  *  nothing (never fabricate a gap out of a failed probe). */
-export function dayUnavailableReason(status: ReferenceDayStatus): "publication_gap" | null {
+export function dayUnavailableReason(
+  status: ReferenceDayStatus,
+): Extract<UnavailableReason, "publication_gap"> | null {
   return status === "publication_gap" ? "publication_gap" : null;
 }
