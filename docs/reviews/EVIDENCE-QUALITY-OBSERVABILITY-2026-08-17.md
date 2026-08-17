@@ -193,6 +193,18 @@ worker's own selection semantics; `>= MAP_EPOCH`; non-stub;
    warning "…version bump awaiting remap (OPEN-TASKS #33), not an ingestion
    gap" and sets `supersededOnly: true`. Anomalous doc_map_state rows on
    MIRROR docs are excluded and warned about.
+   **Undispositioned split (A4-review F1):** canonical docs with NO
+   doc_map_state row at ANY version for this track split on
+   `raw_documents.processed` — `pendingDocs` (processed=false; genuine
+   unmapped backlog the cron still drains) vs `notApplicableDocs`
+   (processed=true; the worker's per-track lexicon gate, which runs AFTER the
+   eligibility predicate, never matched — these docs will NEVER map under
+   this track and must not read as extraction loss). A processed doc whose
+   only rows for this track are superseded stays in `supersededDispositions`
+   (a remap target, not a skip). Both counts also appear per adapter in
+   `AdapterConversion`, where the misreading would bite hardest
+   (`--theater ir --track military`: an RSS "eligible → withClaims" gap is
+   now separable into lexicon skips vs real loss).
 
 Digest side (from the `digests` row's `structured.stats` plus relational
 counts):
@@ -293,8 +305,18 @@ with zero network calls (§6 gate 7).
 - `digests.created_at` is last-writer-wins (TIME-MODEL); `generationLagHours`
   is the honest late-regeneration diagnostic because it compares against the
   engine's own asOf.
-- Stub documents are excluded at the query level in both the recency read and
-  the funnel corpus (ruling 3).
+- Stub documents are excluded at the query level in the recency read, the
+  funnel corpus, AND the funnel citation-link read (ruling 3; the last added
+  by A4-review F3 for population symmetry).
+- **Legacy intraday asOf (A4-review F2, documented convention — deliberately
+  unchanged):** a legacy digest anchors asOf to its fixed UTC-window END even
+  when regenerated mid-day (gulf intraday runs), so evidence ages are INFLATED
+  relative to the run instant by the remaining window hours — freshness reads
+  worse than at-run-time reality — and `generationLagHours` clamps to 0 until
+  the window closes. This keeps the metric deterministic and
+  regeneration-stable, but it means comparing a mid-day legacy digest's
+  `evidenceWithin24hPct` against a rolling mapreduce digest's is
+  apples-to-oranges; the report script's how-to-read block says so.
 
 ## 5. Premises the code corrected / deviations from spec
 
@@ -316,9 +338,9 @@ with zero network calls (§6 gate 7).
 5. The base's stated 2,187 tests / 171 files matched exactly; after this work
    the suite is 2,246 / 174 (+59 tests, +3 files; no existing assertion
    weakened or skipped).
-6. `package-lock.json` was already dirty in the worktree before this work
-   began (macOS npm churn on optional-dependency `libc` fields, from the
-   pre-run `npm install`); deliberately left uncommitted.
+6. `package-lock.json` briefly showed macOS npm churn (optional-dependency
+   `libc` fields) from the pre-run `npm install`; later npm runs restored it
+   and it never entered any commit — the tree is clean.
 
 ## 6. Gates (all run in the worktree at the final tree)
 
@@ -349,3 +371,47 @@ dominates a theater, the recency medians for it describe ingestion, not
 publication. Do NOT surface any of these numbers in user-facing UI or derive a
 headline/composite score from them without a separate product decision and a
 decision-log entry — this contract is internal and uncalibrated by design.
+
+## 8. Review remediation (A4 adversarial review, PASS-WITH-MINORS)
+
+The fresh A4 review returned one MAJOR + two MINORs; all remediated on this
+branch in the same worktree.
+
+- **F1 (MAJOR, FIXED) — funnel conflated lexicon skips with unmapped
+  backlog.** The worker's per-track lexicon gate (`applicableTracks`) runs
+  AFTER the selection predicate, so a lexicon-failing doc ends
+  `processed=true` with no doc_map_state row and previously read as
+  extraction loss. Fix: `eligibleDocsSql` now selects `rd.processed`;
+  un-dispositioned canonical docs (no doc_map_state row at ANY version for
+  the track) split into `pendingDocs` (processed=false, genuine backlog) vs
+  `notApplicableDocs` (processed=true, lexicon skip — never maps under this
+  track), surfaced at corpus level AND per adapter in `AdapterConversion`;
+  a processed doc with only superseded rows stays in `supersededDispositions`
+  (remap target). §3.1 updated; the report script's how-to-read block and
+  both output lines explain the split. Tests: 5 new/extended cases in
+  `quality-funnel.test.ts`, including the mutation direction (one
+  processed=false + one processed=true stateless doc must land 1/1 — an
+  implementation ignoring `processed` fails both assertions), the
+  superseded-only remap-target case, mirror exclusion from both buckets, the
+  per-adapter split, and end-to-end through the loader with driver-realistic
+  rows.
+- **F2 (MINOR, ADJUDICATED — documented, anchor unchanged):** the legacy
+  intraday asOf caveat is now recorded in §4 (ages inflated by the remaining
+  window hours at a mid-day regeneration; `generationLagHours` clamps to 0)
+  and in the report script's how-to-read block (legacy vs rolling
+  `evidenceWithin24hPct` is apples-to-oranges). The window-END anchor stays:
+  determinism and regeneration stability are the contract.
+- **F3 (MINOR, FIXED):** `citationLinksSql` now carries the same stub
+  exclusion as `eligibleDocsSql` and the persist-time recency read
+  (`AND rd.content NOT LIKE $2`, STUB_CONTENT_PREFIX), test-pinned.
+- **Notes:** the stale §5 package-lock wording corrected (tree clean, never
+  committed). The unreachable `docsWithClaims > mapDispositions` warning is
+  KEPT as deliberate dead defense with an explaining comment — it guards the
+  spec'd invariant against a future refactor of the disposition loop.
+
+Post-remediation gates: `git diff --check` clean · targeted vitest
+(quality-funnel 24, digest-persist 16, evidence-recency 29, digest-asof 3,
+synthesize 26, engine 7 — 105/105) · typecheck clean · lint clean ·
+full `npm test` **2,251 passed / 2,251 (174 files)**. The integration gate was
+not re-run: `reduce.itest.ts` covers `persistDigest`, which this remediation
+does not touch (funnel/report/docs only).
