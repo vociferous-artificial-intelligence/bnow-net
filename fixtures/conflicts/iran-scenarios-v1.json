@@ -1,0 +1,713 @@
+{
+  "fixtureVersion": 1,
+  "conflictId": "iran_regional",
+  "scenarios": [
+    {
+      "id": "iran-direct-kinetic-001",
+      "title": "Direct Iran-Israel strike on an IRGC position",
+      "acceptanceRef": "Iran: direct Iran–Israel–US strikes",
+      "conflictId": "iran_regional",
+      "report": {
+        "series": "iran_update",
+        "editionKey": "iran_update:2026-08-08:final",
+        "reportDate": "2026-08-08",
+        "cutoffAt": "2026-08-08T16:00:00Z",
+        "publishedAt": "2026-08-08T21:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "Israeli aircraft struck an IRGC air-defense position near Kermanshah on August 8, damaging radar equipment at the site.",
+            "lane": "direct_kinetic",
+            "compound": false,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9101,
+          "theater": "ir",
+          "track": "military",
+          "text": "Iranian outlets acknowledged damage to radar equipment at an IRGC air-defense position near Kermanshah after a reported Israeli strike on August 8.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-08",
+          "docs": [
+            {
+              "docId": 71001,
+              "adapter": "rss",
+              "platform": null,
+              "sourceDomain": "tehran-monitor.example",
+              "publishedAt": "2026-08-08T07:30:00Z",
+              "fetchedAt": "2026-08-08T08:10:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": true,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "eligibility": {
+          "9101": { "included": true, "lane": "direct_kinetic", "reasons": ["actor:irgc", "lane:direct_kinetic", "geo:iran", "window:in"] }
+        },
+        "corpusRecall": { "u0": "matched" },
+        "publishedRetention": { "u0": "matched" },
+        "contribution": { "u0": { "theaters": ["ir"], "tracks": ["military"] } },
+        "notes": "Core direct_kinetic lane case: direct Iran-Israel fighting supported by ir military evidence with governing attribution preserved (the claim reports what Iranian outlets acknowledged; matching never strengthens it)."
+      }
+    },
+    {
+      "id": "iran-hezbollah-002",
+      "title": "Hezbollah rocket activity from Lebanon",
+      "acceptanceRef": "Iran: Hezbollah/Lebanon",
+      "conflictId": "iran_regional",
+      "report": {
+        "series": "iran_update",
+        "editionKey": "iran_update:2026-08-08:final",
+        "reportDate": "2026-08-08",
+        "cutoffAt": "2026-08-08T16:00:00Z",
+        "publishedAt": "2026-08-08T21:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "Hezbollah launched rocket salvos at Israeli positions in the Galilee panhandle on August 8, its largest single-day volume in three weeks.",
+            "lane": "proxy_partner",
+            "compound": false,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9102,
+          "theater": "ir",
+          "track": "military",
+          "text": "Hezbollah claimed rocket salvos against Israeli positions in the Galilee panhandle on August 8.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-08",
+          "docs": [
+            {
+              "docId": 71002,
+              "adapter": "telegram-web",
+              "platform": "telegram",
+              "sourceDomain": "levant-channel.example",
+              "publishedAt": "2026-08-08T10:45:00Z",
+              "fetchedAt": "2026-08-08T11:20:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": true,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "eligibility": {
+          "9102": { "included": true, "lane": "proxy_partner", "reasons": ["actor:hezbollah", "lane:proxy_partner", "window:in"] }
+        },
+        "corpusRecall": { "u0": "matched" },
+        "publishedRetention": { "u0": "matched" },
+        "contribution": { "u0": { "theaters": ["ir"], "tracks": ["military"] } },
+        "notes": "Lebanese-channel evidence is pinned to the ir theater lens (AGENTS.md ruling 11); theater is a coverage lens, not nationality. Hezbollah is on the iran_regional actor roster (contract section 5 predicate 4)."
+      }
+    },
+    {
+      "id": "iran-iraq-militia-003",
+      "title": "Iranian-aligned Iraqi militia drone attack",
+      "acceptanceRef": "Iran: Iraqi militia activity",
+      "conflictId": "iran_regional",
+      "report": {
+        "series": "iran_update",
+        "editionKey": "iran_update:2026-08-08:final",
+        "reportDate": "2026-08-08",
+        "cutoffAt": "2026-08-08T16:00:00Z",
+        "publishedAt": "2026-08-08T21:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "An Iranian-aligned Iraqi militia claimed a one-way drone attack on a base hosting US forces near Erbil on August 8; no casualties were reported.",
+            "lane": "proxy_partner",
+            "compound": false,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9103,
+          "theater": "ir",
+          "track": "military",
+          "text": "An Iranian-aligned Iraqi militia claimed a one-way drone attack on a base hosting US forces near Erbil on August 8.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-08",
+          "docs": [
+            {
+              "docId": 71003,
+              "adapter": "telegram-web",
+              "platform": "telegram",
+              "sourceDomain": "iraq-channel.example",
+              "publishedAt": "2026-08-08T06:15:00Z",
+              "fetchedAt": "2026-08-08T07:00:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": true,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "eligibility": {
+          "9103": { "included": true, "lane": "proxy_partner", "reasons": ["actor:iraqi-militia", "lane:proxy_partner", "window:in"] }
+        },
+        "corpusRecall": { "u0": "matched" },
+        "publishedRetention": { "u0": "matched" },
+        "contribution": { "u0": { "theaters": ["ir"], "tracks": ["military"] } },
+        "notes": "Iraqi militia activity is in-scope for iran_regional by actor roster; the claim keeps the militia's own claim-attribution (hedging stays 'claimed')."
+      }
+    },
+    {
+      "id": "iran-houthi-maritime-004",
+      "title": "Houthi anti-ship attack in the Red Sea",
+      "acceptanceRef": "Iran: Houthi/Yemen maritime",
+      "conflictId": "iran_regional",
+      "report": {
+        "series": "iran_update",
+        "editionKey": "iran_update:2026-08-08:final",
+        "reportDate": "2026-08-08",
+        "cutoffAt": "2026-08-08T16:00:00Z",
+        "publishedAt": "2026-08-08T21:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "Houthi forces attacked a bulk carrier with anti-ship missiles southwest of Al Hudaydah on August 8; the vessel reported minor damage and continued transit.",
+            "lane": "maritime",
+            "compound": false,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9104,
+          "theater": "ir",
+          "track": "military",
+          "text": "A bulk carrier reportedly sustained minor damage from an anti-ship missile southwest of Al Hudaydah on August 8 and continued transit.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-08",
+          "docs": [
+            {
+              "docId": 71004,
+              "adapter": "rss",
+              "platform": null,
+              "sourceDomain": "maritime-monitor.example",
+              "publishedAt": "2026-08-08T09:05:00Z",
+              "fetchedAt": "2026-08-08T09:50:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": true,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "eligibility": {
+          "9104": { "included": true, "lane": "maritime", "reasons": ["actor:houthi", "geo:red-sea", "lane:maritime", "window:in"] }
+        },
+        "corpusRecall": { "u0": "matched" },
+        "publishedRetention": { "u0": "matched" },
+        "contribution": { "u0": { "theaters": ["ir"], "tracks": ["military"] } },
+        "notes": "Both the Houthi actor roster (proxy_partner) and the Red Sea event geography (maritime) hit; the fixture pins the `maritime` lane by event-geography precedence. The lane tie-break rule is flagged as a contract ambiguity in the README — the P1 deterministic classifier must freeze it."
+      }
+    },
+    {
+      "id": "iran-hormuz-gulf-005",
+      "title": "IRGC Navy activity in the Strait of Hormuz near Omani waters",
+      "acceptanceRef": "Iran: Hormuz or Gulf-base activity involving Oman/Bahrain/Qatar/UAE/Kuwait/Saudi Arabia",
+      "conflictId": "iran_regional",
+      "report": {
+        "series": "iran_update",
+        "editionKey": "iran_update:2026-08-08:final",
+        "reportDate": "2026-08-08",
+        "cutoffAt": "2026-08-08T16:00:00Z",
+        "publishedAt": "2026-08-08T21:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "IRGC Navy fast boats shadowed a commercial tanker in the Strait of Hormuz near the Omani traffic corridor on August 8 before withdrawing without boarding.",
+            "lane": "maritime",
+            "compound": false,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9105,
+          "theater": "ir",
+          "track": "military",
+          "text": "IRGC Navy fast boats reportedly shadowed a tanker in the Strait of Hormuz near Omani waters on August 8 and withdrew without boarding.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-08",
+          "docs": [
+            {
+              "docId": 71005,
+              "adapter": "rss",
+              "platform": null,
+              "sourceDomain": "gulf-shipping-wire.example",
+              "publishedAt": "2026-08-08T11:40:00Z",
+              "fetchedAt": "2026-08-08T12:15:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": true,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "eligibility": {
+          "9105": { "included": true, "lane": "maritime", "reasons": ["actor:irgc", "geo:hormuz", "lane:maritime", "window:in"] }
+        },
+        "corpusRecall": { "u0": "matched" },
+        "publishedRetention": { "u0": "matched" },
+        "contribution": { "u0": { "theaters": ["ir"], "tracks": ["military"] } },
+        "notes": "Hormuz is explicitly in-scope for iran_regional (contract section 5 predicate 5); Omani-adjacent Gulf activity is a test-mandated inclusion. Evidence here is mapped ir-theater; the no-mapped-Gulf-evidence case is iran-gulf-unavailable-010."
+      }
+    },
+    {
+      "id": "iran-iaea-nuclear-006",
+      "title": "IAEA access development supported by NUCLEAR-track evidence",
+      "acceptanceRef": "Iran: IAEA/nuclear evidence from the NUCLEAR track",
+      "conflictId": "iran_regional",
+      "report": {
+        "series": "iran_update",
+        "editionKey": "iran_update:2026-08-08:final",
+        "reportDate": "2026-08-08",
+        "cutoffAt": "2026-08-08T16:00:00Z",
+        "publishedAt": "2026-08-08T21:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "The IAEA reported that Iran declined to restore agency access to an enrichment-related workshop near Natanz during an August 8 technical visit.",
+            "lane": "nuclear_diplomacy",
+            "compound": false,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9106,
+          "theater": "ir",
+          "track": "nuclear",
+          "text": "The IAEA said Iran declined to restore access to an enrichment-related workshop near Natanz during an August 8 technical visit.",
+          "hedging": "confirmed",
+          "claimDate": "2026-08-08",
+          "docs": [
+            {
+              "docId": 71006,
+              "adapter": "rss",
+              "platform": null,
+              "sourceDomain": "vienna-wire.example",
+              "publishedAt": "2026-08-08T13:00:00Z",
+              "fetchedAt": "2026-08-08T13:35:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": true,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "eligibility": {
+          "9106": { "included": true, "lane": "nuclear_diplomacy", "reasons": ["actor:iaea", "lane:nuclear_diplomacy", "track:nuclear", "window:in"] }
+        },
+        "corpusRecall": { "u0": "matched" },
+        "publishedRetention": { "u0": "matched" },
+        "contribution": { "u0": { "theaters": ["ir"], "tracks": ["nuclear"] } },
+        "notes": "Proves the multi-track contributor set (contract section 5 predicate 6): the nuclear track contributes to iran_regional. The legacy military-only Iran validation structurally excluded this evidence. One authoritative record supports its exact action/status (ruling 20)."
+      }
+    },
+    {
+      "id": "iran-e3-diplomacy-007",
+      "title": "E3 diplomacy on IAEA monitoring access",
+      "acceptanceRef": "Iran: E3/EU or mediator diplomacy",
+      "conflictId": "iran_regional",
+      "report": {
+        "series": "iran_update",
+        "editionKey": "iran_update:2026-08-08:final",
+        "reportDate": "2026-08-08",
+        "cutoffAt": "2026-08-08T16:00:00Z",
+        "publishedAt": "2026-08-08T21:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "E3 foreign ministries stated after an August 8 coordination call that they would pursue renewed UN sanctions measures unless Iran restored full IAEA monitoring access.",
+            "lane": "nuclear_diplomacy",
+            "compound": false,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9107,
+          "theater": "ir",
+          "track": "nuclear",
+          "text": "E3 governments stated on August 8 they would pursue renewed UN sanctions measures absent restored IAEA monitoring access in Iran.",
+          "hedging": "confirmed",
+          "claimDate": "2026-08-08",
+          "docs": [
+            {
+              "docId": 71007,
+              "adapter": "rss",
+              "platform": null,
+              "sourceDomain": "europe-wire.example",
+              "publishedAt": "2026-08-08T14:10:00Z",
+              "fetchedAt": "2026-08-08T14:55:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": true,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "eligibility": {
+          "9107": { "included": true, "lane": "nuclear_diplomacy", "reasons": ["actor:e3", "lane:nuclear_diplomacy", "track:nuclear", "window:in"] }
+        },
+        "corpusRecall": { "u0": "matched" },
+        "publishedRetention": { "u0": "matched" },
+        "contribution": { "u0": { "theaters": ["ir"], "tracks": ["nuclear"] } },
+        "notes": "E3/EU diplomacy is on the iran_regional actor roster and lands in nuclear_diplomacy (contract section 4: program, IAEA, E3/EU, mediators)."
+      }
+    },
+    {
+      "id": "iran-elite-succession-008",
+      "title": "Succession-related positioning from the ELITE track",
+      "acceptanceRef": "Iran: Iranian domestic security or succession from the ELITE track",
+      "conflictId": "iran_regional",
+      "report": {
+        "series": "iran_update",
+        "editionKey": "iran_update:2026-08-08:final",
+        "reportDate": "2026-08-08",
+        "cutoffAt": "2026-08-08T16:00:00Z",
+        "publishedAt": "2026-08-08T21:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "Media aligned with Iran's security services amplified favorable profiles of Assembly of Experts member Kazem Ravandust on August 8, coverage consistent with succession-related positioning.",
+            "lane": "domestic_security",
+            "compound": false,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9108,
+          "theater": "ir",
+          "track": "elite_politics",
+          "text": "Security-aligned Iranian media reportedly amplified favorable profiles of Assembly of Experts member Kazem Ravandust on August 8.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-08",
+          "docs": [
+            {
+              "docId": 71008,
+              "adapter": "rss",
+              "platform": null,
+              "sourceDomain": "iran-politics-watch.example",
+              "publishedAt": "2026-08-08T05:45:00Z",
+              "fetchedAt": "2026-08-08T06:30:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": true,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "eligibility": {
+          "9108": { "included": true, "lane": "domestic_security", "reasons": ["lane:domestic_security", "track:elite_politics", "window:in"] }
+        },
+        "corpusRecall": { "u0": "matched" },
+        "publishedRetention": { "u0": "matched" },
+        "contribution": { "u0": { "theaters": ["ir"], "tracks": ["elite_politics"] } },
+        "notes": "Kazem Ravandust is a FICTIONAL person (content rule; no real official is named). The elite_politics track is a designated iran_regional contributor (contract section 5 predicate 6). Hedged media-behavior attribution governs the whole assertion (rulings 19/20 spirit); matching never strengthens it."
+      }
+    },
+    {
+      "id": "iran-domestic-exclusion-009",
+      "title": "Unrelated Israeli/Gulf domestic and commercial news is excluded",
+      "acceptanceRef": "Iran: unrelated Israeli/Gulf domestic or commercial news that must be excluded",
+      "conflictId": "iran_regional",
+      "report": {
+        "series": "iran_update",
+        "editionKey": "iran_update:2026-08-08:final",
+        "reportDate": "2026-08-08",
+        "cutoffAt": "2026-08-08T16:00:00Z",
+        "publishedAt": "2026-08-08T21:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "Iranian officials publicized new air-defense exercises around Isfahan on August 8.",
+            "lane": "direct_kinetic",
+            "compound": false,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9109,
+          "theater": "ir",
+          "track": "military",
+          "text": "A Gulf retail conglomerate reportedly posted record quarterly earnings on August 8.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-08",
+          "docs": [
+            {
+              "docId": 71009,
+              "adapter": "gdelt",
+              "platform": null,
+              "sourceDomain": "gulf-business-daily.example",
+              "publishedAt": "2026-08-08T08:00:00Z",
+              "fetchedAt": "2026-08-08T08:30:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": false,
+          "stub": false
+        },
+        {
+          "claimId": 9110,
+          "theater": "il",
+          "track": "military",
+          "text": "An Israeli municipal coalition dispute over local budget allocations reportedly continued on August 8.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-08",
+          "docs": [
+            {
+              "docId": 71010,
+              "adapter": "rss",
+              "platform": null,
+              "sourceDomain": "israel-local-news.example",
+              "publishedAt": "2026-08-08T09:20:00Z",
+              "fetchedAt": "2026-08-08T10:00:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "legacy",
+          "currentExtractorVersion": false,
+          "published": true,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "eligibility": {
+          "9109": { "included": false, "reason": "off_scope" },
+          "9110": { "included": false, "reason": "off_scope" }
+        },
+        "corpusRecall": { "u0": "miss" },
+        "publishedRetention": { "u0": "miss" },
+        "contribution": {},
+        "notes": "Region membership never suffices (contract section 5 test-mandated exclusions): Gulf commercial earnings and Israeli municipal politics are off_scope. For 9110 both off_scope and legacy_incomparable apply; the fixture pins content-scope checks first (single bounded reason: off_scope) — exclusion-reason precedence is flagged as a contract ambiguity in the README. The in-scope exercise unit stays a genuine miss."
+      }
+    },
+    {
+      "id": "iran-gulf-unavailable-010",
+      "title": "Gulf-base lane with no comparable mapped evidence reports unavailable",
+      "acceptanceRef": "Iran: an Iran Update lane with no comparable mapped Gulf evidence — expected `unavailable` for that lane, never manufactured",
+      "conflictId": "iran_regional",
+      "report": {
+        "series": "iran_update",
+        "editionKey": "iran_update:2026-08-08:final",
+        "reportDate": "2026-08-08",
+        "cutoffAt": "2026-08-08T16:00:00Z",
+        "publishedAt": "2026-08-08T21:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "The United States augmented air defenses at a base in Bahrain during the first week of August, and Gulf-based reporting described increased interceptor stocks at the site.",
+            "lane": "maritime",
+            "compound": false,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9111,
+          "theater": "bh",
+          "track": "military",
+          "text": "Gulf reporting claimed increased interceptor stocks at a US-used base in Bahrain during the first week of August.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-07",
+          "docs": [
+            {
+              "docId": 71011,
+              "adapter": "rss",
+              "platform": null,
+              "sourceDomain": "gulf-defense-wire.example",
+              "publishedAt": "2026-08-07T12:00:00Z",
+              "fetchedAt": "2026-08-07T12:45:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "legacy",
+          "currentExtractorVersion": false,
+          "published": true,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "eligibility": {
+          "9111": { "included": false, "reason": "legacy_incomparable" }
+        },
+        "laneAvailability": { "maritime": "unavailable" },
+        "corpusRecall": { "u0": "unavailable" },
+        "publishedRetention": { "u0": "matched" },
+        "contribution": {},
+        "independentSourceNote": "The legacy bh claim IS a member of the published-retention population as a labeled `legacy` contributor (designated gulf digest), so publishedRetention is matched; it is NOT in the corpus-recall population, whose lane honestly reports unavailable.",
+        "notes": "Comparability honesty (contract section 5): bh has no map-stage doc_claims, so corpus recall for this lane is `unavailable` — never a manufactured zero and never a silent inclusion of legacy rows. expected.eligibility describes the corpus-recall candidate union only (README schema note). No contribution entry: contribution follows corpus-recall matched units in these fixtures."
+      }
+    },
+    {
+      "id": "iran-two-events-011",
+      "title": "Same proxy actor in two distinct events must not cross-match",
+      "acceptanceRef": "Iran: the same proxy/actor in two DISTINCT events (must not cross-match)",
+      "conflictId": "iran_regional",
+      "report": {
+        "series": "iran_update",
+        "editionKey": "iran_update:2026-08-08:final",
+        "reportDate": "2026-08-08",
+        "cutoffAt": "2026-08-08T16:00:00Z",
+        "publishedAt": "2026-08-08T21:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "Houthi forces launched a ballistic missile toward Eilat on August 8 that Israeli air defenses intercepted.",
+            "lane": "proxy_partner",
+            "compound": false,
+            "negative": false
+          },
+          {
+            "unitId": "u1",
+            "text": "Houthi forces detained the crew of a fishing vessel off Al Salif on August 8 and moved the crew ashore.",
+            "lane": "maritime",
+            "compound": false,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9112,
+          "theater": "ir",
+          "track": "military",
+          "text": "Israeli air defenses reportedly intercepted a ballistic missile launched from Yemen toward Eilat on August 8.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-08",
+          "docs": [
+            {
+              "docId": 71012,
+              "adapter": "x-api",
+              "platform": "x",
+              "sourceDomain": "regional-alerts.example",
+              "publishedAt": "2026-08-08T04:30:00Z",
+              "fetchedAt": "2026-08-08T05:00:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": true,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "eligibility": {
+          "9112": { "included": true, "lane": "proxy_partner", "reasons": ["actor:houthi", "lane:proxy_partner", "window:in"] }
+        },
+        "corpusRecall": { "u0": "matched", "u1": "miss" },
+        "publishedRetention": { "u0": "matched", "u1": "miss" },
+        "contribution": { "u0": { "theaters": ["ir"], "tracks": ["military"] } },
+        "notes": "Two distinct same-day events by the same actor: the missile-interception claim matches u0 only. A matcher that pairs on shared actor (Houthi) or shared day alone would wrongly match u1 — section 6.3 requires compatible action, place, and object per event."
+      }
+    },
+    {
+      "id": "iran-translation-hedge-012",
+      "title": "Translated source never strengthens hedge or attribution",
+      "acceptanceRef": "Iran: source-language translation that must not strengthen hedge or attribution",
+      "conflictId": "iran_regional",
+      "report": {
+        "series": "iran_update",
+        "editionKey": "iran_update:2026-08-08:final",
+        "reportDate": "2026-08-08",
+        "cutoffAt": "2026-08-08T16:00:00Z",
+        "publishedAt": "2026-08-08T21:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "Iranian security services detained several employees of a fuel-distribution company in Bandar Abbas on August 8 on sabotage allegations, according to unconfirmed local reporting.",
+            "lane": "domestic_security",
+            "compound": false,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9113,
+          "theater": "ir",
+          "track": "military",
+          "text": "Local Persian-language reporting claimed security services detained several fuel-company employees in Bandar Abbas on August 8 over sabotage allegations.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-08",
+          "docs": [
+            {
+              "docId": 71013,
+              "adapter": "rss",
+              "platform": null,
+              "sourceDomain": "bandar-local-fa.example",
+              "sourceLanguage": "fa",
+              "publishedAt": "2026-08-08T06:50:00Z",
+              "fetchedAt": "2026-08-08T07:25:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": true,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "eligibility": {
+          "9113": { "included": true, "lane": "domestic_security", "reasons": ["lane:domestic_security", "geo:iran", "window:in"] }
+        },
+        "corpusRecall": { "u0": "matched" },
+        "publishedRetention": { "u0": "matched" },
+        "contribution": { "u0": { "theaters": ["ir"], "tracks": ["military"] } },
+        "hedgePreservation": { "9113": "claimed" },
+        "notes": "The claim derives from a translated fa-language source (doc.sourceLanguage) and carries hedging 'claimed' with governing attribution. Expected: the match succeeds AND the hedge stays 'claimed' — neither translation, matching, nor any conflict rendering may strengthen hedge, attribution, identity, predicate, status, or timing (contract section 6.3; ruling 20). No real person or company is named."
+      }
+    }
+  ]
+}
