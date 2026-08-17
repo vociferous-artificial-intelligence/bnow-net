@@ -156,6 +156,20 @@ export const INITIAL_EVALUATION_KIND_AVAILABILITY: Readonly<
   retrospective: "allowed",
 });
 
+/** Bounded machine-readable reasons an evaluation is `unavailable` — a CLOSED
+ *  union, never free text (Gate-1 NOTE-5). `publication_gap` = the reference
+ *  series truly published no report for the date (contract §9: gaps are
+ *  represented, never fabricated — so this reason NEVER carries an edition
+ *  identity); `no_proven_snapshot` = a snapshot evaluation kind without an
+ *  immutable capture artifact proving its populations (§6.2, register #5).
+ *  New reasons require a contract/fixture basis, not ad hoc strings. */
+export const UNAVAILABLE_REASONS = deepFreeze(["publication_gap", "no_proven_snapshot"] as const);
+export type UnavailableReason = (typeof UNAVAILABLE_REASONS)[number];
+
+export function isUnavailableReason(value: unknown): value is UnavailableReason {
+  return typeof value === "string" && (UNAVAILABLE_REASONS as readonly string[]).includes(value);
+}
+
 // ---------------------------------------------------------------------------
 // Per-unit verdicts and diagnostics (contract §3, §5; register #8 H1)
 // ---------------------------------------------------------------------------

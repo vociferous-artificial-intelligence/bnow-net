@@ -11,6 +11,7 @@ import {
   METHODOLOGY_EPOCH,
   MISS_DIAGNOSTICS,
   REFERENCE_SERIES_IDS,
+  UNAVAILABLE_REASONS,
   UNIT_VERDICTS,
   WINDOW_END_SOURCES,
   dominantExclusionReason,
@@ -22,6 +23,7 @@ import {
   isMatcherRung,
   isMissDiagnostic,
   isReferenceSeriesId,
+  isUnavailableReason,
   isUnitVerdict,
   isWindowEndSource,
 } from "./vocabulary";
@@ -197,6 +199,20 @@ describe("evaluation kinds (§6.2, register #5)", () => {
   });
 });
 
+describe("unavailable reasons — a CLOSED union (Gate-1 NOTE-5)", () => {
+  it("exactly publication_gap and no_proven_snapshot", () => {
+    expect(UNAVAILABLE_REASONS).toEqual(["publication_gap", "no_proven_snapshot"]);
+  });
+
+  it("guard rejects free text — no unbounded reason strings", () => {
+    expect(isUnavailableReason("publication_gap")).toBe(true);
+    expect(isUnavailableReason("no_proven_snapshot")).toBe(true);
+    for (const bad of ["gap", "snapshot_missing", "unavailable", "", null, undefined]) {
+      expect(isUnavailableReason(bad)).toBe(false);
+    }
+  });
+});
+
 describe("unit verdicts and diagnostics (§3, register #8 H1)", () => {
   it("exactly matched | miss | partial — NO unit-level unavailable", () => {
     expect(UNIT_VERDICTS).toEqual(["matched", "miss", "partial"]);
@@ -243,6 +259,7 @@ describe("frozen const arrays", () => {
       EXCLUSION_REASONS,
       WINDOW_END_SOURCES,
       EVALUATION_KINDS,
+      UNAVAILABLE_REASONS,
       UNIT_VERDICTS,
       MISS_DIAGNOSTICS,
       LANE_DIAGNOSTICS,

@@ -16,12 +16,17 @@ import type {
   ValidationEvalCase,
 } from "../evals/contracts";
 import { validateAnalysisEvalDataset } from "../evals/contracts";
+import { CONFLICT_REGISTRY } from "./definitions";
 import {
   CONFLICT_EVAL_DATASET_IDS,
   CONFLICT_EVAL_PROFILES,
   CONFLICT_EVAL_WORKLOAD,
+  validateConflictCaseMetaV1,
+  validateConflictResultIdentityV1,
   type ConflictEvalDatasetOf,
+  type ConflictPublicationGapResultV1,
   type ConflictResultV1,
+  type ConflictScoredResultV1,
   type ConflictValidationEvalCaseOf,
 } from "./eval-profile";
 import { CONFLICT_IDS, METHODOLOGY_EPOCH } from "./vocabulary";
@@ -40,7 +45,7 @@ const WORKLOAD_PIN: AnalysisEvalWorkload = CONFLICT_EVAL_WORKLOAD;
 // A minimal, fully synthetic conflict case (fictional content, house rules)
 // ---------------------------------------------------------------------------
 
-const CONFLICT_RESULT: ConflictResultV1 = {
+const CONFLICT_RESULT: ConflictScoredResultV1 = {
   version: 1,
   state: "scored",
   conflictId: "russia_ukraine",
@@ -180,6 +185,15 @@ describe("profile records (register #3)", () => {
     expect(CONFLICT_EVAL_PROFILES.iran_regional.evidencePolicyVersion).toBe("iran-ev-v1");
   });
 
+  it("profile ↔ registry consistency: versions are DERIVED, never divergent (Gate-1 MINOR-4)", () => {
+    for (const id of CONFLICT_IDS) {
+      const def = CONFLICT_REGISTRY[id];
+      const p = CONFLICT_EVAL_PROFILES[id];
+      expect(p.laneTaxonomyVersion).toBe(def.laneTaxonomyVersion);
+      expect(p.evidencePolicyVersion).toBe(def.evidencePolicyVersion);
+    }
+  });
+
   it("profiles and dataset ids are frozen", () => {
     expect(Object.isFrozen(CONFLICT_EVAL_PROFILES)).toBe(true);
     expect(Object.isFrozen(CONFLICT_EVAL_DATASET_IDS)).toBe(true);
@@ -243,5 +257,180 @@ describe("the ConflictResultV1 payload expresses the fixture vocabulary", () => 
     };
     expect(scored.state).toBe("scored");
     expect(scored.missDiagnostic?.u0).toBe("incomparable_coverage");
+  });
+
+  it("a TRUE publication gap (cc-publication-gap-002 shape) carries NO report/edition identity — only series + gapDate", () => {
+    const gap: ConflictPublicationGapResultV1 = {
+      version: 1,
+      state: "unavailable",
+      unavailableReason: "publication_gap",
+      conflictId: "iran_regional",
+      methodologyEpoch: METHODOLOGY_EPOCH,
+      laneTaxonomyVersion: "iran-lanes-v1",
+      evidencePolicyVersion: "iran-ev-v1",
+      evaluationKind: "retrospective",
+      series: "iran_update",
+      gapDate: "2026-07-31",
+    };
+    const asResult: ConflictResultV1 = gap;
+    expect("report" in asResult).toBe(false);
+    expect("editionKey" in asResult).toBe(false);
+    expect(validateConflictResultIdentityV1(gap)).toEqual([]);
+  });
+});
+
+describe("validateConflictResultIdentityV1 — fail-closed identity validation (Gate-1 MINOR-4/MAJOR-2)", () => {
+  it("accepts the scored and no-snapshot fixtures", () => {
+    expect(validateConflictResultIdentityV1(CONFLICT_RESULT)).toEqual([]);
+    const unavailable: ConflictResultV1 = {
+      version: 1,
+      state: "unavailable",
+      unavailableReason: "no_proven_snapshot",
+      conflictId: "russia_ukraine",
+      methodologyEpoch: METHODOLOGY_EPOCH,
+      laneTaxonomyVersion: "roca-lanes-v1",
+      evidencePolicyVersion: "ru-ua-ev-v1",
+      evaluationKind: "operational_cutoff",
+      report: CONFLICT_RESULT.report,
+    };
+    expect(validateConflictResultIdentityV1(unavailable)).toEqual([]);
+  });
+
+  it("REJECTS the reviewer's exact cross-conflict counterexample: russia_ukraine + iran-lanes-v1", () => {
+    const errs = validateConflictResultIdentityV1({
+      ...CONFLICT_RESULT,
+      conflictId: "russia_ukraine",
+      laneTaxonomyVersion: "iran-lanes-v1",
+      evidencePolicyVersion: "iran-ev-v1",
+    });
+    expect(errs.some((e) => e.includes("iran-lanes-v1") && e.includes("roca-lanes-v1"))).toBe(true);
+    expect(errs.some((e) => e.startsWith("evidencePolicyVersion:"))).toBe(true);
+  });
+
+  it("rejects a report whose series is not the conflict's reference series", () => {
+    const errs = validateConflictResultIdentityV1({
+      ...CONFLICT_RESULT,
+      report: {
+        ...CONFLICT_RESULT.report,
+        series: "iran_update",
+        editionKey: "iran_update:2026-08-01:final",
+      },
+    });
+    expect(errs.some((e) => e.startsWith("report.series:"))).toBe(true);
+  });
+
+  it("rejects an unknown unavailableReason — the union is closed", () => {
+    const errs = validateConflictResultIdentityV1({
+      version: 1,
+      state: "unavailable",
+      unavailableReason: "mystery_outage",
+      conflictId: "russia_ukraine",
+      methodologyEpoch: METHODOLOGY_EPOCH,
+      laneTaxonomyVersion: "roca-lanes-v1",
+      evidencePolicyVersion: "ru-ua-ev-v1",
+      evaluationKind: "finalized",
+      report: CONFLICT_RESULT.report,
+    });
+    expect(errs.some((e) => e.startsWith("unavailableReason:"))).toBe(true);
+  });
+
+  it("rejects a publication gap that smuggles a report identity (contract §9 — gaps are never fabricated)", () => {
+    const errs = validateConflictResultIdentityV1({
+      version: 1,
+      state: "unavailable",
+      unavailableReason: "publication_gap",
+      conflictId: "iran_regional",
+      methodologyEpoch: METHODOLOGY_EPOCH,
+      laneTaxonomyVersion: "iran-lanes-v1",
+      evidencePolicyVersion: "iran-ev-v1",
+      evaluationKind: "retrospective",
+      series: "iran_update",
+      gapDate: "2026-07-31",
+      report: CONFLICT_RESULT.report,
+    });
+    expect(errs.some((e) => e.startsWith("report:"))).toBe(true);
+  });
+
+  it("rejects a gap with the wrong series or a malformed gapDate, and gapDate on report-carrying variants", () => {
+    const gapBase = {
+      version: 1,
+      state: "unavailable",
+      unavailableReason: "publication_gap",
+      conflictId: "iran_regional",
+      methodologyEpoch: METHODOLOGY_EPOCH,
+      laneTaxonomyVersion: "iran-lanes-v1",
+      evidencePolicyVersion: "iran-ev-v1",
+      evaluationKind: "retrospective",
+      series: "iran_update",
+      gapDate: "2026-07-31",
+    };
+    expect(
+      validateConflictResultIdentityV1({ ...gapBase, series: "roca" }).some((e) =>
+        e.startsWith("series:"),
+      ),
+    ).toBe(true);
+    expect(
+      validateConflictResultIdentityV1({ ...gapBase, gapDate: "2026-02-30" }).some((e) =>
+        e.startsWith("gapDate:"),
+      ),
+    ).toBe(true);
+    expect(
+      validateConflictResultIdentityV1({ ...CONFLICT_RESULT, gapDate: "2026-07-31" }).some((e) =>
+        e.startsWith("gapDate:"),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a scored result carrying an unavailableReason, unknown conflicts, bad versions and states", () => {
+    expect(
+      validateConflictResultIdentityV1({ ...CONFLICT_RESULT, unavailableReason: "no_proven_snapshot" }).some(
+        (e) => e.startsWith("unavailableReason:"),
+      ),
+    ).toBe(true);
+    expect(validateConflictResultIdentityV1({ ...CONFLICT_RESULT, conflictId: "ru" })).toEqual([
+      'conflictId: unknown conflict "ru"',
+    ]);
+    expect(
+      validateConflictResultIdentityV1({ ...CONFLICT_RESULT, version: 2 }).some((e) =>
+        e.startsWith("version:"),
+      ),
+    ).toBe(true);
+    expect(
+      validateConflictResultIdentityV1({ ...CONFLICT_RESULT, state: "pending" }).some((e) =>
+        e.startsWith("state:"),
+      ),
+    ).toBe(true);
+    expect(validateConflictResultIdentityV1(null)).toEqual(["conflict result: not an object"]);
+  });
+});
+
+describe("validateConflictCaseMetaV1 (Gate-1 MINOR-4)", () => {
+  it("accepts a consistent meta", () => {
+    expect(
+      validateConflictCaseMetaV1({ version: 1, conflictId: "iran_regional", datasetId: "conflict-iran-v1" }),
+    ).toEqual([]);
+  });
+
+  it("REJECTS the reviewer's exact counterexample: russia_ukraine + conflict-iran-v1", () => {
+    const errs = validateConflictCaseMetaV1({
+      version: 1,
+      conflictId: "russia_ukraine",
+      datasetId: "conflict-iran-v1",
+    });
+    expect(errs.some((e) => e.includes("conflict-iran-v1") && e.includes("conflict-roca-v1"))).toBe(
+      true,
+    );
+  });
+
+  it("rejects unknown conflicts, bad versions, and non-objects", () => {
+    expect(
+      validateConflictCaseMetaV1({ version: 1, conflictId: "ir", datasetId: "conflict-iran-v1" }),
+    ).toEqual(['conflictId: unknown conflict "ir"']);
+    expect(
+      validateConflictCaseMetaV1({ version: 2, conflictId: "iran_regional", datasetId: "conflict-iran-v1" }).some(
+        (e) => e.startsWith("version:"),
+      ),
+    ).toBe(true);
+    expect(validateConflictCaseMetaV1("meta")).toEqual(["conflict case meta: not an object"]);
   });
 });
