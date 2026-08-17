@@ -34,22 +34,35 @@ vi.mock("@/db", () => {
   return { rawSql: { query: dbTouched } };
 });
 
-import type { AnalysisEvalDataset, MapEvalCase, ValidationEvalCase } from "./contracts";
+import type {
+  AnalysisEvalDataset,
+  EvalResultsFile,
+  MapEvalCase,
+  ValidationEvalCase,
+} from "./contracts";
 import {
   OFFLINE_CONFIG_KEY,
   ZERO_METER,
   aggregateResults,
+  alignedComparison,
   buildAnalysisEstimatePlan,
   buildCandidatePrompt,
   buildWorkloadScorecard,
+  computeCompleteness,
+  currentEnvKnobs,
   datasetPromptHash,
   emptyEvalResultsFile,
   liveConfigKey,
+  mergedScope,
   mergeEvalResults,
   offlineIdentity,
   pendingWork,
   renderAnalysisScorecardMarkdown,
+  resumeIdentityMismatch,
+  runScopeFor,
   scoreOfflineCase,
+  sha256,
+  type ResultsFileHeader,
 } from "./runner";
 
 const EVALS_DIR = join(__dirname, "..", "..", "..", "docs", "evals", "analysis");
@@ -60,6 +73,30 @@ const REDUCE_DS = load("reduce-v1.json");
 const DIGEST_DS = load("digest-v1.json");
 const VALIDATION_DS = load("validation-v1.json");
 const ALL = [MAP_DS, REDUCE_DS, DIGEST_DS, VALIDATION_DS];
+
+function mkHeader(ds: AnalysisEvalDataset, overrides: Partial<ResultsFileHeader> = {}): ResultsFileHeader {
+  return {
+    workload: ds.workload,
+    configKey: OFFLINE_CONFIG_KEY,
+    datasetVersion: ds.datasetVersion,
+    datasetContentHash: sha256(`content:${ds.datasetVersion}`),
+    identity: offlineIdentity(ds),
+    requestedRepetitions: 1,
+    scope: "full",
+    envKnobs: currentEnvKnobs(),
+    ...overrides,
+  };
+}
+
+function runAll(ds: AnalysisEvalDataset, headerOverrides: Partial<ResultsFileHeader> = {}): EvalResultsFile {
+  const header = mkHeader(ds, headerOverrides);
+  let rf = emptyEvalResultsFile(header);
+  for (const c of ds.cases) {
+    if (header.scope === "dev" && c.split === "heldout") continue;
+    rf = mergeEvalResults(rf, header, [scoreOfflineCase(c, ds.datasetVersion, "unit")], ZERO_METER);
+  }
+  return rf;
+}
 
 describe("leakage prevention", () => {
   it("candidate prompts are built from input ONLY — a reference sentinel never appears", () => {
@@ -95,7 +132,7 @@ describe("leakage prevention", () => {
     expect(vp.system + vp.user).not.toContain(sentinel);
   });
 
-  it("--dev excludes the heldout split entirely", () => {
+  it("--dev excludes the heldout split entirely and stamps scope 'dev'", () => {
     const { work, excludedHeldout } = pendingWork(MAP_DS, null, {
       repetitions: 1,
       fresh: false,
@@ -104,21 +141,35 @@ describe("leakage prevention", () => {
     });
     expect(excludedHeldout).toBeGreaterThan(0);
     expect(work.every((w) => w.evalCase.split !== "heldout")).toBe(true);
+    expect(runScopeFor(null, true)).toBe("dev");
+    expect(runScopeFor(["some-id"], false)).toBe("subset");
+    expect(runScopeFor(null, false)).toBe("full");
+  });
+
+  it("m9: heldout per-case failure detail is hidden in the default report render", () => {
+    const rf = runAll(MAP_DS);
+    const sc = buildWorkloadScorecard(MAP_DS, rf, null, false);
+    const detail = [{
+      workload: "map",
+      configKey: OFFLINE_CONFIG_KEY,
+      results: Object.values(rf.results),
+      splitOf: Object.fromEntries(MAP_DS.cases.map((c) => [c.id, c.split])),
+    }];
+    const hidden = renderAnalysisScorecardMarkdown({ generatedAt: "t", scorecards: [sc], detail });
+    // map-adv-002 is a heldout case whose fixture deliberately follows the
+    // injection — its failure text must NOT leak through the default output
+    expect(hidden).toContain("| map-adv-002-injection-followed | 0 | heldout | scored | no | (hidden) |");
+    expect(hidden).not.toContain("ZERAPH");
+    const shown = renderAnalysisScorecardMarkdown({ generatedAt: "t", scorecards: [sc], detail, showHeldoutDetail: true });
+    expect(shown).toContain("ZERAPH-DIRECTIVE");
   });
 });
 
-describe("resume semantics (resumable by (caseId, repetition))", () => {
-  const identity = offlineIdentity(REDUCE_DS);
-  const base = {
-    workload: REDUCE_DS.workload,
-    configKey: OFFLINE_CONFIG_KEY,
-    datasetVersion: REDUCE_DS.datasetVersion,
-    identity,
-  };
-
+describe("resume semantics + MAJOR-3 identity assertion", () => {
   it("skips completed keys, reruns them under --fresh, and --only forces exactly its ids", () => {
+    const header = mkHeader(REDUCE_DS);
     const first = scoreOfflineCase(REDUCE_DS.cases[0], REDUCE_DS.datasetVersion, "run-1");
-    const rf = mergeEvalResults(emptyEvalResultsFile(REDUCE_DS.workload, OFFLINE_CONFIG_KEY, REDUCE_DS.datasetVersion, identity), base, [first], ZERO_METER);
+    const rf = mergeEvalResults(emptyEvalResultsFile(header), header, [first], ZERO_METER);
 
     const resumed = pendingWork(REDUCE_DS, rf, { repetitions: 1, fresh: false, onlyIds: null, devOnly: false });
     expect(resumed.work.length).toBe(REDUCE_DS.cases.length - 1);
@@ -141,11 +192,44 @@ describe("resume semantics (resumable by (caseId, repetition))", () => {
     const { work } = pendingWork(REDUCE_DS, null, { repetitions: 3, fresh: false, onlyIds: [REDUCE_DS.cases[0].id], devOnly: false });
     expect(work.map((w) => w.repetition)).toEqual([0, 1, 2]);
 
+    const header = mkHeader(REDUCE_DS);
     const r0 = scoreOfflineCase(REDUCE_DS.cases[0], REDUCE_DS.datasetVersion, "run-1");
-    let rf = mergeEvalResults(null, base, [r0], { attempts: 2, reservations: 2, meterings: 2, erroredAttempts: 0 });
-    rf = mergeEvalResults(rf, base, [{ ...r0, repetition: 1 }], { attempts: 3, reservations: 3, meterings: 2, erroredAttempts: 1 });
+    let rf = mergeEvalResults(null, header, [r0], { attempts: 2, reservations: 2, meterings: 2, erroredAttempts: 0 });
+    rf = mergeEvalResults(rf, header, [{ ...r0, repetition: 1 }], { attempts: 3, reservations: 3, meterings: 2, erroredAttempts: 1 });
     expect(rf.meter).toEqual({ attempts: 5, reservations: 5, meterings: 4, erroredAttempts: 1 });
-    expect(Object.keys(rf.results).sort()).toEqual([`${REDUCE_DS.cases[0].id}#r0`, `${REDUCE_DS.cases[0].id}#r1`]);
+  });
+
+  it("REFUSES a resume whose promptHash changed (MAJOR-3)", () => {
+    const header = mkHeader(REDUCE_DS);
+    const rf = mergeEvalResults(null, header, [scoreOfflineCase(REDUCE_DS.cases[0], REDUCE_DS.datasetVersion, "r")], ZERO_METER);
+    const drifted = mkHeader(REDUCE_DS, {
+      identity: { ...header.identity, promptHash: sha256("a-new-prompt") },
+    });
+    expect(resumeIdentityMismatch(rf, drifted)).toContain("promptHash");
+    expect(() => mergeEvalResults(rf, drifted, [], ZERO_METER)).toThrow(/identity changed — use --fresh or a new configKey/);
+  });
+
+  it("REFUSES a resume after a dataset content edit (datasetContentHash change)", () => {
+    const header = mkHeader(REDUCE_DS);
+    const rf = mergeEvalResults(null, header, [scoreOfflineCase(REDUCE_DS.cases[0], REDUCE_DS.datasetVersion, "r")], ZERO_METER);
+    const editedReference = mkHeader(REDUCE_DS, { datasetContentHash: sha256("edited dataset bytes") });
+    expect(resumeIdentityMismatch(rf, editedReference)).toContain("datasetContentHash");
+    expect(() => mergeEvalResults(rf, editedReference, [], ZERO_METER)).toThrow(/identity changed/);
+  });
+
+  it("REFUSES a resume under different env knobs or repetitions; scope merges by rule", () => {
+    const header = mkHeader(REDUCE_DS);
+    const rf = mergeEvalResults(null, header, [], ZERO_METER);
+    const knobDrift = mkHeader(REDUCE_DS, { envKnobs: { ...header.envKnobs, reduceVotes: 3 } });
+    expect(resumeIdentityMismatch(rf, knobDrift)).toContain("envKnobs");
+    const repDrift = mkHeader(REDUCE_DS, { requestedRepetitions: 3 });
+    expect(resumeIdentityMismatch(rf, repDrift)).toContain("requestedRepetitions");
+
+    expect(mergedScope(null, "dev")).toBe("dev");
+    expect(mergedScope("dev", "full")).toBe("full"); // a full run completes the file
+    expect(mergedScope("full", "subset")).toBe("full"); // --only preserves coverage
+    expect(mergedScope("dev", "subset")).toBe("dev");
+    expect(mergedScope("full", "dev")).toBe("full");
   });
 });
 
@@ -165,24 +249,42 @@ describe("estimate mode", () => {
   });
 });
 
-describe("offline scoring + aggregation over the committed datasets", () => {
-  function runAll(ds: AnalysisEvalDataset) {
-    const identity = offlineIdentity(ds);
-    let rf = emptyEvalResultsFile(ds.workload, OFFLINE_CONFIG_KEY, ds.datasetVersion, identity);
-    const base = { workload: ds.workload, configKey: OFFLINE_CONFIG_KEY, datasetVersion: ds.datasetVersion, identity };
-    for (const c of ds.cases) {
-      rf = mergeEvalResults(rf, base, [scoreOfflineCase(c, ds.datasetVersion, "unit")], ZERO_METER);
-    }
-    return rf;
-  }
-
+describe("completeness (MAJOR-1) + aggregation over the committed datasets", () => {
   it("every committed fixture behaves exactly as its declared expectation (the machinery proof)", () => {
     for (const ds of ALL) {
       const rf = runAll(ds);
       const agg = aggregateResults(ds, rf, false);
       expect(agg.machinery.total, ds.workload).toBe(ds.cases.length);
       expect(agg.machinery.matched, ds.workload).toBe(ds.cases.length);
+      expect(agg.completeness.complete, ds.workload).toBe(true);
+      expect(agg.completeness.missingResults, ds.workload).toBe(0);
     }
+  });
+
+  it("a --dev file is INCOMPLETE and its verdict is insufficient_data even when every check passes", () => {
+    const rf = runAll(REDUCE_DS, { scope: "dev" });
+    const c = computeCompleteness(REDUCE_DS, rf);
+    const heldoutCount = REDUCE_DS.cases.filter((x) => x.split === "heldout").length;
+    expect(c.complete).toBe(false);
+    expect(c.missingResults).toBe(heldoutCount);
+    expect(c.missingHeldout).toBe(heldoutCount);
+    expect(c.heldoutPresent).toEqual({ typical: 0, edge: 0, adversarial: 0 });
+    const sc = buildWorkloadScorecard(REDUCE_DS, rf, null, false);
+    expect(sc.verdictResult.verdict).toBe("insufficient_data");
+    expect(sc.verdictResult.reasons.some((r) => r.includes('scope is "dev"'))).toBe(true);
+  });
+
+  it("missing repetitions count as missing keys (reps >= 2 arithmetic)", () => {
+    const header = mkHeader(REDUCE_DS, { requestedRepetitions: 2 });
+    let rf = emptyEvalResultsFile(header);
+    for (const c of REDUCE_DS.cases) {
+      // record repetition 0 only — every repetition-1 key is missing
+      rf = mergeEvalResults(rf, header, [scoreOfflineCase(c, REDUCE_DS.datasetVersion, "unit")], ZERO_METER);
+    }
+    const comp = computeCompleteness(REDUCE_DS, rf);
+    expect(comp.expectedResults).toBe(REDUCE_DS.cases.length * 2);
+    expect(comp.missingResults).toBe(REDUCE_DS.cases.length);
+    expect(comp.complete).toBe(false);
   });
 
   it("the map fixture config trips the hard gates it was designed to demonstrate", () => {
@@ -191,6 +293,8 @@ describe("offline scoring + aggregation over the committed datasets", () => {
     expect(agg.gate.wrongDocIdsTotal).toBeGreaterThan(0);
     expect(agg.gate.strengthenedHedgesTotal).toBeGreaterThan(0);
     expect(agg.gate.injectionFollowedCases).toBeGreaterThan(0);
+    expect(agg.bySplit.heldout.results).toBeGreaterThan(0);
+    expect(agg.byPartition.adversarial.results).toBeGreaterThan(0);
     const sc = buildWorkloadScorecard(MAP_DS, rf, null, false);
     expect(sc.verdictResult.verdict).toBe("fail");
     expect(sc.proposedRegistryEntry).toBeNull();
@@ -203,19 +307,58 @@ describe("offline scoring + aggregation over the committed datasets", () => {
     expect(sc.verdictResult.verdict).toBe("insufficient_data");
   });
 
-  it("renders a scorecard that labels identity, split coverage, and verdict", () => {
+  it("MAJOR-2: alignedComparison intersects (caseId, repetition) keys and isolates the heldout subset", () => {
+    const judged = runAll(DIGEST_DS);
+    // baseline missing two cases (one of them heldout)
+    const header = mkHeader(DIGEST_DS, { configKey: "gpt-4o-mini" });
+    let baseline = emptyEvalResultsFile(header);
+    const heldoutId = DIGEST_DS.cases.find((c) => c.split === "heldout")!.id;
+    const devId = DIGEST_DS.cases.find((c) => c.split === "development")!.id;
+    for (const c of DIGEST_DS.cases) {
+      if (c.id === heldoutId || c.id === devId) continue;
+      baseline = mergeEvalResults(baseline, header, [scoreOfflineCase(c, DIGEST_DS.datasetVersion, "b")], ZERO_METER);
+    }
+    const aligned = alignedComparison(DIGEST_DS, judged, baseline);
+    expect(aligned.alignedKeys).toBe(DIGEST_DS.cases.length - 2);
+    const heldoutTotal = DIGEST_DS.cases.filter((c) => c.split === "heldout").length;
+    expect(aligned.alignedHeldoutKeys).toBe(heldoutTotal - 1);
+    expect(Number.isNaN(aligned.judgedQuality.checksPassRate)).toBe(false);
+  });
+
+  it("renders completeness, slices, and identity into the scorecard", () => {
     const rf = runAll(DIGEST_DS);
     const sc = buildWorkloadScorecard(DIGEST_DS, rf, null, false);
     const md = renderAnalysisScorecardMarkdown({
       generatedAt: "2026-08-17T00:00:00Z",
       scorecards: [sc],
-      detail: [{ workload: "digest", configKey: OFFLINE_CONFIG_KEY, results: Object.values(rf.results) }],
+      detail: [{
+        workload: "digest",
+        configKey: OFFLINE_CONFIG_KEY,
+        results: Object.values(rf.results),
+        splitOf: Object.fromEntries(DIGEST_DS.cases.map((c) => [c.id, c.split])),
+      }],
       headerNote: "unit-test render",
     });
     expect(md).toContain("machinery proof");
-    expect(md).toContain("heldout coverage");
+    expect(md).toContain("completeness | scope=full");
+    expect(md).toContain("split: heldout (gated)");
+    expect(md).toContain("partition: adversarial");
     expect(md).toContain("VERDICT");
     expect(md).toContain("dig-adv-002-r1-drop-wash");
+  });
+});
+
+describe("m7: vacuous precision handling in validation quality", () => {
+  it("excludes vacuous (null) match-set precision from the mean and counts it", () => {
+    const ds = VALIDATION_DS;
+    const rf = runAll(ds);
+    const agg = aggregateResults(ds, rf, false);
+    // the committed set includes cases whose match-set predicts nothing on a
+    // null-labelled takeaway (precision null = vacuous) — those must be
+    // counted, not folded into the mean
+    expect(agg.quality.matchSetPrecisionVacuousCount).toBeGreaterThan(0);
+    expect(agg.quality.matchSetPrecision).not.toBeNaN();
+    expect(agg.quality.matchSetPrecision).toBeLessThanOrEqual(1);
   });
 });
 
@@ -229,6 +372,9 @@ describe("configuration identity", () => {
     expect(offlineIdentity(REDUCE_DS).extractorVersion).toBeUndefined();
     expect(liveConfigKey("gpt-5-mini", "low")).toBe("gpt-5-mini@low");
     expect(liveConfigKey("gpt-5-mini", null)).toBe("gpt-5-mini");
+    const knobs = currentEnvKnobs();
+    expect(knobs.reduceVotes).toBe(5);
+    expect(knobs.mapOutTokensPerDoc).toBe(200);
   });
 });
 

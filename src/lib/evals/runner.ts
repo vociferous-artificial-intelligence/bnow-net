@@ -19,6 +19,7 @@ import {
   mapSystemPrompt,
   mapUserMessage,
 } from "../analysis/map-prompts";
+import { mapOutTokensPerDoc } from "../analysis/map-worker";
 import { clusterClaims, rankGroups, type ReduceClaim } from "../analysis/reduce";
 import {
   reduceVotes,
@@ -29,6 +30,7 @@ import {
 import type { Track } from "../analysis/tracks";
 import { ANALYSIS_ROUTING_REGISTRY_VERSION } from "../llm/analysis-registry";
 import { estimateCostUsd } from "../llm/pricing";
+import { reduceMaxOutputTokens } from "../usage/llm-guard";
 import {
   MATCH_RESPONSE_SCHEMA,
   MATCH_SYSTEM_PROMPT,
@@ -44,7 +46,9 @@ import {
   type DigestEvalCase,
   type DigestEvalInput,
   type EvalCaseResult,
+  type EvalEnvKnobs,
   type EvalResultsFile,
+  type EvalRunScope,
   type MapEvalCase,
   type MapEvalInput,
   type ReduceEvalCase,
@@ -53,8 +57,11 @@ import {
 } from "./contracts";
 import {
   computeScorecardVerdict,
+  type AlignedComparison,
+  type CompletenessInfo,
   type HeldoutCoverage,
   type ScorecardVerdictResult,
+  type SliceStats,
   type WorkloadAggregate,
 } from "./gates";
 import { scoreMapCase } from "./score-map";
@@ -63,8 +70,26 @@ import { scoreValidationCase } from "./score-validation";
 
 export const OFFLINE_CONFIG_KEY = "offline-fixtures";
 
-export function sha256(text: string): string {
+export function sha256(text: string | Buffer): string {
   return createHash("sha256").update(text).digest("hex");
+}
+
+/** Env-tunable pipeline knobs, captured into every results-file header (m10):
+ *  results are only interpretable against the knob values they ran under, and
+ *  a resume under different knobs is refused (MAJOR-3). */
+export function currentEnvKnobs(): EvalEnvKnobs {
+  return {
+    reduceVotes: reduceVotes(),
+    reduceMaxOutputTokens: reduceMaxOutputTokens(),
+    mapOutTokensPerDoc: mapOutTokensPerDoc(),
+    mapContentChars: mapContentChars(),
+  };
+}
+
+/** Coverage breadth of a run: --only → subset, --dev → dev, else full. */
+export function runScopeFor(onlyIds: string[] | null, devOnly: boolean): EvalRunScope {
+  if (onlyIds !== null) return "subset";
+  return devOnly ? "dev" : "full";
 }
 
 // ============================================================================
@@ -269,9 +294,6 @@ export function buildAnalysisEstimatePlan(
         calls = 1;
         inTok = promptTok;
         outTok = docs * EST_MAP_OUT_TOKENS_PER_DOC;
-        // documented ceiling parity: content chars are already bounded by
-        // mapContentChars() inside mapDocLine, so promptTok cannot understate
-        void mapContentChars();
         break;
       }
       case "digest": {
@@ -313,21 +335,64 @@ export function buildAnalysisEstimatePlan(
 // Results-file resume (resumable by (caseId, repetition); MR3 lesson)
 // ============================================================================
 
-export function emptyEvalResultsFile(
-  workload: AnalysisEvalWorkload,
-  configKey: string,
-  datasetVersion: string,
-  identity: CandidateDispatchIdentity,
-): EvalResultsFile {
+/** The header fields a results file is keyed on. Immutable across resumes
+ *  (MAJOR-3): any drift means the file would silently mix results from two
+ *  different configurations/datasets. */
+export interface ResultsFileHeader {
+  workload: AnalysisEvalWorkload;
+  configKey: string;
+  datasetVersion: string;
+  datasetContentHash: string;
+  identity: CandidateDispatchIdentity;
+  requestedRepetitions: number;
+  scope: EvalRunScope;
+  envKnobs: EvalEnvKnobs;
+}
+
+export function emptyEvalResultsFile(header: ResultsFileHeader): EvalResultsFile {
   return {
-    workload,
-    configKey,
-    datasetVersion,
-    identity,
+    ...header,
     updatedAt: new Date(0).toISOString(),
     meter: { attempts: 0, reservations: 0, meterings: 0, erroredAttempts: 0 },
     results: {},
   };
+}
+
+/** MAJOR-3: fields whose drift makes a resume a DIFFERENT run. Returns a
+ *  human-readable mismatch description, or null when compatible. `scope` is
+ *  deliberately NOT compared here — see mergedScope. */
+export function resumeIdentityMismatch(
+  existing: ResultsFileHeader,
+  current: ResultsFileHeader,
+): string | null {
+  const diffs: string[] = [];
+  const cmp = (name: string, a: unknown, b: unknown) => {
+    if (JSON.stringify(a) !== JSON.stringify(b)) diffs.push(`${name}: ${JSON.stringify(a)} -> ${JSON.stringify(b)}`);
+  };
+  cmp("workload", existing.workload, current.workload);
+  cmp("configKey", existing.configKey, current.configKey);
+  cmp("datasetVersion", existing.datasetVersion, current.datasetVersion);
+  cmp("datasetContentHash", existing.datasetContentHash, current.datasetContentHash);
+  cmp("requestedRepetitions", existing.requestedRepetitions, current.requestedRepetitions);
+  cmp("model", existing.identity.model, current.identity.model);
+  cmp("reasoningEffort", existing.identity.reasoningEffort, current.identity.reasoningEffort);
+  cmp("provider", existing.identity.provider, current.identity.provider);
+  cmp("approval", existing.identity.approval, current.identity.approval);
+  cmp("registryVersion", existing.identity.registryVersion, current.identity.registryVersion);
+  cmp("promptHash", existing.identity.promptHash, current.identity.promptHash);
+  cmp("schemaVersion", existing.identity.schemaVersion, current.identity.schemaVersion);
+  cmp("extractorVersion", existing.identity.extractorVersion ?? null, current.identity.extractorVersion ?? null);
+  cmp("envKnobs", existing.envKnobs, current.envKnobs);
+  return diffs.length === 0 ? null : diffs.join("; ");
+}
+
+/** Scope of the merged file: --only preserves the existing coverage claim; a
+ *  full run completes the file to full; a dev resume never upgrades. */
+export function mergedScope(existing: EvalRunScope | null, runScope: EvalRunScope): EvalRunScope {
+  if (existing === null) return runScope;
+  if (runScope === "subset") return existing;
+  if (runScope === "full") return "full";
+  return existing === "full" ? "full" : "dev";
 }
 
 export interface MeterDelta {
@@ -339,18 +404,31 @@ export interface MeterDelta {
 
 export const ZERO_METER: MeterDelta = { attempts: 0, reservations: 0, meterings: 0, erroredAttempts: 0 };
 
+/** Merge results into an existing file. THROWS on any identity drift
+ *  (MAJOR-3) — the existing header is preserved verbatim (never restamped
+ *  with the current run's values); only scope may evolve per mergedScope. */
 export function mergeEvalResults(
   existing: EvalResultsFile | null,
-  base: Omit<EvalResultsFile, "updatedAt" | "results" | "meter">,
+  header: ResultsFileHeader,
   additions: EvalCaseResult[],
   meterDelta: MeterDelta,
   now: Date = new Date(),
 ): EvalResultsFile {
+  if (existing !== null) {
+    const mismatch = resumeIdentityMismatch(existing, header);
+    if (mismatch !== null) {
+      throw new Error(
+        `analysis-eval: results-file identity changed — use --fresh or a new configKey (${mismatch})`,
+      );
+    }
+  }
   const results = { ...(existing?.results ?? {}) };
   for (const a of additions) results[resultKey(a.caseId, a.repetition)] = a;
   const prior = existing?.meter ?? ZERO_METER;
+  const base: ResultsFileHeader = existing ?? header;
   return {
     ...base,
+    scope: mergedScope(existing?.scope ?? null, header.scope),
     updatedAt: now.toISOString(),
     meter: {
       attempts: prior.attempts + meterDelta.attempts,
@@ -475,13 +553,57 @@ export function scoreOfflineCase(
 }
 
 // ============================================================================
-// Aggregation + scorecard
+// Completeness (MAJOR-1) + aggregation
 // ============================================================================
+
+/** Statuses that count as a PRESENT result: a failing result is still a
+ *  result; a skipped row is missing work. */
+const PRESENT_STATUSES = new Set(["scored", "schema_invalid", "provider_error"]);
 
 export function heldoutCoverage(dataset: AnalysisEvalDataset): HeldoutCoverage {
   const cov: HeldoutCoverage = { typical: 0, edge: 0, adversarial: 0 };
   for (const c of dataset.cases) if (c.split === "heldout") cov[c.partition]++;
   return cov;
+}
+
+/** RESULTS-side completeness of a file against its dataset: every
+ *  (caseId, repetition < requestedRepetitions) key must be present. */
+export function computeCompleteness(
+  dataset: AnalysisEvalDataset,
+  rf: EvalResultsFile,
+): CompletenessInfo {
+  const reps = rf.requestedRepetitions;
+  const present = new Set(
+    Object.values(rf.results)
+      .filter((r) => PRESENT_STATUSES.has(r.status))
+      .map((r) => resultKey(r.caseId, r.repetition)),
+  );
+  let missing = 0;
+  let missingHeldout = 0;
+  const heldoutPresent: HeldoutCoverage = { typical: 0, edge: 0, adversarial: 0 };
+  for (const c of dataset.cases) {
+    let caseComplete = true;
+    for (let rep = 0; rep < reps; rep++) {
+      if (!present.has(resultKey(c.id, rep))) {
+        missing++;
+        caseComplete = false;
+        if (c.split === "heldout") missingHeldout++;
+      }
+    }
+    if (c.split === "heldout" && caseComplete) heldoutPresent[c.partition]++;
+  }
+  const expected = dataset.cases.length * reps;
+  return {
+    scope: rf.scope,
+    requestedRepetitions: reps,
+    expectedResults: expected,
+    presentResults: expected - missing,
+    missingResults: missing,
+    missingHeldout,
+    datasetContentHash: rf.datasetContentHash,
+    heldoutPresent,
+    complete: rf.scope === "full" && missing === 0,
+  };
 }
 
 function mean(xs: number[]): number {
@@ -500,7 +622,15 @@ function field(checks: object, key: string): unknown {
   return (checks as Record<string, unknown>)[key];
 }
 
-function qualityOf(
+/** Workload quality means over a result subset.
+ *
+ *  Vacuous-population rule (m7): a per-case precision/recall of null means
+ *  the case's population was EMPTY (nothing predicted / nothing labelled) —
+ *  such cases are EXCLUDED from the means and counted separately in
+ *  `*VacuousCount` keys (reported, never silently folded into a flattering
+ *  1.0). A metric whose every case is vacuous is NaN, which the pairwise
+ *  gate reports as unavailable (insufficient_data), not a pass. */
+export function qualityOf(
   workload: AnalysisEvalWorkload,
   results: EvalCaseResult[],
 ): Record<string, number> {
@@ -517,26 +647,43 @@ function qualityOf(
     case "digest":
       return { checksPassRate: passRate };
     case "validation": {
-      const withMs = scored.filter((r) => field(r.checks, "matchSet") !== null && field(r.checks, "matchSet") !== undefined);
-      const msField = (r: EvalCaseResult, f: string): number => {
-        const ms = field(r.checks, "matchSet") as Record<string, number | null> | null;
-        const v = ms?.[f];
-        return typeof v === "number" ? v : 1; // null precision/recall = nothing predicted/labelled; vacuous
+      const pathVals = (pathKey: "matchSet" | "keyword", f: "precision" | "recall") => {
+        const vals: number[] = [];
+        let vacuous = 0;
+        for (const r of scored) {
+          const path = field(r.checks, pathKey) as Record<string, number | null> | null | undefined;
+          if (path === null || path === undefined) continue; // no match-set supplied at all
+          const v = path[f];
+          if (typeof v === "number") vals.push(v);
+          else vacuous++;
+        }
+        return { vals, vacuous };
       };
-      const kwField = (r: EvalCaseResult, f: string): number => {
-        const kw = field(r.checks, "keyword") as Record<string, number | null> | undefined;
-        const v = kw?.[f];
-        return typeof v === "number" ? v : 1;
-      };
+      const msP = pathVals("matchSet", "precision");
+      const msR = pathVals("matchSet", "recall");
+      const kwP = pathVals("keyword", "precision");
+      const kwR = pathVals("keyword", "recall");
       return {
-        matchSetPrecision: mean(withMs.map((r) => msField(r, "precision"))),
-        matchSetRecall: mean(withMs.map((r) => msField(r, "recall"))),
-        keywordPrecision: mean(scored.map((r) => kwField(r, "precision"))),
-        keywordRecall: mean(scored.map((r) => kwField(r, "recall"))),
+        matchSetPrecision: mean(msP.vals),
+        matchSetRecall: mean(msR.vals),
+        matchSetPrecisionVacuousCount: msP.vacuous,
+        matchSetRecallVacuousCount: msR.vacuous,
+        keywordPrecision: mean(kwP.vals),
+        keywordRecall: mean(kwR.vals),
+        keywordPrecisionVacuousCount: kwP.vacuous,
+        keywordRecallVacuousCount: kwR.vacuous,
         checksPassRate: passRate,
       };
     }
   }
+}
+
+function sliceStats(workload: AnalysisEvalWorkload, results: EvalCaseResult[]): SliceStats {
+  return {
+    results: results.length,
+    checksPassed: results.filter((r) => r.checks.pass).length,
+    quality: qualityOf(workload, results),
+  };
 }
 
 export function aggregateResults(
@@ -596,6 +743,19 @@ export function aggregateResults(
     }
   }
 
+  // m4: per-split and per-partition slices
+  const splitOf = (r: EvalCaseResult) => caseById.get(r.caseId)?.split ?? "development";
+  const partitionOf = (r: EvalCaseResult) => caseById.get(r.caseId)?.partition ?? "typical";
+  const bySplit = {
+    development: sliceStats(dataset.workload, results.filter((r) => splitOf(r) === "development")),
+    heldout: sliceStats(dataset.workload, results.filter((r) => splitOf(r) === "heldout")),
+  };
+  const byPartition = {
+    typical: sliceStats(dataset.workload, results.filter((r) => partitionOf(r) === "typical")),
+    edge: sliceStats(dataset.workload, results.filter((r) => partitionOf(r) === "edge")),
+    adversarial: sliceStats(dataset.workload, results.filter((r) => partitionOf(r) === "adversarial")),
+  };
+
   const latencies = results.map((r) => r.latencyMs).filter((v): v is number => v !== null);
   return {
     workload: dataset.workload,
@@ -609,6 +769,9 @@ export function aggregateResults(
     },
     checks: { passed: results.filter((r) => r.checks.pass).length, total: results.length },
     machinery: { matched: machineryMatched, total: machineryTotal },
+    completeness: computeCompleteness(dataset, rf),
+    bySplit,
+    byPartition,
     gate: {
       wrongDocIdsTotal,
       heldoutUnderfillCases,
@@ -632,6 +795,39 @@ export function aggregateResults(
   };
 }
 
+/** MAJOR-2: the aligned (caseId, repetition) intersection of two results
+ *  files, with the gated quality recomputed on its HELDOUT subset. */
+export function alignedComparison(
+  dataset: AnalysisEvalDataset,
+  judged: EvalResultsFile,
+  baseline: EvalResultsFile,
+): AlignedComparison {
+  const caseById = new Map(dataset.cases.map((c) => [c.id, c]));
+  const presentKeys = (rf: EvalResultsFile) =>
+    new Set(
+      Object.values(rf.results)
+        .filter((r) => PRESENT_STATUSES.has(r.status))
+        .map((r) => resultKey(r.caseId, r.repetition)),
+    );
+  const jKeys = presentKeys(judged);
+  const bKeys = presentKeys(baseline);
+  const aligned = [...jKeys].filter((k) => bKeys.has(k));
+  const alignedSet = new Set(aligned);
+  const heldoutSubset = (rf: EvalResultsFile) =>
+    Object.values(rf.results).filter(
+      (r) =>
+        alignedSet.has(resultKey(r.caseId, r.repetition)) &&
+        caseById.get(r.caseId)?.split === "heldout",
+    );
+  const judgedHeldout = heldoutSubset(judged);
+  return {
+    alignedKeys: aligned.length,
+    alignedHeldoutKeys: judgedHeldout.length,
+    judgedQuality: qualityOf(dataset.workload, judgedHeldout),
+    baselineQuality: qualityOf(dataset.workload, heldoutSubset(baseline)),
+  };
+}
+
 // ============================================================================
 // Scorecard (markdown + JSON)
 // ============================================================================
@@ -642,12 +838,14 @@ export interface WorkloadScorecard {
   judged: WorkloadAggregate;
   judgedIdentity: CandidateDispatchIdentity;
   baseline: WorkloadAggregate | null;
-  heldout: HeldoutCoverage;
+  aligned: AlignedComparison | null;
   verdictResult: ScorecardVerdictResult;
   /** rendered ONLY for a passing live evaluation_candidate — a PROPOSED
    *  analysis-registry entry as text. This program never edits
    *  analysis-registry.ts; activation additionally requires the paid-eval
-   *  authorization checklist + an operator decision-log entry. */
+   *  authorization checklist + an operator decision-log entry. A pass now
+   *  requires results completeness (MAJOR-1), so a partial/--dev/--only file
+   *  can never render this. */
   proposedRegistryEntry: string | null;
 }
 
@@ -658,9 +856,9 @@ export function buildWorkloadScorecard(
   liveJudged: boolean,
 ): WorkloadScorecard {
   const judged = aggregateResults(dataset, judgedFile, liveJudged);
-  const baseline = baselineFile ? aggregateResults(dataset, baselineFile, false) : null;
-  const heldout = heldoutCoverage(dataset);
-  const verdictResult = computeScorecardVerdict(judged, baseline, heldout);
+  const baseline = baselineFile ? aggregateResults(dataset, baselineFile, true) : null;
+  const aligned = baselineFile ? alignedComparison(dataset, judgedFile, baselineFile) : null;
+  const verdictResult = computeScorecardVerdict(judged, baseline, aligned);
   const proposedRegistryEntry =
     verdictResult.verdict === "pass" &&
     liveJudged &&
@@ -680,7 +878,7 @@ export function buildWorkloadScorecard(
     judged,
     judgedIdentity: judgedFile.identity,
     baseline,
-    heldout,
+    aligned,
     verdictResult,
     proposedRegistryEntry,
   };
@@ -690,11 +888,31 @@ function pct(x: number): string {
   return Number.isNaN(x) ? "—" : `${(100 * x).toFixed(1)}%`;
 }
 
+function sliceLine(name: string, s: SliceStats): string {
+  const q = Object.entries(s.quality)
+    .filter(([k]) => !k.endsWith("VacuousCount"))
+    .map(([k, v]) => `${k}=${pct(v)}`)
+    .join(", ");
+  return `| ${name} | ${s.checksPassed}/${s.results} passed | ${q || "—"} |`;
+}
+
+export interface ScorecardDetailBlock {
+  workload: string;
+  configKey: string;
+  results: EvalCaseResult[];
+  /** caseId -> split, so heldout rows can be redacted by default (m9) */
+  splitOf: Record<string, string>;
+}
+
 export function renderAnalysisScorecardMarkdown(input: {
   generatedAt: string;
   scorecards: WorkloadScorecard[];
-  detail: Array<{ workload: string; configKey: string; results: EvalCaseResult[] }>;
+  detail: ScorecardDetailBlock[];
   headerNote?: string;
+  /** m9: per-case failure detail for HELDOUT rows is hidden by default so the
+   *  default report output cannot become a heldout iteration channel;
+   *  --show-heldout-detail reveals it for operator calibration. */
+  showHeldoutDetail?: boolean;
 }): string {
   const lines: string[] = [];
   lines.push(`# Analysis eval scorecard — ${input.generatedAt}`);
@@ -705,6 +923,7 @@ export function renderAnalysisScorecardMarkdown(input: {
   }
   for (const sc of input.scorecards) {
     const a = sc.judged;
+    const c = a.completeness;
     lines.push(`## ${sc.workload} — config \`${a.configKey}\` (dataset ${sc.datasetVersion})`);
     lines.push("");
     lines.push(
@@ -717,35 +936,60 @@ export function renderAnalysisScorecardMarkdown(input: {
     lines.push("");
     lines.push("| metric | value |");
     lines.push("|---|---|");
+    lines.push(
+      `| completeness | scope=${c.scope} · ${c.presentResults}/${c.expectedResults} results present (${c.missingResults} missing, ${c.missingHeldout} heldout missing) · reps=${c.requestedRepetitions} · datasetHash=${c.datasetContentHash.slice(0, 12)} · ${c.complete ? "COMPLETE" : "INCOMPLETE"} |`,
+    );
     lines.push(`| cases (scored / schema-invalid / provider-error / skipped) | ${a.cases.scored} / ${a.cases.schemaInvalid} / ${a.cases.providerError} / ${a.cases.skipped} of ${a.cases.total} |`);
     lines.push(`| checks passed | ${a.checks.passed}/${a.checks.total} |`);
     if (a.machinery.total > 0) {
       lines.push(`| machinery proof (result matches fixture expectation) | ${a.machinery.matched}/${a.machinery.total} |`);
     }
     for (const [k, v] of Object.entries(a.quality)) {
-      lines.push(`| quality: ${k} | ${pct(v)} |`);
+      lines.push(
+        k.endsWith("VacuousCount")
+          ? `| quality: ${k} (excluded from mean) | ${v} |`
+          : `| quality: ${k} (all results, diagnostic) | ${pct(v)} |`,
+      );
     }
     lines.push(`| gate: wrongDocIds / heldout under-fill / strengthened hedges | ${a.gate.wrongDocIdsTotal} / ${a.gate.heldoutUnderfillCases} / ${a.gate.strengthenedHedgesTotal} |`);
     lines.push(`| gate: guard fails / fidelity fails / injection follows / repro fails | ${a.gate.guardCasesFailed} / ${a.gate.fidelityFailures} / ${a.gate.injectionFollowedCases} / ${a.gate.reproducibilityFailures} |`);
     lines.push(`| resources: latency mean / prompt tok / completion tok / est USD | ${a.resources.latencyMsMean === null ? "—" : Math.round(a.resources.latencyMsMean) + "ms"} / ${a.resources.promptTokensTotal} / ${a.resources.completionTokensTotal} / $${a.resources.estUsdTotal.toFixed(4)} |`);
     lines.push(`| metering (attempts / reservations / meterings / errored) | ${a.meter.attempts} / ${a.meter.reservations} / ${a.meter.meterings} / ${a.meter.erroredAttempts} |`);
-    lines.push(`| heldout coverage (typical/edge/adversarial) | ${sc.heldout.typical}/${sc.heldout.edge}/${sc.heldout.adversarial} |`);
+    lines.push(`| completed heldout coverage (typical/edge/adversarial) | ${c.heldoutPresent.typical}/${c.heldoutPresent.edge}/${c.heldoutPresent.adversarial} |`);
     if (a.repetitions > 1) {
       lines.push(`| repetitions / quality spread | ${a.repetitions} / ${JSON.stringify(a.repetitionSpread)} |`);
     }
     lines.push("");
+    lines.push("| slice | checks | quality |");
+    lines.push("|---|---|---|");
+    lines.push(sliceLine("split: development (diagnostic)", a.bySplit.development));
+    lines.push(sliceLine("split: heldout (gated)", a.bySplit.heldout));
+    lines.push(sliceLine("partition: typical", a.byPartition.typical));
+    lines.push(sliceLine("partition: edge", a.byPartition.edge));
+    lines.push(sliceLine("partition: adversarial", a.byPartition.adversarial));
+    lines.push("");
     if (sc.baseline) {
+      const bc = sc.baseline.completeness;
       lines.push(
-        `Baseline \`${sc.baseline.configKey}\`: ` +
-          Object.entries(sc.baseline.quality)
-            .map(([k, v]) => `${k}=${pct(v)}`)
-            .join(", ") +
-          (sc.verdictResult.deltas
-            ? ` · deltas: ${Object.entries(sc.verdictResult.deltas)
-                .map(([k, v]) => `${k} ${v >= 0 ? "+" : ""}${(100 * v).toFixed(1)}pts`)
-                .join(", ")}`
-            : ""),
+        `Baseline \`${sc.baseline.configKey}\`: completeness scope=${bc.scope} ${bc.presentResults}/${bc.expectedResults} (${bc.complete ? "COMPLETE" : "INCOMPLETE"}) datasetHash=${bc.datasetContentHash.slice(0, 12)}.`,
       );
+      if (sc.aligned) {
+        lines.push(
+          `Aligned population: ${sc.aligned.alignedKeys} key(s), ${sc.aligned.alignedHeldoutKeys} heldout (the gated set). ` +
+            `Aligned-heldout quality — judged: ${Object.entries(sc.aligned.judgedQuality)
+              .filter(([k]) => !k.endsWith("VacuousCount"))
+              .map(([k, v]) => `${k}=${pct(v)}`)
+              .join(", ")}; baseline: ${Object.entries(sc.aligned.baselineQuality)
+              .filter(([k]) => !k.endsWith("VacuousCount"))
+              .map(([k, v]) => `${k}=${pct(v)}`)
+              .join(", ")}` +
+            (sc.verdictResult.deltas
+              ? ` · deltas: ${Object.entries(sc.verdictResult.deltas)
+                  .map(([k, v]) => `${k} ${v >= 0 ? "+" : ""}${(100 * v).toFixed(1)}pts`)
+                  .join(", ")}`
+              : ""),
+        );
+      }
       lines.push("");
     }
     lines.push(`VERDICT: **${sc.verdictResult.verdict.toUpperCase()}**`);
@@ -760,13 +1004,21 @@ export function renderAnalysisScorecardMarkdown(input: {
   }
   lines.push("## Per-case detail");
   lines.push("");
-  lines.push("| workload | config | case | rep | status | pass | failures |");
-  lines.push("|---|---|---|---|---|---|---|");
+  if (!input.showHeldoutDetail) {
+    lines.push("_Heldout rows show status only — per-case failure detail is hidden by default so this report cannot become a heldout iteration channel (`--show-heldout-detail` reveals it for operator calibration)._");
+    lines.push("");
+  }
+  lines.push("| workload | config | case | rep | split | status | pass | failures |");
+  lines.push("|---|---|---|---|---|---|---|---|");
   for (const d of input.detail) {
     for (const r of [...d.results].sort((x, y) => (x.caseId < y.caseId ? -1 : 1))) {
-      const failures = r.checks.failures.join("; ").replace(/\|/g, "\\|").slice(0, 220);
+      const split = d.splitOf[r.caseId] ?? "development";
+      const hidden = split === "heldout" && !input.showHeldoutDetail;
+      const failures = hidden
+        ? "(hidden)"
+        : r.checks.failures.join("; ").replace(/\|/g, "\\|").slice(0, 220) || "—";
       lines.push(
-        `| ${d.workload} | ${d.configKey} | ${r.caseId} | ${r.repetition} | ${r.status} | ${r.checks.pass ? "yes" : "no"} | ${failures || "—"} |`,
+        `| ${d.workload} | ${d.configKey} | ${r.caseId} | ${r.repetition} | ${split} | ${r.status} | ${r.checks.pass ? "yes" : "no"} | ${failures} |`,
       );
     }
   }

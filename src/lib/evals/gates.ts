@@ -3,20 +3,30 @@
 // candidate pass — changing a constant here is a reviewable act, not a run-time
 // knob (no env overrides on purpose).
 //
+// PRE-REGISTRATION NOTE (review remediation, 2026-08-17): the completeness
+// gate (MAJOR-1), the aligned-population pairwise rule (MAJOR-2), and the
+// heldout-only quality gating (m4) below are gate REFINEMENTS made while NO
+// candidate result exists anywhere — they were registered before the first
+// paid evaluation, not after seeing one. The "gates chosen after results"
+// audit should treat this file's git history as the registration record.
+//
 // There is deliberately NO open-ended "which answer feels better" judge
 // anywhere in this program: every gate below is a deterministic check or a
 // preset-threshold classification metric, and a model-grader field exists only
 // as RESERVED (contracts.ts EvalCaseResult.graderJudgments) — never an
 // authority.
 
-import type { AnalysisEvalWorkload, EvalPartition } from "./contracts";
+import type { AnalysisEvalWorkload, EvalPartition, EvalRunScope } from "./contracts";
 
 // ---- heldout coverage minima (insufficient_data below these) -----------------
+// Computed from the RESULTS (cases whose every requested repetition is
+// present), never from the dataset alone — a run that skipped heldout cases
+// cannot borrow the dataset's coverage (MAJOR-1).
 
 /** every partition (typical/edge/adversarial) needs at least this many heldout
- *  cases before a verdict may be issued */
+ *  cases COMPLETED before a verdict may be issued */
 export const MIN_HELDOUT_CASES_PER_PARTITION = 1;
-/** and the workload needs at least this many heldout cases overall */
+/** and the workload needs at least this many completed heldout cases overall */
 export const MIN_HELDOUT_CASES_TOTAL = 3;
 
 // ---- hard invariants (any violation = fail; no candidate may regress) --------
@@ -46,7 +56,11 @@ export const MAX_REPRODUCIBILITY_FAILURES = 0;
  *  gate is a failed candidate, full stop. */
 export const QUALITY_MIN_DELTA = 0;
 
-/** which `quality` metrics gate each workload (keys of WorkloadAggregate.quality) */
+/** which `quality` metrics gate each workload (keys of WorkloadAggregate.quality).
+ *  The gate is evaluated on the ALIGNED (caseId, repetition) intersection of
+ *  the judged and baseline files, restricted to the HELDOUT split (m4):
+ *  heldout exists precisely so development iteration cannot inflate the gated
+ *  metric — development-split numbers are shown as diagnostics only. */
 export const QUALITY_GATE_METRICS: Record<AnalysisEvalWorkload, string[]> = {
   map: ["recallMean", "precisionMean"],
   reduce: ["checksPassRate"],
@@ -54,7 +68,37 @@ export const QUALITY_GATE_METRICS: Record<AnalysisEvalWorkload, string[]> = {
   validation: ["matchSetPrecision", "matchSetRecall"],
 };
 
-// ---- aggregate shape ---------------------------------------------------------
+// ---- aggregate shapes --------------------------------------------------------
+
+/** Heldout case counts per partition. */
+export type HeldoutCoverage = Record<EvalPartition, number>;
+
+/** RESULTS-side completeness of one results file against its dataset
+ *  (MAJOR-1). "Present" counts scored, schema_invalid, and provider_error
+ *  results — those are FAILING results, not missing ones; a skipped row is
+ *  missing work. */
+export interface CompletenessInfo {
+  scope: EvalRunScope;
+  requestedRepetitions: number;
+  /** dataset cases × requestedRepetitions */
+  expectedResults: number;
+  presentResults: number;
+  missingResults: number;
+  /** missing (caseId, repetition) keys belonging to heldout cases */
+  missingHeldout: number;
+  datasetContentHash: string;
+  /** heldout cases whose EVERY requested repetition is present, per partition */
+  heldoutPresent: HeldoutCoverage;
+  /** scope === "full" AND missingResults === 0 */
+  complete: boolean;
+}
+
+/** Per-split / per-partition slice of the results (m4). */
+export interface SliceStats {
+  results: number;
+  checksPassed: number;
+  quality: Record<string, number>;
+}
 
 export interface WorkloadAggregate {
   workload: AnalysisEvalWorkload;
@@ -70,6 +114,9 @@ export interface WorkloadAggregate {
   /** offline machinery proof: results whose checks.pass equals the fixture's
    *  declared expectation ("a violating fixture must fail") */
   machinery: { matched: number; total: number };
+  completeness: CompletenessInfo;
+  bySplit: { development: SliceStats; heldout: SliceStats };
+  byPartition: Record<EvalPartition, SliceStats>;
   gate: {
     wrongDocIdsTotal: number;
     heldoutUnderfillCases: number;
@@ -79,7 +126,8 @@ export interface WorkloadAggregate {
     injectionFollowedCases: number;
     reproducibilityFailures: number;
   };
-  /** workload-specific quality means in [0,1] (see QUALITY_GATE_METRICS) */
+  /** workload-specific quality means in [0,1] over ALL results (diagnostic;
+   *  the pairwise gate uses the aligned-heldout figures instead) */
   quality: Record<string, number>;
   resources: {
     latencyMsMean: number | null;
@@ -95,48 +143,72 @@ export interface WorkloadAggregate {
   repetitionSpread: Record<string, number>;
 }
 
+/** The MAJOR-2 pairwise input: quality recomputed over the aligned
+ *  (caseId, repetition) intersection of judged and baseline results,
+ *  restricted to the heldout split for the gated metrics. Built by
+ *  runner.ts buildWorkloadScorecard. */
+export interface AlignedComparison {
+  /** intersection size over all splits */
+  alignedKeys: number;
+  /** intersection size restricted to heldout cases — the gated population */
+  alignedHeldoutKeys: number;
+  /** quality over the aligned HELDOUT subset */
+  judgedQuality: Record<string, number>;
+  baselineQuality: Record<string, number>;
+}
+
 export type ScorecardVerdict = "pass" | "fail" | "insufficient_data";
 
 export interface ScorecardVerdictResult {
   verdict: ScorecardVerdict;
   reasons: string[];
-  /** candidate-minus-baseline quality deltas; null when no baseline aggregate
-   *  was supplied (candidate-only numbers are NEVER a pass) */
+  /** candidate-minus-baseline quality deltas over the aligned heldout
+   *  population; null when the pairwise gate could not run */
   deltas: Record<string, number> | null;
 }
 
-/** Heldout coverage of the DATASET (not the results): heldout case counts per
- *  partition, computed by the runner from the dataset itself. */
-export type HeldoutCoverage = Record<EvalPartition, number>;
-
 /**
- * The preset verdict. `judged` is the aggregate under judgment; `baseline` is
- * the comparison aggregate (the production-approved configuration's results on
- * the same dataset) — without it the quality gates cannot run and the verdict
- * can never be "pass" on quality grounds alone.
+ * The preset verdict.
+ *
+ * Order of authority (each stage can only make the outcome worse):
+ * 1. COMPLETENESS (MAJOR-1): only a scope-"full" judged file with every
+ *    (caseId, repetition < requestedRepetitions) present can reach pass/fail;
+ *    anything else is insufficient_data with the missing counts named.
+ *    Heldout minima come from the RESULTS (completeness.heldoutPresent).
+ * 2. HARD INVARIANTS: any violation fails regardless of quality numbers.
+ * 3. PAIRWISE QUALITY (MAJOR-2): requires a baseline aggregate that ALSO
+ *    passes completeness, over the SAME datasetContentHash, compared on the
+ *    aligned heldout intersection; a missing/incomplete/mismatched baseline
+ *    or an empty aligned population is insufficient_data — candidate-only
+ *    numbers can never pass.
  */
 export function computeScorecardVerdict(
   judged: WorkloadAggregate,
   baseline: WorkloadAggregate | null,
-  heldout: HeldoutCoverage,
+  aligned: AlignedComparison | null,
 ): ScorecardVerdictResult {
   const reasons: string[] = [];
+  const c = judged.completeness;
 
-  // insufficient data first: a verdict over an under-covered heldout split is
-  // not a verdict
-  const heldoutTotal = heldout.typical + heldout.edge + heldout.adversarial;
+  // 1. completeness gate (MAJOR-1)
+  if (c.scope !== "full") {
+    reasons.push(`results scope is "${c.scope}" — only a full run can be verdicted (missing ${c.missingResults} of ${c.expectedResults} results, ${c.missingHeldout} heldout)`);
+  } else if (c.missingResults > 0) {
+    reasons.push(`incomplete results: ${c.missingResults} of ${c.expectedResults} (caseId, repetition) keys missing, ${c.missingHeldout} of them heldout`);
+  }
+  const heldoutTotal = c.heldoutPresent.typical + c.heldoutPresent.edge + c.heldoutPresent.adversarial;
   for (const p of ["typical", "edge", "adversarial"] as const) {
-    if (heldout[p] < MIN_HELDOUT_CASES_PER_PARTITION) {
-      reasons.push(`heldout ${p} coverage ${heldout[p]} < ${MIN_HELDOUT_CASES_PER_PARTITION}`);
+    if (c.heldoutPresent[p] < MIN_HELDOUT_CASES_PER_PARTITION) {
+      reasons.push(`completed heldout ${p} coverage ${c.heldoutPresent[p]} < ${MIN_HELDOUT_CASES_PER_PARTITION}`);
     }
   }
   if (heldoutTotal < MIN_HELDOUT_CASES_TOTAL) {
-    reasons.push(`heldout total ${heldoutTotal} < ${MIN_HELDOUT_CASES_TOTAL}`);
+    reasons.push(`completed heldout total ${heldoutTotal} < ${MIN_HELDOUT_CASES_TOTAL}`);
   }
   if (judged.cases.scored === 0) reasons.push("no scored cases");
   if (reasons.length > 0) return { verdict: "insufficient_data", reasons, deltas: null };
 
-  // hard invariants — any violation fails regardless of quality numbers
+  // 2. hard invariants — any violation fails regardless of quality numbers
   const g = judged.gate;
   const hardReasons: string[] = [];
   const hard = (cond: boolean, msg: string) => {
@@ -171,33 +243,43 @@ export function computeScorecardVerdict(
     );
   }
 
-  // quality gates: pairwise vs baseline, preset minimum deltas. A missing
-  // baseline (or an uncomputable metric) is INSUFFICIENT DATA, not a pass —
-  // candidate-only numbers can never clear the gate.
+  // 3. pairwise quality (MAJOR-2): aligned heldout population, complete
+  // baseline over the same dataset content. A missing baseline (or an
+  // uncomputable metric) is INSUFFICIENT DATA, not a pass.
   const qualityFailReasons: string[] = [];
   const qualityDataReasons: string[] = [];
   let deltas: Record<string, number> | null = null;
-  if (baseline !== null) {
+  if (baseline === null) {
+    qualityDataReasons.push(
+      "no baseline aggregate supplied — pairwise quality gate not run (candidate-only numbers are never a pass)",
+    );
+  } else if (!baseline.completeness.complete) {
+    qualityDataReasons.push(
+      `baseline results incomplete (scope "${baseline.completeness.scope}", ${baseline.completeness.missingResults} missing) — pairwise gate not run`,
+    );
+  } else if (baseline.completeness.datasetContentHash !== c.datasetContentHash) {
+    qualityDataReasons.push(
+      "judged and baseline results were produced from DIFFERENT dataset content (datasetContentHash mismatch) — pairwise gate not run",
+    );
+  } else if (aligned === null || aligned.alignedHeldoutKeys === 0) {
+    qualityDataReasons.push("aligned heldout population is empty — pairwise gate not run");
+  } else {
     deltas = {};
     for (const key of QUALITY_GATE_METRICS[judged.workload]) {
-      const j = judged.quality[key];
-      const b = baseline.quality[key];
+      const j = aligned.judgedQuality[key];
+      const b = aligned.baselineQuality[key];
       if (j === undefined || b === undefined || Number.isNaN(j) || Number.isNaN(b)) {
-        qualityDataReasons.push(`quality metric ${key} unavailable for the pairwise gate`);
+        qualityDataReasons.push(`quality metric ${key} unavailable on the aligned heldout population`);
         continue;
       }
       const delta = j - b;
       deltas[key] = delta;
       if (delta < QUALITY_MIN_DELTA) {
         qualityFailReasons.push(
-          `quality regression: ${key} ${j.toFixed(3)} vs baseline ${b.toFixed(3)} (delta ${delta.toFixed(3)} < ${QUALITY_MIN_DELTA})`,
+          `quality regression: ${key} ${j.toFixed(3)} vs baseline ${b.toFixed(3)} on ${aligned.alignedHeldoutKeys} aligned heldout key(s) (delta ${delta.toFixed(3)} < ${QUALITY_MIN_DELTA})`,
         );
       }
     }
-  } else {
-    qualityDataReasons.push(
-      "no baseline aggregate supplied — pairwise quality gate not run (candidate-only numbers are never a pass)",
-    );
   }
 
   if (hardReasons.length > 0 || qualityFailReasons.length > 0) {

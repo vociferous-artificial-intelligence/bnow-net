@@ -26,11 +26,15 @@ import "./env";
 //       writes to docs/evals/analysis/results/<workload>-offline-fixtures.json,
 //       resumable by (caseId, repetition).
 //
-//   --report [--workload X] [--out path.md]
+//   --report [--workload X] [--out path.md] [--show-heldout-detail]
 //       Read saved result artifacts -> scorecard markdown + JSON (same
 //       basename). No provider, no DB. Verdicts per src/lib/evals/gates.ts
-//       preset thresholds; every skipped/invalid/degraded entry is surfaced
-//       loudly — no silent caps.
+//       preset thresholds, including the RESULTS-side completeness gate: only
+//       a scope-"full" file with every (caseId, repetition) key present can
+//       reach pass/fail — a --dev or --only file reads insufficient_data.
+//       Heldout rows show status only unless --show-heldout-detail (the
+//       default output must not become a heldout iteration channel). Every
+//       skipped/invalid/incomplete entry is surfaced loudly — no silent caps.
 //
 //   --execute-live --workload X --model M [--effort E] --db-ack <host>
 //                  [--repetitions N] [--only id,...] [--fresh] [--dev]
@@ -63,6 +67,7 @@ import {
   aggregateResults,
   buildAnalysisEstimatePlan,
   buildWorkloadScorecard,
+  currentEnvKnobs,
   emptyEvalResultsFile,
   heldoutCoverage,
   liveConfigKey,
@@ -70,7 +75,12 @@ import {
   offlineIdentity,
   pendingWork,
   renderAnalysisScorecardMarkdown,
+  resumeIdentityMismatch,
+  runScopeFor,
   scoreOfflineCase,
+  sha256,
+  type ResultsFileHeader,
+  type ScorecardDetailBlock,
   type WorkloadScorecard,
 } from "../src/lib/evals/runner";
 import { ANALYSIS_DEFAULT_MODEL } from "../src/lib/llm/model-config";
@@ -134,19 +144,27 @@ function parseOnly(): string[] | null {
 
 // ---- file I/O -----------------------------------------------------------------
 
-function loadDataset(workload: AnalysisEvalWorkload): AnalysisEvalDataset {
+interface LoadedDataset {
+  ds: AnalysisEvalDataset;
+  /** sha256 over the dataset FILE BYTES — covers inputs AND references
+   *  (MAJOR-1/m8); a post-run edit is detectable and refuses a resume */
+  contentHash: string;
+}
+
+function loadDataset(workload: AnalysisEvalWorkload): LoadedDataset {
   const p = path.join(EVALS_DIR, DATASET_FILES[workload]);
   if (!existsSync(p)) {
     console.error(`missing dataset: ${p}`);
     process.exit(2);
   }
-  const ds = JSON.parse(readFileSync(p, "utf8")) as AnalysisEvalDataset;
+  const bytes = readFileSync(p);
+  const ds = JSON.parse(bytes.toString("utf8")) as AnalysisEvalDataset;
   const errs = validateAnalysisEvalDataset(ds, workload);
   if (errs.length > 0) {
     console.error(`dataset ${p} is INVALID:\n  ${errs.join("\n  ")}`);
     process.exit(2);
   }
-  return ds;
+  return { ds, contentHash: sha256(bytes) };
 }
 
 function resultsPath(workload: AnalysisEvalWorkload, configKey: string): string {
@@ -157,7 +175,14 @@ function resultsPath(workload: AnalysisEvalWorkload, configKey: string): string 
 function loadResults(workload: AnalysisEvalWorkload, configKey: string): EvalResultsFile | null {
   const p = resultsPath(workload, configKey);
   if (!existsSync(p)) return null;
-  return JSON.parse(readFileSync(p, "utf8")) as EvalResultsFile;
+  const rf = JSON.parse(readFileSync(p, "utf8")) as EvalResultsFile;
+  if (rf.datasetContentHash === undefined || rf.requestedRepetitions === undefined || rf.scope === undefined) {
+    console.error(
+      `${p} predates the completeness/identity header (MAJOR-1/-3 remediation) — delete it and rerun with --fresh`,
+    );
+    process.exit(2);
+  }
+  return rf;
 }
 
 function saveResults(rf: EvalResultsFile): void {
@@ -206,7 +231,7 @@ function modeValidate(workloads: AnalysisEvalWorkload[]): void {
 function modeEstimate(workloads: AnalysisEvalWorkload[], model: string, repetitions: number): void {
   let grand = 0;
   for (const w of workloads) {
-    const ds = loadDataset(w);
+    const { ds } = loadDataset(w);
     const plan = buildAnalysisEstimatePlan(ds, model, repetitions);
     console.log(`\n[${w}] ${ds.datasetVersion} — model ${model}, ${repetitions} repetition(s):`);
     console.log(
@@ -223,14 +248,38 @@ function modeEstimate(workloads: AnalysisEvalWorkload[], model: string, repetiti
 
 // ---- --offline -----------------------------------------------------------------
 
+/** MAJOR-3: refuse a resume whose configuration/dataset identity drifted from
+ *  the existing file's — silently mixing two configurations in one results
+ *  file would corrupt every downstream verdict. */
+function refuseOnIdentityDrift(existing: EvalResultsFile | null, header: ResultsFileHeader, fresh: boolean): void {
+  if (existing === null || fresh) return;
+  const mismatch = resumeIdentityMismatch(existing, header);
+  if (mismatch !== null) {
+    console.error(
+      `[${header.workload}/${header.configKey}] REFUSED: results-file identity changed — use --fresh or a new configKey.\n  ${mismatch}`,
+    );
+    process.exit(2);
+  }
+}
+
 function modeOffline(
   workloads: AnalysisEvalWorkload[],
   opts: { fresh: boolean; onlyIds: string[] | null; devOnly: boolean },
 ): void {
   for (const w of workloads) {
-    const ds = loadDataset(w);
-    const identity = offlineIdentity(ds);
+    const { ds, contentHash } = loadDataset(w);
+    const header: ResultsFileHeader = {
+      workload: w,
+      configKey: OFFLINE_CONFIG_KEY,
+      datasetVersion: ds.datasetVersion,
+      datasetContentHash: contentHash,
+      identity: offlineIdentity(ds),
+      requestedRepetitions: 1,
+      scope: runScopeFor(opts.onlyIds, opts.devOnly),
+      envKnobs: currentEnvKnobs(),
+    };
     const existing = loadResults(w, OFFLINE_CONFIG_KEY);
+    refuseOnIdentityDrift(existing, header, opts.fresh);
     const { work, unknownIds, excludedHeldout } = pendingWork(ds, existing, {
       repetitions: 1,
       fresh: opts.fresh,
@@ -248,18 +297,11 @@ function modeOffline(
       continue;
     }
     console.log(`[${w}] scoring ${work.length} case(s) offline (${already} already recorded)`);
-    let rf =
-      (opts.fresh ? null : existing) ?? emptyEvalResultsFile(w, OFFLINE_CONFIG_KEY, ds.datasetVersion, identity);
+    let rf = (opts.fresh ? null : existing) ?? emptyEvalResultsFile(header);
     const runId = `offline-${ds.datasetVersion}`;
     for (const item of work) {
       const result = scoreOfflineCase(item.evalCase, ds.datasetVersion, runId);
-      rf = mergeEvalResults(
-        rf,
-        { workload: w, configKey: OFFLINE_CONFIG_KEY, datasetVersion: ds.datasetVersion, identity },
-        [result],
-        ZERO_METER,
-        new Date(),
-      );
+      rf = mergeEvalResults(rf, header, [result], ZERO_METER, new Date());
       saveResults(rf); // durable after EVERY case (resumable-by-key)
       const expectation = "offline" in item.evalCase ? item.evalCase.offline.expectation : "pass";
       const machineryOk = result.checks.pass === (expectation === "pass");
@@ -292,11 +334,12 @@ function discoverConfigs(workload: AnalysisEvalWorkload): string[] {
   return [...configs].sort();
 }
 
-function modeReport(workloads: AnalysisEvalWorkload[], outPath: string): void {
+function modeReport(workloads: AnalysisEvalWorkload[], outPath: string, showHeldoutDetail: boolean): void {
   const scorecards: WorkloadScorecard[] = [];
-  const detail: Array<{ workload: string; configKey: string; results: EvalResultsFile["results"][string][] }> = [];
+  const detail: ScorecardDetailBlock[] = [];
   for (const w of workloads) {
-    const ds = loadDataset(w);
+    const { ds } = loadDataset(w);
+    const splitOf = Object.fromEntries(ds.cases.map((c) => [c.id, c.split]));
     const configs = discoverConfigs(w);
     if (configs.length === 0) {
       console.warn(`[${w}] no results found under ${RESULTS_DIR} — run --offline (or a live sweep) first`);
@@ -311,7 +354,7 @@ function modeReport(workloads: AnalysisEvalWorkload[], outPath: string): void {
       const live = configKey !== OFFLINE_CONFIG_KEY;
       const baseline = live && configKey !== ANALYSIS_DEFAULT_MODEL ? baselineLive : null;
       scorecards.push(buildWorkloadScorecard(ds, rf, baseline, live));
-      detail.push({ workload: w, configKey, results: Object.values(rf.results) });
+      detail.push({ workload: w, configKey, results: Object.values(rf.results), splitOf });
 
       // no silent caps: surface every anomaly on stderr too
       const agg = aggregateResults(ds, rf, live);
@@ -323,8 +366,13 @@ function modeReport(workloads: AnalysisEvalWorkload[], outPath: string): void {
           `[${w}/${configKey}] MACHINERY MISMATCH: only ${agg.machinery.matched}/${agg.machinery.total} results match their fixture expectation`,
         );
       }
-      const missing = ds.cases.length - agg.cases.total;
-      if (missing > 0) console.warn(`[${w}/${configKey}] ${missing} case(s) have no recorded result (partial run?)`);
+      const c = agg.completeness;
+      if (!c.complete) {
+        console.warn(
+          `[${w}/${configKey}] INCOMPLETE (scope=${c.scope}): ${c.missingResults} of ${c.expectedResults} ` +
+            `(caseId, repetition) key(s) missing (${c.missingHeldout} heldout) — verdict can only be insufficient_data`,
+        );
+      }
     }
   }
   if (scorecards.length === 0) {
@@ -332,18 +380,15 @@ function modeReport(workloads: AnalysisEvalWorkload[], outPath: string): void {
     process.exit(2);
   }
   const generatedAt = new Date().toISOString();
-  const md = renderAnalysisScorecardMarkdown({
-    generatedAt,
-    scorecards,
-    detail,
-    headerNote:
-      "Verdicts use the PRESET gates in src/lib/evals/gates.ts. The offline-fixtures config scores COMMITTED " +
-      "fixture outputs (compliant AND deliberately violating ones) through the real pipeline functions — it is a " +
-      "machinery proof, NOT a model evaluation; no paid calls are involved in producing it.",
-  });
+  const headerNote =
+    "Verdicts use the PRESET gates in src/lib/evals/gates.ts (completeness + aligned-heldout pairwise rules " +
+    "pre-registered before any candidate result existed). The offline-fixtures config scores COMMITTED " +
+    "fixture outputs (compliant AND deliberately violating ones) through the real pipeline functions — it is a " +
+    "machinery proof, NOT a model evaluation; no paid calls are involved in producing it.";
+  const md = renderAnalysisScorecardMarkdown({ generatedAt, scorecards, detail, headerNote, showHeldoutDetail });
   mkdirSync(path.dirname(outPath), { recursive: true });
   writeFileSync(outPath, md);
-  writeFileSync(outPath.replace(/\.md$/, ".json"), JSON.stringify({ generatedAt, scorecards }, null, 2) + "\n");
+  writeFileSync(outPath.replace(/\.md$/, ".json"), JSON.stringify({ generatedAt, headerNote, scorecards }, null, 2) + "\n");
   console.log(`wrote scorecard -> ${outPath} (+ .json)`);
   for (const sc of scorecards) {
     console.log(`[${sc.workload}/${sc.judged.configKey}] VERDICT: ${sc.verdictResult.verdict}`);
@@ -386,10 +431,20 @@ async function modeLive(opts: {
   console.log(`live eval: workload=${cfg.workload} model=${cfg.model} effort=${cfg.reasoningEffort ?? "absent"} db=${dbHost}`);
   console.log(`approval=evaluation_candidate — outputs can only ever PROPOSE a registry entry, never activate one.`);
 
-  const ds = loadDataset(opts.workload);
+  const { ds, contentHash } = loadDataset(opts.workload);
   const configKey = liveConfigKey(cfg.model, cfg.reasoningEffort);
-  const identity = live.liveIdentity(ds, cfg);
+  const header: ResultsFileHeader = {
+    workload: opts.workload,
+    configKey,
+    datasetVersion: ds.datasetVersion,
+    datasetContentHash: contentHash,
+    identity: live.liveIdentity(ds, cfg),
+    requestedRepetitions: opts.repetitions,
+    scope: runScopeFor(opts.onlyIds, opts.devOnly),
+    envKnobs: currentEnvKnobs(),
+  };
   const existing = loadResults(opts.workload, configKey);
+  refuseOnIdentityDrift(existing, header, opts.fresh);
   const { work, unknownIds, excludedHeldout } = pendingWork(ds, existing, {
     repetitions: opts.repetitions,
     fresh: opts.fresh,
@@ -407,7 +462,7 @@ async function modeLive(opts: {
   }
 
   const deps = await live.buildLiveDeps();
-  let rf = (opts.fresh ? null : existing) ?? emptyEvalResultsFile(opts.workload, configKey, ds.datasetVersion, identity);
+  let rf = (opts.fresh ? null : existing) ?? emptyEvalResultsFile(header);
   const runId = `live-${Date.now()}`;
   for (const item of work) {
     const meterBefore = { ...deps.meter };
@@ -449,13 +504,7 @@ async function modeLive(opts: {
       meterings: deps.meter.meterings - meterBefore.meterings,
       erroredAttempts: deps.meter.erroredAttempts - meterBefore.erroredAttempts,
     };
-    rf = mergeEvalResults(
-      rf,
-      { workload: opts.workload, configKey, datasetVersion: ds.datasetVersion, identity },
-      [result],
-      meterDelta,
-      new Date(),
-    );
+    rf = mergeEvalResults(rf, header, [result], meterDelta, new Date());
     saveResults(rf); // durable after EVERY completed case
     console.log(
       `  ${item.evalCase.id}#r${item.repetition} status=${result.status} pass=${result.checks.pass} ` +
@@ -480,7 +529,9 @@ async function main(): Promise<void> {
   if (hasFlag("estimate")) {
     return modeEstimate(parseWorkloads(false), flagValue("model") ?? ANALYSIS_DEFAULT_MODEL, parseRepetitions());
   }
-  if (hasFlag("report")) return modeReport(parseWorkloads(false), flagValue("out") ?? DEFAULT_REPORT_PATH);
+  if (hasFlag("report")) {
+    return modeReport(parseWorkloads(false), flagValue("out") ?? DEFAULT_REPORT_PATH, hasFlag("show-heldout-detail"));
+  }
   if (hasFlag("execute-live")) {
     const workloads = parseWorkloads(true);
     if (workloads.length !== 1) {
