@@ -23,6 +23,7 @@
 // flagged as a retrospective annotation, never as-published policy.
 
 import { ConflictDomainError } from "./errors";
+import { deepFreeze } from "./freeze";
 import { isIsoDay, isIsoInstant, parseIsoDayMs, parseIsoInstantMs } from "./instants";
 import { isConflictId, type ConflictId } from "./vocabulary";
 
@@ -181,7 +182,8 @@ export function parseConflictPhaseRecord(raw: unknown): ConflictPhaseRecord {
     throw new ConflictDomainError("invalid_phase_record", "invalid phase record", issues);
   }
   const r = raw as Record<string, unknown>;
-  return {
+  // canonical projection (extra keys dropped), frozen — records are immutable
+  return deepFreeze({
     conflictId: r.conflictId as ConflictId,
     phaseId: r.phaseId as string,
     effectiveFrom: r.effectiveFrom as string,
@@ -189,16 +191,17 @@ export function parseConflictPhaseRecord(raw: unknown): ConflictPhaseRecord {
     declaredAt: r.declaredAt as string,
     policyVersion: r.policyVersion as string,
     provenance: r.provenance as string,
-  };
+  });
 }
 
-/** Parse + validate a record SET (cross-record rules included). Throws typed. */
-export function parseConflictPhaseRecords(raw: unknown): ConflictPhaseRecord[] {
+/** Parse + validate a record SET (cross-record rules included). Throws typed.
+ *  The returned array and every record in it are frozen. */
+export function parseConflictPhaseRecords(raw: unknown): readonly ConflictPhaseRecord[] {
   const issues = validatePhaseRecords(raw);
   if (issues.length > 0) {
     throw new ConflictDomainError("invalid_phase_set", "invalid phase record set", issues);
   }
-  return (raw as unknown[]).map((r) => parseConflictPhaseRecord(r));
+  return deepFreeze((raw as unknown[]).map((r) => parseConflictPhaseRecord(r)));
 }
 
 // ---------------------------------------------------------------------------

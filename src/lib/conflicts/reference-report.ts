@@ -11,6 +11,7 @@
 // contract §9 "recorded raw and treated as missing, never guessed" rule.
 
 import { ConflictDomainError } from "./errors";
+import { deepFreeze } from "./freeze";
 import { isIsoDay, isIsoInstant } from "./instants";
 import { isReferenceSeriesId, type ReferenceSeriesId } from "./vocabulary";
 
@@ -98,13 +99,14 @@ export function parseReferenceReportIdentity(raw: unknown): ReferenceReportIdent
   }
   const r = raw as Record<string, unknown>;
   // rebuild with exactly the contract fields (extra keys are dropped, never
-  // silently carried into a canonical identity)
-  return {
+  // silently carried into a canonical identity); frozen for symmetry with the
+  // rest of the package — a parsed identity is a value, not a scratch buffer
+  return deepFreeze({
     series: r.series as ReferenceSeriesId,
     editionKey: r.editionKey as string,
     reportDate: r.reportDate as string,
     cutoffAt: r.cutoffAt as string | null,
     publishedAt: r.publishedAt as string | null,
     scopeVersion: r.scopeVersion as string,
-  };
+  });
 }

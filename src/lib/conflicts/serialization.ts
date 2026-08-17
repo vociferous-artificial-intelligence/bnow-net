@@ -21,16 +21,8 @@ import {
 } from "./definitions";
 import { ConflictDomainError } from "./errors";
 import { isLaneTaxonomyVersion } from "./lanes";
-import {
-  parseConflictPhaseRecords,
-  validatePhaseRecords,
-  type ConflictPhaseRecord,
-} from "./phases";
-import {
-  parseReferenceReportIdentity,
-  validateReferenceReportIdentity,
-  type ReferenceReportIdentity,
-} from "./reference-report";
+import { parseConflictPhaseRecords, type ConflictPhaseRecord } from "./phases";
+import { parseReferenceReportIdentity, type ReferenceReportIdentity } from "./reference-report";
 import { isConflictId, isReferenceSeriesId } from "./vocabulary";
 
 // ---------------------------------------------------------------------------
@@ -38,21 +30,80 @@ import { isConflictId, isReferenceSeriesId } from "./vocabulary";
 // ---------------------------------------------------------------------------
 
 /** JSON.stringify with recursively sorted object keys. Arrays keep their
- *  order (order is meaningful: lanes, precedence, rosters). undefined object
- *  properties are omitted, matching JSON.stringify. */
+ *  order (order is meaningful: lanes, precedence, rosters).
+ *
+ *  FAIL-CLOSED (Gate-1 MINOR-3): anything without one canonical JSON form
+ *  throws a typed error instead of being silently coerced or dropped —
+ *  undefined/function/symbol/bigint values (in properties or array slots,
+ *  holes included), symbol-keyed properties, non-finite numbers, non-plain
+ *  objects (class instances, Date, Map, Set, RegExp; toJSON is deliberately
+ *  unsupported — determinism over convenience), and cycles (throw, never
+ *  hang). Shared acyclic references (a DAG) are fine. */
 export function stableStringify(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) {
-    return `[${value.map((v) => (v === undefined ? "null" : stableStringify(v))).join(",")}]`;
+  return stringifyValue(value, "$", new Set());
+}
+
+function stringifyValue(value: unknown, path: string, inProgress: Set<object>): string {
+  if (value === null) return "null";
+  switch (typeof value) {
+    case "string":
+    case "boolean":
+      return JSON.stringify(value);
+    case "number":
+      if (!Number.isFinite(value)) {
+        throw new ConflictDomainError(
+          "unserializable_value",
+          `${path}: non-finite number ${String(value)} has no JSON form`,
+        );
+      }
+      return JSON.stringify(value);
+    case "object":
+      break; // handled below
+    default:
+      // undefined, function, symbol, bigint
+      throw new ConflictDomainError(
+        "unserializable_value",
+        `${path}: ${typeof value} has no JSON form (omit the key instead of storing undefined)`,
+      );
   }
-  const record = value as Record<string, unknown>;
-  const parts: string[] = [];
-  for (const key of Object.keys(record).sort()) {
-    const v = record[key];
-    if (v === undefined) continue;
-    parts.push(`${JSON.stringify(key)}:${stableStringify(v)}`);
+  const obj = value as object;
+  if (inProgress.has(obj)) {
+    throw new ConflictDomainError("unserializable_value", `${path}: cyclic reference`);
   }
-  return `{${parts.join(",")}}`;
+  inProgress.add(obj);
+  try {
+    if (Array.isArray(obj)) {
+      const parts: string[] = [];
+      for (let i = 0; i < obj.length; i++) {
+        // a hole reads as undefined and falls into the default case above
+        parts.push(stringifyValue(obj[i], `${path}[${i}]`, inProgress));
+      }
+      return `[${parts.join(",")}]`;
+    }
+    const proto = Object.getPrototypeOf(obj);
+    if (proto !== Object.prototype && proto !== null) {
+      throw new ConflictDomainError(
+        "unserializable_value",
+        `${path}: non-plain object (constructor ${String(
+          (proto as { constructor?: { name?: string } })?.constructor?.name ?? "unknown",
+        )}) has no canonical JSON form here`,
+      );
+    }
+    if (Object.getOwnPropertySymbols(obj).length > 0) {
+      throw new ConflictDomainError(
+        "unserializable_value",
+        `${path}: symbol-keyed properties have no JSON form`,
+      );
+    }
+    const record = obj as Record<string, unknown>;
+    const parts: string[] = [];
+    for (const key of Object.keys(record).sort()) {
+      parts.push(`${JSON.stringify(key)}:${stringifyValue(record[key], `${path}.${key}`, inProgress)}`);
+    }
+    return `{${parts.join(",")}}`;
+  } finally {
+    inProgress.delete(obj);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -106,9 +157,18 @@ export function validateConflictDefinition(raw: unknown): string[] {
   }
   if (errs.length > 0) return errs;
 
-  // canonical-equality: the registry is frozen, so any drift is tampering
+  // canonical-equality: the registry is frozen, so any drift is tampering.
+  // stableStringify is fail-closed; an unserializable input value is itself
+  // a validation failure here, never an escaping throw.
   const canonical = CONFLICT_REGISTRY[d.id];
-  if (stableStringify(raw) !== stableStringify(canonical)) {
+  let rawBytes: string;
+  try {
+    rawBytes = stableStringify(raw);
+  } catch (e) {
+    errs.push(`definition for ${d.id} is not canonically serializable: ${(e as Error).message}`);
+    return errs;
+  }
+  if (rawBytes !== stableStringify(canonical)) {
     errs.push(
       `definition for ${d.id} does not match the frozen registry entry ` +
         "(definitions are frozen configuration — a changed definition requires new versions in the registry, not a divergent serialized copy)",
@@ -127,20 +187,22 @@ export function parseConflictDefinition(raw: unknown): ConflictDefinition {
   return CONFLICT_REGISTRY[(raw as ConflictDefinition).id];
 }
 
+/** Serialize the CANONICAL registry projection (validated; a definition that
+ *  is not deep-equal to its frozen registry entry refuses to serialize), so
+ *  semantically equal inputs always produce byte-identical output. */
 export function serializeConflictDefinition(def: ConflictDefinition): string {
-  return stableStringify(def);
+  return stableStringify(parseConflictDefinition(def));
 }
 
 // ---------------------------------------------------------------------------
 // Reference report identities
 // ---------------------------------------------------------------------------
 
+/** Serialize the parsed CANONICAL projection (unknown keys dropped, field set
+ *  fixed — Gate-1 MINOR-2): semantically equal identities produce
+ *  byte-identical output. Throws typed on an invalid identity. */
 export function serializeReferenceReportIdentity(identity: ReferenceReportIdentity): string {
-  const issues = validateReferenceReportIdentity(identity);
-  if (issues.length > 0) {
-    throw new ConflictDomainError("invalid_reference_report", "refusing to serialize an invalid reference report identity", issues);
-  }
-  return stableStringify(identity);
+  return stableStringify(parseReferenceReportIdentity(identity));
 }
 
 export { parseReferenceReportIdentity };
@@ -149,12 +211,10 @@ export { parseReferenceReportIdentity };
 // Phase records
 // ---------------------------------------------------------------------------
 
+/** Serialize the parsed CANONICAL projection of the whole set (per-record
+ *  unknown keys dropped — Gate-1 MINOR-2). Throws typed on an invalid set. */
 export function serializeConflictPhaseRecords(records: readonly ConflictPhaseRecord[]): string {
-  const issues = validatePhaseRecords(records as unknown[]);
-  if (issues.length > 0) {
-    throw new ConflictDomainError("invalid_phase_set", "refusing to serialize an invalid phase record set", issues);
-  }
-  return stableStringify(records);
+  return stableStringify(parseConflictPhaseRecords(records));
 }
 
 export { parseConflictPhaseRecords };

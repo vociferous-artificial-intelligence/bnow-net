@@ -17,6 +17,7 @@ export const CONFLICT_DOMAIN_ERROR_CODES = [
   "invalid_reference_report",
   "invalid_phase_record",
   "invalid_phase_set",
+  "unserializable_value",
 ] as const;
 
 export type ConflictDomainErrorCode = (typeof CONFLICT_DOMAIN_ERROR_CODES)[number];
