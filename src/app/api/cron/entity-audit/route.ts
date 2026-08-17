@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Pool } from "@neondatabase/serverless";
 import OpenAI from "openai";
+import {
+  ModelConfigError,
+  analysisChatParams,
+  workloadDispatchConfig,
+  type AnalysisDispatchConfig,
+} from "@/lib/llm/model-config";
+import { estimateCostUsd } from "@/lib/llm/pricing";
 import { withCronRun } from "@/lib/usage/cron-run";
-import { entityAuditGuardFromEnv, estimateUsd, isLlmDisabled } from "@/lib/usage/llm-guard";
+import { entityAuditGuardFromEnv, isLlmDisabled } from "@/lib/usage/llm-guard";
 
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
@@ -49,6 +56,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "LLM_DISABLE=1; entity audit refused" }, { status: 503 });
   }
 
+  // Model routing (ENTITY_AUDIT_MODEL → OPENAI_MODEL → gpt-4o-mini). Fail
+  // closed BEFORE reserving or dispatching: an unpriced model or invalid
+  // ENTITY_AUDIT_REASONING_EFFORT refuses the run with a 503, spending nothing.
+  let dispatch: AnalysisDispatchConfig;
+  try {
+    dispatch = workloadDispatchConfig("entity_audit");
+  } catch (e) {
+    if (e instanceof ModelConfigError) {
+      return NextResponse.json({ error: e.message }, { status: 503 });
+    }
+    throw e;
+  }
+
   // This prompt carries the entire entity listing and grows with the graph; it
   // was billed but never metered or capped (audit §7a site D, §12 #2).
   const guard = entityAuditGuardFromEnv();
@@ -59,11 +79,12 @@ export async function GET(req: NextRequest) {
   }
 
   // Unscheduled, but it spends: a run row is how a manual invocation shows up.
-  return withCronRun("entity-audit", (counts) => run(guard, counts));
+  return withCronRun("entity-audit", (counts) => run(guard, dispatch, counts));
 }
 
 async function run(
   guard: ReturnType<typeof entityAuditGuardFromEnv>,
+  dispatch: AnalysisDispatchConfig,
   counts: Record<string, unknown>,
 ): Promise<NextResponse> {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -84,20 +105,21 @@ async function run(
       .join("\n");
 
     const client = new OpenAI();
-    const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
     const completion = await client.chat.completions.create({
-      model,
+      model: dispatch.model,
       messages: [
         { role: "system", content: SYSTEM },
         { role: "user", content: `Entities:\n${listing}` },
       ],
-      temperature: 0,
+      // default (non-reasoning) payload keeps exactly the historical
+      // `temperature: 0`; a reasoning model drops it (model-config.ts)
+      ...analysisChatParams(dispatch, { temperature: 0 }),
       response_format: { type: "json_object" },
     });
 
     const promptTokens = completion.usage?.prompt_tokens ?? 0;
     const completionTokens = completion.usage?.completion_tokens ?? 0;
-    const estUsd = estimateUsd(promptTokens, completionTokens);
+    const estUsd = estimateCostUsd(dispatch.model, promptTokens, completionTokens);
     await guard.record(1, promptTokens + completionTokens, estUsd);
     counts.entities = rows.length;
     counts.promptTokens = promptTokens;
@@ -125,7 +147,7 @@ async function run(
 
     return NextResponse.json({
       ok: true,
-      model,
+      model: dispatch.model,
       entities: rows.length,
       usage: { promptTokens, completionTokens, estUsd },
       proposals: valid,

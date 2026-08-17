@@ -1,10 +1,15 @@
 import OpenAI from "openai";
 import {
+  analysisChatParams,
+  resolveWorkloadModel,
+  workloadDispatchConfig,
+} from "../llm/model-config";
+import { estimateCostUsd } from "../llm/pricing";
+import {
   LlmBudgetError,
   assertLlmEnabled,
   digestGuardFromEnv,
   digestMaxOutputTokens,
-  estimateUsd,
 } from "../usage/llm-guard";
 import type {
   AnalysisInputDoc,
@@ -22,7 +27,9 @@ import { ENTITY_RULES, MILITARY_EVENT_TYPES, TRACKS, type Track } from "./tracks
 // provider_usage afterwards — INCLUDING responses the truncation ladder throws
 // away, which OpenAI bills in full (PIPELINE-AUDIT-2026-07 §4d, §7c).
 
-const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+// Model resolution moved to the workload resolver (src/lib/llm/model-config.ts):
+// DIGEST_MODEL → OPENAI_MODEL → gpt-4o-mini, read at construction/dispatch time
+// instead of the former module-load env snapshot.
 
 // One schema per track: its events[].type enum is that track's own vocabulary.
 // A single military-only enum forced elite_politics and nuclear extractions —
@@ -115,7 +122,7 @@ HARD RULES:
 ${ENTITY_RULES}`;
 
 export class OpenAiProvider implements AnalysisProvider {
-  readonly name = `openai:${MODEL}`;
+  readonly name = `openai:${resolveWorkloadModel("digest").model}`;
   private client = new OpenAI();
 
   async analyze(
@@ -125,6 +132,11 @@ export class OpenAiProvider implements AnalysisProvider {
     opts?: AnalyzeOptions,
   ): Promise<DigestAnalysis> {
     assertLlmEnabled("digest extract");
+    // Fail closed BEFORE any reservation or billed call: an unpriced model or
+    // invalid DIGEST_REASONING_EFFORT throws typed here; like a budget stop,
+    // the message carries no "truncated", so the caller's ladder rethrows
+    // immediately instead of burning smaller rungs.
+    const dispatch = workloadDispatchConfig("digest");
     const docLines = docs
       .map(
         (d) =>
@@ -138,7 +150,7 @@ export class OpenAiProvider implements AnalysisProvider {
 
     const request = () =>
       this.client.chat.completions.create({
-        model: MODEL,
+        model: dispatch.model,
         messages: [
           { role: "system", content: opts?.systemPrompt ?? SYSTEM },
           {
@@ -154,14 +166,19 @@ export class OpenAiProvider implements AnalysisProvider {
             strict: true,
           },
         },
-        temperature: 0.2,
-        // Without this the model runs to its own 16,384-token ceiling before
-        // truncating, and we are billed for every one of those tokens before the
-        // ladder discards the response: UA 07-02 spent 94.8% of its digest cost on
-        // two such throwaways (audit §4d). Measured real outputs are <= 1,448
-        // pretty-JSON tokens (§4c), so 4096 is ~3x headroom and quarters the
-        // worst-case waste.
-        max_completion_tokens: digestMaxOutputTokens(),
+        // Default (non-reasoning) params are byte-identical to the historical
+        // `temperature: 0.2, max_completion_tokens: …` pair; a reasoning model
+        // drops temperature and may add reasoning_effort (model-config.ts).
+        // The output ceiling stays: without it the model runs to its own
+        // 16,384-token ceiling before truncating, and we are billed for every
+        // one of those tokens before the ladder discards the response: UA 07-02
+        // spent 94.8% of its digest cost on two such throwaways (audit §4d).
+        // Measured real outputs are <= 1,448 pretty-JSON tokens (§4c), so 4096
+        // is ~3x headroom and quarters the worst-case waste.
+        ...analysisChatParams(dispatch, {
+          temperature: 0.2,
+          maxCompletionTokens: digestMaxOutputTokens(),
+        }),
       });
 
     // Caps are checked BEFORE each billed request; a refusal throws a typed
@@ -195,7 +212,7 @@ export class OpenAiProvider implements AnalysisProvider {
     const promptTokens = completion.usage?.prompt_tokens ?? 0;
     const completionTokens = completion.usage?.completion_tokens ?? 0;
     const truncated = choice?.finish_reason === "length";
-    const estUsd = estimateUsd(promptTokens, completionTokens);
+    const estUsd = estimateCostUsd(dispatch.model, promptTokens, completionTokens);
     await guard.record(1, promptTokens + completionTokens, estUsd);
     opts?.onUsage?.({ promptTokens, completionTokens, estUsd, truncated });
 

@@ -2723,6 +2723,27 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
    NOT deployed by this work; savings are estimates until the separately
    approved deploy + 48–72h observation window.
 
+## 2026-08-17 02:05 UTC — plan: cloud-model routing seams (branch codex/cloud-model-routing-seams-20260816)
+
+1. Typed call-time resolver `src/lib/llm/model-config.ts`: per-workload model
+   (`MAP/REDUCE/DIGEST/VALIDATION/ENTITY_AUDIT_MODEL` → `OPENAI_MODEL` →
+   gpt-4o-mini) + validated `*_REASONING_EFFORT`; unpriced models and invalid
+   efforts FAIL CLOSED before any reservation or dispatch.
+2. Route the five analysis dispatch sites through it (map worker, reduce
+   synthesis, legacy digest provider, llm-match, entity-audit); decouple map
+   from reduce (shared `MAP_MODEL` const removed); provider tags record actual
+   dispatched models; metering becomes model-aware via the single price
+   authority `src/lib/llm/pricing.ts`.
+3. Extractor-version identity: MAP_MODEL / validated MAP_REASONING_EFFORT bump
+   `mapExtractorVersion()`; REDUCE_* never do; absent envs byte-identical to
+   the historical basis (test-pinned).
+4. Dry-run inspector `scripts/model-routing-inspect.ts` (no provider calls),
+   commented `.env.example`, comprehensive resolver/params/pricing tests.
+5. Gates (typecheck/lint/unit/build/itest) → two isolated adversarial reviews
+   with remediation → `docs/reviews/CLOUD-MODEL-ROUTING-SEAMS-2026-08-17.md`
+   → commit, push, DRAFT PR. Defaults byte-equivalent to main; NO model
+   activated, NO env set, NO paid call, NO deploy from this branch.
+
 ## 2026-08-17 07:55 UTC — Candidate B merged + deployed; observation window open
 
 1. Preflight: main = origin/main = `26989f7`; PR #4 head `ab8150d`, MERGEABLE/CLEAN,
