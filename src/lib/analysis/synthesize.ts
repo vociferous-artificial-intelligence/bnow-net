@@ -322,6 +322,27 @@ export function mergeVotes(votes: VoteEvent[][]): MergedEvent[] {
   return merged.slice(0, 12);
 }
 
+/** Vote-stage gid accounting for the quality funnel (2026-08-17): how many
+ *  distinct fed gids at least one parsed vote cited, and how many survived
+ *  into a merged event's majorityGids. Both count claim GROUPS (gids) — not
+ *  docs, claims, or events. By construction
+ *  gidsMajority <= gidsCitedAnyVote <= groupsFed: parseVote strips gids
+ *  outside each vote's fed set, and majority gids are drawn from vote claims.
+ *  Persisted to structured.stats.reduce so the funnel can see where fed
+ *  groups fall out between citation and majority survival. */
+export function voteGidCounters(
+  votes: VoteEvent[][],
+  merged: MergedEvent[],
+): { gidsCitedAnyVote: number; gidsMajority: number } {
+  const cited = new Set<number>();
+  for (const vote of votes) {
+    for (const ev of vote) for (const c of ev.claims) for (const g of c.gids) cited.add(g);
+  }
+  const majority = new Set<number>();
+  for (const ev of merged) for (const g of ev.majorityGids) majority.add(g);
+  return { gidsCitedAnyVote: cited.size, gidsMajority: majority.size };
+}
+
 // ---- claim finalization (groups own the evidence, the model never does) --------
 
 const LADDER: Hedging[] = ["confirmed", "claimed", "unverified", "unknown"];
@@ -632,6 +653,7 @@ export async function generateMapReduceDigest(
     }
 
     const merged = mergeVotes(votes);
+    const gidCounters = voteGidCounters(votes, merged);
     const events = finalizeEvents(merged, groupByKey);
 
     // delta framing (intraday runs 2..n): what changed since the previous run
@@ -673,6 +695,10 @@ export async function generateMapReduceDigest(
           eventsPerVote: votes.map((v) => v.length),
           survivingEvents: merged.length,
           droppedGidRefs,
+          // vote-stage funnel counters (2026-08-17): additive — every key
+          // above is unchanged and pinned by test
+          gidsCitedAnyVote: gidCounters.gidsCitedAnyVote,
+          gidsMajority: gidCounters.gidsMajority,
         },
         docsAnalyzed: [...new Set(fed.flatMap((g) => g.docIds))].length,
         ...(delta ? { delta } : {}),
@@ -686,6 +712,10 @@ export async function generateMapReduceDigest(
       countryIso2,
       date,
       track,
+      // effective analysis cutoff: nowMs is already the honest window end for
+      // both modes — day = the window-end midnight (`${to}T00:00:00Z`),
+      // rolling = the injected/run clock (runNowMs) the 24h window ends at
+      asOf: new Date(nowMs).toISOString(),
       provider: providerTag,
       structured,
       events,
