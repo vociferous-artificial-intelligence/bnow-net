@@ -250,7 +250,7 @@ authorized future program.
 | **Final tree** | `npm test` | **2,402 passed / 2,402 (185 files)** — base was 2,187/171 (+215 tests, +14 files) |
 | **Final tree** | `npm run build` (dummy never-contacted `DATABASE_URL="postgresql://build:build@localhost:5432/build"`) | PASS (exit 0) |
 | **Final tree** | full `npm run test:integration` (disposable Neon fork `br-old-tooth-atwdowrd`, created + deleted; paid keys blanked; LLM_DISABLE=1 with the map itests managing their own env) | **119/119 (19 files)** — includes the map-lease concurrency race, expired takeover, metered-then-discarded, and remap eligibility/resume stress cases |
-| **Final tree** | $0 CLI smokes: `--validate-dataset` (17-case map file was 18 pre-merge count note: 18/14/10/14 all OK) · `--estimate` · `--report` · `--execute-live` refusal (exit 2) · funnel report without DATABASE_URL (exit 1, no network) · `model-routing-inspect` | all as designed, zero provider/DB contact |
+| **Final tree** | $0 CLI smokes: `--validate-dataset` (18/14/10/14, all OK) · `--estimate` · `--report` · `--execute-live` refusal (exit 2) · funnel report without DATABASE_URL (exit 1, no network) · `model-routing-inspect` | all as designed, zero provider/DB contact |
 | **Final tree** | source scans: committed env files = `.env.example` only · zero `results/live-*` artifacts · no secret patterns in the program diff (only the house dummy test DSN) · zero NUL bytes in changed .ts files · maxRetries:0 + reserve/meter ordering + eval isolation scans run inside `npm test` (openai-client.test.ts, isolation.test.ts, map-worker-spend.test.ts, llm-match-guard.test.ts) | clean |
 
 ## 12. Adversarial reviews, findings, remediations, verdicts
