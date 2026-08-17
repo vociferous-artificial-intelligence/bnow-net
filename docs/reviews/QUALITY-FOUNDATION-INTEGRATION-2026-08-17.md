@@ -185,7 +185,7 @@ with the OpenAI client mocked.
 | B tip `c40060e` | full gates (see B report §§6, 8) | typecheck/lint clean · unit 2,232/2,232 (174 files) · targeted itest 13/13 · full itest 117/117 at `95d0a37` (disposable forks) |
 | Integration after A (`eee6a91`) | targeted + full unit + typecheck | 98/98 · 2,251/2,251 · clean |
 | Integration after B (`b4b0299`) | full unit + typecheck + lint | 2,296/2,296 (177 files) · clean · clean |
-| Integration after B (`b4b0299`) | full `npm run test:integration` | (recorded when the background run completes) |
+| Integration after B (`b4b0299`) | full `npm run test:integration` (disposable Neon fork, paid keys blanked, LLM_DISABLE=1; the map itests manage their own LLM env) | **119/119 (19 files)** |
 
 ## 12. Adversarial reviews, findings, remediations, verdicts
 
