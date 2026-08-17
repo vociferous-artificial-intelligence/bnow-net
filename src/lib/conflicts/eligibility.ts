@@ -108,6 +108,12 @@ function availabilityOf(
 
 function windowReasonOf(ctx: EligibilityContext, claimDate: string): string {
   if (claimDate === ctx.window.startDate) return "window:in-edge";
+  // a post-report-day claim is inside the window only because a parseable
+  // END anchor extended endDate past the report date — label WHICH rung
+  // (symmetric: cutoff and published both get their label)
+  if (claimDate > ctx.reportDate && ctx.window.windowEndSource === "cutoff") {
+    return "window:in-cutoff-end";
+  }
   if (claimDate > ctx.reportDate && ctx.window.windowEndSource === "published") {
     return "window:in-published-end";
   }
@@ -168,11 +174,15 @@ export function evaluateCorpusRecallEligibility(
   const availability = availabilityOf(ctx, ingest.ms);
   const indep = independentSourceCount(candidate);
 
-  if (exclusions.length > 0) {
+  // one predicate family can fail twice (roster off_scope AND classifier
+  // off_scope): diagnostics carry each reason at most once (first-occurrence
+  // order preserved; dominance unaffected)
+  const applicable = [...new Set(exclusions)];
+  if (applicable.length > 0) {
     return {
       claimId: candidate.claimId,
-      record: { included: false, reason: dominantExclusionReason(exclusions) },
-      applicableExclusions: exclusions,
+      record: { included: false, reason: dominantExclusionReason(applicable) },
+      applicableExclusions: applicable,
       classification,
       windowReason: inWindow ? windowReasonOf(ctx, candidate.claimDate) : null,
       availability,
@@ -251,11 +261,13 @@ export function evaluatePublishedRetentionEligibility(
   const availability = availabilityOf(ctx, ingest.ms);
   const indep = independentSourceCount(candidate);
 
-  if (exclusions.length > 0) {
+  // same at-most-once diagnostics rule as corpus recall
+  const applicable = [...new Set(exclusions)];
+  if (applicable.length > 0) {
     return {
       claimId: candidate.claimId,
-      record: { included: false, reason: dominantExclusionReason(exclusions) },
-      applicableExclusions: exclusions,
+      record: { included: false, reason: dominantExclusionReason(applicable) },
+      applicableExclusions: applicable,
       classification,
       windowReason: inWindow ? windowReasonOf(ctx, candidate.claimDate) : null,
       availability,

@@ -214,6 +214,25 @@ describe("corpus-recall eligibility — frozen exclusion precedence (dominant re
     expect(ev.record).toEqual({ included: false, reason: "superseded_version" });
     expect(ev.applicableExclusions).toEqual(["superseded_version", "mirror_only"]);
   });
+
+  it("applicableExclusions carries each reason at most once (roster + classifier both off_scope)", () => {
+    // theater outside the roster AND classifier-off-scope content: the same
+    // reason applies through two predicate families but appears once
+    const cases = [
+      evaluateCorpusRecallEligibility(
+        ctxFor(),
+        claim({ theater: "xx", text: "EU ministers debated dairy subsidies." }),
+      ),
+      evaluatePublishedRetentionEligibility(
+        ctxFor(),
+        claim({ theater: "xx", text: "EU ministers debated dairy subsidies." }),
+      ),
+    ];
+    for (const ev of cases) {
+      expect(ev.record).toEqual({ included: false, reason: "off_scope" });
+      expect(ev.applicableExclusions).toEqual(["off_scope"]);
+    }
+  });
 });
 
 describe("window reason labels", () => {
@@ -239,6 +258,24 @@ describe("window reason labels", () => {
     );
     expect(ev.record.included).toBe(true);
     if (ev.record.included) expect(ev.record.reasons).toContain("window:in-published-end");
+  });
+
+  it("a post-report-day claim included through a late parseable CUTOFF is labeled window:in-cutoff-end", () => {
+    const ctx = ctxFor("russia_ukraine", {
+      reportDate: "2026-08-13",
+      cutoffAt: "2026-08-14T03:00:00Z", // a late-ET declared cutoff lands past midnight UTC
+      publishedAt: "2026-08-14T04:15:00Z",
+    });
+    expect(ctx.window.windowEndSource).toBe("cutoff");
+    const ev = evaluateCorpusRecallEligibility(
+      ctx,
+      claim({
+        claimDate: "2026-08-14",
+        text: "A drone strike damaged a berth in Izmail overnight.",
+      }),
+    );
+    expect(ev.record.included).toBe(true);
+    if (ev.record.included) expect(ev.record.reasons).toContain("window:in-cutoff-end");
   });
 });
 
