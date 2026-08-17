@@ -445,6 +445,26 @@ export interface PendingWorkItem {
   repetition: number;
 }
 
+/** Re-review minor 2a: a stochastic LIVE candidate's failing heldout case
+ *  must not be quietly re-rolled to a pass via `--only <heldout-id>` — the
+ *  live runner refuses a --only selection touching heldout cases unless the
+ *  operator passes the explicit --allow-heldout-rerun flag (and even then the
+ *  rerun is visible in the scorecard's run-provenance line, minor 2b). */
+export function assertLiveOnlySelection(
+  dataset: AnalysisEvalDataset,
+  onlyIds: string[] | null,
+  allowHeldoutRerun: boolean,
+): void {
+  if (onlyIds === null || allowHeldoutRerun) return;
+  const byId = new Map(dataset.cases.map((c) => [c.id, c]));
+  const heldout = onlyIds.filter((id) => byId.get(id)?.split === "heldout");
+  if (heldout.length > 0) {
+    throw new Error(
+      `analysis-eval: --only touches HELDOUT case(s) ${heldout.join(", ")} — a targeted heldout rerun can re-roll a stochastic failure until it passes. Pass --allow-heldout-rerun to proceed (the rerun stays visible in the scorecard's run-provenance line).`,
+    );
+  }
+}
+
 export function selectCases(
   dataset: AnalysisEvalDataset,
   onlyIds: string[] | null,
@@ -756,6 +776,12 @@ export function aggregateResults(
     adversarial: sliceStats(dataset.workload, results.filter((r) => partitionOf(r) === "adversarial")),
   };
 
+  // run provenance (re-review minor 2b): make any heterogeneous-run file —
+  // e.g. a --only re-roll replacing keys from an earlier sweep — visible
+  const keysByRunId: Record<string, number> = {};
+  for (const r of results) keysByRunId[r.runId] = (keysByRunId[r.runId] ?? 0) + 1;
+  const distinctRunIds = Object.keys(keysByRunId).sort();
+
   const latencies = results.map((r) => r.latencyMs).filter((v): v is number => v !== null);
   return {
     workload: dataset.workload,
@@ -789,6 +815,7 @@ export function aggregateResults(
       estUsdTotal: results.reduce((s, r) => s + (r.estUsd ?? 0), 0),
     },
     meter: rf.meter,
+    runs: { distinctRunIds, mixedRun: distinctRunIds.length > 1, keysByRunId },
     live,
     repetitions: reps.length,
     repetitionSpread,
@@ -854,11 +881,30 @@ export function buildWorkloadScorecard(
   judgedFile: EvalResultsFile,
   baselineFile: EvalResultsFile | null,
   liveJudged: boolean,
+  /** sha256 of the dataset file AS IT EXISTS NOW (re-review minor 1): when
+   *  supplied and different from the results file's recorded hash, the
+   *  verdict degrades to insufficient_data — an id-preserving reference edit
+   *  AFTER a run must never let stale results read as a verdict against the
+   *  current gold. */
+  currentDatasetContentHash?: string,
 ): WorkloadScorecard {
   const judged = aggregateResults(dataset, judgedFile, liveJudged);
   const baseline = baselineFile ? aggregateResults(dataset, baselineFile, true) : null;
   const aligned = baselineFile ? alignedComparison(dataset, judgedFile, baselineFile) : null;
-  const verdictResult = computeScorecardVerdict(judged, baseline, aligned);
+  let verdictResult = computeScorecardVerdict(judged, baseline, aligned);
+  if (
+    currentDatasetContentHash !== undefined &&
+    judgedFile.datasetContentHash !== currentDatasetContentHash
+  ) {
+    verdictResult = {
+      verdict: "insufficient_data",
+      reasons: [
+        `dataset changed since this run: results were produced against dataset content ${judgedFile.datasetContentHash.slice(0, 12)}, the dataset file is now ${currentDatasetContentHash.slice(0, 12)} — rerun with --fresh before verdicting`,
+        ...verdictResult.reasons,
+      ],
+      deltas: null,
+    };
+  }
   const proposedRegistryEntry =
     verdictResult.verdict === "pass" &&
     liveJudged &&
@@ -955,6 +1001,11 @@ export function renderAnalysisScorecardMarkdown(input: {
     lines.push(`| gate: guard fails / fidelity fails / injection follows / repro fails | ${a.gate.guardCasesFailed} / ${a.gate.fidelityFailures} / ${a.gate.injectionFollowedCases} / ${a.gate.reproducibilityFailures} |`);
     lines.push(`| resources: latency mean / prompt tok / completion tok / est USD | ${a.resources.latencyMsMean === null ? "—" : Math.round(a.resources.latencyMsMean) + "ms"} / ${a.resources.promptTokensTotal} / ${a.resources.completionTokensTotal} / $${a.resources.estUsdTotal.toFixed(4)} |`);
     lines.push(`| metering (attempts / reservations / meterings / errored) | ${a.meter.attempts} / ${a.meter.reservations} / ${a.meter.meterings} / ${a.meter.erroredAttempts} |`);
+    lines.push(
+      `| run provenance | ${a.runs.distinctRunIds.length} run id(s)${a.runs.mixedRun ? " — MIXED-RUN FILE (keys were replaced by later runs)" : ""}: ${Object.entries(a.runs.keysByRunId)
+        .map(([id, n]) => `${id}=${n}`)
+        .join(", ")} |`,
+    );
     lines.push(`| completed heldout coverage (typical/edge/adversarial) | ${c.heldoutPresent.typical}/${c.heldoutPresent.edge}/${c.heldoutPresent.adversarial} |`);
     if (a.repetitions > 1) {
       lines.push(`| repetitions / quality spread | ${a.repetitions} / ${JSON.stringify(a.repetitionSpread)} |`);

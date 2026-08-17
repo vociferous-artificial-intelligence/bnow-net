@@ -136,6 +136,11 @@ export interface WorkloadAggregate {
     estUsdTotal: number;
   };
   meter: { attempts: number; reservations: number; meterings: number; erroredAttempts: number };
+  /** run-provenance transparency (re-review minor 2b): every (caseId, rep)
+   *  key records the runId that produced it, so a file whose keys were
+   *  re-rolled by later runs (e.g. a targeted --only rerun) is visible on
+   *  its face — mixedRun flags any file holding results from >1 run. */
+  runs: { distinctRunIds: string[]; mixedRun: boolean; keysByRunId: Record<string, number> };
   live: boolean;
   repetitions: number;
   /** per-quality-metric spread across repetitions (max - min); {} for single-

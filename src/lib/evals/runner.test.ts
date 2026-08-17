@@ -45,6 +45,7 @@ import {
   ZERO_METER,
   aggregateResults,
   alignedComparison,
+  assertLiveOnlySelection,
   buildAnalysisEstimatePlan,
   buildCandidatePrompt,
   buildWorkloadScorecard,
@@ -345,6 +346,70 @@ describe("completeness (MAJOR-1) + aggregation over the committed datasets", () 
     expect(md).toContain("partition: adversarial");
     expect(md).toContain("VERDICT");
     expect(md).toContain("dig-adv-002-r1-drop-wash");
+  });
+});
+
+describe("re-review minor 1: report-time dataset staleness", () => {
+  it("an edited dataset flips a previously-pass-capable scorecard to insufficient_data", () => {
+    const bytes = readFileSync(join(EVALS_DIR, "reduce-v1.json"));
+    const currentHash = sha256(bytes);
+    const editedHash = sha256(bytes.toString("utf8").replace('"expectTogether"', '"expectTogether "'));
+    expect(editedHash).not.toBe(currentHash);
+
+    // a complete judged file + complete baseline over the SAME recorded hash:
+    // pass-capable against the dataset those runs actually saw
+    const judged = runAll(REDUCE_DS, { datasetContentHash: currentHash });
+    const baseline = runAll(REDUCE_DS, { configKey: "gpt-4o-mini", datasetContentHash: currentHash });
+    const fresh = buildWorkloadScorecard(REDUCE_DS, judged, baseline, false, currentHash);
+    expect(fresh.verdictResult.verdict).toBe("pass");
+
+    // same files reported after a reference edit: the CURRENT dataset hash no
+    // longer matches what the runs recorded — verdict degrades, deltas drop
+    const stale = buildWorkloadScorecard(REDUCE_DS, judged, baseline, false, editedHash);
+    expect(stale.verdictResult.verdict).toBe("insufficient_data");
+    expect(stale.verdictResult.reasons[0]).toContain("dataset changed since this run");
+    expect(stale.verdictResult.deltas).toBeNull();
+    expect(stale.proposedRegistryEntry).toBeNull();
+  });
+});
+
+describe("re-review minor 2: heldout re-roll opacity", () => {
+  it("2a: a live --only selection touching heldout refuses without --allow-heldout-rerun", () => {
+    const heldoutId = REDUCE_DS.cases.find((c) => c.split === "heldout")!.id;
+    const devId = REDUCE_DS.cases.find((c) => c.split === "development")!.id;
+    expect(() => assertLiveOnlySelection(REDUCE_DS, [devId, heldoutId], false)).toThrow(/HELDOUT[\s\S]*--allow-heldout-rerun/);
+    expect(() => assertLiveOnlySelection(REDUCE_DS, [devId, heldoutId], true)).not.toThrow();
+    expect(() => assertLiveOnlySelection(REDUCE_DS, [devId], false)).not.toThrow();
+    expect(() => assertLiveOnlySelection(REDUCE_DS, null, false)).not.toThrow();
+  });
+
+  it("2b: a heterogeneous-run file is visible on its face (mixed-run indicator)", () => {
+    const header = mkHeader(REDUCE_DS);
+    let rf = emptyEvalResultsFile(header);
+    for (const c of REDUCE_DS.cases) {
+      rf = mergeEvalResults(rf, header, [scoreOfflineCase(c, REDUCE_DS.datasetVersion, "run-sweep")], ZERO_METER);
+    }
+    // a later targeted rerun replaces one key under a NEW runId
+    const rerolled = { ...scoreOfflineCase(REDUCE_DS.cases[0], REDUCE_DS.datasetVersion, "run-reroll") };
+    rf = mergeEvalResults(rf, header, [rerolled], ZERO_METER);
+    const agg = aggregateResults(REDUCE_DS, rf, false);
+    expect(agg.runs.mixedRun).toBe(true);
+    expect(agg.runs.distinctRunIds).toEqual(["run-reroll", "run-sweep"]);
+    expect(agg.runs.keysByRunId["run-reroll"]).toBe(1);
+    expect(agg.runs.keysByRunId["run-sweep"]).toBe(REDUCE_DS.cases.length - 1);
+
+    const sc = buildWorkloadScorecard(REDUCE_DS, rf, null, false);
+    const md = renderAnalysisScorecardMarkdown({
+      generatedAt: "t",
+      scorecards: [sc],
+      detail: [{ workload: "reduce", configKey: OFFLINE_CONFIG_KEY, results: Object.values(rf.results), splitOf: {} }],
+    });
+    expect(md).toContain("MIXED-RUN FILE");
+    expect(md).toContain("run-reroll=1");
+
+    // a single-run file carries no mixed-run flag
+    const clean = aggregateResults(REDUCE_DS, runAll(REDUCE_DS), false);
+    expect(clean.runs.mixedRun).toBe(false);
   });
 });
 
