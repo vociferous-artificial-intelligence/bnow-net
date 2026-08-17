@@ -5,7 +5,8 @@ Exact commands, counts, failures, timings per phase. Baseline (base commit
 
 | Stage | Command | Result |
 |---|---|---|
-| Base sanity | `npm test` | (recorded at P0 gate run) |
+| Base sanity (`7150b49`, fresh worktree) | `npm test` | **2,402 passed / 2,402 (185 files)** — matches the QF final tally exactly |
+| Base sanity | `npx tsc --noEmit` | clean |
 
 Entries appended per phase below.
 

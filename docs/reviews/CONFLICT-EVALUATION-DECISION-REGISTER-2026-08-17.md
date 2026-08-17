@@ -43,3 +43,12 @@ Each entry: date, decision, rationale, alternatives rejected, review status.
    Only fixtures and labeled retrospectives are producible in this
    workstream. Rejected: treating the current last-writer DB state as any of
    the three (the 2026-07-14 audits document exactly why that lies).
+
+6. **2026-08-17 — Five Phase 0 ambiguity freezes** (surfaced by fixture
+   authoring; contract §5/§7 amended in place before Gate 0): evaluation
+   window `[reportDate−2d, cutoffAt|publishedAt|end-of-report-day)` with an
+   inclusive END where instants apply; event-geography-over-actor lane
+   precedence; the bounded exclusion-reason precedence order (integrity →
+   scope → comparability); contribution computed over corpus-recall matches;
+   cutoff boundary equality read as "at or before". Each is pinned by ≥1
+   fixture scenario, so a later change breaks tests rather than drifting.

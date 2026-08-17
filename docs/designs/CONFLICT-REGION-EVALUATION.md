@@ -192,6 +192,25 @@ whose plausible evidence lives in non-mapped theaters report
 comparable mapped Gulf evidence reports `unavailable`, never a manufactured
 zero or a silent inclusion).
 
+**Frozen window and precedence rules (Phase 0 ambiguity resolutions —
+decision register #6; the fixture corpus pins each):**
+
+- **Evaluation window** per report: START = `reportDate − 2 days` (00:00Z of
+  that day — covers the reference series' typical reporting lookback); END =
+  `cutoffAt` when parseable, else `publishedAt` when known, else the
+  EXCLUSIVE end of the report date's UTC day. The END boundary is INCLUSIVE
+  ("at or before") wherever an instant comparison applies. Claims are
+  day-granular (`claimDate` within the window's date span); per-document
+  instants drive the cutoff/publication diagnostics.
+- **Lane assignment precedence:** when actor roster and event geography
+  disagree, EVENT GEOGRAPHY wins (a Houthi attack on Red Sea shipping is
+  `maritime`, not `proxy_partner`; the actor still contributes to actor-level
+  attribution).
+- **Exclusion-reason precedence** (first match wins, integrity before scope
+  before comparability): `stub_fixture` → `missing_source` →
+  `superseded_version` → `mirror_only` → `off_window` → `off_scope` →
+  `legacy_incomparable` → `unclassified`.
+
 **Anti-gaming freeze:** evidence eligibility is computed WITHOUT the
 reference report's content. The report text may be used by the matcher AFTER
 candidate assembly; it may never decide which claims enter the union.
@@ -274,6 +293,10 @@ everywhere. **No composite quality score.**
   the headline numerator. UI label: **"matched takeaways with evidence from
   …"**, with the non-additivity disclosed beside the table.
 - No exclusive or fractional primary credit in this workstream.
+- **Population (frozen):** contribution attribution is computed over the
+  CORPUS-RECALL matched units (the diagnosis-oriented population); the
+  published-retention view derives its own contribution table separately when
+  displayed, never mixed into the corpus-recall one.
 
 ## 8. Epochs and record integrity
 
