@@ -136,17 +136,30 @@ integration base (after all concurrent schema work is known), preserving
    designated_final boolean NULL;
    parse_status text NOT NULL DEFAULT 'pending' CHECK (pending|parsed|failed);
    isw_report_id integer NULL REFERENCES isw_reports(id);
-   derived jsonb NOT NULL DEFAULT '{}'` plus the three named CHECKs
-   (`…_key_shape`, `…_cutoff_consistent`, `…_published_consistent`).
+   derived jsonb NOT NULL DEFAULT '{}'` plus the five named CHECKs
+   (`…_key_shape`, `…_cutoff_consistent`, `…_published_consistent`,
+   `…_label_shape` — `edition_label ~ '^[a-z0-9][a-z0-9-]*$'`, blocking
+   empty and colon-bearing labels that would still satisfy the
+   concatenation check — and `…_isw_url` —
+   `provider <> 'isw' OR canonical_url IS NOT NULL`). The `isw_report_id`
+   FK deliberately keeps the DEFAULT `ON DELETE NO ACTION`: deleting a
+   citation-anchor row an edition still references must be BLOCKED and
+   visible (a raise at the delete site), never cascaded into silent edition
+   loss or nulled into a silently unlinked edition.
 2. `CREATE UNIQUE INDEX benchmark_report_editions_key_idx (edition_key)`.
 3. `CREATE UNIQUE INDEX benchmark_report_editions_url_idx (canonical_url)
    WHERE canonical_url IS NOT NULL` (partial: fixture rows carry NULL).
 4. `CREATE INDEX benchmark_report_editions_series_date_idx (series,
    report_date)`.
-5. `CREATE TABLE benchmark_series_days (series text, report_date date,
-   status text CHECK (publication_gap|probe_failed), PRIMARY KEY (series,
-   report_date))`.
-6. NO change of any kind to `isw_reports`, `source_citations`, `sources`,
+5. `CREATE UNIQUE INDEX benchmark_report_editions_final_idx (series,
+   report_date) WHERE designated_final` — at most one designated-final
+   edition per series/day at the persistence layer (the DB twin of
+   `selectDailyFinal`'s contradictory-designation refusal).
+6. `CREATE TABLE benchmark_series_days` — columns exactly as in the
+   disposable DDL: `series text NOT NULL; report_date date NOT NULL;
+   status text NOT NULL CHECK (publication_gap|probe_failed);
+   PRIMARY KEY (series, report_date)`.
+7. NO change of any kind to `isw_reports`, `source_citations`, `sources`,
    `source_theater_stats`, `validation_runs`, or any other existing object.
    No backfill in the migration itself (an optional idempotent backfill of
    edition rows from existing `isw_reports` urls via
@@ -184,6 +197,32 @@ them (additive, default `now()` — DB-side provenance, not domain input).
   `canonical_url` violations currently surface as raw driver errors from
   the disposable backend; the durable backend should map them to typed
   domain errors.
+- **Backend divergence on cross-key `canonical_url` uniqueness.** URL
+  uniqueness across DIFFERENT edition keys is a DB-level constraint only
+  (the partial unique index): the SQL backend refuses a second edition
+  claiming another edition's URL, while the in-memory backend ACCEPTS the
+  same sequence (it enforces per-record validity and same-key merge
+  identity, not cross-record uniqueness). The divergence is asserted
+  honestly in the integration test; the app-layer URL↔key cross-validation
+  in `validateEditionRecord` narrows it for current-normVersion records,
+  and the durable backend keeps the index as the authority.
+- **Anchor-change journaling.** `anchorChanged` is currently a returned —
+  and droppable — flag: a present→present anchor move overwrites the old
+  value, which is then destroyed. Durable wiring must persist an
+  anchor-change journal (the `derived` jsonb or a dedicated audit column
+  is the natural home) so a moved cutoff/published instant leaves a
+  queryable trace, not only a transient return value.
+- **URL canonicalization before storage.** Merge equality for
+  `canonicalUrl` is BYTE-level, so a trailing-slash/`www`/scheme variant
+  replay of the SAME edition throws `edition_merge_conflict` — fail-closed
+  and honest, but avoidable: the future discovery adapter should
+  canonicalize URLs to one form before storage.
+- **Durable monotone day-status rule.** The disposable backend's day-status
+  upsert carries the monotone `nextStoredDayStatus` rule in the statement
+  itself (CASE-guarded `ON CONFLICT DO UPDATE`, exported as
+  `DAY_STATUS_UPSERT_SQL` and integration-proven); the durable
+  integration-phase backend must KEEP that SQL-level guard, not regress to
+  last-writer-wins.
 - **Discovery/sync seam.** Wiring the validation cron's discovered URLs
   into edition rows (and linking `isw_report_id`) is integration-phase
   work; the frozen validation stack is not edited by this phase. A
