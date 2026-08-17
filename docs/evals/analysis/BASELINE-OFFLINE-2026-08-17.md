@@ -1,4 +1,4 @@
-# Analysis eval scorecard — 2026-08-17T09:18:09.845Z
+# Analysis eval scorecard — 2026-08-17T09:30:40.673Z
 
 > Verdicts use the PRESET gates in src/lib/evals/gates.ts (completeness + aligned-heldout pairwise rules pre-registered before any candidate result existed). The offline-fixtures config scores COMMITTED fixture outputs (compliant AND deliberately violating ones) through the real pipeline functions — it is a machinery proof, NOT a model evaluation; no paid calls are involved in producing it.
 
@@ -8,25 +8,26 @@ Identity: provider=stub model=offline-fixtures effort=absent approval=baseline r
 
 | metric | value |
 |---|---|
-| completeness | scope=full · 18/18 results present (0 missing, 0 heldout missing) · reps=1 · datasetHash=21568619a16c · COMPLETE |
+| completeness | scope=full · 18/18 results present (0 missing, 0 heldout missing) · reps=1 · datasetHash=9e73b2fadf3e · COMPLETE |
 | cases (scored / schema-invalid / provider-error / skipped) | 17 / 1 / 0 / 0 of 18 |
 | checks passed | 10/18 |
 | machinery proof (result matches fixture expectation) | 18/18 |
 | quality: recallMean (all results, diagnostic) | 92.2% |
-| quality: precisionMean (all results, diagnostic) | 97.1% |
+| quality: precisionMean (all results, diagnostic) | 91.2% |
 | quality: checksPassRate (all results, diagnostic) | 55.6% |
 | gate: wrongDocIds / heldout under-fill / strengthened hedges | 1 / 1 / 2 |
 | gate: guard fails / fidelity fails / injection follows / repro fails | 0 / 1 / 1 / 0 |
 | resources: latency mean / prompt tok / completion tok / est USD | — / 0 / 0 / $0.0000 |
 | metering (attempts / reservations / meterings / errored) | 0 / 0 / 0 / 0 |
+| run provenance | 1 run id(s): offline-map-v1=18 |
 | completed heldout coverage (typical/edge/adversarial) | 1/2/2 |
 
 | slice | checks | quality |
 |---|---|---|
-| split: development (diagnostic) | 8/13 passed | recallMean=89.7%, precisionMean=100.0%, checksPassRate=61.5% |
+| split: development (diagnostic) | 8/13 passed | recallMean=89.7%, precisionMean=92.3%, checksPassRate=61.5% |
 | split: heldout (gated) | 2/5 passed | recallMean=100.0%, precisionMean=87.5%, checksPassRate=40.0% |
 | partition: typical | 6/6 passed | recallMean=100.0%, precisionMean=100.0%, checksPassRate=100.0% |
-| partition: edge | 2/7 passed | recallMean=77.8%, precisionMean=100.0%, checksPassRate=28.6% |
+| partition: edge | 2/7 passed | recallMean=77.8%, precisionMean=83.3%, checksPassRate=28.6% |
 | partition: adversarial | 2/5 passed | recallMean=100.0%, precisionMean=90.0%, checksPassRate=40.0% |
 
 VERDICT: **FAIL**
@@ -53,6 +54,7 @@ Identity: provider=stub model=offline-fixtures effort=absent approval=baseline r
 | gate: guard fails / fidelity fails / injection follows / repro fails | 0 / 0 / 0 / 0 |
 | resources: latency mean / prompt tok / completion tok / est USD | — / 0 / 0 / $0.0000 |
 | metering (attempts / reservations / meterings / errored) | 0 / 0 / 0 / 0 |
+| run provenance | 1 run id(s): offline-reduce-v1=14 |
 | completed heldout coverage (typical/edge/adversarial) | 1/1/3 |
 
 | slice | checks | quality |
@@ -81,6 +83,7 @@ Identity: provider=stub model=offline-fixtures effort=absent approval=baseline r
 | gate: guard fails / fidelity fails / injection follows / repro fails | 0 / 0 / 0 / 0 |
 | resources: latency mean / prompt tok / completion tok / est USD | — / 0 / 0 / $0.0000 |
 | metering (attempts / reservations / meterings / errored) | 0 / 0 / 0 / 0 |
+| run provenance | 1 run id(s): offline-digest-v1=10 |
 | completed heldout coverage (typical/edge/adversarial) | 1/1/1 |
 
 | slice | checks | quality |
@@ -117,6 +120,7 @@ Identity: provider=stub model=offline-fixtures effort=absent approval=baseline r
 | gate: guard fails / fidelity fails / injection follows / repro fails | 0 / 0 / 0 / 0 |
 | resources: latency mean / prompt tok / completion tok / est USD | — / 0 / 0 / $0.0000 |
 | metering (attempts / reservations / meterings / errored) | 0 / 0 / 0 / 0 |
+| run provenance | 1 run id(s): offline-validation-v1=14 |
 | completed heldout coverage (typical/edge/adversarial) | 1/3/1 |
 
 | slice | checks | quality |
