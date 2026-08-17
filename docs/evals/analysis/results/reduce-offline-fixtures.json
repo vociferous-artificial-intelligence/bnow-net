@@ -2,6 +2,7 @@
   "workload": "reduce",
   "configKey": "offline-fixtures",
   "datasetVersion": "reduce-v1",
+  "datasetContentHash": "e8f3f6a5d1654d82ce4f51750bea82f922b018848e059cc4b63c16b14abd9ad4",
   "identity": {
     "provider": "stub",
     "model": "offline-fixtures",
@@ -11,7 +12,15 @@
     "promptHash": "2a022ecad8e0084e1d4d0aeb989954ca5df7df92845a37b208bb13b9c39aa4fa",
     "schemaVersion": "b1821aeff4118593b96065efa1dcee502dc3be4ecf5da827563f10a5662d85ca"
   },
-  "updatedAt": "2026-08-17T08:36:56.194Z",
+  "requestedRepetitions": 1,
+  "scope": "full",
+  "envKnobs": {
+    "reduceVotes": 5,
+    "reduceMaxOutputTokens": 6000,
+    "mapOutTokensPerDoc": 200,
+    "mapContentChars": 1500
+  },
+  "updatedAt": "2026-08-17T09:18:09.250Z",
   "meter": {
     "attempts": 0,
     "reservations": 0,
