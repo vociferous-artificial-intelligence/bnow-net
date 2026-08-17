@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { resolveWorkloadModel } from "../llm/model-config";
 import { ENTITY_RULES, type Track } from "./tracks";
 
 // Map-stage prompts: per-document claim extraction (the "map" of map-reduce).
@@ -8,7 +9,13 @@ import { ENTITY_RULES, type Track } from "./tracks";
 // (those are the reduce's job, sprint 3). The digest pipeline does not use this
 // module; it is shadow-only until the reduce ships.
 
-export const MAP_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+/** Resolved map-stage model (MAP_MODEL → OPENAI_MODEL → gpt-4o-mini), read at
+ *  call time through the workload resolver — the former module-load `MAP_MODEL`
+ *  const froze the env at import and was silently shared by the reduce stage
+ *  (synthesize.ts), which now resolves its own "reduce" workload. */
+export function mapModel(): string {
+  return resolveWorkloadModel("map").model;
+}
 
 /** Chars of (title + content) sent per doc. The digest path's 400 was a
  *  batch-era constraint that truncates most telegram/X posts mid-thought
@@ -195,13 +202,25 @@ export function mapUserMessage(
 /** Version stamp for doc_claims/doc_map_state rows: model + a hash of the exact
  *  resolved prompt, user framing rev and serialization params. Any change to
  *  the prompt, the model or the per-doc content budget yields a new version
- *  — old rows stay, the anti-join re-maps under the new one. */
+ *  — old rows stay, the anti-join re-maps under the new one.
+ *
+ *  Model-routing contract (test-pinned): the basis reads the MAP workload's
+ *  resolution (MAP_MODEL → OPENAI_MODEL → default), so setting MAP_MODEL bumps
+ *  the version while REDUCE_MODEL never does — reduce reads doc_claims, it
+ *  does not write them. A validated MAP_REASONING_EFFORT joins the basis ONLY
+ *  when set (extraction output depends on it), appended so that the absent-env
+ *  basis stays byte-identical to the historical one and no deployed corpus
+ *  silently goes stale. */
 export function mapExtractorVersion(track: Track, theater: string): string {
+  const cfg = resolveWorkloadModel("map");
   const basis = [
-    MAP_MODEL,
+    cfg.model,
     mapSystemPrompt(track, theater),
     `frame=${MAP_USER_FRAME_REV}`,
     `content=${mapContentChars()}`,
-  ].join("\n ");
-  return `${MAP_MODEL}:${createHash("sha256").update(basis).digest("hex").slice(0, 12)}`;
+  ];
+  if (cfg.reasoningEffort !== null && cfg.reasoningCapable) {
+    basis.push(`effort=${cfg.reasoningEffort}`);
+  }
+  return `${cfg.model}:${createHash("sha256").update(basis.join("\n ")).digest("hex").slice(0, 12)}`;
 }

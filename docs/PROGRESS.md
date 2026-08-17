@@ -2707,3 +2707,24 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
   now recorded — production still runs the pre-fix loader until redeployed; test
   inventory corrected), 3 findings refuted. Zero paid calls, zero production writes,
   no deploy, no env change; branch commit + push to PR #2 only.
+
+## 2026-08-17 02:05 UTC — plan: cloud-model routing seams (branch codex/cloud-model-routing-seams-20260816)
+
+1. Typed call-time resolver `src/lib/llm/model-config.ts`: per-workload model
+   (`MAP/REDUCE/DIGEST/VALIDATION/ENTITY_AUDIT_MODEL` → `OPENAI_MODEL` →
+   gpt-4o-mini) + validated `*_REASONING_EFFORT`; unpriced models and invalid
+   efforts FAIL CLOSED before any reservation or dispatch.
+2. Route the five analysis dispatch sites through it (map worker, reduce
+   synthesis, legacy digest provider, llm-match, entity-audit); decouple map
+   from reduce (shared `MAP_MODEL` const removed); provider tags record actual
+   dispatched models; metering becomes model-aware via the single price
+   authority `src/lib/llm/pricing.ts`.
+3. Extractor-version identity: MAP_MODEL / validated MAP_REASONING_EFFORT bump
+   `mapExtractorVersion()`; REDUCE_* never do; absent envs byte-identical to
+   the historical basis (test-pinned).
+4. Dry-run inspector `scripts/model-routing-inspect.ts` (no provider calls),
+   commented `.env.example`, comprehensive resolver/params/pricing tests.
+5. Gates (typecheck/lint/unit/build/itest) → two isolated adversarial reviews
+   with remediation → `docs/reviews/CLOUD-MODEL-ROUTING-SEAMS-2026-08-17.md`
+   → commit, push, DRAFT PR. Defaults byte-equivalent to main; NO model
+   activated, NO env set, NO paid call, NO deploy from this branch.

@@ -1,18 +1,32 @@
+import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   MAP_RESPONSE_SCHEMA,
+  MAP_USER_FRAME_REV,
+  mapContentChars,
   mapDocLine,
   mapExtractorVersion,
+  mapModel,
   mapResponseSchema,
   mapSystemPrompt,
   mapUserMessage,
 } from "./map-prompts";
 import { ENTITY_RULES } from "./tracks";
 
-const SAVED = { MAP_CONTENT_CHARS: process.env.MAP_CONTENT_CHARS };
+const SAVED_KEYS = [
+  "MAP_CONTENT_CHARS",
+  "MAP_MODEL",
+  "MAP_REASONING_EFFORT",
+  "REDUCE_MODEL",
+  "REDUCE_REASONING_EFFORT",
+  "OPENAI_MODEL",
+] as const;
+const SAVED = Object.fromEntries(SAVED_KEYS.map((k) => [k, process.env[k]]));
 afterEach(() => {
-  if (SAVED.MAP_CONTENT_CHARS === undefined) delete process.env.MAP_CONTENT_CHARS;
-  else process.env.MAP_CONTENT_CHARS = SAVED.MAP_CONTENT_CHARS;
+  for (const k of SAVED_KEYS) {
+    if (SAVED[k] === undefined) delete process.env[k];
+    else process.env[k] = SAVED[k];
+  }
 });
 
 // strict:true rejects any object schema that is not fully closed: every object
@@ -145,5 +159,77 @@ describe("mapExtractorVersion", () => {
 
   it("ua and ru military share a version — same prompt, claims comparable", () => {
     expect(mapExtractorVersion("military", "ua")).toBe(mapExtractorVersion("military", "ru"));
+  });
+
+  it("with no model env the basis is byte-identical to the historical formula", () => {
+    // Pins that call-time resolution changed NOTHING for the deployed corpus:
+    // absent envs must reproduce exactly the pre-routing version strings, or
+    // every doc_claims row would silently go stale on deploy.
+    for (const k of ["MAP_MODEL", "OPENAI_MODEL", "MAP_REASONING_EFFORT"]) delete process.env[k];
+    const historicalBasis = [
+      "gpt-4o-mini",
+      mapSystemPrompt("military", "ru"),
+      `frame=${MAP_USER_FRAME_REV}`,
+      `content=${mapContentChars()}`,
+    ].join("\n ");
+    const expected = `gpt-4o-mini:${createHash("sha256").update(historicalBasis).digest("hex").slice(0, 12)}`;
+    expect(mapExtractorVersion("military", "ru")).toBe(expected);
+  });
+
+  it("MAP_MODEL changes the version; REDUCE_MODEL never does", () => {
+    for (const k of ["MAP_MODEL", "OPENAI_MODEL", "MAP_REASONING_EFFORT", "REDUCE_MODEL"])
+      delete process.env[k];
+    const base = mapExtractorVersion("military", "ru");
+    process.env.REDUCE_MODEL = "gpt-5";
+    process.env.REDUCE_REASONING_EFFORT = "high";
+    expect(mapExtractorVersion("military", "ru")).toBe(base);
+    process.env.MAP_MODEL = "gpt-5-mini";
+    const routed = mapExtractorVersion("military", "ru");
+    expect(routed).not.toBe(base);
+    expect(routed.startsWith("gpt-5-mini:")).toBe(true);
+  });
+
+  it("OPENAI_MODEL still changes the version (pre-existing fallback behavior)", () => {
+    for (const k of ["MAP_MODEL", "OPENAI_MODEL", "MAP_REASONING_EFFORT"]) delete process.env[k];
+    const base = mapExtractorVersion("military", "ru");
+    process.env.OPENAI_MODEL = "gpt-4o";
+    expect(mapExtractorVersion("military", "ru")).not.toBe(base);
+  });
+
+  it("a validated MAP_REASONING_EFFORT on a reasoning model changes the version", () => {
+    for (const k of ["MAP_MODEL", "OPENAI_MODEL", "MAP_REASONING_EFFORT"]) delete process.env[k];
+    process.env.MAP_MODEL = "gpt-5";
+    const noEffort = mapExtractorVersion("military", "ru");
+    process.env.MAP_REASONING_EFFORT = "low";
+    const withEffort = mapExtractorVersion("military", "ru");
+    expect(withEffort).not.toBe(noEffort);
+    process.env.MAP_REASONING_EFFORT = "medium";
+    expect(mapExtractorVersion("military", "ru")).not.toBe(withEffort);
+  });
+
+  it("an effort that cannot dispatch (invalid / non-reasoning model) never shifts the version", () => {
+    for (const k of ["MAP_MODEL", "OPENAI_MODEL", "MAP_REASONING_EFFORT"]) delete process.env[k];
+    const base = mapExtractorVersion("military", "ru");
+    process.env.MAP_REASONING_EFFORT = "low"; // gpt-4o-mini: dispatch fails closed
+    expect(mapExtractorVersion("military", "ru")).toBe(base);
+    process.env.MAP_MODEL = "gpt-5";
+    process.env.MAP_REASONING_EFFORT = "bogus"; // invalid: dispatch fails closed
+    expect(mapExtractorVersion("military", "ru")).toBe(
+      (() => {
+        delete process.env.MAP_REASONING_EFFORT;
+        return mapExtractorVersion("military", "ru");
+      })(),
+    );
+  });
+});
+
+describe("mapModel", () => {
+  it("resolves at call time: MAP_MODEL → OPENAI_MODEL → gpt-4o-mini", () => {
+    for (const k of ["MAP_MODEL", "OPENAI_MODEL"]) delete process.env[k];
+    expect(mapModel()).toBe("gpt-4o-mini");
+    process.env.OPENAI_MODEL = "gpt-4o";
+    expect(mapModel()).toBe("gpt-4o");
+    process.env.MAP_MODEL = "gpt-5-mini";
+    expect(mapModel()).toBe("gpt-5-mini");
   });
 });

@@ -1,9 +1,11 @@
 import OpenAI from "openai";
 import {
-  USD_PER_COMPLETION_TOKEN,
-  USD_PER_PROMPT_TOKEN,
-  isLlmDisabled,
-} from "../usage/llm-guard";
+  analysisChatParams,
+  workloadDispatchConfig,
+  type AnalysisDispatchConfig,
+} from "../llm/model-config";
+import { estimateCostUsd } from "../llm/pricing";
+import { isLlmDisabled } from "../usage/llm-guard";
 import { SpendGuard, envCap, envNum, pgUsageStore } from "../usage/spend-guard";
 import type { ClaimForValidation } from "./score";
 
@@ -81,12 +83,12 @@ function buildUserPrompt(takeawayTexts: string[], claims: ClaimForValidation[]):
 /** One matching call. Returns sanitized matches + actual USD cost, or throws. */
 async function llmMatchOnce(
   client: OpenAI,
-  model: string,
+  dispatch: AnalysisDispatchConfig,
   takeawayTexts: string[],
   claims: ClaimForValidation[],
 ): Promise<{ matches: LlmMatch[]; usd: number }> {
   const completion = await client.chat.completions.create({
-    model,
+    model: dispatch.model,
     messages: [
       { role: "system", content: SYSTEM },
       { role: "user", content: buildUserPrompt(takeawayTexts, claims) },
@@ -95,11 +97,16 @@ async function llmMatchOnce(
       type: "json_schema",
       json_schema: { name: "matches", schema: SCHEMA as never, strict: true },
     },
-    temperature: 0,
+    // default (non-reasoning) payload keeps exactly the historical
+    // `temperature: 0` and, deliberately, still NO output-token ceiling; a
+    // reasoning model drops temperature (model-config.ts)
+    ...analysisChatParams(dispatch, { temperature: 0 }),
   });
-  const usd =
-    (completion.usage?.prompt_tokens ?? 0) * USD_PER_PROMPT_TOKEN +
-    (completion.usage?.completion_tokens ?? 0) * USD_PER_COMPLETION_TOKEN;
+  const usd = estimateCostUsd(
+    dispatch.model,
+    completion.usage?.prompt_tokens ?? 0,
+    completion.usage?.completion_tokens ?? 0,
+  );
   const raw = completion.choices[0]?.message?.content ?? '{"matches":[]}';
   const parsed = (JSON.parse(raw) as { matches: LlmMatch[] }).matches ?? [];
   const validClaims = new Set(claims.map((c) => c.claimId));
@@ -184,8 +191,21 @@ export async function llmMatchTakeaways(
     console.warn("llm-match: LLM_DISABLE=1 — refusing LLM calls, falling back to keyword matcher");
     return null;
   }
+  // Model routing (VALIDATION_MODEL → OPENAI_MODEL → gpt-4o-mini). A blocked
+  // configuration (unpriced model / invalid VALIDATION_REASONING_EFFORT) fails
+  // closed BEFORE any dispatch and degrades like every other llm-match failure:
+  // warn + null, so the keyword matcher upstream still scores the day
+  // (ruling 9's site-specific degradation, unchanged).
+  let dispatch: AnalysisDispatchConfig;
+  try {
+    dispatch = workloadDispatchConfig("validation");
+  } catch (e) {
+    console.warn(
+      `llm-match: ${e instanceof Error ? e.message : e} — falling back to keyword matcher`,
+    );
+    return null;
+  }
   const client = new OpenAI();
-  const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
   const k = Math.max(1, envNum("MATCH_VOTES", 5));
 
   const singleShot = process.env.MATCHER_MODE === "single" || k === 1;
@@ -200,7 +220,7 @@ export async function llmMatchTakeaways(
           console.warn(`llm-match: budget stop — ${r.reason}`);
           return null;
         }
-        return llmMatchOnce(client, model, takeawayTexts, claims)
+        return llmMatchOnce(client, dispatch, takeawayTexts, claims)
           .then(async (res) => {
             await guard.record(1, 1, res.usd);
             return res.matches;
@@ -228,7 +248,7 @@ export async function llmMatchTakeaways(
   }
 
   try {
-    const { matches } = await llmMatchOnce(client, model, takeawayTexts, claims);
+    const { matches } = await llmMatchOnce(client, dispatch, takeawayTexts, claims);
     return { matches, matcher: "llm" };
   } catch (e) {
     console.warn(`llm-match failed, falling back to keywords: ${e instanceof Error ? e.message : e}`);
