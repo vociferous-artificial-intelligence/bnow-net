@@ -16,14 +16,20 @@
 // - `requires` patterns demand co-occurring war/conflict context: the
 //   nato-eu-decision entry hits "NATO approved an air-defense package for
 //   Ukraine" but NOT "EU agriculture ministers debated dairy subsidies" —
-//   region/actor membership alone never suffices (contract §5).
-// - v1 COARSENESS, documented: the Houthi entry includes the strongly
-//   Houthi-associated maritime operating areas of the current phase (Red Sea,
-//   Al Hudaydah, Al Salif, Yemen) — an attack description in those waters is
-//   attributed to the houthi roster entry even when the group is not named.
-//   The lane still comes from event geography first (maritime), so this
-//   coarseness affects attribution diagnostics, not lane precedence. Revising
-//   it is a roster version bump, never an in-place edit.
+//   region/actor membership alone never suffices (contract §5). The same rule
+//   guards mediator entries (oman mirrors qatar) and belarus-enablement.
+// - GUARDED OPERATING-AREA TOKENS (corrects a Gate-3 MAJOR): an actor entry
+//   may carry a `guarded` pattern group — area tokens (the Houthi entry's Red
+//   Sea / Al Hudaydah / Al Salif / Yemen) that hit ONLY alongside their own
+//   attack/military/shipping co-occurrence context. A bare area mention is
+//   NOT the actor: at classifier rung 3 (no geography-class hit) a strong
+//   actor GOVERNS the lane, so an unguarded area token would grant scope AND
+//   a lane to neutral claims ("Yemen's tourism ministry…") — the guards are
+//   what contain scope; the earlier claim that this coarseness affected only
+//   attribution diagnostics was wrong precisely in that rung-3 case. An
+//   attack description in Houthi-associated waters still attributes to the
+//   houthi entry without the group being named (v1 coarseness, kept).
+//   Revising rosters is a version bump, never an in-place edit.
 //
 // Every entry's lane is validated against the conflict's frozen taxonomy at
 // module load through the fail-closed helpers (Gate-1 carried condition).
@@ -49,8 +55,12 @@ export interface ActorEntry {
   lane: ConflictLaneId | null;
   /** any-of match patterns (word-boundary, case-insensitive) */
   patterns: readonly RegExp[];
-  /** when present: at least one must ALSO match (co-occurrence context) */
+  /** when present: at least one must ALSO match (co-occurrence context) for
+   *  the `patterns` group to count */
   requires?: readonly RegExp[];
+  /** additional patterns that hit ONLY alongside their own co-occurrence
+   *  context (operating-area tokens: a bare area mention is not the actor) */
+  guarded?: { patterns: readonly RegExp[]; requires: readonly RegExp[] };
   strength: ActorStrength;
 }
 
@@ -79,6 +89,11 @@ const RU_UA_ROSTER: readonly ActorEntry[] = [
     label: "Belarusian enablement of Russia",
     lane: "russia_partners",
     patterns: [/\bbelarus/i],
+    // enablement context required: a bare Belarus mention (potato-harvest
+    // news) is not war enablement
+    requires: [
+      /militar|troop|missile|drone|weapon|forces|deploy|exercis|\bbase[sd]?\b|basing|transfer|launch|strike|attack|air[ -]defen[cs]e|enable/i,
+    ],
     strength: "strong",
   }),
   entry("russia_ukraine", {
@@ -133,9 +148,18 @@ const IRAN_ROSTER: readonly ActorEntry[] = [
   }),
   entry("iran_regional", {
     id: "houthi",
-    label: "Houthi movement (incl. Houthi-associated maritime zones — v1 coarseness, see header)",
+    label: "Houthi movement (incl. GUARDED Houthi-associated maritime zones — see header)",
     lane: "proxy_partner",
-    patterns: [/\bhouthi/i, /\byemen/i, /hudaydah/i, /al salif/i, /red sea/i],
+    patterns: [/\bhouthi/i],
+    guarded: {
+      // operating-area tokens count only with attack/military/shipping
+      // context — a tourism/fishing/aid mention of the same places is not
+      // the actor
+      patterns: [/\byemen/i, /hudaydah/i, /al salif/i, /red sea/i],
+      requires: [
+        /attack|strike|missile|drone|deton|explos|anti-ship|intercept|hijack|seiz|militar|\bforces\b|\bnaval\b|shipping|\bvessel\b|\btanker\b|maritime/i,
+      ],
+    },
     strength: "strong",
   }),
   entry("iran_regional", {
@@ -154,9 +178,12 @@ const IRAN_ROSTER: readonly ActorEntry[] = [
   }),
   entry("iran_regional", {
     id: "mediator-oman",
-    label: "Omani mediation / Oman-adjacent regional diplomacy",
+    label: "Omani mediation",
     lane: "regional_effects",
     patterns: [/\boman/i, /\bmuscat\b/i],
+    // mediation context required (mirrors mediator-qatar): "Oman Air announced
+    // new direct flights" is not Omani mediation
+    requires: [/mediat|talks|negotiat|de-escalat/i],
     strength: "strong",
   }),
   entry("iran_regional", {
@@ -188,14 +215,22 @@ export interface ActorMatch {
 }
 
 /** All roster hits for a claim text, in roster priority order. Pure and
- *  deterministic; `requires` co-occurrence enforced. */
+ *  deterministic. An entry hits when its direct `patterns` group matches
+ *  (with entry-wide `requires` co-occurrence satisfied, if any) OR its
+ *  `guarded` group matches together with the guarded group's own context. */
 export function matchActors(conflictId: ConflictId, text: string): ActorMatch[] {
   const out: ActorMatch[] = [];
   const roster = ACTOR_ROSTERS[conflictId];
   for (let i = 0; i < roster.length; i++) {
     const e = roster[i];
-    if (!e.patterns.some((p) => p.test(text))) continue;
-    if (e.requires && !e.requires.some((p) => p.test(text))) continue;
+    const directHit =
+      e.patterns.some((p) => p.test(text)) &&
+      (e.requires === undefined || e.requires.some((p) => p.test(text)));
+    const guardedHit =
+      e.guarded !== undefined &&
+      e.guarded.patterns.some((p) => p.test(text)) &&
+      e.guarded.requires.some((p) => p.test(text));
+    if (!directHit && !guardedHit) continue;
     out.push({ entry: e, priority: i });
   }
   return out;

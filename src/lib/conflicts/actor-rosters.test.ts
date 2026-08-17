@@ -57,7 +57,7 @@ describe("actor rosters (versioned, deterministic)", () => {
     expect(roster.find((e) => e.id === "russian-forces")?.lane).toBeNull();
   });
 
-  it("houthi entry covers the documented v1 operating-area coarseness", () => {
+  it("houthi operating-area tokens hit WITH attack/military/shipping context (guarded coarseness)", () => {
     for (const text of [
       "Houthi forces attacked a vessel.",
       "A missile was launched from Yemen.",
@@ -68,10 +68,39 @@ describe("actor rosters (versioned, deterministic)", () => {
     }
   });
 
+  it("bare area/actor tokens never admit neutral claims (Gate-3 probe sentences)", () => {
+    // each probe previously matched an actor entry on a bare token and (at
+    // classifier rung 3) the actor GOVERNED the lane — all five must now
+    // yield ZERO hits for the entry in question
+    const iranProbes = [
+      "Yemen's tourism ministry reported record visitor numbers for July.",
+      "Fishing cooperatives near Al Salif reported a strong catch season.",
+      "Aid deliveries to Yemen resumed through the port of Aden under a monitoring arrangement.",
+      "Oman Air announced new direct flights to Bangkok.",
+    ];
+    for (const text of iranProbes) {
+      const ids = matchActors("iran_regional", text).map((h) => h.entry.id);
+      expect(ids, text).not.toContain("houthi");
+      expect(ids, text).not.toContain("mediator-oman");
+    }
+    expect(
+      matchActors("russia_ukraine", "Belarus reported a record potato harvest this season.").map(
+        (h) => h.entry.id,
+      ),
+    ).not.toContain("belarus-enablement");
+    // …while genuinely enablement-shaped Belarus claims still hit
+    expect(
+      matchActors(
+        "russia_ukraine",
+        "Belarus hosted joint military exercises with Russian forces near the border.",
+      ).map((h) => h.entry.id),
+    ).toContain("belarus-enablement");
+  });
+
   it("returns hits in roster priority order (irgc before mediator-oman)", () => {
     const hits = matchActors(
       "iran_regional",
-      "IRGC Navy boats shadowed a tanker near Omani waters.",
+      "IRGC officials and Omani mediators discussed de-escalation talks in Muscat.",
     );
     expect(hits.map((h) => h.entry.id)).toEqual(["irgc", "mediator-oman"]);
     expect(hits[0].priority).toBeLessThan(hits[1].priority);
