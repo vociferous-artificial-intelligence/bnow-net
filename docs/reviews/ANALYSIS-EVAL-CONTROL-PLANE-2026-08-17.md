@@ -34,7 +34,7 @@ clustering, DIGEST synthesis, ISW-VALIDATION matching.
 | Fail-closed live SpendGuard (`openai_eval` provider row) | `src/lib/evals/eval-guard.ts` |
 | Live dispatch path (implemented, never executed; `evalDispatchConfig` registry bypass; metering invariants) | `src/lib/evals/live-runner.ts` |
 | CLI (`--validate-dataset` / `--estimate` / `--offline` (default) / `--report` / `--execute-live`, plus `--fresh`/`--only`/`--dev`) | `scripts/analysis-eval.ts` |
-| Datasets v1 (55 hand-authored cases) + committed offline results + sample baseline report | `docs/evals/analysis/` |
+| Datasets v1 (56 hand-authored cases) + committed offline results + sample baseline report | `docs/evals/analysis/` |
 | Tests (8 new files, 86 new tests, plus the extended source scans in openai-client.test.ts) | `src/lib/evals/*.test.ts`, `src/lib/analysis/openai-client.test.ts` |
 
 Two production files were touched, minimally:
@@ -51,14 +51,14 @@ Two production files were touched, minimally:
 
 ## 2. Dataset provenance
 
-Every one of the 55 cases carries `provenance: "authored-2026-08-17"`: written
+Every one of the 56 cases carries `provenance: "authored-2026-08-17"`: written
 and hand-checked individually by this workstream (the numeric pins — coverage
 percentages, timeliness medians, recency medians/p90s, guard-stat counts, gid
 majorities — were computed by hand at authoring time and then confirmed by the
 real pipeline functions in the offline run). Model-generated cases are
 provisional by policy; v1 contains none.
 
-Counts (partition / split detail in `docs/evals/analysis/README.md`): map 17,
+Counts (partition / split detail in `docs/evals/analysis/README.md`): map 18,
 reduce 14, digest 10, validation 14. Every C2 category has at least one case;
 every partition of every workload has heldout coverage (the gates return
 `insufficient_data` below the documented minimum: >= 1 heldout case per
@@ -295,3 +295,132 @@ program:
    status `evaluated_candidate` citing the scorecard) before any env change
    anywhere. The scorecard's `proposedRegistryEntry` text is the input to that
    decision, never a substitute for it.
+
+## 10. Review remediation (2026-08-17, post-adversarial-review)
+
+Both adversarial reviews returned PASS-WITH-MINORS (every committed artifact
+verified honest) and converged on three MAJOR forward-looking gate-integrity
+holes plus minors. All were remediated in this worktree. **Pre-registration:
+every gate refinement below was made while NO candidate result exists
+anywhere — registered before the first paid evaluation, not after seeing
+one** (stated in `src/lib/evals/gates.ts` too; the git history of that file
+is the registration record).
+
+Disposition of every finding:
+
+- **MAJOR-1 (scorecard completeness) — FIXED.** Results files now carry
+  `requestedRepetitions`, `scope` ("full"/"dev"/"subset", set by the run
+  mode), and `datasetContentHash` (sha256 over the dataset FILE bytes —
+  inputs AND references, closing m8). `computeScorecardVerdict` gained a
+  RESULTS-side completeness gate: pass/fail only for a scope-"full" file with
+  every (caseId, repetition < requestedRepetitions) key present (scored /
+  schema_invalid / provider_error count as PRESENT — failing results, not
+  missing ones; a skipped row is missing work); anything else is
+  `insufficient_data` naming the missing and missing-heldout counts. Heldout
+  minima now come from the RESULTS (cases with every repetition present, per
+  partition), never the dataset. The completeness numbers are written into
+  the scorecard md AND json (not just stderr), the stderr missing arithmetic
+  is repetition-aware (`cases × requestedRepetitions`), and the
+  proposed-registry-entry text renders only on a pass — which now requires
+  completeness. New negative CLI smoke (run for real, $0): a `--dev` offline
+  run's file reports `INCOMPLETE (scope=dev): 5 of 14 keys missing (5
+  heldout)` and verdicts `insufficient_data`; the same file was then
+  COMPLETED to scope "full" by a subsequent full run (the mergedScope
+  dev→full path), after which the committed report shows COMPLETE.
+  Test-pinned in gates.test.ts + runner.test.ts (including the reps>=2
+  missing-key arithmetic).
+- **MAJOR-2 (aligned pairwise) — FIXED.** `alignedComparison()` (runner.ts)
+  intersects the PRESENT (caseId, repetition) keys of the judged and
+  baseline files and recomputes the gated quality on that intersection's
+  HELDOUT subset (m4). The verdict additionally requires the baseline file
+  to pass the MAJOR-1 completeness gate and to share the judged file's
+  `datasetContentHash`; the scorecard prints both files' completeness and
+  the aligned/aligned-heldout population sizes. Test-pinned (intersection
+  arithmetic; incomplete-baseline and hash-mismatch refusals).
+- **MAJOR-3 (resume relabels identity) — FIXED.** `resumeIdentityMismatch()`
+  compares the existing file's full identity — promptHash, schemaVersion,
+  extractorVersion, model, reasoningEffort, provider, approval,
+  registryVersion, datasetVersion, datasetContentHash,
+  requestedRepetitions, AND envKnobs — against the current run's; any drift
+  refuses loudly ("identity changed — use --fresh or a new configKey") in
+  BOTH the CLI (before any work) and `mergeEvalResults` itself, which now
+  preserves the existing header verbatim instead of restamping it (only
+  `scope` evolves, by the documented mergedScope rule: --only preserves the
+  existing coverage claim, a full run completes to full, a dev resume never
+  upgrades). Unit tests: a promptHash change refuses; a dataset content
+  edit (datasetContentHash change) refuses; knob and repetition drift
+  refuse.
+- **m4 — FIXED.** Aggregates and the scorecard carry per-split
+  (development/heldout) and per-partition (typical/edge/adversarial)
+  breakdowns; the pairwise QUALITY gate is evaluated on the heldout subset
+  only, with development numbers labeled diagnostic. Reasoning (documented
+  at QUALITY_GATE_METRICS): heldout exists precisely so dev iteration
+  cannot inflate the gated metric.
+- **m5 + n5 — FIXED.** The gist-jaccard recall-orientation (location-swap
+  leniency) is documented in the README ("Gist matching is recall-oriented —
+  mustNotMatch carries precision") and here: gist matching is for recall;
+  precision-critical distinctions (locations, identities, attribution) are
+  pinned by mustMatch/mustNotMatch. New development-split case
+  `map-edge-007-location-precision` (map now 18 cases, corpus 56) carries
+  mustNotMatch patterns pinning the wrong-location claim shape, so the
+  dataset exercises that path.
+- **m6 — FIXED.** Prohibition checks (mustNotMatch, injectionPatterns) now
+  scan produced `event_hint` and entity names in addition to text_en
+  (production persists all three). mustMatch deliberately stays
+  claim-text-only (a hint accidentally satisfying an attribution
+  requirement would fail open) — documented in score-map.ts. Test: payloads
+  hidden in event_hint and in an entity name are both caught.
+- **m7 — FIXED.** Map precision with nothing produced is 1 only when nothing
+  was expected, else 0 (the `? 1 : 1` mismatch removed); validation
+  matchSet/keyword precision-recall means now EXCLUDE vacuous (null)
+  populations and count them separately (`*VacuousCount`, printed in the
+  scorecard as excluded-from-mean); an all-vacuous gated metric is NaN,
+  which the pairwise gate reports as unavailable (insufficient_data), never
+  a pass. Documented at qualityOf; test-pinned both sides.
+- **m9 — FIXED.** `--report` hides per-case failure detail for heldout rows
+  by default ("(hidden)"); `--show-heldout-detail` reveals it for operator
+  calibration. Test-pinned: the heldout injection case's payload string does
+  not appear in the default render and does with the flag. The committed
+  baseline report uses the default (18 hidden rows).
+- **m10 + safety MINOR-2 — FIXED.** Results headers record `envKnobs`
+  (reduceVotes, reduceMaxOutputTokens, mapOutTokensPerDoc — via a new
+  behavior-identical exported accessor in map-worker.ts — and
+  mapContentChars); knob drift refuses a resume. Live digest preflight
+  REFUSES when `reduceVotes() !== 5` (ruling 18: the shipped K is binding —
+  an eval at K≠5 measures a non-shipped configuration). Tests both ways
+  (REDUCE_VOTES=3 refuses digest, leaves map/validation unaffected; default
+  K=5 passes).
+- **safety MINOR-1 + NOTE-1 — FIXED.** isolation.test.ts now walks ALL of
+  src/ (not just app/ + lib/) plus every script: nothing outside
+  src/lib/evals imports the eval library; no script other than the eval CLI
+  does, and the CLI's static eval imports are limited to contracts+runner;
+  no static live-runner import exists anywhere (dynamic-only); no eval
+  module except live-runner (and no script except the pre-existing,
+  separately-authorized ask-eval-harvest.ts, which predates this program)
+  value-imports/dynamically loads `openai` or contains `new OpenAI(`;
+  EVALS_IMPORT_RE tightened to catch `from"..."` with no whitespace.
+- **n4 — FIXED.** The machinery-proof headerNote is embedded in the
+  scorecard JSON artifact as well as the markdown.
+- **NOTE-3 — ACCEPTED, documented.** A mid-case abort (budget stop /
+  process kill between dispatches of a multi-call case) can under-report
+  that case's cost in the results FILE, because per-case cost is written
+  only on case completion. The provider_usage ledger stays exactly correct
+  regardless (metering is per-response through the SpendGuard), so no spend
+  can be hidden; the file-level cost figure is a convenience view. Accepted
+  as-is.
+- **n1 — ADDED to README.** The dataset validator deliberately pins no vote
+  count (k=4 in `dig-typ-003-gid-fill` is valid and constructs the
+  median-loss shape); live digest evaluation always dispatches the shipped
+  K=5 and refuses otherwise.
+- **n2 / n3 — RECORDED as-is** per the review adjudication; no code change.
+
+Gates after remediation (final tree): `git diff --check` clean · targeted
+`npx vitest run src/lib/evals/ src/lib/analysis/openai-client.test.ts
+src/lib/analysis/map-worker.test.ts src/lib/validation/llm-match.test.ts
+src/lib/validation/llm-match-guard.test.ts` all passing · typecheck clean ·
+lint clean · full `npm test` all passing (exact counts in the remediation
+commit series / final report) · $0 CLI smokes: --validate-dataset (18/14/10/
+14), --offline 56/56 machinery=OK, --report regenerated with completeness
+rows, the NEW --dev insufficient_data smoke, and the --execute-live
+no-guards refusal. The committed offline baseline artifacts were regenerated
+in the new header shape. Zero paid calls throughout.
