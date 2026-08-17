@@ -2707,3 +2707,18 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
   now recorded — production still runs the pre-fix loader until redeployed; test
   inventory corrected), 3 findings refuted. Zero paid calls, zero production writes,
   no deploy, no env change; branch commit + push to PR #2 only.
+
+## 2026-08-17 01:50 UTC — plan: Candidate B cron clustering (branch codex/neon-cron-cluster-phase1-20260816)
+
+1. Phase 0: confirm schedules/routes/overlap semantics against base `26989f7`;
+   verify Neon 1-CU + autosuspend assumptions read-only; write
+   `docs/reviews/NEON-COMPUTE-REDUCTION-PHASE-0-2026-08-16.md` (PASS/FAIL gate).
+2. Schedule-only edit to `vercel.json`: telegram `10`→`1`, x `20`→`2`,
+   mtproto `35`→`3` (hourly minute fields only); everything else byte-identical.
+3. Verify: parse + before/after diff proves exactly three schedule strings
+   changed; `git diff --check`; typecheck; lint; unit tests; build.
+4. Two isolated adversarial reviews (read-only agents) + remediation.
+5. `docs/reviews/NEON-COMPUTE-REDUCTION-PHASE-1-2026-08-16.md` (estimates
+   labelled, observation plan, rollback), commit, push branch, open DRAFT PR.
+   NOT deployed by this work; savings are estimates until the separately
+   approved deploy + 48–72h observation window.
