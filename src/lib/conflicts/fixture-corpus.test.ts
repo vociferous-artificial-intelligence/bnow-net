@@ -45,11 +45,11 @@ async function assembleBoth(scenario: ConflictFixtureScenario, kind: EvaluationK
 }
 
 describe("fixture corpus loading", () => {
-  it("loads all 40 scenarios from the three frozen files", () => {
+  it("loads all 41 scenarios from the three frozen files", () => {
     expect(CONFLICT_FIXTURE_FILES).toHaveLength(3);
-    expect(scenarios).toHaveLength(40);
-    // 50 claims total (README count; 48 + cc-other-in-scope-018's two)
-    expect(scenarios.reduce((n, s) => n + s.evidence.length, 0)).toBe(50);
+    expect(scenarios).toHaveLength(41);
+    // 52 claims total (README count; 50 + cc-vague-claim-019's two)
+    expect(scenarios.reduce((n, s) => n + s.evidence.length, 0)).toBe(52);
   });
 
   it("loader IO and JSON-parse failures are TYPED domain errors (temp dir, never the repo)", async () => {
@@ -182,7 +182,7 @@ describe("acceptance: expected eligibility reproduced by the real engine", () =>
     });
   }
 
-  it("reproduces the README aggregate: 49 eligibility records, 35 included / 14 excluded", async () => {
+  it("reproduces the README aggregate: 51 eligibility records, 37 included / 14 excluded", async () => {
     let included = 0;
     let excluded = 0;
     for (const scenario of scenarios) {
@@ -192,9 +192,9 @@ describe("acceptance: expected eligibility reproduced by the real engine", () =>
       included += corpus.assembly.records.length;
       excluded += corpus.assembly.excluded.length;
     }
-    expect(included).toBe(35);
+    expect(included).toBe(37);
     expect(excluded).toBe(14);
-    expect(included + excluded).toBe(49);
+    expect(included + excluded).toBe(51);
   });
 });
 

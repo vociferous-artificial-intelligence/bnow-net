@@ -1694,6 +1694,135 @@
         },
         "notes": "Pins BOTH sides of the classifier's rung-6 gate (contract section 5: other_in_scope needs an actor or geography hit PLUS a generic security signal). Claim 9330 carries a laned-null geography hit (Tehran) and a generic security signal with no earlier-rung lane, so it lands other_in_scope via the gate. Claim 9331 carries the generic security signal ALONE — no actor hit, no geography hit, no region token — so it is unclassified: the signal by itself never manufactures scope. Added at the Phase 3 Gate-3 remediation (ADDITIVE: no committed scenario edited)."
       }
+    },
+    {
+      "id": "cc-vague-claim-019",
+      "title": "One vague claim never satisfies two distinct declared units",
+      "acceptanceRef": "Cross-cutting: atomic/compound policy — a vague claim overlapping two distinct units topically is materially equivalent to neither and receives credit for zero units (register #9 deferred pin; contract section 6.3 as amended, Gate-0 science L1)",
+      "conflictId": "iran_regional",
+      "report": {
+        "series": "iran_update",
+        "editionKey": "iran_update:2026-08-09:final",
+        "reportDate": "2026-08-09",
+        "cutoffAt": "2026-08-09T16:00:00Z",
+        "publishedAt": "2026-08-09T21:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "Houthi forces launched two ballistic missiles toward the southern Red Sea shipping lane southwest of Al Salif on August 9; both fell into the sea without striking a vessel.",
+            "lane": "maritime",
+            "compound": false,
+            "negative": false
+          },
+          {
+            "unitId": "u1",
+            "text": "Houthi forces released the detained crew of a survey vessel at Al Hudaydah port on August 9 after holding the crew for three weeks.",
+            "lane": "maritime",
+            "compound": false,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9401,
+          "theater": "ir",
+          "track": "military",
+          "text": "Houthi maritime activity reportedly continued across the Red Sea area on August 9.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-09",
+          "docs": [
+            {
+              "docId": 73032,
+              "adapter": "rss",
+              "platform": null,
+              "sourceDomain": "regional-alerts.example",
+              "publishedAt": "2026-08-09T07:20:00Z",
+              "fetchedAt": "2026-08-09T08:00:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": true,
+          "stub": false
+        },
+        {
+          "claimId": 9402,
+          "theater": "ir",
+          "track": "military",
+          "text": "Two ballistic missiles reportedly fell into the southern Red Sea shipping lane southwest of Al Salif on August 9 without striking a vessel.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-09",
+          "docs": [
+            {
+              "docId": 73033,
+              "adapter": "rss",
+              "platform": null,
+              "sourceDomain": "maritime-monitor.example",
+              "publishedAt": "2026-08-09T09:15:00Z",
+              "fetchedAt": "2026-08-09T09:55:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": true,
+          "stub": false
+        }
+      ],
+      "matcherFixture": {
+        "atomicCompoundPolicy": "One claim may match multiple units ONLY when it is materially equivalent to EACH unit independently (contract section 6.3 as amended; Gate-0 science L1; register #9). Topic overlap alone never suffices, and this rule binds generally — not only inside the disabled atomization experiment.",
+        "vagueClaimId": 9401,
+        "distinctUnitIds": ["u0", "u1"],
+        "expected": {
+          "creditedUnits": []
+        }
+      },
+      "expected": {
+        "eligibleCount": 2,
+        "eligibility": {
+          "9401": {
+            "included": true,
+            "lane": "maritime",
+            "reasons": [
+              "actor:houthi",
+              "geo:red-sea",
+              "lane:maritime",
+              "window:in"
+            ]
+          },
+          "9402": {
+            "included": true,
+            "lane": "maritime",
+            "reasons": [
+              "actor:houthi",
+              "geo:red-sea",
+              "lane:maritime",
+              "window:in"
+            ]
+          }
+        },
+        "corpusRecall": {
+          "u0": "matched",
+          "u1": "miss"
+        },
+        "publishedRetention": {
+          "u0": "matched",
+          "u1": "miss"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ir"
+            ],
+            "tracks": [
+              "military"
+            ]
+          }
+        },
+        "notes": "The register #9 DEFERRED pin, delivered at Phase 4 (ADDITIVE: no committed scenario edited). Two DISTINCT same-day Houthi maritime events; claim 9401 is deliberately VAGUE ('maritime activity continued') — it topically overlaps BOTH units and is materially equivalent to NEITHER, so it receives credit for ZERO units (matcherFixture.expected.creditedUnits is empty). The specific claim 9402 matches u0 alone; u1 stays an honest miss in both populations. A matcher that pairs the vague claim with either unit — or with both — on shared actor/topic/region alone violates section 6.3 and is caught by this scenario plus the matcherFixture pin."
+      }
     }
   ]
 }
