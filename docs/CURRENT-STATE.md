@@ -56,7 +56,8 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   almasdaronline bot-walled, 964media feed access-denied),
   registry-selected + curated Telegram via t.me/s/, Telegram MTProto (**wired
   2026-07-11; `TELEGRAM_SESSION` present in production (added 2026-07-11): operator
-  login done, `ingest:mtproto` cron :35 hourly runs green — **first live fetch VERIFIED
+  login done, `ingest:mtproto` cron hourly runs green (at :03 since the 2026-08-17
+  Candidate B release; :35 before) — **first live fetch VERIFIED
   2026-07-11** (~3.8K docs across runs, 0 errors, cross-transport dedupe firing); egress
   PROVEN on Vercel tcp+wss; reads registry **top-120 ROCA-only**
   (`isw_reports.theater='ru'`) vs the scraper's top-50 pan-theater — RU/UA-priority
@@ -350,21 +351,25 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   The saved `NEON_API_KEY` works (disposable branches created and deleted cleanly). CI
   mirror: `.github/workflows/ci.yml`; the enforced pre-push gate is `.githooks/pre-push`
   (typecheck+lint+test), which does not include the integration suite.
-- **Crons (vercel.json):** ingest fast */15 · telegram :10 · x :20 · mtproto :35 ·
+- **Crons (vercel.json):** ingest fast */15 · telegram :01 · x :02 · mtproto :03
+  (hourly starts clustered by the 2026-08-17 Candidate B release — :10/:20/:35 before —
+  so ingestion wake-ups share the :00 fast-ingest window; ~17–19% Neon active-compute
+  reduction is an ESTIMATE until its 48–72h observation window closes) ·
   map :40 (hourly) · digest 02:00 (D+1 finalize) + 04:00/10:00/19:30 (intraday, rolling window,
   delta-framed) · validate 07:00 (scores yesterday = the finalized digest) ·
   enrich 08:00 · datadark 09:00 · trade monthly (2nd) · materials monthly (3rd).
 - **Stubbed / off:** ACLED (fixture stub, unwired); Stripe flagged off; Resend adapter
   superseded by Postmark. (MTProto left this list 2026-07-11 — real adapter wired,
   session-gated; see Ingestion above.)
-- **Deploy:** current production `dpl_9xyqCLfZn6n8WTifQ6BpgpV9wJja` (2026-08-15 Iran
-  validation recovery release from branch `claude/iran-validation-recovery-20260815`, tree
-  `70b2aa9`, READY, aliased bnow.net; also takes the ruling-21 authorization repair live).
-  Rollback target `dpl_GPNNsDBjuzsgJ7GKUfvdrbG3YMmC` (`441ee09`). Command:
+- **Deploy:** current production `dpl_CDnECGnXvoZFKnA9QQziz59pmpu2` (2026-08-17 Candidate B
+  cron-clustering release from `main` merge `9c5e9cb` / PR #4, READY, aliased bnow.net;
+  `/health` stamps `9c5e9cb` — root-clone CLI deploy, so git metadata shipped). Lineage: the
+  Iran-recovery branch merged to `main` as PR #2 (`26989f7`) and was redeployed 2026-08-16 as
+  `dpl_Dg713ne5Vu6aiGGsbfs6uxgPKZNC`, now the rollback target. Command:
   `npx vercel@latest deploy --prod --yes` via the machine CLI session
   (`VERCEL_TOKEN` is expired; regen is an operator task, SETUP-NEXT-WEEK #2). Note: a CLI
-  deploy from a git WORKTREE ships no git metadata (`.git` is a file there), so `/health`'s
-  commit stamp is EMPTY on this deployment — verify via `data-dpl-id` (OPEN-TASKS #78).
+  deploy from a git WORKTREE ships no git metadata (`.git` is a file there) and renders an
+  EMPTY `/health` commit stamp — verify those via `data-dpl-id` (OPEN-TASKS #78).
 - **This WSL2 box:** the NAT resolver times out on some domains — a DNS quirk, NOT a
   TCP block. `NODE_OPTIONS="--require ./scripts/pin-dns.cjs"` pins vercel/openai/
   understandingwar DNS to public resolvers, making local single-call LLM debugging

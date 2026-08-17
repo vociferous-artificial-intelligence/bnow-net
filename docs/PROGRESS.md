@@ -2722,3 +2722,37 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
    labelled, observation plan, rollback), commit, push branch, open DRAFT PR.
    NOT deployed by this work; savings are estimates until the separately
    approved deploy + 48–72h observation window.
+
+## 2026-08-17 07:55 UTC — Candidate B merged + deployed; observation window open
+
+1. Preflight: main = origin/main = `26989f7`; PR #4 head `ab8150d`, MERGEABLE/CLEAN,
+   gate + integration green, no reviews/comments; production re-verified as
+   `dpl_Dg713ne5Vu6aiGGsbfs6uxgPKZNC` (from `26989f7`) via /health `data-dpl-id`;
+   no deployment pending. 72h read-only baseline captured (all cron jobs green;
+   Neon prod endpoint 1 CU fixed, default 300s autosuspend, cumulative
+   active_time_seconds 1,144,967 at 06:45Z).
+2. Merge: PR #4 marked ready and merged 06:44:54Z as `9c5e9cb` (normal merge commit,
+   reviewed commits preserved, branch retained); local main fast-forwarded; merged
+   diff re-verified = 3 schedule strings + 3 doc files.
+3. Deploy: Vercel project has no connected Git repo (no auto-deploys), so one CLI
+   deploy from the clean merged root clone: `dpl_CDnECGnXvoZFKnA9QQziz59pmpu2`,
+   READY 06:47:53Z (44s build), aliased bnow.net, git meta `9c5e9cb`, /health stamps
+   the commit. Cron table verified: telegram :01 / x :02 / mtproto :03 moved; the
+   other 11 entries byte-identical. No migration, no env change, zero paid calls,
+   read-only DB checks only.
+4. First natural cycle PASSED (07:00 fast 163.1s · 07:00 validate 15.3s normal
+   pattern · 07:01 telegram 146.4s/114 docs · 07:02 x 43.4s/115 docs, lease+watermark
+   coherent · 07:03 mtproto 89.4s/295 docs/40 channels; overlap contention-free; no
+   5xx/auth errors; transition gaps 51/42/28 min ≤ reviewed ~58m bound). Map stayed
+   :40 and ran normally (07:40:42, 181.1s, ok, 377 claims).
+5. Observation window OPEN 2026-08-17T07:00:00Z → close 2026-08-19T07:00Z–
+   2026-08-20T07:00Z per Phase-1 §7. Savings remain an ESTIMATE (~17–19%) until it
+   closes; the Neon consumption API lags — compare settled values. Rollback target
+   `dpl_Dg713ne5Vu6aiGGsbfs6uxgPKZNC` (not needed). PR #5 stays undeployed.
+6. Closeout: standing docs corrected in place (AGENTS.md Live/Crons; CURRENT-STATE
+   Crons/Deploy/MTProto minutes; three ":20 poll" comments → ":02"); decision-log
+   entry appended; Phase-1 review §10 deployment record appended. Supporting
+   change: eslint global ignores add `.claude/**` beside `.workstream/**` so lint
+   and the pre-push gate stay truthful from the root clone. Gates on this tree:
+   `git diff --check` clean · typecheck clean · lint clean · unit 2,123/2,123
+   (166 files).

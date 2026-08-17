@@ -1,5 +1,5 @@
 // Narrow lease serializing PAID X/twitterapi.io work. Two concurrent X jobs (the
-// :20 scheduled poll and the historical recovery driver) would each init() a
+// :02 scheduled poll and the historical recovery driver) would each init() a
 // SpendGuard from the same persisted snapshot and could jointly overshoot a cap —
 // the lease makes X spending single-writer. It is X-specific by design: no other
 // provider's concurrency semantics change.

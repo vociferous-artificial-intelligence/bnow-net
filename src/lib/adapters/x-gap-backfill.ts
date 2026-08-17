@@ -11,7 +11,7 @@
 // explicit allowance). Pages are inserted through insertDocs() BEFORE the
 // checkpoint advances past them, so a crash re-fetches (re-bills) at most one
 // page instead of silently losing one. The X lease serializes recovery against
-// the live :20 poll — the poll skips (lockSkips=1) while recovery holds it, and
+// the live :02 poll — the poll skips (lockSkips=1) while recovery holds it, and
 // the recovery refuses to start while a poll holds it.
 
 import { createHash } from "node:crypto";

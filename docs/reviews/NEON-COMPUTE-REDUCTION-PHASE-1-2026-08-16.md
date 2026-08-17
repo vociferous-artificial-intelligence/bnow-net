@@ -215,3 +215,47 @@ provider call occurred in this workstream. Deployment, the observation window
 above, and any later q30/Neon-resizing phase each require separate approval.
 
 Final status: **implementation-pass / deployment-and-observation-pending**
+
+## 10. Deployment record (appended 2026-08-17 — post-review addendum; §§1–9 unchanged)
+
+The separately approved deployment happened 2026-08-17. Everything above this
+section is the pre-deployment review, preserved verbatim.
+
+- Merge: PR #4 (head `ab8150d`, gate + integration green) merged to `main`
+  2026-08-17T06:44:54Z as merge commit `9c5e9cb` (normal merge; reviewed commits
+  preserved; branch retained). Merged diff re-verified: exactly the three
+  schedule strings + three documentation files.
+- Deploy: single CLI production deployment from the clean merged root clone
+  (the Vercel project has no connected Git repository, so no auto-deploy
+  exists): `dpl_CDnECGnXvoZFKnA9QQziz59pmpu2`, READY 06:47:53Z, build 44s,
+  aliased bnow.net, Vercel git metadata `9c5e9cb`, `/health` stamps the commit
+  (root-clone deploy — the OPEN-TASKS #78 worktree blank stamp did not recur).
+  Deployed cron table verified entry-by-entry: telegram `1 * * * *`,
+  x `2 * * * *`, mtproto `3 * * * *`; the other 11 entries byte-identical.
+  No migration, no env change, no production DB write, no manual cron
+  invocation, no paid provider call.
+- First natural Candidate B cycle (07:00–07:05Z, plus the coincident daily
+  validate) PASSED: fast 07:00:04/163.1s ok · validate 07:00:29/15.3s ok
+  (normal `errors:1, validated:2` pattern, identical to 08-16) · telegram
+  07:01:20→07:03:46/146.4s ok/114 inserted · x 07:02:07→07:02:50/43.4s ok/115
+  inserted (lockSkips 0, budgetStops 0, requestFailures 0; lease released;
+  watermark advanced) · mtproto 07:03:39→07:05:08/89.4s ok/295 inserted (40
+  channel states advanced). The designed overlap (telegram still running at the
+  x and mtproto starts) produced zero contention. One-time transition gaps:
+  telegram 51 min / x 42 min / mtproto 28 min — inside §4's ~42–51 min
+  reviewer bound (≤~58 min worst case). No 5xx, no auth failures, no duplicate
+  storm; known noise only (procurement proxy-block, one quiet telegram-web
+  preview, GramJS CastError #69). Map stayed at :40 and ran normally on the new
+  artifact (07:40:42→07:43:43, 181.1s, ok, 377 claims); the pre-deploy 06:40
+  map run completed cleanly across the deploy moment.
+- Observation window (per §7): OPEN 2026-08-17T07:00:00Z, closing
+  2026-08-19T07:00Z–2026-08-20T07:00Z. Neon anchor: cumulative
+  `active_time_seconds` = 1,144,967 (~318.05h, 2026-08 billing period) read at
+  06:45Z and unchanged at 07:48Z — the consumption API lags; the closing
+  comparison must use settled values. **Savings remain an ESTIMATE (~17–19%)
+  until the window closes.** PR #5 / model routing stays undeployed during the
+  window.
+- Rollback target `dpl_Dg713ne5Vu6aiGGsbfs6uxgPKZNC` (verified healthy
+  pre-merge): NOT needed.
+
+Final status: **deployed / first-cycle-pass / observation-window-open**
