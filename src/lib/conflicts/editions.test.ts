@@ -122,6 +122,12 @@ describe("edition records", () => {
     const r = record();
     expect(editionLabel(r.identity)).toBe("evening");
     expect(Object.isFrozen(r)).toBe(true);
+    // instant canonicalization: "+00:00"/"Z"/ms variants collapse to one form
+    expect(r.identity.cutoffAt).toBe("2026-08-05T16:30:00.000Z");
+    const offsetForm = record({
+      identity: identity({ cutoffAt: "2026-08-05T12:30:00-04:00" }),
+    });
+    expect(offsetForm.identity.cutoffAt).toBe("2026-08-05T16:30:00.000Z");
   });
 
   it("provider isw requires canonicalUrl, normVersion, and a normalized label", () => {
@@ -173,7 +179,9 @@ describe("edition records", () => {
     });
     expect(malformed.identity.cutoffAt).toBeNull(); // treated as missing, never guessed
     expect(malformed.cutoffTreatment).toBe("malformed_treated_as_missing");
-    expect(malformed.identity.publishedAt).toBe("2026-08-14T01:15:00Z");
+    // anchors canonicalize to UTC toISOString form: equal instants are
+    // byte-identical regardless of the declared offset form
+    expect(malformed.identity.publishedAt).toBe("2026-08-14T01:15:00.000Z");
     expect(malformed.provider).toBe("fixture");
     expect(malformed.identity.scopeVersion).toBe(SCOPE_VERSIONS.roca);
 

@@ -13,7 +13,7 @@
 
 import { ConflictDomainError } from "./errors";
 import { deepFreeze } from "./freeze";
-import { classifyTimeAnchor, isIsoDay, type TimeAnchorTreatment } from "./instants";
+import { classifyTimeAnchor, isIsoDay, parseIsoInstantMs, type TimeAnchorTreatment } from "./instants";
 import {
   parseReferenceReportIdentity,
   validateReferenceReportIdentity,
@@ -244,7 +244,18 @@ export function validateEditionRecord(raw: unknown): string[] {
   return errs;
 }
 
-/** Parse + validate from unknown input; canonical frozen projection. */
+/** Canonical UTC ISO form (toISOString) of a valid explicit-timezone
+ *  instant. Edition records canonicalize their anchors so equal instants are
+ *  BYTE-identical regardless of the declared offset form ("+00:00" vs "Z",
+ *  with/without ms) — a DB round trip and an in-memory record then serialize
+ *  identically, and hash/merge equality never depends on formatting. */
+function canonicalInstant(value: string | null): string | null {
+  if (value === null) return null;
+  return new Date(parseIsoInstantMs(value) as number).toISOString();
+}
+
+/** Parse + validate from unknown input; canonical frozen projection
+ *  (anchors normalized to canonical UTC ISO form). */
 export function parseEditionRecord(raw: unknown): ReferenceEditionRecord {
   const issues = validateEditionRecord(raw);
   if (issues.length > 0) {
@@ -252,7 +263,11 @@ export function parseEditionRecord(raw: unknown): ReferenceEditionRecord {
   }
   const r = raw as ReferenceEditionRecord;
   return deepFreeze({
-    identity: parseReferenceReportIdentity(r.identity),
+    identity: parseReferenceReportIdentity({
+      ...r.identity,
+      cutoffAt: canonicalInstant(r.identity.cutoffAt),
+      publishedAt: canonicalInstant(r.identity.publishedAt),
+    }),
     provider: r.provider,
     canonicalUrl: r.canonicalUrl,
     normVersion: r.normVersion,

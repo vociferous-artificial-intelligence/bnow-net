@@ -56,7 +56,7 @@ describe("mergeEditionRecords (the one write authority)", () => {
       parseStatus: "parsed",
     });
     const { merged, repairedFields, anchorChanged } = mergeEditionRecords(base(), richer);
-    expect(merged.identity.cutoffAt).toBe("2026-08-05T18:00:00Z");
+    expect(merged.identity.cutoffAt).toBe("2026-08-05T18:00:00.000Z");
     expect(merged.parseStatus).toBe("parsed");
     expect(repairedFields).toEqual(["cutoff", "published", "parse_status"]);
     expect(anchorChanged).toBe(false); // filling a missing anchor is not a move
@@ -70,7 +70,7 @@ describe("mergeEditionRecords (the one write authority)", () => {
     });
     // replay the ORIGINAL poor observation over the repaired record
     const { merged, repairedFields } = mergeEditionRecords(richer, base());
-    expect(merged.identity.cutoffAt).toBe("2026-08-05T18:00:00Z"); // kept
+    expect(merged.identity.cutoffAt).toBe("2026-08-05T18:00:00.000Z"); // kept
     expect(merged.parseStatus).toBe("parsed"); // failed/pending never wins
     expect(repairedFields).toEqual([]);
   });
@@ -89,7 +89,7 @@ describe("mergeEditionRecords (the one write authority)", () => {
     const v1 = base({ identity: { cutoffAt: "2026-08-05T18:00:00Z" }, cutoffTreatment: "present" });
     const v2 = base({ identity: { cutoffAt: "2026-08-05T19:00:00Z" }, cutoffTreatment: "present" });
     const r = mergeEditionRecords(v1, v2);
-    expect(r.merged.identity.cutoffAt).toBe("2026-08-05T19:00:00Z");
+    expect(r.merged.identity.cutoffAt).toBe("2026-08-05T19:00:00.000Z");
     expect(r.anchorChanged).toBe(true);
     expect(r.repairedFields).toContain("cutoff");
   });
@@ -172,7 +172,7 @@ describe("InMemoryReferenceReportRepository", () => {
     expect(repaired.repairedFields).toEqual(["cutoff", "parse_status"]);
     const day = await repo.editionsForDay("iran_update", "2026-08-05");
     expect(day).toHaveLength(1);
-    expect(day[0].identity.cutoffAt).toBe("2026-08-05T18:00:00Z");
+    expect(day[0].identity.cutoffAt).toBe("2026-08-05T18:00:00.000Z");
     // degraded replay: nothing lost
     expect((await repo.upsertEdition(base())).action).toBe("unchanged");
     expect((await repo.getEdition("iran_update:2026-08-05:special"))!.parseStatus).toBe("parsed");
