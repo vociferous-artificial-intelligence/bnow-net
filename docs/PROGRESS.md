@@ -2777,3 +2777,32 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
 8. Gates → two fresh adversarial reviews → report §12 hardening section →
    commit, push, update draft PR #5. No paid call, no model activation, no
    env change, no deploy.
+
+## 2026-08-17 quality-foundation program — plan (integration base 05fdd2c = 9c5e9cb + 0e469f7)
+
+Prompt: docs/prompts/2026-08-17-quality-foundation-fable-ultracode.md. Local-only
+program: no deploy, no push, no PR, no paid provider calls, no production writes.
+
+1. Integration base: worktree quality-foundation-integration-20260817, branch
+   codex/quality-foundation-integration-20260817, merge commit 05fdd2c
+   (parents origin/main 9c5e9cb + reviewed routing tip 0e469f7; sole conflict
+   docs/PROGRESS.md EOF appends, resolved chronologically).
+2. Worktree A (codex/evidence-quality-observability-20260817): EvidenceRecencyStatsV1
+   calculator at the shared post-guard persist boundary (both engines), versioned
+   mapreduce conversion funnel + scripts/quality-funnel-report.ts (read-only),
+   tests, docs/reviews/EVIDENCE-QUALITY-OBSERVABILITY-2026-08-17.md; adversarial
+   review gate.
+3. Worktree B (codex/map-reliability-remap-20260817): DB-backed owner-token/fencing
+   map lease replacing the session advisory lock (OPEN-TASKS #77), version-aware
+   resumable scripts/map-remap.ts (OPEN-TASKS #33, dry-run-first, fail-closed,
+   activation lock intact), failure-injection unit + real-Postgres itests,
+   docs/reviews/MAP-RELIABILITY-REMAP-2026-08-17.md; two adversarial reviews.
+4. Worktree C (codex/analysis-eval-control-plane-20260817): repository-owned eval
+   contracts + datasets (docs/evals/analysis/) + scorecards for map/reduce/digest/
+   validation + safe runner (validate/estimate/offline/report; live mode gated,
+   never executed here), docs/reviews/ANALYSIS-EVAL-CONTROL-PLANE-2026-08-17.md;
+   two adversarial reviews.
+5. Merge A -> B -> C locally into the integration branch, full gates, two final
+   cross-workstream adversarial reviews,
+   docs/reviews/QUALITY-FOUNDATION-INTEGRATION-2026-08-17.md. Worktree D only if
+   A-C pass with substantial time left; else reviewed design.
