@@ -315,5 +315,30 @@ findings and dispositions:
 | `npm test` | **2,232 passed / 2,232** (174 files) |
 | `npm run test:integration -- map-lease map-remap map-budget-stop` (disposable Neon fork) | all green, including the new never-writes-processed case |
 
-Both reviewers received the remediation diff for a focused re-review; their
-verdicts on the remediated tree are recorded below when returned.
+Both reviewers received the remediation diff for a focused re-review.
+
+### Focused re-review verdicts (remediated tip e364112)
+
+- **Concurrency/DB re-review: PASS-WITH-MINORS.** Both MAJORs confirmed
+  correctly and minimally fixed with non-vacuous coverage; MINOR-1 fixed with
+  the residual honestly bounded; MINOR-2 remains by explicit, accurately-worded
+  acceptance (fence-column schema change deferred). New NOTE-level edges
+  recorded: an intra-invocation production rollback could slip a drained-day
+  response past the live capability guard (the phase-1 handshake covers every
+  invocation start); a legacy checkpoint without versionsDigest is trusted once
+  (the state dir is new); a MAP_RUN_REQUEST_CAP=0 operator misconfiguration
+  would hot-loop the driver; leaseLostDiscards undercounts mid-split-tree
+  losses (diagnostics only).
+- **Spend/versioning re-review: PASS-WITH-MINORS.** All three MAJORs and all
+  six MINORs verified remediated in code with the exact constructed failure
+  scenarios pinned by tests; no new reservation/metering/versioning/
+  destructive-write issue; the keepalive changes no cardinality and never sits
+  between a billed response and its record. NOTEs: the live capability guard's
+  placement residual (as above); versionsDigest resets when a range gains its
+  first eligible docs (re-scan only — conservative); and a PRE-EXISTING
+  hygiene find — map-worker.ts carried two literal NUL bytes (the micro-batch
+  group-key separator), which made grep classify the file as binary and
+  silently skip it in source scans. Fixed after the re-review as an
+  escape-only change (the separator is now written as the six-character
+  backslash-u-0000 escape — byte-identical string semantics, tests green) so
+  future reviews' greps cannot silently skip the map worker.
