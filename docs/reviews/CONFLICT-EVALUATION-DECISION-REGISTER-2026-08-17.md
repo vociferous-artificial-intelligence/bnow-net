@@ -107,3 +107,28 @@ Each entry: date, decision, rationale, alternatives rejected, review status.
    fixed in the closing commit; the vague-claim-vs-two-units fixture pin
    (science NOTE-3) is DEFERRED to Phase 4's golden corpus by this entry.
    Phase 0 merges to the workstream integration branch.
+
+10. **2026-08-17 — iran_regional legacy contributor roster = the FULL il+gulf
+    theater set: il, sa, ae, qa, om, bh, kw (`legacy_only`; corrects Gate-1
+    MAJOR-1).** The Phase 1 registry initially designated il/bh/kw — an
+    unsupported roster that named the two digest-less scaffolded theaters and
+    OMITTED the digest-producing shallow ones, which would silently falsify
+    the published-retention answer (register #4's population is "designated
+    il/gulf digests ONLY as labeled legacy contributors"). Grounding evidence:
+    `scripts/seed.ts:6-15` is the complete theater registry (il line 8; sa 10;
+    ae 11; qa 12; om 13; bh 14; kw 15 — all seven codes exist);
+    `src/app/api/cron/digest/route.ts:19-22` defines gulf = every non-ru/ua
+    theater and lines 57-66 generate digests for EVERY
+    `countries.status='active'` theater; `docs/CURRENT-STATE.md` "Ingestion
+    (live)" records live RSS for ru ua il ir sa ae qa om with bh/kw
+    scaffolded; the workstream prompt §16 Gulf list names Oman, Bahrain,
+    Qatar, UAE, Kuwait, Saudi Arabia. Rule recorded with the roster:
+    including a zero-digest theater (bh/kw today) is harmless because the
+    retention population only ever contains claims that genuinely appeared in
+    published digests; omitting a digest-producing theater is the dangerous
+    direction. ru/ua remain non-contributors to iran_regional; ir remains the
+    only `mapped` contributor. Alternatives rejected: il/bh/kw (the corrected
+    defect); "active-status-only" rosters (status flips would silently change
+    a frozen definition's meaning — the roster is pinned to the theater
+    registry, and a future theater addition is a definition change requiring
+    a new register entry).

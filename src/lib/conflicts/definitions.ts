@@ -78,8 +78,21 @@ export interface ConflictDefinition {
 /** The frozen registry. russia_ukraine scores against ROCA over ru+ua mapped
  *  military evidence; iran_regional scores against the Iran Update over ir
  *  mapped military+nuclear+elite_politics evidence plus the labeled legacy
- *  il/gulf contributors (register #4 — il, plus the scaffolded gulf theaters
- *  bh and kw, exactly the designated legacy digest theaters). */
+ *  il/gulf contributors (register #4/#10).
+ *
+ *  LEGACY ROSTER GROUNDING (register #10, corrects a Gate-1 MAJOR): the
+ *  `legacy_only` set is the FULL il+gulf theater set of the repo's theater
+ *  registry — il, sa, ae, qa, om, bh, kw (scripts/seed.ts lines 8, 10-15;
+ *  live RSS covers ru ua il ir sa ae qa om with bh/kw scaffolded,
+ *  docs/CURRENT-STATE.md "Ingestion (live)"; the digest cron generates for
+ *  EVERY `countries.status='active'` theater and its "gulf" group is every
+ *  active non-ru/ua theater, src/app/api/cron/digest/route.ts GROUPS +
+ *  countries query; the workstream prompt's §16 Gulf list names Oman,
+ *  Bahrain, Qatar, UAE, Kuwait, Saudi Arabia). Including a theater that has
+ *  produced zero digests (bh/kw today) is harmless — the published-retention
+ *  population only ever contains claims that GENUINELY appeared in published
+ *  digests — while omitting a digest-producing theater would silently
+ *  falsify the retention answer. */
 export const CONFLICT_REGISTRY: Readonly<Record<ConflictId, ConflictDefinition>> = deepFreeze({
   russia_ukraine: {
     id: "russia_ukraine",
@@ -104,6 +117,10 @@ export const CONFLICT_REGISTRY: Readonly<Record<ConflictId, ConflictDefinition>>
     contributorTheaters: [
       { theater: "ir", comparability: "mapped" },
       { theater: "il", comparability: "legacy_only" },
+      { theater: "sa", comparability: "legacy_only" },
+      { theater: "ae", comparability: "legacy_only" },
+      { theater: "qa", comparability: "legacy_only" },
+      { theater: "om", comparability: "legacy_only" },
       { theater: "bh", comparability: "legacy_only" },
       { theater: "kw", comparability: "legacy_only" },
     ],

@@ -59,9 +59,13 @@ describe("registry integrity — iran_regional", () => {
     expect(def.lanes).toBe(LANE_TAXONOMIES["iran-lanes-v1"].lanes);
   });
 
-  it("ir is the ONLY mapped contributor; il/bh/kw are explicitly legacy_only (register #4)", () => {
+  it("ir is the ONLY mapped contributor; the FULL il+gulf theater set is explicitly legacy_only (register #4/#10)", () => {
     expect(mappedContributorTheaters(def)).toEqual(["ir"]);
-    expect(legacyContributorTheaters(def)).toEqual(["il", "bh", "kw"]);
+    // grounded roster (Gate-1 MAJOR-1 remediation): every il/gulf theater in
+    // scripts/seed.ts — il + sa/ae/qa/om (live RSS, digest-producing under the
+    // cron's active-theater loop) + bh/kw (scaffolded; zero digests today is
+    // harmless, omission of a digest-producing theater is not)
+    expect(legacyContributorTheaters(def)).toEqual(["il", "sa", "ae", "qa", "om", "bh", "kw"]);
   });
 
   it("legacy contributors are NEVER representable as map-comparable — the class is on the roster entry", () => {
@@ -108,7 +112,7 @@ describe("registry shape", () => {
     expect(Object.isFrozen(CONFLICT_REGISTRY.iran_regional.contributorTheaters)).toBe(true);
     expect(() => {
       (CONFLICT_REGISTRY.iran_regional.contributorTheaters as unknown as unknown[]).push({
-        theater: "sa",
+        theater: "eg",
         comparability: "mapped",
       });
     }).toThrow();
