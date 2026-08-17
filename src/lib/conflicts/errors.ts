@@ -18,6 +18,12 @@ export const CONFLICT_DOMAIN_ERROR_CODES = [
   "invalid_phase_record",
   "invalid_phase_set",
   "unserializable_value",
+  // Phase 2 (reference reports, editions, windows) — additive codes only
+  "invalid_edition_url",
+  "invalid_edition_record",
+  "invalid_edition_selection",
+  "edition_merge_conflict",
+  "invalid_day_status",
 ] as const;
 
 export type ConflictDomainErrorCode = (typeof CONFLICT_DOMAIN_ERROR_CODES)[number];
