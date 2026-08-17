@@ -213,6 +213,9 @@ export async function generateDigest(
         // unmeasurable — the audit could only model it at ~10.2x (§11, §12 #9).
         sentDocIds: docsSent.map((d) => d.id),
         ...(llmCalls.length ? { llm: summarizeLlmCalls(llmCalls) } : {}),
+        // durable dispatch identity from the provider's actual billed call
+        // (absent for stub — no dispatch happened; release hardening 2026-08-17)
+        ...(analysis.dispatch ? { llmDispatch: analysis.dispatch } : {}),
       },
     };
     const outcome = await persistDigest({

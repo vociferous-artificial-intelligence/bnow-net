@@ -233,8 +233,8 @@ describe("generationUserMessage", () => {
 
 describe("generationCostUsd / estimateGenerationCostUsd", () => {
   it("computes cost from gpt-5-mini list price", () => {
-    // 1000 prompt @ $0.125/1M + 1000 completion @ $1/1M = 0.000125 + 0.001 = 0.001125
-    expect(generationCostUsd(1000, 1000)).toBeCloseTo(0.001125, 6);
+    // 1000 prompt @ $0.25/1M + 1000 completion @ $2/1M = 0.00025 + 0.002 = 0.00225
+    expect(generationCostUsd(1000, 1000)).toBeCloseTo(0.00225, 6);
   });
 
   it("estimate scales with claim count and batches", () => {

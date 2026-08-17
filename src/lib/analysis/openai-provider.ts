@@ -1,6 +1,8 @@
-import OpenAI from "openai";
+import type OpenAI from "openai";
+import { analysisOpenAiClient } from "./openai-client";
 import {
   analysisChatParams,
+  dispatchIdentity,
   resolveWorkloadModel,
   workloadDispatchConfig,
 } from "../llm/model-config";
@@ -123,7 +125,9 @@ ${ENTITY_RULES}`;
 
 export class OpenAiProvider implements AnalysisProvider {
   readonly name = `openai:${resolveWorkloadModel("digest").model}`;
-  private client = new OpenAI();
+  // constructed LAZILY, after the dispatch gate in analyze() — a blocked
+  // configuration must fail before any provider client exists at all
+  private client: OpenAI | null = null;
 
   async analyze(
     countryIso2: string,
@@ -132,11 +136,13 @@ export class OpenAiProvider implements AnalysisProvider {
     opts?: AnalyzeOptions,
   ): Promise<DigestAnalysis> {
     assertLlmEnabled("digest extract");
-    // Fail closed BEFORE any reservation or billed call: an unpriced model or
-    // invalid DIGEST_REASONING_EFFORT throws typed here; like a budget stop,
-    // the message carries no "truncated", so the caller's ladder rethrows
-    // immediately instead of burning smaller rungs.
+    // Fail closed BEFORE any reservation, client construction, or billed
+    // call: an unpriced/unapproved model or invalid DIGEST_REASONING_EFFORT
+    // throws typed here; like a budget stop, the message carries no
+    // "truncated", so the caller's ladder rethrows immediately instead of
+    // burning smaller rungs.
     const dispatch = workloadDispatchConfig("digest");
+    const client = (this.client ??= analysisOpenAiClient());
     const docLines = docs
       .map(
         (d) =>
@@ -149,7 +155,7 @@ export class OpenAiProvider implements AnalysisProvider {
       .join("\n");
 
     const request = () =>
-      this.client.chat.completions.create({
+      client.chat.completions.create({
         model: dispatch.model,
         messages: [
           { role: "system", content: opts?.systemPrompt ?? SYSTEM },
@@ -236,6 +242,8 @@ export class OpenAiProvider implements AnalysisProvider {
     } catch {
       throw new Error("openai-provider: unparseable response JSON");
     }
-    return { events, provider: this.name };
+    // durable dispatch identity, built from the SAME config the billed call
+    // used (release hardening) — digest.ts persists it into structured.stats
+    return { events, provider: this.name, dispatch: dispatchIdentity(dispatch) };
   }
 }

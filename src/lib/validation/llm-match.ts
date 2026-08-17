@@ -1,8 +1,11 @@
-import OpenAI from "openai";
+import type OpenAI from "openai";
+import { analysisOpenAiClient } from "../analysis/openai-client";
 import {
   analysisChatParams,
+  dispatchIdentity,
   workloadDispatchConfig,
   type AnalysisDispatchConfig,
+  type AnalysisDispatchIdentity,
 } from "../llm/model-config";
 import { estimateCostUsd } from "../llm/pricing";
 import { isLlmDisabled } from "../usage/llm-guard";
@@ -39,6 +42,9 @@ export interface MatchOutcome {
   matcher: "llm-majority" | "llm";
   votes?: TakeawayVotes[];
   voteRounds?: number;
+  /** durable model-dispatch identity for validation_runs.details (release
+   *  hardening 2026-08-17) — built from the exact config the billed calls used */
+  dispatch?: AnalysisDispatchIdentity;
 }
 
 const SCHEMA = {
@@ -205,51 +211,63 @@ export async function llmMatchTakeaways(
     );
     return null;
   }
-  const client = new OpenAI();
+  const client = analysisOpenAiClient();
+  const identity = dispatchIdentity(dispatch);
   const k = Math.max(1, envNum("MATCH_VOTES", 5));
+
+  // Release hardening 2026-08-17: EVERY validation dispatch — single-shot
+  // included — now reserves before the billed call and records after it. The
+  // pre-hardening single-shot path (MATCHER_MODE=single, MATCH_VOTES=1, or
+  // LLM_SPRINT_USD_CAP unset) dispatched with no SpendGuard and wrote nothing
+  // to provider_usage, violating standing ruling 4. With the cap env unset the
+  // guard now fails closed (cap_unset) and validation degrades to the keyword
+  // matcher instead of spending unmetered.
+  const guard = llmGuardFromEnv();
+  await guard.init();
 
   const singleShot = process.env.MATCHER_MODE === "single" || k === 1;
   if (!singleShot) {
-    const guard = llmGuardFromEnv();
-    if (guard.cfg.totalCapUsd !== null) {
-      await guard.init();
-      const rounds: LlmMatch[][] = [];
-      const attempts = Array.from({ length: k }, () => {
-        const r = guard.tryReserve();
-        if (!r.ok) {
-          console.warn(`llm-match: budget stop — ${r.reason}`);
+    const rounds: LlmMatch[][] = [];
+    const attempts = Array.from({ length: k }, () => {
+      const r = guard.tryReserve();
+      if (!r.ok) {
+        console.warn(`llm-match: budget stop — ${r.reason}`);
+        return null;
+      }
+      return llmMatchOnce(client, dispatch, takeawayTexts, claims)
+        .then(async (res) => {
+          await guard.record(1, 1, res.usd);
+          return res.matches;
+        })
+        .catch((e) => {
+          console.warn(`llm-match vote failed: ${e instanceof Error ? e.message : e}`);
           return null;
-        }
-        return llmMatchOnce(client, dispatch, takeawayTexts, claims)
-          .then(async (res) => {
-            await guard.record(1, 1, res.usd);
-            return res.matches;
-          })
-          .catch((e) => {
-            console.warn(`llm-match vote failed: ${e instanceof Error ? e.message : e}`);
-            return null;
-          });
-      }).filter((p): p is Promise<LlmMatch[] | null> => p !== null);
-      for (const settled of await Promise.all(attempts)) {
-        if (settled) rounds.push(settled);
-      }
-      // majority needs at least 3 usable rounds; below that, degrade to the
-      // best we have (1-2 rounds -> effectively single-shot, honestly labeled)
-      if (rounds.length >= 3) {
-        const { matches, votes } = majorityFromVotes(rounds, takeawayTexts.length);
-        return { matches, matcher: "llm-majority", votes, voteRounds: rounds.length };
-      }
-      if (rounds.length >= 1) {
-        return { matches: rounds[0], matcher: "llm", voteRounds: rounds.length };
-      }
-      return null;
+        });
+    }).filter((p): p is Promise<LlmMatch[] | null> => p !== null);
+    for (const settled of await Promise.all(attempts)) {
+      if (settled) rounds.push(settled);
     }
-    console.warn("llm-match: LLM_SPRINT_USD_CAP unset — majority voting disabled, using single-shot");
+    // majority needs at least 3 usable rounds; below that, degrade to the
+    // best we have (1-2 rounds -> effectively single-shot, honestly labeled)
+    if (rounds.length >= 3) {
+      const { matches, votes } = majorityFromVotes(rounds, takeawayTexts.length);
+      return { matches, matcher: "llm-majority", votes, voteRounds: rounds.length, dispatch: identity };
+    }
+    if (rounds.length >= 1) {
+      return { matches: rounds[0], matcher: "llm", voteRounds: rounds.length, dispatch: identity };
+    }
+    return null;
   }
 
+  const r = guard.tryReserve();
+  if (!r.ok) {
+    console.warn(`llm-match: budget stop — ${r.reason} — falling back to keyword matcher`);
+    return null;
+  }
   try {
-    const { matches } = await llmMatchOnce(client, dispatch, takeawayTexts, claims);
-    return { matches, matcher: "llm" };
+    const { matches, usd } = await llmMatchOnce(client, dispatch, takeawayTexts, claims);
+    await guard.record(1, 1, usd);
+    return { matches, matcher: "llm", dispatch: identity };
   } catch (e) {
     console.warn(`llm-match failed, falling back to keywords: ${e instanceof Error ? e.message : e}`);
     return null;

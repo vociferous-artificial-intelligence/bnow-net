@@ -34,6 +34,11 @@
 //   non-default values); non-reasoning models keep today's exact
 //   `temperature` (+ optional `max_completion_tokens`) payload shape.
 
+import {
+  ANALYSIS_ROUTING_REGISTRY_VERSION,
+  analysisApproval,
+  type AnalysisApprovalStatus,
+} from "./analysis-registry";
 import { PRICES_PER_MTOK } from "./pricing";
 
 export type AnalysisWorkload = "map" | "reduce" | "digest" | "validation" | "entity_audit";
@@ -59,6 +64,19 @@ export const ANALYSIS_WORKLOADS = Object.keys(WORKLOAD_ENV) as AnalysisWorkload[
  *  adds the o-series defensively; unpriced models cannot dispatch regardless. */
 const REASONING_MODEL = /^(gpt-5|o\d)/;
 
+/** HARD MAP ACTIVATION LOCK (release hardening 2026-08-17). The map production
+ *  route may dispatch ONLY this baseline: changing MAP_MODEL or a validated
+ *  MAP_REASONING_EFFORT changes mapExtractorVersion(), but it does NOT remap
+ *  historical documents — map-worker selects `processed = false` docs only, so
+ *  a version bump silently starves every consumer of current-version claims
+ *  until the version-aware remap path (OPEN-TASKS #33) exists. Pricing or
+ *  quality-registry approval alone must NOT bypass this lock; a dedicated
+ *  remap PR (version-aware candidate selection, corpus-remap cost estimate,
+ *  resume/checkpoint behavior, consumer-filter validation, explicit operator
+ *  authorization) deliberately relaxes it. There is NO env override. Reduce
+ *  model changes are independent and never trip this lock. */
+export const MAP_BASELINE = { model: ANALYSIS_DEFAULT_MODEL, reasoningEffort: null } as const;
+
 /** Trimmed env value; unset / blank / whitespace-only → null (absent). */
 function envStr(name: string): string | null {
   const v = process.env[name];
@@ -82,6 +100,12 @@ export interface WorkloadModelConfig {
   /** trimmed raw effort env value (null when absent) — kept for diagnostics */
   effortRaw: string | null;
   effortEnvVar: string;
+  /** (workload, model, effort) has an analysis-registry approval */
+  approved: boolean;
+  /** approval status when approved; null otherwise */
+  approvalStatus: AnalysisApprovalStatus | null;
+  /** the registry version this resolution was judged against */
+  registryVersion: string;
   /** null = dispatchable; otherwise the human-readable fail-closed reason */
   dispatchBlocked: string | null;
 }
@@ -122,13 +146,25 @@ export function resolveWorkloadModel(workload: AnalysisWorkload): WorkloadModelC
     ? (effortRaw!.toLowerCase() as AnalysisReasoningEffort)
     : null;
 
+  const approval = analysisApproval(workload, model, reasoningEffort);
+
   let dispatchBlocked: string | null = null;
   if (effortRaw !== null && !effortValid) {
     dispatchBlocked = `invalid ${env.effort}="${effortRaw}" (allowed: ${REASONING_EFFORT_VALUES.join("|")}) — failing closed`;
   } else if (reasoningEffort !== null && !reasoningCapable) {
     dispatchBlocked = `${env.effort}=${reasoningEffort} set for non-reasoning model "${model}" — failing closed`;
+  } else if (
+    workload === "map" &&
+    (model !== MAP_BASELINE.model || reasoningEffort !== MAP_BASELINE.reasoningEffort)
+  ) {
+    // the hard activation lock outranks pricing/approval messaging: even a
+    // priced AND registry-approved map candidate must not dispatch until the
+    // version-aware remap path exists and activation is explicitly authorized
+    dispatchBlocked = `MAP ACTIVATION BLOCKED: map may dispatch only the baseline (${MAP_BASELINE.model}, no reasoning effort). A non-baseline map model/effort changes mapExtractorVersion() WITHOUT remapping historical documents (map-worker selects processed=false only) — a version-aware remap implementation (OPEN-TASKS #33) and explicit operator activation authorization are required first; pricing or scorecard approval alone does not unlock this`;
   } else if (!priced) {
     dispatchBlocked = `model "${model}" has no entry in the metering price table (src/lib/llm/pricing.ts) — refusing to dispatch unpriced`;
+  } else if (!approval.approved) {
+    dispatchBlocked = approval.reason;
   }
 
   return {
@@ -141,21 +177,29 @@ export function resolveWorkloadModel(workload: AnalysisWorkload): WorkloadModelC
     reasoningEffort,
     effortRaw,
     effortEnvVar: env.effort,
+    approved: approval.approved,
+    approvalStatus: approval.approved ? approval.status : null,
+    registryVersion: ANALYSIS_ROUTING_REGISTRY_VERSION,
     dispatchBlocked,
   };
 }
 
-/** What a dispatch site needs: the model and (for reasoning models) the effort. */
+/** What a dispatch site needs: the model, effort, and the approval identity
+ *  that authorized it (persisted with every output — see dispatchIdentity). */
 export interface AnalysisDispatchConfig {
   workload: AnalysisWorkload;
   model: string;
   reasoningCapable: boolean;
   reasoningEffort: AnalysisReasoningEffort | null;
+  approvalStatus: AnalysisApprovalStatus;
+  registryVersion: string;
 }
 
 /** Resolve for DISPATCH: throws ModelConfigError (fail closed, BEFORE any
- *  reservation or billed call) when the configuration is invalid or the model
- *  is unpriced. Call this before building the provider request. */
+ *  reservation and BEFORE any provider client construction) when the
+ *  configuration is invalid, unpriced, quality-unapproved for this exact
+ *  (workload, model, effort), or blocked by the map activation lock. Call
+ *  this before building any provider request. */
 export function workloadDispatchConfig(workload: AnalysisWorkload): AnalysisDispatchConfig {
   const cfg = resolveWorkloadModel(workload);
   if (cfg.dispatchBlocked !== null) throw new ModelConfigError(workload, cfg.dispatchBlocked);
@@ -164,6 +208,34 @@ export function workloadDispatchConfig(workload: AnalysisWorkload): AnalysisDisp
     model: cfg.model,
     reasoningCapable: cfg.reasoningCapable,
     reasoningEffort: cfg.reasoningEffort,
+    // dispatchBlocked === null implies approval passed, so status is set
+    approvalStatus: cfg.approvalStatus as AnalysisApprovalStatus,
+    registryVersion: cfg.registryVersion,
+  };
+}
+
+/** The durable identity persisted alongside every analysis output (digest
+ *  structured.stats, validation details, map/entity-audit cron counts): enough
+ *  to reconstruct which model configuration produced the output WITHOUT
+ *  consulting the current environment. Built from the SAME dispatch config
+ *  object the billed call used — never re-read from env after the fact.
+ *  reasoningEffort is explicit `null` for "absent" so the record always
+ *  answers the effort question. Contains no secret and no prompt content. */
+export interface AnalysisDispatchIdentity {
+  workload: AnalysisWorkload;
+  model: string;
+  reasoningEffort: AnalysisReasoningEffort | null;
+  registryVersion: string;
+  approval: AnalysisApprovalStatus;
+}
+
+export function dispatchIdentity(cfg: AnalysisDispatchConfig): AnalysisDispatchIdentity {
+  return {
+    workload: cfg.workload,
+    model: cfg.model,
+    reasoningEffort: cfg.reasoningEffort,
+    registryVersion: cfg.registryVersion,
+    approval: cfg.approvalStatus,
   };
 }
 

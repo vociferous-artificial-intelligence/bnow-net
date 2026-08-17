@@ -275,9 +275,10 @@ export function mergeEvalSet(
 export const GENERATION_MODEL = "gpt-5-mini";
 export const GENERATION_BATCH_SIZE = 5;
 
-// $/1M tokens, verified 2026-07-11 (docs/reviews/ASK-FEATURE-ASSESSMENT-2026-07-11.md §4
-// pricing table). Scoped to this harvest tool only — not a general-purpose price table.
-export const GENERATION_PRICE_PER_MTOK = { in: 0.125, out: 1.0 };
+// $/1M tokens. CORRECTED 2026-08-17 to the official gpt-5-mini $0.25/$2.00
+// (the 2026-07-11 assessment's $0.125/$1 is stale — see pricing.ts). Scoped to
+// this harvest tool only — not a general-purpose price table.
+export const GENERATION_PRICE_PER_MTOK = { in: 0.25, out: 2.0 };
 
 export function generationCostUsd(promptTokens: number, completionTokens: number): number {
   return (
