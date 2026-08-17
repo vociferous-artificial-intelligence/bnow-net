@@ -87,9 +87,16 @@ CREATE INDEX eval_annotations_subject_idx ON eval_annotations (subject_type, sub
 CREATE OR REPLACE FUNCTION eval_annotations_immutable() RETURNS trigger AS $$
 BEGIN RAISE EXCEPTION 'eval_annotations is append-only — supersede, never rewrite'; END;
 $$ LANGUAGE plpgsql;
-CREATE TRIGGER eval_annotations_no_rewrite
+-- CREATE OR REPLACE TRIGGER (PG 14+; fine on Neon) so re-applies stay
+-- idempotent, matching the 9999 file's re-assert style
+CREATE OR REPLACE TRIGGER eval_annotations_no_rewrite
   BEFORE UPDATE OR DELETE ON eval_annotations
   FOR EACH ROW EXECUTE FUNCTION eval_annotations_immutable();
+-- TRUNCATE does not fire row triggers — cover it explicitly, or a cleanup
+-- helper could erase the whole history without any constraint firing
+CREATE OR REPLACE TRIGGER eval_annotations_no_truncate
+  BEFORE TRUNCATE ON eval_annotations
+  FOR EACH STATEMENT EXECUTE FUNCTION eval_annotations_immutable();
 ```
 
 Rules:
@@ -103,10 +110,19 @@ Rules:
   Insert-time rule: superseding a row that is ALREADY superseded is refused
   by the partial unique index; the application surfaces "annotation was
   corrected concurrently — reload and re-apply against the chain tip".
-  Self-supersession is refused by the CHECK; forks by the unique index;
-  cross-subject supersession by the composite FK. Multi-row cycles are
-  impossible given immutability (a row's supersedes_id is fixed at insert and
-  can only point at a pre-existing, lower id).
+  DUAL-ROOT rule (app-enforced — the DB cannot express it with these
+  constraints): when a subject already has ANY annotation, a non-superseding
+  insert is refused with the same reload message — every later opinion is a
+  supersession, so one subject has exactly one chain. If a parallel root
+  nonetheless exists (hand-crafted SQL), the id-DESC effective-label rule
+  still resolves deterministically and the export marks the subject
+  `multipleChains:true` for human attention. Self-supersession is refused by
+  the CHECK; forks by the unique index; cross-subject supersession by the
+  composite FK. Multi-row cycles are impossible for all sequential inserts
+  given immutability (a row's supersedes_id is fixed at insert and can only
+  point at a pre-existing, lower id); a crafted same-statement explicit-id
+  cycle is INERT — both rows are superseded, so neither can ever become the
+  effective label.
 - `subject_key` is a typed string (not an FK to volatile tables) because
   subjects span heterogeneous tables AND because claims/events are
   deleted+reinserted on digest regeneration — an FK would cascade away human
@@ -118,7 +134,7 @@ Rules:
   | `map_miss` | `doc:<raw_documents.id>:track:<track>:ver:<extractor_version>` | raw_documents ids are stable; version names the exact extraction judged |
   | `map_false_positive` | `docclaim:<doc_claims.id>` | doc_claims is append-only; id is durable |
   | `reduce_merge_error` | `docclaim:<idA>:docclaim:<idB>` (ascending) | append-only ids; durable |
-  | `stale_evidence` / `citation_quality` | `claim:<claims.id>:h:<sha256-12 of claim text>:d:<theater>:<track>:<claim_date>` | REGENERATION-FRAGILE: on id miss, re-resolve by exact text hash SCOPED to (theater, track, claim_date) — ruling 12's recurring templates make an unscoped text hash resolve to the wrong day; zero or multiple scoped matches ⇒ `resolved:false` |
+  | `stale_evidence` / `citation_quality` | `claim:<claims.id>:h:<sha256-12 of claim text>:d:<theater>:<track>:<claim_date or "none">` | REGENERATION-FRAGILE: on id miss, re-resolve by exact text hash SCOPED to (theater, track, claim_date) — ruling 12's recurring templates make an unscoped text hash resolve to the wrong day; zero or multiple scoped matches ⇒ `resolved:false`. claims.claim_date is nullable: a null-dated claim encodes `d:...:none` and, lacking the day scope, resolves `resolved:false` on any id miss (never a hash-only match) |
   | `publication_safety` | event: `event:<events.id>:h:<sha256-12 of title>:d:<theater>:<track>:<event_date>`; claim: as `claim:` above | REGENERATION-FRAGILE, and guard rewrites can change titles (ruling 19) — a hash miss is EXPECTED and yields `resolved:false`, never a fuzzy match |
   | `ask_retrieval` | `askrun:<ask_runs.id>` | row survives retention (content is redacted, not deleted); a redacted run renders "content redacted per retention" and exports `resolved:false` |
   | `entity_match_candidate` | `entity:<entities.id>` | stable id |
@@ -262,3 +278,15 @@ All were remediated in this revision as document-level requirements:
    the OpenSanctions prerequisite disclaimer. (NOTEs) reviewer FK NO ACTION
    intent; `unadjudicable` verdicts; per-type schema-version namespace;
    heldout selection-bias caveat.
+
+The focused re-review of the remediation returned **PASS-WITH-MINORS**:
+every disposition verified as a genuine requirement (mechanisms named, DDL
+specified, proofs demanded); the composite same-subject FK confirmed valid
+PostgreSQL (targets the declared UNIQUE constraint, MATCH SIMPLE roots-free
+semantics intended); the supersede race confirmed fully closed. Its two new
+MINORs and three NOTEs were folded into this revision: the TRUNCATE trigger
+(row triggers do not fire on TRUNCATE), the app-enforced dual-root refusal
+rule with `multipleChains:true` export marking, `CREATE OR REPLACE TRIGGER`
+idempotency, the inert-crafted-cycle wording, and the nullable-claim_date
+key encoding. The design stands as the Worktree D reviewed-design
+deliverable; implementation remains a separately authorized future program.
