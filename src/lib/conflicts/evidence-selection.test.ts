@@ -113,20 +113,58 @@ describe("mix caps (house ~40% pattern shape; per source domain and per platform
     expect(result.selected).toHaveLength(4);
   });
 
-  it("high-volume single-source flood cannot crowd out the rest (Gate-3 shape)", () => {
+  it("Gate-3 reviewer probe: a wire-service flood over an ALL-NULL-platform corpus yields a mixed selection, never 20/0", () => {
+    // the REALISTIC corpus shape: RSS records carry platform null. Under the
+    // old shared-"none" platform bucket, the ten independent domains were
+    // capped as one platform and the refill re-concentrated the flood → 20/0.
+    const flood = Array.from({ length: 80 }, (_, i) =>
+      rec(i + 1, { sourceReliability: 0.99, domain: "flood.example", platform: null }),
+    );
+    const rest = Array.from({ length: 10 }, (_, i) =>
+      rec(200 + i, { sourceReliability: 0.2, domain: `indie-${i}.example`, platform: null }),
+    );
+    const limits = { maxCandidates: 20, textByteBudget: 20_000, mixCapFraction: 0.4 };
+    const result = selectEvidence([...flood, ...rest], limits);
+    // cap = 8: pass 1 takes 8 flood + ALL 10 independents; pass 2 refills the
+    // 2 free slots from the only capped domain
+    expect(result.selected.filter((r) => r.claimId >= 200)).toHaveLength(10);
+    expect(result.selected.filter((r) => r.claimId <= 80)).toHaveLength(10);
+    expect(result.selected).toHaveLength(20);
+  });
+
+  it("null platform is exempt from platform bucketing; explicit platforms still cap", () => {
     const flood = Array.from({ length: 80 }, (_, i) =>
       rec(i + 1, { sourceReliability: 0.99, domain: "flood.example", platform: "x" }),
     );
     const rest = Array.from({ length: 10 }, (_, i) =>
-      rec(200 + i, { sourceReliability: 0.2, domain: `indie-${i}.example`, platform: `p${i}` }),
+      rec(200 + i, { sourceReliability: 0.2, domain: `indie-${i}.example`, platform: null }),
     );
     const limits = { maxCandidates: 20, textByteBudget: 20_000, mixCapFraction: 0.4 };
     const result = selectEvidence([...flood, ...rest], limits);
-    const floodSelected = result.selected.filter((r) => r.claimId <= 80).length;
-    // cap = 8 in pass 1; ALL 10 independents make the cut before overflow refill
+    // no platform cap event may name a null platform, and all independents land
     expect(result.selected.filter((r) => r.claimId >= 200)).toHaveLength(10);
-    expect(floodSelected).toBe(10); // 8 under the cap + 2 refill to capacity
+    expect(result.capEvents.every((e) => e.bucketKind === "source" || e.bucket !== "none")).toBe(
+      true,
+    );
     expect(result.selected).toHaveLength(20);
+  });
+
+  it("pass-2 refill round-robins across capped domains (house source-mix overflow rule)", () => {
+    // two capped domains, A more reliable than B: the two freed slots must
+    // split A5+B5, never re-concentrate as A5+A6
+    const a = Array.from({ length: 8 }, (_, i) =>
+      rec(i + 1, { sourceReliability: 0.9, domain: "a.example", platform: null }),
+    );
+    const b = Array.from({ length: 8 }, (_, i) =>
+      rec(100 + i, { sourceReliability: 0.8, domain: "b.example", platform: null }),
+    );
+    const limits = { maxCandidates: 10, textByteBudget: 20_000, mixCapFraction: 0.4 };
+    const result = selectEvidence([...a, ...b], limits);
+    const ids = result.selected.map((r) => r.claimId);
+    expect(ids.filter((id) => id < 100)).toHaveLength(5); // a1-4 + a5 refill
+    expect(ids.filter((id) => id >= 100)).toHaveLength(5); // b1-4 + b5 refill
+    expect(ids).toContain(5);
+    expect(ids).toContain(104);
   });
 });
 
@@ -180,7 +218,7 @@ describe("bounds (measured and enforced)", () => {
     expect(result.budgetOut.map((r) => r.claimId)).toEqual([5, 6]);
   });
 
-  it("refuses limits outside the pinned ceilings (fail-closed)", () => {
+  it("refuses limits outside the pinned ceilings (fail-closed; NaN refused; only NARROWING allowed)", () => {
     for (const limits of [
       { maxCandidates: 0, textByteBudget: 100, mixCapFraction: 0.4 },
       { maxCandidates: 101, textByteBudget: 100, mixCapFraction: 0.4 },
@@ -188,9 +226,19 @@ describe("bounds (measured and enforced)", () => {
       { maxCandidates: 10, textByteBudget: 48_001, mixCapFraction: 0.4 },
       { maxCandidates: 10, textByteBudget: 100, mixCapFraction: 0 },
       { maxCandidates: 10, textByteBudget: 100, mixCapFraction: 1.5 },
+      // NaN passes every </> comparison silently — must be refused explicitly
+      { maxCandidates: NaN, textByteBudget: 100, mixCapFraction: 0.4 },
+      { maxCandidates: 10, textByteBudget: NaN, mixCapFraction: 0.4 },
+      { maxCandidates: 10, textByteBudget: 100, mixCapFraction: NaN },
+      // the frozen fraction is itself the ceiling: 0.5 would LOOSEN the quota
+      { maxCandidates: 10, textByteBudget: 100, mixCapFraction: 0.5 },
     ]) {
       expect(() => selectEvidence([rec(1)], limits)).toThrow(ConflictDomainError);
     }
+    // narrowing stays allowed
+    expect(() =>
+      selectEvidence([rec(1)], { maxCandidates: 10, textByteBudget: 100, mixCapFraction: 0.3 }),
+    ).not.toThrow();
   });
 });
 
