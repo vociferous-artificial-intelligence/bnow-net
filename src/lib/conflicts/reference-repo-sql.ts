@@ -51,8 +51,21 @@ function toIsoInstantOrNull(v: unknown): string | null {
   return d.toISOString();
 }
 
-function toIsoDay(v: unknown): string {
-  if (v instanceof Date) return v.toISOString().slice(0, 10);
+/** Read a report_date value from the driver. Every SELECT in this module
+ *  casts `report_date::text` so the driver returns the literal yyyy-mm-dd
+ *  string; the Date branch is defense in depth for an uncast read:
+ *  node-postgres and @neondatabase/serverless parse a Postgres `date` column
+ *  into a JS Date at LOCAL midnight, so reading it back via toISOString()
+ *  (UTC) shifts the day BACKWARD on any host east of UTC — the LOCAL
+ *  accessors mirror how the driver constructed the value and are correct in
+ *  every host zone. */
+export function toIsoDay(v: unknown): string {
+  if (v instanceof Date) {
+    const y = String(v.getFullYear()).padStart(4, "0");
+    const m = String(v.getMonth() + 1).padStart(2, "0");
+    const d = String(v.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
   return String(v).slice(0, 10);
 }
 
@@ -81,6 +94,13 @@ const EDITION_COLUMNS = `series, provider, edition_key, edition_label, report_da
    norm_version, scope_version, cutoff_at, published_at, cutoff_treatment, published_treatment,
    designated_final, parse_status, isw_report_id`;
 
+// SELECT list for reads: report_date is cast to text so the driver hands back
+// the literal yyyy-mm-dd (a bare `date` column becomes a host-local-midnight
+// JS Date — see toIsoDay)
+const EDITION_SELECT = `series, provider, edition_key, report_date::text AS report_date, canonical_url,
+   norm_version, scope_version, cutoff_at, published_at, cutoff_treatment, published_treatment,
+   designated_final, parse_status, isw_report_id`;
+
 function recordParams(r: ReferenceEditionRecord): unknown[] {
   return [
     r.identity.series,
@@ -100,6 +120,20 @@ function recordParams(r: ReferenceEditionRecord): unknown[] {
     r.citationAnchorId,
   ];
 }
+
+/** The monotone day-status upsert. The DO UPDATE re-derives the
+ *  nextStoredDayStatus transition rule in SQL itself (probe_failed may harden
+ *  into publication_gap; a confirmed gap is NEVER downgraded), so even a
+ *  stale or racing writer issuing this statement cannot regress a stored
+ *  status — single-writer semantics are unchanged (the app layer already
+ *  passes a rule-obeying next status). Exported so the integration test
+ *  proves the deployed statement, not a copy of it. */
+export const DAY_STATUS_UPSERT_SQL = `INSERT INTO benchmark_series_days (series, report_date, status) VALUES ($1, $2, $3)
+   ON CONFLICT (series, report_date) DO UPDATE SET status = CASE
+     WHEN benchmark_series_days.status = 'probe_failed' AND EXCLUDED.status = 'publication_gap'
+       THEN EXCLUDED.status
+     ELSE benchmark_series_days.status
+   END`;
 
 export class SqlReferenceReportRepository implements ReferenceReportRepository {
   constructor(private readonly query: QueryFn) {}
@@ -131,7 +165,7 @@ export class SqlReferenceReportRepository implements ReferenceReportRepository {
     }
 
     const existingRows = await this.query(
-      `SELECT * FROM benchmark_report_editions WHERE edition_key = $1`,
+      `SELECT ${EDITION_SELECT} FROM benchmark_report_editions WHERE edition_key = $1`,
       [key],
     );
     if (existingRows.length === 0) {
@@ -166,7 +200,7 @@ export class SqlReferenceReportRepository implements ReferenceReportRepository {
 
   async getEdition(editionKey: string): Promise<ReferenceEditionRecord | null> {
     const rows = await this.query(
-      `SELECT * FROM benchmark_report_editions WHERE edition_key = $1`,
+      `SELECT ${EDITION_SELECT} FROM benchmark_report_editions WHERE edition_key = $1`,
       [editionKey],
     );
     return rows.length === 0 ? null : rowToRecord(rows[0]);
@@ -181,7 +215,7 @@ export class SqlReferenceReportRepository implements ReferenceReportRepository {
     // single authority the in-memory implementation uses (never rows[0] of
     // an unordered same-date set)
     const rows = await this.query(
-      `SELECT * FROM benchmark_report_editions WHERE series = $1 AND report_date = $2
+      `SELECT ${EDITION_SELECT} FROM benchmark_report_editions WHERE series = $1 AND report_date = $2
        ORDER BY edition_key`,
       [series, reportDate],
     );
@@ -202,11 +236,7 @@ export class SqlReferenceReportRepository implements ReferenceReportRepository {
     const current = rows.length === 0 ? null : (String(rows[0].status) as StoredDayStatus);
     const next = nextStoredDayStatus(current, observed);
     if (next.action === "set") {
-      await this.query(
-        `INSERT INTO benchmark_series_days (series, report_date, status) VALUES ($1, $2, $3)
-         ON CONFLICT (series, report_date) DO UPDATE SET status = EXCLUDED.status`,
-        [series, reportDate, next.status],
-      );
+      await this.query(DAY_STATUS_UPSERT_SQL, [series, reportDate, next.status]);
     }
     return { status: next.status, action: next.action };
   }
