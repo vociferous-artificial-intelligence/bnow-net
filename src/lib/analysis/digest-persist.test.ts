@@ -18,8 +18,12 @@ const { persistDigest } = await import("./digest-persist");
 /** Fake pool/client covering the persistDigest query sequence. INSERT ... RETURNING
  *  id hands back deterministic ids; the prior-claims SELECT returns empty so the
  *  overwrite guard proceeds (priorClaims = 0). `entitySeed` populates the
- *  canonical-identity cache SELECT. */
-function fakePool(entitySeed: Array<{ id: number; kind: string; name: string }> = []) {
+ *  canonical-identity cache SELECT; `docRows` serves the evidence-recency
+ *  raw_documents read (filtered by the requested ids, driver-realistic Dates). */
+function fakePool(
+  entitySeed: Array<{ id: number; kind: string; name: string }> = [],
+  docRows: Array<{ id: number; published_at: Date | string | null; fetched_at: Date | string | null }> = [],
+) {
   let ev = 200;
   let cl = 300;
   let ent = 400;
@@ -35,7 +39,13 @@ function fakePool(entitySeed: Array<{ id: number; kind: string; name: string }> 
     release: vi.fn(),
   };
   const pool = {
-    query: vi.fn(async () => ({ rows: [] })), // prior-claims count -> priorClaims 0
+    query: vi.fn(async (sql: string, params?: unknown[]) => {
+      if (/FROM raw_documents/.test(sql)) {
+        const ids = new Set((params?.[0] as number[]) ?? []);
+        return { rows: docRows.filter((r) => ids.has(r.id)) };
+      }
+      return { rows: [] }; // prior-claims count -> priorClaims 0
+    }),
     connect: vi.fn(async () => client),
   } as unknown as Pool;
   return { pool, client };
@@ -52,6 +62,8 @@ const events: PersistEvent[] = [
   },
 ];
 
+const AS_OF = "2026-07-12T00:00:00.000Z"; // exclusive end of the 2026-07-11 UTC day
+
 function argsFor(pool: Pool): PersistDigestArgs {
   return {
     pool,
@@ -59,6 +71,7 @@ function argsFor(pool: Pool): PersistDigestArgs {
     countryIso2: "ru",
     date: "2026-07-11",
     track: "military",
+    asOf: AS_OF,
     provider: "openai:test",
     structured: {},
     events,
@@ -295,5 +308,139 @@ describe("persistDigest publication-guard wiring", () => {
     const out = await persistDigest({ ...argsFor(pool), events: singleDocReputational });
     expect(out).toMatchObject({ skipped: "empty-regen", priorClaims: 3, newClaims: 0 });
     expect(client.query).not.toHaveBeenCalled(); // no transaction ever opened
+    // a refused persist stores nothing, so it computes nothing: the only pool
+    // read is the prior-claims count — no evidence-recency raw_documents read
+    expect(pool.query).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---- evidence-recency wiring (quality foundation, 2026-08-17) ------------------
+
+describe("persistDigest evidence-recency wiring", () => {
+  const PUBLISHED = new Date("2026-07-11T09:00:00Z"); // 15h before AS_OF
+  const FETCHED = new Date("2026-07-11T10:00:00Z");
+
+  beforeEach(() => {
+    embedAndStoreClaimsMock.mockResolvedValue({
+      embedded: 1,
+      inserted: 1,
+      costUsd: 0,
+      tokens: 5,
+      provider: "openai:m",
+    });
+  });
+
+  it("persists structured.stats.evidenceRecency additively — caller stats keys survive verbatim", async () => {
+    const { pool, client } = fakePool([], [{ id: 1, published_at: PUBLISHED, fetched_at: FETCHED }]);
+    const out = await persistDigest({
+      ...argsFor(pool),
+      structured: { stats: { engine: "mapreduce", docsAnalyzed: 7 } },
+    });
+    expect(out).toEqual({ digestId: 100, claimCount: 1 });
+
+    const calls = client.query.mock.calls as unknown as Array<[string, unknown[]?]>;
+    const dInsert = calls.find((c) => /INSERT INTO digests/.test(c[0]))!;
+    const structured = JSON.parse(dInsert[1]![3] as string) as { stats: Record<string, unknown> };
+    // no existing stats key changes; the two persist-owned keys are appended
+    expect(Object.keys(structured.stats)).toEqual([
+      "engine",
+      "docsAnalyzed",
+      "publicationGuard",
+      "evidenceRecency",
+    ]);
+    expect(structured.stats.engine).toBe("mapreduce");
+    expect(structured.stats.docsAnalyzed).toBe(7);
+    const er = structured.stats.evidenceRecency as Record<string, unknown>;
+    expect(er.version).toBe(1);
+    expect(er.asOf).toBe(AS_OF);
+    expect(er.claimCount).toBe(1);
+    expect(er.documentCount).toBe(1);
+    expect(er.publishedTimestampUsed).toBe(1);
+    expect(er.medianEvidenceAgeHours).toBe(15);
+    expect(er.medianIngestionLagHours).toBe(1);
+    expect(er.staleClaimsOver48hPct).toBe(0);
+  });
+
+  it("excludes stub documents at the query level (ruling 3)", async () => {
+    const { pool } = fakePool([], [{ id: 1, published_at: PUBLISHED, fetched_at: FETCHED }]);
+    await persistDigest(argsFor(pool));
+    const read = (pool.query as ReturnType<typeof vi.fn>).mock.calls.find((c) =>
+      /FROM raw_documents/.test(c[0] as string),
+    )!;
+    expect(read[0]).toContain("content NOT LIKE");
+    expect((read[1] as unknown[])[1]).toBe("[STUB FIXTURE]%");
+  });
+
+  it("measures the POST-guard population: a dropped claim's solely-cited doc leaves it", async () => {
+    const { pool, client } = fakePool(
+      [],
+      [
+        { id: 1, published_at: PUBLISHED, fetched_at: FETCHED },
+        { id: 7, published_at: PUBLISHED, fetched_at: FETCHED },
+      ],
+    );
+    const mixed: PersistEvent[] = [
+      {
+        title: "Mixed event",
+        type: "political",
+        summary: "s",
+        claims: [
+          { text: "claim one", claimType: "factual", hedging: "confirmed", docIds: [1], entities: [] },
+          {
+            // single-doc disputed reputational person allegation -> guard R1 drop
+            text: "Governor Ivan Petrov was arrested for embezzlement",
+            claimType: "factual",
+            hedging: "claimed",
+            docIds: [7],
+            entities: [{ name: "Ivan Petrov", kind: "person", role: "subject" }],
+          },
+        ],
+      },
+    ];
+    const out = await persistDigest({ ...argsFor(pool), events: mixed });
+    expect(out).toEqual({ digestId: 100, claimCount: 1 });
+
+    const read = (pool.query as ReturnType<typeof vi.fn>).mock.calls.find((c) =>
+      /FROM raw_documents/.test(c[0] as string),
+    )!;
+    expect((read[1] as unknown[])[0]).toEqual([1]); // doc 7 left the population with its claim
+
+    const calls = client.query.mock.calls as unknown as Array<[string, unknown[]?]>;
+    const dInsert = calls.find((c) => /INSERT INTO digests/.test(c[0]))!;
+    const structured = JSON.parse(dInsert[1]![3] as string) as { stats: Record<string, unknown> };
+    const er = structured.stats.evidenceRecency as Record<string, unknown>;
+    expect(er.documentCount).toBe(1);
+    expect(er.claimCount).toBe(1);
+  });
+
+  it("is FAIL-OPEN: a failing recency read warns once and persists without the key", async () => {
+    const { pool, client } = fakePool();
+    (pool.query as ReturnType<typeof vi.fn>).mockImplementation(async (sql: string) => {
+      if (/FROM raw_documents/.test(sql)) throw new Error("recency read boom");
+      return { rows: [] };
+    });
+    const out = await persistDigest(argsFor(pool));
+    expect(out).toEqual({ digestId: 100, claimCount: 1 });
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("evidence-recency stats failed"));
+
+    const calls = client.query.mock.calls as unknown as Array<[string, unknown[]?]>;
+    const dInsert = calls.find((c) => /INSERT INTO digests/.test(c[0]))!;
+    const structured = JSON.parse(dInsert[1]![3] as string) as { stats: Record<string, unknown> };
+    expect(structured.stats.publicationGuard).toBeTruthy();
+    expect(structured.stats).not.toHaveProperty("evidenceRecency");
+  });
+
+  it("an empty-corpus doc read still yields honest zero/null stats", async () => {
+    const { pool, client } = fakePool(); // no docRows -> the read returns []
+    const out = await persistDigest(argsFor(pool));
+    expect(out).toEqual({ digestId: 100, claimCount: 1 });
+    const calls = client.query.mock.calls as unknown as Array<[string, unknown[]?]>;
+    const dInsert = calls.find((c) => /INSERT INTO digests/.test(c[0]))!;
+    const structured = JSON.parse(dInsert[1]![3] as string) as { stats: Record<string, unknown> };
+    const er = structured.stats.evidenceRecency as Record<string, unknown>;
+    expect(er.documentCount).toBe(0);
+    expect(er.claimCount).toBe(1);
+    expect(er.timestampCoveragePct).toBeNull();
+    expect(er.unknownAgeClaimPct).toBe(100);
   });
 });
