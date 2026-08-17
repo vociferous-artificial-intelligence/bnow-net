@@ -62,6 +62,11 @@ const REQ = {
 beforeEach(() => {
   vi.clearAllMocks();
   h.ctorOpts.length = 0;
+  // The adapter now forwards these env vars (LOCAL-MODEL-ASK-EVAL §7.1); a
+  // shell still carrying the eval workflow's exports must not fail the
+  // {maxRetries: 0} construction pin below or trigger the capture hook here.
+  delete process.env.OPENAI_BASE_URL;
+  delete process.env.ASK_RAW_CAPTURE_PATH;
 });
 
 describe.each([

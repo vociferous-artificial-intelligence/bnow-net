@@ -34,7 +34,13 @@ import type {
 // exist at all, are explicit loops that take a FRESH reservation per attempt
 // (see openaiEmbedBatches).
 function client(): OpenAI {
-  return new OpenAI({ maxRetries: 0 });
+  // Local-eval seam (docs/designs/LOCAL-MODEL-ASK-EVAL-2026-08-17.md §7.1): an
+  // explicit OPENAI_BASE_URL redirects every dispatch (e.g. to an Ollama
+  // OpenAI-compatible endpoint). openai-node v5 falls back to the same env var
+  // on its own; passing it explicitly keeps the knob greppable and testable.
+  // Unset/blank → the construction is byte-identical to before.
+  const baseURL = process.env.OPENAI_BASE_URL?.trim();
+  return new OpenAI({ maxRetries: 0, ...(baseURL ? { baseURL } : {}) });
 }
 
 export const openaiGeneration: GenerationProvider = {
@@ -74,6 +80,29 @@ export const openaiGeneration: GenerationProvider = {
     await guard.record(1, promptTokens + completionTokens, costUsd);
 
     const choice = completion.choices?.[0];
+    // Dev-only diagnostic (LOCAL-MODEL-ASK-EVAL-2026-08-17 §7.1): with
+    // ASK_RAW_CAPTURE_PATH set, append the PRE-validator model output — the
+    // downstream citation filter and denial-prefix override rewrite the text
+    // before anything persists, so raw behavior is otherwise unrecoverable.
+    // Runs AFTER record (metering discipline untouched); never set in
+    // production.
+    const capturePath = process.env.ASK_RAW_CAPTURE_PATH;
+    if (capturePath) {
+      const { appendFileSync } = await import("node:fs");
+      appendFileSync(
+        capturePath,
+        JSON.stringify({
+          model: req.model,
+          content: choice?.message?.content ?? null,
+          refusal: choice?.message?.refusal ?? null,
+          // thinking models via Ollama's OpenAI-compat endpoint return their
+          // reasoning in a non-standard message field; diagnostic-only capture
+          reasoning: (choice?.message as { reasoning?: string } | undefined)?.reasoning ?? null,
+          finishReason: choice?.finish_reason ?? null,
+          usage: { promptTokens, completionTokens },
+        }) + "\n",
+      );
+    }
     return {
       content: choice?.message?.content ?? null,
       refusal: choice?.message?.refusal ?? null,

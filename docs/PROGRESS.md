@@ -2722,3 +2722,47 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
    labelled, observation plan, rollback), commit, push branch, open DRAFT PR.
    NOT deployed by this work; savings are estimates until the separately
    approved deploy + 48–72h observation window.
+
+## 2026-08-17 15:00 UTC — plan: local-model ASK eval, official vs safeguard-modified Gemma (docs/designs/LOCAL-MODEL-ASK-EVAL-2026-08-17.md)
+
+1. §7.1: explicit OPENAI_BASE_URL knob in src/lib/llm/openai.ts client() (default
+   construction byte-identical when unset) + env-gated ASK_RAW_CAPTURE_PATH
+   pre-validator JSONL capture in generate(); unit tests for both.
+2. §7.2: --offline-fidelity mode in scripts/ask-eval.ts — in-memory StageGuard,
+   DATABASE_URL deleted (never read), fidelity-only question filter, loud
+   endpoint/key preflight; no library behavior change outside the new flag.
+3. §5.2/7.3: docs/evals/ask-local-fixtures.json — 5 over-answering probes
+   (acceptStates insufficient) + 7 conflict-content answerability probes, all
+   FICTIONAL persons; fixture-quality unit test in the fidelity-fixtures style.
+4. Gates (typecheck/lint/unit) + adversarial multi-agent diff review BEFORE any run.
+5. §4: pinned Ollama aliases (num_ctx 8192, seed 42, temp 0.1) + smoke test.
+6. §7.4–7.6: run the arm matrix (official/modified × fallback on/off × core-8/probe
+   sets + seed-43 check + hosted v2-k60+gpt-5 reference, ~$0.10), verify providers/
+   token counts/capture line counts before trusting numbers.
+7. Scorecard docs/evals/LOCAL-ASK-SCORECARD-2026-08-17.md (--report + analysis:
+   state distribution, over-answering, raw-vs-rendered, latency, seed stability),
+   AGENTS.md decision-log entry, commit on branch claude/local-model-ask-eval-20260817.
+
+## 2026-08-17 19:00 UTC — local-model ASK eval executed (branch claude/local-model-ask-eval-20260817)
+
+- **Built:** OPENAI_BASE_URL knob + ASK_RAW_CAPTURE_PATH capture (gateway adapter, env-gated,
+  default-inert, order test-pinned); `--offline-fidelity` mode in scripts/ask-eval.ts (DB-free,
+  in-memory guard, DATABASE_URL deleted at preflight, matrix-configs-only, --allow-hosted gate,
+  eval-set fusion refusal, abort-unrecorded on provider error/none); 12 probe fixtures
+  (docs/evals/ask-local-fixtures.json) + 59-case fixture-quality suite; 7 pinned Ollama aliases.
+- **Gates:** typecheck/lint clean · unit 2,188/2,188 (168 files) · three refusal paths exercised
+  live · end-to-end sanity question verified before the sweep. Two multi-agent adversarial review
+  rounds; every confirmed finding remediated (round 1: 2 confirmed / 2 refuted / 8 agents
+  session-limited; round 2 re-ran the two dead dimensions on the remediated tree and confirmed
+  7 latent probe-instrument findings — patterns hardened, each pinned as a regression case,
+  probe arms re-run --fresh with verdicts unchanged 12/12 + 12/12).
+- **Run:** 7 local Gemma arms (core 8 × {fallback on/off} × {official, modified} + seed-43 check
+  + 2 × 12-probe arms) + hosted v2-k60+gpt-5 reference. Total paid spend $0.0444. §7.6
+  verification: providers clean, raw-capture line counts exact, max prompt 623 tokens (ceiling
+  8192), seed disagreement exactly 1 fixture (within tolerance).
+- **Verdict (docs/evals/LOCAL-ASK-SCORECARD-2026-08-17.md + raw captures committed):** no
+  safeguard-removal signature in gemma4-redteam on this instrument; zero refusals in 72 answers
+  both variants; real delta = official's deterministic namesake reasoning-loop truncation +
+  token-efficiency gap. Two harness miscalibrations adjudicated (namesake negator scope,
+  denial-prefix override) — recorded as follow-ups, instrument left unpatched mid-experiment.
+- Production untouched; branch not pushed; decision-log entry appended to AGENTS.md.

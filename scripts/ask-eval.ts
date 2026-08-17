@@ -59,6 +59,27 @@ import "./env";
 // docs/evals/ask-eval-set.json) · --fresh (ignore existing results, rerun
 // everything) · --only id1,id2 (targeted rerun of exactly these ids; mutually
 // exclusive with --fresh) · --out <path> (--report only).
+//
+//   ... npx tsx scripts/ask-eval.ts --offline-fidelity --configs v2-k60+<model>
+//     -> DB-FREE fidelity-only sweep (docs/designs/LOCAL-MODEL-ASK-EVAL-2026-08-17.md
+//        §7.2): DATABASE_URL is DELETED from the process before anything runs
+//        (scripts/env.ts loaded .env.local's prod URL at import — "no database"
+//        is not automatic), fetchLiveClaims() is skipped, non-fidelity questions
+//        are filtered out loudly, and answerFromEvidence gets an in-memory
+//        StageGuard (no SpendGuard, no provider_usage — sanctioned ONLY for
+//        this mode's local-endpoint arms plus the one operator-authorized
+//        hosted reference arm; the guard logs measured usage per config).
+//        Point OPENAI_BASE_URL at an OpenAI-compatible local endpoint (e.g.
+//        Ollama http://localhost:11434/v1) with any non-empty OPENAI_API_KEY;
+//        an unset OPENAI_BASE_URL requires the explicit --allow-hosted flag
+//        (the PAID hosted reference arm is a deliberate choice, never a
+//        forgotten export). v2 MATRIX configs only (v2-kNN+<model> — a bare
+//        base config would run the production default model unguarded and
+//        corrupt its checked-in baseline results file), one config alias per
+//        (model × fallback × eval set) — a results file whose evalSetPath
+//        differs is refused, never fused. A provider "error"/"none" result
+//        ABORTS before being recorded (never record garbage); "stub"/"budget"
+//        abort as always.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -288,12 +309,40 @@ async function runV2Question(
   }
 }
 
+/** In-memory StageGuard for --offline-fidelity: init/record are bookkeeping
+ *  only and tryReserve always admits. This bypasses SpendGuard/provider_usage
+ *  BY DESIGN for this mode (the DB is gone) — local endpoints bill nothing,
+ *  and the single hosted reference arm is operator-authorized in the plan doc.
+ *  Totals accumulate so each config run can log measured usage loudly. */
+function memoryStageGuard() {
+  const totals = { requests: 0, tokens: 0, usd: 0 };
+  const guard = {
+    async init() {},
+    tryReserve: () => ({ ok: true as const }),
+    async record(requests: number, units: number, usd: number) {
+      totals.requests += requests;
+      totals.tokens += units;
+      totals.usd += usd;
+    },
+  };
+  return { totals, guard };
+}
+type MemoryStageGuard = ReturnType<typeof memoryStageGuard>;
+
 /** Fidelity question (AI Search Phase 0): the answer stage runs over the
  *  fixture's INLINE evidence — no DB retrieval, no rerank call, so every config
  *  sees literally identical evidence and only the answer model varies. The
  *  synthetic claim ids exist only inside this run; nothing resolves against the
- *  live corpus. */
-async function runFidelityQuestion(q: EvalQuestion, config: EvalConfig): Promise<QuestionRunResult> {
+ *  live corpus.
+ *
+ *  opts.answerGuard (--offline-fidelity): threads the in-memory guard into
+ *  answerFromEvidence. Absent (the pre-existing DB'd path) behavior is
+ *  unchanged — the stage builds its own askGuardFromEnv. */
+async function runFidelityQuestion(
+  q: EvalQuestion,
+  config: EvalConfig,
+  opts?: { answerGuard?: MemoryStageGuard["guard"] },
+): Promise<QuestionRunResult> {
   const { answerFromEvidence } = await import("../src/lib/ask/answer");
   const spec = q.fidelity;
   if (!spec) {
@@ -330,7 +379,15 @@ async function runFidelityQuestion(q: EvalQuestion, config: EvalConfig): Promise
   // keep their historical Date.now() latencies for comparability).
   const t0 = performance.now();
   try {
-    const answer = await answerFromEvidence(q.question, retrieval, ranked);
+    const g = opts?.answerGuard;
+    const answer = await answerFromEvidence(
+      q.question,
+      retrieval,
+      ranked,
+      // only the answer stage runs here, but the guards option carries all
+      // three stages — the same in-memory guard satisfies each structurally
+      g ? { guards: { embed: g, rerank: g, answer: g } } : undefined,
+    );
     return {
       question: q,
       resolvedGoldIds: [],
@@ -381,8 +438,21 @@ async function runConfig(
   onlyIds: string[] | null,
   dbHost: string,
   evalSetPath: string,
+  offlineFidelity: boolean,
 ): Promise<void> {
   const existing = loadResultsFile(config);
+  // §9 omission 2: one results file per (model × fallback × eval set). A
+  // different eval set under an already-used config alias would silently fuse
+  // two instruments into one aggregate (mergeResults overwrites evalSetPath);
+  // refuse instead of trusting the operator's alias discipline.
+  if (offlineFidelity && existing && path.resolve(existing.evalSetPath) !== path.resolve(evalSetPath)) {
+    console.error(
+      `[${config}] --offline-fidelity: ${resultsPath(config)} already holds results for eval set ` +
+        `"${existing.evalSetPath}" — running "${evalSetPath}" under the same config would fuse two instruments ` +
+        "into one aggregate. Use a distinct config alias per (model × fallback × eval set), or delete the file first.",
+    );
+    process.exit(2);
+  }
   let todo: EvalQuestion[];
   if (onlyIds !== null) {
     // targeted rerun: exactly these ids, replacing their stored entries
@@ -404,6 +474,20 @@ async function runConfig(
       todo = todo.filter((q) => q.type !== "fidelity");
     }
   }
+  // --offline-fidelity: only fidelity questions can run without a DB. Skipped
+  // counts print loudly (no silent caps), and an eval set carrying NO fidelity
+  // questions at all is a hard refusal — an empty sweep must never look done.
+  if (offlineFidelity) {
+    if (!evalSet.questions.some((q) => q.type === "fidelity")) {
+      console.error(`[${config}] --offline-fidelity: eval set ${evalSetPath} has no fidelity questions — refusing`);
+      process.exit(2);
+    }
+    const dropped = todo.filter((q) => q.type !== "fidelity").length;
+    if (dropped > 0) {
+      console.log(`[${config}] --offline-fidelity: skipping ${dropped} non-fidelity question(s) (DB-backed types cannot run offline)`);
+      todo = todo.filter((q) => q.type === "fidelity");
+    }
+  }
   const alreadyDone = Object.keys(existing?.results ?? {}).length;
   if (todo.length === 0) {
     console.log(`[${config}] nothing to do — ${alreadyDone} question(s) already recorded (use --fresh to rerun)`);
@@ -414,11 +498,12 @@ async function runConfig(
   );
 
   let rf = existing ?? emptyResultsFile(config, evalSetPath, dbHost);
+  const mem = offlineFidelity ? memoryStageGuard() : null;
 
   for (const q of todo) {
     const run =
       q.type === "fidelity"
-        ? await runFidelityQuestion(q, config)
+        ? await runFidelityQuestion(q, config, mem ? { answerGuard: mem.guard } : undefined)
         : isV2Config(config)
           ? await runV2Question(q, config, liveClaims)
           : await runLegacyQuestion(q, liveClaims);
@@ -433,6 +518,31 @@ async function runConfig(
       );
       process.exit(1);
     }
+    // Offline mode: provider "error" is a transport/exception outcome (the
+    // answer stage's Query-failed catch), not model behavior — recording it
+    // would score a dead endpoint as a model verdict, and the resume-by-key
+    // design would then SKIP it on rerun. Abort BEFORE merging, so a rerun
+    // resumes at exactly this question. (A truncated/refused outcome keeps its
+    // provider "openai:<model>" and records normally — that IS model behavior.)
+    if (offlineFidelity && metrics.provider === "error") {
+      console.error(
+        `\n[${config}] ABORT: provider "error" on question "${q.id}" — the endpoint call failed ` +
+          `(${metrics.answerSnippet.slice(0, 160)}). Nothing recorded for it; fix the endpoint and rerun (resumes here).`,
+      );
+      process.exit(1);
+    }
+    if (offlineFidelity && metrics.provider === "none") {
+      // Unreachable for well-formed fidelity fixtures (inline evidence is never
+      // empty) — and recording it would be worse than useless: an empty-evidence
+      // fixture yields state "insufficient" with ZERO model involvement, which a
+      // family-(a) acceptStates ["insufficient"] spec would score as a PASS the
+      // model never earned, silently skipped on every resume. Abort before merge.
+      console.error(
+        `\n[${config}] ABORT: provider "none" on question "${q.id}" — the fixture's inline evidence is empty ` +
+          "(the answer stage never ran). Fix the fixture and rerun (nothing recorded for it).",
+      );
+      process.exit(1);
+    }
 
     const stored: StoredQuestionResult = { questionId: q.id, metrics };
     rf = mergeResults(rf, config, evalSetPath, dbHost, [stored]);
@@ -442,7 +552,74 @@ async function runConfig(
         `cited=${metrics.cited} $${metrics.costUsd.toFixed(4)} ${metrics.latencyMs}ms`,
     );
   }
+  if (mem) {
+    console.log(
+      `[${config}] offline guard totals: ${mem.totals.requests} request(s), ${mem.totals.tokens} token(s), ` +
+        `$${mem.totals.usd.toFixed(4)} (price-table estimate — meaningless for local models)`,
+    );
+  }
   console.log(`[${config}] done.`);
+}
+
+/** --offline-fidelity preflight (LOCAL-MODEL-ASK-EVAL §7.2). Hard assertions
+ *  replace the cap warnings: every silent-degrade path either aborts later
+ *  (stub/budget via isDegradedResult) or is refused here before any run. */
+function offlinePreflight(configs: EvalConfig[], allowHosted: boolean): void {
+  const nonV2 = configs.filter((c) => !isV2Config(c));
+  if (nonV2.length > 0) {
+    console.error(`--offline-fidelity: v2 configs only (legacy has no answer stage to test): ${nonV2.join(", ")}`);
+    process.exit(2);
+  }
+  // §9 omission 3: a bare base config (no +model suffix) would leave
+  // ASK_ANSWER_MODEL at the production default (a PAID hosted model, on the
+  // always-admit in-memory guard) AND merge offline rows into that config's
+  // checked-in baseline results file. Matrix configs only.
+  const bare = configs.filter((c) => configAnswerModel(c) === null);
+  if (bare.length > 0) {
+    console.error(
+      `--offline-fidelity: matrix configs only (v2-kNN+<model>) — bare config(s) ${bare.join(", ")} would run ` +
+        "the production default answer model unguarded and corrupt results-<config>.json baselines",
+    );
+    process.exit(2);
+  }
+  // §9 omission 1: scripts/env.ts already loaded .env.local — which carries the
+  // PRODUCTION DATABASE_URL — at import time. Delete both URL vars so no code
+  // path can touch the prod DB: safeCurrency() degrades to null (the prompt's
+  // "Data current through" line is omitted, the documented DB-free shape), and
+  // any missed guard would throw instead of writing provider_usage rows.
+  delete process.env.DATABASE_URL;
+  delete process.env.DATABASE_URL_UNPOOLED;
+  if (!process.env.OPENAI_API_KEY) {
+    console.error(
+      "--offline-fidelity: OPENAI_API_KEY must be NON-EMPTY (a local endpoint ignores the value, but " +
+        "answerOffline() silently degrades every question to the stub path without one — set OPENAI_API_KEY=ollama)",
+    );
+    process.exit(2);
+  }
+  if (process.env.LLM_DISABLE === "1" || process.env.ANALYSIS_PROVIDER === "stub") {
+    console.error(
+      "--offline-fidelity: LLM_DISABLE=1 / ANALYSIS_PROVIDER=stub would degrade the answer stage to stub — unset and rerun",
+    );
+    process.exit(2);
+  }
+  const base = process.env.OPENAI_BASE_URL?.trim();
+  // No silent hosted spend: with no local endpoint every call is a PAID
+  // hosted dispatch on the always-admit guard — that must be an explicit
+  // choice (the plan's one authorized hosted reference arm), never a
+  // forgotten export.
+  if (!base && !allowHosted) {
+    console.error(
+      "--offline-fidelity: OPENAI_BASE_URL is not set, so every answer call would dispatch to the HOSTED OpenAI " +
+        "API on the always-admit in-memory guard (no SpendGuard). Export OPENAI_BASE_URL for a local endpoint, or " +
+        "pass --allow-hosted to run a paid hosted reference arm deliberately.",
+    );
+    process.exit(2);
+  }
+  console.log(
+    `--offline-fidelity: answer endpoint = ${base || "https://api.openai.com/v1 (SDK default — hosted, PAID, --allow-hosted)"}; ` +
+      "DATABASE_URL deleted for this process; in-memory stage guard (no SpendGuard/provider_usage); " +
+      `ASK_FIDELITY_FALLBACK=${process.env.ASK_FIDELITY_FALLBACK ?? "(default on)"}`,
+  );
 }
 
 async function modeRun(
@@ -450,8 +627,9 @@ async function modeRun(
   evalSetPath: string,
   fresh: boolean,
   onlyIds: string[] | null,
+  offlineFidelity: boolean,
 ): Promise<void> {
-  if (!process.env.DATABASE_URL) {
+  if (!offlineFidelity && !process.env.DATABASE_URL) {
     console.error("DATABASE_URL not set — point it at the disposable Neon EVAL BRANCH (never prod) and rerun");
     process.exit(2);
   }
@@ -459,16 +637,27 @@ async function modeRun(
     console.error("--fresh and --only are mutually exclusive (--only is already a forced rerun of its ids)");
     process.exit(2);
   }
-  preflightEnvWarnings();
-  const dbHost = hostOf(process.env.DATABASE_URL);
-  console.log(`DB host: ${dbHost}`);
+  let dbHost: string;
+  if (offlineFidelity) {
+    offlinePreflight(configs, hasFlag("allow-hosted"));
+    dbHost = "(offline-fidelity — no DB)";
+  } else {
+    preflightEnvWarnings();
+    dbHost = hostOf(process.env.DATABASE_URL);
+    console.log(`DB host: ${dbHost}`);
+  }
 
+  // loadEvalSet BEFORE any DB contact — a bad --eval-set path exits without
+  // ever opening a connection (the pre-existing DB'd ordering, preserved).
   const evalSet = loadEvalSet(evalSetPath);
-  const liveClaims = await fetchLiveClaims();
-  console.log(`loaded ${liveClaims.length} live claim(s) from ${dbHost} for gold text-resolution`);
+  let liveClaims: LiveClaim[] = []; // offline: fidelity gold is inline; nothing resolves against a corpus
+  if (!offlineFidelity) {
+    liveClaims = await fetchLiveClaims();
+    console.log(`loaded ${liveClaims.length} live claim(s) from ${dbHost} for gold text-resolution`);
+  }
 
   for (const config of configs) {
-    await runConfig(config, evalSet, liveClaims, fresh, onlyIds, dbHost, evalSetPath);
+    await runConfig(config, evalSet, liveClaims, fresh, onlyIds, dbHost, evalSetPath, offlineFidelity);
   }
   console.log('\nsweep complete. Run with --report to build the scorecard.');
 }
@@ -546,7 +735,7 @@ async function main(): Promise<void> {
 
   if (hasFlag("estimate")) return modeEstimate(configs, evalSetPath);
   if (hasFlag("report")) return modeReport(configs, evalSetPath, outPath);
-  return modeRun(configs, evalSetPath, fresh, onlyIds);
+  return modeRun(configs, evalSetPath, fresh, onlyIds, hasFlag("offline-fidelity"));
 }
 
 main()

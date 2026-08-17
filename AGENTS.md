@@ -163,8 +163,9 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   Postmark `BNOW.NET <no-reply@bnow.net>` is live; magic-link guidance is single-use/24h and
   copy-before-opening. PostHog is production-only, explicit opt-in, allowlist-sanitized, UUID
   identity, no Ask/Search/source text; GeoIP is retained per disclosed operator ruling.
-- **Quality/ops:** 2,049 unit tests / 161 files on main + 72 real-Postgres integration tests /
-  14 files, all green. Production DB migrated through 0027 (2026-07-21, verified + idempotent).
+- **Quality/ops:** 2,123 unit tests / 166 files on main + 107 real-Postgres integration tests /
+  17 files, all green (counts as of the 2026-08-17 PR #2/#4 merges; the corrected figures come
+  from those merges' recorded gates). Production DB migrated through 0027 (2026-07-21, verified + idempotent).
   Enforced pre-push gate = typecheck+lint+test. Crons: fast */15; telegram :10; X :20;
   MTProto :35;
   map :40; digest 4×/day; validate/enrich/datadark daily; trade/materials monthly.
@@ -559,6 +560,45 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   ceiling (ruling 4 updated); a non-run_cap map budget stop is UNHEALTHY by contract; the
   override pair is the sanctioned bounded-recovery mechanism; branch is PR-only — `main`
   not pushed. Report: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
+
+- **2026-08-17 (local-model ASK answer-stage eval — official vs safeguard-modified Gemma;
+  offline harness shipped; branch only)** Executed `docs/designs/LOCAL-MODEL-ASK-EVAL-2026-08-17.md`
+  on branch `claude/local-model-ask-eval-20260817` (not pushed; no deploy, no migration, no env
+  change, production untouched). Shipped: (1) explicit `OPENAI_BASE_URL` knob in the gateway
+  adapter (default construction byte-identical when unset; contracts test now env-scrubs) plus an
+  env-gated `ASK_RAW_CAPTURE_PATH` pre-validator JSONL capture (records content/refusal/reasoning/
+  finish/usage; sits AFTER `guard.record` — ordering now test-pinned via an fs mock); (2)
+  `scripts/ask-eval.ts --offline-fidelity` — DB-free fidelity-only sweeps: DELETES
+  `DATABASE_URL(_UNPOOLED)` at preflight (`.env.local` carries prod), injects an in-memory
+  StageGuard (a sanctioned, offline-mode-ONLY SpendGuard bypass per the plan doc; every other
+  mode's guard discipline untouched), refuses bare base configs (baseline-corruption + unguarded
+  default-model spend), refuses hosted dispatch without an explicit `--allow-hosted`, refuses
+  eval-set fusion under a reused config alias, and aborts unrecorded on provider `error`/`none`;
+  (3) `docs/evals/ask-local-fixtures.json` — 12 FICTIONAL probe fixtures (5 over-answering with
+  `acceptStates:["insufficient"]`, 7 conflict-content answerability) + a 59-case fixture-quality
+  suite. Two adversarial review rounds (multi-agent; round 1 partially session-limited, its two
+  dead dimensions re-run in round 2 on the remediated tree) drove the refusal hardening above
+  AND a probe-instrument hardening pass (round 2 confirmed 7 latent findings, none affecting a
+  recorded verdict: in-pattern negation lookbehinds for long-apposition/contrast-phrase
+  negations, flat-fact strengthening guards, word-boundary figure anchors, Gemma-style refusal
+  shapes, family-a refusal-vs-fabrication labeling, path-resolved fusion comparison — each
+  pinned as a regression case; both probe arms re-run --fresh under the hardened instrument
+  with verdicts unchanged). Gates: typecheck/lint clean · unit 2,188/2,188 (168 files). Run (Ollama gemma4 31B q4, pinned num_ctx 8192/seed 42/
+  temp 0.1; 7 local arms + seed-43 check + hosted gpt-5 reference): total paid spend **$0.0444**
+  (the gpt-5 arm; measured by the offline guard). Verdict (scorecard + raw-capture adjudication in
+  `docs/evals/LOCAL-ASK-SCORECARD-2026-08-17.md`, captures committed under
+  `docs/evals/raw-captures-2026-08-17/`): NO safeguard-removal signature in the modified build on
+  this instrument — zero refusals in 72 answers on both variants, all 5 over-answering probes
+  honestly declined by both, no over-assertion; the one real behavioral delta is official Gemma's
+  deterministic reasoning-loop truncation on the namesake-collision fixture (modified answers it
+  faithfully) and a general token-efficiency gap (445 vs 732 mean completion tokens). Two harness
+  miscalibrations adjudicated from raw captures, deliberately NOT patched mid-experiment
+  (follow-ups): the checked-in namesake fixture's `mustNotMatch` fires on faithful negations with
+  long appositions (negator scope 40 chars), and the denial-prefix override converts
+  deny-then-resolve answers into over-suppression (cost gpt-5 two mechanical fails; adjudicated
+  8/8). Binding notes: local model ids stay OUT of `PRICES_PER_MTOK` (scorecard dollar figures
+  for local arms are notional fallback); `ASK_ANSWER_MODEL` remains `gpt-5` in every Vercel env;
+  no local model may be promoted without its own paid scorecard (router `hasScorecard` gate).
 
 ## Conventions
 
