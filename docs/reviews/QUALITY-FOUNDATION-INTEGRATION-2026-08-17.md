@@ -173,7 +173,25 @@ with the OpenAI client mocked.
 
 ## 10. Optional adjudication workstream (D)
 
-(Decision recorded at completion: implemented, or reviewed design only.)
+**Decision: reviewed design, not implementation.** The program clause allows
+implementing D only when A–C and their reviews pass "with substantial time
+remaining"; mid-program the operator queued a full conflict/region evaluation
+workstream behind this one, so building a new admin surface here would have
+been exactly the rushed half-authorized feature the clause forbids.
+
+Deliverable: `docs/designs/HUMAN-ADJUDICATION.md` — an append-only,
+admin-only annotation design (ten bounded subject types; DB-enforced
+immutability incl. TRUNCATE; fork/self/cross-subject-proof supersession with
+deterministic effective-label semantics; per-subject-type key grammar with
+ruling-12-safe scoped re-resolution and `resolved:false` dispositions;
+content-free export stubs with promotion as a deliberate authoring act;
+ruling-21 page + server-action authorization proofs; explicit OpenSanctions
+prerequisite disclaimer). Gate: fresh adversarial design review FAIL (4
+MAJORs — export-content rules, honor-system append-only, supersession-schema
+holes, one-line subject identity) → full remediation → focused re-review
+**PASS-WITH-MINORS** → both new MINORs and all NOTEs folded in (`a730d73`).
+Implementation (including its numbered migration) remains a separately
+authorized future program.
 
 ## 11. Test commands and results
 
