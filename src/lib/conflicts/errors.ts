@@ -24,6 +24,10 @@ export const CONFLICT_DOMAIN_ERROR_CODES = [
   "invalid_edition_selection",
   "edition_merge_conflict",
   "invalid_day_status",
+  // Phase 3 (evidence union) — additive codes only
+  "invalid_evidence_request",
+  "invalid_candidate_claim",
+  "invalid_fixture_scenario",
 ] as const;
 
 export type ConflictDomainErrorCode = (typeof CONFLICT_DOMAIN_ERROR_CODES)[number];

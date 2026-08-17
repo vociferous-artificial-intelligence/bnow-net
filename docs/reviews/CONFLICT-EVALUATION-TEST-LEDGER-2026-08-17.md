@@ -92,3 +92,36 @@ DISCOVERY METADATA, not §8 as-published results, with two carried conditions
 (persisted evaluation results stamp their window inputs — binds P4/P5;
 durable anchor-change journaling — design §5 deferral).
 **Verdicts: PASS + PASS-WITH-MINORS. GATE 2: PASSED.**
+
+## Phase 3 (branch `codex/conflict-evaluations-p3-evidence`, final tip see closing commit)
+
+| Gate | Command | Result |
+|---|---|---|
+| typecheck | `npx tsc --noEmit` | clean (author, coordinator, both reviewers, both re-reviews) |
+| lint | `npm run lint` | clean |
+| unit | `npm test` | **2,920 passed / 2,920 (205 files)** at `9fef8b7` (base 2,683 + Phase 3; conflicts package 518/518 also under TZ=Asia/Tokyo) |
+| acceptance corpus | fixture-corpus.test.ts via the real engine | all **40** scenarios (39 + additive `cc-other-in-scope-018`) / 50 claims reproduced exactly; corpus additions-only (105 ins / 0 del) |
+| scope | range diffstat | only `src/lib/conflicts/`, `fixtures/conflicts/` (additive), `docs/reviews/`; freeze list untouched; no itest surface touched (integration baseline stays 127/20) |
+| legal | pre-gate + gate sweeps | no prose persisted or persistable; traceability shape enforced (no record without a non-mirror doc); rosters org/role-only; sentinel spelled zero times |
+
+Critical Gate 3 (two independent reviewers): initial verdicts on `5f1844c`
+**FAIL + FAIL**, non-overlapping MAJORs, all runtime-proven. Evidence/
+source-fidelity: bare-token actor entries (yemen/al-salif/oman/belarus)
+granted scope AND governed lanes for neutral claims (five probe sentences
+admitted), contradicting the roster's containment claim; + corpus-recall
+theater-comparability hole, off_scope sub-cause loss. Query/perf/ops: the
+mix cap collapsed in the realistic all-null-platform corpus (20/0 flood
+selection; reliability-first refill re-concentration), assemblies were not
+byte-deterministic (3 instances), the limits guard failed OPEN on NaN, and
+the future-DB contract lacked a bound query outline + intake ceiling.
+Remediated in six commits (`f6dcdaa`..`9fef8b7`) incl. the committed P3
+implementation report whose §5 carried conditions BIND P4/P5 (results stamp
+window inputs + selection limits + roster/classifier/taxonomy/policy/
+extractor versions). Focused re-reviews on `9fef8b7`: ops **PASS** (all
+probes re-run; 7 mutations killed by named tests; pre-remediation behavior
+cannot return unguarded); evidence **PASS-WITH-MINORS** (all discharged; 4
+mutations; one NOTE-grade documented residual — the houthi guard's
+shipping-token coarseness, versioned revision path recorded). The ops
+re-review's overflow-sentinel NOTE (fetch EVIDENCE_MAX_INTAKE+1 so over-limit
+days refuse visibly) is folded into the query contract in the closing commit.
+**Verdicts: PASS + PASS-WITH-MINORS. GATE 3: PASSED.**

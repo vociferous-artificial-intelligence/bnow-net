@@ -21,10 +21,10 @@ persons, no ISW prose, no source full text) and AGENTS.md rulings 1, 12, 19,
 |---|---|---|---|---|
 | `roca-scenarios-v1.json` | `russia_ukraine` | 10 | 10 | 11 |
 | `iran-scenarios-v1.json` | `iran_regional` | 12 | 13 | 13 |
-| `crosscutting-scenarios-v1.json` | mixed (per-scenario) | 17 | 18 | 24 |
-| **total** | | **39** | **41** | **48** |
+| `crosscutting-scenarios-v1.json` | mixed (per-scenario) | 18 | 19 | 26 |
+| **total** | | **40** | **42** | **50** |
 
-50 documents; 34 expected-included / 13 expected-excluded eligibility
+52 documents; 35 expected-included / 14 expected-excluded eligibility
 records (one claim, in the publication-gap scenario, has no eligibility
 record by design). Every exclusion uses the contract's bounded reason enum
 in its FROZEN precedence order. Exactly FIVE scenarios carry
@@ -48,8 +48,12 @@ for f in ['roca-scenarios-v1.json','iran-scenarios-v1.json','crosscutting-scenar
 "
 roca-scenarios-v1.json scenarios=10 units=10 claims=11 docs=11
 iran-scenarios-v1.json scenarios=12 units=13 claims=13 docs=13
-crosscutting-scenarios-v1.json scenarios=17 units=18 claims=24 docs=26
+crosscutting-scenarios-v1.json scenarios=18 units=19 claims=26 docs=28
 ```
+
+(The crosscutting row reflects `cc-other-in-scope-018`, added ADDITIVELY at
+the Phase 3 Gate-3 remediation; the recount above was re-run 2026-08-17
+after the addition.)
 
 ## Immutability and the Gate-0 remints
 
@@ -71,7 +75,9 @@ retained because the original scenario ceases to exist):
 | `cc-stub-leakage-011` | `cc-stub-leakage-011b` | M3 precedence + missing_source pins (#8) |
 | `cc-matcher-failclosed-013` | `cc-matcher-failclosed-013b` | H2 matcher ladder + M1 denominator (#8) |
 
-`cc-window-rung2-017` is NEW (M2, #8), not a remint.
+`cc-window-rung2-017` is NEW (M2, #8), not a remint. `cc-other-in-scope-018`
+is NEW (Phase 3 Gate-3 evidence-review NOTE: the rung-6 other_in_scope gate
+had no corpus pin), not a remint.
 
 ## Scenario schema
 

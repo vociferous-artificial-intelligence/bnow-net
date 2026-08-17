@@ -1589,6 +1589,111 @@
         },
         "notes": "Pins rung 2 of the FROZEN window END ladder (contract section 5, register #6: cutoffAt when parseable -> publishedAt when known -> exclusive end of the report date's UTC day). cutoffAt is present but UNPARSEABLE, publishedAt is valid and falls after midnight UTC, so the window END is the publishedAt instant and the recorded windowEndSource is published (section 6.4, M2). Claim 9324 (claimDate 2026-08-14) is included ONLY because the END fell to publishedAt: under a typical same-day cutoff (rung 1) or under rung 3 (report-day end) it would be off_window. Recording windowEndSource on every evaluation makes a cutoff-parser regression that silently widens or narrows windows visible in the results themselves. Snapshot-kind availability stays governed by section 6.2 and is not pinned here."
       }
+    },
+    {
+      "id": "cc-other-in-scope-018",
+      "title": "other_in_scope requires an actor/geography hit plus a generic security signal",
+      "acceptanceRef": "Cross-cutting: other_in_scope gate (contract section 5 — a generic security signal ALONE never reaches other_in_scope; topic-less region mentions never reach it either)",
+      "conflictId": "iran_regional",
+      "report": {
+        "series": "iran_update",
+        "editionKey": "iran_update:2026-08-09:final",
+        "reportDate": "2026-08-09",
+        "cutoffAt": "2026-08-09T16:00:00Z",
+        "publishedAt": "2026-08-09T21:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "Iranian authorities visibly increased protective security postures around government facilities in Tehran through August 9.",
+            "lane": "other_in_scope",
+            "compound": false,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9330,
+          "theater": "ir",
+          "track": "military",
+          "text": "Authorities in Tehran announced expanded security measures around government facilities on August 9.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-09",
+          "docs": [
+            {
+              "docId": 73030,
+              "adapter": "rss",
+              "platform": null,
+              "sourceDomain": "tehran-desk.example",
+              "publishedAt": "2026-08-09T09:10:00Z",
+              "fetchedAt": "2026-08-09T09:40:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": true,
+          "stub": false
+        },
+        {
+          "claimId": 9331,
+          "theater": "ir",
+          "track": "military",
+          "text": "Regional analysts discussed broader security trends during a televised panel.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-09",
+          "docs": [
+            {
+              "docId": 73031,
+              "adapter": "rss",
+              "platform": null,
+              "sourceDomain": "panel-monitor.example",
+              "publishedAt": "2026-08-09T10:05:00Z",
+              "fetchedAt": "2026-08-09T10:30:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": false,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "eligibility": {
+          "9330": {
+            "included": true,
+            "lane": "other_in_scope",
+            "reasons": [
+              "geo:iran",
+              "lane:other_in_scope",
+              "window:in"
+            ]
+          },
+          "9331": {
+            "included": false,
+            "reason": "unclassified"
+          }
+        },
+        "eligibleCount": 1,
+        "corpusRecall": {
+          "u0": "matched"
+        },
+        "publishedRetention": {
+          "u0": "matched"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ir"
+            ],
+            "tracks": [
+              "military"
+            ]
+          }
+        },
+        "notes": "Pins BOTH sides of the classifier's rung-6 gate (contract section 5: other_in_scope needs an actor or geography hit PLUS a generic security signal). Claim 9330 carries a laned-null geography hit (Tehran) and a generic security signal with no earlier-rung lane, so it lands other_in_scope via the gate. Claim 9331 carries the generic security signal ALONE — no actor hit, no geography hit, no region token — so it is unclassified: the signal by itself never manufactures scope. Added at the Phase 3 Gate-3 remediation (ADDITIVE: no committed scenario edited)."
+      }
     }
   ]
 }
