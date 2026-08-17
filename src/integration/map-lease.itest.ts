@@ -36,12 +36,14 @@ describe("pgMapLeaseDriver", () => {
     expect(await pgMapLeaseDriver.tryAcquire("map:remap", "tok-b", 60_000)).toBeNull();
     expect((await pgMapLeaseDriver.read())?.token).toBe("tok-a");
 
-    // token-checked renew extends expiry; a wrong token cannot
+    // token-checked renew RESETS the full TTL (not merely >=): renewing with a
+    // 300s TTL moves expiry ~240s past the original 60s grant — a no-op
+    // jsonb_set would fail this
     const before = (await pgMapLeaseDriver.read())!.expiresAt;
-    expect(await pgMapLeaseDriver.renew("tok-a", 120_000)).toBe(true);
+    expect(await pgMapLeaseDriver.renew("tok-a", 300_000)).toBe(true);
     const after = (await pgMapLeaseDriver.read())!.expiresAt;
-    expect(new Date(after).getTime()).toBeGreaterThanOrEqual(new Date(before).getTime());
-    expect(await pgMapLeaseDriver.renew("tok-b", 120_000)).toBe(false);
+    expect(new Date(after).getTime() - new Date(before).getTime()).toBeGreaterThan(120_000);
+    expect(await pgMapLeaseDriver.renew("tok-b", 300_000)).toBe(false);
 
     // non-holder release is a refused no-op; holder release frees but keeps fence
     expect(await pgMapLeaseDriver.release("tok-b")).toBe(false);

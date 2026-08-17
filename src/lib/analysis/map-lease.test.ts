@@ -130,13 +130,13 @@ describe("acquireMapLease", () => {
     expect(r.reason).toContain("db down");
   });
 
-  it("release never throws even when the driver does", async () => {
+  it("release never throws even when the driver does — it reports false", async () => {
     const driver = memoryMapLeaseDriver(() => 0);
     const r = await acquireMapLease("map", 1000, driver);
     driver.release = async () => {
       throw new Error("db down mid-release");
     };
-    await expect(r.handle!.release()).resolves.toBeUndefined();
+    await expect(r.handle!.release()).resolves.toBe(false);
   });
 
   it("renew on the handle reflects a takeover as lost", async () => {

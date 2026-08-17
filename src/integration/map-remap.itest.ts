@@ -233,6 +233,34 @@ describe("remap eligibility + append-only history + resume", () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
+  it("remap NEVER writes processed — a partial leftover keeps its other track for the hourly worker", async () => {
+    // the review-1 MAJOR: a crashed hourly run leaves processed=false with a
+    // partial doc_map_state set; a --track-restricted remap must not finalize
+    // the doc while its other applicable track is unmapped
+    mockCreate.mockClear();
+    const partial = await seedDoc("re-partial-leftover", militaryText("coastal"), false);
+    await seedState(partial, SUPERSEDED_VERSION, 1);
+
+    const counts: Record<string, unknown> = {};
+    await runMapCycle(
+      { theaters: ["ir"], date: DAY, remap: true, docCap: 500, track: "military" },
+      counts,
+    );
+    expect(Number(counts.docTrackPairs)).toBe(1); // the partial doc's military pair
+    expect(Number(counts.claims)).toBe(1);
+
+    // military got its current-version rows...
+    const { rows: state } = await pool.query(
+      `SELECT count(*)::int AS n FROM doc_map_state WHERE raw_document_id = $1 AND extractor_version = $2`,
+      [partial, CURRENT],
+    );
+    expect(state[0].n).toBe(1);
+    // ...but processed stays FALSE: the hourly worker still owns the doc's
+    // final all-tracks disposition
+    const { rows: flag } = await pool.query(`SELECT processed FROM raw_documents WHERE id = $1`, [partial]);
+    expect(flag[0].processed).toBe(false);
+  });
+
   it("the afterId cursor excludes already-scanned docs", async () => {
     const counts: Record<string, unknown> = {};
     const highWater = Math.max(...seededIds);
@@ -258,11 +286,15 @@ describe("lease safety", () => {
     const target = await seedDoc("re-lost-lease", militaryText("gulf"), true);
     await seedState(target, SUPERSEDED_VERSION, 1);
 
-    // acquires fine, but every renewal reports the lease lost
+    // acquires fine; the pre-attempt keepalive renewal succeeds so the billed
+    // call happens, then every later renewal (the pre-persist ownership
+    // check) reports the lease lost — the exact "lost AFTER the billed
+    // response, BEFORE persistence" window
     const lost = memoryMapLeaseDriver(() => 0);
+    let renews = 0;
     const lostDriver: typeof lost = {
       ...lost,
-      renew: async () => false,
+      renew: async () => ++renews <= 1,
     };
 
     const usageBefore = await pool.query(

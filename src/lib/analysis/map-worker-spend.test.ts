@@ -182,3 +182,40 @@ describe("extractBatch reservation/metering cardinality", () => {
     expect(stats.truncatedSingles).toBe(1);
   });
 });
+
+describe("extractBatch keepalive (lease renewal per physical attempt)", () => {
+  it("runs before EVERY physical attempt, including the 429 retry and each split level", async () => {
+    const { guard } = fakeGuard();
+    const keepalive = vi.fn(async () => {});
+    const err = Object.assign(new Error("rate limited"), { status: 429 });
+    const { client, create } = fakeOpenAi([
+      err, // attempt 1 (429)
+      completion(null, "length"), // attempt 2: whole pair truncated
+      completion(okContent([1])), // attempt 3: left single
+      completion(okContent([2])), // attempt 4: right single
+    ]);
+    const p = extractBatch(client, guard, DISPATCH, "military", "ir", [doc(1), doc(2)], emptyStats(), keepalive);
+    await vi.advanceTimersByTimeAsync(65_000);
+    const out = await p;
+    expect(out.size).toBe(2);
+    expect(create).toHaveBeenCalledTimes(4);
+    expect(keepalive).toHaveBeenCalledTimes(4); // one renewal per physical attempt
+  });
+
+  it("a keepalive that reports the lease lost stops BEFORE the next reservation and dispatch", async () => {
+    const { guard, tryReserve } = fakeGuard();
+    const boom = new Error("lease lost mid-batch");
+    let calls = 0;
+    const keepalive = vi.fn(async () => {
+      if (++calls >= 2) throw boom;
+    });
+    const err = Object.assign(new Error("rate limited"), { status: 429 });
+    const { client, create } = fakeOpenAi([err, completion(okContent([1]))]);
+    const p = extractBatch(client, guard, DISPATCH, "military", "ir", [doc(1)], emptyStats(), keepalive);
+    const assertion = expect(p).rejects.toThrow("lease lost mid-batch");
+    await vi.advanceTimersByTimeAsync(65_000);
+    await assertion;
+    expect(create).toHaveBeenCalledTimes(1); // the 429 attempt only — no second dispatch
+    expect(tryReserve).toHaveBeenCalledTimes(1); // and no second reservation either
+  });
+});
