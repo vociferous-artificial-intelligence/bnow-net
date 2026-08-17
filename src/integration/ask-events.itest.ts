@@ -45,7 +45,10 @@ async function cleanup() {
  *  assertions corpus- and calendar-independent: one ua claim mentioning
  *  Kherson, dated today (inside any parse of "this week"), with a real
  *  raw_documents source link so the deferred claim_must_have_source trigger
- *  and the snapshot's sourceDocIds assertion both hold. */
+ *  and the snapshot's sourceDocIds assertion both hold. Known seconds-wide
+ *  residual: a run that crosses the UTC Sunday→Monday midnight between this
+ *  seed and the ask() call would drop the seed into the prior week — accepted
+ *  (at most once a week, and only at exactly 00:00 UTC Monday). */
 async function seedRetrievalFixture() {
   const today = new Date().toISOString().slice(0, 10);
   const client = await pool.connect();

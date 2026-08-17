@@ -89,6 +89,7 @@ function buildUserPrompt(takeawayTexts: string[], claims: ClaimForValidation[]):
 /** One matching call. Returns sanitized matches + actual USD cost, or throws. */
 async function llmMatchOnce(
   client: OpenAI,
+  guard: SpendGuard,
   dispatch: AnalysisDispatchConfig,
   takeawayTexts: string[],
   claims: ClaimForValidation[],
@@ -113,6 +114,11 @@ async function llmMatchOnce(
     completion.usage?.prompt_tokens ?? 0,
     completion.usage?.completion_tokens ?? 0,
   );
+  // Meter BEFORE interpreting the body (ruling 8, first adversarial hardening
+  // review finding 2): an unparseable/truncated response is billed in full by
+  // the provider, so recording must not depend on JSON.parse succeeding. This
+  // site has no output ceiling, making a 16K-ceiling truncation possible.
+  await guard.record(1, 1, usd);
   const raw = completion.choices[0]?.message?.content ?? '{"matches":[]}';
   const parsed = (JSON.parse(raw) as { matches: LlmMatch[] }).matches ?? [];
   const validClaims = new Set(claims.map((c) => c.claimId));
@@ -182,9 +188,12 @@ function llmGuardFromEnv(): SpendGuard {
 }
 
 /** Match takeaways to claims. Majority voting (k calls) by default; single-shot
- *  when MATCHER_MODE=single or when LLM_SPRINT_USD_CAP is unset (the multiplied
- *  call volume is new paid usage — without its cap we stay on the old path).
- *  Returns null when no LLM is available (caller falls back to keywords). */
+ *  only when MATCHER_MODE=single or MATCH_VOTES=1. EVERY dispatch — single-shot
+ *  included — reserves before the billed call and is metered right after the
+ *  response (release hardening 2026-08-17); with LLM_SPRINT_USD_CAP unset or
+ *  exhausted the guard fails closed and validation degrades to the keyword
+ *  matcher with zero provider calls. Returns null when no LLM is available or
+ *  permitted (caller falls back to keywords). */
 export async function llmMatchTakeaways(
   takeawayTexts: string[],
   claims: ClaimForValidation[],
@@ -234,11 +243,8 @@ export async function llmMatchTakeaways(
         console.warn(`llm-match: budget stop — ${r.reason}`);
         return null;
       }
-      return llmMatchOnce(client, dispatch, takeawayTexts, claims)
-        .then(async (res) => {
-          await guard.record(1, 1, res.usd);
-          return res.matches;
-        })
+      return llmMatchOnce(client, guard, dispatch, takeawayTexts, claims)
+        .then((res) => res.matches)
         .catch((e) => {
           console.warn(`llm-match vote failed: ${e instanceof Error ? e.message : e}`);
           return null;
@@ -265,8 +271,7 @@ export async function llmMatchTakeaways(
     return null;
   }
   try {
-    const { matches, usd } = await llmMatchOnce(client, dispatch, takeawayTexts, claims);
-    await guard.record(1, 1, usd);
+    const { matches } = await llmMatchOnce(client, guard, dispatch, takeawayTexts, claims);
     return { matches, matcher: "llm", dispatch: identity };
   } catch (e) {
     console.warn(`llm-match failed, falling back to keywords: ${e instanceof Error ? e.message : e}`);
