@@ -91,6 +91,10 @@ export interface RemapCheckpoint {
   key: string;
   days: Record<string, RemapDayState>;
   totalUsd: number;
+  /** digest of the extractor versions the completed days were proven under —
+   *  a version bump invalidates every day's `complete` flag (doc_map_state is
+   *  the real record; the checkpoint must never outrank it) */
+  versionsDigest?: string;
 }
 
 export interface RemapCheckpointStore {
@@ -166,6 +170,11 @@ export async function driveMapRemap(opts: RemapDriveOpts): Promise<RemapDriveRes
   const call = opts.call ?? callMap;
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const cap = opts.cap ?? 400;
+  // a garbage --budget must FAIL CLOSED, not disable both budget gates (NaN
+  // compares false against everything — spend review 1, MAJOR-2)
+  if (opts.execute && (!Number.isFinite(opts.budgetUsd) || opts.budgetUsd <= 0)) {
+    throw new Error(`--execute requires a finite positive --budget (got ${opts.budgetUsd})`);
+  }
   const days = utcDayRange(opts.from, opts.to ?? new Date().toISOString().slice(0, 10));
   if (days.length === 0) throw new Error(`empty day range ${opts.from}..${opts.to}`);
   const trackParam = opts.track ? `&track=${opts.track}` : "";
@@ -198,6 +207,17 @@ export async function driveMapRemap(opts: RemapDriveOpts): Promise<RemapDriveRes
   const versions = new Map<string, string>();
   for (const day of days) {
     const { counts: c } = await callWithRetry(`date=${day}&dry=1&cap=20000&${baseParams}`);
+    // capability handshake: an OLD deployed route ignores remap=1 and answers
+    // a BACKFILL dry run — silently the wrong selection, and a later live run
+    // would spend on it and checkpoint remap days "complete" (spend review 1,
+    // MAJOR-3). A remap-capable route ALWAYS echoes maxSelectedId, empty days
+    // included; refuse to continue without it.
+    if (c.maxSelectedId === undefined) {
+      throw new Error(
+        `the route at ${opts.base} does not support remap mode (no maxSelectedId in the dry ` +
+          `response) — deploy the remap-capable build before running this driver`,
+      );
+    }
     estTotal += n(c, "estUsd");
     eligibleDocs += n(c, "selected");
     eligiblePairs += n(c, "docTrackPairs");
@@ -237,10 +257,30 @@ export async function driveMapRemap(opts: RemapDriveOpts): Promise<RemapDriveRes
   // -- phase 2: sweep-drain, oldest day first ---------------------------------
   log(`== phase 2: remap, oldest day first ==`);
   const cp: RemapCheckpoint = (await opts.store.load(key)) ?? { key, days: {}, totalUsd: 0 };
+  // the checkpoint's `complete` flags were proven under specific extractor
+  // versions; a version bump makes them stale (the canonical workflow is
+  // "bump version -> remap") and doc_map_state — the real record — must win
+  // (concurrency review 1, MAJOR-2). Reset day states on any version change.
+  const versionsDigest = JSON.stringify([...versions.entries()].sort());
+  if (cp.versionsDigest !== undefined && cp.versionsDigest !== versionsDigest) {
+    log("extractor versions changed since the checkpoint — resetting day states (doc_map_state still prevents any rebilling)");
+    cp.days = {};
+  }
+  cp.versionsDigest = versionsDigest;
   let actualTotal = cp.totalUsd;
   let pairsAttempted = 0;
   let claims = 0;
   const incompleteDays: string[] = [];
+
+  // a resumed checkpoint that already exhausted the budget must not buy one
+  // more live call per invocation (spend review 1, MINOR-9)
+  if (actualTotal > opts.budgetUsd) {
+    return {
+      ...none,
+      actualTotal,
+      aborted: `checkpoint spend $${actualTotal.toFixed(4)} already exceeds budget $${opts.budgetUsd} — raise --budget or start a fresh checkpoint`,
+    };
+  }
 
   for (const day of days) {
     const st: RemapDayState =
@@ -250,6 +290,10 @@ export async function driveMapRemap(opts: RemapDriveOpts): Promise<RemapDriveRes
       log(`${day}  complete (checkpoint) — skipping`);
       continue;
     }
+    // MAX_SWEEPS bounds one INVOCATION; a later invocation gets a fresh
+    // allowance so "leaving remainder for a later invocation" stays true
+    // (spend review 1, MINOR-5)
+    st.sweeps = 0;
 
     let stalls = 0; // consecutive calls that could not advance the cursor
     daySweeps: while (!st.complete && st.sweeps < MAX_SWEEPS) {
@@ -356,17 +400,32 @@ export async function driveMapRemap(opts: RemapDriveOpts): Promise<RemapDriveRes
       // category incl. run_cap), lease-lost, or batch-errored call can leave
       // selected docs unfinished, and skipping them would let the sweep-based
       // completion proof lie
+      // live-response capability guard (defense beside the phase-1 handshake)
+      if (c.maxSelectedId === undefined) {
+        await opts.store.save(cp);
+        return {
+          ...none,
+          actualTotal,
+          pairsAttempted,
+          claims,
+          incompleteDays,
+          aborted: `route response carries no maxSelectedId — not a remap-capable route; refusing to continue`,
+        };
+      }
       const leaseLost = ((c.lease as unknown as Record<string, unknown>)?.lost ?? 0) === 1;
       const clean = !c.budgetStop && !leaseLost && n(c, "batchErrors") === 0;
       if (clean) {
         st.afterId = n(c, "maxSelectedId");
         stalls = 0;
-      } else if (++stalls >= 3) {
-        // persistent per-batch failures at one cursor position: leave the day
-        // incomplete (loudly) rather than spin — the docs stay eligible
-        await opts.store.save(cp);
-        log(`${day}: no cursor progress after ${stalls} unclean calls — leaving day incomplete`);
-        break daySweeps;
+      } else if (n(c, "batchErrors") > 0 || leaseLost) {
+        // only genuine per-batch failures count as stalls — a benign run_cap
+        // stop DID make server-side progress (the anti-join shrinks the pairs)
+        // and simply resumes at the same cursor
+        if (++stalls >= 3) {
+          await opts.store.save(cp);
+          log(`${day}: no cursor progress after ${stalls} failing calls — leaving day incomplete`);
+          break daySweeps;
+        }
       }
       await opts.store.save(cp);
     }

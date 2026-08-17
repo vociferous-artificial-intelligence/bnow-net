@@ -61,6 +61,16 @@ import { TRACKS, type Track } from "./tracks";
  *  backfills 2026-07-04 forward; earlier corpus was cold-start telegram-only). */
 export const MAP_EPOCH = "2026-07-04";
 
+/** Thrown by the extractBatch keepalive when the lease is lost mid-batch:
+ *  stops the batch BEFORE its next reservation/dispatch. Never leaves this
+ *  module — runWorker catches it (the lost latch is already set). */
+export class MapLeaseLostError extends Error {
+  constructor() {
+    super("map-worker: lease lost mid-batch");
+    this.name = "MapLeaseLostError";
+  }
+}
+
 export function mapTheaters(): string[] {
   const raw = process.env.MAP_THEATERS ?? "ru,ua,ir";
   return raw
@@ -288,8 +298,9 @@ export async function runMapCycle(
     try {
       return await cycle(pool, theaters, docCap, opts, counts, lease.handle);
     } finally {
-      await lease.handle.release();
-      (counts.lease as Record<string, unknown>).released = 1;
+      // released reflects the ACTUAL outcome: a lost/stale token's release is
+      // a refused no-op and must not read as a clean handover
+      (counts.lease as Record<string, unknown>).released = (await lease.handle.release()) ? 1 : 0;
     }
   } finally {
     await pool.end();
@@ -605,7 +616,14 @@ async function cycle(
       if (i >= batches.length) return;
       const b = batches[i];
       try {
-        const perDoc = await extractBatch(openai, guard, dispatch!, b.track, b.theater, b.docs, stats);
+        // keepalive renews the lease at EVERY physical provider attempt (a
+        // 429's 65s sleep or a deep truncation split could otherwise outlive
+        // the TTL with no renewal); a lost lease stops the batch BEFORE its
+        // next reservation/dispatch
+        const keepalive = async () => {
+          if (!(await stillOwner())) throw new MapLeaseLostError();
+        };
+        const perDoc = await extractBatch(openai, guard, dispatch!, b.track, b.theater, b.docs, stats, keepalive);
         // the response is billed and metered above; ownership is re-verified
         // (full-TTL renew) before its results may touch map state — a lost
         // lease discards them and the docs stay eligible for the new holder
@@ -622,6 +640,7 @@ async function cycle(
           budgetStop.current = e;
           return;
         }
+        if (e instanceof MapLeaseLostError) return; // latch is set; stop quietly
         stats.batchErrors++;
         console.warn(
           `map ${b.theater}/${b.track} batch of ${b.docs.length}: ${e instanceof Error ? e.message : e}`,
@@ -634,15 +653,19 @@ async function cycle(
   );
 
   // 6. final disposition: mapped for all applicable tracks, or nothing
-  //    applicable. Gated on ownership like every other map write. Remap never
-  //    RESETS processed; setting true here is idempotent for its (already
-  //    processed) candidates and correct for a crashed pre-remap leftover.
+  //    applicable. Gated on ownership like every other map write. REMAP NEVER
+  //    WRITES processed: its candidates are either already processed=true
+  //    (idempotent no-op) or partially-dispositioned processed=false leftovers
+  //    whose REMAINING tracks still belong to the hourly worker — and a
+  //    --track-restricted run sees only the filtered track set, so marking
+  //    from it would falsely finalize docs with other applicable tracks
+  //    unmapped (spend/versioning review 1, MAJOR-1).
   const doneIds = [
     ...zeroTrackIds,
     ...[...pending.entries()].filter(([, t]) => t.size === 0).map(([id]) => id),
   ];
   let markedHere = 0;
-  if (doneIds.length > 0 && (await stillOwner())) {
+  if (!opts.remap && doneIds.length > 0 && (await stillOwner())) {
     await pool.query(`UPDATE raw_documents SET processed = true WHERE id = ANY($1)`, [doneIds]);
     markedHere = doneIds.length;
   }
@@ -673,6 +696,9 @@ function guardCounts(guard: SpendGuard) {
  *  half and retries each side (every billed call is metered first, including the
  *  discarded truncated one); a single doc that still truncates is skipped and
  *  stays unmapped. 429 sleeps out the TPM window once, like the digest provider.
+ *  `keepalive` (the lease renewal) runs before EVERY physical attempt —
+ *  initial, 429 retry, and each truncation-split recursion level — so a long
+ *  batch tree cannot silently outlive the lease TTL between renewals.
  *  Exported for the reservation/metering-cardinality unit tests only. */
 export async function extractBatch(
   openai: OpenAI,
@@ -682,8 +708,10 @@ export async function extractBatch(
   theater: string,
   docs: CandidateDoc[],
   stats: MapRunStats,
+  keepalive?: () => Promise<void>,
 ): Promise<Map<number, MapClaim[]>> {
-  const reserve = () => {
+  const reserve = async () => {
+    await keepalive?.();
     const r = guard.tryReserve();
     if (!r.ok) throw new LlmBudgetError(r.reason, r.code);
   };
@@ -719,14 +747,14 @@ export async function extractBatch(
       }),
     });
 
-  reserve();
+  await reserve();
   let completion;
   try {
     completion = await request();
   } catch (e) {
     if ((e as { status?: number }).status === 429) {
       await new Promise((r) => setTimeout(r, 65_000));
-      reserve();
+      await reserve();
       completion = await request();
     } else throw e;
   }
@@ -751,8 +779,8 @@ export async function extractBatch(
     }
     stats.truncationSplits++;
     const mid = Math.ceil(docs.length / 2);
-    const left = await extractBatch(openai, guard, dispatch, track, theater, docs.slice(0, mid), stats);
-    const right = await extractBatch(openai, guard, dispatch, track, theater, docs.slice(mid), stats);
+    const left = await extractBatch(openai, guard, dispatch, track, theater, docs.slice(0, mid), stats, keepalive);
+    const right = await extractBatch(openai, guard, dispatch, track, theater, docs.slice(mid), stats, keepalive);
     return new Map([...left, ...right]);
   }
   const raw = choice?.message?.content;

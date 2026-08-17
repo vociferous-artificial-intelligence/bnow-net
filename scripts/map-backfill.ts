@@ -121,6 +121,11 @@ export async function driveMapBackfill(opts: MapDriveOpts): Promise<MapDriveResu
   const call = opts.call ?? callMap;
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const runCap = opts.runCap ?? 400;
+  // a garbage --budget (NaN) would compare false against every spend total and
+  // silently disable both budget gates — fail closed instead
+  if (opts.apply && (!Number.isFinite(opts.budgetUsd) || opts.budgetUsd <= 0)) {
+    throw new Error(`--apply requires a finite positive --budget (got ${opts.budgetUsd})`);
+  }
   const theaterParam = opts.theater ? `&theater=${opts.theater}` : "";
   const days = utcDayRange(opts.from, opts.to ?? new Date().toISOString().slice(0, 10));
   if (days.length === 0) throw new Error(`empty day range ${opts.from}..${opts.to}`);

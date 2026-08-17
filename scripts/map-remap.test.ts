@@ -29,6 +29,7 @@ const dry = (counts: Record<string, number | string | undefined> = {}): MapCallR
     estUsd: 0,
     estModel: "gpt-4o-mini",
     estEffort: "",
+    maxSelectedId: 0, // remap-capable routes always echo the cursor
     ...counts,
   },
 });
@@ -186,6 +187,106 @@ describe("sweep-based completion proof", () => {
     }
     const { result } = await drive(script);
     expect(result.incompleteDays).toEqual(["2026-07-30"]);
+  });
+});
+
+describe("remediation guards (review 1)", () => {
+  it("a non-finite --budget fails CLOSED under --execute instead of disabling both gates", async () => {
+    await expect(drive([dry()], { budgetUsd: NaN })).rejects.toThrow(/finite positive/);
+    await expect(drive([dry()], { budgetUsd: 0 })).rejects.toThrow(/finite positive/);
+    // estimate-only mode is unaffected (no spend possible)
+    const { result } = await drive([dry()], { budgetUsd: NaN, execute: false });
+    expect(result.aborted).toBeUndefined();
+  });
+
+  it("aborts in phase 1 when the route does not speak remap mode (old deployed route)", async () => {
+    const backfillShaped: MapCallResult = {
+      ok: true,
+      category: null,
+      counts: { selected: 500, estUsd: 0.2 }, // no maxSelectedId/remapVersions
+    };
+    await expect(drive([backfillShaped])).rejects.toThrow(/does not support remap mode/);
+  });
+
+  it("a version bump invalidates the checkpoint's complete flags", async () => {
+    const store = memoryCheckpointStore();
+    // invocation 1 under version v1: the day completes
+    const v1 = { "military:ir": "gpt-4o-mini/v1" };
+    await drive(
+      [
+        dry({ selected: 2, docTrackPairs: 2, estUsd: 0.001, remapVersions: v1 as never }),
+        live({ selected: 2, docTrackPairs: 2, claims: 2, maxSelectedId: 9, estUsd: 0.001 }),
+        live({ selected: 0 }),
+        live({ selected: 2, docTrackPairs: 0, maxSelectedId: 9 }),
+        live({ selected: 0 }),
+      ],
+      { store },
+    );
+    // invocation 2 under version v2: the day must be RE-DRAINED, not skipped
+    const v2 = { "military:ir": "gpt-4o-mini/v2" };
+    const second = await drive(
+      [
+        dry({ selected: 2, docTrackPairs: 2, estUsd: 0.001, remapVersions: v2 as never }),
+        live({ selected: 2, docTrackPairs: 2, claims: 2, maxSelectedId: 9, estUsd: 0.001 }),
+        live({ selected: 0 }),
+        live({ selected: 2, docTrackPairs: 0, maxSelectedId: 9 }),
+        live({ selected: 0 }),
+      ],
+      { store },
+    );
+    expect(second.result.claims).toBe(2); // live calls actually ran again
+    expect(second.calls.filter((p) => !p.includes("dry=1"))).toHaveLength(4);
+  });
+
+  it("MAX_SWEEPS bounds one invocation; the next invocation gets a fresh allowance", async () => {
+    const store = memoryCheckpointStore();
+    const churn: Array<MapCallResult> = [dry({ selected: 5, docTrackPairs: 5, estUsd: 0.001 })];
+    for (let s = 0; s < MAX_SWEEPS + 1; s++) {
+      churn.push(live({ selected: 5, docTrackPairs: 5, claims: 1, maxSelectedId: 50, estUsd: 0.001 }));
+      churn.push(live({ selected: 0 }));
+    }
+    const first = await drive(churn, { store });
+    expect(first.result.incompleteDays).toEqual(["2026-07-30"]);
+    // second invocation: the day is retried (sweeps reset) and now completes
+    const second = await drive(
+      [
+        dry({ selected: 5, docTrackPairs: 0, estUsd: 0 }),
+        live({ selected: 5, docTrackPairs: 0, maxSelectedId: 50 }),
+        live({ selected: 0 }),
+      ],
+      { store },
+    );
+    expect(second.result.incompleteDays).toEqual([]);
+    expect(second.calls.filter((p) => !p.includes("dry=1")).length).toBeGreaterThan(0);
+  });
+
+  it("a checkpoint already over budget aborts BEFORE any live call", async () => {
+    const store = memoryCheckpointStore();
+    const first = await drive([
+      dry({ estUsd: 0.5, selected: 100, docTrackPairs: 100 }),
+      live({ selected: 100, docTrackPairs: 100, claims: 3, maxSelectedId: 300, estUsd: 6 }),
+    ], { store });
+    expect(first.result.aborted).toContain("exceeded budget");
+    const second = await drive([dry({ estUsd: 0.1, selected: 10, docTrackPairs: 10 })], { store });
+    expect(second.result.aborted).toContain("already exceeds budget");
+    expect(second.calls.filter((p) => !p.includes("dry=1"))).toHaveLength(0);
+  });
+
+  it("benign run_cap stops never count as stalls — the day still drains", async () => {
+    const { result } = await drive([
+      dry({ selected: 30, docTrackPairs: 30, estUsd: 0.01 }),
+      stopped("run_cap", { maxSelectedId: 100, claims: 3 }),
+      stopped("run_cap", { maxSelectedId: 100, claims: 3 }),
+      stopped("run_cap", { maxSelectedId: 100, claims: 3 }),
+      stopped("run_cap", { maxSelectedId: 100, claims: 3 }),
+      live({ selected: 30, docTrackPairs: 0, maxSelectedId: 100 }),
+      live({ selected: 0 }),
+      live({ selected: 30, docTrackPairs: 0, maxSelectedId: 100 }),
+      live({ selected: 0 }),
+    ]);
+    expect(result.aborted).toBeUndefined();
+    expect(result.incompleteDays).toEqual([]);
+    expect(result.claims).toBe(12);
   });
 });
 

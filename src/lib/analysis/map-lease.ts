@@ -15,12 +15,14 @@
 //   success, and takeover happens ONLY after proven expiry (compare-and-set
 //   against DB now() — no wall-clock skew between holders).
 // - The holder is identified by an unguessable random TOKEN (crypto UUID),
-//   the sole authorization for renew/release. The human-readable `owner`
-//   string is diagnostics only and authorizes nothing.
+//   the sole authorization for renew/release — tokens are never reused, so a
+//   release-and-reacquire by anyone else invalidates every stale handle (the
+//   actual ABA protection).
 // - Every acquisition (fresh, sequential, or expiry takeover) increments a
 //   monotonic FENCE counter that survives release — a later holder always
-//   carries a strictly larger fence than any earlier one, so log lines and
-//   state rows are totally ordered even across crashes.
+//   carries a strictly larger fence than any earlier one. The fence orders
+//   diagnostics/log lines across crashes; no data write checks it (writes are
+//   gated by the token via the ownership re-check, not by a fence column).
 // - RENEW is token-checked and resets the FULL TTL. Two current owners are
 //   impossible: renew succeeds only while this token is still the row's token,
 //   and a takeover atomically replaces the token, after which the old holder's
@@ -35,9 +37,14 @@
 //
 // Expiry is bounded against the map route's lifetime: the TTL (default 120s)
 // is far below the route's maxDuration (800s), and the worker renews at every
-// batch boundary and immediately before every write, so a live holder never
-// expires while an abandoned one (crash, timeout) is recoverable within one
-// TTL — well inside the hourly cron gap.
+// physical provider attempt and immediately before every write, so an
+// abandoned holder (crash, timeout) is recoverable within one TTL — well
+// inside the hourly cron gap. A HEALTHY holder can still expire while a
+// single physical call outlives the TTL (the SDK's own request timeout is
+// longer): the takeover is then legitimate, the stale holder's next
+// renew/ownership check fails and it discards its unpersisted work (already
+// metered), and the worst case is bounded duplicate BILLING of in-flight
+// batches — never a second writer (writes are token-gated).
 
 import { randomUUID } from "node:crypto";
 import { envNum } from "../usage/spend-guard";
@@ -184,8 +191,9 @@ export interface MapLeaseHandle {
   /** Full-TTL extension. false = lost to a takeover: make no further map
    *  writes and no further paid dispatches. */
   renew(): Promise<boolean>;
-  /** Token-checked, never throws — safe (and expected) in a finally block. */
-  release(): Promise<void>;
+  /** Token-checked, never throws — safe (and expected) in a finally block.
+   *  false = the release was refused (stale token) or failed. */
+  release(): Promise<boolean>;
 }
 
 export interface MapLeaseAcquireResult {
@@ -225,11 +233,12 @@ export async function acquireMapLease(
         renew: () => driver.renew(token, ttlMs),
         release: async () => {
           try {
-            await driver.release(token);
+            return await driver.release(token);
           } catch (e) {
             console.warn(
               `map-lease: release failed (lease expires on its own): ${e instanceof Error ? e.message : e}`,
             );
+            return false;
           }
         },
       },

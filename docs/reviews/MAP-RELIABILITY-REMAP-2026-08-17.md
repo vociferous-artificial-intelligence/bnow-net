@@ -48,9 +48,10 @@ holder's wall clock participates in expiry.
                                now return false — the old holder has LOST
 ```
 
-Outcomes are recorded (numerically) in `cron_runs.counts.lease`:
-`outcome` (acquired / expired_takeover / busy / error), `fence`, `renewals`,
-`lost`, `released`.
+Outcomes are recorded in `cron_runs.counts.lease`: `outcome` (a label:
+acquired / expired_takeover / busy / error) plus numeric `fence`, `renewals`,
+`lost`, `released` — `released` reflects the ACTUAL release result (a stale
+token's refused release records 0).
 
 ### Atomicity argument (the exact SQL)
 
@@ -70,25 +71,43 @@ Outcomes are recorded (numerically) in `cron_runs.counts.lease`:
 - **Release** is `UPDATE ... WHERE token = $mine` that clears
   owner/token/expiresAt but PRESERVES fence. A stale holder's release is a
   refused no-op.
-- **ABA/fencing:** a token is never reused (UUID per acquisition attempt) and
-  the fence strictly increases across acquisitions, so a delayed message from
-  an older holder can never masquerade as the current one.
+- **ABA:** a token is never reused (UUID per acquisition attempt), so a
+  release-and-reacquire by anyone else invalidates every stale handle — the
+  token IS the ABA protection. The monotonic fence orders diagnostics/log
+  lines across crashes; no data write checks it (writes are gated by the
+  token via the ownership re-check, not by a fence column).
 
 ### Where the lease gates the worker
 
 `runMapCycle` acquires BEFORE any SpendGuard reservation, client
 construction, or dispatch (`busy`/driver-`error` both return `skipped` with
 zero paid calls and zero writes). During the run, ownership is re-verified —
-a full-TTL renew — at every batch boundary and IMMEDIATELY BEFORE every map
-write (the mirror/doc_dedup transaction, each `persistBatch` transaction, and
-the final `processed=true` update). After a successful renew there are always
-`ttl` (default 120s) of ownership ahead, and each write is one short
-transaction (a batch is ≤25 docs; observed batch persists are sub-second), so
-a takeover — which requires PROVEN expiry — cannot begin until long after the
-write commits. The residual window is therefore `ttl − write duration > 118s`
-of margin, not a race; the append-only unique keys
-(`doc_claims(doc,track,version,ordinal)` + `doc_map_state` PK, both
-`ON CONFLICT DO NOTHING`) remain as defense in depth, not as the lease.
+a full-TTL renew — at EVERY PHYSICAL PROVIDER ATTEMPT (the `extractBatch`
+keepalive: initial call, 429 retry after its 65s sleep, each truncation-split
+level) and IMMEDIATELY BEFORE every map write (the mirror/doc_dedup
+transaction, each `persistBatch` transaction, and the final `processed=true`
+update). After a successful renew there are `ttl` (default 120s) of ownership
+ahead, and each write is one short transaction (a batch is ≤25 docs; observed
+batch persists are sub-second), so a takeover — which requires PROVEN expiry
+— ordinarily cannot begin until long after the write commits.
+
+**Residual windows, stated honestly (concurrency review 1, MINORs 1–2):**
+(a) a single physical HTTP call can outlive the TTL (the SDK's own request
+timeout is longer than 120s); the takeover is then legitimate, the stale
+holder's next keepalive/ownership check fails and it discards its unpersisted
+work — already metered — so the worst case is bounded duplicate BILLING of
+in-flight batches (≤ concurrency), never a second writer under normal
+operation. (b) The renew-before-write gate is not atomic with the write: a
+pathological ≥TTL stall BETWEEN the renew executing on the DB and the write
+transaction committing would let a superseded holder commit after a takeover.
+The unique keys (`doc_claims(doc,track,version,ordinal)` + `doc_map_state`
+PK, `ON CONFLICT DO NOTHING`) then prevent duplicates but not a
+mixed-generation claim set for that one (doc, track, version) — first-writer-
+wins per ordinal, with `doc_map_state.claim_count` from the first writer.
+This requires a single-statement stall longer than the full TTL (≥120s) at
+exactly the wrong instant; it is documented as the accepted residual rather
+than papered over — eliminating it outright needs a fence column on the map
+tables (a schema change deliberately out of this program's scope).
 
 **Lost-lease money rule (ruling 8):** `extractBatch` meters every billed
 response to `provider_usage` immediately after the response and BEFORE
@@ -134,7 +153,12 @@ historical. Remap mode (`runMapCycle({ remap: true, ... })`, route param
   of re-selected forever; the run reports `maxSelectedId` back to the driver.
 - `--track` restricts applicability to one track.
 
-Remap NEVER resets `processed`, never deletes `doc_claims`, never mutates
+Remap NEVER WRITES `processed` at all (review-1 remediation): its candidates
+are either already `processed = true` (nothing to write) or partially-
+dispositioned `processed = false` leftovers whose remaining tracks still
+belong to the hourly worker — and a `--track`-restricted run sees only the
+filtered track set, so marking from it would falsely finalize docs with other
+applicable tracks unmapped. It never deletes `doc_claims` and never mutates
 historical versions: old rows are append-only history and the rollback
 (reverting the version restores them to every `map-versions.ts` consumer —
 proven by the itest asserting the superseded rows survive a remap intact).
@@ -183,8 +207,15 @@ api.openai.com; bulk LLM work runs on Vercel). Contract:
   itself (completed pairs are never re-dispatched — integration-proven by the
   zero-pair rerun). The local checkpoint file
   (`data/remap-state/<key>.json`, gitignored) only avoids re-SCANNING and
-  lets an interrupted run resume mid-day; `--limit` bounds attempted pairs
-  per invocation.
+  lets an interrupted run resume mid-day; its `complete` flags carry a digest
+  of the extractor versions they were proven under, and ANY version change
+  resets the day states so the checkpoint can never outrank `doc_map_state`
+  (review-1 remediation); `--limit` bounds attempted pairs per invocation.
+- **Capability handshake:** the driver refuses to run against a route that
+  does not speak remap mode (a remap-capable route always echoes
+  `maxSelectedId`, empty days included) — pointing the tool at an old
+  deployment can neither spend on the wrong selection nor checkpoint remap
+  days "complete" (review-1 remediation).
 - **Completion summary** prints pairs/claims/spend modelled-vs-actual and the
   append-only rollback note.
 
@@ -231,7 +262,7 @@ api.openai.com; bulk LLM work runs on Vercel). Contract:
 | `npx vitest run` (4 new/updated unit files) | 47/47 |
 | `npm run typecheck` | clean |
 | `npm run lint` | clean (0 errors, 0 warnings) |
-| `npm test` | **2,224 passed / 2,224** (176 files; base was 2,187/171) |
+| `npm test` | **2,232 passed / 2,232** (174 files; base was 2,187/171) — re-run on the remediated tree |
 | `npm run test:integration -- map-lease map-remap map-budget-stop` (disposable Neon fork, created+deleted; paid keys blanked; OpenAI client mocked in the remap itest) | **12/12** |
 | full `npm run test:integration` | run at commit time — see §7 |
 
@@ -244,3 +275,45 @@ made, no production row was written, no environment variable was changed, and
 the map activation lock is exactly as the routing branch shipped it. Running
 the remap for real remains a separately authorized operator action (estimate
 first; `--execute --budget` after review).
+
+## 8. Adversarial reviews and remediation (2026-08-17)
+
+Two fresh, isolated, read-only reviewers examined the full `05fdd2c..95d0a37`
+diff in parallel. Both returned **FAIL** on the initial tree — the lease core
+(CAS atomicity, renew/takeover ordering, DB-time expiry, pooled-connection
+posture, dry-run purity, metering discipline) withstood every attack both
+constructed, and every FAIL driver was in the remap semantic layer. All
+findings and dispositions:
+
+| # | Reviewer | Severity | Finding | Disposition |
+|---|---|---|---|---|
+| 1 | both (+author self-review, independently) | MAJOR | A `--track`-restricted remap marks partially-dispositioned `processed=false` leftovers `processed=true`, silently starving their other applicable tracks (ruling 13) | **FIXED**: remap mode never writes `processed` at all (step 6 skipped under `opts.remap`); new itest proves a partial leftover keeps `processed=false` with its military pair current-mapped |
+| 2 | spend | MAJOR | `--budget <garbage>` → NaN disables BOTH driver budget gates (every comparison false) | **FIXED**: `driveMapRemap` fails closed on a non-finite/non-positive budget under `--execute`; same guard added to `driveMapBackfill` under `--apply` (the pre-existing precedent hole); unit tests pin both NaN and 0 |
+| 3 | spend | MAJOR | No route-capability handshake: against an old deployed route the driver silently runs BACKFILL selection and checkpoints remap days "complete" | **FIXED**: phase 1 aborts when a dry response carries no `maxSelectedId` (a remap-capable route always echoes it, empty days included); live responses re-checked as defense; unit tests pin the abort |
+| 4 | concurrency (MAJOR) / spend (MINOR) | — | Checkpoint `complete` flags are extractor-version-blind: rerunning after the next version bump silently no-ops | **FIXED**: the checkpoint stores a digest of the versions its flags were proven under; any change resets the day states (doc_map_state remains the no-rebill authority); unit test proves a v1-complete day re-drains under v2 |
+| 5 | both | MINOR | Renew cadence: a 429 sleep or truncation-split tree could outlive the TTL with zero renewals → legitimate takeover + duplicate billing of in-flight work; report claimed "a live holder never expires" | **FIXED + REWORDED**: `extractBatch` takes a keepalive invoked before EVERY physical attempt (fresh-reservation point), so renewals track the batch tree; the report and module header now state the honest residual — a single HTTP call longer than the TTL can still expire the holder, bounded to duplicate billing, never a second writer |
+| 6 | concurrency | MINOR | Renew-before-write not atomic with the write: a ≥TTL single-statement stall can produce a mixed-generation claim set; "defense in depth" overstated | **DOCUMENTED** (§2 residual b): requires a ≥120s stall at exactly the wrong instant; the complete fix is a fence column on the map tables — a schema change out of this program's scope, recorded as the accepted residual |
+| 7 | both | MINOR | 3 consecutive benign `run_cap` stops at one cursor aborted the day as a stall despite genuine server-side progress | **FIXED**: only batch-error/lease-lost calls count toward the stall bound; run_cap loops at the same cursor (the anti-join shrinks the remaining pairs); unit test proves 4 consecutive run_cap calls still drain the day |
+| 8 | spend | MINOR | MAX_SWEEPS left a permanent checkpoint dead-end ("later invocation" could never happen) | **FIXED**: sweep allowance resets per invocation; unit test proves the day retries and completes on the next run |
+| 9 | spend | MINOR | `counts.lease.released = 1` recorded even for a refused release | **FIXED**: `MapLeaseHandle.release()` returns the actual outcome; counts record 0 on a refused/failed release |
+| 10 | spend | MINOR | Resuming an already-over-budget checkpoint bought one more live call per invocation | **FIXED**: pre-flight budget check before phase 2; unit test proves zero live calls |
+| 11 | concurrency | NOTE | Fence is write-inert — "fencing" framing overstated | **REWORDED** (§2): the token is the ABA protection; the fence orders diagnostics only |
+| 12 | concurrency | NOTE | itest renew assertion (`toBeGreaterThanOrEqual`) would pass a no-op | **FIXED**: renew now uses a 300s TTL against a 60s grant and asserts a >120s delta — a no-op jsonb_set fails it |
+| 13 | concurrency | NOTE | Stuck-lease observability: busy skips record ok=true; detection is via map-health staleness (≤2 days) + TTL self-heal (≤600s) | **RECORDED as designed**: strictly better than the advisory-lock strand (bounded self-heal vs indefinite); steady runs still evaluate map-health even when skipped |
+| 14 | concurrency | NOTE | Corrupt-state edges (`{}` state resets fence to 1; garbage `expiresAt` makes the row unclaimable until manual repair) | **RECORDED**: no code path in this tree writes either shape to `map_lease` |
+| 15 | both | NOTE | Dry estimate passes `cap=20000` with no route-side clamp; >20K-doc days under-estimate | **RECORDED**: same shape as the shipped backfill precedent; day corpora are an order of magnitude smaller |
+| 16 | spend | NOTE | `SpendGuard.record()` failure after a billed response leaves it out of provider_usage | **RECORDED**: pre-existing store behavior, unchanged by this diff |
+| 17 | spend | NOTE | A dry estimate under a non-baseline `MAP_MODEL` prices a model the activation lock will refuse at execution | **RECORDED**: execution fails loudly with zero spend; operator-confusion only |
+
+### Gates re-run on the remediated tree
+
+| Command | Result |
+|---|---|
+| `git diff --check` | clean |
+| `npm run typecheck` | clean |
+| `npm run lint` | clean (0 errors, 0 warnings) |
+| `npm test` | **2,232 passed / 2,232** (174 files) |
+| `npm run test:integration -- map-lease map-remap map-budget-stop` (disposable Neon fork) | all green, including the new never-writes-processed case |
+
+Both reviewers received the remediation diff for a focused re-review; their
+verdicts on the remediated tree are recorded below when returned.
