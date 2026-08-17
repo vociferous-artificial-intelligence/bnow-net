@@ -45,7 +45,7 @@ Explicitly NOT done by this program, by mandate:
 | Worktree C merge into integration | `fa81c1b` | clean (no conflicts) |
 | Cross-worktree reconciliation (C recency probe -> A canonical calculator) | `ba35082` | flagged by C's report; 3 fixture pins re-derived under canonical percentiles, case ids bumped per the immutability contract |
 | Worktree D reviewed design | `2d91c19`..`a730d73` | design -> review FAIL (4 MAJORs) -> remediation -> re-review PASS-WITH-MINORS -> minors folded |
-| **Final integration tip** | recorded in §12 beside the final review verdicts | docs-only commits after the reviewed SHA record the verdicts themselves |
+| **Final reviewed SHA (both final verdicts apply to exactly this commit)** | `e5757ea` | full gates green at this SHA; commits after it are docs-only dispositions (this verdict record, the AGENTS.md entry relocation, `.env.example` eval-var docs) — `git diff e5757ea..HEAD -- ':!*.md' ':!.env.example'` is empty |
 
 ## 3. Worktree/branch map and local merge order
 
@@ -266,8 +266,8 @@ exact base/tip SHAs. Full findings text lives in the per-workstream reports.
 | C eval-science | fresh reviewer | PASS-WITH-MINORS (3 MAJORs: heldout gate blind to results; unaligned pairwise populations; identity-relabeling resume — all forward-looking gate-integrity holes; committed artifacts verified honest, arithmetic recomputed exact, gates provably preset) | `0c42880` (completeness/scope/datasetContentHash gates, aligned heldout-only pairwise, resume identity refusal) + `ce3c985` (converged minors) | **PASS-WITH-MINORS** on `0c42880`; converged minors then applied verbatim |
 | C paid-call/safety | fresh reviewer | PASS-WITH-MINORS (same completeness MAJOR independently; scan-coverage + env-knob MINORs; zero-contact/caps/retries/containment all proven clean) | same | **PASS-WITH-MINORS** on `0c42880`; converged minors then applied verbatim |
 | D design gate | fresh design reviewer | FAIL (4 MAJORs: export-content rules, honor-system append-only, supersession schema holes, subject-identity underspecification) | `ebb644c` + `a730d73` | **PASS-WITH-MINORS** on `ebb644c`; both new MINORs + NOTEs folded in |
-| Final safety/operations | (recorded below when returned) | | | |
-| Final quality/science | (recorded below when returned) | | | |
+| Final safety/operations | fresh reviewer, no authoring context | **PASS-WITH-MINORS on `e5757ea`** — no BLOCKER, no MAJOR; 1 docs-only MINOR (the report's forward-reference to these verdicts, resolved by this record); 5 NOTEs (duplicated track allowlist fails closed; remap-vs-hourly mirror edge already funnel-warned; processedMarked definition honestly narrowed; lease-error observability = documented residual; transitive SDK module load is construction-gated). Also constructed and RULED OUT a MAJOR-grade attack: the eager `@/db` env binding vs the eval CLI's DATABASE_URL overwrite is safe because every reachable `@/db` reference is a memoized lazy import first executed after the overwrite — flagged as an untested one-refactor-away invariant (residual below) | none required | n/a |
+| Final quality/science | fresh reviewer, no authoring context | **PASS-WITH-MINORS on `e5757ea`** — no BLOCKER, no MAJOR; 4 MINORs: misfiled AGENTS.md decision-log entry (FIXED in this disposition commit — moved into the Decision log section); report-time prompt/schema/extractor identity staleness (adjudicated to residuals); no preset MIN_REPETITIONS + full-`--fresh` re-roll opacity (adjudicated to residuals); thin heldout mustNotMatch coverage on map (adjudicated to residuals). 5 NOTEs incl. the funnel "will NEVER map" label overstatement (follow-up wording nit; code untouched post-review) and missing eval env-var docs (FIXED here in `.env.example`). Independently re-derived every recency fixture pin (exact), reproduced the merge graph and test arithmetic, and re-ran the unit suite at the tip: 2,402/2,402 | AGENTS.md relocation + `.env.example` eval vars (docs-only) | n/a |
 
 The `--track`/processed defect was independently found three times (author
 self-review + both B reviewers) before any execution existed — the gate
@@ -291,7 +291,19 @@ worked as designed.
   inherently unverifiable (standard eval caveat); the `--allow-heldout-rerun`
   escape is operator-deliberate and surfaced by run-provenance rows; gist
   matching stays recall-oriented (location-precision distinctions ride
-  mustNotMatch patterns).
+  mustNotMatch patterns). ADDED BY THE FINAL REVIEWS (same close-before-
+  binding-eval list): `--report` should also recompute promptHash/schema/
+  extractor/envKnobs identity against the current tree (dataset hash is
+  checked; the rest is printed but not gated); a preset MIN_REPETITIONS
+  constant in gates.ts (a stochastic candidate at requestedRepetitions=1 can
+  currently pass) plus full-`--fresh` re-roll visibility; heldout map cases
+  need mustNotMatch fidelity pins (today the gist-leniency compensator sits
+  on one development case); a regression test pinning that every `@/db`
+  reference reachable from the eval CLI stays a lazy import executed after
+  the EVAL_DATABASE_URL overwrite (safe today by inspection; one refactor
+  away from a production-ledger write); the funnel's "will NEVER map"
+  notApplicable label should say "will not map absent a lexicon change +
+  remap".
 - Deployment prerequisites: the remap operator REQUIRES the remap-capable
   route deployed before any execution (the handshake enforces it); lease
   cutover needs no migration and no env (optional `MAP_LEASE_TTL_SEC`);

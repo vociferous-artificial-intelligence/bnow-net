@@ -560,6 +560,41 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   override pair is the sanctioned bounded-recovery mechanism; branch is PR-only — `main`
   not pushed. Report: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
 
+- **2026-08-17 (quality-foundation program — branch only; merge awaits operator review)**
+  Operator-authorized unattended program (prompt:
+  `docs/prompts/2026-08-17-quality-foundation-fable-ultracode.md`) built the
+  measurement/reliability foundation for model routing on the LOCAL-ONLY branch
+  `codex/quality-foundation-integration-20260817` (base = origin/main `9c5e9cb`
+  + the reviewed routing tip `0e469f7`, merged locally as `05fdd2c`; routing PR
+  #5 itself remains unmerged and undeployed). Delivered, each behind its own
+  fresh adversarial review gate with remediation and focused re-review:
+  (A) evidence-recency stats persisted additively at the shared post-guard
+  persist boundary (`structured.stats.evidenceRecency`, both engines, honest
+  per-engine asOf; INTERNAL/UNCALIBRATED — no public score) + a read-only
+  source-to-publication funnel (`scripts/quality-funnel-report.ts`);
+  (B) a durable provider_state map LEASE (`map_lease`: token + monotonic fence
+  + DB-time expiry CAS) replacing the pooler-strandable session advisory lock
+  (#77), plus the version-aware, dry-run-first, resumable remap operator
+  (`scripts/map-remap.ts`, #33) — remap NEVER writes `processed`, superseded
+  rows stay append-only, and the MAP ACTIVATION LOCK IS NOT RELAXED;
+  (C) a repository-owned analysis-eval control plane (`src/lib/evals/`,
+  `scripts/analysis-eval.ts`; 56 hand-authored fictional-person cases across
+  map/reduce/digest/validation with dev/heldout splits; results-side
+  completeness + aligned-pairwise + resume-identity gates; live mode
+  implemented but NEVER executed — $0 proven; `openai_eval` guard fails closed
+  everywhere; the registry bypass for evaluation candidates is
+  isolation-scanned out of every production path);
+  (D) delivered as a REVIEWED DESIGN only (`docs/designs/HUMAN-ADJUDICATION.md`).
+  Binding on that branch until superseded: remap-mode cycles never write
+  `raw_documents.processed`; a candidate scorecard can verdict pass ONLY from a
+  scope-full, completeness-checked, identity-stable results file against an
+  equally complete hash-matched baseline. Zero paid calls, zero production
+  writes, no deploy, no push, no migration (numbered-migration decisions defer
+  to the operator-selected integration base). Full record incl. final gates
+  and the two final independent reviews:
+  `docs/reviews/QUALITY-FOUNDATION-INTEGRATION-2026-08-17.md`.
+
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).
@@ -622,37 +657,3 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
    additivity). Every deviation → decision log.
 7. End of each stage/sprint: write `docs/reviews/<NAME>.md` (built, test results,
    exit-criteria pass/fail with numbers, decisions, debt, risks, replan).
-
-- **2026-08-17 (quality-foundation program — branch only; merge awaits operator review)**
-  Operator-authorized unattended program (prompt:
-  `docs/prompts/2026-08-17-quality-foundation-fable-ultracode.md`) built the
-  measurement/reliability foundation for model routing on the LOCAL-ONLY branch
-  `codex/quality-foundation-integration-20260817` (base = origin/main `9c5e9cb`
-  + the reviewed routing tip `0e469f7`, merged locally as `05fdd2c`; routing PR
-  #5 itself remains unmerged and undeployed). Delivered, each behind its own
-  fresh adversarial review gate with remediation and focused re-review:
-  (A) evidence-recency stats persisted additively at the shared post-guard
-  persist boundary (`structured.stats.evidenceRecency`, both engines, honest
-  per-engine asOf; INTERNAL/UNCALIBRATED — no public score) + a read-only
-  source-to-publication funnel (`scripts/quality-funnel-report.ts`);
-  (B) a durable provider_state map LEASE (`map_lease`: token + monotonic fence
-  + DB-time expiry CAS) replacing the pooler-strandable session advisory lock
-  (#77), plus the version-aware, dry-run-first, resumable remap operator
-  (`scripts/map-remap.ts`, #33) — remap NEVER writes `processed`, superseded
-  rows stay append-only, and the MAP ACTIVATION LOCK IS NOT RELAXED;
-  (C) a repository-owned analysis-eval control plane (`src/lib/evals/`,
-  `scripts/analysis-eval.ts`; 56 hand-authored fictional-person cases across
-  map/reduce/digest/validation with dev/heldout splits; results-side
-  completeness + aligned-pairwise + resume-identity gates; live mode
-  implemented but NEVER executed — $0 proven; `openai_eval` guard fails closed
-  everywhere; the registry bypass for evaluation candidates is
-  isolation-scanned out of every production path);
-  (D) delivered as a REVIEWED DESIGN only (`docs/designs/HUMAN-ADJUDICATION.md`).
-  Binding on that branch until superseded: remap-mode cycles never write
-  `raw_documents.processed`; a candidate scorecard can verdict pass ONLY from a
-  scope-full, completeness-checked, identity-stable results file against an
-  equally complete hash-matched baseline. Zero paid calls, zero production
-  writes, no deploy, no push, no migration (numbered-migration decisions defer
-  to the operator-selected integration base). Full record incl. final gates
-  and the two final independent reviews:
-  `docs/reviews/QUALITY-FOUNDATION-INTEGRATION-2026-08-17.md`.
