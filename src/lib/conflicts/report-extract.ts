@@ -120,8 +120,34 @@ const MONTH_NAMES = [
 // label: "data cutoff" / "data cut-off", joined to its time by ":", "at" or
 // "as of"; tags/entities/whitespace may sit between label and time
 const CUTOFF_LABEL_RE = /data\s+cut-?off\s*(?::|\bat\b|\bas\s+of\b)/gi;
-// a reference to an EARLIER report's cutoff, not this report's declaration
-const PRIOR_REFERENCE_RE = /(?:last|previous|prior)\s*$/i;
+
+// a reference to an EARLIER report's cutoff ("since ISW-CTP's last data
+// cutoff…"), not this report's own declaration. The guard runs over
+// TAG-STRIPPED, entity-collapsed text so markup between the qualifier and
+// the label ("the last <em>data cutoff…", "the <em>last</em> data cutoff…")
+// cannot defeat it, and it is WORD-based over the preceding few words so an
+// intervening word ("the previous ISW-CTP data cutoff") still excludes. A
+// prior reference slipping PAST the guard is the dangerous direction: it
+// reads as a second, disagreeing declaration → `conflicting` → the window
+// ladder falls a rung — systematic window WIDENING.
+const PRIOR_REFERENCE_WORDS = new Set(["last", "previous", "prior"]);
+const PRIOR_REFERENCE_WORD_WINDOW = 5;
+// raw chars comfortably holding the word window plus interleaved markup
+const PRIOR_REFERENCE_SCAN_CHARS = 160;
+
+function isPriorReference(html: string, labelIdx: number): boolean {
+  const words = html
+    .slice(Math.max(0, labelIdx - PRIOR_REFERENCE_SCAN_CHARS), labelIdx)
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&[a-z]+;|&#x?[0-9a-f]+;/gi, " ")
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length > 0)
+    .slice(-PRIOR_REFERENCE_WORD_WINDOW);
+  return words.some((w) =>
+    PRIOR_REFERENCE_WORDS.has(w.replace(/^[^a-z]+/, "").replace(/[^a-z]+$/, "")),
+  );
+}
 const SKIP_RE = /^(?:\s|<[^>]*>|&nbsp;|&#160;)+/;
 const TIME_RE = /^(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?\s*ET\b/i;
 const EXPLICIT_DATE_RE = /^(?:\s|<[^>]*>|&nbsp;|&#160;)*on\s+([a-z]+)\s+(\d{1,2})(?:\s*,\s*(\d{4}))?/i;
@@ -178,8 +204,7 @@ export function extractDeclaredCutoff(html: string, reportDate: string): CutoffE
 
   for (const label of html.matchAll(CUTOFF_LABEL_RE)) {
     const idx = label.index ?? 0;
-    const before = html.slice(Math.max(0, idx - 16), idx);
-    if (PRIOR_REFERENCE_RE.test(before)) continue; // reference to an earlier report
+    if (isPriorReference(html, idx)) continue; // reference to an earlier report
     sawDeclaration = true;
 
     let rest = html.slice(idx + label[0].length);

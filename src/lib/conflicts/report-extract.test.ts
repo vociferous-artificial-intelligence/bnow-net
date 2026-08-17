@@ -108,6 +108,28 @@ describe("extractDeclaredCutoff", () => {
     expect(r.cutoffAt).toBe("2026-07-24T18:00:00.000Z");
   });
 
+  it("markup or an intervening word cannot defeat the prior-reference guard", () => {
+    // Gate-2 probes: the em-wrapped forms and the intervening-word phrase
+    // slipped past the raw adjacent-16-char guard and turned the page into a
+    // spurious conflict — a systematic window-WIDENING rung fall
+    for (const priorRef of [
+      "<li>counted since the last <em>data cutoff at 2:00 PM ET</em> on July 23.</li>",
+      "<li>counted since the <em>last</em> data cutoff at 2:00 PM ET on July 23.</li>",
+      "<li>counted since the previous ISW-CTP data cutoff at 2:00 PM ET on July 23.</li>",
+    ]) {
+      // the reference alone is never read as a declaration
+      expect(extractDeclaredCutoff(priorRef, "2026-07-24")).toMatchObject({
+        outcome: "absent",
+        cutoffAt: null,
+      });
+      // beside a genuine declaration with a DIFFERENT instant: parsed
+      // cleanly, no spurious conflict
+      const r = extractDeclaredCutoff(`<p>Data Cutoff: 12:15 PM ET</p>${priorRef}`, "2026-07-24");
+      expect(r.outcome).toBe("parsed");
+      expect(r.cutoffAt).toBe("2026-07-24T16:15:00.000Z");
+    }
+  });
+
   it("honors an explicit declared date within the 7-day lookback", () => {
     const r = extractDeclaredCutoff("<p>Data Cutoff: 2:00 PM ET on July 23</p>", "2026-07-24");
     expect(r.outcome).toBe("parsed");
