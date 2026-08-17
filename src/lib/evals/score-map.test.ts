@@ -104,18 +104,26 @@ describe("scoreMapCase", () => {
     expect(checks.pass).toBe(false);
   });
 
-  it("treats a truncated response as discarded content, never scored", () => {
+  it("treats a truncated response as discarded content, never scored — and never flattering (NEW-3)", () => {
     const checks = scoreMapCase(mapCase({}), GOOD_OUTPUT, true);
     expect(checks.truncated).toBe(true);
     expect(checks.pass).toBe(false);
     expect(checks.schemaValid).toBe(false);
     expect(checks.failures[0]).toContain("truncated");
+    // m7 semantics on the early return: gold existed, nothing usable produced
+    expect(checks.precision).toBe(0);
+    expect(checks.recall).toBe(0);
+    // vacuous case: nothing expected -> the empty outcome stays perfect
+    const quiet = scoreMapCase(mapCase({ reference: { expected: [{ docId: 1, claims: [] }] } }), GOOD_OUTPUT, true);
+    expect(quiet.precision).toBe(1);
+    expect(quiet.recall).toBe(1);
   });
 
-  it("flags unparseable output as schema-invalid", () => {
+  it("flags unparseable output as schema-invalid with non-flattering precision (NEW-3)", () => {
     const checks = scoreMapCase(mapCase({}), "not json {{{");
     expect(checks.schemaValid).toBe(false);
     expect(checks.pass).toBe(false);
+    expect(checks.precision).toBe(0);
   });
 
   it("counts a strengthened hedge separately (ruling 16)", () => {
