@@ -81,7 +81,7 @@ describe("validateAnalysisEvalDataset", () => {
 
   it("rejects recency docs without an asOf instant (and vice versa)", () => {
     const ds = loadDataset("reduce");
-    const withRecency = ds.cases.find((c) => c.id === "red-rec-001-recency-population")!;
+    const withRecency = ds.cases.find((c) => c.id === "red-rec-001-recency-population-canon")!;
     const broken = JSON.parse(JSON.stringify(withRecency)) as typeof withRecency;
     delete (broken.input as { recencyAsOf?: string }).recencyAsOf;
     const errs = validateAnalysisEvalDataset(

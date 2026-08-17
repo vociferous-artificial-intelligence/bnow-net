@@ -470,3 +470,19 @@ These refinements were likewise applied while no candidate result exists.
   (the failure lands as fidelity instead of precision), and such an
   over-extraction independently fails precision against the single-claim
   gold, so no verdict can change. No code change.
+
+## Integration reconciliation (2026-08-17, integration branch)
+
+The evidence-recency probe was swapped to the CANONICAL calculator exactly as
+this report's integrator note specified: `src/lib/evals/evidence-recency-summary.ts`
+is now a thin adapter over `src/lib/analysis/evidence-recency.ts`
+(Worktree A), keeping only the eval-side explicit-timezone fixture guard
+(zone-less strings are machine-local under JS Date semantics; production
+feeds driver values and never hits it). The hand-computed pins caught the
+predicted drift: the canonical percentile is linear interpolation (the local
+mirror used nearest-rank p90) and the canonical skew rules clamp within-skew
+future/negative values. Three pins moved (red-rec-001 p90 age 72 -> 57.6,
+p90 lag 8 -> 6.7; red-rec-002 p90 age 972 -> 778.4); both cases took new ids
+(`-canon`) per the dataset immutability contract; a new unit test pins the
+canonical skew behavior; offline artifacts regenerated under the new dataset
+hash. Full merged-tree suite after the swap: 2,402/2,402 (185 files).

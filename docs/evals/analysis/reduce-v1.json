@@ -142,7 +142,7 @@
       "partition": "typical",
       "split": "development",
       "provenance": "authored-2026-08-17",
-      "notes": "ruling 12: identical recurring-template text on distant days is NOT one event — the >1-day gate must keep them apart",
+      "notes": "ruling 12: identical recurring-template text on distant days is NOT one event \u2014 the >1-day gate must keep them apart",
       "input": {
         "theater": "ru",
         "track": "military",
@@ -389,7 +389,7 @@
       "partition": "adversarial",
       "split": "development",
       "provenance": "authored-2026-08-17",
-      "notes": "coordinated mirrors posing as corroboration: doc_dedup mirror edge collapses the independence classes — no promotion",
+      "notes": "coordinated mirrors posing as corroboration: doc_dedup mirror edge collapses the independence classes \u2014 no promotion",
       "input": {
         "theater": "ir",
         "track": "military",
@@ -465,7 +465,7 @@
       "partition": "adversarial",
       "split": "heldout",
       "provenance": "authored-2026-08-17",
-      "notes": "heldout: one fresh low-reliability source beside an older reliable one — representative wording must come from the reliable member",
+      "notes": "heldout: one fresh low-reliability source beside an older reliable one \u2014 representative wording must come from the reliable member",
       "input": {
         "theater": "ua",
         "track": "military",
@@ -536,7 +536,7 @@
       "partition": "adversarial",
       "split": "heldout",
       "provenance": "authored-2026-08-17",
-      "notes": "heldout namesake collision: two FICTIONAL people sharing a surname, different events — must not merge",
+      "notes": "heldout namesake collision: two FICTIONAL people sharing a surname, different events \u2014 must not merge",
       "input": {
         "theater": "ru",
         "track": "elite_politics",
@@ -745,7 +745,7 @@
       "partition": "edge",
       "split": "development",
       "provenance": "authored-2026-08-17",
-      "notes": "superseded-extractor-version duplicate rows simulated (same doc, same text twice): they collapse and corroboration is NOT inflated. The real version filter is SQL-side (map-versions.ts) and out of pure-fixture scope — see README",
+      "notes": "superseded-extractor-version duplicate rows simulated (same doc, same text twice): they collapse and corroboration is NOT inflated. The real version filter is SQL-side (map-versions.ts) and out of pure-fixture scope \u2014 see README",
       "input": {
         "theater": "ua",
         "track": "military",
@@ -809,12 +809,12 @@
       }
     },
     {
-      "id": "red-rec-001-recency-population",
+      "id": "red-rec-001-recency-population-canon",
       "workload": "reduce",
       "partition": "edge",
       "split": "development",
       "provenance": "authored-2026-08-17",
-      "notes": "hand-computed recency population: ages [3,6,24,72]h -> median 15, p90 72, within24 75%; lags [1,1.5,8]h",
+      "notes": "hand-computed recency population under the CANONICAL calculator (src/lib/analysis/evidence-recency.ts, linear-interpolation percentiles; integration reconciliation 2026-08-17 \u2014 the original nearest-rank pins retired with the case id per the immutability contract): ages [3,6,24,72]h -> median 15, p90 57.6, within24 75%; lags [1,1.5,8]h -> median 1.5, p90 6.7",
       "input": {
         "theater": "ua",
         "track": "military",
@@ -874,14 +874,14 @@
           "timestampedDocumentCount": 4,
           "timestampCoveragePct": 80,
           "medianEvidenceAgeHours": 15,
-          "p90EvidenceAgeHours": 72,
+          "p90EvidenceAgeHours": 57.6,
           "evidenceWithin24hPct": 75,
           "publishedTimestampUsed": 3,
           "fetchedTimestampFallbackUsed": 1,
           "missingTimestampCount": 1,
           "futurePublishedTimestampCount": 0,
           "medianIngestionLagHours": 1.5,
-          "p90IngestionLagHours": 8,
+          "p90IngestionLagHours": 6.7,
           "invalidIngestionLagCount": 0
         }
       },
@@ -890,12 +890,12 @@
       }
     },
     {
-      "id": "red-rec-002-timestamp-adversarial",
+      "id": "red-rec-002-timestamp-adversarial-canon",
       "workload": "reduce",
       "partition": "adversarial",
       "split": "heldout",
       "provenance": "authored-2026-08-17",
-      "notes": "heldout timestamp adversary: old article re-fetched (huge lag), negative lag, future publish, timezone-less value treated as missing — all hand-computed",
+      "notes": "heldout timestamp adversary under the CANONICAL calculator (integration reconciliation 2026-08-17, id bumped per the immutability contract): old article re-fetched (huge lag), beyond-skew negative lag invalid, beyond-skew future publish falls back to fetchedAt, timezone-less value missing; ages [1,4,972]h -> median 4, p90 (linear) 4 + 0.8*(972-4) = 778.4",
       "input": {
         "theater": "ua",
         "track": "military",
@@ -950,7 +950,7 @@
           "timestampedDocumentCount": 3,
           "timestampCoveragePct": 75,
           "medianEvidenceAgeHours": 4,
-          "p90EvidenceAgeHours": 972,
+          "p90EvidenceAgeHours": 778.4,
           "evidenceWithin24hPct": 66.67,
           "publishedTimestampUsed": 2,
           "fetchedTimestampFallbackUsed": 1,
