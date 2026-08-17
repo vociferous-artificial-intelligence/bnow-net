@@ -70,12 +70,19 @@ function mapConcurrency(): number {
   return Number.isFinite(v) && v >= 1 ? Math.min(8, Math.floor(v)) : 3;
 }
 
+/** Per-doc output-token budget (MAP_OUT_TOKENS_PER_DOC, default 200 — audit
+ *  §11's assumption with headroom). Exported so the analysis-eval control
+ *  plane can record the knob a run executed under; the arithmetic is
+ *  unchanged. */
+export function mapOutTokensPerDoc(): number {
+  const per = Number(process.env.MAP_OUT_TOKENS_PER_DOC);
+  return Number.isFinite(per) && per >= 60 ? Math.floor(per) : 200;
+}
+
 /** Output budget: ~200 tokens/doc (a doc yields 0-3 claims at ~90-180 tok,
  *  audit §11), floored so a single dense doc can still answer. */
 export function mapBatchMaxTokens(docCount: number): number {
-  const per = Number(process.env.MAP_OUT_TOKENS_PER_DOC);
-  const perDoc = Number.isFinite(per) && per >= 60 ? Math.floor(per) : 200;
-  return Math.min(16_384, Math.max(1_000, docCount * perDoc));
+  return Math.min(16_384, Math.max(1_000, docCount * mapOutTokensPerDoc()));
 }
 
 /** Tracks that should map this doc: track configured for the doc's theater AND
