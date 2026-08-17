@@ -33,10 +33,25 @@
 //   P7 traceability + non-stub ... stub → stub_fixture; zero raw-document
 //                                  links → missing_source; only mirror
 //                                  documents → mirror_only
-//   P8 engine comparability ...... legacy engine → legacy_incomparable in the
-//                                  CORPUS-RECALL population (legacy claims are
+//   P8 engine comparability ...... legacy engine OR a legacy_only contributor
+//                                  theater → legacy_incomparable in the
+//                                  CORPUS-RECALL population (the theater rule
+//                                  is fail-closed against a MISLABELED source:
+//                                  a candidate stamped engine "mapreduce" from
+//                                  a theater with no map coverage cannot enter
+//                                  corpus recall while the assembly lists that
+//                                  theater incomparable). Legacy claims are
 //                                  published-retention members instead,
-//                                  labeled — evidence-assembler.ts)
+//                                  labeled — evidence-assembler.ts.
+//
+// OFF_SCOPE SUB-DIAGNOSTIC: four distinct causes share the one frozen
+// off_scope reason (non-contributor theater; non-designated track; classifier
+// content-off-scope; retention's "not published" — register #4 reads an
+// unpublished claim as outside the retention population's SCOPE). The bounded
+// `scopeDetail` on the evaluation records WHICH cause applied (first by the
+// fixed precedence theater → track → not_published → content), like
+// windowReason an additive diagnostic — the frozen §5 reason enum is
+// unchanged.
 
 import type { ConflictDefinition } from "./definitions";
 import { classifyTimeAnchor, parseIsoInstantMs } from "./instants";
@@ -56,6 +71,15 @@ export interface EligibilityContext {
   publishedAt: string | null;
 }
 
+/** Bounded off_scope sub-causes (see the header note). */
+export const SCOPE_DETAILS = [
+  "non_contributor_theater",
+  "non_designated_track",
+  "not_published",
+  "content_off_scope",
+] as const;
+export type ScopeDetail = (typeof SCOPE_DETAILS)[number];
+
 export interface EligibilityEvaluation {
   claimId: number;
   record: EligibilityRecord;
@@ -64,6 +88,9 @@ export interface EligibilityEvaluation {
   applicableExclusions: readonly ExclusionReason[];
   classification: LaneClassification;
   windowReason: string | null;
+  /** which off_scope cause applied (fixed precedence theater → track →
+   *  not_published → content); null when off_scope did not apply */
+  scopeDetail: ScopeDetail | null;
   availability: ClaimAvailability;
   earliestIngestAt: string | null;
   independentSourceCount: number;
@@ -76,14 +103,19 @@ export interface EligibilityEvaluation {
 export const LEGACY_CONTRIBUTOR_TRACKS: readonly string[] = ["military"];
 
 function earliestIngest(candidate: CandidateClaim): { raw: string | null; ms: number | null } {
-  let best: { raw: string; ms: number } | null = null;
+  // deterministic tie-break: two docs can parse to the SAME instant with
+  // byte-different raw spellings, so equal-ms ties resolve by docId ascending
+  // — the reported raw string is input-order-independent
+  let best: { raw: string; ms: number; docId: number } | null = null;
   for (const doc of candidate.docs) {
     if (doc.fetchedAt === null) continue;
     const ms = parseIsoInstantMs(doc.fetchedAt);
     if (ms === null) continue;
-    if (best === null || ms < best.ms) best = { raw: doc.fetchedAt, ms };
+    if (best === null || ms < best.ms || (ms === best.ms && doc.docId < best.docId)) {
+      best = { raw: doc.fetchedAt, ms, docId: doc.docId };
+    }
   }
-  return best === null ? { raw: null, ms: null } : best;
+  return best === null ? { raw: null, ms: null } : { raw: best.raw, ms: best.ms };
 }
 
 function availabilityOf(
@@ -167,8 +199,21 @@ export function evaluateCorpusRecallEligibility(
   // P3-P5 classifier scope
   if (classification.kind === "off_scope") exclusions.push("off_scope");
   if (classification.kind === "unclassified") exclusions.push("unclassified");
-  // P8 comparability
-  if (candidate.engine === "legacy") exclusions.push("legacy_incomparable");
+  // P8 comparability: legacy engine, OR a legacy_only contributor theater —
+  // fail-closed against a mislabeled source: an engine:"mapreduce" stamp on a
+  // theater with no map coverage cannot enter corpus recall while the same
+  // assembly honestly lists that theater as incomparable
+  if (candidate.engine === "legacy" || theaterEntry?.comparability === "legacy_only") {
+    exclusions.push("legacy_incomparable");
+  }
+  const scopeDetail: ScopeDetail | null =
+    theaterEntry === undefined
+      ? "non_contributor_theater"
+      : !trackDesignated
+        ? "non_designated_track"
+        : classification.kind === "off_scope"
+          ? "content_off_scope"
+          : null;
 
   const ingest = earliestIngest(candidate);
   const availability = availabilityOf(ctx, ingest.ms);
@@ -185,6 +230,7 @@ export function evaluateCorpusRecallEligibility(
       applicableExclusions: applicable,
       classification,
       windowReason: inWindow ? windowReasonOf(ctx, candidate.claimDate) : null,
+      scopeDetail,
       availability,
       earliestIngestAt: ingest.raw,
       independentSourceCount: indep,
@@ -207,6 +253,7 @@ export function evaluateCorpusRecallEligibility(
     applicableExclusions: [],
     classification,
     windowReason,
+    scopeDetail: null,
     availability,
     earliestIngestAt: ingest.raw,
     independentSourceCount: indep,
@@ -256,6 +303,16 @@ export function evaluatePublishedRetentionEligibility(
   }
   if (classification.kind === "off_scope") exclusions.push("off_scope");
   if (classification.kind === "unclassified") exclusions.push("unclassified");
+  const scopeDetail: ScopeDetail | null =
+    theaterEntry === undefined
+      ? "non_contributor_theater"
+      : !designatedTracks.includes(candidate.track)
+        ? "non_designated_track"
+        : !candidate.published
+          ? "not_published"
+          : classification.kind === "off_scope"
+            ? "content_off_scope"
+            : null;
 
   const ingest = earliestIngest(candidate);
   const availability = availabilityOf(ctx, ingest.ms);
@@ -270,6 +327,7 @@ export function evaluatePublishedRetentionEligibility(
       applicableExclusions: applicable,
       classification,
       windowReason: inWindow ? windowReasonOf(ctx, candidate.claimDate) : null,
+      scopeDetail,
       availability,
       earliestIngestAt: ingest.raw,
       independentSourceCount: indep,
@@ -285,6 +343,7 @@ export function evaluatePublishedRetentionEligibility(
     applicableExclusions: [],
     classification,
     windowReason,
+    scopeDetail: null,
     availability,
     earliestIngestAt: ingest.raw,
     independentSourceCount: indep,

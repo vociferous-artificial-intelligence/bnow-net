@@ -215,6 +215,84 @@ describe("corpus-recall eligibility — frozen exclusion precedence (dominant re
     expect(ev.applicableExclusions).toEqual(["superseded_version", "mirror_only"]);
   });
 
+  it("Gate-3 probe sentences: bare area/actor tokens never admit neutral claims", () => {
+    // each of these previously matched a roster entry on a bare token and was
+    // INCLUDED (the actor governed the lane at rung 3); all must be excluded
+    const iranProbes: Array<[string, "off_scope" | "unclassified"]> = [
+      ["Yemen's tourism ministry reported record visitor numbers for July.", "off_scope"],
+      ["Fishing cooperatives near Al Salif reported a strong catch season.", "unclassified"],
+      [
+        "Aid deliveries to Yemen resumed through the port of Aden under a monitoring arrangement.",
+        "off_scope",
+      ],
+      ["Oman Air announced new direct flights to Bangkok.", "off_scope"],
+    ];
+    const iranCtx = ctxFor("iran_regional", {
+      reportDate: "2026-08-08",
+      cutoffAt: "2026-08-08T16:00:00Z",
+    });
+    for (const [text, reason] of iranProbes) {
+      const ev = evaluateCorpusRecallEligibility(
+        iranCtx,
+        claim({ theater: "ir", text, claimDate: "2026-08-08" }),
+      );
+      expect(ev.record, text).toEqual({ included: false, reason });
+    }
+    const belarus = evaluateCorpusRecallEligibility(
+      ctxFor(),
+      claim({ theater: "ru", text: "Belarus reported a record potato harvest this season." }),
+    );
+    expect(belarus.record).toEqual({ included: false, reason: "unclassified" });
+  });
+
+  it("a legacy_only theater is legacy_incomparable in corpus recall REGARDLESS of engine stamp", () => {
+    // fail-closed against a mislabeled source: an engine:"mapreduce" stamp on
+    // bh (no map coverage) cannot enter corpus recall while the assembly
+    // lists bh incomparable
+    const iranCtx = ctxFor("iran_regional", {
+      reportDate: "2026-08-08",
+      cutoffAt: "2026-08-08T16:00:00Z",
+    });
+    const ev = evaluateCorpusRecallEligibility(
+      iranCtx,
+      claim({
+        theater: "bh",
+        engine: "mapreduce",
+        currentExtractorVersion: true,
+        text: "Gulf reporting claimed increased interceptor stocks at a base in Bahrain.",
+        claimDate: "2026-08-08",
+      }),
+    );
+    expect(ev.record).toEqual({ included: false, reason: "legacy_incomparable" });
+    expect(ev.applicableExclusions).toEqual(["legacy_incomparable"]);
+  });
+
+  it("scopeDetail names WHICH off_scope cause applied (bounded sub-diagnostic)", () => {
+    // non-contributor theater
+    const theater = evaluateCorpusRecallEligibility(ctxFor(), claim({ theater: "xx" }));
+    expect(theater.record).toEqual({ included: false, reason: "off_scope" });
+    expect(theater.scopeDetail).toBe("non_contributor_theater");
+    // non-designated track (ru-ua designates military only)
+    const track = evaluateCorpusRecallEligibility(ctxFor(), claim({ track: "nuclear" }));
+    expect(track.scopeDetail).toBe("non_designated_track");
+    // classifier content-off-scope
+    const content = evaluateCorpusRecallEligibility(
+      ctxFor(),
+      claim({ text: "EU ministers debated dairy subsidies." }),
+    );
+    expect(content.scopeDetail).toBe("content_off_scope");
+    // retention: not published (register #4 reads it as outside the
+    // population's scope)
+    const unpublished = evaluatePublishedRetentionEligibility(
+      ctxFor(),
+      claim({ published: false }),
+    );
+    expect(unpublished.record).toEqual({ included: false, reason: "off_scope" });
+    expect(unpublished.scopeDetail).toBe("not_published");
+    // included records carry no scope detail
+    expect(evaluateCorpusRecallEligibility(ctxFor(), claim()).scopeDetail).toBeNull();
+  });
+
   it("applicableExclusions carries each reason at most once (roster + classifier both off_scope)", () => {
     // theater outside the roster AND classifier-off-scope content: the same
     // reason applies through two predicate families but appears once
