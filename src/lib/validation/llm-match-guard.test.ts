@@ -161,6 +161,21 @@ describe("llm-match SpendGuard coverage (every dispatch reserved + recorded)", (
     expect(dbState.records).toHaveLength(0); // no usage came back; nothing to meter
   });
 
+  it("an unparseable response is METERED before being discarded (ruling 8)", async () => {
+    // the provider billed this response in full even though its body is junk —
+    // recording must not depend on JSON.parse succeeding (hardening review 1,
+    // finding 2)
+    process.env.MATCHER_MODE = "single";
+    createSpy.mockResolvedValue({
+      usage: { prompt_tokens: 800, completion_tokens: 300 },
+      choices: [{ message: { content: "not json at all {" } }],
+    });
+    expect(await llmMatchTakeaways(TAKEAWAYS, CLAIMS)).toBeNull(); // degrades to keywords
+    expect(createSpy).toHaveBeenCalledTimes(1);
+    expect(dbState.records).toHaveLength(1); // the billed throwaway IS recorded
+    expect(dbState.records[0].usd).toBeCloseTo((800 * 0.15 + 300 * 0.6) / 1e6, 12);
+  });
+
   it("LLM_DISABLE=1 refuses with zero calls (site-specific degradation preserved)", async () => {
     process.env.LLM_DISABLE = "1";
     expect(await llmMatchTakeaways(TAKEAWAYS, CLAIMS)).toBeNull();

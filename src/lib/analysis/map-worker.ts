@@ -425,8 +425,10 @@ async function cycle(
   // dispatches under a configuration that cannot be metered or was never
   // approved/authorized.
   const dispatch = batches.length > 0 ? workloadDispatchConfig("map") : null;
-  // durable dispatch identity into cron_runs.counts (per-row extractor
-  // versions live on doc_claims/doc_map_state; release hardening 2026-08-17)
+  // durable dispatch identity into cron_runs.counts: the AUTHORIZED config for
+  // this run, stamped up front so even a later budget-stopped run records what
+  // it was configured to dispatch (alongside budgetStop*); per-row extractor
+  // versions live on doc_claims/doc_map_state (release hardening 2026-08-17)
   if (dispatch) counts.dispatch = dispatchIdentity(dispatch);
 
   // 5. extract + persist, one guard for the whole run

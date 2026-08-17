@@ -417,8 +417,14 @@ or value-import of the SDK. Explicit-retry audit: the three 65s 429 loops
 (digest/map/reduce) each take a FRESH reservation before the second physical
 attempt (`openai-provider.test.ts` proves 2 physical calls / 1 billed
 metering row for a 429-then-success); llm-match has no explicit retry (1
-reservation ↔ 1 call, asserted); truncated responses remain metered before
-being discarded (asserted). Ask's hardened retry behavior is untouched.
+reservation ↔ 1 call, asserted). Truncated/discarded responses are metered
+before interpretation at ALL FOUR completion sites — digest/map/reduce
+always did; llm-match's billed-then-parsed ordering was caught by hardening
+review 1 (finding 2) and FIXED: `llmMatchOnce` now records to the guard
+immediately after the response and before `JSON.parse`, so an unparseable/
+truncated validation response can no longer be billed without a
+provider_usage row (new test pins it). Ask's hardened retry behavior is
+untouched.
 
 ### 12.4 Validation single-shot SpendGuard repair
 
@@ -529,9 +535,44 @@ remains the `docs/PROGRESS.md` EOF appends.
 
 ### 12.10 Adversarial reviews (release hardening)
 
-(Two fresh isolated read-only reviews of the hardening commit; verdicts
-recorded below after each completed — the §10 PASSes are historical and do
-not approve this new code.)
+The §10 PASSes are historical and do not approve this code; two fresh
+isolated read-only reviews ran against the hardening work.
+
+**Hardening review 1** (against commit `030d526`, all 28 changed files read):
+**VERDICT: PASS — no BLOCKER or MAJOR.** Findings and dispositions:
+- (MINOR, FIXED) `llmMatchTakeaways`' docstring still described the
+  pre-hardening cap-unset behavior ("without its cap we stay on the old
+  path") — rewritten to state the fail-closed reality.
+- (MINOR, FIXED — the review's best catch) `llmMatchOnce` computed the cost
+  but `JSON.parse` could throw BEFORE any `guard.record`, so a
+  billed-but-unparseable response went unmetered (ruling 8; structurally
+  pre-existing, and §12.3 had over-claimed the site). Fixed by recording
+  inside `llmMatchOnce` immediately after the response, before parsing;
+  callers no longer record; a new test proves an unparseable response leaves
+  exactly one provider_usage row; metering cardinality (1 per call)
+  unchanged and re-asserted.
+- (NOTE, comment added) the map cron's `counts.dispatch` records the
+  AUTHORIZED config up front — a budget-stopped run still stamps it
+  (alongside `budgetStop*`); wording clarified in code and §12.6.
+- (NOTE, comment added) the ask-events seed has a seconds-wide residual race
+  across UTC Sunday→Monday midnight — documented in the fixture comment,
+  accepted.
+- (NOTEs, recorded as-is) the retry source-scan is an enumerated module list
+  (a future sixth dispatch module must be added — same registration pattern
+  as the authz itest ROUTES table); the map lock freezes writes while the
+  read-side version stays computable (loud legacy fallback + staleness
+  alerts on operator error, no env exists today); persistence-spread lines
+  themselves are review-verified rather than unit-asserted (consumers read
+  named keys; additive-safe).
+All clean categories confirmed with file/line traces: price parity + no live
+stale copy + run-guards auto-pickup; registry honesty and scoping; gate
+before reservation AND client construction at all five sites (spy-proven);
+429 fresh-reservation loops; map-lock ordering and no-override; unchanged
+prompts/schemas/K=5/guards/cron-at-start; zero paid calls/activations/
+secrets/migrations.
+
+**Hardening review 2** (fresh reviewer, corrected final tree): recorded
+below after its verdict.
 
 ### 12.11 Remaining blockers / follow-ups
 
