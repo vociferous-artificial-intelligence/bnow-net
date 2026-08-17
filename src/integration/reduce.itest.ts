@@ -11,6 +11,9 @@ if (!URL) throw new Error("INTEGRATION_DATABASE_URL not set — run via npm run 
 process.env.DATABASE_URL = URL;
 
 const TEST_DATE = "2030-02-01"; // far future — empty corpus on the fork
+// honest legacy-shaped cutoff for the fixture day: the exclusive end of its UTC day
+const asOfFor = (date: string) =>
+  new Date(Date.parse(`${date}T00:00:00Z`) + 86_400_000).toISOString();
 
 let pool: Pool;
 let uaId: number;
@@ -56,6 +59,7 @@ describe("persistDigest overwrite guards (#32)", () => {
       countryIso2: "ua",
       date: TEST_DATE,
       track: "military" as const,
+      asOf: asOfFor(TEST_DATE),
       provider: "itest",
       structured: { stats: { itest: true } },
     };
@@ -102,5 +106,56 @@ describe("persistDigest overwrite guards (#32)", () => {
       [uaId, TEST_DATE],
     );
     expect(rows[0].n).toBe(0);
+  });
+});
+
+describe("persistDigest evidence-recency stats (quality foundation, 2026-08-17)", () => {
+  const ER_DATE = "2030-02-03"; // its own digest cell — independent of the guard tests
+
+  it("persists structured.stats.evidenceRecency with the v1 shape against real Postgres", async () => {
+    const persisted = await persistDigest({
+      pool,
+      countryId: uaId,
+      countryIso2: "ua",
+      date: ER_DATE,
+      track: "military",
+      asOf: asOfFor(ER_DATE),
+      provider: "itest",
+      structured: { stats: { itest: true } },
+      events: [eventWith(["recency claim"])],
+    });
+    expect(isSkipped(persisted)).toBe(false);
+    if (isSkipped(persisted)) throw new Error("unreachable");
+
+    const { rows } = await pool.query(`SELECT structured FROM digests WHERE id = $1`, [
+      persisted.digestId,
+    ]);
+    const stats = rows[0].structured.stats as Record<string, unknown>;
+    expect(stats.itest).toBe(true); // additive merge preserves the caller's stats
+    expect(stats.publicationGuard).toBeTruthy();
+
+    const er = stats.evidenceRecency as Record<string, unknown>;
+    expect(er.version).toBe(1);
+    expect(er.asOf).toBe(asOfFor(ER_DATE));
+    expect(er.claimCount).toBe(1);
+    expect(er.documentCount).toBe(1);
+    // the fixture doc has no published_at: its (real, insert-time) fetched_at
+    // is the fallback, and against the far-future cutoff it is years stale
+    expect(er.publishedTimestampUsed).toBe(0);
+    expect(er.fetchedTimestampFallbackUsed).toBe(1);
+    expect(er.timestampedDocumentCount).toBe(1);
+    expect(er.timestampCoveragePct).toBe(100);
+    expect(er.staleClaimsOver48hPct).toBe(100);
+    expect(er.evidenceWithin24hPct).toBe(0);
+    expect(er.unknownAgeClaimPct).toBe(0);
+    expect(er.missingTimestampCount).toBe(0);
+    expect(er.futurePublishedTimestampCount).toBe(0);
+    expect(er.invalidIngestionLagCount).toBe(0);
+    expect(er.medianIngestionLagHours).toBeNull(); // no published_at -> no lag population
+    expect(typeof er.medianEvidenceAgeHours).toBe("number");
+    expect(typeof er.p90EvidenceAgeHours).toBe("number");
+    // generatedAt (now) precedes the far-future asOf -> clamped to 0
+    expect(er.generationLagHours).toBe(0);
+    expect(typeof er.generatedAt).toBe("string");
   });
 });

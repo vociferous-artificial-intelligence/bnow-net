@@ -16,9 +16,11 @@
 // variance measurement sees every roll).
 
 import type { Pool, PoolClient } from "@neondatabase/serverless";
+import { STUB_CONTENT_PREFIX } from "../adapters/stubs";
 import { embedStubReason } from "../embeddings/client";
 import { embedAndStoreClaims } from "../embeddings/persist";
 import { canonicalKey } from "../entities/canonicalize";
+import { computeEvidenceRecency, type EvidenceRecencyStatsV1 } from "./evidence-recency";
 import { guardPublishedEvents } from "./publication-guard";
 import type { DigestAnalysis } from "./provider";
 import type { Track } from "./tracks";
@@ -31,6 +33,12 @@ export interface PersistDigestArgs {
   countryIso2: string;
   date: string; // yyyy-mm-dd
   track: Track;
+  /** ISO instant — the engine's effective analysis cutoff for this invocation
+   *  (evidence-recency.ts). Legacy fixed-day gather: the exclusive end of the
+   *  UTC day; mapreduce day mode: the window-end midnight; rolling mode: the
+   *  run clock. Never a persist-time wall-clock read — persistDigest takes
+   *  generatedAt itself. */
+  asOf: string;
   provider: string;
   /** full digests.structured payload (engine-specific stats included) */
   structured: Record<string, unknown>;
@@ -84,11 +92,6 @@ export async function persistDigest(args: PersistDigestArgs): Promise<PersistOut
   // refused as thin rather than silently replacing a richer digest (ordering
   // pinned by test). Guard telemetry rides in structured.stats.publicationGuard.
   const { events, stats: guardStats } = guardPublishedEvents(args.events);
-  const priorStats = (args.structured?.stats ?? {}) as Record<string, unknown>;
-  const structured = {
-    ...args.structured,
-    stats: { ...priorStats, publicationGuard: guardStats },
-  };
   const newClaims = events.reduce((s, ev) => s + ev.claims.length, 0);
 
   const { rows: prev } = await pool.query(
@@ -116,6 +119,46 @@ export async function persistDigest(args: PersistDigestArgs): Promise<PersistOut
     );
     return { countryIso2, date, track, skipped: verdict, priorClaims, newClaims };
   }
+
+  // Evidence-recency stats (2026-08-17): measured on the exact POST-guard shape
+  // being persisted, AFTER the overwrite verdict — a refused persist stores
+  // nothing, so nothing is computed. One indexed read over the cited docs; stub
+  // documents are excluded at the query level like every production read
+  // (ruling 3). FAIL-OPEN: observability must never block a publishable digest,
+  // so a failed read/computation warns once and omits the key.
+  let evidenceRecency: EvidenceRecencyStatsV1 | null = null;
+  try {
+    const docIds = [...new Set(events.flatMap((ev) => ev.claims.flatMap((c) => c.docIds)))];
+    const { rows: docRows } =
+      docIds.length > 0
+        ? await pool.query(
+            `SELECT id, published_at, fetched_at FROM raw_documents
+             WHERE id = ANY($1) AND content NOT LIKE $2`,
+            [docIds, `${STUB_CONTENT_PREFIX}%`],
+          )
+        : { rows: [] };
+    evidenceRecency = computeEvidenceRecency({
+      asOf: args.asOf,
+      generatedAt: new Date().toISOString(),
+      claims: events.flatMap((ev) => ev.claims),
+      docs: docRows.map((r) => ({ id: r.id, publishedAt: r.published_at, fetchedAt: r.fetched_at })),
+    });
+  } catch (e) {
+    console.warn(
+      `digest ${countryIso2} ${date} ${track}: evidence-recency stats failed ` +
+        `(fail-open, digest unaffected) — ${(e as Error).message}`,
+    );
+  }
+
+  const priorStats = (args.structured?.stats ?? {}) as Record<string, unknown>;
+  const structured = {
+    ...args.structured,
+    stats: {
+      ...priorStats,
+      publicationGuard: guardStats,
+      ...(evidenceRecency ? { evidenceRecency } : {}),
+    },
+  };
 
   const client = await pool.connect();
   try {

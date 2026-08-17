@@ -11,6 +11,7 @@ import {
   serializeGroup,
   synthesisResponseSchema,
   synthesisSystemPrompt,
+  voteGidCounters,
   type VoteEvent,
 } from "./synthesize";
 
@@ -342,6 +343,38 @@ describe("finalizeEvents: corroboration promotion vs named-person allegations", 
     ]);
     const events = finalizeEvents(mergedFor("Eight tankers struck in port"), groups);
     expect(events[0].claims[0].hedging).toBe("confirmed");
+  });
+});
+
+describe("voteGidCounters (quality-funnel vote stage)", () => {
+  it("counts distinct gids cited by any vote and distinct majority-surviving gids", () => {
+    const votes: VoteEvent[][] = [
+      [voteEvent({ claims: [{ text: "a", gids: [1, 2, 5] }] })],
+      [voteEvent({ claims: [{ text: "b", gids: [1, 2] }] })],
+      [voteEvent({ claims: [{ text: "c", gids: [1, 6] }] })],
+    ];
+    const merged = mergeVotes(votes);
+    const counters = voteGidCounters(votes, merged);
+    expect(counters.gidsCitedAnyVote).toBe(4); // {1, 2, 5, 6}
+    expect(counters.gidsMajority).toBe(2); // {1, 2} — 5 and 6 were single-vote
+  });
+
+  it("gidsMajority <= gidsCitedAnyVote holds even when no event survives", () => {
+    // three disjoint single-vote events: nothing reaches a majority
+    const votes: VoteEvent[][] = [
+      [voteEvent({ claims: [{ text: "a", gids: [1] }] })],
+      [voteEvent({ claims: [{ text: "b", gids: [2] }] })],
+      [voteEvent({ claims: [{ text: "c", gids: [3] }] })],
+    ];
+    const merged = mergeVotes(votes);
+    expect(merged).toHaveLength(0);
+    const counters = voteGidCounters(votes, merged);
+    expect(counters.gidsCitedAnyVote).toBe(3);
+    expect(counters.gidsMajority).toBe(0);
+  });
+
+  it("empty votes yield zeros", () => {
+    expect(voteGidCounters([], [])).toEqual({ gidsCitedAnyVote: 0, gidsMajority: 0 });
   });
 });
 
