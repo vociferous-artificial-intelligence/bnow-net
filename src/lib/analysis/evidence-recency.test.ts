@@ -265,7 +265,10 @@ describe("asOf / generatedAt semantics", () => {
     const claims = [{ docIds: [1] }, { docIds: [2] }];
     const now = compute(docs, claims);
     const later = compute(docs, claims, { generatedAt: iso(AS_OF_MS + 200 * HOUR_MS) });
-    const strip = ({ generatedAt, generationLagHours, ...rest }: typeof now) => rest;
+    const strip = (s: typeof now) =>
+      Object.fromEntries(
+        Object.entries(s).filter(([k]) => k !== "generatedAt" && k !== "generationLagHours"),
+      );
     expect(strip(later)).toEqual(strip(now));
     expect(later.generatedAt).not.toBe(now.generatedAt);
     expect(later.generationLagHours).toBe(200);
