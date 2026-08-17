@@ -12,7 +12,8 @@ Provenance: `authored-2026-08-17` — every scenario hand-authored and
 hand-checked one at a time; zero model-generated-unreviewed content. Content
 rules follow the house precedent in `docs/evals/analysis/README.md` (fictional
 persons, no ISW prose, no source full text) and AGENTS.md rulings 1, 12, 19,
-20.
+20. The Gate-0 remediation remints (register #7/#8) are incorporated; see
+"Resolved at Gate 0" below.
 
 ## Files and counts
 
@@ -20,24 +21,67 @@ persons, no ISW prose, no source full text) and AGENTS.md rulings 1, 12, 19,
 |---|---|---|---|---|
 | `roca-scenarios-v1.json` | `russia_ukraine` | 10 | 10 | 11 |
 | `iran-scenarios-v1.json` | `iran_regional` | 12 | 13 | 13 |
-| `crosscutting-scenarios-v1.json` | mixed (per-scenario) | 16 | 16 | 21 |
-| **total** | | **38** | **39** | **45** |
+| `crosscutting-scenarios-v1.json` | mixed (per-scenario) | 17 | 18 | 24 |
+| **total** | | **39** | **41** | **48** |
 
-48 documents; 33 expected-included / 11 expected-excluded eligibility
+50 documents; 34 expected-included / 13 expected-excluded eligibility
 records (one claim, in the publication-gap scenario, has no eligibility
-record by design). Every exclusion uses the contract's bounded reason enum.
+record by design). Every exclusion uses the contract's bounded reason enum
+in its FROZEN precedence order. Exactly FIVE scenarios carry
+`expected.headline` pins (register #8 M4): `roca-ua-only-001b`,
+`roca-retention-gap-008b`, `roca-compound-partial-009b`,
+`iran-gulf-unavailable-010b`, `cc-matcher-failclosed-013b` — all other
+scenarios deliberately carry none, because full-report golden arithmetic is
+Phase 4's deliverable.
 
-## Immutability
+Counts machine-recounted (2026-08-17) with:
+
+```
+$ python3 -c "
+import json
+for f in ['roca-scenarios-v1.json','iran-scenarios-v1.json','crosscutting-scenarios-v1.json']:
+    d = json.load(open(f))
+    units = sum(len(r['units']) for s in d['scenarios'] for r in (s.get('reports') or ([s['report']] if s.get('report') else [])))
+    claims = sum(len(s['evidence']) for s in d['scenarios'])
+    docs = sum(len(c['docs']) for s in d['scenarios'] for c in s['evidence'])
+    print(f, 'scenarios=%d units=%d claims=%d docs=%d' % (len(d['scenarios']), units, claims, docs))
+"
+roca-scenarios-v1.json scenarios=10 units=10 claims=11 docs=11
+iran-scenarios-v1.json scenarios=12 units=13 claims=13 docs=13
+crosscutting-scenarios-v1.json scenarios=17 units=18 claims=24 docs=26
+```
+
+## Immutability and the Gate-0 remints
 
 A scenario's inputs and `expected` block are FROZEN once committed (same rule
 as `docs/evals/analysis/README.md`): to change either, mint a NEW scenario id
 or bump the file version (`-v2`). `notes` wording may be corrected in place.
 `fixtureVersion` guards the schema shape, not the content.
 
+Remints to date (each replaces its original wholesale; claim/doc ids are
+retained because the original scenario ceases to exist):
+
+| original | reminted as | why (register entry) |
+|---|---|---|
+| `roca-quiet-day-010` | `roca-quiet-day-010b` | NOTE-1 unit rewording (#7) |
+| `roca-ua-only-001` | `roca-ua-only-001b` | M4 headline pin (#8) |
+| `roca-retention-gap-008` | `roca-retention-gap-008b` | M4 headline pin (#8) |
+| `roca-compound-partial-009` | `roca-compound-partial-009b` | M4 headline + partialDiagnostic (#8) |
+| `iran-gulf-unavailable-010` | `iran-gulf-unavailable-010b` | H1 unavailable semantics (#8) |
+| `cc-stub-leakage-011` | `cc-stub-leakage-011b` | M3 precedence + missing_source pins (#8) |
+| `cc-matcher-failclosed-013` | `cc-matcher-failclosed-013b` | H2 matcher ladder + M1 denominator (#8) |
+
+`cc-window-rung2-017` is NEW (M2, #8), not a remint.
+
 ## Scenario schema
 
 Top level per file:
 
+- `synthetic` (bool, always `true`), `provenance`
+  (`"authored-2026-08-17"`), `disclaimer` (string) — the legal-safety
+  markers added by the Gate-0 product/legal remediation (register #7):
+  every unit and claim is an invented hand-authored scenario; series ids
+  and dates identify fixture SHAPE only.
 - `fixtureVersion` (int) — schema shape version, `1`.
 - `conflictId` — `"russia_ukraine"`, `"iran_regional"`, or `"mixed"`
   (crosscutting file only; the per-scenario `conflictId` is authoritative
@@ -46,7 +90,9 @@ Top level per file:
 
 Per scenario:
 
-- `id` — kebab-case, stable, prefixed by file (`roca-`, `iran-`, `cc-`).
+- `id` — kebab-case, stable, prefixed by file (`roca-`, `iran-`, `cc-`);
+  a trailing letter (`-b`, ...) marks a remint superseding the unlettered
+  original.
 - `title` — short human title.
 - `acceptanceRef` — the acceptance-corpus bullet this scenario covers
   (verbatim-ish; inventory table below).
@@ -57,9 +103,11 @@ Per scenario:
   - `editionKey` — `<series>:<date>:<edition>` identity (section 9).
   - `reportDate` — `YYYY-MM-DD`.
   - `cutoffAt` — declared data-cutoff instant, ISO-8601 with explicit
-    timezone; `null` = missing; a deliberately malformed string ONLY in the
-    timestamp scenarios (`cc-timestamps-003`), marked in `notes`. Never
-    guessed (section 9).
+    timezone; `null` = missing; a deliberately malformed string ONLY in
+    `cc-timestamps-003` and `cc-window-rung2-017`, marked in `notes`.
+    Never guessed (section 9); a malformed value is recorded raw and
+    treated as missing, sending the window END to the next rung of the
+    frozen section 5 ladder.
   - `publishedAt` — publication instant, same rules; `null` in
     `cc-timestamps-003`.
   - `units[]` — the declared reference units (the frozen denominator,
@@ -87,8 +135,12 @@ Per scenario:
     wording consistent with `hedging`.
   - `hedging` — `confirmed` | `claimed` | `unverified` | `assessed` |
     `unknown`.
-  - `claimDate` — `YYYY-MM-DD` event/claim date.
-  - `docs[]` — source documents:
+  - `claimDate` — `YYYY-MM-DD` event/claim date (day-granular window
+    membership per the frozen section 5 window; per-document instants
+    drive the cutoff/publication diagnostics).
+  - `docs[]` — source documents (`[]` ONLY in the `missing_source` pin,
+    `cc-stub-leakage-011b` claim 9323 — a deliberately defective record
+    the evaluator must refuse):
     - `docId` (int, globally unique), `adapter` (`rss`/`gdelt`/
       `telegram-web`/`telegram-mtproto`/`x-api`), `platform` (`telegram`/
       `x`/`null`), `sourceDomain` (ALWAYS a `*.example` domain — never a
@@ -115,29 +167,62 @@ Per scenario:
   - `published` — the claim genuinely appeared in a designated user-facing
     digest (the published-retention population of section 6.1).
   - `stub` — `true` ONLY in the stub-leakage scenario; must always be
-    excluded `stub_fixture` (ruling 3).
+    excluded `stub_fixture` (ruling 3), regardless of whether the content
+    is on-topic or off-scope (integrity precedes scope in the frozen
+    precedence order).
 - `expected` — the internally consistent expected outcome:
   - `eligibility` — map of claimId (string) to either
     `{ "included": true, "lane": <lane id>, "reasons": [<free-form
     diagnostic strings>] }` or `{ "included": false, "reason": <bounded
-    enum> }`. The bounded exclusion enum is exactly the contract section 5
-    list: `off_window`, `off_scope`, `superseded_version`, `stub_fixture`,
-    `missing_source`, `legacy_incomparable`, `mirror_only`, `unclassified`.
-    Inclusion `reasons` are free-form diagnostics (`lane:`, `actor:`,
-    `geo:`, `track:`, `window:` prefixes); ONLY exclusion reasons are
-    enum-bounded. SCOPE NOTE: `eligibility` describes membership in the
-    CORPUS-RECALL candidate union; published-retention population
-    membership is carried by `published` + `engine` and asserted through
-    `publishedRetention` (see `iran-gulf-unavailable-010`).
+    enum> }`. The bounded exclusion enum, in its FROZEN precedence order
+    (first match wins; contract section 5, register #6): `stub_fixture` →
+    `missing_source` → `superseded_version` → `mirror_only` →
+    `off_window` → `off_scope` → `legacy_incomparable` → `unclassified`
+    (integrity before scope before comparability). Inclusion `reasons`
+    are free-form diagnostics (`lane:`, `actor:`, `geo:`, `track:`,
+    `window:` prefixes); ONLY exclusion reasons are enum-bounded. SCOPE
+    NOTE: `eligibility` describes membership in the CORPUS-RECALL
+    candidate union; published-retention population membership is carried
+    by `published` + `engine` and asserted through `publishedRetention`
+    (see `iran-gulf-unavailable-010b`).
   - `corpusRecall` / `publishedRetention` — map of unitId to `matched` |
-    `miss` | `partial` | `unavailable`, one per pipeline question
-    (section 6.1). `partial` counts as a MISS in the headline numerator
-    (section 3); `unavailable` is a provenance state distinct from any
-    zero (section 6.4).
+    `miss` | `partial`, one per pipeline question (section 6.1).
+    `partial` counts as a MISS in the headline numerator (section 3).
+    There is NO per-unit `unavailable` verdict (section 3 as amended,
+    register #8 H1): an incomparable-coverage unit is an HONEST miss
+    carrying `missDiagnostic`, and `unavailable` exists only as the
+    report-level `expected.evaluation` / `expected.evaluationKinds`
+    states (section 6.2), always distinct from zero.
+  - `missDiagnostic` (OPTIONAL) — `{ <unitId>: "incomparable_coverage" }`
+    on units whose miss stems from an incomparable evidence class
+    (`incomparable_coverage` is the only valid value for now;
+    `iran-gulf-unavailable-010b`).
+  - `laneDiagnostics` (OPTIONAL) — `{ <lane id>:
+    "unavailable_incomparable" }`: the lane diagnostic table renders that
+    lane as "unavailable (incomparable evidence)" instead of a bare 0%
+    that would imply comparable-but-missed (section 5 comparability
+    honesty as amended; only valid value for now is
+    `unavailable_incomparable`). Replaces the pre-Gate-0
+    `laneAvailability` field.
+  - `headline` (ONLY in the five register-#8 M4 scenarios listed under
+    "Files and counts") — `{ "corpusRecall": { "matched", "denominator"
+    }, "publishedRetention": { "matched", "denominator" }, and optionally
+    "partialDiagnostic": <count of partial verdicts> }`. `matched` counts
+    `matched` verdicts only (partial = miss); `denominator` = the
+    declared unit count. `partialDiagnostic` (only in
+    `roca-compound-partial-009b`) surfaces compound under-credit beside
+    the headline, never inside it. No other scenario carries a headline
+    block: full-report golden arithmetic is P4's deliverable.
+  - `windowEndSource` (OPTIONAL; pinned only in `cc-window-rung2-017`) —
+    `cutoff` | `published` | `report_day`: which rung of the frozen
+    section 5 END ladder bounded the evaluation window (section 6.4,
+    register #8 M2 — recorded on every real evaluation so a cutoff-parser
+    regression that silently widens windows is visible).
   - `contribution` — ONLY for units whose `corpusRecall` is `matched`:
     `{ <unitId>: { "theaters": [...], "tracks": [...] } }` (multi-label,
-    non-additive, section 7). Empty object when nothing matched. See
-    ambiguity 2 below for the population choice.
+    non-additive). Computed over the CORPUS-RECALL matched units per the
+    FROZEN section 7 population rule (register #6). Empty object when
+    nothing matched.
   - `independentSourceNote` (OPTIONAL string) — expected corroboration
     semantics (mirrors never independent).
   - `notes` — what the scenario proves and which contract rule it would
@@ -155,10 +240,20 @@ Per scenario:
   map empty (nothing is fabricated).
 - `digestRegeneratedAt` (`cc-regen-after-instant-007`) — instant the
   latest digest was regenerated, after every historical evaluation instant.
-- `matcherFixture` (`cc-matcher-failclosed-013`) — `{ votes: [raw vote
-  strings incl. empty/truncated/null/wrong-schema], expected: {
-  validVotes, majorityReached, behavior } }`; documents that scoring must
-  fail closed to the honestly-labeled keyword fallback (section 6.3).
+- `matcherFixture` (`cc-matcher-failclosed-013b`) — pins the INHERITED
+  degradation ladder (section 6.3 as amended; register #8 H2):
+  `{ "inheritedLadder": <the ladder statement>, "variants": [ {
+  "variantId", "votes": [5 raw vote strings], "expected": { "validVotes",
+  "majorityReached", "rung": "llm-majority"|"llm"|"keyword",
+  "matcherLabel", "voteRounds" (llm rung), "keywordUnmatchable" (keyword
+  rung), "behavior" } } ] }`. Variant A pins 1-valid-of-5 → single-round
+  scoring labeled `llm` (honestly non-majority, NOT keyword); variant B
+  pins 0-valid-of-5 → keyword fallback labeled `keyword`. Malformed votes
+  are discarded, never repaired; no label may masquerade as a majority.
+  `keywordUnmatchable` (register #8 M1) counts signal-less declared units
+  that the keyword rung keeps in the FULL denominator as automatic misses
+  — the conflict evaluator's disclosed divergence from production
+  `scoreDigest`'s matchable-subset denominator.
 - `expected.evaluationKinds` — per-kind availability
   (`operational_cutoff`/`at_publication`/`finalized` `unavailable`,
   `retrospective` `"allowed"`; section 6.2).
@@ -166,9 +261,8 @@ Per scenario:
   booleans for the timing scenarios (BNOW ingest time governs; at-publish
   proxy semantics inherited, section 6.4).
 - `expected.timeAnchors` — expected treatment of missing/malformed
-  report timestamps (`missing` | `malformed_treated_as_missing`).
-- `expected.laneAvailability` — lane-level `unavailable` for
-  incomparable-coverage lanes (`iran-gulf-unavailable-010`).
+  report timestamps (`missing` | `malformed_treated_as_missing`;
+  `cc-timestamps-003`, `cc-window-rung2-017`).
 - `expected.eligibleCount` — pins the eligible-set size for the
   three-way `unavailable` vs empty-set-zero vs nonempty-set-zero
   distinction (`cc-state-*-014/015/016`).
@@ -198,7 +292,8 @@ Per scenario:
 - No source full text; no URLs to real articles (all `sourceDomain`
   values are `*.example`); no real social-media handles.
 - Timestamps are ISO-8601 with explicit timezone EXCEPT the deliberate
-  missing/malformed values in `cc-timestamps-003` (marked in its notes);
+  missing/malformed values in `cc-timestamps-003` and the malformed
+  `cutoffAt` in `cc-window-rung2-017` (marked in their notes);
   `cc-dst-offset-004` deliberately mixes `-04:00` and `Z` forms of the
   same instant.
 - Hedged claim wording always matches the `hedging` field; disputed or
@@ -225,16 +320,16 @@ ROCA (`roca-scenarios-v1.json`):
 
 | # | acceptance bullet | scenario id(s) |
 |---|---|---|
-| R1 | development supported only by a UA-tagged claim | `roca-ua-only-001` |
+| R1 | development supported only by a UA-tagged claim | `roca-ua-only-001b` |
 | R2 | supported only by a RU-tagged source about an event inside Ukraine | `roca-ru-source-002` |
 | R3 | occupied Crimea (or another `both` geography) | `roca-crimea-003` |
 | R4 | North Korean military support | `roca-dprk-004` |
 | R5 | EU/NATO/member-state decision directly shaping the war | `roca-coalition-005` |
 | R6 | unrelated European domestic news that must be excluded | `roca-eu-domestic-006` |
 | R7 | same town and action class on different dates (must NOT match; ruling-12 spirit) | `roca-recurring-template-007` |
-| R8 | mapped-corpus match omitted from published output (corpusRecall matched, publishedRetention miss) | `roca-retention-gap-008` |
-| R9 | compound reference unit with partial evidence (`partial`, counted as miss in headline) | `roca-compound-partial-009` |
-| R10 | quiet/no-advance unit opposed by a positive advance claim (must NOT match) | `roca-quiet-day-010` |
+| R8 | mapped-corpus match omitted from published output (corpusRecall matched, publishedRetention miss) | `roca-retention-gap-008b` |
+| R9 | compound reference unit with partial evidence (`partial`, counted as miss in headline) | `roca-compound-partial-009b` |
+| R10 | quiet/no-advance unit opposed by a positive advance claim (must NOT match) | `roca-quiet-day-010b` |
 
 Iran (`iran-scenarios-v1.json`):
 
@@ -249,7 +344,7 @@ Iran (`iran-scenarios-v1.json`):
 | I7 | E3/EU or mediator diplomacy | `iran-e3-diplomacy-007` |
 | I8 | Iranian domestic security or succession from the ELITE track | `iran-elite-succession-008` |
 | I9 | unrelated Israeli/Gulf domestic or commercial news that must be excluded | `iran-domestic-exclusion-009` |
-| I10 | Iran Update lane with no comparable mapped Gulf evidence — lane `unavailable`, never manufactured | `iran-gulf-unavailable-010` |
+| I10 | Iran Update lane with no comparable mapped Gulf evidence — headline honest miss with `missDiagnostic`, lane diagnostic `unavailable (incomparable)`, never manufactured | `iran-gulf-unavailable-010b` |
 | I11 | same proxy/actor in two DISTINCT events (must not cross-match) | `iran-two-events-011` |
 | I12 | source-language translation must not strengthen hedge or attribution | `iran-translation-hedge-012` |
 
@@ -267,66 +362,88 @@ Cross-cutting (`crosscutting-scenarios-v1.json`):
 | C8 | current and superseded extractor versions together | `cc-superseded-version-008` |
 | C9 | mirrors/reposts across adapters (mirror_only; corroboration NOT independent) | `cc-mirror-adapters-009` |
 | C10 | one authoritative source vs many dependent copies (independence = 1) | `cc-independence-010` |
-| C11 | stub/fixture leakage attempt (`stub_fixture`) | `cc-stub-leakage-011` |
+| C11 | stub/fixture leakage attempt (`stub_fixture`) + frozen-precedence pins (stub∧off-scope → `stub_fixture`; no-source-link → `missing_source`) | `cc-stub-leakage-011b` |
 | C12 | source text containing prompt instructions / fake schema fragments | `cc-injection-012` |
-| C13 | malformed/truncated/empty matcher output and partial vote rounds | `cc-matcher-failclosed-013` |
+| C13 | malformed/truncated/empty matcher output and partial vote rounds (inherited ladder: `llm` rung at 1-2 usable, `keyword` at 0; `keywordUnmatchable` denominator pin) | `cc-matcher-failclosed-013b` |
 | C14 | unavailable snapshot vs empty evidence vs genuinely zero matches (THREE distinct states) | `cc-state-unavailable-014`, `cc-state-zero-empty-015`, `cc-state-zero-nonempty-016` |
 | C15 | attempts to recover reference prose | README audit rule above + sentinel in `cc-regen-after-instant-007` (not a scenario) |
+| C16 | window END rung 2: malformed cutoff falls to `publishedAt`, recorded `windowEndSource` (window family of C3/C4; Gate-0 science M2) | `cc-window-rung2-017` |
 
-## Contract ambiguities flagged (NOT resolved here; each needs a P1/Gate-0 adjudication)
+## Resolved at Gate 0 (formerly "Contract ambiguities flagged")
 
-1. **Eligibility window width.** Contract section 5 predicate 2 says
-   "within the evaluation window for the report" without freezing the
-   width. These fixtures ASSUME `[reportDate - 2 days, cutoffAt]` and
-   pin each scenario's expectation explicitly (`roca-recurring-template-007`
-   marks its August 8 claim `window:in-edge`; `cc-state-zero-empty-015`
-   excludes a late-July claim `off_window`). P1 must freeze the window
-   and, if it differs, mint new scenario ids for the affected cases.
-2. **Contribution population.** Section 7 counts "distinct matched units"
-   without saying whether corpus-recall or published-retention matches
-   feed the contribution table. These fixtures follow the mandated
-   fixture shape: contribution attaches to CORPUS-RECALL matched units
-   (so `roca-retention-gap-008` carries contribution despite its
-   publishedRetention miss). Needs an explicit ruling before Phase 4
-   renders any contribution table.
-3. **Lane tie-break.** When the actor roster and event geography point to
-   different lanes (a Houthi attack on Red Sea shipping: `proxy_partner`
-   actor vs `maritime` geography), section 4 gives no precedence.
-   `iran-houthi-maritime-004` pins event-geography precedence
-   (`maritime`); the P1 deterministic classifier must freeze the rule.
-4. **Exclusion-reason precedence.** Section 5 bounds each excluded
-   candidate to ONE reason but sets no order when several apply
-   (`iran-domestic-exclusion-009` claim 9110 is both off-scope and
-   legacy-incomparable). Fixtures pin content-scope checks first
-   (`off_scope` wins over comparability/integrity classes); integrity
-   reasons (`stub_fixture`, `superseded_version`, `mirror_only`,
-   `legacy_incomparable`) apply to content that IS in scope. P1 must
-   freeze a total order.
-5. **Cutoff boundary equality.** Section 6.2 says "at/before", which the
-   fixtures read as inclusive (`cc-dst-offset-004`: a doc ingested at
-   exactly the cutoff instant counts as available at cutoff). Minor, but
-   P1 should state it.
+The five ambiguities Phase 0 fixture authoring surfaced are now FROZEN in
+the contract (section 5 window/precedence rules, section 7 contribution
+population; decision register #6) and the two Gate-0 reviews added further
+frozen semantics (register #7 product/legal, #8 scope/evaluation-science).
+The fixtures pin each resolution:
+
+1. **Evaluation window (frozen, §5 / #6):** `[reportDate − 2 days, END]`
+   with END = `cutoffAt` when parseable → `publishedAt` when known → the
+   exclusive end of the report date's UTC day; END inclusive where
+   instants apply; claims day-granular. Pinned by
+   `roca-recurring-template-007` (start-edge `window:in-edge` + off_window),
+   `cc-state-zero-empty-015` (off_window), and `cc-window-rung2-017`
+   (rung-2 END with `windowEndSource: "published"`).
+2. **Contribution population (frozen, §7 / #6):** computed over
+   CORPUS-RECALL matched units; a published-retention contribution table,
+   when displayed, derives separately and is never mixed in. Pinned by
+   `roca-retention-gap-008b` (contribution present despite retention miss).
+3. **Lane tie-break (frozen, §5 / #6):** event geography wins over the
+   actor roster; the actor still contributes to actor-level attribution.
+   Pinned by `iran-houthi-maritime-004` (`maritime`, not `proxy_partner`).
+4. **Exclusion-reason precedence (frozen, §5 / #6 — integrity → scope →
+   comparability, first match wins):** `stub_fixture` → `missing_source`
+   → `superseded_version` → `mirror_only` → `off_window` → `off_scope` →
+   `legacy_incomparable` → `unclassified`. (The pre-Gate-0 revision of
+   this README stated the opposite — scope over integrity — and was
+   WRONG; the frozen order is authoritative.) Pinned by
+   `cc-stub-leakage-011b` (stub∧off-scope → `stub_fixture`; docs-less →
+   `missing_source`) and `iran-domestic-exclusion-009` (off_scope before
+   legacy_incomparable).
+5. **Cutoff boundary equality (frozen, §5 / #6):** "at or before" —
+   equality inclusive. Pinned by `cc-dst-offset-004`.
+
+Gate-0 additions pinned here: NO per-unit `unavailable` in headline
+arithmetic (§3 / #8 H1 — `iran-gulf-unavailable-010b`); the inherited
+matcher degradation ladder (§6.3 / #8 H2 — `cc-matcher-failclosed-013b`);
+the keyword-fallback full-denominator rule with `keywordUnmatchable`
+(§6.3 / #8 M1 — same scenario); `windowEndSource` recording (§6.4 / #8 M2
+— `cc-window-rung2-017`); headline pins on exactly five scenarios (#8 M4).
 
 ## Validated
 
-Ad hoc shell validation (no committed code, per the Phase 0 mandate), run
-2026-08-17 from this directory. The python3 heredoc asserts: each file
-parses; every unit and included-eligibility lane id is in the contract
+Ad hoc shell validation (no committed code, per the Phase 0 mandate),
+re-run 2026-08-17 after the Gate-0 remints. The python3 heredoc asserts:
+each file parses and carries the `synthetic`/`provenance`/`disclaimer`
+markers; every unit and included-eligibility lane id is in the contract
 section 4 taxonomy for the scenario's conflict; every exclusion reason is
-in the bounded enum; every verdict is in {matched, miss, partial,
-unavailable}; contribution entries exist only for corpus-recall-matched
-units; scenario/claim/doc ids are globally unique; unit texts <= 320 and
-claim texts <= 250 chars; hedging and engine values are valid; legacy rows
-carry `currentExtractorVersion: false`; the VELMORAN sentinel appears
-exactly once across the three JSON files.
+in the bounded enum AND consistent with the frozen precedence order
+(mechanically recomputing stub/missing-source/superseded/mirror/window/
+legacy applicability per claim, including the frozen window ladder, and
+asserting the expected reason is the first applicable — and that no
+included claim has a mechanical exclusion); per-unit verdicts are valid
+with NO corpus-recall `unavailable` (H1); contribution entries exist only
+for corpus-recall-matched units; `headline` blocks exist in EXACTLY the
+five register-#8 scenarios with matched/denominator/partialDiagnostic
+recomputed from the per-unit verdicts; `missDiagnostic`/`laneDiagnostics`
+values are bounded and sit on miss units / valid lanes; `windowEndSource`
+matches the ladder-computed rung; the matcherFixture holds exactly two
+5-vote variants whose pinned validVotes match a recount of actually
+JSON-parseable votes and whose rungs are `llm` (variant A, voteRounds 1,
+non-majority) and `keyword` (variant B, keywordUnmatchable 1);
+scenario/claim/doc ids are globally unique; unit texts <= 320 and claim
+texts <= 250 chars; hedging/engine values valid; legacy rows carry
+`currentExtractorVersion: false`; the VELMORAN sentinel appears exactly
+once across the three JSON files.
 
 ```
 $ python3 - <<'EOF'   # (assertion script as described above)
 roca-scenarios-v1.json: parses OK, 10 scenarios
 iran-scenarios-v1.json: parses OK, 12 scenarios
-crosscutting-scenarios-v1.json: parses OK, 16 scenarios
-totals: scenarios=38 units=39 claims=45 docs=48 included=33 excluded=11
+crosscutting-scenarios-v1.json: parses OK, 17 scenarios
+totals: scenarios=39 units=41 claims=48 docs=50 included=34 excluded=13
 max unit text len=199 (cap 320); max claim text len=153 (cap 250); VELMORAN occurrences in JSON=1 (must be 1)
-ALL CHECKS PASS: lanes valid per conflict, exclusion reasons bounded, verdicts valid, contribution only for corpus-matched units, ids unique, text caps respected
+headline pins present in exactly: ['cc-matcher-failclosed-013b', 'iran-gulf-unavailable-010b', 'roca-compound-partial-009b', 'roca-retention-gap-008b', 'roca-ua-only-001b']
+ALL CHECKS PASS: lanes valid per conflict; exclusion reasons bounded AND consistent with the frozen integrity->scope->comparability precedence; window ladder consistent (incl. rung-2 windowEndSource); verdicts valid with NO unit-level corpus-recall unavailable; contribution only for corpus-matched units; headline pins on exactly the five register-#8 scenarios with self-consistent arithmetic incl. partialDiagnostic; matcher variants pin the llm and keyword rungs with vote-usability recount; missDiagnostic/laneDiagnostics values bounded; ids unique; text caps respected; synthetic markers present
 EOF
 ```

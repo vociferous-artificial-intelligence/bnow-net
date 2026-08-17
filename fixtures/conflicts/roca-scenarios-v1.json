@@ -6,7 +6,7 @@
   "conflictId": "russia_ukraine",
   "scenarios": [
     {
-      "id": "roca-ua-only-001",
+      "id": "roca-ua-only-001b",
       "title": "UA-corpus claim alone satisfies a war-level development",
       "acceptanceRef": "ROCA: a development supported only by a UA-tagged claim",
       "conflictId": "russia_ukraine",
@@ -79,7 +79,17 @@
             ]
           }
         },
-        "notes": "Proves the combined denominator accepts evidence regardless of which country corpus retained it. Under the legacy per-country model the RU row would have scored this development a miss; the combined russia_ukraine evaluation counts it once, attributed to the ua theater bucket (contract section 2, section 7)."
+        "headline": {
+          "corpusRecall": {
+            "matched": 1,
+            "denominator": 1
+          },
+          "publishedRetention": {
+            "matched": 1,
+            "denominator": 1
+          }
+        },
+        "notes": "Proves the combined denominator accepts evidence regardless of which country corpus retained it. Under the legacy per-country model the RU row would have scored this development a miss; the combined russia_ukraine evaluation counts it once, attributed to the ua theater bucket (contract section 2, section 7). Headline pin (Gate-0 M4, register #8): corpusRecall 1/1 and publishedRetention 1/1 - the clean-match anchor; full-report golden arithmetic remains P4's deliverable."
       }
     },
     {
@@ -545,11 +555,11 @@
           "u0": "miss"
         },
         "contribution": {},
-        "notes": "Ruling-12 spirit: identical town + action class on distant days is a recurring template, not the same event. Claim 9007 (August 3) is outside the fixture's assumed eligibility window (reportDate minus 2 days through cutoff; window width flagged as a contract ambiguity in the README). Claim 9008 (August 8) is eligible at the window edge but its date is incompatible with the unit's August 10 event, and section 6.3 forbids matching on shared place/action alone."
+        "notes": "Ruling-12 spirit: identical town + action class on distant days is a recurring template, not the same event. Claim 9007 (August 3) is outside the FROZEN evaluation window (contract section 5, register #6: reportDate minus 2 days through the END ladder cutoff|published|report-day, inclusive END). Claim 9008 (August 8) sits exactly on the window start (hence window:in-edge) and is eligible, but its date is incompatible with the unit's August 10 event, and section 6.3 forbids matching on shared place/action alone."
       }
     },
     {
-      "id": "roca-retention-gap-008",
+      "id": "roca-retention-gap-008b",
       "title": "Mapped-corpus match omitted from every published output",
       "acceptanceRef": "ROCA: one mapped-corpus match omitted from published output (corpusRecall matched, publishedRetention miss)",
       "conflictId": "russia_ukraine",
@@ -622,11 +632,21 @@
             ]
           }
         },
-        "notes": "Separates the two pipeline questions (contract section 6.1): the mapped corpus contained the development (published=false doc_claims row) but no designated user-facing digest retained a matching claim. Evidence existence never implies published retention. Contribution here follows the corpus-recall match per the fixture-shape precedent; the contribution population question is flagged as a contract ambiguity in the README."
+        "headline": {
+          "corpusRecall": {
+            "matched": 1,
+            "denominator": 1
+          },
+          "publishedRetention": {
+            "matched": 0,
+            "denominator": 1
+          }
+        },
+        "notes": "Separates the two pipeline questions (contract section 6.1): the mapped corpus contained the development (published=false doc_claims row) but no designated user-facing digest retained a matching claim. Evidence existence never implies published retention. Contribution follows the corpus-recall matched unit per the FROZEN section 7 population rule (register #6). Headline pin (Gate-0 M4, register #8): corpusRecall 1/1 vs publishedRetention 0/1 - the retention-gap anchor."
       }
     },
     {
-      "id": "roca-compound-partial-009",
+      "id": "roca-compound-partial-009b",
       "title": "Compound unit with evidence for only one proposition",
       "acceptanceRef": "ROCA: a compound reference unit with partial evidence (expected `partial`, counted as miss in headline)",
       "conflictId": "russia_ukraine",
@@ -690,7 +710,18 @@
           "u0": "partial"
         },
         "contribution": {},
-        "notes": "The unit is compound (glide-bomb strikes AND a pontoon crossing); evidence covers only the strikes. Expected verdict `partial` is DIAGNOSTIC and counts as a MISS in the headline numerator (contract section 3) for both pipeline questions \u2014 never a fraction, never a match. No contribution entry: contribution applies only to matched units. One claim never satisfies multiple distinct propositions on topic overlap alone."
+        "headline": {
+          "corpusRecall": {
+            "matched": 0,
+            "denominator": 1
+          },
+          "publishedRetention": {
+            "matched": 0,
+            "denominator": 1
+          },
+          "partialDiagnostic": 1
+        },
+        "notes": "The unit is compound (glide-bomb strikes AND a pontoon crossing); evidence covers only the strikes. Expected verdict `partial` is DIAGNOSTIC and counts as a MISS in the headline numerator (contract section 3) for both pipeline questions \u2014 never a fraction, never a match. No contribution entry: contribution applies only to matched units. One claim never satisfies multiple distinct propositions on topic overlap alone. Headline pin (Gate-0 M4, register #8): 0/1 in BOTH populations with partialDiagnostic 1 - the partial is visible as a diagnostic beside the headline, never as headline credit."
       }
     },
     {

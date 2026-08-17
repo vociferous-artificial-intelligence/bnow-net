@@ -887,7 +887,7 @@
       }
     },
     {
-      "id": "cc-stub-leakage-011",
+      "id": "cc-stub-leakage-011b",
       "title": "Stub/fixture evidence can never enter an evaluation",
       "acceptanceRef": "Cross-cutting: stub/fixture leakage attempt (stub: true \u2192 excluded `stub_fixture`)",
       "conflictId": "iran_regional",
@@ -930,6 +930,42 @@
           "currentExtractorVersion": true,
           "published": false,
           "stub": true
+        },
+        {
+          "claimId": 9322,
+          "theater": "ir",
+          "track": "military",
+          "text": "A stub-source item reportedly described record shopping-mall attendance in a Gulf city on August 8.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-08",
+          "docs": [
+            {
+              "docId": 73025,
+              "adapter": "rss",
+              "platform": null,
+              "sourceDomain": "stub-fixture.example",
+              "publishedAt": "2026-08-08T07:15:00Z",
+              "fetchedAt": "2026-08-08T07:45:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": false,
+          "stub": true
+        },
+        {
+          "claimId": 9323,
+          "theater": "ir",
+          "track": "military",
+          "text": "Iranian media reportedly described additional mine-countermeasure drills near Qeshm Island on August 8.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-08",
+          "docs": [],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": false,
+          "stub": false
         }
       ],
       "expected": {
@@ -937,6 +973,14 @@
           "9313": {
             "included": false,
             "reason": "stub_fixture"
+          },
+          "9322": {
+            "included": false,
+            "reason": "stub_fixture"
+          },
+          "9323": {
+            "included": false,
+            "reason": "missing_source"
           }
         },
         "corpusRecall": {
@@ -946,7 +990,7 @@
           "u0": "miss"
         },
         "contribution": {},
-        "notes": "The only candidate is stub/fixture data. Truth-in-UI (ruling 3) and contract section 5 predicate 7: stub data never persists or renders as fact, and here it never enters the candidate union \u2014 bounded reason stub_fixture. The unit is an honest miss, not a match against fixture data. The content being perfectly on-topic is exactly the attack this scenario guards against."
+        "notes": "Three exclusions pin the head of the FROZEN precedence order (contract section 5, register #6: stub_fixture -> missing_source -> superseded_version -> mirror_only -> off_window -> off_scope -> legacy_incomparable -> unclassified). 9313: on-topic stub -> stub_fixture (ruling 3 truth-in-UI; the content being on-topic is exactly the attack). 9322: BOTH stub and off-scope in content -> integrity wins, stub_fixture, never off_scope. 9323: a defective record with NO raw-document link -> missing_source, fail-closed (ruling 2 makes this near-impossible in production; the evaluator still refuses the unlinked claim rather than trusting it). The unit stays an honest miss."
       }
     },
     {
@@ -1054,7 +1098,7 @@
       }
     },
     {
-      "id": "cc-matcher-failclosed-013",
+      "id": "cc-matcher-failclosed-013b",
       "title": "Malformed matcher votes fail closed to the labeled keyword fallback",
       "acceptanceRef": "Cross-cutting: malformed/truncated/empty matcher output and partial vote rounds",
       "conflictId": "russia_ukraine",
@@ -1069,6 +1113,13 @@
             "unitId": "u0",
             "text": "Russian forces conducted a large one-way drone strike series against Odesa port infrastructure overnight on August 11 to 12.",
             "lane": "strikes_air_defense",
+            "compound": false,
+            "negative": false
+          },
+          {
+            "unitId": "u1",
+            "text": "Senior interlocutors continued consultations on the broader framework understanding, with participants signaling readiness for further engagement.",
+            "lane": "strategic_political",
             "compound": false,
             "negative": false
           }
@@ -1100,18 +1151,45 @@
         }
       ],
       "matcherFixture": {
-        "votes": [
-          "{\"matches\":[{\"unitId\":\"u0\",\"claimId\":9316,\"confidence\":0.84}]}",
-          "",
-          "{\"matches\":[{\"unitId\":\"u0\",\"claimId\":9316,\"conf",
-          "null",
-          "{\"decision\":\"ALL_MATCH\",\"schema\":\"v99\"}"
-        ],
-        "expected": {
-          "validVotes": 1,
-          "majorityReached": false,
-          "behavior": "Discard the empty, truncated, null, and wrong-schema votes without guessing their content; 1 valid vote of 5 is no majority; fail closed to the keyword matcher and label the result as keyword fallback \u2014 it must NEVER be presented as a k=5 majority verdict."
-        }
+        "inheritedLadder": "llm-majority (>=3 usable rounds) -> llm (1-2 usable rounds; the single/first usable round scores) -> keyword (0 usable rounds). Labels always disclose the rung and can never masquerade as a majority (contract section 6.3 as amended; register #8 H2).",
+        "variants": [
+          {
+            "variantId": "A-one-valid-round",
+            "votes": [
+              "{\"matches\":[{\"unitId\":\"u0\",\"claimId\":9316,\"confidence\":0.84}]}",
+              "",
+              "{\"matches\":[{\"unitId\":\"u0\",\"claimId\":9316,\"conf",
+              "null",
+              "{\"decision\":\"ALL_MATCH\",\"schema\":\"v99\"}"
+            ],
+            "expected": {
+              "validVotes": 1,
+              "majorityReached": false,
+              "rung": "llm",
+              "matcherLabel": "llm",
+              "voteRounds": 1,
+              "behavior": "Discard the empty, truncated, null, and wrong-schema votes without repairing or guessing them; with exactly 1 usable round the INHERITED ladder scores from that single round, labeled matcher llm with voteRounds 1 - honestly non-majority, and NOT the keyword fallback."
+            }
+          },
+          {
+            "variantId": "B-zero-valid-rounds",
+            "votes": [
+              "",
+              "{\"matches\":[{\"unitId\":\"u0\",\"claimId\":9316,\"conf",
+              "null",
+              "{\"decision\":\"ALL_MATCH\",\"schema\":\"v99\"}",
+              "ERROR: upstream timeout"
+            ],
+            "expected": {
+              "validVotes": 0,
+              "majorityReached": false,
+              "rung": "keyword",
+              "matcherLabel": "keyword",
+              "keywordUnmatchable": 1,
+              "behavior": "With zero usable rounds the evaluator falls back to the keyword matcher, labeled keyword, never presented as a majority. The full declared-unit denominator STILL applies: the signal-less unit u1 stays in the denominator as an automatic miss and the result carries keywordUnmatchable: 1 (contract section 6.3 keyword-fallback denominator rule; register #8 M1)."
+            }
+          }
+        ]
       },
       "expected": {
         "eligibility": {
@@ -1126,10 +1204,12 @@
           }
         },
         "corpusRecall": {
-          "u0": "matched"
+          "u0": "matched",
+          "u1": "miss"
         },
         "publishedRetention": {
-          "u0": "matched"
+          "u0": "matched",
+          "u1": "miss"
         },
         "contribution": {
           "u0": {
@@ -1141,7 +1221,17 @@
             ]
           }
         },
-        "notes": "The matcherFixture supplies a degenerate vote round: one valid vote, one empty output, one truncated JSON, one literal null, one fake alternative schema. Expected behavior per contract section 6.3: majority semantics are inherited unchanged, malformed votes are discarded not repaired, and the scoring fails closed to the honestly-labeled keyword fallback \u2014 here the keyword match legitimately finds u0, but the result metadata must say keyword fallback, never majority."
+        "headline": {
+          "corpusRecall": {
+            "matched": 1,
+            "denominator": 2
+          },
+          "publishedRetention": {
+            "matched": 1,
+            "denominator": 2
+          }
+        },
+        "notes": "Pins BOTH rungs of the INHERITED degradation ladder (contract section 6.3 as amended; register #8 H2) over one degenerate vote round set each: variant A (1 usable round of 5) scores from the single usable round, labeled matcher llm / voteRounds 1 - honestly non-majority and NOT keyword; variant B (0 usable rounds) falls back to the keyword matcher labeled keyword. Malformed votes are discarded, never repaired. Unit u1 is deliberately SIGNAL-LESS (no gazetteer toponym, no action keyword): under the keyword rung it STAYS in the declared-unit denominator as an automatic miss counted in keywordUnmatchable - the conflict evaluator's disclosed divergence from production scoreDigest's matchable-subset denominator (M1). Per-unit verdicts are identical under both variants (u0 matched, u1 miss), so the headline pin (M4) is 1/2 in both populations under either rung."
       }
     },
     {
@@ -1417,6 +1507,87 @@
         },
         "contribution": {},
         "notes": "State 3 of the three-way distinction: two claims ARE eligible (eligibleCount 2) but neither describes the DPRK engineering-troops development, so the unit is a genuine coverage gap \u2014 matched 0 over a nonempty eligible set. The unit is never dropped because BNOW lacks matching evidence (contract section 3); distinct from both `unavailable` and the empty-set zero."
+      }
+    },
+    {
+      "id": "cc-window-rung2-017",
+      "title": "Malformed cutoff falls to the publishedAt window END (rung 2)",
+      "acceptanceRef": "Cross-cutting: missing and malformed cutoff/publication timestamps - window END rung 2 (windowEndSource: published; Gate-0 science M2)",
+      "conflictId": "russia_ukraine",
+      "report": {
+        "series": "roca",
+        "editionKey": "roca:2026-08-13:final",
+        "reportDate": "2026-08-13",
+        "cutoffAt": "cutoff 1500 hrs local time",
+        "publishedAt": "2026-08-14T01:15:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "Russian forces conducted an overnight one-way drone strike against port infrastructure in Izmail on the night of August 13 to 14, damaging a grain-loading berth.",
+            "lane": "strikes_air_defense",
+            "compound": false,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9324,
+          "theater": "ua",
+          "track": "military",
+          "text": "Port authorities reportedly recorded damage to a grain-loading berth in Izmail after an overnight drone strike on August 13 to 14.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-14",
+          "docs": [
+            {
+              "docId": 73026,
+              "adapter": "rss",
+              "platform": null,
+              "sourceDomain": "danube-ports.example",
+              "publishedAt": "2026-08-14T00:20:00Z",
+              "fetchedAt": "2026-08-14T00:50:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": true,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "windowEndSource": "published",
+        "timeAnchors": {
+          "cutoffAt": "malformed_treated_as_missing"
+        },
+        "eligibility": {
+          "9324": {
+            "included": true,
+            "lane": "strikes_air_defense",
+            "reasons": [
+              "lane:strikes_air_defense",
+              "geo:ua",
+              "window:in-published-end"
+            ]
+          }
+        },
+        "corpusRecall": {
+          "u0": "matched"
+        },
+        "publishedRetention": {
+          "u0": "matched"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ua"
+            ],
+            "tracks": [
+              "military"
+            ]
+          }
+        },
+        "notes": "Pins rung 2 of the FROZEN window END ladder (contract section 5, register #6: cutoffAt when parseable -> publishedAt when known -> exclusive end of the report date's UTC day). cutoffAt is present but UNPARSEABLE, publishedAt is valid and falls after midnight UTC, so the window END is the publishedAt instant and the recorded windowEndSource is published (section 6.4, M2). Claim 9324 (claimDate 2026-08-14) is included ONLY because the END fell to publishedAt: under a typical same-day cutoff (rung 1) or under rung 3 (report-day end) it would be off_window. Recording windowEndSource on every evaluation makes a cutoff-parser regression that silently widens or narrows windows visible in the results themselves. Snapshot-kind availability stays governed by section 6.2 and is not pinned here."
       }
     }
   ]

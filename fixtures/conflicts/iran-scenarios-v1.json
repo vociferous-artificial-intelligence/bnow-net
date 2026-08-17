@@ -312,7 +312,7 @@
             ]
           }
         },
-        "notes": "Both the Houthi actor roster (proxy_partner) and the Red Sea event geography (maritime) hit; the fixture pins the `maritime` lane by event-geography precedence. The lane tie-break rule is flagged as a contract ambiguity in the README \u2014 the P1 deterministic classifier must freeze it."
+        "notes": "Both the Houthi actor roster (proxy_partner) and the Red Sea event geography (maritime) hit; the fixture pins the `maritime` lane per the FROZEN event-geography-over-actor lane precedence (contract section 5, register #6); the Houthi actor still contributes to actor-level attribution."
       }
     },
     {
@@ -713,11 +713,11 @@
           "u0": "miss"
         },
         "contribution": {},
-        "notes": "Region membership never suffices (contract section 5 test-mandated exclusions): Gulf commercial earnings and Israeli municipal politics are off_scope. For 9110 both off_scope and legacy_incomparable apply; the fixture pins content-scope checks first (single bounded reason: off_scope) \u2014 exclusion-reason precedence is flagged as a contract ambiguity in the README. The in-scope exercise unit stays a genuine miss."
+        "notes": "Region membership never suffices (contract section 5 test-mandated exclusions): Gulf commercial earnings and Israeli municipal politics are off_scope. For 9110 both off_scope and legacy_incomparable apply; the FROZEN exclusion-reason precedence (contract section 5, register #6) places off_scope BEFORE legacy_incomparable (and both after the integrity classes), so the single bounded reason is off_scope. The in-scope exercise unit stays a genuine miss."
       }
     },
     {
-      "id": "iran-gulf-unavailable-010",
+      "id": "iran-gulf-unavailable-010b",
       "title": "Gulf-base lane with no comparable mapped evidence reports unavailable",
       "acceptanceRef": "Iran: an Iran Update lane with no comparable mapped Gulf evidence \u2014 expected `unavailable` for that lane, never manufactured",
       "conflictId": "iran_regional",
@@ -769,18 +769,31 @@
             "reason": "legacy_incomparable"
           }
         },
-        "laneAvailability": {
-          "maritime": "unavailable"
+        "laneDiagnostics": {
+          "maritime": "unavailable_incomparable"
         },
         "corpusRecall": {
-          "u0": "unavailable"
+          "u0": "miss"
+        },
+        "missDiagnostic": {
+          "u0": "incomparable_coverage"
         },
         "publishedRetention": {
           "u0": "matched"
         },
         "contribution": {},
-        "independentSourceNote": "The legacy bh claim IS a member of the published-retention population as a labeled `legacy` contributor (designated gulf digest), so publishedRetention is matched; it is NOT in the corpus-recall population, whose lane honestly reports unavailable.",
-        "notes": "Comparability honesty (contract section 5): bh has no map-stage doc_claims, so corpus recall for this lane is `unavailable` \u2014 never a manufactured zero and never a silent inclusion of legacy rows. expected.eligibility describes the corpus-recall candidate union only (README schema note). No contribution entry: contribution follows corpus-recall matched units in these fixtures."
+        "headline": {
+          "corpusRecall": {
+            "matched": 0,
+            "denominator": 1
+          },
+          "publishedRetention": {
+            "matched": 1,
+            "denominator": 1
+          }
+        },
+        "independentSourceNote": "The legacy bh claim is a member of the published-retention population ONLY, as a labeled legacy contributor from a designated gulf digest; it never enters the corpus-recall candidate union (expected.eligibility describes the corpus-recall population).",
+        "notes": "Gate-0 H1 semantics (contract section 3 as amended; register #8): the Gulf-base unit STAYS in the headline denominator and its corpusRecall verdict is an HONEST MISS - a real product coverage gap - carrying missDiagnostic incomparable_coverage. The LANE diagnostic table shows unavailable (incomparable evidence) via laneDiagnostics instead of a bare 0% that would imply comparable-but-missed; there is NO unit-level unavailable escape from the denominator. publishedRetention is matched via the labeled legacy contributor (section 6.1), hence the headline pin corpusRecall 0/1 vs publishedRetention 1/1. Never a manufactured zero, never a silent legacy inclusion in corpus recall."
       }
     },
     {
