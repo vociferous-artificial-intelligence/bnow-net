@@ -1,0 +1,310 @@
+{
+  "generatedAt": "2026-08-17T08:37:36.439Z",
+  "scorecards": [
+    {
+      "workload": "map",
+      "datasetVersion": "map-v1",
+      "judged": {
+        "workload": "map",
+        "configKey": "offline-fixtures",
+        "cases": {
+          "total": 17,
+          "scored": 16,
+          "schemaInvalid": 1,
+          "providerError": 0,
+          "skipped": 0
+        },
+        "checks": {
+          "passed": 9,
+          "total": 17
+        },
+        "machinery": {
+          "matched": 17,
+          "total": 17
+        },
+        "gate": {
+          "wrongDocIdsTotal": 1,
+          "heldoutUnderfillCases": 1,
+          "strengthenedHedgesTotal": 2,
+          "guardCasesFailed": 0,
+          "fidelityFailures": 1,
+          "injectionFollowedCases": 1,
+          "reproducibilityFailures": 0
+        },
+        "quality": {
+          "recallMean": 0.9166666666666667,
+          "precisionMean": 0.96875,
+          "checksPassRate": 0.5294117647058824
+        },
+        "resources": {
+          "latencyMsMean": null,
+          "promptTokensTotal": 0,
+          "completionTokensTotal": 0,
+          "estUsdTotal": 0
+        },
+        "meter": {
+          "attempts": 0,
+          "reservations": 0,
+          "meterings": 0,
+          "erroredAttempts": 0
+        },
+        "live": false,
+        "repetitions": 1,
+        "repetitionSpread": {}
+      },
+      "judgedIdentity": {
+        "provider": "stub",
+        "model": "offline-fixtures",
+        "reasoningEffort": null,
+        "registryVersion": "analysis-reg-v1",
+        "approval": "baseline",
+        "promptHash": "faa41fa6f08f887083331c300d7620708ec579637cfb50be9f73760fcc9e41a1",
+        "schemaVersion": "8185ce15a5e1e4ec88d1ee6c014631839ec50fd6ebc2f604512e043df1747e37",
+        "extractorVersion": "elite_politics/ru=gpt-4o-mini:15a6078371bd,military/ir=gpt-4o-mini:75e0ff6403db,military/ru=gpt-4o-mini:d73cc83ed8df,military/ua=gpt-4o-mini:d73cc83ed8df"
+      },
+      "baseline": null,
+      "heldout": {
+        "typical": 1,
+        "edge": 2,
+        "adversarial": 2
+      },
+      "verdictResult": {
+        "verdict": "fail",
+        "reasons": [
+          "traceability: wrongDocIds 1 > 0",
+          "completeness: 1 under-filled heldout case(s) (ruling 7)",
+          "certainty: 2 strengthened hedge(s) (ruling 16)",
+          "fidelity: 1 mustMatch/mustNotMatch failure(s) (ruling 20)",
+          "injection: payload followed in 1 case(s)",
+          "1 schema-invalid output(s)",
+          "no baseline aggregate supplied — pairwise quality gate not run (candidate-only numbers are never a pass)"
+        ],
+        "deltas": null
+      },
+      "proposedRegistryEntry": null
+    },
+    {
+      "workload": "reduce",
+      "datasetVersion": "reduce-v1",
+      "judged": {
+        "workload": "reduce",
+        "configKey": "offline-fixtures",
+        "cases": {
+          "total": 14,
+          "scored": 14,
+          "schemaInvalid": 0,
+          "providerError": 0,
+          "skipped": 0
+        },
+        "checks": {
+          "passed": 14,
+          "total": 14
+        },
+        "machinery": {
+          "matched": 14,
+          "total": 14
+        },
+        "gate": {
+          "wrongDocIdsTotal": 0,
+          "heldoutUnderfillCases": 0,
+          "strengthenedHedgesTotal": 0,
+          "guardCasesFailed": 0,
+          "fidelityFailures": 0,
+          "injectionFollowedCases": 0,
+          "reproducibilityFailures": 0
+        },
+        "quality": {
+          "checksPassRate": 1
+        },
+        "resources": {
+          "latencyMsMean": null,
+          "promptTokensTotal": 0,
+          "completionTokensTotal": 0,
+          "estUsdTotal": 0
+        },
+        "meter": {
+          "attempts": 0,
+          "reservations": 0,
+          "meterings": 0,
+          "erroredAttempts": 0
+        },
+        "live": false,
+        "repetitions": 1,
+        "repetitionSpread": {}
+      },
+      "judgedIdentity": {
+        "provider": "stub",
+        "model": "offline-fixtures",
+        "reasoningEffort": null,
+        "registryVersion": "analysis-reg-v1",
+        "approval": "baseline",
+        "promptHash": "2a022ecad8e0084e1d4d0aeb989954ca5df7df92845a37b208bb13b9c39aa4fa",
+        "schemaVersion": "b1821aeff4118593b96065efa1dcee502dc3be4ecf5da827563f10a5662d85ca"
+      },
+      "baseline": null,
+      "heldout": {
+        "typical": 1,
+        "edge": 1,
+        "adversarial": 3
+      },
+      "verdictResult": {
+        "verdict": "insufficient_data",
+        "reasons": [
+          "no baseline aggregate supplied — pairwise quality gate not run (candidate-only numbers are never a pass)"
+        ],
+        "deltas": null
+      },
+      "proposedRegistryEntry": null
+    },
+    {
+      "workload": "digest",
+      "datasetVersion": "digest-v1",
+      "judged": {
+        "workload": "digest",
+        "configKey": "offline-fixtures",
+        "cases": {
+          "total": 10,
+          "scored": 10,
+          "schemaInvalid": 0,
+          "providerError": 0,
+          "skipped": 0
+        },
+        "checks": {
+          "passed": 10,
+          "total": 10
+        },
+        "machinery": {
+          "matched": 10,
+          "total": 10
+        },
+        "gate": {
+          "wrongDocIdsTotal": 0,
+          "heldoutUnderfillCases": 0,
+          "strengthenedHedgesTotal": 0,
+          "guardCasesFailed": 0,
+          "fidelityFailures": 0,
+          "injectionFollowedCases": 0,
+          "reproducibilityFailures": 0
+        },
+        "quality": {
+          "checksPassRate": 1
+        },
+        "resources": {
+          "latencyMsMean": null,
+          "promptTokensTotal": 0,
+          "completionTokensTotal": 0,
+          "estUsdTotal": 0
+        },
+        "meter": {
+          "attempts": 0,
+          "reservations": 0,
+          "meterings": 0,
+          "erroredAttempts": 0
+        },
+        "live": false,
+        "repetitions": 1,
+        "repetitionSpread": {}
+      },
+      "judgedIdentity": {
+        "provider": "stub",
+        "model": "offline-fixtures",
+        "reasoningEffort": null,
+        "registryVersion": "analysis-reg-v1",
+        "approval": "baseline",
+        "promptHash": "860bbbdd727462dd0b6b5685d291fffe370be656219478d4a42335ea5e0e1279",
+        "schemaVersion": "361f13aaa609d7d14245a7b408373e5216480f48832a82ece17bf96093277095"
+      },
+      "baseline": null,
+      "heldout": {
+        "typical": 1,
+        "edge": 1,
+        "adversarial": 1
+      },
+      "verdictResult": {
+        "verdict": "insufficient_data",
+        "reasons": [
+          "no baseline aggregate supplied — pairwise quality gate not run (candidate-only numbers are never a pass)"
+        ],
+        "deltas": null
+      },
+      "proposedRegistryEntry": null
+    },
+    {
+      "workload": "validation",
+      "datasetVersion": "validation-v1",
+      "judged": {
+        "workload": "validation",
+        "configKey": "offline-fixtures",
+        "cases": {
+          "total": 14,
+          "scored": 14,
+          "schemaInvalid": 0,
+          "providerError": 0,
+          "skipped": 0
+        },
+        "checks": {
+          "passed": 14,
+          "total": 14
+        },
+        "machinery": {
+          "matched": 14,
+          "total": 14
+        },
+        "gate": {
+          "wrongDocIdsTotal": 0,
+          "heldoutUnderfillCases": 0,
+          "strengthenedHedgesTotal": 0,
+          "guardCasesFailed": 0,
+          "fidelityFailures": 0,
+          "injectionFollowedCases": 0,
+          "reproducibilityFailures": 0
+        },
+        "quality": {
+          "matchSetPrecision": 1,
+          "matchSetRecall": 1,
+          "keywordPrecision": 0.8214285714285714,
+          "keywordRecall": 0.9642857142857143,
+          "checksPassRate": 1
+        },
+        "resources": {
+          "latencyMsMean": null,
+          "promptTokensTotal": 0,
+          "completionTokensTotal": 0,
+          "estUsdTotal": 0
+        },
+        "meter": {
+          "attempts": 0,
+          "reservations": 0,
+          "meterings": 0,
+          "erroredAttempts": 0
+        },
+        "live": false,
+        "repetitions": 1,
+        "repetitionSpread": {}
+      },
+      "judgedIdentity": {
+        "provider": "stub",
+        "model": "offline-fixtures",
+        "reasoningEffort": null,
+        "registryVersion": "analysis-reg-v1",
+        "approval": "baseline",
+        "promptHash": "8a5d7b1b65c077829f818441520dc2923a3cf61297773c1ee2321c6ee265cf1b",
+        "schemaVersion": "89672017b52a25f168bc4c926a4bcb5aa43c7c763a87e165260c00916b8b553a"
+      },
+      "baseline": null,
+      "heldout": {
+        "typical": 1,
+        "edge": 3,
+        "adversarial": 1
+      },
+      "verdictResult": {
+        "verdict": "insufficient_data",
+        "reasons": [
+          "no baseline aggregate supplied — pairwise quality gate not run (candidate-only numbers are never a pass)"
+        ],
+        "deltas": null
+      },
+      "proposedRegistryEntry": null
+    }
+  ]
+}
