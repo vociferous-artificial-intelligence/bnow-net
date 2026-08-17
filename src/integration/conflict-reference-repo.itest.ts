@@ -221,6 +221,61 @@ describe("conflict reference-report repository (disposable SQL)", () => {
     });
   });
 
+  it("a failed edition insert never erases a stored probe_failed day record", async () => {
+    const repo = new SqlReferenceReportRepository(query);
+    const D1 = "2027-07-12";
+    const D2 = "2027-07-13";
+    const dupUrl =
+      "https://understandingwar.org/research/middle-east/iran-update-itest-p2-dup-url/";
+    const d1Edition = editionRaw("plain", {
+      identity: { editionKey: `iran_update:${D1}:plain`, reportDate: D1 },
+      canonicalUrl: dupUrl,
+    });
+    const d2Edition = editionRaw("plain", {
+      identity: { editionKey: `iran_update:${D2}:plain`, reportDate: D2 },
+      canonicalUrl: dupUrl, // duplicates D1's URL → partial unique index
+    });
+
+    expect((await repo.upsertEdition(parseEditionRecord(d1Edition))).action).toBe("inserted");
+    expect(await repo.recordDayStatus("iran_update", D2, "probe_failed")).toEqual({
+      status: "probe_failed",
+      action: "set",
+    });
+
+    // the D2 insert FAILS on the canonical_url partial unique index (a
+    // different edition_key, so ON CONFLICT (edition_key) does not absorb
+    // it) — the error surfaces as a raw driver error from the disposable
+    // backend (typing it is a recorded durable-backend deferral) ...
+    await expect(repo.upsertEdition(parseEditionRecord(d2Edition))).rejects.toThrow(
+      /benchmark_report_editions_url_idx/,
+    );
+    // ... and the stored discovery record SURVIVES: the failed insert must
+    // not have cleared it (regression: the first backend deleted the day
+    // row BEFORE the insert, so this exact failure erased probe_failed)
+    expect(await repo.dayStatus("iran_update", D2)).toBe("probe_failed");
+    const rows = await query(
+      `SELECT status FROM benchmark_series_days WHERE series = 'iran_update' AND report_date = $1`,
+      [D2],
+    );
+    expect(rows).toEqual([{ status: "probe_failed" }]);
+    // and no D2 edition row exists
+    expect(await repo.getEdition(`iran_update:${D2}:plain`)).toBeNull();
+
+    // in-memory contract on the SAME sequence, asserted as it actually is:
+    // canonical_url uniqueness across editions is a DB-level constraint with
+    // no in-memory counterpart (its validation refuses only per-record and
+    // same-key merge conflicts, and always before the clear), so the D2
+    // upsert is ACCEPTED there and clears the day row — a real backend
+    // divergence on constraint surface, not on clear-ordering semantics
+    const mem = new InMemoryReferenceReportRepository();
+    await mem.upsertEdition(parseEditionRecord(d1Edition));
+    await mem.recordDayStatus("iran_update", D2, "probe_failed");
+    const memResult = await mem.upsertEdition(parseEditionRecord(d2Edition));
+    expect(memResult.action).toBe("inserted");
+    expect(memResult.dayStatusCleared).toBe(true);
+    expect(await mem.dayStatus("iran_update", D2)).toBe("published");
+  });
+
   it("DB CHECK constraints refuse a drifted edition key and inconsistent anchors", async () => {
     await expect(
       query(

@@ -172,6 +172,18 @@ them (additive, default `now()` — DB-side provenance, not domain input).
   `SELECT … FOR UPDATE` or move the merge rules into a CASE-guarded
   `ON CONFLICT DO UPDATE`; either must stay semantically identical to
   `mergeEditionRecords` (the tests to reuse are already written).
+- **Upsert atomicity + typed constraint errors.** The first disposable
+  backend cleared the `benchmark_series_days` row BEFORE the edition
+  insert, so a failed insert (e.g. a `canonical_url` duplicated from
+  another day hitting the partial unique index, or a transient DB error)
+  erased a stored `probe_failed` discovery record even single-writer; the
+  window was closed by insert-then-clear ordering (regression-pinned in
+  the itest). The durable integration-phase upsert must still wrap the
+  insert + clear pair in ONE transaction — concurrent-writer hardening
+  remains deferred (previous bullet). Separately, partial-unique
+  `canonical_url` violations currently surface as raw driver errors from
+  the disposable backend; the durable backend should map them to typed
+  domain errors.
 - **Discovery/sync seam.** Wiring the validation cron's discovered URLs
   into edition rows (and linking `isw_report_id`) is integration-phase
   work; the frozen validation stack is not edited by this phase. A

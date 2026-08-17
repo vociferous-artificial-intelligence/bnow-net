@@ -108,19 +108,24 @@ export class SqlReferenceReportRepository implements ReferenceReportRepository {
     const canonical = parseEditionRecord(record);
     const key = canonical.identity.editionKey;
 
-    // an edition proves the day published: clear any stale gap/probe row
-    const cleared = await this.query(
-      `DELETE FROM benchmark_series_days WHERE series = $1 AND report_date = $2 RETURNING series`,
-      [canonical.identity.series, canonical.identity.reportDate],
-    );
-    const dayStatusCleared = cleared.length > 0;
-
     const inserted = await this.query(
       `INSERT INTO benchmark_report_editions (${EDITION_COLUMNS})
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
        ON CONFLICT (edition_key) DO NOTHING RETURNING id`,
       recordParams(canonical),
     );
+
+    // an edition proves the day published: clear any stale gap/probe row —
+    // AFTER the insert statement succeeds, so a failed insert (a
+    // canonical_url duplicated from another day hitting the partial unique
+    // index, or a transient DB error) never erases a stored probe_failed/
+    // gap discovery record. Mirrors the in-memory backend, where validation
+    // precedes the clear so a refused record cannot clear the row.
+    const cleared = await this.query(
+      `DELETE FROM benchmark_series_days WHERE series = $1 AND report_date = $2 RETURNING series`,
+      [canonical.identity.series, canonical.identity.reportDate],
+    );
+    const dayStatusCleared = cleared.length > 0;
     if (inserted.length > 0) {
       return { action: "inserted", repairedFields: [], anchorChanged: false, dayStatusCleared };
     }
