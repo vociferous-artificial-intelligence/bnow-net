@@ -38,6 +38,7 @@ import "./env";
 //
 //   --execute-live --workload X --model M [--effort E] --db-ack <host>
 //                  [--repetitions N] [--only id,...] [--fresh] [--dev]
+//                  [--allow-heldout-rerun]
 //       LIVE candidate evaluation (PAID). Refuses loudly BEFORE any client
 //       construction unless ALL of: the explicit flag, EVAL_DATABASE_URL set
 //       (DATABASE_URL is never read — the spend ledger writes to the eval
@@ -46,7 +47,11 @@ import "./env";
 //       the fail-closed openai_eval SpendGuard refuses without them). Results
 //       write under results/live-* (gitignored — live results are never
 //       committed). A budget stop aborts the whole run with an INVALID
-//       verdict; completed cases stay durable and a rerun resumes.
+//       verdict; completed cases stay durable and a rerun resumes. A --only
+//       selection touching HELDOUT cases refuses without the explicit
+//       --allow-heldout-rerun flag (a stochastic failure must not be
+//       re-rolled to a pass), and any key replaced by a later run stays
+//       visible in the scorecard's run-provenance line.
 //
 // --fresh and --only are mutually exclusive (as in scripts/ask-eval.ts).
 // --dev excludes the heldout split (see docs/evals/analysis/README.md for the
@@ -65,6 +70,7 @@ import {
   OFFLINE_CONFIG_KEY,
   ZERO_METER,
   aggregateResults,
+  assertLiveOnlySelection,
   buildAnalysisEstimatePlan,
   buildWorkloadScorecard,
   currentEnvKnobs,
@@ -338,7 +344,7 @@ function modeReport(workloads: AnalysisEvalWorkload[], outPath: string, showHeld
   const scorecards: WorkloadScorecard[] = [];
   const detail: ScorecardDetailBlock[] = [];
   for (const w of workloads) {
-    const { ds } = loadDataset(w);
+    const { ds, contentHash } = loadDataset(w);
     const splitOf = Object.fromEntries(ds.cases.map((c) => [c.id, c.split]));
     const configs = discoverConfigs(w);
     if (configs.length === 0) {
@@ -353,8 +359,15 @@ function modeReport(workloads: AnalysisEvalWorkload[], outPath: string, showHeld
       if (!rf) continue;
       const live = configKey !== OFFLINE_CONFIG_KEY;
       const baseline = live && configKey !== ANALYSIS_DEFAULT_MODEL ? baselineLive : null;
-      scorecards.push(buildWorkloadScorecard(ds, rf, baseline, live));
+      // re-review minor 1: compare against the dataset file AS IT EXISTS NOW —
+      // an id-preserving reference edit after a run degrades the verdict
+      scorecards.push(buildWorkloadScorecard(ds, rf, baseline, live, contentHash));
       detail.push({ workload: w, configKey, results: Object.values(rf.results), splitOf });
+      if (rf.datasetContentHash !== contentHash) {
+        console.error(
+          `[${w}/${configKey}] DATASET CHANGED since this run (recorded ${rf.datasetContentHash.slice(0, 12)}, current ${contentHash.slice(0, 12)}) — verdict degraded to insufficient_data`,
+        );
+      }
 
       // no silent caps: surface every anomaly on stderr too
       const agg = aggregateResults(ds, rf, live);
@@ -407,6 +420,7 @@ async function modeLive(opts: {
   fresh: boolean;
   onlyIds: string[] | null;
   devOnly: boolean;
+  allowHeldoutRerun: boolean;
 }): Promise<void> {
   // live-runner (and through it the OpenAI SDK + guard machinery) is imported
   // ONLY here — estimate/offline/report/validate never load it.
@@ -445,6 +459,14 @@ async function modeLive(opts: {
   };
   const existing = loadResults(opts.workload, configKey);
   refuseOnIdentityDrift(existing, header, opts.fresh);
+  try {
+    // re-review minor 2a: a targeted heldout rerun can re-roll a stochastic
+    // failure until it passes — refuse unless explicitly authorized
+    assertLiveOnlySelection(ds, opts.onlyIds, opts.allowHeldoutRerun);
+  } catch (e) {
+    console.error(`REFUSED: ${e instanceof Error ? e.message : e}`);
+    process.exit(2);
+  }
   const { work, unknownIds, excludedHeldout } = pendingWork(ds, existing, {
     repetitions: opts.repetitions,
     fresh: opts.fresh,
@@ -547,6 +569,7 @@ async function main(): Promise<void> {
       fresh,
       onlyIds,
       devOnly,
+      allowHeldoutRerun: hasFlag("allow-heldout-rerun"),
     });
   }
   return modeOffline(parseWorkloads(false), { fresh, onlyIds, devOnly });
