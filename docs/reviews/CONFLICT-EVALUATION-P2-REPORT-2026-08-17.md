@@ -164,8 +164,11 @@ no committed artifact):
 - (i) **Cutoff extraction is a versioned heuristic.** Recall against future
   ISW copy edits is unproven; the five-word prior-reference window can
   false-EXCLUDE a genuine declaration preceded by an unrelated
-  last/previous/prior — which falls a rung VISIBLY (`windowEndSource`), i.e.
-  the conservative narrowing direction, never silent widening.
+  last/previous/prior — which falls a rung VISIBLY (`windowEndSource`). A
+  rung-fall typically WIDENS the window END (publication and report-day ENDs
+  trail the declared cutoff, often past UTC midnight), so the failure mode is
+  visible-but-widening, never silent (direction corrected per Gate-2
+  re-review R-1).
 
 Accepted-as-documented dispositions from the Gate-2 **DB/legal review**:
 

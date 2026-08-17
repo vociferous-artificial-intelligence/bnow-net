@@ -97,7 +97,7 @@ const EDITION_COLUMNS = `series, provider, edition_key, edition_label, report_da
 // SELECT list for reads: report_date is cast to text so the driver hands back
 // the literal yyyy-mm-dd (a bare `date` column becomes a host-local-midnight
 // JS Date — see toIsoDay)
-const EDITION_SELECT = `series, provider, edition_key, report_date::text AS report_date, canonical_url,
+export const EDITION_SELECT = `series, provider, edition_key, report_date::text AS report_date, canonical_url,
    norm_version, scope_version, cutoff_at, published_at, cutoff_treatment, published_treatment,
    designated_final, parse_status, isw_report_id`;
 

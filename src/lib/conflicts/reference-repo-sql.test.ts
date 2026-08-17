@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toIsoDay } from "./reference-repo-sql";
+import { EDITION_SELECT, toIsoDay } from "./reference-repo-sql";
 
 // The SQL backend casts report_date::text in every SELECT, so the normal
 // input is the literal yyyy-mm-dd string; the Date branch is defense in
@@ -7,6 +7,14 @@ import { toIsoDay } from "./reference-repo-sql";
 // @neondatabase/serverless parse a Postgres `date` into a JS Date at LOCAL
 // midnight, and reading that back through toISOString() shifts the day
 // backward on any host east of UTC).
+
+describe("EDITION_SELECT (deployed SELECT list)", () => {
+  it("casts report_date::text so a western-TZ dev host cannot mask a regression", () => {
+    // A bare `date` read only fails east of UTC, so the always-run suite pins
+    // the cast itself (Gate-2 re-review NOTE R-2).
+    expect(EDITION_SELECT).toContain("report_date::text AS report_date");
+  });
+});
 
 describe("toIsoDay (driver date parsing is host-TZ-sensitive)", () => {
   it("passes through the ::text-cast yyyy-mm-dd string", () => {

@@ -59,3 +59,36 @@ all MINOR/NOTE dispositions verified, judgment calls ratified. Remaining
 NOTEs are non-blocking and carried to P2/P3 charters (cutoff-ordering
 diagnostic, editionKey normalization, lane-helper routing).
 **Verdict: PASS. GATE 1: PASSED.**
+
+## Phase 2 (branch `codex/conflict-evaluations-p2-reference`, final tip see closing commit)
+
+| Gate | Command | Result |
+|---|---|---|
+| typecheck | `npx tsc --noEmit` | clean (author, coordinator, both reviewers, both re-reviews) |
+| lint | `npm run lint` | clean |
+| unit | `npm test` | **2,682 passed / 2,682 (199 files)** at `e292ab3` (base 2,598 + Phase 2; conflicts suite green under TZ=America/New_York, UTC, Asia/Tokyo, Pacific/Kiritimati) |
+| integration (full) | `npm run test:integration` (disposable Neon forks, paid keys blanked, LLM_DISABLE=1) | **127 passed / 127 (20 files)** — base 119 + 8 conflict-reference cases; the target file additionally run TWICE (normal + `TZ=Asia/Tokyo`, 8/8 each); all forks deleted |
+| scope | range diffstat | only `src/lib/conflicts/`, `src/integration/`, `docs/designs/`, `docs/reviews/`; freeze list untouched; drizzle/journal untouched |
+| legal | both reviewers' sweeps | no ISW prose persisted or persistable (extraction returns instants/enums/booleans only); no credentials/branding; sentinel absent |
+
+Critical Gate 2 (two independent reviewers): initial verdicts on `651b9d6`
+**FAIL + FAIL**, CONVERGING on the same MAJOR — the SQL backend read Postgres
+`date` columns via `toISOString()` on driver values constructed at LOCAL
+midnight, shifting every `report_date` read back one day east of UTC (proven
+independently: 3/6 itest failures under TZ=Asia/Tokyo; a driver-faithful
+oid-1082 probe). Time/edition review added m-1 (explicitly-not-final edition
+could silently win daily-final selection) and m-2 (prior-reference guard
+defeated by markup/intervening word — visible window-widening direction);
+DB/legal review added 4 MINORs (DDL label/isw-url CHECKs, designated-final
+partial unique index, non-monotone day-status upsert, count-shaped
+non-interference proof) + 4 NOTEs. Remediated in six commits
+(`f90322b`..`e292ab3`), incl. the committed P2 implementation report both
+reviews required. Focused re-reviews on `e292ab3`: DB/legal **PASS** (all
+findings discharged; TZ=Asia/Tokyo itest independently re-run 8/8);
+time/edition **PASS-WITH-MINORS** (M-1/m-1/m-2 discharged with mutation
+proofs; R-1 one-clause doc direction fix + R-2 cast-pin NOTE — both applied
+in the Gate-2 closing commit). Adjudication of record: edition records are
+DISCOVERY METADATA, not §8 as-published results, with two carried conditions
+(persisted evaluation results stamp their window inputs — binds P4/P5;
+durable anchor-change journaling — design §5 deferral).
+**Verdicts: PASS + PASS-WITH-MINORS. GATE 2: PASSED.**
