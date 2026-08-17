@@ -72,7 +72,7 @@ so `1/2/3 * * * *` are plan-compatible standard five-field expressions.
   cadence) — all outside this change. `scripts/audit-cron.ts` groups by hour/job
   with no minute assumption.
 - Non-schedule references to the old minutes exist ONLY as prose: code comments
-  (`src/lib/usage/x-lease.ts:2`, `src/lib/adapters/x-gap-backfill.ts:12`,
+  (`src/lib/usage/x-lease.ts:2`, `src/lib/adapters/x-gap-backfill.ts:14`,
   `scripts/x-gap-backfill.ts:12` say ":20 scheduled poll") and live-state docs
   (`docs/CURRENT-STATE.md:353-356` and `:59`, AGENTS.md "Quality/ops" crons
   line). These describe DEPLOYED production and therefore stay untouched on this
@@ -161,8 +161,14 @@ Estimate limitations (all reduce realized savings; none reverse the direction):
   Candidate B ADDS telegram/x/mtproto at :01/:02/:03 — so at 02/04/10 UTC the
   cluster window can hold up to 5 concurrent invocations (digest + fast +
   telegram + x + mtproto, staggered by 1-minute starts) instead of today's ≤2.
-  Each runs in its own serverless instance; the shared resource is the Neon
-  endpoint (fixed 1 CU) and its connection pool.
+  Worst hour of the month (first adversarial review, finding 4): on the 2nd at
+  10:00 UTC the monthly trade cron (`0 10 2 * *`) joins that same window — up
+  to 6 concurrent invocations; materials (`0 11 3 * *`, 3rd at 11:00 UTC)
+  falls outside any digest hour, so like the validate/enrich/datadark hours it
+  reaches at most 5 concurrent. Digest, map, and materials allow the longest
+  runtimes (`maxDuration = 800`), so a slow digest can span the whole :00–:03
+  cluster window. Each job runs in its own serverless instance; the shared
+  resource is the Neon endpoint (fixed 1 CU) and its connection pool.
 - **Neon pooler pressure**: OPEN-TASKS #77 records that the map worker's session
   advisory lock can strand on pgbouncer when connections are shuffled — a
   failure mode correlated with connection pressure. Map at :40 is OUTSIDE the
