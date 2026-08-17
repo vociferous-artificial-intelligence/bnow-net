@@ -539,7 +539,7 @@ async function cycle(
   for (const [docId, tracks] of pending) {
     const doc = byId.get(docId)!;
     for (const t of tracks) {
-      const k = `${doc.theater} ${t}`;
+      const k = `${doc.theater}\u0000${t}`;
       const list = groups.get(k);
       if (list) list.push(doc);
       else groups.set(k, [doc]);
@@ -548,7 +548,7 @@ async function cycle(
   const batchSize = mapBatchSize();
   const batches: Array<{ theater: string; track: Track; docs: CandidateDoc[] }> = [];
   for (const [k, docs] of groups) {
-    const [theater, track] = k.split(" ") as [string, Track];
+    const [theater, track] = k.split("\u0000") as [string, Track];
     for (const part of chunk(docs, batchSize)) batches.push({ theater, track, docs: part });
   }
   const pairCount = [...groups.values()].reduce((s, d) => s + d.length, 0);
