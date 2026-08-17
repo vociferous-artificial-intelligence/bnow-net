@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-17T09:18:09.845Z",
+  "generatedAt": "2026-08-17T09:30:40.673Z",
   "headerNote": "Verdicts use the PRESET gates in src/lib/evals/gates.ts (completeness + aligned-heldout pairwise rules pre-registered before any candidate result existed). The offline-fixtures config scores COMMITTED fixture outputs (compliant AND deliberately violating ones) through the real pipeline functions — it is a machinery proof, NOT a model evaluation; no paid calls are involved in producing it.",
   "scorecards": [
     {
@@ -30,7 +30,7 @@
           "presentResults": 18,
           "missingResults": 0,
           "missingHeldout": 0,
-          "datasetContentHash": "21568619a16c4b60710f953810239bc987c435e8847b6ee19383321f2ad2f601",
+          "datasetContentHash": "9e73b2fadf3e06892065421f69b6bb28cda760f2ef4532ddcb9592b6ffb3af22",
           "heldoutPresent": {
             "typical": 1,
             "edge": 2,
@@ -44,7 +44,7 @@
             "checksPassed": 8,
             "quality": {
               "recallMean": 0.8974358974358976,
-              "precisionMean": 1,
+              "precisionMean": 0.9230769230769231,
               "checksPassRate": 0.6153846153846154
             }
           },
@@ -73,7 +73,7 @@
             "checksPassed": 2,
             "quality": {
               "recallMean": 0.7777777777777777,
-              "precisionMean": 1,
+              "precisionMean": 0.8333333333333334,
               "checksPassRate": 0.2857142857142857
             }
           },
@@ -98,7 +98,7 @@
         },
         "quality": {
           "recallMean": 0.9215686274509804,
-          "precisionMean": 0.9705882352941176,
+          "precisionMean": 0.9117647058823529,
           "checksPassRate": 0.5555555555555556
         },
         "resources": {
@@ -112,6 +112,15 @@
           "reservations": 0,
           "meterings": 0,
           "erroredAttempts": 0
+        },
+        "runs": {
+          "distinctRunIds": [
+            "offline-map-v1"
+          ],
+          "mixedRun": false,
+          "keysByRunId": {
+            "offline-map-v1": 18
+          }
         },
         "live": false,
         "repetitions": 1,
@@ -243,6 +252,15 @@
           "meterings": 0,
           "erroredAttempts": 0
         },
+        "runs": {
+          "distinctRunIds": [
+            "offline-reduce-v1"
+          ],
+          "mixedRun": false,
+          "keysByRunId": {
+            "offline-reduce-v1": 14
+          }
+        },
         "live": false,
         "repetitions": 1,
         "repetitionSpread": {}
@@ -365,6 +383,15 @@
           "reservations": 0,
           "meterings": 0,
           "erroredAttempts": 0
+        },
+        "runs": {
+          "distinctRunIds": [
+            "offline-digest-v1"
+          ],
+          "mixedRun": false,
+          "keysByRunId": {
+            "offline-digest-v1": 10
+          }
         },
         "live": false,
         "repetitions": 1,
@@ -536,6 +563,15 @@
           "reservations": 0,
           "meterings": 0,
           "erroredAttempts": 0
+        },
+        "runs": {
+          "distinctRunIds": [
+            "offline-validation-v1"
+          ],
+          "mixedRun": false,
+          "keysByRunId": {
+            "offline-validation-v1": 14
+          }
         },
         "live": false,
         "repetitions": 1,

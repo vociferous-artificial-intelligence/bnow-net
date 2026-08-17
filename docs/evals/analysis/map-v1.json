@@ -580,7 +580,7 @@
       "partition": "edge",
       "split": "development",
       "provenance": "authored-2026-08-17",
-      "notes": "location-precision guard (review remediation n5): the recall-oriented gist jaccard would still match a location-swapped claim (Kherson->Mykolaiv), so the precision-critical distinction is pinned by mustNotMatch patterns over the produced claims — a wrong-location shape fires them",
+      "notes": "location-precision guard (review remediation n5): the recall-oriented gist jaccard would still match a location-swapped claim (Kherson->Mykolaiv), so the precision-critical distinction is pinned by mustNotMatch patterns over the produced claims — a wrong-location shape fires them. Pattern edge (re-review NEW-4, adjudicated): a truthful NEGATED over-extraction ('terminals in Mykolaiv were not affected') would also fire these patterns, because firesAffirmatively scans negators only BEFORE the match — that is a dev-split miscategorization only (the failure lands as fidelity instead of precision), and such an over-extraction independently fails precision against the single-claim gold, so no verdict can change.",
       "input": {
         "theater": "ua",
         "track": "military",
