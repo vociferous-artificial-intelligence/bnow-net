@@ -29,12 +29,19 @@ const HOW_TO_READ = `how to read this
   (one claim cites 1-N docs, one doc backs 1-N claims — stages are NOT
   monotone counts of one unit). Superseded extractor versions and dedup
   mirrors are shown but EXCLUDED from every current stage.
+  Docs without a map disposition for THIS track split two ways: pending =
+  genuine unmapped backlog (processed=false, the cron still drains it);
+  notApplicable = the track's lexicon never matched (processed=true) — those
+  docs will NEVER map under this track and are NOT extraction loss.
   Per adapter, read the fall-out left to right: eligible -> map claims
   (extraction yield) -> cited in the digest (final attachment). The reduce
   stage between them (groupsFed, vote survival) is global-only — fed-group
   membership per adapter is not persisted. citedDocs can include neighboring
   days for rolling-window digests, so docConversionPct is measured against
-  the report date's corpus only. INTERNAL, UNCALIBRATED observability.`;
+  the report date's corpus only. evidenceRecency ages anchor to each
+  engine's own asOf: a mid-day LEGACY digest anchors to its fixed window END,
+  a rolling mapreduce one to its run clock — do not compare their
+  evidenceWithin24hPct head-to-head. INTERNAL, UNCALIBRATED observability.`;
 
 function usage(): never {
   console.error(
@@ -61,6 +68,9 @@ function printHuman(r: QualityFunnelReport): void {
   );
   console.log(
     `  map dispositions ${c.mapDispositions} (withClaims ${c.docsWithClaims}, noClaims ${c.docsNoClaims}) -> mapClaims ${c.mapClaims}`,
+  );
+  console.log(
+    `  undispositioned: pending ${c.pendingDocs} (backlog) · notApplicable ${c.notApplicableDocs} (lexicon skip — never maps under this track)`,
   );
   console.log(
     `  superseded (EXCLUDED): ${c.supersededDispositions} dispositions / ${c.supersededClaims} claims` +
@@ -112,7 +122,8 @@ function printHuman(r: QualityFunnelReport): void {
   console.log(`per-adapter conversion (eligible -> map claims -> cited):`);
   for (const [adapter, a] of Object.entries(r.adapters).sort((x, y) => y[1].eligibleDocs - x[1].eligibleDocs)) {
     console.log(
-      `  ${adapter}: eligible ${a.eligibleDocs} -> withClaims ${a.docsWithClaims} (${a.mapClaims} claims) -> ` +
+      `  ${adapter}: eligible ${a.eligibleDocs} (pending ${a.pendingDocs}, notApplicable ${a.notApplicableDocs}) -> ` +
+        `withClaims ${a.docsWithClaims} (${a.mapClaims} claims) -> ` +
         `cited ${a.citedDocs} docs / ${a.citationLinks} links · ` +
         `linkShare ${a.linkSharePct ?? "n/a"}% · docConversion ${a.docConversionPct ?? "n/a"}%`,
     );

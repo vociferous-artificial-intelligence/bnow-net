@@ -40,10 +40,14 @@ export interface SqlQuery {
  *  predicate — day-bucketed on COALESCE(published_at, fetched_at)::date like
  *  the worker's candidate query, >= MAP_EPOCH, non-stub, length >= 40. One row
  *  per DOCUMENT, with its dedup verdict joined (canonical_doc_id non-null =
- *  mirror; mirrors are never mapped — their content lives on canonicals). */
+ *  mirror; mirrors are never mapped — their content lives on canonicals) and
+ *  its `processed` disposition flag: the worker's lexicon gate runs AFTER this
+ *  predicate, so a lexicon-failing doc ends processed=true with NO
+ *  doc_map_state row — the flag is what separates "this track never applied"
+ *  from genuinely-unmapped backlog (see aggregateCorpus). */
 export function eligibleDocsSql(theater: string, date: string): SqlQuery {
   return {
-    sql: `SELECT rd.id, rd.adapter, rd.lang, s.platform,
+    sql: `SELECT rd.id, rd.adapter, rd.lang, rd.processed, s.platform,
                  dd.canonical_doc_id, dd.method AS mirror_method
           FROM raw_documents rd
           LEFT JOIN sources s ON s.id = rd.source_id
@@ -101,7 +105,9 @@ export function persistedCountsSql(digestId: number): SqlQuery {
 }
 
 /** Every citation LINK (claim_sources row) of one digest with its document's
- *  adapter/platform and UTC day — the final-attachment side of the funnel. */
+ *  adapter/platform and UTC day — the final-attachment side of the funnel.
+ *  Stub docs are excluded like every other population read (ruling 3;
+ *  symmetric with eligibleDocsSql and the persist-time recency read). */
 export function citationLinksSql(digestId: number): SqlQuery {
   return {
     sql: `SELECT cs.raw_document_id, rd.adapter, s.platform,
@@ -110,8 +116,9 @@ export function citationLinksSql(digestId: number): SqlQuery {
           JOIN claims cl ON cl.id = cs.claim_id
           JOIN raw_documents rd ON rd.id = cs.raw_document_id
           LEFT JOIN sources s ON s.id = rd.source_id
-          WHERE cl.digest_id = $1`,
-    params: [digestId],
+          WHERE cl.digest_id = $1
+            AND rd.content NOT LIKE $2`,
+    params: [digestId, `${STUB_CONTENT_PREFIX}%`],
   };
 }
 
@@ -122,6 +129,11 @@ export interface EligibleDocRow {
   adapter: string;
   lang: string | null;
   platform: string | null;
+  /** raw_documents.processed: the map worker reached a FINAL disposition for
+   *  this doc (mapped under every applicable track, filed as a mirror, or no
+   *  track lexicon matched) — the discriminator between lexicon skips and
+   *  genuine backlog for docs without doc_map_state rows */
+  processed: boolean;
   /** non-null = this doc is a dedup MIRROR of that canonical */
   canonicalDocId: number | null;
   mirrorMethod: string | null;
@@ -167,6 +179,15 @@ export interface CorpusStages {
   mapDispositions: number;
   docsWithClaims: number; // DOCUMENTS (claim_count > 0)
   docsNoClaims: number; // DOCUMENTS (claim_count = 0)
+  /** DOCUMENTS: canonical, processed=false, NO doc_map_state row at any
+   *  version for this track — genuinely-unmapped backlog the hourly cron will
+   *  still drain */
+  pendingDocs: number;
+  /** DOCUMENTS: canonical, processed=true, NO doc_map_state row at ANY
+   *  version for this track — the track never applied (the worker's lexicon
+   *  gate runs AFTER the eligibility predicate, so these will NEVER map under
+   *  this track; without this split they would read as extraction loss) */
+  notApplicableDocs: number;
   /** CLAIMS: doc_claims rows at the current (track, version) */
   mapClaims: number;
   /** EXCLUDED doc_map_state rows under NON-current versions (per (doc, version)) */
@@ -184,6 +205,8 @@ export interface CorpusStages {
  *  corpus and labeled as such. */
 export interface AdapterConversion {
   eligibleDocs: number; // DOCUMENTS in this day's eligible corpus
+  pendingDocs: number; // DOCUMENTS: genuine unmapped backlog (processed=false, no state row for this track)
+  notApplicableDocs: number; // DOCUMENTS: this track never applied (processed=true, no state row — lexicon skip)
   docsWithClaims: number; // DOCUMENTS with >=1 current-version map claim
   mapClaims: number; // CLAIMS (doc_claims rows, current version)
   citedDocs: number; // distinct DOCUMENTS cited by the persisted digest
@@ -270,6 +293,7 @@ export function aggregateCorpus(
   const mirrorMethods: Record<string, number> = {};
   const eligibleIds = new Set<number>();
   const canonicalIds = new Set<number>();
+  const processedOf = new Map<number, boolean>(); // canonical docs only
   let mirrorDocs = 0;
   for (const d of docs) {
     if (eligibleIds.has(d.id)) continue; // defensive: one row per doc
@@ -288,6 +312,7 @@ export function aggregateCorpus(
       }
     } else {
       canonicalIds.add(d.id);
+      processedOf.set(d.id, d.processed);
     }
   }
 
@@ -295,18 +320,38 @@ export function aggregateCorpus(
   let docsWithClaims = 0;
   let supersededDispositions = 0;
   let mirrorStateRows = 0;
+  // canonical docs with ≥1 doc_map_state row for this track at ANY version —
+  // the complement (split by `processed` below) separates lexicon skips from
+  // genuine backlog; a doc whose only rows are superseded stays OUT of both
+  // (it is a remap target, counted in supersededDispositions)
+  const docsWithAnyStateRow = new Set<number>();
   for (const s of states) {
     if (!eligibleIds.has(s.rawDocumentId)) continue; // outside this corpus
     if (!canonicalIds.has(s.rawDocumentId)) {
       mirrorStateRows++; // mirrors are never mapped — any row here is anomalous
       continue;
     }
+    docsWithAnyStateRow.add(s.rawDocumentId);
     if (version !== null && s.extractorVersion === version) {
       mapDispositions++;
       if (s.claimCount > 0) docsWithClaims++;
     } else {
       supersededDispositions++;
     }
+  }
+
+  // Un-dispositioned canonical docs: the worker's per-track lexicon gate runs
+  // AFTER the eligibility predicate (map-worker.ts applicableTracks), so a
+  // lexicon-failing doc ends processed=true with NO doc_map_state row. Without
+  // this split, an ir/military per-adapter "eligible -> withClaims" gap reads
+  // as extraction loss when much of it is Iran-lexicon non-matches that will
+  // never map.
+  let pendingDocs = 0;
+  let notApplicableDocs = 0;
+  for (const [id, processed] of processedOf) {
+    if (docsWithAnyStateRow.has(id)) continue;
+    if (processed) notApplicableDocs++;
+    else pendingDocs++;
   }
   if (mirrorStateRows > 0) {
     warnings.push(
@@ -338,7 +383,9 @@ export function aggregateCorpus(
   if (version === null) {
     warnings.push("track not configured for this theater — no current extractor version");
   }
-  // reconciliation: doc_map_state.claim_count vs actual doc_claims rows
+  // Deliberate dead defense: unreachable by construction (docsWithClaims only
+  // increments alongside mapDispositions above), kept so a future refactor of
+  // that loop cannot silently break the spec'd invariant without a warning.
   if (docsWithClaims > mapDispositions) {
     warnings.push(`invariant violated: docsWithClaims ${docsWithClaims} > mapDispositions ${mapDispositions}`);
   }
@@ -363,6 +410,8 @@ export function aggregateCorpus(
     mapDispositions,
     docsWithClaims,
     docsNoClaims: mapDispositions - docsWithClaims,
+    pendingDocs,
+    notApplicableDocs,
     mapClaims,
     supersededDispositions,
     supersededClaims,
@@ -495,7 +544,9 @@ export function aggregateDigest(
 
 /** Per-adapter conversion view spanning both sides of the funnel. Adapters
  *  appearing only in the citations (a rolling-window doc from a neighboring
- *  day) get eligibleDocs 0 and a null docConversionPct rather than a fake rate. */
+ *  day) get eligibleDocs 0 and a null docConversionPct rather than a fake
+ *  rate. The pending/notApplicable split matters MOST here: without it, an
+ *  adapter whose material fails the track lexicon reads as extraction loss. */
 export function buildAdapterConversions(
   docs: EligibleDocRow[],
   states: MapStateRow[],
@@ -513,6 +564,8 @@ export function buildAdapterConversions(
   const slot = (adapter: string) =>
     (out[adapter] ??= {
       eligibleDocs: 0,
+      pendingDocs: 0,
+      notApplicableDocs: 0,
       docsWithClaims: 0,
       mapClaims: 0,
       citedDocs: 0,
@@ -521,11 +574,20 @@ export function buildAdapterConversions(
       docConversionPct: null,
     });
   for (const d of docs) slot(d.adapter).eligibleDocs++;
+  const docsWithAnyStateRow = new Set<number>();
   for (const s of states) {
     if (!canonicalIds.has(s.rawDocumentId)) continue;
+    docsWithAnyStateRow.add(s.rawDocumentId);
     if (version !== null && s.extractorVersion === version && s.claimCount > 0) {
       slot(adapterOf.get(s.rawDocumentId)!).docsWithClaims++;
     }
+  }
+  // same split as aggregateCorpus, per adapter: no state row at any version
+  // for this track -> lexicon skip (processed) vs genuine backlog (pending)
+  for (const d of docs) {
+    if (!canonicalIds.has(d.id) || docsWithAnyStateRow.has(d.id)) continue;
+    if (d.processed) slot(d.adapter).notApplicableDocs++;
+    else slot(d.adapter).pendingDocs++;
   }
   for (const c of claimCounts) {
     if (!canonicalIds.has(c.rawDocumentId)) continue;
@@ -568,6 +630,7 @@ export async function loadQualityFunnel(
     adapter: String(r.adapter),
     lang: (r.lang as string | null) ?? null,
     platform: (r.platform as string | null) ?? null,
+    processed: r.processed === true,
     canonicalDocId: r.canonical_doc_id == null ? null : num(r.canonical_doc_id),
     mirrorMethod: (r.mirror_method as string | null) ?? null,
   }));
