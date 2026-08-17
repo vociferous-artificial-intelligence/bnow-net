@@ -34,3 +34,28 @@ unavailable-verdict hole, H2 matcher-ladder contradiction)**. Both remediated
 scope/evaluation-science **PASS-WITH-MINORS** (3 NOTEs — two fixed in the
 Gate-0 closing commit, the vague-claim fixture pin deferred to P4 by register
 #9). GATE 0: PASSED.
+
+## Phase 1 (branch `codex/conflict-evaluations-p1-domain`, tip `975cdcd`)
+
+| Gate | Command | Result |
+|---|---|---|
+| typecheck | `npx tsc --noEmit` | clean (author + coordinator + reviewer, independently) |
+| lint | `npm run lint` | clean |
+| unit | `npm test` | **2,598 passed / 2,598 (193 files)** — base 2,402 + 196 conflicts-domain tests; zero base regressions |
+| clean diff | `git diff --check` + tree | clean |
+| scope | `git diff 0df9106..975cdcd --stat` | only `src/lib/conflicts/` (+ decision register); freeze list untouched |
+| binary check | phases.ts NUL sweep | 0 NUL bytes in HEAD blob; forward diffs textual |
+
+Gate 1 (independent architecture reviewer): initial verdict on `0d7ab8f`
+**FAIL** — MAJOR-1 (iran_regional legacy contributor roster designated the two
+digest-less scaffolded theaters and omitted the four digest-producing ones,
+unsupported by any designation record) and MAJOR-2 (`ConflictResultV1` could
+not express the fixture-pinned publication-gap `unavailable` result without
+fabricating an edition identity), plus 4 MINORs / 5 NOTEs. Remediated in four
+commits (`63547de`..`975cdcd`; register #10 records the roster designation).
+Focused re-review on `975cdcd`: both MAJORs DISCHARGED (roster grounding
+re-checked at source, compile-level gap-variant exclusion mutation-proven),
+all MINOR/NOTE dispositions verified, judgment calls ratified. Remaining
+NOTEs are non-blocking and carried to P2/P3 charters (cutoff-ordering
+diagnostic, editionKey normalization, lane-helper routing).
+**Verdict: PASS. GATE 1: PASSED.**
