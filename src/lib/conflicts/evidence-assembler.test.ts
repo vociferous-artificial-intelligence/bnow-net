@@ -162,6 +162,53 @@ describe("fail-closed refusals (before any candidate access)", () => {
     ).rejects.toThrow(ConflictDomainError);
   });
 
+  it("a cross-wired report series is a typed refusal (iran_regional + ROCA report)", async () => {
+    const source = sourceOf([claim()]);
+    await expect(
+      assembleCorpusRecallEvidence(
+        request({ conflictId: "iran_regional", report: ROCA_REPORT }),
+        source,
+      ),
+    ).rejects.toThrow(/reference series/);
+    await expect(
+      assemblePublishedRetentionEvidence(
+        request({ conflictId: "iran_regional", report: ROCA_REPORT }),
+        source,
+      ),
+    ).rejects.toThrow(ConflictDomainError);
+    // …and the mirror-image wiring refuses too
+    await expect(
+      assembleCorpusRecallEvidence(request({ report: IRAN_REPORT }), source),
+    ).rejects.toThrow(/reference series/);
+  });
+
+  it("a duplicate claimId within one candidate batch is a typed refusal", async () => {
+    const dup = claim();
+    const source = sourceOf([dup, { ...dup }]);
+    await expect(assembleCorpusRecallEvidence(request(), source)).rejects.toThrow(
+      /duplicate claimId/,
+    );
+    await expect(assemblePublishedRetentionEvidence(request(), source)).rejects.toThrow(
+      ConflictDomainError,
+    );
+  });
+
+  it("a report object carrying keys beyond the AssemblerReport allowlist is refused", async () => {
+    const source = sourceOf([claim()]);
+    // a units-bearing fixture-shaped report IS structurally assignable to
+    // AssemblerReport — the runtime allowlist is the defense in depth
+    const poisoned = {
+      ...ROCA_REPORT,
+      units: [{ unitId: "u1", text: "reference unit text that must never enter" }],
+    } as unknown as AssemblerReport;
+    await expect(
+      assembleCorpusRecallEvidence(request({ report: poisoned }), source),
+    ).rejects.toThrow(/allowlist/);
+    await expect(
+      assemblePublishedRetentionEvidence(request({ report: poisoned }), source),
+    ).rejects.toThrow(ConflictDomainError);
+  });
+
   it("unknown conflict ids and malformed report dates throw typed errors", async () => {
     const source = sourceOf([claim()]);
     await expect(
@@ -372,6 +419,30 @@ describe("assembly mechanics", () => {
     const map = eligibilityByClaim(corpus.assembly);
     expect(map[String(inc.claimId)].included).toBe(true);
     expect(map[String(exc.claimId)]).toEqual({ included: false, reason: "stub_fixture" });
+  });
+
+  it("assembly output is deterministic: shuffled candidate order deep-equals unshuffled", async () => {
+    const claims = [
+      claim({ sourceReliability: 0.9 }),
+      claim({ sourceReliability: null }),
+      claim({ sourceReliability: 0.4, stub: true }), // excluded: stub_fixture
+      claim({ theater: "xx" }), // excluded: off_scope
+      claim({ sourceReliability: 0.7 }),
+    ];
+    const shuffled = [claims[3], claims[1], claims[4], claims[0], claims[2]];
+    const a = await assembleCorpusRecallEvidence(request(), sourceOf(claims));
+    const b = await assembleCorpusRecallEvidence(request(), sourceOf(shuffled));
+    expect(b).toEqual(a);
+    const ra = await assemblePublishedRetentionEvidence(request(), sourceOf(claims));
+    const rb = await assemblePublishedRetentionEvidence(request(), sourceOf(shuffled));
+    expect(rb).toEqual(ra);
+    if (a.status !== "assembled") throw new Error("expected assembled");
+    // records follow the pinned total order (reliability desc nulls-last,
+    // claimId asc), and exclusions follow claimId ascending — not source order
+    expect(a.assembly.records.map((r) => r.sourceReliability)).toEqual([0.9, 0.7, null]);
+    expect(a.assembly.excluded.map((e) => e.claimId)).toEqual(
+      [claims[2].claimId, claims[3].claimId].sort((x, y) => x - y),
+    );
   });
 
   it("timeAnchorTreatments surfaces the window's anchor classification", async () => {

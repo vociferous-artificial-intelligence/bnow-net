@@ -2,14 +2,22 @@
 // cross-theater evidence union (contract §5, §6.1; workstream prompt §11).
 //
 // ANTI-GAMING (contract §5, frozen): evidence eligibility is computed WITHOUT
-// the reference report's content. That freeze is enforced STRUCTURALLY here:
-// neither CandidateClaim nor CandidateDoc nor any assembler request type has a
-// field that could carry a reference unit, takeaway text, or report prose. The
-// only report-derived inputs the eligibility engine ever sees are the report's
-// TIME ANCHORS (reportDate/cutoffAt/publishedAt), which parameterize the frozen
-// evaluation window — never its content. The fixture loader additionally strips
-// unknown keys, so a poisoned fixture cannot smuggle unit text into a candidate
-// (pinned by tests: candidate objects carry exactly the allowlisted keys).
+// the reference report's content. Enforcement, stated precisely:
+//   - the only report-derived inputs the eligibility engine receives are the
+//     report's TIME ANCHORS (reportDate/cutoffAt/publishedAt), which
+//     parameterize the frozen evaluation window — never its content;
+//   - CandidateClaim/CandidateDoc have no field that could carry a reference
+//     unit or takeaway text, and the fixture loader REBUILDS candidates
+//     against the key allowlists below (unknown keys dropped), so a poisoned
+//     fixture cannot smuggle unit text into a candidate (pinned by tests);
+//   - structural typing alone CANNOT keep a wider report object out of the
+//     request (a units-bearing fixture report shape is assignable to
+//     AssemblerReport), so the assembler's prepare() ALSO refuses any report
+//     object carrying keys outside the ASSEMBLER_REPORT_KEYS allowlist at
+//     runtime;
+//   - assembly outputs copy only the report's editionKey/reportDate, and
+//     output cleanliness is test-audited (the fixture sentinel appears in
+//     inputs and never in any serialized assembly).
 //
 // The two pipeline populations (contract §6.1, register #4) get SEPARATE record
 // types with incompatible discriminants:

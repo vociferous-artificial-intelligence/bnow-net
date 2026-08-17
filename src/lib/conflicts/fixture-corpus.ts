@@ -248,6 +248,21 @@ export function selectedScenarioReport(scenario: ConflictFixtureScenario): Fixtu
   return scenario.report;
 }
 
+/** Project a fixture report shape onto the CLEAN AssemblerReport key set —
+ *  the honest request wiring: `units` (test-side reference text) and
+ *  `designatedFinal` never ride into the assembler, whose prepare() also
+ *  refuses any extra report key at runtime. */
+export function assemblerReportOf(report: FixtureReportShape | null): AssemblerReport | null {
+  if (report === null) return null;
+  return {
+    series: report.series,
+    editionKey: report.editionKey,
+    reportDate: report.reportDate,
+    cutoffAt: report.cutoffAt,
+    publishedAt: report.publishedAt,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Fixture-backed evidence source (both repository interfaces)
 // ---------------------------------------------------------------------------

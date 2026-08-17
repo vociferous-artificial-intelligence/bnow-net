@@ -6,6 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  assemblerReportOf,
   CONFLICT_FIXTURE_FILES,
   FixtureEvidenceSource,
   loadConflictFixtureScenarios,
@@ -26,20 +27,12 @@ function requestFor(
   scenario: ConflictFixtureScenario,
   kind: EvaluationKind = "retrospective",
 ): EvidenceRequest {
-  const report = selectedScenarioReport(scenario);
   return {
     conflictId: scenario.conflictId,
     kind,
-    report:
-      report === null
-        ? null
-        : {
-            series: report.series,
-            editionKey: report.editionKey,
-            reportDate: report.reportDate,
-            cutoffAt: report.cutoffAt,
-            publishedAt: report.publishedAt,
-          },
+    // the CLEAN projection — a raw FixtureReportShape (units-bearing) would
+    // be refused by the assembler's report-key allowlist
+    report: assemblerReportOf(selectedScenarioReport(scenario)),
     snapshot: null,
   };
 }

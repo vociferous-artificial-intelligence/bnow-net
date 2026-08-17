@@ -66,6 +66,7 @@ import {
 import type { EligibilityRecord } from "./lanes";
 import type { ConflictLaneId } from "./lanes";
 import {
+  compareEvidenceOrder,
   selectEvidence,
   DEFAULT_SELECTION_LIMITS,
   type EvidenceSelection,
@@ -106,6 +107,19 @@ export interface AssemblerReport {
   cutoffAt: string | null;
   publishedAt: string | null;
 }
+
+/** The exact own-key set of AssemblerReport. TypeScript's structural typing
+ *  cannot stop a WIDER object (e.g. a fixture report shape carrying `units`
+ *  reference text) from being assignable to the request, so prepare()
+ *  refuses any report object carrying a key outside this allowlist at
+ *  runtime — defense in depth for the §5 anti-gaming freeze. */
+export const ASSEMBLER_REPORT_KEYS = [
+  "series",
+  "editionKey",
+  "reportDate",
+  "cutoffAt",
+  "publishedAt",
+] as const;
 
 export interface EvidenceRequest {
   conflictId: ConflictId;
@@ -222,10 +236,31 @@ function prepare(
   }
   // a publication gap is never fabricated over — refuse before any candidate
   if (request.report === null) return { ok: false, reason: "publication_gap" };
+  // runtime key allowlist: no reference-report content may even RIDE ALONG on
+  // the report object (structural typing admits wider shapes — see
+  // ASSEMBLER_REPORT_KEYS)
+  const extraKeys = Object.keys(request.report).filter(
+    (k) => !(ASSEMBLER_REPORT_KEYS as readonly string[]).includes(k),
+  );
+  if (extraKeys.length > 0) {
+    throw new ConflictDomainError(
+      "invalid_evidence_request",
+      `report carries keys outside the AssemblerReport allowlist: ${JSON.stringify(extraKeys)}`,
+    );
+  }
   if (!isIsoDay(request.report.reportDate)) {
     throw new ConflictDomainError(
       "invalid_evidence_request",
       `report.reportDate must be a valid yyyy-mm-dd day, got ${JSON.stringify(request.report.reportDate)}`,
+    );
+  }
+  // the report must BE this conflict's reference series — a cross-wired
+  // report (e.g. iran_regional with a ROCA report) would silently evaluate
+  // evidence against the wrong series' window and identity
+  if (request.report.series !== def.referenceSeries) {
+    throw new ConflictDomainError(
+      "invalid_evidence_request",
+      `report series ${JSON.stringify(request.report.series)} is not the ${def.id} reference series ${JSON.stringify(def.referenceSeries)}`,
     );
   }
   // snapshot-anchored kinds have no proving artifact in this workstream
@@ -254,6 +289,28 @@ function prepare(
   };
 }
 
+/** Duplicate claimIds within one batch are a SOURCE DEFECT (doc_claims ids
+ *  are unique; the fixture loader enforces global uniqueness): a duplicate
+ *  would break ordering totality (compareEvidenceOrder returns 0 → input-
+ *  order dependence), misfile pass-2 cap classification (capEvents matches by
+ *  claimId), and last-writer-win the eligibilityByClaim projection — so the
+ *  assembler refuses before evaluating anything. */
+function refuseDuplicateClaimIds(candidates: readonly CandidateClaim[]): void {
+  const seen = new Set<number>();
+  for (const c of candidates) {
+    if (seen.has(c.claimId)) {
+      throw new ConflictDomainError(
+        "invalid_candidate_claim",
+        `duplicate claimId ${c.claimId} in one candidate batch`,
+      );
+    }
+    seen.add(c.claimId);
+  }
+}
+
+/** Exclusions in claimId order (ascending) — the deterministic-list rule for
+ *  every assembly output. Exclusions carry no reliability, so the stable key
+ *  alone orders them. */
 function excludedOf(evaluations: readonly EligibilityEvaluation[]): EvidenceExclusion[] {
   const out: EvidenceExclusion[] = [];
   for (const ev of evaluations) {
@@ -265,7 +322,7 @@ function excludedOf(evaluations: readonly EligibilityEvaluation[]): EvidenceExcl
       });
     }
   }
-  return out;
+  return out.sort((a, b) => a.claimId - b.claimId);
 }
 
 // ---------------------------------------------------------------------------
@@ -288,6 +345,7 @@ export async function assembleCorpusRecallEvidence(
   }
   const { def, ctx, limits } = gate.prepared;
   const candidates = await source.corpusRecallCandidates(def, ctx.window);
+  refuseDuplicateClaimIds(candidates);
 
   const records: CorpusRecallRecord[] = [];
   const evaluations: EligibilityEvaluation[] = [];
@@ -329,6 +387,11 @@ export async function assembleCorpusRecallEvidence(
       legacyLanes.add(ev.classification.lane);
     }
   }
+
+  // every assembly list is deterministic regardless of source iteration
+  // order: records in the pinned selection total order (reliability desc
+  // nulls-last, claimId asc); excludedOf orders exclusions by claimId
+  records.sort(compareEvidenceOrder);
 
   const includedLanes = new Set(records.map((r) => r.lane));
   const laneDiagnostics: Partial<Record<ConflictLaneId, LaneDiagnostic>> = {};
@@ -378,6 +441,7 @@ export async function assemblePublishedRetentionEvidence(
   }
   const { def, ctx, limits } = gate.prepared;
   const candidates = await source.publishedRetentionCandidates(def, ctx.window);
+  refuseDuplicateClaimIds(candidates);
 
   const records: PublishedRetentionRecord[] = [];
   const evaluations: EligibilityEvaluation[] = [];
@@ -408,6 +472,9 @@ export async function assemblePublishedRetentionEvidence(
       extractorVersion: candidate.extractorVersion,
     });
   }
+
+  // deterministic output lists — same rule as the corpus assembly
+  records.sort(compareEvidenceOrder);
 
   return {
     status: "assembled",
