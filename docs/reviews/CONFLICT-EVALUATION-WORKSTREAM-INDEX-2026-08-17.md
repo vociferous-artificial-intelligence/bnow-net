@@ -94,7 +94,7 @@ their documented extension points:
 |---|---|---|---|
 | 0 recon/contract | `codex/conflict-evaluations-p0-contract` | **PASSED** (legal PASS + science PASS-WITH-MINORS on `ea35fbf` after FAIL→remediation) | contract; P0 report; fixtures; register #1-#9 |
 | 1 domain | `codex/conflict-evaluations-p1-domain` | **PASSED** (architecture FAIL on `0d7ab8f` -> remediation -> PASS on `975cdcd`) | `src/lib/conflicts/` (10 modules, 196 tests); ledger P1; register #10 |
-| 2 reference windows | — | pending | |
+| 2 reference windows | `codex/conflict-evaluations-p2-reference` | **PASSED** (dual FAIL on `651b9d6` -> remediation -> PASS + PASS-WITH-MINORS on `e292ab3`) | schema design doc; P2 report; ledger P2; disposable SQL + itests |
 | 3 evidence union | — | pending | |
 | 4 scoring | — | pending | |
 | 5 eval adapter | — | pending | |
