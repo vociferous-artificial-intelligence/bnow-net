@@ -165,6 +165,12 @@ export interface CorpusRecallClaimSource {
    *     LIMIT <= EVIDENCE_MAX_INTAKE   -- MANDATORY: the assembler REFUSES
    *                                    -- larger batches, never truncates
    *
+   *  Overflow sentinel (Gate-3 ops re-review): fetch EVIDENCE_MAX_INTAKE + 1
+   *  rows, not EVIDENCE_MAX_INTAKE — a LIMIT exactly at the ceiling would
+   *  silently narrow a genuinely over-limit day to its top rows by
+   *  reliability with no refusal ever firing; the +1 row trips the
+   *  assembler's intake refusal so such days fail VISIBLY instead.
+   *
    *  Supporting indexes already present in src/db/schema.ts:
    *  `doc_claims_track_date_idx` (track, claim_date) drives the track+window
    *  range scan; `raw_documents_country_idx` (country_iso2) drives the
