@@ -19,8 +19,8 @@ persons, no ISW prose, no source full text) and AGENTS.md rulings 1, 12, 19,
 | file | conflict | scenarios | units | claims |
 |---|---|---|---|---|
 | `roca-scenarios-v1.json` | `russia_ukraine` | 10 | 10 | 11 |
-| `iran-scenarios-v1.json` | `iran_regional` | 12 | 13 | 14 |
-| `crosscutting-scenarios-v1.json` | mixed (per-scenario) | 16 | 16 | 20 |
+| `iran-scenarios-v1.json` | `iran_regional` | 12 | 13 | 13 |
+| `crosscutting-scenarios-v1.json` | mixed (per-scenario) | 16 | 16 | 21 |
 | **total** | | **38** | **39** | **45** |
 
 48 documents; 33 expected-included / 11 expected-excluded eligibility
@@ -215,7 +215,7 @@ check mechanical, exactly ONE unit text in this corpus carries a
 distinctive sentinel token — the invented corridor codename **VELMORAN**
 in `cc-regen-after-instant-007` `u0` (its only occurrence in the scenario
 JSON; this README is the only other file that may contain it).
-Later-phase tests MUST grep their persisted outputs for `VELMORAN` and
+Later-phase tests MUST first assert the sentinel token was PRESENT in the run's inputs (else the audit is vacuous and must fail as not-run), and then grep their persisted outputs for `VELMORAN` and
 fail on any hit: unit-derived signatures/hashes may persist, prose may
 not (contract sections 9 and 11).
 

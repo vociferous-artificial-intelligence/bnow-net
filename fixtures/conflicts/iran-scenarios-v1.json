@@ -1,11 +1,14 @@
 {
+  "synthetic": true,
+  "provenance": "authored-2026-08-17",
+  "disclaimer": "SYNTHETIC TEST FIXTURE. Every reference unit and claim in this file is an invented, hand-authored scenario written in the STYLE of expert-benchmark takeaways and BNOW claims. No sentence reproduces or paraphrases any real ISW/CTP publication; no report with these contents exists; all specific events, quantities, persons, and codenames are fictional. Series ids and dates identify the fixture SHAPE only and must never be read as statements about real reports or real events.",
   "fixtureVersion": 1,
   "conflictId": "iran_regional",
   "scenarios": [
     {
       "id": "iran-direct-kinetic-001",
       "title": "Direct Iran-Israel strike on an IRGC position",
-      "acceptanceRef": "Iran: direct Iran–Israel–US strikes",
+      "acceptanceRef": "Iran: direct Iran\u2013Israel\u2013US strikes",
       "conflictId": "iran_regional",
       "report": {
         "series": "iran_update",
@@ -50,11 +53,33 @@
       ],
       "expected": {
         "eligibility": {
-          "9101": { "included": true, "lane": "direct_kinetic", "reasons": ["actor:irgc", "lane:direct_kinetic", "geo:iran", "window:in"] }
+          "9101": {
+            "included": true,
+            "lane": "direct_kinetic",
+            "reasons": [
+              "actor:irgc",
+              "lane:direct_kinetic",
+              "geo:iran",
+              "window:in"
+            ]
+          }
         },
-        "corpusRecall": { "u0": "matched" },
-        "publishedRetention": { "u0": "matched" },
-        "contribution": { "u0": { "theaters": ["ir"], "tracks": ["military"] } },
+        "corpusRecall": {
+          "u0": "matched"
+        },
+        "publishedRetention": {
+          "u0": "matched"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ir"
+            ],
+            "tracks": [
+              "military"
+            ]
+          }
+        },
         "notes": "Core direct_kinetic lane case: direct Iran-Israel fighting supported by ir military evidence with governing attribution preserved (the claim reports what Iranian outlets acknowledged; matching never strengthens it)."
       }
     },
@@ -106,11 +131,32 @@
       ],
       "expected": {
         "eligibility": {
-          "9102": { "included": true, "lane": "proxy_partner", "reasons": ["actor:hezbollah", "lane:proxy_partner", "window:in"] }
+          "9102": {
+            "included": true,
+            "lane": "proxy_partner",
+            "reasons": [
+              "actor:hezbollah",
+              "lane:proxy_partner",
+              "window:in"
+            ]
+          }
         },
-        "corpusRecall": { "u0": "matched" },
-        "publishedRetention": { "u0": "matched" },
-        "contribution": { "u0": { "theaters": ["ir"], "tracks": ["military"] } },
+        "corpusRecall": {
+          "u0": "matched"
+        },
+        "publishedRetention": {
+          "u0": "matched"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ir"
+            ],
+            "tracks": [
+              "military"
+            ]
+          }
+        },
         "notes": "Lebanese-channel evidence is pinned to the ir theater lens (AGENTS.md ruling 11); theater is a coverage lens, not nationality. Hezbollah is on the iran_regional actor roster (contract section 5 predicate 4)."
       }
     },
@@ -162,11 +208,32 @@
       ],
       "expected": {
         "eligibility": {
-          "9103": { "included": true, "lane": "proxy_partner", "reasons": ["actor:iraqi-militia", "lane:proxy_partner", "window:in"] }
+          "9103": {
+            "included": true,
+            "lane": "proxy_partner",
+            "reasons": [
+              "actor:iraqi-militia",
+              "lane:proxy_partner",
+              "window:in"
+            ]
+          }
         },
-        "corpusRecall": { "u0": "matched" },
-        "publishedRetention": { "u0": "matched" },
-        "contribution": { "u0": { "theaters": ["ir"], "tracks": ["military"] } },
+        "corpusRecall": {
+          "u0": "matched"
+        },
+        "publishedRetention": {
+          "u0": "matched"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ir"
+            ],
+            "tracks": [
+              "military"
+            ]
+          }
+        },
         "notes": "Iraqi militia activity is in-scope for iran_regional by actor roster; the claim keeps the militia's own claim-attribution (hedging stays 'claimed')."
       }
     },
@@ -218,12 +285,34 @@
       ],
       "expected": {
         "eligibility": {
-          "9104": { "included": true, "lane": "maritime", "reasons": ["actor:houthi", "geo:red-sea", "lane:maritime", "window:in"] }
+          "9104": {
+            "included": true,
+            "lane": "maritime",
+            "reasons": [
+              "actor:houthi",
+              "geo:red-sea",
+              "lane:maritime",
+              "window:in"
+            ]
+          }
         },
-        "corpusRecall": { "u0": "matched" },
-        "publishedRetention": { "u0": "matched" },
-        "contribution": { "u0": { "theaters": ["ir"], "tracks": ["military"] } },
-        "notes": "Both the Houthi actor roster (proxy_partner) and the Red Sea event geography (maritime) hit; the fixture pins the `maritime` lane by event-geography precedence. The lane tie-break rule is flagged as a contract ambiguity in the README — the P1 deterministic classifier must freeze it."
+        "corpusRecall": {
+          "u0": "matched"
+        },
+        "publishedRetention": {
+          "u0": "matched"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ir"
+            ],
+            "tracks": [
+              "military"
+            ]
+          }
+        },
+        "notes": "Both the Houthi actor roster (proxy_partner) and the Red Sea event geography (maritime) hit; the fixture pins the `maritime` lane by event-geography precedence. The lane tie-break rule is flagged as a contract ambiguity in the README \u2014 the P1 deterministic classifier must freeze it."
       }
     },
     {
@@ -274,11 +363,33 @@
       ],
       "expected": {
         "eligibility": {
-          "9105": { "included": true, "lane": "maritime", "reasons": ["actor:irgc", "geo:hormuz", "lane:maritime", "window:in"] }
+          "9105": {
+            "included": true,
+            "lane": "maritime",
+            "reasons": [
+              "actor:irgc",
+              "geo:hormuz",
+              "lane:maritime",
+              "window:in"
+            ]
+          }
         },
-        "corpusRecall": { "u0": "matched" },
-        "publishedRetention": { "u0": "matched" },
-        "contribution": { "u0": { "theaters": ["ir"], "tracks": ["military"] } },
+        "corpusRecall": {
+          "u0": "matched"
+        },
+        "publishedRetention": {
+          "u0": "matched"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ir"
+            ],
+            "tracks": [
+              "military"
+            ]
+          }
+        },
         "notes": "Hormuz is explicitly in-scope for iran_regional (contract section 5 predicate 5); Omani-adjacent Gulf activity is a test-mandated inclusion. Evidence here is mapped ir-theater; the no-mapped-Gulf-evidence case is iran-gulf-unavailable-010."
       }
     },
@@ -330,11 +441,33 @@
       ],
       "expected": {
         "eligibility": {
-          "9106": { "included": true, "lane": "nuclear_diplomacy", "reasons": ["actor:iaea", "lane:nuclear_diplomacy", "track:nuclear", "window:in"] }
+          "9106": {
+            "included": true,
+            "lane": "nuclear_diplomacy",
+            "reasons": [
+              "actor:iaea",
+              "lane:nuclear_diplomacy",
+              "track:nuclear",
+              "window:in"
+            ]
+          }
         },
-        "corpusRecall": { "u0": "matched" },
-        "publishedRetention": { "u0": "matched" },
-        "contribution": { "u0": { "theaters": ["ir"], "tracks": ["nuclear"] } },
+        "corpusRecall": {
+          "u0": "matched"
+        },
+        "publishedRetention": {
+          "u0": "matched"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ir"
+            ],
+            "tracks": [
+              "nuclear"
+            ]
+          }
+        },
         "notes": "Proves the multi-track contributor set (contract section 5 predicate 6): the nuclear track contributes to iran_regional. The legacy military-only Iran validation structurally excluded this evidence. One authoritative record supports its exact action/status (ruling 20)."
       }
     },
@@ -386,11 +519,33 @@
       ],
       "expected": {
         "eligibility": {
-          "9107": { "included": true, "lane": "nuclear_diplomacy", "reasons": ["actor:e3", "lane:nuclear_diplomacy", "track:nuclear", "window:in"] }
+          "9107": {
+            "included": true,
+            "lane": "nuclear_diplomacy",
+            "reasons": [
+              "actor:e3",
+              "lane:nuclear_diplomacy",
+              "track:nuclear",
+              "window:in"
+            ]
+          }
         },
-        "corpusRecall": { "u0": "matched" },
-        "publishedRetention": { "u0": "matched" },
-        "contribution": { "u0": { "theaters": ["ir"], "tracks": ["nuclear"] } },
+        "corpusRecall": {
+          "u0": "matched"
+        },
+        "publishedRetention": {
+          "u0": "matched"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ir"
+            ],
+            "tracks": [
+              "nuclear"
+            ]
+          }
+        },
         "notes": "E3/EU diplomacy is on the iran_regional actor roster and lands in nuclear_diplomacy (contract section 4: program, IAEA, E3/EU, mediators)."
       }
     },
@@ -442,11 +597,32 @@
       ],
       "expected": {
         "eligibility": {
-          "9108": { "included": true, "lane": "domestic_security", "reasons": ["lane:domestic_security", "track:elite_politics", "window:in"] }
+          "9108": {
+            "included": true,
+            "lane": "domestic_security",
+            "reasons": [
+              "lane:domestic_security",
+              "track:elite_politics",
+              "window:in"
+            ]
+          }
         },
-        "corpusRecall": { "u0": "matched" },
-        "publishedRetention": { "u0": "matched" },
-        "contribution": { "u0": { "theaters": ["ir"], "tracks": ["elite_politics"] } },
+        "corpusRecall": {
+          "u0": "matched"
+        },
+        "publishedRetention": {
+          "u0": "matched"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ir"
+            ],
+            "tracks": [
+              "elite_politics"
+            ]
+          }
+        },
         "notes": "Kazem Ravandust is a FICTIONAL person (content rule; no real official is named). The elite_politics track is a designated iran_regional contributor (contract section 5 predicate 6). Hedged media-behavior attribution governs the whole assertion (rulings 19/20 spirit); matching never strengthens it."
       }
     },
@@ -521,19 +697,29 @@
       ],
       "expected": {
         "eligibility": {
-          "9109": { "included": false, "reason": "off_scope" },
-          "9110": { "included": false, "reason": "off_scope" }
+          "9109": {
+            "included": false,
+            "reason": "off_scope"
+          },
+          "9110": {
+            "included": false,
+            "reason": "off_scope"
+          }
         },
-        "corpusRecall": { "u0": "miss" },
-        "publishedRetention": { "u0": "miss" },
+        "corpusRecall": {
+          "u0": "miss"
+        },
+        "publishedRetention": {
+          "u0": "miss"
+        },
         "contribution": {},
-        "notes": "Region membership never suffices (contract section 5 test-mandated exclusions): Gulf commercial earnings and Israeli municipal politics are off_scope. For 9110 both off_scope and legacy_incomparable apply; the fixture pins content-scope checks first (single bounded reason: off_scope) — exclusion-reason precedence is flagged as a contract ambiguity in the README. The in-scope exercise unit stays a genuine miss."
+        "notes": "Region membership never suffices (contract section 5 test-mandated exclusions): Gulf commercial earnings and Israeli municipal politics are off_scope. For 9110 both off_scope and legacy_incomparable apply; the fixture pins content-scope checks first (single bounded reason: off_scope) \u2014 exclusion-reason precedence is flagged as a contract ambiguity in the README. The in-scope exercise unit stays a genuine miss."
       }
     },
     {
       "id": "iran-gulf-unavailable-010",
       "title": "Gulf-base lane with no comparable mapped evidence reports unavailable",
-      "acceptanceRef": "Iran: an Iran Update lane with no comparable mapped Gulf evidence — expected `unavailable` for that lane, never manufactured",
+      "acceptanceRef": "Iran: an Iran Update lane with no comparable mapped Gulf evidence \u2014 expected `unavailable` for that lane, never manufactured",
       "conflictId": "iran_regional",
       "report": {
         "series": "iran_update",
@@ -578,14 +764,23 @@
       ],
       "expected": {
         "eligibility": {
-          "9111": { "included": false, "reason": "legacy_incomparable" }
+          "9111": {
+            "included": false,
+            "reason": "legacy_incomparable"
+          }
         },
-        "laneAvailability": { "maritime": "unavailable" },
-        "corpusRecall": { "u0": "unavailable" },
-        "publishedRetention": { "u0": "matched" },
+        "laneAvailability": {
+          "maritime": "unavailable"
+        },
+        "corpusRecall": {
+          "u0": "unavailable"
+        },
+        "publishedRetention": {
+          "u0": "matched"
+        },
         "contribution": {},
         "independentSourceNote": "The legacy bh claim IS a member of the published-retention population as a labeled `legacy` contributor (designated gulf digest), so publishedRetention is matched; it is NOT in the corpus-recall population, whose lane honestly reports unavailable.",
-        "notes": "Comparability honesty (contract section 5): bh has no map-stage doc_claims, so corpus recall for this lane is `unavailable` — never a manufactured zero and never a silent inclusion of legacy rows. expected.eligibility describes the corpus-recall candidate union only (README schema note). No contribution entry: contribution follows corpus-recall matched units in these fixtures."
+        "notes": "Comparability honesty (contract section 5): bh has no map-stage doc_claims, so corpus recall for this lane is `unavailable` \u2014 never a manufactured zero and never a silent inclusion of legacy rows. expected.eligibility describes the corpus-recall candidate union only (README schema note). No contribution entry: contribution follows corpus-recall matched units in these fixtures."
       }
     },
     {
@@ -643,12 +838,35 @@
       ],
       "expected": {
         "eligibility": {
-          "9112": { "included": true, "lane": "proxy_partner", "reasons": ["actor:houthi", "lane:proxy_partner", "window:in"] }
+          "9112": {
+            "included": true,
+            "lane": "proxy_partner",
+            "reasons": [
+              "actor:houthi",
+              "lane:proxy_partner",
+              "window:in"
+            ]
+          }
         },
-        "corpusRecall": { "u0": "matched", "u1": "miss" },
-        "publishedRetention": { "u0": "matched", "u1": "miss" },
-        "contribution": { "u0": { "theaters": ["ir"], "tracks": ["military"] } },
-        "notes": "Two distinct same-day events by the same actor: the missile-interception claim matches u0 only. A matcher that pairs on shared actor (Houthi) or shared day alone would wrongly match u1 — section 6.3 requires compatible action, place, and object per event."
+        "corpusRecall": {
+          "u0": "matched",
+          "u1": "miss"
+        },
+        "publishedRetention": {
+          "u0": "matched",
+          "u1": "miss"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ir"
+            ],
+            "tracks": [
+              "military"
+            ]
+          }
+        },
+        "notes": "Two distinct same-day events by the same actor: the missile-interception claim matches u0 only. A matcher that pairs on shared actor (Houthi) or shared day alone would wrongly match u1 \u2014 section 6.3 requires compatible action, place, and object per event."
       }
     },
     {
@@ -700,13 +918,36 @@
       ],
       "expected": {
         "eligibility": {
-          "9113": { "included": true, "lane": "domestic_security", "reasons": ["lane:domestic_security", "geo:iran", "window:in"] }
+          "9113": {
+            "included": true,
+            "lane": "domestic_security",
+            "reasons": [
+              "lane:domestic_security",
+              "geo:iran",
+              "window:in"
+            ]
+          }
         },
-        "corpusRecall": { "u0": "matched" },
-        "publishedRetention": { "u0": "matched" },
-        "contribution": { "u0": { "theaters": ["ir"], "tracks": ["military"] } },
-        "hedgePreservation": { "9113": "claimed" },
-        "notes": "The claim derives from a translated fa-language source (doc.sourceLanguage) and carries hedging 'claimed' with governing attribution. Expected: the match succeeds AND the hedge stays 'claimed' — neither translation, matching, nor any conflict rendering may strengthen hedge, attribution, identity, predicate, status, or timing (contract section 6.3; ruling 20). No real person or company is named."
+        "corpusRecall": {
+          "u0": "matched"
+        },
+        "publishedRetention": {
+          "u0": "matched"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ir"
+            ],
+            "tracks": [
+              "military"
+            ]
+          }
+        },
+        "hedgePreservation": {
+          "9113": "claimed"
+        },
+        "notes": "The claim derives from a translated fa-language source (doc.sourceLanguage) and carries hedging 'claimed' with governing attribution. Expected: the match succeeds AND the hedge stays 'claimed' \u2014 neither translation, matching, nor any conflict rendering may strengthen hedge, attribution, identity, predicate, status, or timing (contract section 6.3; ruling 20). No real person or company is named."
       }
     }
   ]

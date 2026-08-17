@@ -1,4 +1,7 @@
 {
+  "synthetic": true,
+  "provenance": "authored-2026-08-17",
+  "disclaimer": "SYNTHETIC TEST FIXTURE. Every reference unit and claim in this file is an invented, hand-authored scenario written in the STYLE of expert-benchmark takeaways and BNOW claims. No sentence reproduces or paraphrases any real ISW/CTP publication; no report with these contents exists; all specific events, quantities, persons, and codenames are fictional. Series ids and dates identify the fixture SHAPE only and must never be read as statements about real reports or real events.",
   "fixtureVersion": 1,
   "conflictId": "russia_ukraine",
   "scenarios": [
@@ -50,11 +53,32 @@
       ],
       "expected": {
         "eligibility": {
-          "9001": { "included": true, "lane": "frontline_maneuver", "reasons": ["lane:frontline_maneuver", "geo:ua-frontline", "window:in"] }
+          "9001": {
+            "included": true,
+            "lane": "frontline_maneuver",
+            "reasons": [
+              "lane:frontline_maneuver",
+              "geo:ua-frontline",
+              "window:in"
+            ]
+          }
         },
-        "corpusRecall": { "u0": "matched" },
-        "publishedRetention": { "u0": "matched" },
-        "contribution": { "u0": { "theaters": ["ua"], "tracks": ["military"] } },
+        "corpusRecall": {
+          "u0": "matched"
+        },
+        "publishedRetention": {
+          "u0": "matched"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ua"
+            ],
+            "tracks": [
+              "military"
+            ]
+          }
+        },
         "notes": "Proves the combined denominator accepts evidence regardless of which country corpus retained it. Under the legacy per-country model the RU row would have scored this development a miss; the combined russia_ukraine evaluation counts it once, attributed to the ua theater bucket (contract section 2, section 7)."
       }
     },
@@ -106,11 +130,32 @@
       ],
       "expected": {
         "eligibility": {
-          "9002": { "included": true, "lane": "frontline_maneuver", "reasons": ["lane:frontline_maneuver", "geo:ua-frontline", "window:in"] }
+          "9002": {
+            "included": true,
+            "lane": "frontline_maneuver",
+            "reasons": [
+              "lane:frontline_maneuver",
+              "geo:ua-frontline",
+              "window:in"
+            ]
+          }
         },
-        "corpusRecall": { "u0": "matched" },
-        "publishedRetention": { "u0": "matched" },
-        "contribution": { "u0": { "theaters": ["ru"], "tracks": ["military"] } },
+        "corpusRecall": {
+          "u0": "matched"
+        },
+        "publishedRetention": {
+          "u0": "matched"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ru"
+            ],
+            "tracks": [
+              "military"
+            ]
+          }
+        },
         "notes": "Relevance, not source geography (contract section 5): the claim was routed to the ru corpus but describes an event inside Ukraine and is eligible for the combined evaluation. The legacy UA country row could never see this evidence."
       }
     },
@@ -162,11 +207,32 @@
       ],
       "expected": {
         "eligibility": {
-          "9003": { "included": true, "lane": "occupied_crossborder", "reasons": ["lane:occupied_crossborder", "geo:occupied-crimea", "window:in"] }
+          "9003": {
+            "included": true,
+            "lane": "occupied_crossborder",
+            "reasons": [
+              "lane:occupied_crossborder",
+              "geo:occupied-crimea",
+              "window:in"
+            ]
+          }
         },
-        "corpusRecall": { "u0": "matched" },
-        "publishedRetention": { "u0": "matched" },
-        "contribution": { "u0": { "theaters": ["ua"], "tracks": ["military"] } },
+        "corpusRecall": {
+          "u0": "matched"
+        },
+        "publishedRetention": {
+          "u0": "matched"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ua"
+            ],
+            "tracks": [
+              "military"
+            ]
+          }
+        },
         "notes": "Occupied territories including Crimea are explicitly in-scope for russia_ukraine (contract section 5 predicate 5). The classic 'both'-geography case produces ONE combined observation, not two overlapping country rows."
       }
     },
@@ -218,11 +284,32 @@
       ],
       "expected": {
         "eligibility": {
-          "9004": { "included": true, "lane": "russia_partners", "reasons": ["actor:dprk-military-support", "lane:russia_partners", "window:in"] }
+          "9004": {
+            "included": true,
+            "lane": "russia_partners",
+            "reasons": [
+              "actor:dprk-military-support",
+              "lane:russia_partners",
+              "window:in"
+            ]
+          }
         },
-        "corpusRecall": { "u0": "matched" },
-        "publishedRetention": { "u0": "matched" },
-        "contribution": { "u0": { "theaters": ["ru"], "tracks": ["military"] } },
+        "corpusRecall": {
+          "u0": "matched"
+        },
+        "publishedRetention": {
+          "u0": "matched"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ru"
+            ],
+            "tracks": [
+              "military"
+            ]
+          }
+        },
         "notes": "DPRK military support is on the russia_ukraine actor roster (contract section 5 predicate 4; test-mandated inclusion). The event is outside both ua and ru borders yet in-scope by actor involvement."
       }
     },
@@ -274,11 +361,32 @@
       ],
       "expected": {
         "eligibility": {
-          "9005": { "included": true, "lane": "foreign_support", "reasons": ["actor:nato-eu-decision", "lane:foreign_support", "window:in"] }
+          "9005": {
+            "included": true,
+            "lane": "foreign_support",
+            "reasons": [
+              "actor:nato-eu-decision",
+              "lane:foreign_support",
+              "window:in"
+            ]
+          }
         },
-        "corpusRecall": { "u0": "matched" },
-        "publishedRetention": { "u0": "matched" },
-        "contribution": { "u0": { "theaters": ["ua"], "tracks": ["military"] } },
+        "corpusRecall": {
+          "u0": "matched"
+        },
+        "publishedRetention": {
+          "u0": "matched"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ua"
+            ],
+            "tracks": [
+              "military"
+            ]
+          }
+        },
         "notes": "Coalition decisions materially shaping the war are in-scope (contract section 5 test-mandated inclusions; foreign_support lane covers coalition decisions for Ukraine)."
       }
     },
@@ -330,10 +438,17 @@
       ],
       "expected": {
         "eligibility": {
-          "9006": { "included": false, "reason": "off_scope" }
+          "9006": {
+            "included": false,
+            "reason": "off_scope"
+          }
         },
-        "corpusRecall": { "u0": "miss" },
-        "publishedRetention": { "u0": "miss" },
+        "corpusRecall": {
+          "u0": "miss"
+        },
+        "publishedRetention": {
+          "u0": "miss"
+        },
         "contribution": {},
         "notes": "EU-actor membership alone never satisfies eligibility (contract section 5: unrelated EU news excluded despite region/actor membership). The in-scope procurement unit stays a genuine miss because the only candidate is off_scope; the unit is never dropped from the denominator."
       }
@@ -341,7 +456,7 @@
     {
       "id": "roca-recurring-template-007",
       "title": "Same town and action class on different dates must not match",
-      "acceptanceRef": "ROCA: same town and action class on different dates (must NOT match — ruling-12 spirit)",
+      "acceptanceRef": "ROCA: same town and action class on different dates (must NOT match \u2014 ruling-12 spirit)",
       "conflictId": "russia_ukraine",
       "report": {
         "series": "roca",
@@ -409,11 +524,26 @@
       ],
       "expected": {
         "eligibility": {
-          "9007": { "included": false, "reason": "off_window" },
-          "9008": { "included": true, "lane": "strikes_air_defense", "reasons": ["lane:strikes_air_defense", "geo:ua", "window:in-edge"] }
+          "9007": {
+            "included": false,
+            "reason": "off_window"
+          },
+          "9008": {
+            "included": true,
+            "lane": "strikes_air_defense",
+            "reasons": [
+              "lane:strikes_air_defense",
+              "geo:ua",
+              "window:in-edge"
+            ]
+          }
         },
-        "corpusRecall": { "u0": "miss" },
-        "publishedRetention": { "u0": "miss" },
+        "corpusRecall": {
+          "u0": "miss"
+        },
+        "publishedRetention": {
+          "u0": "miss"
+        },
         "contribution": {},
         "notes": "Ruling-12 spirit: identical town + action class on distant days is a recurring template, not the same event. Claim 9007 (August 3) is outside the fixture's assumed eligibility window (reportDate minus 2 days through cutoff; window width flagged as a contract ambiguity in the README). Claim 9008 (August 8) is eligible at the window edge but its date is incompatible with the unit's August 10 event, and section 6.3 forbids matching on shared place/action alone."
       }
@@ -466,11 +596,32 @@
       ],
       "expected": {
         "eligibility": {
-          "9009": { "included": true, "lane": "frontline_maneuver", "reasons": ["lane:frontline_maneuver", "geo:ua-frontline", "window:in"] }
+          "9009": {
+            "included": true,
+            "lane": "frontline_maneuver",
+            "reasons": [
+              "lane:frontline_maneuver",
+              "geo:ua-frontline",
+              "window:in"
+            ]
+          }
         },
-        "corpusRecall": { "u0": "matched" },
-        "publishedRetention": { "u0": "miss" },
-        "contribution": { "u0": { "theaters": ["ua"], "tracks": ["military"] } },
+        "corpusRecall": {
+          "u0": "matched"
+        },
+        "publishedRetention": {
+          "u0": "miss"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ua"
+            ],
+            "tracks": [
+              "military"
+            ]
+          }
+        },
         "notes": "Separates the two pipeline questions (contract section 6.1): the mapped corpus contained the development (published=false doc_claims row) but no designated user-facing digest retained a matching claim. Evidence existence never implies published retention. Contribution here follows the corpus-recall match per the fixture-shape precedent; the contribution population question is flagged as a contract ambiguity in the README."
       }
     },
@@ -522,16 +673,28 @@
       ],
       "expected": {
         "eligibility": {
-          "9010": { "included": true, "lane": "strikes_air_defense", "reasons": ["lane:strikes_air_defense", "geo:ua", "window:in"] }
+          "9010": {
+            "included": true,
+            "lane": "strikes_air_defense",
+            "reasons": [
+              "lane:strikes_air_defense",
+              "geo:ua",
+              "window:in"
+            ]
+          }
         },
-        "corpusRecall": { "u0": "partial" },
-        "publishedRetention": { "u0": "partial" },
+        "corpusRecall": {
+          "u0": "partial"
+        },
+        "publishedRetention": {
+          "u0": "partial"
+        },
         "contribution": {},
-        "notes": "The unit is compound (glide-bomb strikes AND a pontoon crossing); evidence covers only the strikes. Expected verdict `partial` is DIAGNOSTIC and counts as a MISS in the headline numerator (contract section 3) for both pipeline questions — never a fraction, never a match. No contribution entry: contribution applies only to matched units. One claim never satisfies multiple distinct propositions on topic overlap alone."
+        "notes": "The unit is compound (glide-bomb strikes AND a pontoon crossing); evidence covers only the strikes. Expected verdict `partial` is DIAGNOSTIC and counts as a MISS in the headline numerator (contract section 3) for both pipeline questions \u2014 never a fraction, never a match. No contribution entry: contribution applies only to matched units. One claim never satisfies multiple distinct propositions on topic overlap alone."
       }
     },
     {
-      "id": "roca-quiet-day-010",
+      "id": "roca-quiet-day-010b",
       "title": "Quiet/no-advance unit opposed by a positive advance claim",
       "acceptanceRef": "ROCA: a quiet/no-advance unit opposed by a positive advance claim (must NOT match)",
       "conflictId": "russia_ukraine",
@@ -544,7 +707,7 @@
         "units": [
           {
             "unitId": "u0",
-            "text": "Russian forces did not conduct confirmed offensive operations in the Zaporizhia direction on August 10.",
+            "text": "Fighting along the Zaporizhia axis stayed static on August 10, with assessed activity limited to positional skirmishes and no verified change of control at any settlement.",
             "lane": "frontline_maneuver",
             "compound": false,
             "negative": true
@@ -578,12 +741,24 @@
       ],
       "expected": {
         "eligibility": {
-          "9011": { "included": true, "lane": "frontline_maneuver", "reasons": ["lane:frontline_maneuver", "geo:ua-frontline", "window:in"] }
+          "9011": {
+            "included": true,
+            "lane": "frontline_maneuver",
+            "reasons": [
+              "lane:frontline_maneuver",
+              "geo:ua-frontline",
+              "window:in"
+            ]
+          }
         },
-        "corpusRecall": { "u0": "miss" },
-        "publishedRetention": { "u0": "miss" },
+        "corpusRecall": {
+          "u0": "miss"
+        },
+        "publishedRetention": {
+          "u0": "miss"
+        },
         "contribution": {},
-        "notes": "Negative/quiet-day units match ONLY explicit absence or stalling claims (contract section 6.3). A positive advance claim in the same direction is opposition, not support — a scorer that matches on shared place/direction would be caught by this scenario. An explicit 'no assaults recorded in the direction' claim would have matched."
+        "notes": "Negative/quiet-day units match ONLY explicit absence or stalling claims (contract section 6.3). A positive advance claim in the same direction is opposition, not support \u2014 a scorer that matches on shared place/direction would be caught by this scenario. An explicit 'no assaults recorded in the direction' claim would have matched. (Unit text reworded + id bumped at Gate-0 remediation to widen the gap from the reference series' recurring boilerplate; semantics unchanged: negative/quiet unit vs a positive advance claim must NOT match.)"
       }
     }
   ]

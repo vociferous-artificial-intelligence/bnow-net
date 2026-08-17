@@ -282,7 +282,10 @@ information lead from BNOW ingest time (source-declared publish time shown
 separately); in-scope BNOW-only items (only inside declared conflict scope);
 matcher identity, votes, variance grouping, methodology epoch, input snapshot
 identity; `unavailable`/`insufficient_data` states distinct from zero
-everywhere. **No composite quality score.**
+everywhere. **No composite quality score.** RENDERABLE BNOW-only items (any
+user-facing list) come from the PUBLISHED-RETENTION population only — a
+corpus-recall-only `doc_claims` item feeds internal counts, never a rendered
+list (Gate-0 pin, decision register #7).
 
 ## 7. Contribution attribution (multi-label, non-additive — frozen)
 
@@ -361,26 +364,64 @@ There remains one control plane and one `scripts/analysis-eval.ts`.
 
 ## 11. Flags, defaults, and surfaces (Phase 6 contract)
 
+The full workstream prompt is COMMITTED at
+`docs/prompts/2026-08-17-conflict-region-combined-evaluations.md`; its §14 UX
+rules bind Phase 6 in their entirety. The enforcement-relevant rules are
+restated here so phase reviewers working from this contract alone hold them
+(Gate-0 remediation, decision register #7):
+
 - All new runtime behavior OFF by default. `/scoreboard`, country pages,
   digests, validation cron, and navigation are behavior-identical when the
-  new flags are absent.
+  new flags are absent. Feature-off ALSO means: no conflict route linked from
+  navigation, NO sitemap/robots/OpenGraph/metadata promotion of any
+  unfinished conflict surface, no new runtime DB dependency on the off path,
+  and every direct conflict URL returns `notFound()` before conflict data
+  access.
 - Proposed flag: `CONFLICTS_UI` (unset/absent = off). Every conflict route
   (`/conflicts`, `/conflicts/russia-ukraine`, `/conflicts/iran-regional`,
   benchmark detail beneath the conflict route — subject to repository IA
-  review in Phase 6) calls the feature-off guard as the FIRST statement and
-  returns `notFound()` before any conflict data access; gated routes (none
-  planned — conflict pages are public-teaser-shaped unless IA review says
-  otherwise) would put the ruling-21 gate first, then the feature guard.
-  Bare-GET + `RSC: 1` feature-off body tests for every route.
-- The Phase 6 "what changed" view renders ONLY claims that genuinely appeared
-  in designated published digests (with originating digest/theater/track and
-  source trail); hidden `doc_claims` support internal counts only and their
-  text is never presented as published conflict intelligence. No new conflict
-  synthesis is created or published.
+  review in Phase 6) calls the feature-off guard as the FIRST statement.
+  Bare-GET + `RSC: 1` feature-off body tests for every route. Feature
+  enablement for local browser verification uses EPHEMERAL test-process env
+  injection ONLY — never a persisted env value, never an `.env*` edit, never
+  a Vercel configuration change.
+- **Access tier (Gate-0 pin, MEDIUM-1):** any surface rendering PUBLISHED
+  DIGEST CLAIM TEXT inherits at least the digest surfaces' access tier
+  (`requireAcceptedUser` + current clickwrap; ruling 21: page gate is the
+  FIRST statement, then the feature-off guard, both before data access, plus
+  the production-build authorization itest row). The anonymous/teaser view of
+  a conflict page shows counts, lanes, scores, labels, and methodology only —
+  never claim text, never source trails. "Public-teaser-shaped" means exactly
+  this split; it is not a decision to expose gated content publicly.
+- The page answers, IN THIS ORDER, the seven analyst questions: (1) what
+  conflict/region is covered; (2) what changed and which lanes are active;
+  (3) which countries, actors, and evidence sources contributed; (4) what the
+  external benchmark covered, as one report-level score; (5) whether matching
+  evidence was present in the mapped corpus and retained in the published
+  output; (6) what was unavailable, thinly sourced, or reference-only;
+  (7) how to drill back into country, track, claim, and source evidence.
+- The "what changed" view renders ONLY claims that genuinely appeared in
+  designated published digests (with originating digest/theater/track and
+  source trail, hedge, confidence, timestamps); hidden `doc_claims` support
+  internal counts only and their text is never presented as published
+  conflict intelligence. No new conflict synthesis is created or published.
 - No ISW prose, no source full text, no provider/model names, no internal
   prompts, no hidden candidate evidence in any rendering. Percentages always
-  carry numerator/denominator; `unavailable` renders distinctly from `0%`;
-  the shared-source non-independence caveat is prominent.
+  carry numerator/denominator near the number; `unavailable` renders
+  distinctly from `0%` and from `0`.
+- REQUIRED EXPLAINERS on the conflict benchmark surface: (a) the ISW/CTP
+  shared-source NON-INDEPENDENCE caveat, placed within the benchmark module
+  beside or above the headline score — "prominently enough to affect
+  interpretation", never a footer/footnote; (b) a plain-language note that a
+  source's home country does not define conflict relevance; (c) the
+  conflict/region vs country/theater vs track terminology explained where
+  first used; (d) a cross-reference note explaining how the conflict-level
+  score relates to the per-country scoreboard rows for the same reference
+  report (they are different aggregations of one report — neither
+  contradicts the other), linked from both surfaces when the flag is on.
+- Accessibility: accessible tables/cards, keyboard navigation, focus order,
+  landmarks, dark/light contrast, mobile layouts without horizontal page
+  overflow, print behavior, reduced motion, localization-safe wrapping.
 
 ## 12. Migration posture
 
@@ -404,8 +445,10 @@ generates it.
   conflicts; live-compatible adapter unexecuted.
 - P5: control-plane adapter per §10 + `ConflictSnapshotRef` contract; refusal
   of cutoff/publication/finalized without a proving artifact.
-- P6: feature-off UI with the seven analyst questions answered in order;
-  browser matrix; accessibility.
+- P6: feature-off UI answering the seven analyst questions in the §11 order,
+  with the §11 access-tier split, explainers, and metadata rules; browser
+  matrix (narrow mobile, desktop, light/dark, keyboard, print, feature-off,
+  empty, partial-lane, unavailable-snapshot states); accessibility.
 - P7: integration, fixture backtest matrix (current separate RU/UA vs
   combined ROCA; current Iran military-only vs combined regional), shadow-soak
   PLAN (not enabled), PR decomposition, final three reviews.

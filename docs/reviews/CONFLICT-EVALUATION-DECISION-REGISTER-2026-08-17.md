@@ -52,3 +52,25 @@ Each entry: date, decision, rationale, alternatives rejected, review status.
    scope → comparability); contribution computed over corpus-recall matches;
    cutoff boundary equality read as "at or before". Each is pinned by ≥1
    fixture scenario, so a later change breaks tests rather than drifting.
+
+7. **2026-08-17 — Gate-0 remediation (product/legal review, HIGH-1 + MEDIUMs
+   + LOWs).** The workstream prompt is now COMMITTED
+   (`docs/prompts/2026-08-17-conflict-region-combined-evaluations.md`) and
+   contract §11 restates every enforcement-relevant Phase 6 rule so phase
+   reviewers hold them from the frozen contract alone: sitemap/metadata-off,
+   ephemeral-only feature injection, the seven analyst questions enumerated in
+   order, the caveat placement standard ("prominently enough to affect
+   interpretation", within the benchmark module, never a footnote), the
+   source-country-relevance and terminology explainers, and the
+   scoreboard-coexistence cross-reference note. ACCESS-TIER PIN (MEDIUM-1):
+   any surface rendering published digest claim text inherits at least the
+   digest surfaces' access tier (ruling-21 gate first, then feature guard);
+   the anonymous teaser shows counts/lanes/scores/labels/methodology only.
+   Fixture files gained top-level `synthetic`/`provenance`/`disclaimer`
+   markers (MEDIUM-2 — metadata only, scenario inputs untouched);
+   renderable BNOW-only items pinned to the published-retention population
+   (LOW-4, §6.4); README count cells corrected (LOW-1); the sentinel audit
+   rule now requires input-presence before output-absence (LOW-2); the
+   quiet-day unit reworded away from genre boilerplate with an id bump per
+   the immutability rule (NOTE-1); the ledger no longer spells the sentinel
+   (NOTE-3).
