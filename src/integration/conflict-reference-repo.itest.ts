@@ -20,7 +20,9 @@ const URL_ENV = process.env.INTEGRATION_DATABASE_URL;
 if (!URL_ENV) throw new Error("INTEGRATION_DATABASE_URL not set — run via npm run test:integration");
 process.env.DATABASE_URL = URL_ENV;
 
-const { SqlReferenceReportRepository } = await import("@/lib/conflicts/reference-repo-sql");
+const { SqlReferenceReportRepository, DAY_STATUS_UPSERT_SQL } = await import(
+  "@/lib/conflicts/reference-repo-sql"
+);
 const { InMemoryReferenceReportRepository } = await import("@/lib/conflicts/reference-repo");
 const { parseEditionRecord, selectDailyFinal } = await import("@/lib/conflicts/editions");
 const { serializeReferenceReportIdentity } = await import("@/lib/conflicts/serialization");
@@ -56,9 +58,21 @@ const editionRaw = (label: string, over: Partial<Record<string, unknown>> = {}) 
 let pool: Pool;
 let anchorId: number;
 let registryBaseline: Record<string, number>;
+let anchorBaseline: Record<string, unknown>;
 
 const query = (sql: string, params?: unknown[]) =>
   pool.query(sql, params).then((r) => r.rows as Array<Record<string, unknown>>);
+
+// the anchor row's full relevant tuple — count equality alone cannot see a
+// content UPDATE (report_date::text: driver `date` parsing is host-TZ-bound)
+async function anchorTuple(): Promise<Record<string, unknown>> {
+  const [row] = await query(
+    `SELECT parse_status, endnote_count, citation_count, url, theater, report_date::text AS report_date
+       FROM isw_reports WHERE id = $1`,
+    [anchorId],
+  );
+  return row;
+}
 
 async function registryCounts(): Promise<Record<string, number>> {
   const [row] = await query(
@@ -87,6 +101,7 @@ beforeAll(async () => {
   );
   anchorId = Number(rows[0].id);
   registryBaseline = await registryCounts();
+  anchorBaseline = await anchorTuple();
 });
 
 afterAll(async () => {
@@ -225,15 +240,20 @@ describe("conflict reference-report repository (disposable SQL)", () => {
     const repo = new SqlReferenceReportRepository(query);
     const D1 = "2027-07-12";
     const D2 = "2027-07-13";
-    const dupUrl =
-      "https://understandingwar.org/research/middle-east/iran-update-itest-p2-dup-url/";
+    // D1's real plain-shape URL; D2 duplicates it byte-for-byte
+    const dupUrl = "https://understandingwar.org/research/middle-east/iran-update-july-12-2027/";
     const d1Edition = editionRaw("plain", {
       identity: { editionKey: `iran_update:${D1}:plain`, reportDate: D1 },
       canonicalUrl: dupUrl,
     });
+    // a CURRENT-normVersion record would be refused at validation by the
+    // URL↔key cross-check, so the DB-level failure path is exercised with a
+    // non-current-version record — exactly the class the app-layer
+    // cross-validation cannot interpret
     const d2Edition = editionRaw("plain", {
       identity: { editionKey: `iran_update:${D2}:plain`, reportDate: D2 },
       canonicalUrl: dupUrl, // duplicates D1's URL → partial unique index
+      normVersion: "isw-edition-norm-v0",
     });
 
     expect((await repo.upsertEdition(parseEditionRecord(d1Edition))).action).toBe("inserted");
@@ -276,37 +296,134 @@ describe("conflict reference-report repository (disposable SQL)", () => {
     expect(await mem.dayStatus("iran_update", D2)).toBe("published");
   });
 
-  it("DB CHECK constraints refuse a drifted edition key and inconsistent anchors", async () => {
+  it("the DB refuses a second same-day designated-final edition", async () => {
+    const repo = new SqlReferenceReportRepository(query);
+    const D3 = "2027-07-14";
+    const designated = (label: string) =>
+      parseEditionRecord(
+        editionRaw(label, {
+          identity: { editionKey: `iran_update:${D3}:${label}`, reportDate: D3 },
+          canonicalUrl: `https://understandingwar.org/research/middle-east/iran-update-${label}-special-report-july-14-2027/`,
+          designatedFinal: true,
+        }),
+      );
+    expect((await repo.upsertEdition(designated("morning"))).action).toBe("inserted");
+    // selectDailyFinal's contradictory-designation refusal now has a DB twin:
+    // persistence cannot hold two designated finals for one series/day
+    await expect(repo.upsertEdition(designated("evening"))).rejects.toThrow(
+      /benchmark_report_editions_final_idx/,
+    );
+    const day = await repo.editionsForDay("iran_update", D3);
+    expect(day.map((e) => e.identity.editionKey)).toEqual([`iran_update:${D3}:morning`]);
+  });
+
+  it("the day-status upsert statement itself refuses a downgrade (DB-level monotone rule)", async () => {
+    const repo = new SqlReferenceReportRepository(query);
+    const D4 = "2027-07-15";
+    expect(await repo.recordDayStatus("iran_update", D4, "publication_gap")).toEqual({
+      status: "publication_gap",
+      action: "set",
+    });
+    // bypass the app-layer transition rule and issue the repository's OWN
+    // statement (imported, not copied) with a stale downgrade — the CASE
+    // guard in the statement must keep the confirmed gap
+    await query(DAY_STATUS_UPSERT_SQL, ["iran_update", D4, "probe_failed"]);
+    expect(await repo.dayStatus("iran_update", D4)).toBe("publication_gap");
+    // and the same statement still performs the legitimate upgrade
+    const D5 = "2027-07-16";
+    await query(DAY_STATUS_UPSERT_SQL, ["iran_update", D5, "probe_failed"]);
+    await query(DAY_STATUS_UPSERT_SQL, ["iran_update", D5, "publication_gap"]);
+    expect(await repo.dayStatus("iran_update", D5)).toBe("publication_gap");
+  });
+
+  it("DB CHECK constraints refuse drifted keys, malformed labels, missing isw URLs, and inconsistent anchors", async () => {
+    // each probe violates exactly ONE constraint, so the asserted name is
+    // deterministic
+    await expect(
+      query(
+        `INSERT INTO benchmark_report_editions
+           (series, provider, edition_key, edition_label, report_date, scope_version,
+            cutoff_treatment, published_treatment, parse_status, canonical_url)
+         VALUES ('iran_update', 'isw', 'iran_update:${DAY_A}:evening', 'morning', $1,
+                 'iran-update-scope-v1', 'missing', 'missing', 'pending',
+                 'https://understandingwar.org/research/middle-east/iran-update-check-probe-1/')`,
+        [DAY_A],
+      ),
+    ).rejects.toThrow(/benchmark_report_editions_key_shape/);
+    // a colon-bearing label satisfies the concatenation check but not the
+    // label grammar
+    await expect(
+      query(
+        `INSERT INTO benchmark_report_editions
+           (series, provider, edition_key, edition_label, report_date, scope_version,
+            cutoff_treatment, published_treatment, parse_status, canonical_url)
+         VALUES ('iran_update', 'isw', 'iran_update:${DAY_A}:a:b', 'a:b', $1,
+                 'iran-update-scope-v1', 'missing', 'missing', 'pending',
+                 'https://understandingwar.org/research/middle-east/iran-update-check-probe-2/')`,
+        [DAY_A],
+      ),
+    ).rejects.toThrow(/benchmark_report_editions_label_shape/);
+    // provider isw without a canonical URL
     await expect(
       query(
         `INSERT INTO benchmark_report_editions
            (series, provider, edition_key, edition_label, report_date, scope_version,
             cutoff_treatment, published_treatment, parse_status)
-         VALUES ('iran_update', 'isw', 'iran_update:${DAY_A}:evening', 'morning', $1,
+         VALUES ('iran_update', 'isw', 'iran_update:${DAY_A}:plain', 'plain', $1,
                  'iran-update-scope-v1', 'missing', 'missing', 'pending')`,
         [DAY_A],
       ),
-    ).rejects.toThrow(/benchmark_report_editions_key_shape/);
+    ).rejects.toThrow(/benchmark_report_editions_isw_url/);
+    // anchor/treatment consistency, BOTH directions and BOTH anchors:
+    // an instant without 'present'…
     await expect(
       query(
         `INSERT INTO benchmark_report_editions
            (series, provider, edition_key, edition_label, report_date, scope_version,
-            cutoff_treatment, published_treatment, parse_status, cutoff_at)
+            cutoff_treatment, published_treatment, parse_status, canonical_url, cutoff_at)
          VALUES ('iran_update', 'isw', 'iran_update:${DAY_A}:plain', 'plain', $1,
-                 'iran-update-scope-v1', 'missing', 'missing', 'pending', now())`,
+                 'iran-update-scope-v1', 'missing', 'missing', 'pending',
+                 'https://understandingwar.org/research/middle-east/iran-update-check-probe-3/', now())`,
         [DAY_A],
       ),
     ).rejects.toThrow(/benchmark_report_editions_cutoff_consistent/);
+    // …'present' without an instant…
+    await expect(
+      query(
+        `INSERT INTO benchmark_report_editions
+           (series, provider, edition_key, edition_label, report_date, scope_version,
+            cutoff_treatment, published_treatment, parse_status, canonical_url)
+         VALUES ('iran_update', 'isw', 'iran_update:${DAY_A}:plain', 'plain', $1,
+                 'iran-update-scope-v1', 'present', 'missing', 'pending',
+                 'https://understandingwar.org/research/middle-east/iran-update-check-probe-4/')`,
+        [DAY_A],
+      ),
+    ).rejects.toThrow(/benchmark_report_editions_cutoff_consistent/);
+    // …and the published-side twin
+    await expect(
+      query(
+        `INSERT INTO benchmark_report_editions
+           (series, provider, edition_key, edition_label, report_date, scope_version,
+            cutoff_treatment, published_treatment, parse_status, canonical_url, published_at)
+         VALUES ('iran_update', 'isw', 'iran_update:${DAY_A}:plain', 'plain', $1,
+                 'iran-update-scope-v1', 'missing', 'missing', 'pending',
+                 'https://understandingwar.org/research/middle-east/iran-update-check-probe-5/', now())`,
+        [DAY_A],
+      ),
+    ).rejects.toThrow(/benchmark_report_editions_published_consistent/);
   });
 
   it("citation registry is UNTOUCHED by every repository operation", async () => {
     // identical counts across isw_reports / source_citations / sources /
     // source_theater_stats — the repository only ever REFERENCES the anchor
     expect(await registryCounts()).toEqual(registryBaseline);
-    const [anchor] = await query(
-      `SELECT parse_status, endnote_count, citation_count FROM isw_reports WHERE id = $1`,
-      [anchorId],
-    );
-    expect(anchor.parse_status).toBe("pending"); // never written by the repo
+    // …and the anchor ROW itself is byte-identical: count equality cannot see
+    // a content UPDATE, so the full relevant tuple (parse_status,
+    // endnote_count, citation_count, url, theater, report_date) is compared
+    // to the beforeAll baseline — pinned non-vacuous first
+    expect(anchorBaseline.parse_status).toBe("pending");
+    expect(anchorBaseline.url).toBe(ANCHOR_URL);
+    expect(anchorBaseline.report_date).toBe(ANCHOR_DATE);
+    expect(await anchorTuple()).toEqual(anchorBaseline);
   });
 });

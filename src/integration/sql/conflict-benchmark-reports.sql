@@ -40,7 +40,15 @@ CREATE TABLE IF NOT EXISTS benchmark_report_editions (
   CONSTRAINT benchmark_report_editions_cutoff_consistent
     CHECK ((cutoff_treatment = 'present') = (cutoff_at IS NOT NULL)),
   CONSTRAINT benchmark_report_editions_published_consistent
-    CHECK ((published_treatment = 'present') = (published_at IS NOT NULL))
+    CHECK ((published_treatment = 'present') = (published_at IS NOT NULL)),
+  -- labels are lowercase slug words: blocks empty and colon-bearing labels
+  -- that would still satisfy the concatenation check above
+  CONSTRAINT benchmark_report_editions_label_shape
+    CHECK (edition_label ~ '^[a-z0-9][a-z0-9-]*$'),
+  -- a provider edition always carries its canonical URL (mirrors the
+  -- app-layer rule); NULL canonical_url is fixture-only
+  CONSTRAINT benchmark_report_editions_isw_url
+    CHECK (provider <> 'isw' OR canonical_url IS NOT NULL)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS benchmark_report_editions_key_idx
@@ -49,6 +57,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS benchmark_report_editions_url_idx
   ON benchmark_report_editions (canonical_url) WHERE canonical_url IS NOT NULL;
 CREATE INDEX IF NOT EXISTS benchmark_report_editions_series_date_idx
   ON benchmark_report_editions (series, report_date);
+-- at most ONE designated-final edition per series/day at the persistence
+-- layer too (the DB twin of selectDailyFinal's contradictory-designation
+-- refusal — the app throws, and the table cannot hold the contradiction)
+CREATE UNIQUE INDEX IF NOT EXISTS benchmark_report_editions_final_idx
+  ON benchmark_report_editions (series, report_date) WHERE designated_final;
 
 -- Day-status rows exist ONLY for days with no edition: a CONFIRMED
 -- publication gap or a failed discovery probe (the two must never blur —
