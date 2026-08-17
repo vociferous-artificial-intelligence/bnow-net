@@ -37,6 +37,11 @@ export interface ExtractedEvent {
 export interface DigestAnalysis {
   events: ExtractedEvent[];
   provider: string;
+  /** Durable model-dispatch identity (release hardening 2026-08-17), set by
+   *  the OpenAI provider from the exact config its billed call used; the stub
+   *  spends nothing and the Anthropic seam is a separately-blocked follow-up,
+   *  so both omit it. digest.ts persists it into structured.stats. */
+  dispatch?: import("../llm/model-config").AnalysisDispatchIdentity;
 }
 
 /** Token/cost accounting for ONE billed LLM request. */

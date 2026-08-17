@@ -1,12 +1,20 @@
 import { Pool } from "@neondatabase/serverless";
-import OpenAI from "openai";
+import type OpenAI from "openai";
 import { STUB_CONTENT_PREFIX } from "../adapters/stubs";
-import { LlmBudgetError, assertLlmEnabled, estimateUsd, mapGuardFromEnv } from "../usage/llm-guard";
+import { analysisOpenAiClient } from "./openai-client";
+import {
+  analysisChatParams,
+  dispatchIdentity,
+  resolveWorkloadModel,
+  workloadDispatchConfig,
+  type AnalysisDispatchConfig,
+} from "../llm/model-config";
+import { estimateCostUsd } from "../llm/pricing";
+import { LlmBudgetError, assertLlmEnabled, mapGuardFromEnv } from "../usage/llm-guard";
 import { stopCategoryOfCode, type SpendGuard } from "../usage/spend-guard";
 import { dedupGate, type DedupDoc } from "./map-dedup";
 import { verifyQuote } from "./quote-verify";
 import {
-  MAP_MODEL,
   mapContentChars,
   mapDocLine,
   mapExtractorVersion,
@@ -403,15 +411,30 @@ async function cycle(
     const outTok = pairCount * 135; // audit §11 per-doc output assumption
     counts.estPromptTokens = inTok;
     counts.estCompletionTokens = outTok;
-    counts.estUsd = Number(estimateUsd(inTok, outTok).toFixed(4));
+    // model-aware estimate: non-throwing resolve (a dry run may model an
+    // unpriced candidate; pricing falls back to its conservative ceiling)
+    counts.estUsd = Number(
+      estimateCostUsd(resolveWorkloadModel("map").model, inTok, outTok).toFixed(4),
+    );
     return counts;
   }
   if (batches.length > 0) assertLlmEnabled("map extract");
+  // Fail closed BEFORE any reservation, client construction, or billed call:
+  // an unpriced/unapproved model, an invalid MAP_REASONING_EFFORT, or the map
+  // activation lock throws typed here, the route records ok=false, and nothing
+  // dispatches under a configuration that cannot be metered or was never
+  // approved/authorized.
+  const dispatch = batches.length > 0 ? workloadDispatchConfig("map") : null;
+  // durable dispatch identity into cron_runs.counts: the AUTHORIZED config for
+  // this run, stamped up front so even a later budget-stopped run records what
+  // it was configured to dispatch (alongside budgetStop*); per-row extractor
+  // versions live on doc_claims/doc_map_state (release hardening 2026-08-17)
+  if (dispatch) counts.dispatch = dispatchIdentity(dispatch);
 
   // 5. extract + persist, one guard for the whole run
   const guard = mapGuardFromEnv();
   await guard.init();
-  const openai = new OpenAI();
+  const openai = analysisOpenAiClient();
   const stats: MapRunStats = {
     llmCalls: 0,
     promptTokens: 0,
@@ -440,7 +463,7 @@ async function cycle(
       if (i >= batches.length) return;
       const b = batches[i];
       try {
-        const perDoc = await extractBatch(openai, guard, b.track, b.theater, b.docs, stats);
+        const perDoc = await extractBatch(openai, guard, dispatch!, b.track, b.theater, b.docs, stats);
         const version = versionOf.get(`${b.track}:${b.theater}`)!;
         await persistBatch(pool, b.track, version, b.docs, perDoc, stats);
         for (const docId of perDoc.keys()) pending.get(docId)?.delete(b.track);
@@ -497,6 +520,7 @@ function guardCounts(guard: SpendGuard) {
 async function extractBatch(
   openai: OpenAI,
   guard: SpendGuard,
+  dispatch: AnalysisDispatchConfig,
   track: Track,
   theater: string,
   docs: CandidateDoc[],
@@ -508,7 +532,7 @@ async function extractBatch(
   };
   const request = () =>
     openai.chat.completions.create({
-      model: MAP_MODEL,
+      model: dispatch.model,
       messages: [
         { role: "system", content: mapSystemPrompt(track, theater) },
         {
@@ -529,8 +553,13 @@ async function extractBatch(
           strict: true,
         },
       },
-      temperature: 0.2,
-      max_completion_tokens: mapBatchMaxTokens(docs.length),
+      // default (non-reasoning) params are byte-identical to the historical
+      // `temperature: 0.2, max_completion_tokens: …` pair; a reasoning model
+      // drops temperature and may add reasoning_effort (model-config.ts)
+      ...analysisChatParams(dispatch, {
+        temperature: 0.2,
+        maxCompletionTokens: mapBatchMaxTokens(docs.length),
+      }),
     });
 
   reserve();
@@ -548,7 +577,11 @@ async function extractBatch(
   const choice = completion.choices[0];
   const promptTokens = completion.usage?.prompt_tokens ?? 0;
   const completionTokens = completion.usage?.completion_tokens ?? 0;
-  await guard.record(1, promptTokens + completionTokens, estimateUsd(promptTokens, completionTokens));
+  await guard.record(
+    1,
+    promptTokens + completionTokens,
+    estimateCostUsd(dispatch.model, promptTokens, completionTokens),
+  );
   stats.llmCalls++;
   stats.promptTokens += promptTokens;
   stats.completionTokens += completionTokens;
@@ -561,8 +594,8 @@ async function extractBatch(
     }
     stats.truncationSplits++;
     const mid = Math.ceil(docs.length / 2);
-    const left = await extractBatch(openai, guard, track, theater, docs.slice(0, mid), stats);
-    const right = await extractBatch(openai, guard, track, theater, docs.slice(mid), stats);
+    const left = await extractBatch(openai, guard, dispatch, track, theater, docs.slice(0, mid), stats);
+    const right = await extractBatch(openai, guard, dispatch, track, theater, docs.slice(mid), stats);
     return new Map([...left, ...right]);
   }
   const raw = choice?.message?.content;

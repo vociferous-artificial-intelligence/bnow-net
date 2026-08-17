@@ -73,6 +73,13 @@ function isProduction(): boolean {
 }
 
 // gpt-4o-mini list price, VERIFIED 2026-07-09 (audit §7): $0.15 in / $0.60 out per 1M.
+//
+// LEGACY, model-BLIND estimator: it prices every call as gpt-4o-mini no matter
+// which model dispatched. Since the model-routing seam, every analysis dispatch
+// site meters through estimateCostUsd(model, …) from src/lib/llm/pricing.ts
+// (model-aware, single price authority) instead — do NOT wire this into new
+// call sites. Kept exported for its pinned unit tests and any historical
+// scripts.
 export const USD_PER_PROMPT_TOKEN = 0.15 / 1e6;
 export const USD_PER_COMPLETION_TOKEN = 0.6 / 1e6;
 

@@ -38,7 +38,9 @@ export const MODEL_REGISTRY: Record<string, ModelEntry> = {
     scorecard: { ref: "docs/evals/ASK-EVAL-2026-07-11.md", date: "2026-07-11", suites: ["v2-k60"] },
   },
   "gpt-5-mini": {
-    pricePerMTok: { in: 0.125, out: 1 },
+    // corrected 2026-08-17 to the official $0.25/$2.00 (was $0.125/$1 —
+    // pricing.ts carries the correction rationale; parity test pins the pair)
+    pricePerMTok: { in: 0.25, out: 2 },
     capabilities: { streaming: true, structuredOutput: true, reasoningControl: true },
     // Scorecarded as the RERANK stage of the same baseline (not as an answer
     // model — a Fast answer route needs its own matrix run).

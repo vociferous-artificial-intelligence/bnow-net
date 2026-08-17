@@ -2722,3 +2722,58 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
    labelled, observation plan, rollback), commit, push branch, open DRAFT PR.
    NOT deployed by this work; savings are estimates until the separately
    approved deploy + 48–72h observation window.
+
+## 2026-08-17 02:05 UTC — plan: cloud-model routing seams (branch codex/cloud-model-routing-seams-20260816)
+
+1. Typed call-time resolver `src/lib/llm/model-config.ts`: per-workload model
+   (`MAP/REDUCE/DIGEST/VALIDATION/ENTITY_AUDIT_MODEL` → `OPENAI_MODEL` →
+   gpt-4o-mini) + validated `*_REASONING_EFFORT`; unpriced models and invalid
+   efforts FAIL CLOSED before any reservation or dispatch.
+2. Route the five analysis dispatch sites through it (map worker, reduce
+   synthesis, legacy digest provider, llm-match, entity-audit); decouple map
+   from reduce (shared `MAP_MODEL` const removed); provider tags record actual
+   dispatched models; metering becomes model-aware via the single price
+   authority `src/lib/llm/pricing.ts`.
+3. Extractor-version identity: MAP_MODEL / validated MAP_REASONING_EFFORT bump
+   `mapExtractorVersion()`; REDUCE_* never do; absent envs byte-identical to
+   the historical basis (test-pinned).
+4. Dry-run inspector `scripts/model-routing-inspect.ts` (no provider calls),
+   commented `.env.example`, comprehensive resolver/params/pricing tests.
+5. Gates (typecheck/lint/unit/build/itest) → two isolated adversarial reviews
+   with remediation → `docs/reviews/CLOUD-MODEL-ROUTING-SEAMS-2026-08-17.md`
+   → commit, push, DRAFT PR. Defaults byte-equivalent to main; NO model
+   activated, NO env set, NO paid call, NO deploy from this branch.
+
+## 2026-08-17 03:00 UTC — plan: release hardening of the model-routing branch (merge held until it passes)
+
+1. Analysis-workload QUALITY registry (`src/lib/llm/analysis-registry.ts`,
+   analysis-reg-v1): dispatch now requires exact pricing AND an exact
+   (workload, model, effort) approval; seeded with ONLY the grandfathered
+   gpt-4o-mini/no-effort production baseline for all five workloads.
+2. gpt-5-mini price corrected to the official $0.25/$2.00 per 1M in every
+   table/mirror/test (pricing.ts, ask/registry.ts, eval-set, tests; dated
+   correction appended to the 2026-07-11 assessment) — Ask rerank metering was
+   understating spend ~2×.
+3. `maxRetries: 0` at every analysis OpenAI client via the shared factory
+   (`src/lib/analysis/openai-client.ts`), source-scan test pins it; explicit
+   429 retries keep their fresh-reservation discipline.
+4. llm-match single-shot SpendGuard gap CLOSED: every validation dispatch
+   reserves before and records after; cap unset/exhausted degrades to the
+   keyword matcher with zero provider calls (mocked-SDK tests assert 1:1:1
+   reservation:call:metering).
+5. MAP ACTIVATION hard lock: only the baseline map model/effort may dispatch;
+   non-baseline fails closed with the remap-required message (no env
+   override); reduce stays independent; `.env.example` corrected (a version
+   bump does NOT remap historical documents).
+6. Durable dispatch identity (model, explicit-null effort, registry version,
+   approval status) persisted per output: digest structured.stats.llmDispatch,
+   mapreduce stats.reduce.dispatch, map + entity-audit cron counts,
+   validation_runs.details.dispatch.
+7. ask-events itest failure DIAGNOSED on a disposable fork ("this week"
+   collapsed to Monday-only + zero in-window Kherson claims + three Kherson
+   entities → answered with empty snapshot) and fixed as a deterministic
+   seeded fixture; spend-guard's lazy @/db import memoized (concurrent-import
+   race under mocks).
+8. Gates → two fresh adversarial reviews → report §12 hardening section →
+   commit, push, update draft PR #5. No paid call, no model activation, no
+   env change, no deploy.

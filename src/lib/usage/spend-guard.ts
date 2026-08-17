@@ -5,9 +5,12 @@
 // so caps hold across serverless invocations and sessions.
 
 // @/db requires DATABASE_URL at module load; import it lazily so pure
-// consumers (unit tests, parsers) can import guard logic without a DB.
+// consumers (unit tests, parsers) can import guard logic without a DB — and
+// ONCE: the memoized promise keeps concurrent callers (e.g. llm-match's vote
+// pool recording usage in parallel) on a single module evaluation.
+let dbImport: Promise<typeof import("@/db")> | null = null;
 async function sql() {
-  return (await import("@/db")).rawSql;
+  return (dbImport ??= import("@/db")).then((m) => m.rawSql);
 }
 
 /** Accounting window for the TOTAL (sprint/quota) cap.

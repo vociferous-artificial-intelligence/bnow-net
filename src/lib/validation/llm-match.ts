@@ -1,9 +1,14 @@
-import OpenAI from "openai";
+import type OpenAI from "openai";
+import { analysisOpenAiClient } from "../analysis/openai-client";
 import {
-  USD_PER_COMPLETION_TOKEN,
-  USD_PER_PROMPT_TOKEN,
-  isLlmDisabled,
-} from "../usage/llm-guard";
+  analysisChatParams,
+  dispatchIdentity,
+  workloadDispatchConfig,
+  type AnalysisDispatchConfig,
+  type AnalysisDispatchIdentity,
+} from "../llm/model-config";
+import { estimateCostUsd } from "../llm/pricing";
+import { isLlmDisabled } from "../usage/llm-guard";
 import { SpendGuard, envCap, envNum, pgUsageStore } from "../usage/spend-guard";
 import type { ClaimForValidation } from "./score";
 
@@ -37,6 +42,9 @@ export interface MatchOutcome {
   matcher: "llm-majority" | "llm";
   votes?: TakeawayVotes[];
   voteRounds?: number;
+  /** durable model-dispatch identity for validation_runs.details (release
+   *  hardening 2026-08-17) — built from the exact config the billed calls used */
+  dispatch?: AnalysisDispatchIdentity;
 }
 
 const SCHEMA = {
@@ -81,12 +89,13 @@ function buildUserPrompt(takeawayTexts: string[], claims: ClaimForValidation[]):
 /** One matching call. Returns sanitized matches + actual USD cost, or throws. */
 async function llmMatchOnce(
   client: OpenAI,
-  model: string,
+  guard: SpendGuard,
+  dispatch: AnalysisDispatchConfig,
   takeawayTexts: string[],
   claims: ClaimForValidation[],
 ): Promise<{ matches: LlmMatch[]; usd: number }> {
   const completion = await client.chat.completions.create({
-    model,
+    model: dispatch.model,
     messages: [
       { role: "system", content: SYSTEM },
       { role: "user", content: buildUserPrompt(takeawayTexts, claims) },
@@ -95,11 +104,21 @@ async function llmMatchOnce(
       type: "json_schema",
       json_schema: { name: "matches", schema: SCHEMA as never, strict: true },
     },
-    temperature: 0,
+    // default (non-reasoning) payload keeps exactly the historical
+    // `temperature: 0` and, deliberately, still NO output-token ceiling; a
+    // reasoning model drops temperature (model-config.ts)
+    ...analysisChatParams(dispatch, { temperature: 0 }),
   });
-  const usd =
-    (completion.usage?.prompt_tokens ?? 0) * USD_PER_PROMPT_TOKEN +
-    (completion.usage?.completion_tokens ?? 0) * USD_PER_COMPLETION_TOKEN;
+  const usd = estimateCostUsd(
+    dispatch.model,
+    completion.usage?.prompt_tokens ?? 0,
+    completion.usage?.completion_tokens ?? 0,
+  );
+  // Meter BEFORE interpreting the body (ruling 8, first adversarial hardening
+  // review finding 2): an unparseable/truncated response is billed in full by
+  // the provider, so recording must not depend on JSON.parse succeeding. This
+  // site has no output ceiling, making a 16K-ceiling truncation possible.
+  await guard.record(1, 1, usd);
   const raw = completion.choices[0]?.message?.content ?? '{"matches":[]}';
   const parsed = (JSON.parse(raw) as { matches: LlmMatch[] }).matches ?? [];
   const validClaims = new Set(claims.map((c) => c.claimId));
@@ -169,9 +188,12 @@ function llmGuardFromEnv(): SpendGuard {
 }
 
 /** Match takeaways to claims. Majority voting (k calls) by default; single-shot
- *  when MATCHER_MODE=single or when LLM_SPRINT_USD_CAP is unset (the multiplied
- *  call volume is new paid usage — without its cap we stay on the old path).
- *  Returns null when no LLM is available (caller falls back to keywords). */
+ *  only when MATCHER_MODE=single or MATCH_VOTES=1. EVERY dispatch — single-shot
+ *  included — reserves before the billed call and is metered right after the
+ *  response (release hardening 2026-08-17); with LLM_SPRINT_USD_CAP unset or
+ *  exhausted the guard fails closed and validation degrades to the keyword
+ *  matcher with zero provider calls. Returns null when no LLM is available or
+ *  permitted (caller falls back to keywords). */
 export async function llmMatchTakeaways(
   takeawayTexts: string[],
   claims: ClaimForValidation[],
@@ -184,52 +206,73 @@ export async function llmMatchTakeaways(
     console.warn("llm-match: LLM_DISABLE=1 — refusing LLM calls, falling back to keyword matcher");
     return null;
   }
-  const client = new OpenAI();
-  const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+  // Model routing (VALIDATION_MODEL → OPENAI_MODEL → gpt-4o-mini). A blocked
+  // configuration (unpriced model / invalid VALIDATION_REASONING_EFFORT) fails
+  // closed BEFORE any dispatch and degrades like every other llm-match failure:
+  // warn + null, so the keyword matcher upstream still scores the day
+  // (ruling 9's site-specific degradation, unchanged).
+  let dispatch: AnalysisDispatchConfig;
+  try {
+    dispatch = workloadDispatchConfig("validation");
+  } catch (e) {
+    console.warn(
+      `llm-match: ${e instanceof Error ? e.message : e} — falling back to keyword matcher`,
+    );
+    return null;
+  }
+  const client = analysisOpenAiClient();
+  const identity = dispatchIdentity(dispatch);
   const k = Math.max(1, envNum("MATCH_VOTES", 5));
+
+  // Release hardening 2026-08-17: EVERY validation dispatch — single-shot
+  // included — now reserves before the billed call and records after it. The
+  // pre-hardening single-shot path (MATCHER_MODE=single, MATCH_VOTES=1, or
+  // LLM_SPRINT_USD_CAP unset) dispatched with no SpendGuard and wrote nothing
+  // to provider_usage, violating standing ruling 4. With the cap env unset the
+  // guard now fails closed (cap_unset) and validation degrades to the keyword
+  // matcher instead of spending unmetered.
+  const guard = llmGuardFromEnv();
+  await guard.init();
 
   const singleShot = process.env.MATCHER_MODE === "single" || k === 1;
   if (!singleShot) {
-    const guard = llmGuardFromEnv();
-    if (guard.cfg.totalCapUsd !== null) {
-      await guard.init();
-      const rounds: LlmMatch[][] = [];
-      const attempts = Array.from({ length: k }, () => {
-        const r = guard.tryReserve();
-        if (!r.ok) {
-          console.warn(`llm-match: budget stop — ${r.reason}`);
+    const rounds: LlmMatch[][] = [];
+    const attempts = Array.from({ length: k }, () => {
+      const r = guard.tryReserve();
+      if (!r.ok) {
+        console.warn(`llm-match: budget stop — ${r.reason}`);
+        return null;
+      }
+      return llmMatchOnce(client, guard, dispatch, takeawayTexts, claims)
+        .then((res) => res.matches)
+        .catch((e) => {
+          console.warn(`llm-match vote failed: ${e instanceof Error ? e.message : e}`);
           return null;
-        }
-        return llmMatchOnce(client, model, takeawayTexts, claims)
-          .then(async (res) => {
-            await guard.record(1, 1, res.usd);
-            return res.matches;
-          })
-          .catch((e) => {
-            console.warn(`llm-match vote failed: ${e instanceof Error ? e.message : e}`);
-            return null;
-          });
-      }).filter((p): p is Promise<LlmMatch[] | null> => p !== null);
-      for (const settled of await Promise.all(attempts)) {
-        if (settled) rounds.push(settled);
-      }
-      // majority needs at least 3 usable rounds; below that, degrade to the
-      // best we have (1-2 rounds -> effectively single-shot, honestly labeled)
-      if (rounds.length >= 3) {
-        const { matches, votes } = majorityFromVotes(rounds, takeawayTexts.length);
-        return { matches, matcher: "llm-majority", votes, voteRounds: rounds.length };
-      }
-      if (rounds.length >= 1) {
-        return { matches: rounds[0], matcher: "llm", voteRounds: rounds.length };
-      }
-      return null;
+        });
+    }).filter((p): p is Promise<LlmMatch[] | null> => p !== null);
+    for (const settled of await Promise.all(attempts)) {
+      if (settled) rounds.push(settled);
     }
-    console.warn("llm-match: LLM_SPRINT_USD_CAP unset — majority voting disabled, using single-shot");
+    // majority needs at least 3 usable rounds; below that, degrade to the
+    // best we have (1-2 rounds -> effectively single-shot, honestly labeled)
+    if (rounds.length >= 3) {
+      const { matches, votes } = majorityFromVotes(rounds, takeawayTexts.length);
+      return { matches, matcher: "llm-majority", votes, voteRounds: rounds.length, dispatch: identity };
+    }
+    if (rounds.length >= 1) {
+      return { matches: rounds[0], matcher: "llm", voteRounds: rounds.length, dispatch: identity };
+    }
+    return null;
   }
 
+  const r = guard.tryReserve();
+  if (!r.ok) {
+    console.warn(`llm-match: budget stop — ${r.reason} — falling back to keyword matcher`);
+    return null;
+  }
   try {
-    const { matches } = await llmMatchOnce(client, model, takeawayTexts, claims);
-    return { matches, matcher: "llm" };
+    const { matches } = await llmMatchOnce(client, guard, dispatch, takeawayTexts, claims);
+    return { matches, matcher: "llm", dispatch: identity };
   } catch (e) {
     console.warn(`llm-match failed, falling back to keywords: ${e instanceof Error ? e.message : e}`);
     return null;
