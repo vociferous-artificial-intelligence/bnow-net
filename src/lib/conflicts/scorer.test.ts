@@ -23,6 +23,8 @@ import type {
   MatchableUnit,
   UnitClaimMatch,
 } from "./match-contract";
+import { ConflictKeywordMatcher } from "./keyword-matcher";
+import { LlmCompatibleMatcher } from "./llm-compatible-matcher";
 import { scoreConflictReport, type ConflictScoreRequest } from "./scorer";
 import type { EvaluationKind } from "./vocabulary";
 
@@ -349,6 +351,124 @@ describe("stamps and result variants", () => {
     );
     const relabeled = { ...result, matcherRung: "llm-majority" as const };
     expect(() => assertPersistableConflictResultV1(relabeled)).toThrowError(/disagrees/);
+  });
+
+  it("a report with ZERO declared units refuses — a parse failure, never a 0/0 score", async () => {
+    const { corpus, retention } = await assemblies([UA_CLAIM]);
+    await expect(
+      scoreConflictReport(request([]), corpus, retention, fakeOracle([])),
+    ).rejects.toThrowError(/zero declared units/);
+  });
+
+  it("the persistence gate refuses a zero denominator (the forbidden 0/0), belt-and-braces", async () => {
+    const { corpus, retention } = await assemblies([UA_CLAIM]);
+    const result = expectScored(
+      await scoreConflictReport(request([U0]), corpus, retention, fakeOracle([full("u0", 1)])),
+    );
+    const zeroDen = {
+      ...result,
+      headline: {
+        corpusRecall: { matched: 0, denominator: 0 },
+        publishedRetention: { matched: 0, denominator: 0 },
+      },
+    };
+    expect(() => assertPersistableConflictResultV1(zeroDen)).toThrowError(/forbidden 0\/0/);
+  });
+
+  it("raw window anchors are bounded: sentence-bearing anchors refuse; the observed malformed token passes", async () => {
+    const { corpus, retention } = await assemblies([UA_CLAIM]);
+    const result = expectScored(
+      await scoreConflictReport(request([U0]), corpus, retention, fakeOracle([full("u0", 1)])),
+    );
+    const sentence = {
+      ...result,
+      window: {
+        ...result.window!,
+        cutoffAtRaw:
+          "The data cutoff for this synthetic report was two in the afternoon. Later reporting is excluded.",
+      },
+    };
+    expect(() => assertPersistableConflictResultV1(sentence)).toThrowError(/bounded raw anchor/);
+    const overlong = { ...result, window: { ...result.window!, publishedAtRaw: "x".repeat(65) } };
+    expect(() => assertPersistableConflictResultV1(overlong)).toThrowError(/bounded raw anchor/);
+    // the committed fixture's malformed-declaration token (26 chars, single
+    // line) stays persistable — goldens unchanged
+    const token = { ...result, window: { ...result.window!, cutoffAtRaw: "cutoff 1500 hrs local time" } };
+    assertPersistableConflictResultV1(token);
+  });
+
+  it("thinSourced pins the <2-independent-docs boundary and the hedge classes (§6.4)", async () => {
+    const mkDoc = (docId: number, mirrorOfDocId: number | null = null) => ({
+      docId,
+      adapter: "rss",
+      platform: null,
+      sourceDomain: `d${docId}.example`,
+      publishedAt: "2026-08-10T06:00:00Z",
+      fetchedAt: "2026-08-10T07:00:00Z",
+      mirrorOfDocId,
+      sourceLanguage: null,
+    });
+    const batch = [
+      // exactly 2 independent docs, hedge claimed → NOT thin (the boundary)
+      claim(21, "ua", "Synthetic assaults repelled near Kupiansk (two documents).", {
+        docs: [mkDoc(95001), mkDoc(95002)],
+      }),
+      // 1 independent doc, hedge claimed → thin
+      claim(22, "ua", "Synthetic assaults repelled near Kupiansk (one document).", {
+        docs: [mkDoc(95003)],
+      }),
+      // 1 doc but hedge confirmed → NOT thin (hedge class matters)
+      claim(23, "ua", "Synthetic assaults repelled near Kupiansk (confirmed report).", {
+        hedging: "confirmed",
+        docs: [mkDoc(95004)],
+      }),
+      // 1 doc, hedge unverified → thin (the other thin hedge class)
+      claim(24, "ua", "Synthetic assaults repelled near Kupiansk (unverified report).", {
+        hedging: "unverified",
+        docs: [mkDoc(95005)],
+      }),
+      // 1 doc, hedge assessed → NOT thin (§6.4 names claimed/unverified only)
+      claim(25, "ua", "Synthetic assaults repelled near Kupiansk (assessed report).", {
+        hedging: "assessed",
+        docs: [mkDoc(95006)],
+      }),
+      // 2 docs but one is a MIRROR → 1 independent, claimed → thin
+      claim(26, "ua", "Synthetic assaults repelled near Kupiansk (mirrored report).", {
+        docs: [mkDoc(95007), mkDoc(95008, 95007)],
+      }),
+    ];
+    const { corpus, retention } = await assemblies(batch);
+    const result = expectScored(
+      await scoreConflictReport(request([U0]), corpus, retention, fakeOracle([])),
+    );
+    // thin = claims 22, 24, 26 of the 6 offered
+    expect(result.thinSourced!.corpusRecall).toEqual({ count: 3, denominator: 6 });
+    expect(result.thinSourced!.publishedRetention).toEqual({ count: 3, denominator: 6 });
+  });
+
+  it("a duplicate (unit, claim) entry inside one usable vote dedupes first-entry-wins (production parity)", async () => {
+    const { corpus, retention } = await assemblies([UA_CLAIM]);
+    // schema-valid vote repeating the same pair — production llm-match
+    // tolerates this; the adapter must not hand the scorer a duplicate pair
+    const vote = JSON.stringify({
+      matches: [
+        { takeawayIndex: 0, claimId: 1, confidence: 0.9 },
+        { takeawayIndex: 0, claimId: 1, confidence: 0.8 },
+      ],
+    });
+    const matcher = new LlmCompatibleMatcher({
+      votesK: 1,
+      model: null,
+      keywordFallback: new ConflictKeywordMatcher(),
+      voteFn: async () => vote,
+    });
+    const result = expectScored(
+      await scoreConflictReport(request([U0]), corpus, retention, matcher),
+    );
+    expect(result.matcherRung).toBe("llm");
+    expect(result.agreements!.corpusRecall).toHaveLength(1);
+    expect(result.agreements!.corpusRecall[0].claims).toHaveLength(1);
+    expect(result.headline.corpusRecall).toEqual({ matched: 1, denominator: 1 });
   });
 
   it("window/selection/versions/matcher/runGroupKey/snapshot stamps carry the audit inputs", async () => {

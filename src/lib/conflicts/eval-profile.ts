@@ -34,7 +34,7 @@ import type { Track } from "../analysis/tracks";
 import { CONFLICT_REGISTRY, type ConflictEvidencePolicyVersion } from "./definitions";
 import { deepFreeze } from "./freeze";
 import { ConflictDomainError } from "./errors";
-import { isIsoDay, type TimeAnchorTreatment } from "./instants";
+import { isIsoDay, isIsoInstant, type TimeAnchorTreatment } from "./instants";
 import type { ConflictLaneId, LaneTaxonomyVersion } from "./lanes";
 import type {
   ConflictMatcherLabel,
@@ -357,6 +357,27 @@ export interface ConflictScoredResultV1 extends ConflictResultCommonV1 {
  *  persisted. Throws typed on a violation; unavailable/gap variants pass
  *  (they carry no score). Every future persistence path (Phase 5) calls this
  *  before any write. */
+/** Bounded raw-anchor rule for the window stamp (Gate-4 legal MINOR-2): a
+ *  RAW declared anchor may be persisted only as null, a valid
+ *  explicit-timezone ISO instant, or a bounded short TOKEN — otherwise the
+ *  two `*AtRaw` fields are an ungated free-text channel into stored results.
+ *  Token heuristic (documented): ≤64 chars, single line, no run of multiple
+ *  spaces, and no ". " sentence boundary — enough to admit the observed
+ *  malformed-declaration shapes ("cutoff 1500 hrs local time") while
+ *  refusing sentence-like prose. */
+export function isPersistableRawAnchor(value: string): boolean {
+  // intermediate boolean: isIsoInstant is a `value is string` guard, and a
+  // direct `if` would narrow the already-string param to never below
+  const isInstant: boolean = isIsoInstant(value);
+  if (isInstant) return true;
+  return (
+    value.length <= 64 &&
+    !/[\n\r]/.test(value) &&
+    !/ {2}/.test(value) &&
+    !/\. /.test(value)
+  );
+}
+
 export function assertPersistableConflictResultV1(result: ConflictResultV1): void {
   if (result.state !== "scored") return;
   const missing: string[] = [];
@@ -383,6 +404,34 @@ export function assertPersistableConflictResultV1(result: ConflictResultV1): voi
       "unpersistable_result",
       `matcher.label (${result.matcher.label}) disagrees with matcherRung (${result.matcherRung})`,
     );
+  }
+  // belt-and-braces twin of the scorer's zero-unit refusal: a zero
+  // denominator IS the §6.4-forbidden 0/0 — a zero-unit report is a parse
+  // failure, not a benchmark observation, and can never be persisted
+  if (
+    result.headline.corpusRecall.denominator === 0 ||
+    result.headline.publishedRetention.denominator === 0
+  ) {
+    throw new ConflictDomainError(
+      "unpersistable_result",
+      "a scored result with a zero denominator is the forbidden 0/0 and MUST NOT be persisted",
+    );
+  }
+  // raw declared anchors are bounded tokens, never free text (the refused
+  // value is deliberately NOT echoed into the error — it could be the very
+  // prose being refused)
+  if (result.window !== undefined) {
+    for (const [field, value] of [
+      ["window.cutoffAtRaw", result.window.cutoffAtRaw],
+      ["window.publishedAtRaw", result.window.publishedAtRaw],
+    ] as const) {
+      if (value !== null && !isPersistableRawAnchor(value)) {
+        throw new ConflictDomainError(
+          "unpersistable_result",
+          `${field} is not a bounded raw anchor: raw declared anchors may be null, an explicit-timezone ISO instant, or a short single-line token (<=64 chars, no multiple spaces, no sentence punctuation) — MUST NOT be persisted`,
+        );
+      }
+    }
   }
 }
 

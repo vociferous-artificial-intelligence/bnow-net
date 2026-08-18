@@ -302,6 +302,11 @@ export function pairsFromLlmMatches(
 ): UnitClaimMatch[] {
   const byOrdinal = new Map(units.map((u) => [u.ordinal, u]));
   const pairs: UnitClaimMatch[] = [];
+  // production llm-match parity (Gate-4 science MINOR-3): a schema-valid vote
+  // may repeat the same (unit, claim) entry; production tolerates it
+  // first-entry-wins, so the adapter dedupes keep-first here instead of
+  // handing the scorer a duplicate pair to hard-fail on
+  const seen = new Set<string>();
   for (const m of matches) {
     if (m.claimId === null) continue;
     const unit = byOrdinal.get(m.takeawayIndex);
@@ -311,6 +316,9 @@ export function pairsFromLlmMatches(
         `match references unknown unit ordinal ${m.takeawayIndex}`,
       );
     }
+    const key = `${unit.unitId}|${m.claimId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     pairs.push({
       unitId: unit.unitId,
       claimId: m.claimId,

@@ -434,6 +434,15 @@ export async function scoreConflictReport(
   }
   const report = request.report;
   const units = report.units;
+  // a report with ZERO declared units is a PARSE FAILURE, not a benchmark
+  // observation: scoring it would mint the §6.4-forbidden 0/0 headline (and
+  // the offline report would print "0/0 declared Key Takeaways")
+  if (units.length === 0) {
+    throw new ConflictDomainError(
+      "invalid_score_request",
+      "a report with zero declared units is a parse failure, not a benchmark observation — refuse upstream, never score 0/0",
+    );
+  }
   assertMatchableUnits(units);
   for (const unit of units) laneById(def.laneTaxonomyVersion, unit.lane); // fail-closed lanes
 
