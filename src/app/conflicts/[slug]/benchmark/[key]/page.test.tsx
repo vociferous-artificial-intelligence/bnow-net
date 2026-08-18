@@ -198,10 +198,23 @@ describe("incomparable gulf lane (iran-gulf-unavailable-010b)", () => {
       "no evidence view to open",
     );
     expect(screen.queryByRole("link", { name: /Read the published claims/ })).toBeNull();
+    // Gate-9 DEFECT-1: q7 offered the same walled view unconditionally, so the
+    // page contradicted itself on one screen. Both suppressions must agree.
+    expect(screen.queryByRole("link", { name: /Gated evidence view/ })).toBeNull();
     cleanup();
-    // a record WITH published claims still links
+    // a record WITH published claims still links, from BOTH sections
     render(await pageFor("russia-ukraine", "roca-ua-only-001b"));
     expect(screen.getByRole("link", { name: /Read the published claims/ })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Gated evidence view/ })).toBeTruthy();
+  });
+
+  it("suppresses the q7 gated-evidence link on the retention-gap record too (empty union)", async () => {
+    featureMock.mockImplementation(() => {});
+    render(await pageFor("russia-ukraine", "roca-retention-gap-008b"));
+    expect(screen.getByTestId("empty-evidence-note").textContent).toContain(
+      "no evidence view to open",
+    );
+    expect(screen.queryByRole("link", { name: /Gated evidence view/ })).toBeNull();
   });
 
   it("q7 contributor links carry the legacy-engine qualifier, like the overview", async () => {

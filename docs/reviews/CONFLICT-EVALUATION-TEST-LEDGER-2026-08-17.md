@@ -383,3 +383,38 @@ rendering and localization in three routes and three components. Their
 replacement pins are the unit-level coverage added in the same commits
 (`localization.test.tsx`, the four per-route banner assertions) plus the
 final-SHA integration body assertions above, not a re-driven browser run.
+
+### Gate 9 (browser matrix) — executed at the final SHA, and DEFECT-1
+
+The Phase-7 battery CITED the Gate-6 browser matrix rather than re-running it,
+and that citation's justification ("the routes have not changed since it ran")
+was FALSE at the final SHA: `06e80df` and `f58858d` changed three routes and
+three components after the only browser measurements ever taken, leaving the
+RTL/bidi fix, logical table alignment, unique link names, the presence-module
+qualifiers, the index-card caveat and the demonstration label backed by jsdom
+alone. Closed here by a real run against a production build of the final tree
+(headless Chrome over CDP, ephemeral env, UNROUTABLE DATABASE_URL):
+
+| State | Result |
+|---|---|
+| feature-off | 118 requests × 31 routes (bare + `RSC: 1`) — **zero content leaks** |
+| desktop 1280 / mobile 390 | `scrollWidth == clientWidth` on all 10 pages × light/dark × LTR/RTL (40 states), zero overflow |
+| light / dark contrast | canvas-resolved (oklch-safe): **zero failures inside `<main>`** on any conflict page |
+| print | method stamps render **exactly once** on all 8 stamp-bearing pages |
+| **RTL** | 52/52 numeric runs in correct visual order; **mutation-proved** — stripping `dir="ltr"` in the live page reproduces the documented "of 1 … 1" bug byte-for-byte; `text-left`/`text-right` count = 0 |
+| keyboard | 5 pages, 18–44 stops each: 0 traps, 100% of stops carry a visible focus ring |
+| degenerate states | gap / gulf-incomparable / keyword-degraded / compound-partial / empty union / zero-eligible all render as specified |
+| the five closeout fixes | all verified in rendered pixels |
+
+**DEFECT-1 (MINOR, found and FIXED at closeout):** the benchmark detail page
+suppressed the evidence link in q2 when the published union is empty but
+offered "Gated evidence view" unconditionally in q7 — the page contradicted
+itself on one screen and walled an empty view behind a sign-in on 2 of 14
+records. Fixed by gating q7 on the same `publishedUnionCount`, pinned by two
+tests, **mutation-proven** (reverting the source fix alone fails exactly those
+two). Non-defect observations recorded: the publication-gap page carries the
+gap/not-zero notes instead of the coverage caveat (no score to qualify); the
+feature-off contract text says "every route returns notFound()" while the 14
+gated evidence routes answer 307 → /signin under ruling-21 auth-first ordering
+(leak-free either way); the 7 light-mode contrast failures are pre-existing
+site chrome, identical on `/` and `/privacy`.

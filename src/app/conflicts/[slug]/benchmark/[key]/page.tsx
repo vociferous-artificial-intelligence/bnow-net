@@ -199,7 +199,9 @@ export default async function BenchmarkDetailPage({
               Per-country validation scoreboard
             </Link>
           </li>
-          {scored !== null && (
+          {/* Same suppression as q2 (Gate-9 DEFECT-1): offering the gated view
+              on a zero-union record walls an empty page behind a sign-in. */}
+          {scored !== null && publishedUnionCount !== 0 && (
             <li>
               <Link
                 href={`/conflicts/${slug}/benchmark/${entry.benchmarkKey}/evidence`}
