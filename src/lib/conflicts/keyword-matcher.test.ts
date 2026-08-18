@@ -44,6 +44,26 @@ describe("ConflictKeywordMatcher", () => {
     expect(outcome.keywordUnmatchable).toBe(0);
   });
 
+  it("Gate-4 probe: a shared toponym with ZERO shared action classes never matches (action-class gate)", async () => {
+    // reviewer-proven false agreement before the gate: shared toponym alone
+    // scores 0.625 ≥ 0.6, pairing a strike unit with an unrelated ground
+    // assault at the same city — the conflict rung now also requires ≥1
+    // shared canonical action class (production keywords.ts untouched)
+    const strikeUnit = unit({
+      unitId: "u0",
+      ordinal: 0,
+      text: "Russian missile strike on Kharkiv",
+    });
+    const assaultClaim: MatcherClaim = {
+      claimId: 502,
+      text: "Ukrainian forces repelled a mechanized ground assault near Kharkiv",
+      hedging: "claimed",
+    };
+    const outcome = await matcher.match([strikeUnit], [assaultClaim]);
+    expect(outcome.matches).toHaveLength(0);
+    expect(outcome.keywordUnmatchable).toBe(0); // the unit HAS signal — this is a miss, not signal-less
+  });
+
   it("counts signal-less units in keywordUnmatchable and keeps them as automatic misses (M1)", async () => {
     const signalless = unit({
       unitId: "u1",

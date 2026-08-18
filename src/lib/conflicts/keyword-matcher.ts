@@ -84,7 +84,14 @@ export class ConflictKeywordMatcher implements ConflictMatcher {
       let best: { claimId: number; score: number } | null = null;
       for (const { claim, sig: cs } of claimSigs) {
         const s = matchScore(sig, cs);
-        if (s >= MATCH_THRESHOLD && (best === null || s > best.score)) {
+        // divergence 4 (Gate-4 science MINOR-2, CONFLICT RUNG ONLY —
+        // production keywords.ts untouched): a shared toponym alone scores
+        // 0.625 ≥ threshold, so "missile strike on X" would pair with
+        // "ground assault repelled near X" as toponym-only false agreement.
+        // Require ≥1 shared canonical ACTION class (the signatures already
+        // carry them) in addition to the threshold.
+        const sharedAction = [...sig.actions].some((a) => cs.actions.has(a));
+        if (s >= MATCH_THRESHOLD && sharedAction && (best === null || s > best.score)) {
           best = { claimId: claim.claimId, score: s };
         }
       }

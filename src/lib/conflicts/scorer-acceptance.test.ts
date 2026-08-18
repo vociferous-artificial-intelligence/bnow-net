@@ -236,6 +236,25 @@ describe("acceptance: scorer output reproduces every frozen expectation", () => 
     expect(r16.bnowOnly!.corpusRecall.count).toBe(2);
   });
 
+  it("cc-vague-claim-019 through the KEYWORD rung: the vague claim credits nothing (0/2 both populations)", async () => {
+    // today's zero-credit is gazetteer-scope-dependent: the vague maritime
+    // text shares no canonical toponym/action with the units under the
+    // production RU/UA-focused gazetteer — re-examine this pin if Red Sea/
+    // Houthi entries ever land in src/lib/validation/keywords.ts
+    const { ConflictKeywordMatcher } = await import("./keyword-matcher");
+    const scenario = scenarios.find((s) => s.id === "cc-vague-claim-019")!;
+    const result = await scoreFixtureScenario(scenario, {
+      matcher: new ConflictKeywordMatcher(),
+    });
+    const scored = expectScored(result);
+    expect(scored.matcherRung).toBe("keyword");
+    expect(scored.headline.corpusRecall).toEqual({ matched: 0, denominator: 2 });
+    expect(scored.headline.publishedRetention).toEqual({ matched: 0, denominator: 2 });
+    for (const rows of [scored.agreements!.corpusRecall, scored.agreements!.publishedRetention]) {
+      expect(rows.flatMap((r) => r.claims.map((c) => c.claimId))).not.toContain(9401);
+    }
+  });
+
   it("cc-vague-claim-019 end-to-end: the vague claim earns no unit anywhere in the result", async () => {
     const scenario = scenarios.find((s) => s.id === "cc-vague-claim-019")!;
     const result = expectScored(await scoreFixtureScenario(scenario));
