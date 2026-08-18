@@ -657,3 +657,37 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
    additivity). Every deviation → decision log.
 7. End of each stage/sprint: write `docs/reviews/<NAME>.md` (built, test results,
    exit-criteria pass/fail with numbers, decisions, debt, risks, replan).
+
+- **2026-08-18 (independent conflict-evaluations final audit — Fable 5, exact-tip; branch
+  `codex/conflict-evaluations-final-audit-20260818` only)** A fresh Fable-5/xhigh session
+  audited the completed conflict/region evaluation workstream at the exact branch tip
+  `a2ddca8` (`a2ddca88f7740a148ebeb5372f9ce47dd72ffac4`) on the independently audited QF base
+  `7150b49`. Reconstruction verified every ancestry/statistic claim and the true model
+  timeline (Gate 6 `1f70852` = last fully Fable-reviewed point; Phase 7 onward = Opus 5 after
+  an operator switch, no fallback). The COMPLETE gate battery was replayed green at the
+  unchanged tip — unit 3,213/3,213 (228 files) · integration 151/151 (21 files, disposable
+  fork deleted) · typecheck/lint/build clean · CLI modes under a hard network kill-switch with
+  8/8 refusals exit-2 under fake keys · 14/14 gated evidence routes 307 anonymously with zero
+  claim-text leakage under production posture · 48-state overflow + measured-contrast browser
+  matrix · 679-fragment prose scan zero hits · golden byte-identity — nothing NOT-RUN. Three
+  fresh Fable reviewers (science, safety, product) each returned **PASS-WITH-MINORS at
+  `a2ddca8`** with 0 BLOCKER/HIGH. Corrections of record appended (P7 report §12, conflict
+  decision-register #13, workstream index): the backtest's F2 counterfactual was
+  promised-but-unrendered (recomputed: legacy union 82.4% ROCA / 75.0% Iran under the
+  matchable reduction), F5 misstated what `/scoreboard` presents (per-run unweighted means,
+  never a pooled 15/36), an undisclosed designated-final-edition handoff to the legacy
+  emulation, a 40-vs-41 snapshot-reason overgeneralization, the atomization "disabled
+  experiment" that was never built, and the source-independence metric being document-grain
+  (`distinct non-mirror docIds`; `sourceDomain` unused) while schema names and some copy say
+  "independent sources". New binding enablement item: `CONFLICTS_UI=1` requires
+  `FEATURE_AUTH_GATE=true` in the same environment (inherited gate demo-parity otherwise
+  serves the gated evidence page anonymously). Audit remediation was DOCS-ONLY after all three
+  verdicts were recorded — no source/test/fixture/golden byte changed, so the conflict
+  integration branch still contains the exact audited tree. Verdict:
+  **`independent-audit-pass / conflict-delta-may-be-considered-on-audited-QF-base;
+  soak-and-enablement-blocked`** — dormant merge may be considered (QF first, then the P7
+  §5.1 seven-PR order); the shadow soak stays blocked on register #11/#12 + the independence
+  relabel; enablement stays blocked on ruling-3 + P7 §5.2 items 4/4b/4c/4d/5/6. No merge to
+  `main`, push, PR, deploy, env change, paid call, production write, or soak occurred. Full
+  record: `docs/reviews/CONFLICT-EVALUATION-FABLE-FINAL-AUDIT-2026-08-18.md` + ledger +
+  finding register + three review reports.
