@@ -135,6 +135,44 @@ describe("retention gap (roca-retention-gap-008b)", () => {
 });
 
 describe("incomparable gulf lane (iran-gulf-unavailable-010b)", () => {
+  it("q3 empty buckets carry the SYMMETRIC population note beside a matched published headline", async () => {
+    featureMock.mockImplementation(() => {});
+    render(await pageFor("iran-regional", "iran-gulf-unavailable-010b"));
+    // the 100% published headline sits above all-empty buckets (the match
+    // came via a BH legacy digest — outside the corpus-recall population);
+    // the note must explain the EMPTY direction, not only the exceed one
+    expect(screen.getByTestId("benchmark-headline").textContent).toMatch(
+      /1 of 1 declared Key Takeaways \(100%\)/,
+    );
+    const q3 = screen.getByTestId("q3");
+    expect(within(q3).getAllByText("none").length).toBe(3); // all three buckets empty
+    const note = within(q3).getByTestId("contribution-population-note");
+    expect(note.textContent).toContain("can also be EMPTY while the published output matched");
+    expect(note.textContent).toContain("legacy-only theater");
+    expect(note.textContent).toContain("gated evidence view shows the actual contributors");
+  });
+
+  it("the Iran surface renders the per-series coexistence note (single IR row, not RU/UA rows)", async () => {
+    featureMock.mockImplementation(() => {});
+    render(await pageFor("iran-regional", "iran-gulf-unavailable-010b"));
+    const note = screen.getByTestId("scoreboard-coexistence-note");
+    expect(note.textContent).toContain("maps to a single IR row");
+    expect(note.textContent).not.toContain("separate RU and UA rows");
+  });
+
+  it("method stamps carry a print-visible duplicate (a native details prints collapsed)", async () => {
+    featureMock.mockImplementation(() => {});
+    render(await pageFor("iran-regional", "iran-gulf-unavailable-010b"));
+    const printBlock = screen.getByTestId("conflict-methodology-print");
+    expect(printBlock.className).toContain("hidden");
+    expect(printBlock.className).toContain("print:block");
+    expect(printBlock.textContent).toContain("methodology epoch");
+    expect(printBlock.textContent).toContain("end anchored on");
+    expect(printBlock.textContent).toContain("Versions: lanes");
+    // …and the interactive details is print-hidden so stamps print once
+    expect(screen.getByTestId("conflict-methodology").className).toContain("print:hidden");
+  });
+
   it("renders the lane as unavailable (incomparable evidence), never a bare zero", async () => {
     featureMock.mockImplementation(() => {});
     render(await pageFor("iran-regional", "iran-gulf-unavailable-010b"));
@@ -162,9 +200,17 @@ describe("publication gap (cc-publication-gap-002)", () => {
     // the rule, not scores)
     expect(document.body.textContent).not.toMatch(/\(\d+%\)/);
     expect(document.body.textContent).not.toMatch(/\d+ of \d+/);
-    // the seven-section order still holds on unavailable records
+    // the seven-section ORDER still holds on unavailable records (Gate-6
+    // product NOTE-8: the same document-position walk as the overview test,
+    // not presence alone)
     const ids = ["q1", "q2", "q3", "q4", "q5", "q6", "q7"];
-    for (const id of ids) expect(screen.getByTestId(id)).toBeTruthy();
+    const nodes = ids.map((id) => screen.getByTestId(id));
+    for (let i = 1; i < nodes.length; i += 1) {
+      expect(
+        nodes[i - 1].compareDocumentPosition(nodes[i]) & Node.DOCUMENT_POSITION_FOLLOWING,
+        `${ids[i - 1]} must precede ${ids[i]}`,
+      ).toBeTruthy();
+    }
   });
 });
 

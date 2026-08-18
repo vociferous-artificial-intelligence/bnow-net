@@ -133,46 +133,66 @@ export function DiagnosticsModule({ result }: { result: ConflictScoredResultV1 }
       )}
       <details
         data-testid="conflict-methodology"
-        className="max-w-2xl rounded-lg border border-gray-200 p-4 dark:border-gray-800"
+        className="max-w-2xl rounded-lg border border-gray-200 p-4 print:hidden dark:border-gray-800"
       >
         <summary className="cursor-pointer text-sm font-semibold">
           Method stamps (window, versions, selection)
         </summary>
-        <ul className="mt-3 space-y-1.5 text-sm text-gray-700 dark:text-gray-300">
-          <li>
-            Evaluation kind: {result.evaluationKind} · methodology epoch {result.methodologyEpoch}
-          </li>
-          {result.window !== undefined && (
-            <li className="tabular-nums">
-              Window: {result.window.startDate} → {result.window.endDate} ({result.window.days} day
-              {result.window.days === 1 ? "" : "s"}), end anchored on {result.windowEndSource}
-            </li>
-          )}
-          {result.versions !== undefined && (
-            <li className="break-words">
-              Versions: lanes {result.laneTaxonomyVersion} · evidence policy{" "}
-              {result.evidencePolicyVersion} · roster {result.versions.actorRosterVersion} ·
-              classifier {result.versions.laneClassifierVersion} · scope{" "}
-              {result.versions.scopeVersion}
-            </li>
-          )}
-          {result.selection !== undefined && (
-            <li className="tabular-nums">
-              Selection: corpus recall {result.selection.corpusRecall.selectedCount} of{" "}
-              {result.selection.corpusRecall.eligibleCount} eligible · published retention{" "}
-              {result.selection.publishedRetention.selectedCount} of{" "}
-              {result.selection.publishedRetention.eligibleCount} eligible (bounded at{" "}
-              {result.selection.limits.maxCandidates} candidates)
-            </li>
-          )}
-          <li>
-            Input snapshot:{" "}
-            {result.snapshot?.ref == null
-              ? "none (pre-capture; labeled retrospective inputs)"
-              : `${result.snapshot.ref.captureKind} captured ${result.snapshot.ref.capturedAt}`}
-          </li>
-        </ul>
+        <StampList result={result} />
       </details>
+      {/* Gate-6 product MINOR-2: a native <details> prints collapsed, so a
+          printed record would lose its audit identity. This duplicate is
+          screen-hidden and PRINT-visible (Tailwind v4 core `print:` media
+          variant; the <details> above is print-hidden so stamps print
+          exactly once). */}
+      <div
+        data-testid="conflict-methodology-print"
+        className="hidden max-w-2xl rounded-lg border border-gray-200 p-4 print:block dark:border-gray-800"
+      >
+        <p className="text-sm font-semibold">Method stamps (window, versions, selection)</p>
+        <StampList result={result} />
+      </div>
     </div>
+  );
+}
+
+/** The per-record audit identity list, shared by the interactive <details>
+ *  and its print-visible duplicate — the two can never drift. */
+function StampList({ result }: { result: ConflictScoredResultV1 }) {
+  return (
+    <ul className="mt-3 space-y-1.5 text-sm text-gray-700 dark:text-gray-300">
+      <li>
+        Evaluation kind: {result.evaluationKind} · methodology epoch {result.methodologyEpoch}
+      </li>
+      {result.window !== undefined && (
+        <li className="tabular-nums">
+          Window: {result.window.startDate} → {result.window.endDate} ({result.window.days} day
+          {result.window.days === 1 ? "" : "s"}), end anchored on {result.windowEndSource}
+        </li>
+      )}
+      {result.versions !== undefined && (
+        <li className="break-words">
+          Versions: lanes {result.laneTaxonomyVersion} · evidence policy{" "}
+          {result.evidencePolicyVersion} · roster {result.versions.actorRosterVersion} ·
+          classifier {result.versions.laneClassifierVersion} · scope{" "}
+          {result.versions.scopeVersion}
+        </li>
+      )}
+      {result.selection !== undefined && (
+        <li className="tabular-nums">
+          Selection: corpus recall {result.selection.corpusRecall.selectedCount} of{" "}
+          {result.selection.corpusRecall.eligibleCount} eligible · published retention{" "}
+          {result.selection.publishedRetention.selectedCount} of{" "}
+          {result.selection.publishedRetention.eligibleCount} eligible (bounded at{" "}
+          {result.selection.limits.maxCandidates} candidates)
+        </li>
+      )}
+      <li>
+        Input snapshot:{" "}
+        {result.snapshot?.ref == null
+          ? "none (pre-capture; labeled retrospective inputs)"
+          : `${result.snapshot.ref.captureKind} captured ${result.snapshot.ref.capturedAt}`}
+      </li>
+    </ul>
   );
 }
