@@ -12,7 +12,11 @@ Phase 4 additions: `goldens/` holds the committed golden expected-result
 files (full pure-scorer output, byte-stable via the Phase-1 stable
 serialization; see `src/lib/conflicts/goldens.ts` and its test), and
 `cc-vague-claim-019` delivers the register-#9 deferred atomic/compound pin
-(ADDITIVE — no committed scenario edited).
+(ADDITIVE — no committed scenario edited). Golden files are regenerated ONLY
+via `UPDATE_CONFLICT_GOLDENS=1 npx vitest run
+src/lib/conflicts/goldens.test.ts` followed by a reviewed diff; the same test
+byte-compares on every ordinary run, so scorer drift fails loudly instead of
+silently re-baselining.
 
 Provenance: `authored-2026-08-17` — every scenario hand-authored and
 hand-checked one at a time; zero model-generated-unreviewed content. Content

@@ -179,6 +179,11 @@ export const GOLDEN_SCENARIO_IDS = [
   "cc-publication-gap-002",
   "cc-state-zero-empty-015",
   "cc-vague-claim-019",
+  // the sentinel-bearing scenario (corpus README audit rule): scoring it into
+  // the golden set gives the golden-file prose audit its input-presence
+  // precondition — the sentinel provably entered the run, and the committed
+  // bytes are then proven clean of it
+  "cc-regen-after-instant-007",
 ] as const;
 
 /** The matcher-ladder golden scenario, scored once per vote variant. */

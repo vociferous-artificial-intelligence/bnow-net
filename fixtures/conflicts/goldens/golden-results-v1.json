@@ -596,6 +596,248 @@
     "unavailableReason": "publication_gap",
     "version": 1
   },
+  "cc-regen-after-instant-007": {
+    "agreements": {
+      "corpusRecall": [
+        {
+          "claims": [
+            {
+              "atCutoff": true,
+              "atPublication": true,
+              "claimId": 9307,
+              "confidence": null,
+              "coverage": "full",
+              "earliestIngestAt": "2026-08-12T17:05:00Z",
+              "hedge": "claimed",
+              "independentSourceCount": 1,
+              "legacy": false,
+              "theater": "ua",
+              "track": "military"
+            }
+          ],
+          "lane": "frontline_maneuver",
+          "unitId": "u0"
+        }
+      ],
+      "publishedRetention": [
+        {
+          "claims": [
+            {
+              "atCutoff": true,
+              "atPublication": true,
+              "claimId": 9307,
+              "confidence": null,
+              "coverage": "full",
+              "earliestIngestAt": "2026-08-12T17:05:00Z",
+              "hedge": "claimed",
+              "independentSourceCount": 1,
+              "legacy": false,
+              "theater": "ua",
+              "track": "military"
+            }
+          ],
+          "lane": "frontline_maneuver",
+          "unitId": "u0"
+        }
+      ]
+    },
+    "bnowOnly": {
+      "corpusRecall": {
+        "count": 0
+      },
+      "publishedRetention": {
+        "count": 0,
+        "items": []
+      }
+    },
+    "conflictId": "russia_ukraine",
+    "contribution": {
+      "u0": {
+        "sources": [
+          "brigade-channel.example"
+        ],
+        "theaters": [
+          "ua"
+        ],
+        "tracks": [
+          "military"
+        ]
+      }
+    },
+    "contributionPublishedRetention": {
+      "u0": {
+        "sources": [
+          "brigade-channel.example"
+        ],
+        "theaters": [
+          "ua"
+        ],
+        "tracks": [
+          "military"
+        ]
+      }
+    },
+    "contributionTotals": {
+      "bySource": {
+        "brigade-channel.example": 1
+      },
+      "byTheater": {
+        "ua": 1
+      },
+      "byTrack": {
+        "military": 1
+      },
+      "nonAdditive": true
+    },
+    "corpusRecall": {
+      "u0": "matched"
+    },
+    "evaluationKind": "retrospective",
+    "evidencePolicyVersion": "ru-ua-ev-v1",
+    "headline": {
+      "corpusRecall": {
+        "denominator": 1,
+        "matched": 1
+      },
+      "publishedRetention": {
+        "denominator": 1,
+        "matched": 1
+      }
+    },
+    "headlineLabel": "Key Takeaway benchmark coverage",
+    "independentSources": {
+      "corpusRecall": {
+        "u0": 1
+      },
+      "publishedRetention": {
+        "u0": 1
+      }
+    },
+    "laneTaxonomyVersion": "roca-lanes-v1",
+    "lanes": [
+      {
+        "corpusRecall": {
+          "matched": 1,
+          "miss": 0,
+          "partial": 0
+        },
+        "diagnostic": null,
+        "lane": "frontline_maneuver",
+        "publishedRetention": {
+          "matched": 1,
+          "miss": 0,
+          "partial": 0
+        },
+        "units": 1
+      }
+    ],
+    "matcher": {
+      "corpusRecall": {
+        "label": "fixture-oracle",
+        "voteRounds": null
+      },
+      "kind": "fixture-oracle",
+      "label": "fixture-oracle",
+      "model": null,
+      "publishedRetention": {
+        "label": "fixture-oracle",
+        "voteRounds": null
+      },
+      "votesK": null
+    },
+    "matcherRung": "fixture-oracle",
+    "methodologyEpoch": "conflict-epoch-1",
+    "multiUnitClaims": {
+      "corpusRecall": {},
+      "publishedRetention": {}
+    },
+    "publishedRetention": {
+      "u0": "matched"
+    },
+    "referenceOnly": {
+      "corpusRecall": [],
+      "publishedRetention": []
+    },
+    "report": {
+      "cutoffAt": "2026-08-12T19:45:00Z",
+      "editionKey": "roca:2026-08-12:final",
+      "publishedAt": "2026-08-12T23:30:00Z",
+      "reportDate": "2026-08-12",
+      "scopeVersion": "roca-scope-v1",
+      "series": "roca"
+    },
+    "runGroupKey": "russia_ukraine|roca:2026-08-12:final|retrospective|conflict-epoch-1|fixture-oracle|k=0",
+    "selection": {
+      "corpusRecall": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 1,
+        "selectedCount": 1,
+        "totalTextBytes": 135
+      },
+      "limits": {
+        "maxCandidates": 100,
+        "mixCapFraction": 0.4,
+        "textByteBudget": 48000
+      },
+      "publishedRetention": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 1,
+        "selectedCount": 1,
+        "totalTextBytes": 135
+      }
+    },
+    "snapshot": {
+      "ref": null
+    },
+    "state": "scored",
+    "thinSourced": {
+      "corpusRecall": {
+        "count": 1,
+        "denominator": 1
+      },
+      "publishedRetention": {
+        "count": 1,
+        "denominator": 1
+      }
+    },
+    "timing": {
+      "corpusRecall": {
+        "agreements": 1,
+        "medianLeadHoursByIngest": 6.4,
+        "medianLeadHoursBySourceDeclared": 7.2
+      },
+      "publishedRetention": {
+        "agreements": 1,
+        "medianLeadHoursByIngest": 6.4,
+        "medianLeadHoursBySourceDeclared": 7.2
+      }
+    },
+    "version": 1,
+    "versions": {
+      "actorRosterVersion": "ru-ua-roster-v1",
+      "extractorVersions": [],
+      "laneClassifierVersion": "ru-ua-classifier-v1",
+      "scopeVersion": "roca-scope-v1"
+    },
+    "voteAudit": {
+      "corpusRecall": null,
+      "publishedRetention": null
+    },
+    "window": {
+      "cutoffAtRaw": "2026-08-12T19:45:00Z",
+      "cutoffTreatment": "present",
+      "days": 3,
+      "endDate": "2026-08-12",
+      "publishedAtRaw": "2026-08-12T23:30:00Z",
+      "publishedTreatment": "present",
+      "reportDate": "2026-08-12",
+      "startDate": "2026-08-10",
+      "windowEndSource": "cutoff"
+    },
+    "windowEndSource": "cutoff"
+  },
   "cc-state-zero-empty-015": {
     "agreements": {
       "corpusRecall": [],
