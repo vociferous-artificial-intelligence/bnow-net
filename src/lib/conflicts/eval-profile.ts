@@ -44,6 +44,7 @@ import type {
 } from "./match-contract";
 import type { HedgingValue } from "./evidence-records";
 import { validateReferenceReportIdentity, type ReferenceReportIdentity } from "./reference-report";
+import { validateConflictSnapshotRefV1, type ConflictSnapshotRefV1 } from "./snapshot-ref";
 import {
   METHODOLOGY_EPOCH,
   isConflictId,
@@ -347,9 +348,12 @@ export interface ConflictScoredResultV1 extends ConflictResultCommonV1 {
   /** repeated-run/variance grouping key: identical inputs + matcher config
    *  share a key across repeated runs (§6.4) */
   runGroupKey?: string;
-  /** snapshot identity: the typed-null ref until the Phase 5
-   *  ConflictSnapshotRef capture contract exists (register #5) */
-  snapshot?: { ref: null };
+  /** snapshot identity (Phase 5 contract, snapshot-ref.ts): a validated
+   *  ConflictSnapshotRefV1 when an immutable capture artifact backed the
+   *  scoring inputs, else null (the pre-capture / plain-retrospective state).
+   *  The fixture/golden path passes nothing → null, so golden bytes are
+   *  unchanged by the contract's existence. */
+  snapshot?: { ref: ConflictSnapshotRefV1 | null };
 }
 
 /** The binding persistence gate (P3 report §5.1): a scored result missing
@@ -364,7 +368,18 @@ export interface ConflictScoredResultV1 extends ConflictResultCommonV1 {
  *  Token heuristic (documented): ≤64 chars, single line, no run of multiple
  *  spaces, and no ". " sentence boundary — enough to admit the observed
  *  malformed-declaration shapes ("cutoff 1500 hrs local time") while
- *  refusing sentence-like prose. */
+ *  refusing sentence-like prose.
+ *
+ *  PHASE-5 TIGHTENING (the Gate-4 legal NOTE's ≤64-char anchor-clause
+ *  option, ADOPTED): the token form is additionally restricted to a bounded
+ *  time-anchor alphabet — letters, digits, space, and `. , : ; + - / ( )`.
+ *  Quotes, braces, angle brackets, backslashes, control characters, and
+ *  non-ASCII are refused: a persisted stored-result channel should not admit
+ *  markup-capable bytes. Both committed corpus anchors ("August 12, 2026,
+ *  3:45 pm ET"; "cutoff 1500 hrs local time") remain admitted — zero golden
+ *  drift, verified by the drift gate. */
+const RAW_ANCHOR_TOKEN_ALPHABET = /^[A-Za-z0-9 .,:;+\-/()]*$/;
+
 export function isPersistableRawAnchor(value: string): boolean {
   // intermediate boolean: isIsoInstant is a `value is string` guard, and a
   // direct `if` would narrow the already-string param to never below
@@ -374,7 +389,8 @@ export function isPersistableRawAnchor(value: string): boolean {
     value.length <= 64 &&
     !/[\n\r]/.test(value) &&
     !/ {2}/.test(value) &&
-    !/\. /.test(value)
+    !/\. /.test(value) &&
+    RAW_ANCHOR_TOKEN_ALPHABET.test(value)
   );
 }
 
@@ -428,9 +444,28 @@ export function assertPersistableConflictResultV1(result: ConflictResultV1): voi
       if (value !== null && !isPersistableRawAnchor(value)) {
         throw new ConflictDomainError(
           "unpersistable_result",
-          `${field} is not a bounded raw anchor: raw declared anchors may be null, an explicit-timezone ISO instant, or a short single-line token (<=64 chars, no multiple spaces, no sentence punctuation) — MUST NOT be persisted`,
+          `${field} is not a bounded raw anchor: raw declared anchors may be null, an explicit-timezone ISO instant, or a short single-line token (<=64 chars, time-anchor alphabet, no multiple spaces, no sentence punctuation) — MUST NOT be persisted`,
         );
       }
+    }
+  }
+  // a non-null snapshot ref must be a VALID ConflictSnapshotRefV1 for THIS
+  // conflict — a garbage or cross-conflict ref would smuggle unvalidated
+  // provenance into stored results. The refused ref's values are deliberately
+  // NOT echoed (stored-error discipline: locator/provenance could be the very
+  // free text being refused).
+  if (result.snapshot !== undefined && result.snapshot.ref !== null) {
+    if (validateConflictSnapshotRefV1(result.snapshot.ref).length > 0) {
+      throw new ConflictDomainError(
+        "unpersistable_result",
+        "snapshot.ref is not a valid ConflictSnapshotRefV1 — MUST NOT be persisted",
+      );
+    }
+    if (result.snapshot.ref.conflictId !== result.conflictId) {
+      throw new ConflictDomainError(
+        "unpersistable_result",
+        "snapshot.ref names a different conflict than the result — MUST NOT be persisted",
+      );
     }
   }
 }

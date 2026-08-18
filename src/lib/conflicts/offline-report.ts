@@ -143,7 +143,14 @@ function scoredReport(result: ConflictScoredResultV1): string {
       `- Versions: lanes ${result.laneTaxonomyVersion}, evidence policy ${result.evidencePolicyVersion}, roster ${versions.actorRosterVersion}, classifier ${versions.laneClassifierVersion}, scope ${versions.scopeVersion}`,
     );
   }
-  lines.push(`- Run group: \`${result.runGroupKey ?? "—"}\` · snapshot ref: none (pre-capture)`);
+  const snapRef = result.snapshot?.ref ?? null;
+  lines.push(
+    `- Run group: \`${result.runGroupKey ?? "—"}\` · snapshot ref: ${
+      snapRef === null
+        ? "none (pre-capture)"
+        : `${snapRef.captureKind} captured ${snapRef.capturedAt} (sha256 ${snapRef.artifact.contentHash.slice(0, 12)})`
+    }`,
+  );
   lines.push("");
   return lines.join("\n");
 }
