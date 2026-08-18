@@ -83,6 +83,10 @@ export async function scoreFixtureScenario(
             series: CONFLICT_REGISTRY[scenario.conflictId].referenceSeries,
             gapDate: gapDateOf(scenario),
           },
+          // Same spread as the report branch: a caller-supplied ref must reach
+          // the scorer's every-path validation even on gap days (a garbage ref
+          // silently dropped here would bypass the ops-MINOR-1 hoist).
+          ...(options.snapshotRef !== undefined ? { snapshot: options.snapshotRef } : {}),
         }
       : {
           conflictId: scenario.conflictId,
