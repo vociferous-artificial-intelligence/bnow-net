@@ -26,7 +26,18 @@ import type {
 import { ConflictKeywordMatcher } from "./keyword-matcher";
 import { LlmCompatibleMatcher } from "./llm-compatible-matcher";
 import { scoreConflictReport, type ConflictScoreRequest } from "./scorer";
+import { fixtureSnapshotRef } from "./snapshot-ref";
 import type { EvaluationKind } from "./vocabulary";
+
+function probeFixtureRef() {
+  return fixtureSnapshotRef({
+    conflictId: "russia_ukraine",
+    locator: "fixtures/conflicts/roca-scenarios-v1.json",
+    artifactBytes: "synthetic-probe-bytes",
+    populations: { corpusRecallClaimIds: [1], publishedRetentionClaimIds: [1] },
+    capturedAt: "2026-08-10T00:00:00Z",
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Synthetic wiring (fictional content per house rules)
@@ -351,6 +362,103 @@ describe("stamps and result variants", () => {
     );
     const relabeled = { ...result, matcherRung: "llm-majority" as const };
     expect(() => assertPersistableConflictResultV1(relabeled)).toThrowError(/disagrees/);
+  });
+
+  it("snapshot refs are validated on EVERY path: a gap request with garbage refuses; a valid ref on a gap is not stamped", async () => {
+    const gapCorpus = {
+      status: "unavailable",
+      population: "corpus_recall",
+      conflictId: "russia_ukraine",
+      kind: "retrospective",
+      reason: "publication_gap",
+    } as const;
+    const gapRetention = {
+      status: "unavailable",
+      population: "published_retention",
+      conflictId: "russia_ukraine",
+      kind: "retrospective",
+      reason: "publication_gap",
+    } as const;
+    const gapRequest = (snapshot: unknown): ConflictScoreRequest =>
+      ({
+        conflictId: "russia_ukraine",
+        evaluationKind: "retrospective",
+        report: null,
+        gap: { series: "roca", gapDate: "2026-08-10" },
+        snapshot,
+      }) as ConflictScoreRequest;
+    // garbage snapshot on a GAP request: an invalid ref is an invalid
+    // REQUEST — previously it was silently dropped and a normal gap result
+    // returned
+    await expect(
+      scoreConflictReport(gapRequest({ garbage: true }), gapCorpus, gapRetention, fakeOracle([])),
+    ).rejects.toThrowError(/not a valid ConflictSnapshotRefV1/);
+    // a VALID fixture ref on a gap: accepted, normal gap result, ref NOT
+    // stamped — unavailable/gap variants carry no snapshot field BY DESIGN
+    // (validation refuses garbage earlier; it never changes their shape)
+    const gap = await scoreConflictReport(
+      gapRequest(probeFixtureRef()),
+      gapCorpus,
+      gapRetention,
+      fakeOracle([]),
+    );
+    expect(gap.state).toBe("unavailable");
+    expect("snapshot" in gap).toBe(false);
+  });
+
+  it("register #5 twin guards: snapshot-anchored kinds can never MINT a scored result (scorer layer)", async () => {
+    const { corpus, retention } = await assemblies([UA_CLAIM]);
+    // probe (a): assembled populations + a snapshot evaluation kind, no ref
+    await expect(
+      scoreConflictReport(
+        request([U0], "operational_cutoff"),
+        corpus,
+        retention,
+        fakeOracle([full("u0", 1)]),
+      ),
+    ).rejects.toThrowError(/register #5/);
+    // probe (b): an unresolved structurally-valid snapshot-kind ref does not
+    // help — the kind-compat check no longer AFFIRMATIVELY stamps it
+    const opRef = { ...probeFixtureRef(), captureKind: "operational_cutoff" as const };
+    await expect(
+      scoreConflictReport(
+        { ...request([U0], "operational_cutoff"), snapshot: opRef },
+        corpus,
+        retention,
+        fakeOracle([full("u0", 1)]),
+      ),
+    ).rejects.toThrowError(/register #5/);
+  });
+
+  it("register #5 twin guards: the persistence gate refuses too (gate layer)", async () => {
+    const { corpus, retention } = await assemblies([UA_CLAIM]);
+    const result = expectScored(
+      await scoreConflictReport(request([U0]), corpus, retention, fakeOracle([full("u0", 1)])),
+    );
+    // a scored result relabeled to a snapshot kind cannot be persisted
+    expect(() =>
+      assertPersistableConflictResultV1({ ...result, evaluationKind: "operational_cutoff" }),
+    ).toThrowError(/register #5/);
+    // a stamped ref that cannot back the result's evaluation kind refuses
+    const opRef = { ...probeFixtureRef(), captureKind: "at_publication" as const };
+    expect(() =>
+      assertPersistableConflictResultV1({ ...result, snapshot: { ref: opRef } }),
+    ).toThrowError(/cannot back/);
+  });
+
+  it("sanctioned: retrospective + a valid fixture ref is scored, stamped, and persistable", async () => {
+    const ref = probeFixtureRef();
+    const { corpus, retention } = await assemblies([UA_CLAIM]);
+    const result = expectScored(
+      await scoreConflictReport(
+        { ...request([U0]), snapshot: ref },
+        corpus,
+        retention,
+        fakeOracle([full("u0", 1)]),
+      ),
+    );
+    expect(result.snapshot).toEqual({ ref });
+    assertPersistableConflictResultV1(result);
   });
 
   it("a report with ZERO declared units refuses — a parse failure, never a 0/0 score", async () => {

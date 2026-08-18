@@ -44,7 +44,11 @@ import type {
 } from "./match-contract";
 import type { HedgingValue } from "./evidence-records";
 import { validateReferenceReportIdentity, type ReferenceReportIdentity } from "./reference-report";
-import { validateConflictSnapshotRefV1, type ConflictSnapshotRefV1 } from "./snapshot-ref";
+import {
+  snapshotKindsForEvaluation,
+  validateConflictSnapshotRefV1,
+  type ConflictSnapshotRefV1,
+} from "./snapshot-ref";
 import {
   METHODOLOGY_EPOCH,
   isConflictId,
@@ -420,6 +424,28 @@ export function assertPersistableConflictResultV1(result: ConflictResultV1): voi
       "unpersistable_result",
       `matcher.label (${result.matcher.label}) disagrees with matcherRung (${result.matcherRung})`,
     );
+  }
+  // register #5 twin guard (Gate-5 control-plane MAJOR-1): a SCORED result
+  // under a snapshot-anchored evaluation kind is unmintable in this
+  // workstream (no reviewed capture path exists), so even a caller that
+  // skipped the scorer's refusal cannot STORE one. And a stamped ref must be
+  // able to back the result's evaluation kind. The future reviewed capture
+  // path lifts these refusals via its own decision-register entry.
+  if (result.evaluationKind !== "retrospective") {
+    throw new ConflictDomainError(
+      "unpersistable_result",
+      `a scored result with evaluation kind ${result.evaluationKind} cannot exist without a reviewed capture path (register #5) and MUST NOT be persisted`,
+    );
+  }
+  if (result.snapshot !== undefined && result.snapshot.ref !== null) {
+    if (
+      !snapshotKindsForEvaluation(result.evaluationKind).includes(result.snapshot.ref.captureKind)
+    ) {
+      throw new ConflictDomainError(
+        "unpersistable_result",
+        "snapshot ref capture kind cannot back this result's evaluation kind — MUST NOT be persisted",
+      );
+    }
   }
   // belt-and-braces twin of the scorer's zero-unit refusal: a zero
   // denominator IS the §6.4-forbidden 0/0 — a zero-unit report is a parse
