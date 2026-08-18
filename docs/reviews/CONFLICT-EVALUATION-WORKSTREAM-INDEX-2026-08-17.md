@@ -98,5 +98,5 @@ their documented extension points:
 | 3 evidence union | `codex/conflict-evaluations-p3-evidence` | **PASSED** (dual FAIL on `5f1844c` -> remediation -> PASS + PASS-WITH-MINORS on `9fef8b7`) | P3 report (binding carried conditions §5); ledger P3; 40-scenario acceptance corpus |
 | 4 scoring | `codex/conflict-evaluations-p4-scoring` | **PASSED** (science FAIL + legal PASS-WITH-MINORS on `5b38007` -> remediation -> PASS + PASS on `192c082`) | P4 report; ledger P4; 41-scenario acceptance + 14 byte-stable goldens |
 | 5 eval adapter | `codex/conflict-evaluations-p5-adapter` | **PASSED** (dual FAIL on `022d3c1` -> remediation -> PASS + PASS-WITH-MINORS on `2e1422b`; equals-guard hardened at close) | P5 report (+appendices); ledger P5; snapshot-capture design doc |
-| 6 product UI | — | pending | |
+| 6 product UI | `codex/conflict-evaluations-p6-product` | **PASSED** (PASS-WITH-MINORS x2 on `1f70852`; MINORs closed at `611f30e`) | P6 report (ruling-3 adjudication, enablement checklist); ledger P6; 23-test feature-off itest |
 | 7 integration | — | pending | |
