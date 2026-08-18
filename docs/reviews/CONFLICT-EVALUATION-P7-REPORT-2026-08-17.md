@@ -4,10 +4,12 @@
 (committed in-tree; §15 is this phase's charter).
 **Date:** 2026-08-18. **Author:** Phase 7 integration lead.
 **Branch described:** `codex/conflict-evaluations-p7-integration`.
-**Exact tip this report describes:** recorded in §6 gate 11 and in the closing
-note at the end of this file — the report names the SHA it was gated at, the
-merge commit sits above it, and a one-line addendum on the integration branch
-records the final integration SHA.
+**Exact tip this report describes:** the eleven gates in §6 were run against
+`ad10fbd`. The only commit after it on this branch is the SHA-recording commit
+that writes these identifiers into §6 gate 11 and touches nothing but this
+file; the `--no-ff` merge commit sits above that, and a one-line addendum on
+the integration branch records the final integration SHA. All four identifiers
+are in the §6 gate-11 table.
 
 **Terminal status: `implementation-pass / merge-awaits-operator-review`** (see
 §7 for the reasoning and the exact conditions attached to it).
@@ -691,8 +693,9 @@ scratchpad:
 | P5 tip / merge | `2be6466` / `9a2db38` | gate verdicts at `2e1422b` |
 | P6 tip / merge | `7ea15a9` / `f7b563c` | gate verdicts at `1f70852`, MINORs closed at `611f30e` |
 | **P7 branch parent** | `f7b563c` | the tree these gates were run against, plus this phase's commits |
-| **P7 gated tip** | **`P7_GATED_TIP`** | the exact commit this report describes; recorded by the closing note below |
-| **Final integration tip** | **`FINAL_INTEGRATION_TIP`** | the `--no-ff` merge of P7 into `codex/conflict-evaluations-integration-20260817`, plus the addendum commit |
+| **P7 gated tip** | **`ad10fbd`** | the exact tree all eleven gates above were run against (`a61a4e7` soak plan → `24a6dae` matrix + report → `ad10fbd` ledger + index) |
+| **P7 branch tip** | **`P7_BRANCH_TIP`** | `ad10fbd` + this one SHA-recording commit, which edits this report and nothing else |
+| **Final integration tip** | **`FINAL_INTEGRATION_TIP`** | the `--no-ff` merge of the P7 branch into `codex/conflict-evaluations-integration-20260817`, plus the one-line addendum commit recording it |
 | **Migration status** | **NONE** | `drizzle/` and `drizzle/meta/_journal.json` untouched across the entire 91-commit range; the P2 DDL exists only as design + disposable fork-only SQL |
 
 Test results at the gated tip: **unit 3,194 / 3,194 (227 files) · integration
