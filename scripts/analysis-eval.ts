@@ -762,6 +762,24 @@ async function modeLive(opts: {
 // ---- entry --------------------------------------------------------------------
 
 async function main(): Promise<void> {
+  // REFUSE equals-form flags outright (Gate-5 ops MAJOR-1): flagValue matches
+  // only the space-separated form, so "--profile=conflict" was SILENTLY
+  // DISCARDED — defeating the profile allowlist and the conflict live-mode
+  // refusal and falling through to the GENERIC live path with a client
+  // construction. Refusing (rather than teaching the parser "=") protects
+  // EVERY flag with zero parser-semantics change, and fires before ANY mode
+  // work.
+  const equalsForm = process.argv.slice(2).find((a) => /^--[a-z-]+=/.test(a));
+  if (equalsForm !== undefined) {
+    const eq = equalsForm.indexOf("=");
+    const name = equalsForm.slice(0, eq);
+    const value = equalsForm.slice(eq + 1);
+    console.error(
+      `${equalsForm} is not accepted: flags take space-separated values — use "${name} ${value}"`,
+    );
+    process.exit(2);
+  }
+
   const fresh = hasFlag("fresh");
   const onlyIds = parseOnly();
   if (fresh && onlyIds !== null) {
