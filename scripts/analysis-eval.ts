@@ -56,6 +56,22 @@ import "./env";
 // --fresh and --only are mutually exclusive (as in scripts/ask-eval.ts).
 // --dev excludes the heldout split (see docs/evals/analysis/README.md for the
 // heldout discipline: never iterate prompts against heldout results).
+//
+// CONFLICT PROFILE (conflict-evaluations Phase 5; decision register #3):
+//
+//   --profile conflict [--conflict russia_ukraine,iran_regional] + any of
+//   --validate-dataset / --estimate / --offline (default) / --report
+//       The conflict dataset profile UNDER THE EXISTING validation workload:
+//       datasets conflict-roca-v1 / conflict-iran-v1 are BUILT
+//       deterministically from the frozen fixture corpus + committed golden
+//       results (src/lib/evals/conflict-validation-profile.ts, reached via a
+//       mode-scoped dynamic import so this file's static import surface stays
+//       contracts+runner). Offline scoring runs the REAL conflict P4 pipeline
+//       per case and byte-compares against the committed goldens; results
+//       write to results/<datasetVersion>-offline-fixtures.json with the
+//       inherited resume/result-key semantics. All four modes are
+//       zero-provider-contact; --execute-live REFUSES with --profile conflict
+//       (the conflict profile has no live dispatch path in this workstream).
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -178,8 +194,7 @@ function resultsPath(workload: AnalysisEvalWorkload, configKey: string): string 
   return path.join(RESULTS_DIR, `${prefix}${workload}-${configKey}.json`);
 }
 
-function loadResults(workload: AnalysisEvalWorkload, configKey: string): EvalResultsFile | null {
-  const p = resultsPath(workload, configKey);
+function loadResultsAtPath(p: string): EvalResultsFile | null {
   if (!existsSync(p)) return null;
   const rf = JSON.parse(readFileSync(p, "utf8")) as EvalResultsFile;
   if (rf.datasetContentHash === undefined || rf.requestedRepetitions === undefined || rf.scope === undefined) {
@@ -191,9 +206,17 @@ function loadResults(workload: AnalysisEvalWorkload, configKey: string): EvalRes
   return rf;
 }
 
-function saveResults(rf: EvalResultsFile): void {
+function loadResults(workload: AnalysisEvalWorkload, configKey: string): EvalResultsFile | null {
+  return loadResultsAtPath(resultsPath(workload, configKey));
+}
+
+function saveResultsAtPath(p: string, rf: EvalResultsFile): void {
   mkdirSync(RESULTS_DIR, { recursive: true });
-  writeFileSync(resultsPath(rf.workload, rf.configKey), JSON.stringify(rf, null, 2) + "\n");
+  writeFileSync(p, JSON.stringify(rf, null, 2) + "\n");
+}
+
+function saveResults(rf: EvalResultsFile): void {
+  saveResultsAtPath(resultsPath(rf.workload, rf.configKey), rf);
 }
 
 // ---- --validate-dataset --------------------------------------------------------
@@ -409,6 +432,206 @@ function modeReport(workloads: AnalysisEvalWorkload[], outPath: string, showHeld
   console.log("report built from saved artifacts only — no DB, no provider, no client construction.");
 }
 
+// ---- --profile conflict (conflict-evaluations Phase 5; register #3) ------------
+// The conflict profile rides the EXISTING validation workload; its module is
+// dynamically imported per mode (like live-runner) so this file's static
+// import surface stays contracts+runner. Every conflict mode below is
+// zero-provider-contact: no live-runner import, no client construction.
+
+type ConflictProfileModule = typeof import("../src/lib/evals/conflict-validation-profile");
+type ConflictProfileId = ConflictProfileModule["CONFLICT_IDS"][number];
+
+const CONFLICT_REPORT_PATH = path.join(EVALS_DIR, "CONFLICT-EVAL-SCORECARD.md");
+
+function conflictResultsPath(datasetVersion: string, configKey: string): string {
+  return path.join(RESULTS_DIR, `${datasetVersion}-${configKey}.json`);
+}
+
+function parseConflictIds(mod: ConflictProfileModule): ConflictProfileId[] {
+  const raw = flagValue("conflict");
+  if (!raw) return [...mod.CONFLICT_IDS];
+  const picked = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  const bad = picked.filter((c) => !(mod.CONFLICT_IDS as readonly string[]).includes(c));
+  if (bad.length > 0) {
+    console.error(`--conflict: unknown conflict(s): ${bad.join(", ")} (valid: ${mod.CONFLICT_IDS.join(", ")})`);
+    process.exit(2);
+  }
+  return picked as ConflictProfileId[];
+}
+
+function conflictModeValidate(mod: ConflictProfileModule, conflicts: ConflictProfileId[]): void {
+  let bad = 0;
+  for (const id of conflicts) {
+    const run = mod.buildConflictEvalRun(id);
+    const errs = validateAnalysisEvalDataset(run.dataset, "validation");
+    if (errs.length > 0) {
+      console.error(`[conflict/${id}] INVALID (${errs.length} violation(s)):\n  ${errs.join("\n  ")}`);
+      bad++;
+      continue;
+    }
+    const heldout = heldoutCoverage(run.dataset);
+    console.log(
+      `[conflict/${id}] OK — ${run.dataset.datasetVersion}: ${run.dataset.cases.length} cases ` +
+        `(heldout typical/edge/adversarial: ${heldout.typical}/${heldout.edge}/${heldout.adversarial}) ` +
+        `sourceHash=${run.contentHash.slice(0, 12)}`,
+    );
+  }
+  if (bad > 0) process.exit(2);
+  console.log("conflict datasets valid under the INHERITED validation-workload validator. No DB, no provider, nothing written.");
+}
+
+function conflictModeEstimate(
+  mod: ConflictProfileModule,
+  conflicts: ConflictProfileId[],
+  model: string,
+  repetitions: number,
+): void {
+  let grand = 0;
+  for (const id of conflicts) {
+    const run = mod.buildConflictEvalRun(id);
+    const plan = buildAnalysisEstimatePlan(run.dataset, model, repetitions);
+    console.log(`\n[conflict/${id}] ${run.dataset.datasetVersion} — model ${model}, ${repetitions} repetition(s):`);
+    console.log(
+      `  calls ${plan.totalCalls} · est prompt tok ${plan.totalPromptTokens} · est completion tok ${plan.totalCompletionTokens} · est $${plan.totalUsd.toFixed(4)}`,
+    );
+    grand += plan.totalUsd;
+  }
+  console.log(`\nestimated grand total: $${grand.toFixed(4)}`);
+  console.log(
+    "estimate describes a HYPOTHETICAL live validation-matcher run; no live conflict path exists in this workstream — no DB, no client construction, no LLM calls, nothing written.",
+  );
+}
+
+async function conflictModeOffline(
+  mod: ConflictProfileModule,
+  conflicts: ConflictProfileId[],
+  opts: { fresh: boolean; onlyIds: string[] | null; devOnly: boolean },
+): Promise<void> {
+  for (const id of conflicts) {
+    const run = mod.buildConflictEvalRun(id);
+    const header: ResultsFileHeader = {
+      workload: "validation",
+      configKey: OFFLINE_CONFIG_KEY,
+      datasetVersion: run.dataset.datasetVersion,
+      datasetContentHash: run.contentHash,
+      identity: offlineIdentity(run.dataset),
+      requestedRepetitions: 1,
+      scope: runScopeFor(opts.onlyIds, opts.devOnly),
+      envKnobs: currentEnvKnobs(),
+    };
+    const p = conflictResultsPath(run.dataset.datasetVersion, OFFLINE_CONFIG_KEY);
+    const existing = loadResultsAtPath(p);
+    refuseOnIdentityDrift(existing, header, opts.fresh);
+    const { work, unknownIds, excludedHeldout } = pendingWork(run.dataset, existing, {
+      repetitions: 1,
+      fresh: opts.fresh,
+      onlyIds: opts.onlyIds,
+      devOnly: opts.devOnly,
+    });
+    if (unknownIds.length > 0) {
+      console.error(`[conflict/${id}] --only: unknown case id(s): ${unknownIds.join(", ")} — refusing`);
+      process.exit(2);
+    }
+    if (excludedHeldout > 0) console.log(`[conflict/${id}] --dev: ${excludedHeldout} heldout case(s) excluded`);
+    const already = Object.keys(existing?.results ?? {}).length;
+    if (work.length === 0) {
+      console.log(`[conflict/${id}] nothing to do — ${already} result(s) already recorded (use --fresh to rerun)`);
+      continue;
+    }
+    console.log(`[conflict/${id}] scoring ${work.length} case(s) through the real conflict pipeline (${already} already recorded)`);
+    let rf = (opts.fresh ? null : existing) ?? emptyEvalResultsFile(header);
+    const runId = `offline-${run.dataset.datasetVersion}`;
+    for (const item of work) {
+      const result = await mod.scoreConflictOfflineCase(run, item.evalCase.id, item.repetition, runId);
+      rf = mergeEvalResults(rf, header, [result], ZERO_METER, new Date());
+      saveResultsAtPath(p, rf); // durable after EVERY case (resumable-by-key)
+      const expectation = "offline" in item.evalCase ? item.evalCase.offline.expectation : "pass";
+      const machineryOk = result.checks.pass === (expectation === "pass");
+      console.log(
+        `  ${item.evalCase.id} [${item.evalCase.partition}/${item.evalCase.split}] status=${result.status} ` +
+          `pass=${result.checks.pass} expectation=${expectation} machinery=${machineryOk ? "OK" : "MISMATCH"}`,
+      );
+      if (!machineryOk) {
+        console.error(
+          `  [conflict/${id}] MACHINERY MISMATCH on ${item.evalCase.id}: checks.pass=${result.checks.pass} but expectation=${expectation} — failures: ${result.checks.failures.join("; ") || "(none)"}`,
+        );
+      }
+    }
+    console.log(`[conflict/${id}] done -> ${p}`);
+  }
+  console.log("\nconflict offline scoring complete. Run with --profile conflict --report for the scorecard. Zero provider contact.");
+}
+
+function conflictModeReport(
+  mod: ConflictProfileModule,
+  conflicts: ConflictProfileId[],
+  outPath: string,
+  showHeldoutDetail: boolean,
+): void {
+  const scorecards: WorkloadScorecard[] = [];
+  const detail: ScorecardDetailBlock[] = [];
+  const sections: string[] = [];
+  for (const id of conflicts) {
+    const run = mod.buildConflictEvalRun(id);
+    const p = conflictResultsPath(run.dataset.datasetVersion, OFFLINE_CONFIG_KEY);
+    const rf = loadResultsAtPath(p);
+    if (!rf) {
+      console.warn(`[conflict/${id}] no results at ${p} — run --profile conflict --offline first`);
+      continue;
+    }
+    const splitOf = Object.fromEntries(run.dataset.cases.map((c) => [c.id, c.split]));
+    // baseline null: no live conflict baseline exists in this workstream, so
+    // the preset gates can only ever read insufficient_data here — honest.
+    scorecards.push(buildWorkloadScorecard(run.dataset, rf, null, false, run.contentHash));
+    detail.push({
+      workload: `validation (${run.dataset.datasetVersion})`,
+      configKey: OFFLINE_CONFIG_KEY,
+      results: Object.values(rf.results),
+      splitOf,
+    });
+    sections.push(mod.renderConflictSectionMarkdown(run, rf));
+    if (rf.datasetContentHash !== run.contentHash) {
+      console.error(
+        `[conflict/${id}] SOURCES CHANGED since this run (recorded ${rf.datasetContentHash.slice(0, 12)}, current ${run.contentHash.slice(0, 12)}) — verdict degraded to insufficient_data`,
+      );
+    }
+    const agg = aggregateResults(run.dataset, rf, false);
+    if (agg.machinery.total > 0 && agg.machinery.matched < agg.machinery.total) {
+      console.error(
+        `[conflict/${id}] MACHINERY MISMATCH: only ${agg.machinery.matched}/${agg.machinery.total} results match their expectation`,
+      );
+    }
+    const c = agg.completeness;
+    if (!c.complete) {
+      console.warn(
+        `[conflict/${id}] INCOMPLETE (scope=${c.scope}): ${c.missingResults} of ${c.expectedResults} key(s) missing (${c.missingHeldout} heldout)`,
+      );
+    }
+  }
+  if (scorecards.length === 0) {
+    console.error("nothing to report");
+    process.exit(2);
+  }
+  const generatedAt = new Date().toISOString();
+  const headerNote =
+    "CONFLICT PROFILE (validation workload, register #3): offline-fixtures results score the FROZEN " +
+    "conflict fixture corpus through the real conflict pipeline and byte-compare against the committed " +
+    "goldens — a machinery/drift proof, NOT a model evaluation; no paid calls are involved. Verdicts use " +
+    "the inherited preset gates; with no live baseline they read insufficient_data by construction.";
+  const md =
+    renderAnalysisScorecardMarkdown({ generatedAt, scorecards, detail, headerNote, showHeldoutDetail }) +
+    "\n" +
+    sections.join("\n");
+  mkdirSync(path.dirname(outPath), { recursive: true });
+  writeFileSync(outPath, md);
+  writeFileSync(outPath.replace(/\.md$/, ".json"), JSON.stringify({ generatedAt, headerNote, scorecards }, null, 2) + "\n");
+  console.log(`wrote conflict scorecard -> ${outPath} (+ .json)`);
+  for (const sc of scorecards) {
+    console.log(`[conflict/${sc.datasetVersion}/${sc.judged.configKey}] VERDICT: ${sc.verdictResult.verdict}`);
+  }
+  console.log("report built from saved artifacts only — no DB, no provider, no client construction.");
+}
+
 // ---- --execute-live (PAID; never run in this program — proven via mocks) -------
 
 async function modeLive(opts: {
@@ -546,6 +769,38 @@ async function main(): Promise<void> {
     process.exit(2);
   }
   const devOnly = hasFlag("dev");
+
+  const profile = flagValue("profile");
+  if (profile !== undefined && profile !== "conflict") {
+    console.error(`--profile: unknown profile "${profile}" (valid: conflict)`);
+    process.exit(2);
+  }
+  if (profile === "conflict") {
+    if (hasFlag("execute-live")) {
+      console.error(
+        "--execute-live is not available with --profile conflict: the conflict profile has NO live dispatch path in this workstream (offline fixture-oracle scoring only).",
+      );
+      process.exit(2);
+    }
+    if (flagValue("workload") !== undefined) {
+      console.error(
+        "--profile conflict pins the validation workload and selects datasets by conflict — use --conflict russia_ukraine,iran_regional instead of --workload",
+      );
+      process.exit(2);
+    }
+    // mode-scoped dynamic import (live-runner pattern): the CLI's static
+    // import surface stays contracts+runner (isolation.test.ts pin)
+    const mod = await import("../src/lib/evals/conflict-validation-profile");
+    const conflicts = parseConflictIds(mod);
+    if (hasFlag("validate-dataset")) return conflictModeValidate(mod, conflicts);
+    if (hasFlag("estimate")) {
+      return conflictModeEstimate(mod, conflicts, flagValue("model") ?? ANALYSIS_DEFAULT_MODEL, parseRepetitions());
+    }
+    if (hasFlag("report")) {
+      return conflictModeReport(mod, conflicts, flagValue("out") ?? CONFLICT_REPORT_PATH, hasFlag("show-heldout-detail"));
+    }
+    return conflictModeOffline(mod, conflicts, { fresh, onlyIds, devOnly });
+  }
 
   if (hasFlag("validate-dataset")) return modeValidate(parseWorkloads(false));
   if (hasFlag("estimate")) {

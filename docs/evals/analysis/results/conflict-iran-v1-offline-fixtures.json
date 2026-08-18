@@ -1,0 +1,1387 @@
+{
+  "workload": "validation",
+  "configKey": "offline-fixtures",
+  "datasetVersion": "conflict-iran-v1",
+  "datasetContentHash": "109fcfff6e69f1de346252f99785bb68e2cd5f73390fb58506647fc9894bb836",
+  "identity": {
+    "provider": "stub",
+    "model": "offline-fixtures",
+    "reasoningEffort": null,
+    "registryVersion": "analysis-reg-v1",
+    "approval": "baseline",
+    "promptHash": "26ef185ece61c183257981ca8e6728c23f6f3e4c8e0e38aaa29d36ff5cdfffdd",
+    "schemaVersion": "89672017b52a25f168bc4c926a4bcb5aa43c7c763a87e165260c00916b8b553a"
+  },
+  "requestedRepetitions": 1,
+  "scope": "full",
+  "envKnobs": {
+    "reduceVotes": 5,
+    "reduceMaxOutputTokens": 6000,
+    "mapOutTokensPerDoc": 200,
+    "mapContentChars": 1500
+  },
+  "updatedAt": "2026-08-18T02:18:34.590Z",
+  "meter": {
+    "attempts": 0,
+    "reservations": 0,
+    "meterings": 0,
+    "erroredAttempts": 0
+  },
+  "results": {
+    "iran-direct-kinetic-001#r0": {
+      "caseId": "iran-direct-kinetic-001",
+      "datasetVersion": "conflict-iran-v1",
+      "runId": "offline-conflict-iran-v1",
+      "configKey": "offline-fixtures",
+      "repetition": 0,
+      "attempt": 0,
+      "status": "scored",
+      "latencyMs": null,
+      "promptTokens": null,
+      "completionTokens": null,
+      "estUsd": null,
+      "checks": {
+        "pass": true,
+        "failures": [],
+        "conflictChecksVersion": 1,
+        "goldenKey": "iran-direct-kinetic-001",
+        "goldenByteMatch": true,
+        "state": "scored",
+        "conflictResultV1": {
+          "version": 1,
+          "conflictId": "iran_regional",
+          "methodologyEpoch": "conflict-epoch-1",
+          "laneTaxonomyVersion": "iran-lanes-v1",
+          "evidencePolicyVersion": "iran-ev-v1",
+          "evaluationKind": "retrospective",
+          "state": "scored",
+          "report": {
+            "series": "iran_update",
+            "editionKey": "iran_update:2026-08-08:final",
+            "reportDate": "2026-08-08",
+            "cutoffAt": "2026-08-08T16:00:00Z",
+            "publishedAt": "2026-08-08T21:30:00Z",
+            "scopeVersion": "iran-update-scope-v1"
+          },
+          "windowEndSource": "cutoff",
+          "headline": {
+            "corpusRecall": {
+              "matched": 1,
+              "denominator": 1
+            },
+            "publishedRetention": {
+              "matched": 1,
+              "denominator": 1
+            }
+          },
+          "corpusRecall": {
+            "u0": "matched"
+          },
+          "publishedRetention": {
+            "u0": "matched"
+          },
+          "matcherRung": "fixture-oracle",
+          "contribution": {
+            "u0": {
+              "theaters": [
+                "ir"
+              ],
+              "tracks": [
+                "military"
+              ],
+              "sources": [
+                "tehran-monitor.example"
+              ]
+            }
+          },
+          "headlineLabel": "Key Takeaway benchmark coverage",
+          "window": {
+            "reportDate": "2026-08-08",
+            "cutoffAtRaw": "2026-08-08T16:00:00Z",
+            "publishedAtRaw": "2026-08-08T21:30:00Z",
+            "cutoffTreatment": "present",
+            "publishedTreatment": "present",
+            "windowEndSource": "cutoff",
+            "startDate": "2026-08-06",
+            "endDate": "2026-08-08",
+            "days": 3
+          },
+          "selection": {
+            "limits": {
+              "maxCandidates": 100,
+              "textByteBudget": 48000,
+              "mixCapFraction": 0.4
+            },
+            "corpusRecall": {
+              "eligibleCount": 1,
+              "selectedCount": 1,
+              "cappedOutCount": 0,
+              "budgetOutCount": 0,
+              "totalTextBytes": 147
+            },
+            "publishedRetention": {
+              "eligibleCount": 1,
+              "selectedCount": 1,
+              "cappedOutCount": 0,
+              "budgetOutCount": 0,
+              "totalTextBytes": 147
+            }
+          },
+          "versions": {
+            "actorRosterVersion": "iran-roster-v1",
+            "laneClassifierVersion": "iran-classifier-v1",
+            "extractorVersions": [],
+            "scopeVersion": "iran-update-scope-v1"
+          },
+          "matcher": {
+            "kind": "fixture-oracle",
+            "label": "fixture-oracle",
+            "votesK": null,
+            "model": null,
+            "corpusRecall": {
+              "label": "fixture-oracle",
+              "voteRounds": null
+            },
+            "publishedRetention": {
+              "label": "fixture-oracle",
+              "voteRounds": null
+            }
+          },
+          "voteAudit": {
+            "corpusRecall": null,
+            "publishedRetention": null
+          },
+          "lanes": [
+            {
+              "lane": "direct_kinetic",
+              "units": 1,
+              "corpusRecall": {
+                "matched": 1,
+                "partial": 0,
+                "miss": 0
+              },
+              "publishedRetention": {
+                "matched": 1,
+                "partial": 0,
+                "miss": 0
+              },
+              "diagnostic": null
+            }
+          ],
+          "agreements": {
+            "corpusRecall": [
+              {
+                "unitId": "u0",
+                "lane": "direct_kinetic",
+                "claims": [
+                  {
+                    "claimId": 9101,
+                    "coverage": "full",
+                    "confidence": null,
+                    "theater": "ir",
+                    "track": "military",
+                    "hedge": "claimed",
+                    "earliestIngestAt": "2026-08-08T08:10:00Z",
+                    "atCutoff": true,
+                    "atPublication": true,
+                    "independentSourceCount": 1,
+                    "legacy": false
+                  }
+                ]
+              }
+            ],
+            "publishedRetention": [
+              {
+                "unitId": "u0",
+                "lane": "direct_kinetic",
+                "claims": [
+                  {
+                    "claimId": 9101,
+                    "coverage": "full",
+                    "confidence": null,
+                    "theater": "ir",
+                    "track": "military",
+                    "hedge": "claimed",
+                    "earliestIngestAt": "2026-08-08T08:10:00Z",
+                    "atCutoff": true,
+                    "atPublication": true,
+                    "independentSourceCount": 1,
+                    "legacy": false
+                  }
+                ]
+              }
+            ]
+          },
+          "referenceOnly": {
+            "corpusRecall": [],
+            "publishedRetention": []
+          },
+          "bnowOnly": {
+            "corpusRecall": {
+              "count": 0
+            },
+            "publishedRetention": {
+              "count": 0,
+              "items": []
+            }
+          },
+          "multiUnitClaims": {
+            "corpusRecall": {},
+            "publishedRetention": {}
+          },
+          "independentSources": {
+            "corpusRecall": {
+              "u0": 1
+            },
+            "publishedRetention": {
+              "u0": 1
+            }
+          },
+          "thinSourced": {
+            "corpusRecall": {
+              "count": 1,
+              "denominator": 1
+            },
+            "publishedRetention": {
+              "count": 1,
+              "denominator": 1
+            }
+          },
+          "timing": {
+            "corpusRecall": {
+              "medianLeadHoursByIngest": 13.3,
+              "medianLeadHoursBySourceDeclared": 14,
+              "agreements": 1
+            },
+            "publishedRetention": {
+              "medianLeadHoursByIngest": 13.3,
+              "medianLeadHoursBySourceDeclared": 14,
+              "agreements": 1
+            }
+          },
+          "contributionTotals": {
+            "nonAdditive": true,
+            "byTheater": {
+              "ir": 1
+            },
+            "byTrack": {
+              "military": 1
+            },
+            "bySource": {
+              "tehran-monitor.example": 1
+            }
+          },
+          "contributionPublishedRetention": {
+            "u0": {
+              "theaters": [
+                "ir"
+              ],
+              "tracks": [
+                "military"
+              ],
+              "sources": [
+                "tehran-monitor.example"
+              ]
+            }
+          },
+          "runGroupKey": "iran_regional|iran_update:2026-08-08:final|retrospective|conflict-epoch-1|fixture-oracle|k=0",
+          "snapshot": {
+            "ref": null
+          }
+        }
+      },
+      "humanLabels": null,
+      "graderJudgments": null,
+      "rawOutputDigest": "3caea91945d5608677727b6505c8b59047a80cfc09c7f19bb11a71d7c4848e85",
+      "fixtureId": "iran-direct-kinetic-001"
+    },
+    "iran-two-events-011#r0": {
+      "caseId": "iran-two-events-011",
+      "datasetVersion": "conflict-iran-v1",
+      "runId": "offline-conflict-iran-v1",
+      "configKey": "offline-fixtures",
+      "repetition": 0,
+      "attempt": 0,
+      "status": "scored",
+      "latencyMs": null,
+      "promptTokens": null,
+      "completionTokens": null,
+      "estUsd": null,
+      "checks": {
+        "pass": true,
+        "failures": [],
+        "conflictChecksVersion": 1,
+        "goldenKey": "iran-two-events-011",
+        "goldenByteMatch": true,
+        "state": "scored",
+        "conflictResultV1": {
+          "version": 1,
+          "conflictId": "iran_regional",
+          "methodologyEpoch": "conflict-epoch-1",
+          "laneTaxonomyVersion": "iran-lanes-v1",
+          "evidencePolicyVersion": "iran-ev-v1",
+          "evaluationKind": "retrospective",
+          "state": "scored",
+          "report": {
+            "series": "iran_update",
+            "editionKey": "iran_update:2026-08-08:final",
+            "reportDate": "2026-08-08",
+            "cutoffAt": "2026-08-08T16:00:00Z",
+            "publishedAt": "2026-08-08T21:30:00Z",
+            "scopeVersion": "iran-update-scope-v1"
+          },
+          "windowEndSource": "cutoff",
+          "headline": {
+            "corpusRecall": {
+              "matched": 1,
+              "denominator": 2
+            },
+            "publishedRetention": {
+              "matched": 1,
+              "denominator": 2
+            }
+          },
+          "corpusRecall": {
+            "u0": "matched",
+            "u1": "miss"
+          },
+          "publishedRetention": {
+            "u0": "matched",
+            "u1": "miss"
+          },
+          "matcherRung": "fixture-oracle",
+          "contribution": {
+            "u0": {
+              "theaters": [
+                "ir"
+              ],
+              "tracks": [
+                "military"
+              ],
+              "sources": [
+                "regional-alerts.example"
+              ]
+            }
+          },
+          "headlineLabel": "Key Takeaway benchmark coverage",
+          "window": {
+            "reportDate": "2026-08-08",
+            "cutoffAtRaw": "2026-08-08T16:00:00Z",
+            "publishedAtRaw": "2026-08-08T21:30:00Z",
+            "cutoffTreatment": "present",
+            "publishedTreatment": "present",
+            "windowEndSource": "cutoff",
+            "startDate": "2026-08-06",
+            "endDate": "2026-08-08",
+            "days": 3
+          },
+          "selection": {
+            "limits": {
+              "maxCandidates": 100,
+              "textByteBudget": 48000,
+              "mixCapFraction": 0.4
+            },
+            "corpusRecall": {
+              "eligibleCount": 1,
+              "selectedCount": 1,
+              "cappedOutCount": 0,
+              "budgetOutCount": 0,
+              "totalTextBytes": 109
+            },
+            "publishedRetention": {
+              "eligibleCount": 1,
+              "selectedCount": 1,
+              "cappedOutCount": 0,
+              "budgetOutCount": 0,
+              "totalTextBytes": 109
+            }
+          },
+          "versions": {
+            "actorRosterVersion": "iran-roster-v1",
+            "laneClassifierVersion": "iran-classifier-v1",
+            "extractorVersions": [],
+            "scopeVersion": "iran-update-scope-v1"
+          },
+          "matcher": {
+            "kind": "fixture-oracle",
+            "label": "fixture-oracle",
+            "votesK": null,
+            "model": null,
+            "corpusRecall": {
+              "label": "fixture-oracle",
+              "voteRounds": null
+            },
+            "publishedRetention": {
+              "label": "fixture-oracle",
+              "voteRounds": null
+            }
+          },
+          "voteAudit": {
+            "corpusRecall": null,
+            "publishedRetention": null
+          },
+          "lanes": [
+            {
+              "lane": "proxy_partner",
+              "units": 1,
+              "corpusRecall": {
+                "matched": 1,
+                "partial": 0,
+                "miss": 0
+              },
+              "publishedRetention": {
+                "matched": 1,
+                "partial": 0,
+                "miss": 0
+              },
+              "diagnostic": null
+            },
+            {
+              "lane": "maritime",
+              "units": 1,
+              "corpusRecall": {
+                "matched": 0,
+                "partial": 0,
+                "miss": 1
+              },
+              "publishedRetention": {
+                "matched": 0,
+                "partial": 0,
+                "miss": 1
+              },
+              "diagnostic": null
+            }
+          ],
+          "agreements": {
+            "corpusRecall": [
+              {
+                "unitId": "u0",
+                "lane": "proxy_partner",
+                "claims": [
+                  {
+                    "claimId": 9112,
+                    "coverage": "full",
+                    "confidence": null,
+                    "theater": "ir",
+                    "track": "military",
+                    "hedge": "claimed",
+                    "earliestIngestAt": "2026-08-08T05:00:00Z",
+                    "atCutoff": true,
+                    "atPublication": true,
+                    "independentSourceCount": 1,
+                    "legacy": false
+                  }
+                ]
+              }
+            ],
+            "publishedRetention": [
+              {
+                "unitId": "u0",
+                "lane": "proxy_partner",
+                "claims": [
+                  {
+                    "claimId": 9112,
+                    "coverage": "full",
+                    "confidence": null,
+                    "theater": "ir",
+                    "track": "military",
+                    "hedge": "claimed",
+                    "earliestIngestAt": "2026-08-08T05:00:00Z",
+                    "atCutoff": true,
+                    "atPublication": true,
+                    "independentSourceCount": 1,
+                    "legacy": false
+                  }
+                ]
+              }
+            ]
+          },
+          "referenceOnly": {
+            "corpusRecall": [
+              {
+                "unitId": "u1",
+                "lane": "maritime",
+                "verdict": "miss",
+                "missDiagnostic": null,
+                "compound": false,
+                "negative": false
+              }
+            ],
+            "publishedRetention": [
+              {
+                "unitId": "u1",
+                "lane": "maritime",
+                "verdict": "miss",
+                "missDiagnostic": null,
+                "compound": false,
+                "negative": false
+              }
+            ]
+          },
+          "bnowOnly": {
+            "corpusRecall": {
+              "count": 0
+            },
+            "publishedRetention": {
+              "count": 0,
+              "items": []
+            }
+          },
+          "multiUnitClaims": {
+            "corpusRecall": {},
+            "publishedRetention": {}
+          },
+          "independentSources": {
+            "corpusRecall": {
+              "u0": 1
+            },
+            "publishedRetention": {
+              "u0": 1
+            }
+          },
+          "thinSourced": {
+            "corpusRecall": {
+              "count": 1,
+              "denominator": 1
+            },
+            "publishedRetention": {
+              "count": 1,
+              "denominator": 1
+            }
+          },
+          "timing": {
+            "corpusRecall": {
+              "medianLeadHoursByIngest": 16.5,
+              "medianLeadHoursBySourceDeclared": 17,
+              "agreements": 1
+            },
+            "publishedRetention": {
+              "medianLeadHoursByIngest": 16.5,
+              "medianLeadHoursBySourceDeclared": 17,
+              "agreements": 1
+            }
+          },
+          "contributionTotals": {
+            "nonAdditive": true,
+            "byTheater": {
+              "ir": 1
+            },
+            "byTrack": {
+              "military": 1
+            },
+            "bySource": {
+              "regional-alerts.example": 1
+            }
+          },
+          "contributionPublishedRetention": {
+            "u0": {
+              "theaters": [
+                "ir"
+              ],
+              "tracks": [
+                "military"
+              ],
+              "sources": [
+                "regional-alerts.example"
+              ]
+            }
+          },
+          "runGroupKey": "iran_regional|iran_update:2026-08-08:final|retrospective|conflict-epoch-1|fixture-oracle|k=0",
+          "snapshot": {
+            "ref": null
+          }
+        }
+      },
+      "humanLabels": null,
+      "graderJudgments": null,
+      "rawOutputDigest": "7db2b8b0b27afdf6f1cf9c5fb2abc4865975f392b270d506d0ba7fe253c72a16",
+      "fixtureId": "iran-two-events-011"
+    },
+    "iran-gulf-unavailable-010b#r0": {
+      "caseId": "iran-gulf-unavailable-010b",
+      "datasetVersion": "conflict-iran-v1",
+      "runId": "offline-conflict-iran-v1",
+      "configKey": "offline-fixtures",
+      "repetition": 0,
+      "attempt": 0,
+      "status": "scored",
+      "latencyMs": null,
+      "promptTokens": null,
+      "completionTokens": null,
+      "estUsd": null,
+      "checks": {
+        "pass": true,
+        "failures": [],
+        "conflictChecksVersion": 1,
+        "goldenKey": "iran-gulf-unavailable-010b",
+        "goldenByteMatch": true,
+        "state": "scored",
+        "conflictResultV1": {
+          "version": 1,
+          "conflictId": "iran_regional",
+          "methodologyEpoch": "conflict-epoch-1",
+          "laneTaxonomyVersion": "iran-lanes-v1",
+          "evidencePolicyVersion": "iran-ev-v1",
+          "evaluationKind": "retrospective",
+          "state": "scored",
+          "report": {
+            "series": "iran_update",
+            "editionKey": "iran_update:2026-08-08:final",
+            "reportDate": "2026-08-08",
+            "cutoffAt": "2026-08-08T16:00:00Z",
+            "publishedAt": "2026-08-08T21:30:00Z",
+            "scopeVersion": "iran-update-scope-v1"
+          },
+          "windowEndSource": "cutoff",
+          "headline": {
+            "corpusRecall": {
+              "matched": 0,
+              "denominator": 1
+            },
+            "publishedRetention": {
+              "matched": 1,
+              "denominator": 1
+            }
+          },
+          "corpusRecall": {
+            "u0": "miss"
+          },
+          "publishedRetention": {
+            "u0": "matched"
+          },
+          "missDiagnostic": {
+            "u0": "incomparable_coverage"
+          },
+          "laneDiagnostics": {
+            "maritime": "unavailable_incomparable"
+          },
+          "matcherRung": "fixture-oracle",
+          "contribution": {},
+          "headlineLabel": "Key Takeaway benchmark coverage",
+          "window": {
+            "reportDate": "2026-08-08",
+            "cutoffAtRaw": "2026-08-08T16:00:00Z",
+            "publishedAtRaw": "2026-08-08T21:30:00Z",
+            "cutoffTreatment": "present",
+            "publishedTreatment": "present",
+            "windowEndSource": "cutoff",
+            "startDate": "2026-08-06",
+            "endDate": "2026-08-08",
+            "days": 3
+          },
+          "selection": {
+            "limits": {
+              "maxCandidates": 100,
+              "textByteBudget": 48000,
+              "mixCapFraction": 0.4
+            },
+            "corpusRecall": {
+              "eligibleCount": 0,
+              "selectedCount": 0,
+              "cappedOutCount": 0,
+              "budgetOutCount": 0,
+              "totalTextBytes": 0
+            },
+            "publishedRetention": {
+              "eligibleCount": 1,
+              "selectedCount": 1,
+              "cappedOutCount": 0,
+              "budgetOutCount": 0,
+              "totalTextBytes": 113
+            }
+          },
+          "versions": {
+            "actorRosterVersion": "iran-roster-v1",
+            "laneClassifierVersion": "iran-classifier-v1",
+            "extractorVersions": [],
+            "scopeVersion": "iran-update-scope-v1"
+          },
+          "matcher": {
+            "kind": "fixture-oracle",
+            "label": "fixture-oracle",
+            "votesK": null,
+            "model": null,
+            "corpusRecall": {
+              "label": "fixture-oracle",
+              "voteRounds": null
+            },
+            "publishedRetention": {
+              "label": "fixture-oracle",
+              "voteRounds": null
+            }
+          },
+          "voteAudit": {
+            "corpusRecall": null,
+            "publishedRetention": null
+          },
+          "lanes": [
+            {
+              "lane": "maritime",
+              "units": 1,
+              "corpusRecall": {
+                "matched": 0,
+                "partial": 0,
+                "miss": 1
+              },
+              "publishedRetention": {
+                "matched": 1,
+                "partial": 0,
+                "miss": 0
+              },
+              "diagnostic": "unavailable_incomparable"
+            }
+          ],
+          "agreements": {
+            "corpusRecall": [],
+            "publishedRetention": [
+              {
+                "unitId": "u0",
+                "lane": "maritime",
+                "claims": [
+                  {
+                    "claimId": 9111,
+                    "coverage": "full",
+                    "confidence": null,
+                    "theater": "bh",
+                    "track": "military",
+                    "hedge": "claimed",
+                    "earliestIngestAt": "2026-08-07T12:45:00Z",
+                    "atCutoff": true,
+                    "atPublication": true,
+                    "independentSourceCount": 1,
+                    "legacy": true
+                  }
+                ]
+              }
+            ]
+          },
+          "referenceOnly": {
+            "corpusRecall": [
+              {
+                "unitId": "u0",
+                "lane": "maritime",
+                "verdict": "miss",
+                "missDiagnostic": "incomparable_coverage",
+                "compound": false,
+                "negative": false
+              }
+            ],
+            "publishedRetention": []
+          },
+          "bnowOnly": {
+            "corpusRecall": {
+              "count": 0
+            },
+            "publishedRetention": {
+              "count": 0,
+              "items": []
+            }
+          },
+          "multiUnitClaims": {
+            "corpusRecall": {},
+            "publishedRetention": {}
+          },
+          "independentSources": {
+            "corpusRecall": {},
+            "publishedRetention": {
+              "u0": 1
+            }
+          },
+          "thinSourced": {
+            "corpusRecall": {
+              "count": 0,
+              "denominator": 0
+            },
+            "publishedRetention": {
+              "count": 1,
+              "denominator": 1
+            }
+          },
+          "timing": {
+            "corpusRecall": {
+              "medianLeadHoursByIngest": null,
+              "medianLeadHoursBySourceDeclared": null,
+              "agreements": 0
+            },
+            "publishedRetention": {
+              "medianLeadHoursByIngest": 32.8,
+              "medianLeadHoursBySourceDeclared": 33.5,
+              "agreements": 1
+            }
+          },
+          "contributionTotals": {
+            "nonAdditive": true,
+            "byTheater": {},
+            "byTrack": {},
+            "bySource": {}
+          },
+          "contributionPublishedRetention": {
+            "u0": {
+              "theaters": [
+                "bh"
+              ],
+              "tracks": [
+                "military"
+              ],
+              "sources": [
+                "gulf-defense-wire.example"
+              ]
+            }
+          },
+          "runGroupKey": "iran_regional|iran_update:2026-08-08:final|retrospective|conflict-epoch-1|fixture-oracle|k=0",
+          "snapshot": {
+            "ref": null
+          }
+        }
+      },
+      "humanLabels": null,
+      "graderJudgments": null,
+      "rawOutputDigest": "ba662a5ad0894b92712c2f459a17b5ec8d4212d39f97257671926502c4be1114",
+      "fixtureId": "iran-gulf-unavailable-010b"
+    },
+    "cc-publication-gap-002#r0": {
+      "caseId": "cc-publication-gap-002",
+      "datasetVersion": "conflict-iran-v1",
+      "runId": "offline-conflict-iran-v1",
+      "configKey": "offline-fixtures",
+      "repetition": 0,
+      "attempt": 0,
+      "status": "scored",
+      "latencyMs": null,
+      "promptTokens": null,
+      "completionTokens": null,
+      "estUsd": null,
+      "checks": {
+        "pass": true,
+        "failures": [],
+        "conflictChecksVersion": 1,
+        "goldenKey": "cc-publication-gap-002",
+        "goldenByteMatch": true,
+        "state": "unavailable",
+        "conflictResultV1": {
+          "version": 1,
+          "conflictId": "iran_regional",
+          "methodologyEpoch": "conflict-epoch-1",
+          "laneTaxonomyVersion": "iran-lanes-v1",
+          "evidencePolicyVersion": "iran-ev-v1",
+          "evaluationKind": "retrospective",
+          "state": "unavailable",
+          "unavailableReason": "publication_gap",
+          "series": "iran_update",
+          "gapDate": "2026-08-11"
+        }
+      },
+      "humanLabels": null,
+      "graderJudgments": null,
+      "rawOutputDigest": "a1480c2309d2ee5f68444c8fb401400f332f091e320076a22cc9d6ac5bcaf60f",
+      "fixtureId": "cc-publication-gap-002"
+    },
+    "cc-state-zero-empty-015#r0": {
+      "caseId": "cc-state-zero-empty-015",
+      "datasetVersion": "conflict-iran-v1",
+      "runId": "offline-conflict-iran-v1",
+      "configKey": "offline-fixtures",
+      "repetition": 0,
+      "attempt": 0,
+      "status": "scored",
+      "latencyMs": null,
+      "promptTokens": null,
+      "completionTokens": null,
+      "estUsd": null,
+      "checks": {
+        "pass": true,
+        "failures": [],
+        "conflictChecksVersion": 1,
+        "goldenKey": "cc-state-zero-empty-015",
+        "goldenByteMatch": true,
+        "state": "scored",
+        "conflictResultV1": {
+          "version": 1,
+          "conflictId": "iran_regional",
+          "methodologyEpoch": "conflict-epoch-1",
+          "laneTaxonomyVersion": "iran-lanes-v1",
+          "evidencePolicyVersion": "iran-ev-v1",
+          "evaluationKind": "retrospective",
+          "state": "scored",
+          "report": {
+            "series": "iran_update",
+            "editionKey": "iran_update:2026-08-08:final",
+            "reportDate": "2026-08-08",
+            "cutoffAt": "2026-08-08T16:00:00Z",
+            "publishedAt": "2026-08-08T21:30:00Z",
+            "scopeVersion": "iran-update-scope-v1"
+          },
+          "windowEndSource": "cutoff",
+          "headline": {
+            "corpusRecall": {
+              "matched": 0,
+              "denominator": 1
+            },
+            "publishedRetention": {
+              "matched": 0,
+              "denominator": 1
+            }
+          },
+          "corpusRecall": {
+            "u0": "miss"
+          },
+          "publishedRetention": {
+            "u0": "miss"
+          },
+          "matcherRung": "fixture-oracle",
+          "contribution": {},
+          "headlineLabel": "Key Takeaway benchmark coverage",
+          "window": {
+            "reportDate": "2026-08-08",
+            "cutoffAtRaw": "2026-08-08T16:00:00Z",
+            "publishedAtRaw": "2026-08-08T21:30:00Z",
+            "cutoffTreatment": "present",
+            "publishedTreatment": "present",
+            "windowEndSource": "cutoff",
+            "startDate": "2026-08-06",
+            "endDate": "2026-08-08",
+            "days": 3
+          },
+          "selection": {
+            "limits": {
+              "maxCandidates": 100,
+              "textByteBudget": 48000,
+              "mixCapFraction": 0.4
+            },
+            "corpusRecall": {
+              "eligibleCount": 0,
+              "selectedCount": 0,
+              "cappedOutCount": 0,
+              "budgetOutCount": 0,
+              "totalTextBytes": 0
+            },
+            "publishedRetention": {
+              "eligibleCount": 0,
+              "selectedCount": 0,
+              "cappedOutCount": 0,
+              "budgetOutCount": 0,
+              "totalTextBytes": 0
+            }
+          },
+          "versions": {
+            "actorRosterVersion": "iran-roster-v1",
+            "laneClassifierVersion": "iran-classifier-v1",
+            "extractorVersions": [],
+            "scopeVersion": "iran-update-scope-v1"
+          },
+          "matcher": {
+            "kind": "fixture-oracle",
+            "label": "fixture-oracle",
+            "votesK": null,
+            "model": null,
+            "corpusRecall": {
+              "label": "fixture-oracle",
+              "voteRounds": null
+            },
+            "publishedRetention": {
+              "label": "fixture-oracle",
+              "voteRounds": null
+            }
+          },
+          "voteAudit": {
+            "corpusRecall": null,
+            "publishedRetention": null
+          },
+          "lanes": [
+            {
+              "lane": "proxy_partner",
+              "units": 1,
+              "corpusRecall": {
+                "matched": 0,
+                "partial": 0,
+                "miss": 1
+              },
+              "publishedRetention": {
+                "matched": 0,
+                "partial": 0,
+                "miss": 1
+              },
+              "diagnostic": null
+            }
+          ],
+          "agreements": {
+            "corpusRecall": [],
+            "publishedRetention": []
+          },
+          "referenceOnly": {
+            "corpusRecall": [
+              {
+                "unitId": "u0",
+                "lane": "proxy_partner",
+                "verdict": "miss",
+                "missDiagnostic": null,
+                "compound": false,
+                "negative": false
+              }
+            ],
+            "publishedRetention": [
+              {
+                "unitId": "u0",
+                "lane": "proxy_partner",
+                "verdict": "miss",
+                "missDiagnostic": null,
+                "compound": false,
+                "negative": false
+              }
+            ]
+          },
+          "bnowOnly": {
+            "corpusRecall": {
+              "count": 0
+            },
+            "publishedRetention": {
+              "count": 0,
+              "items": []
+            }
+          },
+          "multiUnitClaims": {
+            "corpusRecall": {},
+            "publishedRetention": {}
+          },
+          "independentSources": {
+            "corpusRecall": {},
+            "publishedRetention": {}
+          },
+          "thinSourced": {
+            "corpusRecall": {
+              "count": 0,
+              "denominator": 0
+            },
+            "publishedRetention": {
+              "count": 0,
+              "denominator": 0
+            }
+          },
+          "timing": {
+            "corpusRecall": {
+              "medianLeadHoursByIngest": null,
+              "medianLeadHoursBySourceDeclared": null,
+              "agreements": 0
+            },
+            "publishedRetention": {
+              "medianLeadHoursByIngest": null,
+              "medianLeadHoursBySourceDeclared": null,
+              "agreements": 0
+            }
+          },
+          "contributionTotals": {
+            "nonAdditive": true,
+            "byTheater": {},
+            "byTrack": {},
+            "bySource": {}
+          },
+          "contributionPublishedRetention": {},
+          "runGroupKey": "iran_regional|iran_update:2026-08-08:final|retrospective|conflict-epoch-1|fixture-oracle|k=0",
+          "snapshot": {
+            "ref": null
+          }
+        }
+      },
+      "humanLabels": null,
+      "graderJudgments": null,
+      "rawOutputDigest": "81623bfd3e6f7fd85126122428a15734ccf286e9532c196dc1528fb5f81f3e3b",
+      "fixtureId": "cc-state-zero-empty-015"
+    },
+    "cc-vague-claim-019#r0": {
+      "caseId": "cc-vague-claim-019",
+      "datasetVersion": "conflict-iran-v1",
+      "runId": "offline-conflict-iran-v1",
+      "configKey": "offline-fixtures",
+      "repetition": 0,
+      "attempt": 0,
+      "status": "scored",
+      "latencyMs": null,
+      "promptTokens": null,
+      "completionTokens": null,
+      "estUsd": null,
+      "checks": {
+        "pass": true,
+        "failures": [],
+        "conflictChecksVersion": 1,
+        "goldenKey": "cc-vague-claim-019",
+        "goldenByteMatch": true,
+        "state": "scored",
+        "conflictResultV1": {
+          "version": 1,
+          "conflictId": "iran_regional",
+          "methodologyEpoch": "conflict-epoch-1",
+          "laneTaxonomyVersion": "iran-lanes-v1",
+          "evidencePolicyVersion": "iran-ev-v1",
+          "evaluationKind": "retrospective",
+          "state": "scored",
+          "report": {
+            "series": "iran_update",
+            "editionKey": "iran_update:2026-08-09:final",
+            "reportDate": "2026-08-09",
+            "cutoffAt": "2026-08-09T16:00:00Z",
+            "publishedAt": "2026-08-09T21:30:00Z",
+            "scopeVersion": "iran-update-scope-v1"
+          },
+          "windowEndSource": "cutoff",
+          "headline": {
+            "corpusRecall": {
+              "matched": 1,
+              "denominator": 2
+            },
+            "publishedRetention": {
+              "matched": 1,
+              "denominator": 2
+            }
+          },
+          "corpusRecall": {
+            "u0": "matched",
+            "u1": "miss"
+          },
+          "publishedRetention": {
+            "u0": "matched",
+            "u1": "miss"
+          },
+          "matcherRung": "fixture-oracle",
+          "contribution": {
+            "u0": {
+              "theaters": [
+                "ir"
+              ],
+              "tracks": [
+                "military"
+              ],
+              "sources": [
+                "maritime-monitor.example"
+              ]
+            }
+          },
+          "headlineLabel": "Key Takeaway benchmark coverage",
+          "window": {
+            "reportDate": "2026-08-09",
+            "cutoffAtRaw": "2026-08-09T16:00:00Z",
+            "publishedAtRaw": "2026-08-09T21:30:00Z",
+            "cutoffTreatment": "present",
+            "publishedTreatment": "present",
+            "windowEndSource": "cutoff",
+            "startDate": "2026-08-07",
+            "endDate": "2026-08-09",
+            "days": 3
+          },
+          "selection": {
+            "limits": {
+              "maxCandidates": 100,
+              "textByteBudget": 48000,
+              "mixCapFraction": 0.4
+            },
+            "corpusRecall": {
+              "eligibleCount": 2,
+              "selectedCount": 2,
+              "cappedOutCount": 0,
+              "budgetOutCount": 0,
+              "totalTextBytes": 221
+            },
+            "publishedRetention": {
+              "eligibleCount": 2,
+              "selectedCount": 2,
+              "cappedOutCount": 0,
+              "budgetOutCount": 0,
+              "totalTextBytes": 221
+            }
+          },
+          "versions": {
+            "actorRosterVersion": "iran-roster-v1",
+            "laneClassifierVersion": "iran-classifier-v1",
+            "extractorVersions": [],
+            "scopeVersion": "iran-update-scope-v1"
+          },
+          "matcher": {
+            "kind": "fixture-oracle",
+            "label": "fixture-oracle",
+            "votesK": null,
+            "model": null,
+            "corpusRecall": {
+              "label": "fixture-oracle",
+              "voteRounds": null
+            },
+            "publishedRetention": {
+              "label": "fixture-oracle",
+              "voteRounds": null
+            }
+          },
+          "voteAudit": {
+            "corpusRecall": null,
+            "publishedRetention": null
+          },
+          "lanes": [
+            {
+              "lane": "maritime",
+              "units": 2,
+              "corpusRecall": {
+                "matched": 1,
+                "partial": 0,
+                "miss": 1
+              },
+              "publishedRetention": {
+                "matched": 1,
+                "partial": 0,
+                "miss": 1
+              },
+              "diagnostic": null
+            }
+          ],
+          "agreements": {
+            "corpusRecall": [
+              {
+                "unitId": "u0",
+                "lane": "maritime",
+                "claims": [
+                  {
+                    "claimId": 9402,
+                    "coverage": "full",
+                    "confidence": null,
+                    "theater": "ir",
+                    "track": "military",
+                    "hedge": "claimed",
+                    "earliestIngestAt": "2026-08-09T09:55:00Z",
+                    "atCutoff": true,
+                    "atPublication": true,
+                    "independentSourceCount": 1,
+                    "legacy": false
+                  }
+                ]
+              }
+            ],
+            "publishedRetention": [
+              {
+                "unitId": "u0",
+                "lane": "maritime",
+                "claims": [
+                  {
+                    "claimId": 9402,
+                    "coverage": "full",
+                    "confidence": null,
+                    "theater": "ir",
+                    "track": "military",
+                    "hedge": "claimed",
+                    "earliestIngestAt": "2026-08-09T09:55:00Z",
+                    "atCutoff": true,
+                    "atPublication": true,
+                    "independentSourceCount": 1,
+                    "legacy": false
+                  }
+                ]
+              }
+            ]
+          },
+          "referenceOnly": {
+            "corpusRecall": [
+              {
+                "unitId": "u1",
+                "lane": "maritime",
+                "verdict": "miss",
+                "missDiagnostic": null,
+                "compound": false,
+                "negative": false
+              }
+            ],
+            "publishedRetention": [
+              {
+                "unitId": "u1",
+                "lane": "maritime",
+                "verdict": "miss",
+                "missDiagnostic": null,
+                "compound": false,
+                "negative": false
+              }
+            ]
+          },
+          "bnowOnly": {
+            "corpusRecall": {
+              "count": 1
+            },
+            "publishedRetention": {
+              "count": 1,
+              "items": [
+                {
+                  "claimId": 9401,
+                  "lane": "maritime",
+                  "theater": "ir",
+                  "track": "military",
+                  "hedge": "claimed",
+                  "legacy": false
+                }
+              ]
+            }
+          },
+          "multiUnitClaims": {
+            "corpusRecall": {},
+            "publishedRetention": {}
+          },
+          "independentSources": {
+            "corpusRecall": {
+              "u0": 1
+            },
+            "publishedRetention": {
+              "u0": 1
+            }
+          },
+          "thinSourced": {
+            "corpusRecall": {
+              "count": 2,
+              "denominator": 2
+            },
+            "publishedRetention": {
+              "count": 2,
+              "denominator": 2
+            }
+          },
+          "timing": {
+            "corpusRecall": {
+              "medianLeadHoursByIngest": 11.6,
+              "medianLeadHoursBySourceDeclared": 12.3,
+              "agreements": 1
+            },
+            "publishedRetention": {
+              "medianLeadHoursByIngest": 11.6,
+              "medianLeadHoursBySourceDeclared": 12.3,
+              "agreements": 1
+            }
+          },
+          "contributionTotals": {
+            "nonAdditive": true,
+            "byTheater": {
+              "ir": 1
+            },
+            "byTrack": {
+              "military": 1
+            },
+            "bySource": {
+              "maritime-monitor.example": 1
+            }
+          },
+          "contributionPublishedRetention": {
+            "u0": {
+              "theaters": [
+                "ir"
+              ],
+              "tracks": [
+                "military"
+              ],
+              "sources": [
+                "maritime-monitor.example"
+              ]
+            }
+          },
+          "runGroupKey": "iran_regional|iran_update:2026-08-09:final|retrospective|conflict-epoch-1|fixture-oracle|k=0",
+          "snapshot": {
+            "ref": null
+          }
+        }
+      },
+      "humanLabels": null,
+      "graderJudgments": null,
+      "rawOutputDigest": "67eeec171aa04db7a849ec6d322620a6b313d3775ace19dd00f7af12643ff4fd",
+      "fixtureId": "cc-vague-claim-019"
+    }
+  }
+}
