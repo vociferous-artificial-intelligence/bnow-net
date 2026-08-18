@@ -268,8 +268,8 @@ Eleven gates per prompt §15. Full detail:
 | 3 | typecheck | `npm run typecheck` | clean |
 | 4 | lint | `npm run lint` | clean (0 errors / 0 warnings) |
 | 5 | unit | `npm test` | **3,194 passed / 3,194 (227 files)** — P6 close 3,175/226 + 19 backtest cases in 1 file; zero regressions (base `7150b49` = 2,402/185) |
-| 6 | production build | `npm run build`, `env -i`, `CONFLICTS_UI` ABSENT, unroutable `DATABASE_URL`, `LLM_DISABLE=1` | **PASS**, warning-free; all four conflict routes `ƒ (dynamic)`. Gate-6 reviewer's flag-ON build against an unroutable DB (every page 200, zero runtime DB dependency) cited, not re-run |
-| 7 | integration (full) | `npm run test:integration`, inline-env pattern (NEON keys + DATABASE_URL grepped inline from the ordinary checkout's `.env.local`, never copied/echoed), paid keys blanked, `LLM_DISABLE=1` | **150 passed / 150 (21 files)** — disposable branch `br-wandering-cherry-atk3f7wh` created and deleted; 99.85 s |
+| 6 | production build | `npm run build`, `env -i`, `CONFLICTS_UI` ABSENT, unroutable `DATABASE_URL`, `LLM_DISABLE=1` | **PASS**, warning-free; all four conflict routes `ƒ (dynamic)`. Gate-6 reviewer's flag-ON build against an unroutable DB (every page 200, zero runtime DB dependency) cited, not re-run. **Measured at `ad10fbd`** — re-run at the final SHA, see § Final-SHA gate closeout |
+| 7 | integration (full) | `npm run test:integration`, inline-env pattern (NEON keys + DATABASE_URL grepped inline from the ordinary checkout's `.env.local`, never copied/echoed), paid keys blanked, `LLM_DISABLE=1` | **150 passed / 150 (21 files)** — disposable branch `br-wandering-cherry-atk3f7wh` created and deleted; 99.85 s. **Measured at `ad10fbd`; SUPERSEDED** — the final-SHA re-run is **151/151 (21 files)**, see § Final-SHA gate closeout |
 | 8 | CLIs, zero-provider proof | `--profile conflict` × validate-dataset / estimate / offline / offline --fresh / report, under `env -i`; then 8 refusal probes WITH a fake OpenAI key, fake Anthropic key, `EVAL_USD_CAP_DAILY=99`, fake `DATABASE_URL` | all modes exit 0 with zero provider contact (validate 8+6 cases; estimate \$0.0031 explicitly hypothetical; `--fresh` byte-identical except one `updatedAt` line per file; report verdicts `insufficient_data`, honest); **all 8 refusals exit 2 before any client construction** (equals-form incl. uppercase/short-dash, `--execute-live` under the profile, unknown profile, unknown conflict id, workload/profile clash, generic live db-ack) |
 | 9 | browser matrix | cited from Gate 6; artifacts verified present | author matrix `p6-browser/` 56 files (36 PNG + 3 PDF) incl. the found-and-fixed 390 px overflow (`50761e7`); reviewer reproduction `gate6-shots/` (10, incl. 390 RTL + print PDFs) + `gate6-html/` (17) with a driven 33-stop Tab-walk and measured contrast (worst 5.03:1) |
 | 10 | source scan | range-wide greps + the committed sentinel-audit tests | **no client construction, no retry config, no SDK import, no SpendGuard/metering touch, no env file, no credential** in the whole range; the only secret-shaped string is a deliberate unroutable fake DSN in a refusal test; both committed results artifacts are `configKey=offline-fixtures` with no cost/model/key fields; every prose/sentinel audit green |
@@ -324,3 +324,62 @@ adjudication, the assessment/inference diagnostic class, the keyword rung's
 `insufficient_data` return (register #12 — all three BLOCK the soak), and the
 reference-URL/unit-ordinal profile change (P7 §5.2 item 4b — blocks
 enablement).
+
+## Final-SHA gate closeout (2026-08-18, gates run at `6b35622`)
+
+Both gates below were executed with `HEAD` = `6b35622` and a clean tree. This
+section is itself a **docs-only** commit placed on top of that SHA, so it
+changes no source and the numbers remain valid at the resulting tip; resolve
+that tip with
+`git rev-parse --short codex/conflict-evaluations-integration-20260817`.
+
+**Why this section exists.** An audit of the gate record found that the
+Phase-7 eleven-gate battery above ran at **`ad10fbd`**, and that FOUR
+source-changing commits landed after it:
+
+| Commit | Subject | Source touched |
+|---|---|---|
+| `abbd807` | harden candidate intake; dedupe independence; bind the query row grain | `eligibility.ts`, `evidence-assembler.ts`, `evidence-records.ts`, `fixture-corpus.ts` + tests |
+| `ae45bc1` | pin the ruling-3 synthetic banner on every conflict route | 4 route tests **+ `src/integration/conflict-feature-off.itest.ts`** |
+| `06e80df` | report incomparable coverage, empty corpora, and demonstrations honestly | 3 conflict routes, `presence-module.tsx`, `product-view.ts` |
+| `f58858d` | isolate numeric runs for RTL; logical table alignment; unique link names | `benchmark-run-list.tsx`, `lane-table.tsx`, `model.tsx` + new `localization.test.tsx` |
+
+Total source delta `ad10fbd..6b35622` (`git diff --stat -- ':!*.md'`):
+**22 files, +685 / −63**. The remaining commits in that range (`de3acc4`,
+`35c5c34`, `b8341e9`, `a065490`, `6b35622`) are docs-only.
+
+The closeout-remediation table above re-ran typecheck, lint, unit, golden
+drift, clean diff, and the banner mutation proof — but **NOT the production
+build and NOT the integration suite**. So until this section, those two gates
+had never been executed against the final tree, and the published integration
+figure of **150 was stale**: `ae45bc1` added one case to
+`conflict-feature-off.itest.ts` (23 → 24 tests in that file).
+
+**Re-run at the final SHA** (`git rev-parse --short HEAD` = `6b35622`, tree
+clean before the run; local only — no push, no deploy, no env-file edit, no
+production DB, zero paid provider calls):
+
+| Gate | Command | Result |
+|---|---|---|
+| 6 production build | `npm run build`, `CONFLICTS_UI` ABSENT, `DATABASE_URL=postgres://u:p@127.0.0.1:1/nodb`, `OPENAI_API_KEY=`/`ANTHROPIC_API_KEY=`/`X_API_KEY=`/`OPENSANCTIONS_API_KEY=`/`POSTMARK_SERVER_TOKEN=`/`NEON_API_KEY=` blanked inline, `LLM_DISABLE=1` | **PASS** (exit 0), **warning-free** — zero `warn`/`error`/`failed`/`deopt` lines in the whole log; compiled in 2.3 s, TypeScript 4.4 s, 8/8 static pages. All four conflict routes are **`ƒ (dynamic)`**: `/conflicts`, `/conflicts/[slug]`, `/conflicts/[slug]/benchmark/[key]`, `/conflicts/[slug]/benchmark/[key]/evidence`. That the build completes against a DSN pointing at `127.0.0.1:1` proves there is **no build-time DB dependency**; it is not by itself a claim about runtime |
+| 7 integration (full) | `npm run test:integration`, inline-env pattern (NEON keys + `DATABASE_URL` grepped inline from the ordinary checkout's `.env.local`, never copied or echoed), paid keys blanked, `LLM_DISABLE=1` | **151 passed / 151 (21 files)** (exit 0), 105.13 s. Disposable fork `br-quiet-tree-at8225qt` **created and deleted** — the delete-on-exit trap reported `deleted br-quiet-tree-at8225qt` with no `WARNING`, so no branch leaked |
+| unit (re-confirm, docs-only edit) | `npm test` | **3,212 passed / 3,212 (228 files)** — unchanged, as required for a docs-only commit |
+
+**Delta accounting, integration 150 → 151.** Exactly +1, entirely in
+`conflict-feature-off.itest.ts` (24 tests at this SHA vs 23 at `ad10fbd`): the
+`ae45bc1` case *"every flag-ON teaser body carries the ruling-3
+synthetic-corpus disclosure"*, which asserts the disclosure token in every
+real rendered teaser BODY. `conflict-reference-repo.itest.ts` is unchanged at
+8. No other file moved, and no test that passed at `ad10fbd` regressed.
+
+**Honest statement of record.** The Phase-7 eleven-gate battery documented
+above **predates the four closeout source commits** and is therefore not, on
+its own, evidence about the shipped tree. Gates 6 and 7 are now closed at the
+true final SHA with the numbers in this section; the other nine Phase-7 gates
+were NOT re-run here, and gates 2, 8, 9, 10 in particular still carry their
+`ad10fbd` provenance — of these, gate 9 (browser matrix) is the one most
+exposed to the closeout commits, since `06e80df` and `f58858d` changed
+rendering and localization in three routes and three components. Their
+replacement pins are the unit-level coverage added in the same commits
+(`localization.test.tsx`, the four per-route banner assertions) plus the
+final-SHA integration body assertions above, not a re-driven browser run.

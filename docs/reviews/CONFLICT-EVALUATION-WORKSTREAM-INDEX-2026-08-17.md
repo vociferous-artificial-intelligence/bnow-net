@@ -113,10 +113,20 @@ their documented extension points:
   scorer or matcher behavior change as a merge condition. Verdicts and
   per-finding dispositions: P7 report §11; gate numbers: test ledger Gate 7.
 - Unit **3,212 / 3,212 (228 files)** after the closeout rounds (Gate-7 entry
-  3,194/227 + 18 new cases; zero regressions) · integration **150 / 150
-  (21 files)** · typecheck clean · lint clean · production build PASS (flag
-  absent) · `git diff --check` clean · committed goldens **byte-identical**
-  through all three rounds.
+  3,194/227 + 18 new cases; zero regressions) · integration **151 / 151
+  (21 files)** · typecheck clean · lint clean · production build PASS,
+  warning-free, all four conflict routes `ƒ (dynamic)` (flag absent) ·
+  `git diff --check` clean · committed goldens **byte-identical** through all
+  three rounds.
+  The integration and build figures above are the **final-SHA re-run**
+  (2026-08-18, gates executed at `6b35622` with a clean tree; only docs-only
+  commits sit on top of it). The Phase-7 gate battery had run at `ad10fbd`,
+  BEFORE the four source-changing closeout commits `abbd807`, `ae45bc1`,
+  `06e80df`, `f58858d`; `ae45bc1` added one case to
+  `conflict-feature-off.itest.ts`, which is exactly why the previously
+  published integration figure of **150 was stale**. Detail, including which
+  gates were re-run and which were not: test ledger
+  § "Final-SHA gate closeout".
 - **Blocking obligations recorded, not silently carried:** register **#11**
   (compound attestation AS SHIPPED, provisional, narrower than contract §3)
   and register **#12** (three BLOCKING prerequisites before any shadow soak —
