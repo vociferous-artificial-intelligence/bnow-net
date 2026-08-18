@@ -12,10 +12,11 @@
 // metadata only), so the formatter cannot leak any — pinned by the
 // serialized-output audit test.
 
-import type {
-  ConflictLaneCoverageRowV1,
-  ConflictResultV1,
-  ConflictScoredResultV1,
+import {
+  assertPersistableConflictResultV1,
+  type ConflictLaneCoverageRowV1,
+  type ConflictResultV1,
+  type ConflictScoredResultV1,
 } from "./eval-profile";
 import type { HeadlineCount } from "./vocabulary";
 
@@ -44,6 +45,13 @@ function scoredReport(result: ConflictScoredResultV1): string {
   lines.push(`- Corpus recall (pipeline question 1): ${ratio(result.headline.corpusRecall)}`);
   lines.push(
     `- Published retention (pipeline question 2): ${ratio(result.headline.publishedRetention)}`,
+  );
+  lines.push("");
+  // contract §0 non-independence caveat, rendered WHEREVER headline coverage
+  // renders (shipped early at Gate-4; Phase 6's own explainer obligation on
+  // its user-facing surfaces is unchanged)
+  lines.push(
+    "Coverage is agreement with the named expert benchmark; ISW/CTP reads many of the same open sources as BNOW — agreement is not independent confirmation.",
   );
   if (result.headline.partialDiagnostic !== undefined) {
     lines.push(
@@ -96,17 +104,32 @@ function scoredReport(result: ConflictScoredResultV1): string {
       `- Information lead (BNOW ingest vs report publication): corpus recall median ${hours(timing.corpusRecall.medianLeadHoursByIngest)} · source-declared publish (separate) ${hours(timing.corpusRecall.medianLeadHoursBySourceDeclared)}`,
     );
   }
-  lines.push(
-    `- BNOW-only in-scope items: corpus recall ${result.bnowOnly?.corpusRecall.count ?? 0} (internal count) · published retention ${result.bnowOnly?.publishedRetention.count ?? 0} (renderable population)`,
-  );
+  // presence is guaranteed by the persistence gate at the entry point — no
+  // fabricated zeros for missing stamps (Gate-4 MINOR-3)
+  const bnowOnly = result.bnowOnly;
+  if (bnowOnly !== undefined) {
+    lines.push(
+      `- BNOW-only in-scope items: corpus recall ${bnowOnly.corpusRecall.count} (internal count) · published retention ${bnowOnly.publishedRetention.count} (renderable population)`,
+    );
+  }
   lines.push("");
   lines.push("## Method stamps");
   lines.push("");
   const matcher = result.matcher;
   if (matcher !== undefined) {
-    lines.push(
-      `- Matcher: kind ${matcher.kind}, label ${matcher.label}, votes k=${matcher.votesK ?? "—"}, model ${matcher.model ?? "none"}`,
-    );
+    if (matcher.corpusRecall.label !== matcher.publishedRetention.label) {
+      // MIXED rungs: render BOTH per-population labels explicitly — the
+      // combined more-degraded label beside a non-null votesK would read as
+      // "keyword with k=5" (Gate-4 MINOR-3 under-disclosure)
+      const k = (rounds: number | null): string => (rounds === null ? "" : ` (k=${rounds})`);
+      lines.push(
+        `- Matcher: kind ${matcher.kind} — MIXED rungs: corpus recall ${matcher.corpusRecall.label}${k(matcher.corpusRecall.voteRounds)} · published retention ${matcher.publishedRetention.label}${k(matcher.publishedRetention.voteRounds)} — degraded; the degraded rung governs the headline label (${matcher.label}); model ${matcher.model ?? "none"}`,
+      );
+    } else {
+      lines.push(
+        `- Matcher: kind ${matcher.kind}, label ${matcher.label}, votes k=${matcher.votesK ?? "—"}, model ${matcher.model ?? "none"}`,
+      );
+    }
   }
   const window = result.window;
   if (window !== undefined) {
@@ -135,9 +158,15 @@ function hours(value: number | null): string {
   return value === null ? "unknown" : `${value}h`;
 }
 
-/** Format one result as a human-readable markdown summary. */
+/** Format one result as a human-readable markdown summary. A scored result
+ *  must pass the persistence gate first: rendering a stamp-stripped result
+ *  would fabricate zeros/placeholders for the missing surfaces (Gate-4
+ *  MINOR-3) — typed refusal instead. */
 export function formatConflictResultReport(result: ConflictResultV1): string {
-  if (result.state === "scored") return scoredReport(result);
+  if (result.state === "scored") {
+    assertPersistableConflictResultV1(result);
+    return scoredReport(result);
+  }
   if (result.unavailableReason === "publication_gap") {
     return [
       `# Expert-benchmark coverage — ${result.conflictId}`,

@@ -3,8 +3,11 @@
 // no accuracy/truth wording.
 
 import { describe, expect, it } from "vitest";
+import type { ConflictResultV1 } from "./eval-profile";
 import { loadConflictFixtureScenarios } from "./fixture-corpus";
 import { scoreFixtureScenario } from "./goldens";
+import { ConflictKeywordMatcher } from "./keyword-matcher";
+import { LlmCompatibleMatcher } from "./llm-compatible-matcher";
 import { formatConflictResultReport } from "./offline-report";
 
 const scenarios = loadConflictFixtureScenarios();
@@ -27,6 +30,54 @@ describe("formatConflictResultReport", () => {
     expect(report).not.toMatch(FORBIDDEN);
     // never labeled full-report coverage (contract §3)
     expect(report).not.toMatch(/full.?report coverage/i);
+  });
+
+  it("headline coverage always renders the §0 non-independence caveat", async () => {
+    // NOTE: shipping this caveat in the offline report does NOT lift Phase
+    // 6's own explainer obligation on its user-facing surfaces
+    const result = await scoreFixtureScenario(byId.get("roca-ua-only-001b")!);
+    const report = formatConflictResultReport(result);
+    expect(report).toContain("ISW/CTP reads many of the same open sources");
+    expect(report).toContain("agreement is not independent confirmation");
+  });
+
+  it("a stamp-stripped scored result REFUSES to render — no fabricated zeros", async () => {
+    const result = await scoreFixtureScenario(byId.get("roca-ua-only-001b")!);
+    if (result.state !== "scored") throw new Error("expected scored");
+    const stripped = { ...result } as Record<string, unknown>;
+    delete stripped.bnowOnly;
+    expect(() =>
+      formatConflictResultReport(stripped as unknown as ConflictResultV1),
+    ).toThrowError(/MUST NOT be persisted/);
+  });
+
+  it("MIXED matcher rungs render BOTH per-population labels — never the degraded label beside k", async () => {
+    const scenario = byId.get("roca-ua-only-001b")!;
+    const claimId = scenario.evidence[0].claimId;
+    // the corpus call's five rounds succeed (llm-majority); every retention
+    // round fails → keyword fallback: a genuinely mixed-rung result
+    let calls = 0;
+    const matcher = new LlmCompatibleMatcher({
+      votesK: 5,
+      model: null,
+      keywordFallback: new ConflictKeywordMatcher(),
+      voteFn: async (round) => {
+        if (round === 0) calls++;
+        if (calls === 2) throw new Error("simulated transport failure");
+        return JSON.stringify({ matches: [{ takeawayIndex: 0, claimId, confidence: 0.9 }] });
+      },
+    });
+    const result = await scoreFixtureScenario(scenario, { matcher });
+    if (result.state !== "scored") throw new Error("expected scored");
+    expect(result.matcher!.corpusRecall.label).toBe("llm-majority");
+    expect(result.matcher!.publishedRetention.label).toBe("keyword");
+    const report = formatConflictResultReport(result);
+    expect(report).toContain("MIXED rungs");
+    expect(report).toContain("corpus recall llm-majority (k=5)");
+    expect(report).toContain("published retention keyword — degraded");
+    // the old single-line form would have read as "keyword with k=5"
+    expect(report).not.toMatch(/label keyword, votes k=/);
+    expect(report).not.toMatch(FORBIDDEN);
   });
 
   it("gulf-incomparable: the lane renders unavailable (incomparable evidence), the miss stays diagnosed", async () => {
