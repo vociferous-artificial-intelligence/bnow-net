@@ -33,8 +33,16 @@
 import type { Track } from "../analysis/tracks";
 import { CONFLICT_REGISTRY, type ConflictEvidencePolicyVersion } from "./definitions";
 import { deepFreeze } from "./freeze";
-import { isIsoDay } from "./instants";
+import { ConflictDomainError } from "./errors";
+import { isIsoDay, type TimeAnchorTreatment } from "./instants";
 import type { ConflictLaneId, LaneTaxonomyVersion } from "./lanes";
+import type {
+  ConflictMatcherLabel,
+  MatchCoverage,
+  MatcherKind,
+  UnitVoteAudit,
+} from "./match-contract";
+import type { HedgingValue } from "./evidence-records";
 import { validateReferenceReportIdentity, type ReferenceReportIdentity } from "./reference-report";
 import {
   METHODOLOGY_EPOCH,
@@ -45,7 +53,6 @@ import {
   type EvaluationKind,
   type HeadlineCount,
   type LaneDiagnostic,
-  type MatcherRung,
   type MissDiagnostic,
   type ReferenceSeriesId,
   type UnitVerdict,
@@ -86,9 +93,169 @@ interface ConflictResultCommonV1 {
   evaluationKind: EvaluationKind;
 }
 
+/** The public headline label (contract §3): Key-Takeaway-denominator
+ *  coverage against the expert benchmark — never "full-report", never a
+ *  subset label, no accuracy/truth language anywhere in the vocabulary. */
+export const CONFLICT_HEADLINE_LABEL = "Key Takeaway benchmark coverage" as const;
+
+// --- Phase 4 stamp/record sub-shapes (P3 report §5.1 binding carried
+// --- conditions; P2 discovery-metadata adjudication; prompt §12 item D) ---
+
+/** RAW window inputs + treatments + the derived day span. RAW anchors are
+ *  time anchors, never report content; stamping them makes every stored
+ *  score auditable against a cutoff-parser regression (§6.4 M2). */
+export interface ConflictWindowStampV1 {
+  reportDate: string;
+  cutoffAtRaw: string | null;
+  publishedAtRaw: string | null;
+  cutoffTreatment: TimeAnchorTreatment;
+  publishedTreatment: TimeAnchorTreatment;
+  windowEndSource: WindowEndSource;
+  /** first and last UTC days whose day-granular claims were eligible */
+  startDate: string;
+  endDate: string;
+  days: number;
+}
+
+export interface ConflictPopulationSelectionStampV1 {
+  eligibleCount: number;
+  selectedCount: number;
+  cappedOutCount: number;
+  budgetOutCount: number;
+  totalTextBytes: number;
+}
+
+/** EFFECTIVE selection limits + per-population bounds — a selection-starved
+ *  day (cap/byte displacement) is visible in every stored result. */
+export interface ConflictSelectionStampV1 {
+  limits: { maxCandidates: number; textByteBudget: number; mixCapFraction: number };
+  corpusRecall: ConflictPopulationSelectionStampV1;
+  publishedRetention: ConflictPopulationSelectionStampV1;
+}
+
+/** Every version identifier that shaped the population (laneTaxonomyVersion
+ *  and evidencePolicyVersion are top-level fields already). */
+export interface ConflictVersionStampV1 {
+  actorRosterVersion: string;
+  laneClassifierVersion: string;
+  /** corpus recall: the current extractor-version set the population was
+   *  filtered to (sorted unique; [] in fixture-backed runs, which carry only
+   *  the currentExtractorVersion discipline) */
+  extractorVersions: readonly string[];
+  scopeVersion: string;
+}
+
+/** The full §12 matcher identity: kind + label(rung) + votes k +
+ *  model-or-null, plus each population call's resolution. */
+export interface ConflictMatcherStampV1 {
+  kind: MatcherKind;
+  /** identical to matcherRung (pinned); the more degraded of the two
+   *  population resolutions when they differ */
+  label: ConflictMatcherLabel;
+  votesK: number | null;
+  model: string | null;
+  corpusRecall: { label: ConflictMatcherLabel; voteRounds: number | null };
+  publishedRetention: { label: ConflictMatcherLabel; voteRounds: number | null };
+}
+
+export interface ConflictAgreementClaimV1 {
+  claimId: number;
+  coverage: MatchCoverage;
+  confidence: number | null;
+  theater: string;
+  track: Track;
+  /** the claim's OWN hedge — never reference wording, never strengthened */
+  hedge: HedgingValue;
+  earliestIngestAt: string | null;
+  atCutoff: boolean | null;
+  atPublication: boolean | null;
+  independentSourceCount: number;
+  legacy: boolean;
+}
+
+/** Agreement record: unit identity by id/lane ONLY (never unit text). */
+export interface ConflictAgreementRecordV1 {
+  unitId: string;
+  lane: ConflictLaneId;
+  claims: readonly ConflictAgreementClaimV1[];
+}
+
+/** Reference-only record: a declared unit no population claim matched. */
+export interface ConflictReferenceOnlyRecordV1 {
+  unitId: string;
+  lane: ConflictLaneId;
+  verdict: Extract<UnitVerdict, "miss" | "partial">;
+  missDiagnostic: MissDiagnostic | null;
+  compound: boolean;
+  negative: boolean;
+}
+
+/** In-scope BNOW-only item (renderable): PUBLISHED-RETENTION population only
+ *  (Gate-0 pin, register #7 / §6.4 LOW-4). */
+export interface ConflictBnowOnlyItemV1 {
+  claimId: number;
+  lane: ConflictLaneId;
+  theater: string;
+  track: Track;
+  hedge: HedgingValue;
+  legacy: boolean;
+}
+
+export interface ConflictTimingDiagnosticsV1 {
+  /** median (report publishedAt − claim earliest BNOW ingest) hours over
+   *  agreements; null when the report's publication instant or every ingest
+   *  instant is truthfully unknown — never coerced to 0 */
+  medianLeadHoursByIngest: number | null;
+  /** the SEPARATE source-declared-publish lead (§6.4: shown separately,
+   *  never substituted for ingest time) */
+  medianLeadHoursBySourceDeclared: number | null;
+  agreements: number;
+}
+
+export interface ConflictLaneCoverageRowV1 {
+  lane: ConflictLaneId;
+  /** declared units in this lane — lane rows PARTITION the same declared
+   *  units; row sums equal the headline denominator, never change it */
+  units: number;
+  corpusRecall: { matched: number; partial: number; miss: number };
+  publishedRetention: { matched: number; partial: number; miss: number };
+  diagnostic: LaneDiagnostic | null;
+}
+
+/** Distinct-matched-unit counts per bucket. NON-ADDITIVE by design
+ *  (contract §7): one matched unit may sit in several buckets, so bucket
+ *  totals may exceed the headline numerator and never sum to it. */
+export interface ConflictContributionTotalsV1 {
+  nonAdditive: true;
+  byTheater: Readonly<Record<string, number>>;
+  byTrack: Readonly<Partial<Record<Track, number>>>;
+  bySource: Readonly<Record<string, number>>;
+}
+
+export interface ConflictContributionEntryV1 {
+  theaters: readonly string[];
+  tracks: readonly Track[];
+  /** contributing source domains (non-mirror docs only — a mirror never
+   *  contributes); optional so the Phase-1 fixture-shaped entries remain
+   *  assignable */
+  sources?: readonly string[];
+}
+
 /** A scored report-level evaluation. Phase 4 (the pure scorer) produces these
  *  and may EXTEND this shape additively (new optional fields) — a field
- *  removal or meaning change requires version 2, never an in-place edit. */
+ *  removal or meaning change requires version 2, never an in-place edit.
+ *
+ *  PHASE 4 EXTENSION (documented; V1 is unreleased and this phase is its
+ *  first producer): the binding P3 §5.1 stamps and §12 record/diagnostic
+ *  surfaces are added as OPTIONAL fields (additive), with presence enforced
+ *  AT RUNTIME by assertPersistableConflictResultV1 — a stored score without
+ *  them cannot be audited and MUST NOT be persisted, and a runtime gate
+ *  enforces that better than a compile-time field ever could. One deliberate
+ *  widening rides along: `matcherRung` accepts the ConflictMatcherLabel
+ *  union (the three inherited ladder rungs PLUS "fixture-oracle"), so a
+ *  deterministic-oracle-scored fixture/golden result labels itself honestly
+ *  instead of masquerading as a majority result; live-compatible adapters
+ *  remain typed to ladder rungs only. */
 export interface ConflictScoredResultV1 extends ConflictResultCommonV1 {
   state: "scored";
   report: ReferenceReportIdentity;
@@ -110,16 +277,113 @@ export interface ConflictScoredResultV1 extends ConflictResultCommonV1 {
   missDiagnostic?: Readonly<Record<string, MissDiagnostic>>;
   /** lane diagnostic-table states (never headline arithmetic) */
   laneDiagnostics?: Readonly<Partial<Record<ConflictLaneId, LaneDiagnostic>>>;
-  /** which matcher rung scored this result (§6.3 inherited ladder) */
-  matcherRung: MatcherRung;
+  /** which matcher label scored this result (§6.3 inherited ladder, or the
+   *  test/offline fixture oracle — see the extension note above) */
+  matcherRung: ConflictMatcherLabel;
   /** keyword rung only: declared units with no keyword signal, kept in the
    *  FULL denominator as automatic misses (register #8 M1) */
   keywordUnmatchable?: number;
   /** multi-label, non-additive contribution over CORPUS-RECALL matched units
    *  (contract §7): bucket totals may exceed the headline numerator */
-  contribution: Readonly<
-    Record<string, { theaters: readonly string[]; tracks: readonly Track[] }>
-  >;
+  contribution: Readonly<Record<string, ConflictContributionEntryV1>>;
+
+  // --- Phase 4 additive fields (runtime-required for persistence) ---
+  /** the public denominator label (contract §3) */
+  headlineLabel?: typeof CONFLICT_HEADLINE_LABEL;
+  window?: ConflictWindowStampV1;
+  selection?: ConflictSelectionStampV1;
+  versions?: ConflictVersionStampV1;
+  matcher?: ConflictMatcherStampV1;
+  /** per-vote audit per population call (llm rungs; null members elsewhere) */
+  voteAudit?: {
+    corpusRecall: readonly UnitVoteAudit[] | null;
+    publishedRetention: readonly UnitVoteAudit[] | null;
+  };
+  lanes?: readonly ConflictLaneCoverageRowV1[];
+  agreements?: {
+    corpusRecall: readonly ConflictAgreementRecordV1[];
+    publishedRetention: readonly ConflictAgreementRecordV1[];
+  };
+  referenceOnly?: {
+    corpusRecall: readonly ConflictReferenceOnlyRecordV1[];
+    publishedRetention: readonly ConflictReferenceOnlyRecordV1[];
+  };
+  /** in-scope BNOW-only: corpus recall feeds INTERNAL COUNTS ONLY; the
+   *  renderable item list comes from the published-retention population
+   *  exclusively (register #7 / §6.4 pin) */
+  bnowOnly?: {
+    corpusRecall: { count: number };
+    publishedRetention: { count: number; items: readonly ConflictBnowOnlyItemV1[] };
+  };
+  /** one claim matching multiple units, VISIBLE (claimId → unitIds),
+   *  constrained by the atomic/compound policy (§6.3 L1; register #9) */
+  multiUnitClaims?: {
+    corpusRecall: Readonly<Record<string, readonly string[]>>;
+    publishedRetention: Readonly<Record<string, readonly string[]>>;
+  };
+  /** distinct non-mirror source documents supporting each unit with ≥1
+   *  agreement claim (mirrors add zero — §6.3) */
+  independentSources?: {
+    corpusRecall: Readonly<Record<string, number>>;
+    publishedRetention: Readonly<Record<string, number>>;
+  };
+  /** thin-sourced diagnostic with its EXPLICIT denominator (§6.4): claims
+   *  offered to the matcher with <2 independent docs AND hedge
+   *  claimed/unverified */
+  thinSourced?: {
+    corpusRecall: { count: number; denominator: number };
+    publishedRetention: { count: number; denominator: number };
+  };
+  timing?: {
+    corpusRecall: ConflictTimingDiagnosticsV1;
+    publishedRetention: ConflictTimingDiagnosticsV1;
+  };
+  /** distinct-matched-unit counts per theater/track/source bucket over the
+   *  corpus-recall contribution (NON-ADDITIVE, disclosed) */
+  contributionTotals?: ConflictContributionTotalsV1;
+  /** the published-retention view's OWN contribution table — derived
+   *  separately, never mixed into the corpus-recall one (contract §7) */
+  contributionPublishedRetention?: Readonly<Record<string, ConflictContributionEntryV1>>;
+  /** repeated-run/variance grouping key: identical inputs + matcher config
+   *  share a key across repeated runs (§6.4) */
+  runGroupKey?: string;
+  /** snapshot identity: the typed-null ref until the Phase 5
+   *  ConflictSnapshotRef capture contract exists (register #5) */
+  snapshot?: { ref: null };
+}
+
+/** The binding persistence gate (P3 report §5.1): a scored result missing
+ *  any input stamp cannot be audited or reproduced and MUST NOT be
+ *  persisted. Throws typed on a violation; unavailable/gap variants pass
+ *  (they carry no score). Every future persistence path (Phase 5) calls this
+ *  before any write. */
+export function assertPersistableConflictResultV1(result: ConflictResultV1): void {
+  if (result.state !== "scored") return;
+  const missing: string[] = [];
+  if (result.headlineLabel !== CONFLICT_HEADLINE_LABEL) missing.push("headlineLabel");
+  if (result.window === undefined) missing.push("window");
+  if (result.selection === undefined) missing.push("selection");
+  if (result.versions === undefined) missing.push("versions");
+  if (result.matcher === undefined) missing.push("matcher");
+  if (result.voteAudit === undefined) missing.push("voteAudit");
+  if (result.lanes === undefined) missing.push("lanes");
+  if (result.agreements === undefined) missing.push("agreements");
+  if (result.referenceOnly === undefined) missing.push("referenceOnly");
+  if (result.bnowOnly === undefined) missing.push("bnowOnly");
+  if (result.runGroupKey === undefined) missing.push("runGroupKey");
+  if (result.snapshot === undefined) missing.push("snapshot");
+  if (missing.length > 0) {
+    throw new ConflictDomainError(
+      "unpersistable_result",
+      `scored conflict result is missing binding stamps and MUST NOT be persisted: ${missing.join(", ")}`,
+    );
+  }
+  if (result.matcher !== undefined && result.matcher.label !== result.matcherRung) {
+    throw new ConflictDomainError(
+      "unpersistable_result",
+      `matcher.label (${result.matcher.label}) disagrees with matcherRung (${result.matcherRung})`,
+    );
+  }
 }
 
 /** An honestly-unavailable evaluation of an EXISTING report (a snapshot kind

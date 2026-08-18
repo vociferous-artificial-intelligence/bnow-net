@@ -28,6 +28,11 @@ export const CONFLICT_DOMAIN_ERROR_CODES = [
   "invalid_evidence_request",
   "invalid_candidate_claim",
   "invalid_fixture_scenario",
+  // Phase 4 (combined scoring) — additive codes only
+  "invalid_match_outcome",
+  "invalid_oracle_table",
+  "invalid_score_request",
+  "unpersistable_result",
 ] as const;
 
 export type ConflictDomainErrorCode = (typeof CONFLICT_DOMAIN_ERROR_CODES)[number];
