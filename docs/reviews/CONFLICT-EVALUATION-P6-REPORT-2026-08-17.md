@@ -216,6 +216,8 @@ zero regressions).
 | publication gap: words only, no score pattern | detail page test |
 | teaser boundary (no claim/unit text), captions | index/overview/detail tests |
 | gated view: claim text, hedge, origin digest, trail, legacy label, BNOW-only, empty, gap, 404 | evidence page test |
+| no_proven_snapshot: headline worded render (two snapshot kinds), run-list row words + `n/a` matcher cell, no ratio/percent pattern | `benchmark-unavailable.test.tsx` (added at the pre-gate round — this branch was previously undisclosed as untested: the only committed unavailable golden is a publication gap, so the branch is exercised with a hand-built valid `ConflictUnavailableResultV1`) |
+| q3 actor clause answered + contribution population disclosed (both surfaces); retention-gap day carries BOTH contribution notes | overview + detail page tests (pre-gate round) |
 
 Integration (`conflict-feature-off.itest.ts`, 23 tests, disposable Neon fork,
 production `next build` + `next start`, paid keys blanked, LLM_DISABLE=1):
@@ -364,3 +366,51 @@ For the legal/authorization/truth-in-UI reviewer:
    (flag-guarded), i18n catalog integration, real-result benchmark keys,
    synthetic-banner retirement decision, robots/sitemap posture review if the
    surface ever becomes public-by-default.
+
+## 13. Pre-gate verification round (2026-08-18; both verifier verdicts)
+
+Two pre-gate verifiers ran against `f4016ac`: **legal — CLEAN, 8/8 checks
+with 4 INFOs (no findings); product — no BLOCKER/MAJOR, 3 MINORs + 2
+NOTEs**, all now closed on this branch:
+
+- **MINOR-1 (q3 heading names actors; no actor answer rendered).** The
+  heading is CONTRACTUAL (§11 question 3) and stays; the actor clause is
+  answered honestly instead: `ACTOR_CONTRIBUTION_NOTE` (product-copy.ts)
+  renders inside the q3 section on BOTH the conflict overview and the
+  benchmark detail — actors contribute through the lane assignments (the
+  versioned actor rosters govern lane classification upstream); a by-actor
+  contribution table is a recorded future dimension permitted by the
+  contribution contract (§7) but not yet computed in the frozen result
+  profile. Pinned on both surfaces.
+- **MINOR-2 (contribution population undisclosed; wrong explanation on
+  retention-gap days).** The buckets are computed over CORPUS-RECALL
+  matched takeaways while the q4 headline scores the PUBLISHED output — on
+  `roca-retention-gap-008b` the buckets (UA=1) exceed the published
+  numerator (0) purely from the population difference, and only the
+  non-additivity note rendered (the wrong cause).
+  `CONTRIBUTION_POPULATION_NOTE` now renders beside every contribution
+  table naming the population and the independent-of-multi-labeling
+  consequence; a retention-gap detail-page test pins that BOTH notes
+  (population + non-additive) are present on that exact day.
+- **MINOR-3 (no_proven_snapshot render branch untested — previously
+  undisclosed).** `benchmark-unavailable.test.tsx` (NEW) hand-builds a
+  valid `ConflictUnavailableResultV1` with `no_proven_snapshot` and pins:
+  the headline's worded provenance render for two snapshot kinds (the kind
+  is embedded in the copy), the run-list row's worded coverage cell, the
+  not-zero note, and the absence of any `(N%)` / `N of M` pattern. Matrix
+  row added in §7.
+- **NOTE-1 (heading-level skips).** The h2→h4 skips in presence-module and
+  diagnostics-module are fixed (module headings now h3). No test pinned h4.
+- **NOTE-2 (run-list dash cell).** The unavailable row's matcher column
+  renders the word `n/a` instead of "—" (airtight against the never-blank
+  reading); the cell is pinned exactly.
+
+Itest non-collision confirmed by reading `conflict-feature-off.itest.ts`'s
+`CONFLICT_TOKENS` list: none of the new strings contain any absence-asserted
+token (and all render only feature-ON), so no integration run was required.
+
+Pre-gate-round gates (exact): `npx tsc --noEmit` clean · `npm run lint`
+clean · `npm test` **3,171 passed / 3,171 (226 files)** (baseline 3,166/225
++ 5 new across 1 new file and 2 extended page tests; zero regressions) ·
+`git diff --check` clean · tree clean · `fixtures/conflicts/goldens`
+untouched.
