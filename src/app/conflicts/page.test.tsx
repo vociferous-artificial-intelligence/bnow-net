@@ -61,6 +61,19 @@ describe("feature-off guard (first statement)", () => {
   });
 });
 
+describe("index card numeric hygiene (Gate-7 product MINOR-3)", () => {
+  it("publishes the caveat and the read-the-n instruction beside the card's coverage %", async () => {
+    featureMock.mockImplementation(() => {});
+    render(await ConflictsIndexPage());
+    // the card's % is the FIRST coverage number a visitor sees and sits
+    // outside any benchmark module — both ideas must travel with it
+    const caveat = screen.getAllByTestId("index-card-caveat");
+    expect(caveat.length).toBeGreaterThan(0);
+    expect(caveat[0].textContent).toContain("agreement is not independent confirmation");
+    expect(caveat[0].textContent).toContain("read the n, not just the percentage");
+  });
+});
+
 describe("index rendering (flag on)", () => {
   it("lists both conflicts with teaser-tier content only", async () => {
     featureMock.mockImplementation(() => {});

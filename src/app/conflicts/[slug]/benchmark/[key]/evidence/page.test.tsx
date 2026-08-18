@@ -105,6 +105,12 @@ describe("the gated what-changed view", () => {
     expect(document.body.textContent).toContain("not a new conflict digest");
   });
 
+  it("renders the ruling-3 synthetic-corpus banner (truth-in-UI disclosure)", async () => {
+    featureMock.mockImplementation(() => {});
+    render(await pageFor("russia-ukraine", "roca-ua-only-001b"));
+    expect(screen.getByTestId("synthetic-banner").textContent).toContain("SYNTHETIC TEST FIXTURE");
+  });
+
   it("labels legacy-engine contributions on the gulf record", async () => {
     featureMock.mockImplementation(() => {});
     render(await pageFor("iran-regional", "iran-gulf-unavailable-010b"));

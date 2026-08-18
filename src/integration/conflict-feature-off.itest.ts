@@ -69,11 +69,15 @@ const TEASER_TOKEN = "Key Takeaway benchmark coverage";
 
 // Every token that identifies conflict content; ALL must be absent from every
 // feature-off body.
+// the ruling-3 disclosure heading — absent from every feature-OFF body
+// (it is a CONFLICT_TOKEN below) and REQUIRED in every flag-ON teaser body
+const SYNTHETIC_BANNER_TOKEN = "Synthetic review corpus";
+
 const CONFLICT_TOKENS = [
   TEASER_TOKEN,
   "Iran and Regional Conflict",
   "Russia–Ukraine War",
-  "Synthetic review corpus",
+  SYNTHETIC_BANNER_TOKEN,
   CLAIM_TOKEN,
   UNIT_TOKEN,
 ] as const;
@@ -308,6 +312,16 @@ describe("feature ON (CONFLICTS_UI=1 injected ephemerally into the server proces
     // non-vacuous: the benchmark teaser really rendered its module
     const detail = await get("/conflicts/russia-ukraine/benchmark/roca-ua-only-001b");
     expect(detail.body).toContain(TEASER_TOKEN);
+  });
+
+  it("every flag-ON teaser body carries the ruling-3 synthetic-corpus disclosure", async () => {
+    // the unit tests pin the banner per route; this pins it in the REAL
+    // rendered HTML, so a page that renders synthetic numbers can never ship
+    // without saying so (Gate-7 safety L-1)
+    for (const route of TEASER_ROUTES) {
+      const { body } = await get(route);
+      expect(body, route).toContain(SYNTHETIC_BANNER_TOKEN);
+    }
   });
 
   it("gated evidence route: anonymous bare GET leaks no claim text (ruling 21 + access tier)", async () => {

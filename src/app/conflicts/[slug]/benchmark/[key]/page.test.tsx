@@ -112,6 +112,12 @@ describe("compound partial (roca-compound-partial-009b)", () => {
 });
 
 describe("retention gap (roca-retention-gap-008b)", () => {
+  it("renders the ruling-3 synthetic-corpus banner (truth-in-UI disclosure)", async () => {
+    featureMock.mockImplementation(() => {});
+    render(await pageFor("russia-ukraine", "roca-retention-gap-008b"));
+    expect(screen.getByTestId("synthetic-banner").textContent).toContain("SYNTHETIC TEST FIXTURE");
+  });
+
   it("q3 renders BOTH contribution notes — the population difference is the honest cause, not multi-labeling", async () => {
     featureMock.mockImplementation(() => {});
     render(await pageFor("russia-ukraine", "roca-retention-gap-008b"));
@@ -150,6 +156,58 @@ describe("incomparable gulf lane (iran-gulf-unavailable-010b)", () => {
     expect(note.textContent).toContain("can also be EMPTY while the published output matched");
     expect(note.textContent).toContain("legacy-only theater");
     expect(note.textContent).toContain("gated evidence view shows the actual contributors");
+  });
+
+  it("q5's corpus card refuses a bare 0% when EVERY unit is incomparable (register #8 H1 at report granularity)", async () => {
+    featureMock.mockImplementation(() => {});
+    render(await pageFor("iran-regional", "iran-gulf-unavailable-010b"));
+    const q5 = screen.getByTestId("q5");
+    // Gate-7 product MINOR-1: this card previously rendered a naked bold
+    // "0 of 1 declared Key Takeaways (0%)" beside a 100% published card,
+    // while the lane table on the same page refused exactly that reading
+    expect(within(q5).getByTestId("corpus-recall-incomparable").textContent).toBe(
+      "unavailable (incomparable evidence)",
+    );
+    expect(within(q5).getByTestId("corpus-incomparable-note").textContent).toContain(
+      "must not be read as one",
+    );
+    expect(q5.textContent).not.toContain("0 of 1 declared Key Takeaways (0%)");
+    // the published card still shows its REAL ratio — the qualifier is a
+    // corpus-recall statement only
+    expect(q5.textContent).toContain("1 of 1 declared Key Takeaways (100%)");
+  });
+
+  it("distinguishes an EMPTY eligible set from a genuine zero (opposite diagnoses)", async () => {
+    featureMock.mockImplementation(() => {});
+    render(await pageFor("iran-regional", "cc-state-zero-empty-015"));
+    // zero candidates ever entered the comparison — a pipeline statement
+    expect(screen.getAllByTestId("zero-eligible-qualifier")[0].textContent).toContain(
+      "0 eligible claims in the corpus",
+    );
+    cleanup();
+    // a scored zero WITH eligible candidates is an analytic miss: no qualifier
+    render(await pageFor("russia-ukraine", "roca-quiet-day-010b"));
+    expect(screen.queryByTestId("zero-eligible-qualifier")).toBeNull();
+    expect(screen.getByTestId("q5").textContent).toContain("0 of 1 declared Key Takeaways (0%)");
+  });
+
+  it("does not send the analyst through a sign-in wall to an EMPTY evidence view", async () => {
+    featureMock.mockImplementation(() => {});
+    render(await pageFor("iran-regional", "cc-state-zero-empty-015"));
+    expect(screen.getByTestId("empty-evidence-note").textContent).toContain(
+      "no evidence view to open",
+    );
+    expect(screen.queryByRole("link", { name: /Read the published claims/ })).toBeNull();
+    cleanup();
+    // a record WITH published claims still links
+    render(await pageFor("russia-ukraine", "roca-ua-only-001b"));
+    expect(screen.getByRole("link", { name: /Read the published claims/ })).toBeTruthy();
+  });
+
+  it("q7 contributor links carry the legacy-engine qualifier, like the overview", async () => {
+    featureMock.mockImplementation(() => {});
+    render(await pageFor("iran-regional", "iran-gulf-unavailable-010b"));
+    expect(screen.getByTestId("q7").textContent).toContain("legacy engine");
   });
 
   it("the Iran surface renders the per-series coexistence note (single IR row, not RU/UA rows)", async () => {

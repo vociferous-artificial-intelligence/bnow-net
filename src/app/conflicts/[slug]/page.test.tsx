@@ -113,6 +113,41 @@ describe("the seven analyst questions, in contract order", () => {
     expect(within(note).getByRole("link").getAttribute("href")).toBe("/scoreboard");
   });
 
+  it("renders the ruling-3 synthetic-corpus banner (truth-in-UI disclosure)", async () => {
+    featureMock.mockImplementation(() => {});
+    render(await pageFor("russia-ukraine"));
+    expect(screen.getByTestId("synthetic-banner").textContent).toContain("SYNTHETIC TEST FIXTURE");
+  });
+
+  it("labels the featured record as a fixture DEMONSTRATION, like the detail page", async () => {
+    featureMock.mockImplementation(() => {});
+    render(await pageFor("russia-ukraine"));
+    // Gate-7 product MINOR-7: the RU–UA overview features a malformed-cutoff
+    // sentinel (n=1, 100%) and previously printed only the report key
+    expect(screen.getByTestId("featured-demonstration").textContent).toContain(
+      "Fixture demonstration:",
+    );
+  });
+
+  it("run-list detail links have UNIQUE accessible names (WCAG 2.4.4)", async () => {
+    featureMock.mockImplementation(() => {});
+    render(await pageFor("russia-ukraine"));
+    // the two ladder-variant rows previously produced byte-identical link
+    // names pointing at different records (Gate-7 product MINOR-5)
+    const names = screen
+      .getAllByRole("link")
+      .map((el) => (el.textContent ?? "").trim())
+      .filter((name) => name.startsWith("detail for"));
+    expect(names.length).toBeGreaterThan(1);
+    // the WCAG property itself: no two run-list links share a name
+    expect(new Set(names).size).toBe(names.length);
+    // and the two ladder-variant rows are the pair that previously collided
+    const variantNames = names.filter((n) => n.includes("Malformed matcher votes"));
+    expect(variantNames).toHaveLength(2);
+    expect(variantNames[0]).not.toBe(variantNames[1]);
+    expect(variantNames.every((n) => n.includes("variant"))).toBe(true);
+  });
+
   it("the ROCA overview renders the per-series coexistence note (RU/UA rows example)", async () => {
     featureMock.mockImplementation(() => {});
     render(await pageFor("russia-ukraine"));
