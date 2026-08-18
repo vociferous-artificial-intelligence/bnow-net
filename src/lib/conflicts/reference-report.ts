@@ -78,6 +78,12 @@ export function validateReferenceReportIdentity(raw: unknown): string[] {
     const v = r[field];
     if (v === null) continue;
     if (typeof v !== "string" || !isIsoInstant(v)) {
+      // PHASE 5 STORED-ERROR OBLIGATION (Gate-4 legal note, comment only):
+      // this message embeds the raw anchor value via JSON.stringify. Fine
+      // while errors are transient (thrown, logged locally, never persisted);
+      // if Phase 5 ever STORES validation errors, this message becomes a
+      // free-text channel and must be redacted/bounded at the storage seam
+      // (the persistence gate's isPersistableRawAnchor rule is the model).
       errs.push(
         `${field}: must be null or an explicit-timezone ISO instant, got ${JSON.stringify(v)} ` +
           "(normalize raw declared timestamps through classifyTimeAnchor first — malformed is treated as missing, never guessed)",

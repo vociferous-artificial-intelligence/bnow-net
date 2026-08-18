@@ -8,6 +8,16 @@ directory is DATA ONLY in Phase 0: no code consumes it yet; Phases 1-4 build
 the consumers and MUST NOT edit committed scenario semantics (immutability
 rule below).
 
+Phase 4 additions: `goldens/` holds the committed golden expected-result
+files (full pure-scorer output, byte-stable via the Phase-1 stable
+serialization; see `src/lib/conflicts/goldens.ts` and its test), and
+`cc-vague-claim-019` delivers the register-#9 deferred atomic/compound pin
+(ADDITIVE — no committed scenario edited). Golden files are regenerated ONLY
+via `UPDATE_CONFLICT_GOLDENS=1 npx vitest run
+src/lib/conflicts/goldens.test.ts` followed by a reviewed diff; the same test
+byte-compares on every ordinary run, so scorer drift fails loudly instead of
+silently re-baselining.
+
 Provenance: `authored-2026-08-17` — every scenario hand-authored and
 hand-checked one at a time; zero model-generated-unreviewed content. Content
 rules follow the house precedent in `docs/evals/analysis/README.md` (fictional
@@ -21,10 +31,10 @@ persons, no ISW prose, no source full text) and AGENTS.md rulings 1, 12, 19,
 |---|---|---|---|---|
 | `roca-scenarios-v1.json` | `russia_ukraine` | 10 | 10 | 11 |
 | `iran-scenarios-v1.json` | `iran_regional` | 12 | 13 | 13 |
-| `crosscutting-scenarios-v1.json` | mixed (per-scenario) | 18 | 19 | 26 |
-| **total** | | **40** | **42** | **50** |
+| `crosscutting-scenarios-v1.json` | mixed (per-scenario) | 19 | 21 | 28 |
+| **total** | | **41** | **44** | **52** |
 
-52 documents; 35 expected-included / 14 expected-excluded eligibility
+54 documents; 37 expected-included / 14 expected-excluded eligibility
 records (one claim, in the publication-gap scenario, has no eligibility
 record by design). Every exclusion uses the contract's bounded reason enum
 in its FROZEN precedence order. Exactly FIVE scenarios carry
@@ -32,7 +42,7 @@ in its FROZEN precedence order. Exactly FIVE scenarios carry
 `roca-retention-gap-008b`, `roca-compound-partial-009b`,
 `iran-gulf-unavailable-010b`, `cc-matcher-failclosed-013b` — all other
 scenarios deliberately carry none, because full-report golden arithmetic is
-Phase 4's deliverable.
+Phase 4's deliverable (now committed under `goldens/`).
 
 Counts machine-recounted (2026-08-17) with:
 
@@ -48,12 +58,13 @@ for f in ['roca-scenarios-v1.json','iran-scenarios-v1.json','crosscutting-scenar
 "
 roca-scenarios-v1.json scenarios=10 units=10 claims=11 docs=11
 iran-scenarios-v1.json scenarios=12 units=13 claims=13 docs=13
-crosscutting-scenarios-v1.json scenarios=18 units=19 claims=26 docs=28
+crosscutting-scenarios-v1.json scenarios=19 units=21 claims=28 docs=30
 ```
 
 (The crosscutting row reflects `cc-other-in-scope-018`, added ADDITIVELY at
-the Phase 3 Gate-3 remediation; the recount above was re-run 2026-08-17
-after the addition.)
+the Phase 3 Gate-3 remediation, and `cc-vague-claim-019`, added ADDITIVELY
+at Phase 4 for the register-#9 deferred pin; the recount above was re-run
+2026-08-17 after each addition.)
 
 ## Immutability and the Gate-0 remints
 
@@ -77,7 +88,8 @@ retained because the original scenario ceases to exist):
 
 `cc-window-rung2-017` is NEW (M2, #8), not a remint. `cc-other-in-scope-018`
 is NEW (Phase 3 Gate-3 evidence-review NOTE: the rung-6 other_in_scope gate
-had no corpus pin), not a remint.
+had no corpus pin), not a remint. `cc-vague-claim-019` is NEW (Phase 4; the
+register-#9 deferred vague-claim-vs-two-units pin), not a remint.
 
 ## Scenario schema
 
@@ -246,6 +258,14 @@ Per scenario:
   map empty (nothing is fabricated).
 - `digestRegeneratedAt` (`cc-regen-after-instant-007`) — instant the
   latest digest was regenerated, after every historical evaluation instant.
+- `matcherFixture` (second form; `cc-vague-claim-019`) — pins the
+  atomic/compound anti-vague-claim rule (section 6.3 as amended, L1;
+  register #9): `{ "atomicCompoundPolicy": <the rule statement>,
+  "vagueClaimId": <claimId>, "distinctUnitIds": [unit ids],
+  "expected": { "creditedUnits": [] } }`. The named vague claim must
+  receive credit for EXACTLY the listed units (empty = zero units) in every
+  population's agreement records — topic overlap with several distinct
+  units never earns multi-unit credit.
 - `matcherFixture` (`cc-matcher-failclosed-013b`) — pins the INHERITED
   degradation ladder (section 6.3 as amended; register #8 H2):
   `{ "inheritedLadder": <the ladder statement>, "variants": [ {
@@ -374,6 +394,7 @@ Cross-cutting (`crosscutting-scenarios-v1.json`):
 | C14 | unavailable snapshot vs empty evidence vs genuinely zero matches (THREE distinct states) | `cc-state-unavailable-014`, `cc-state-zero-empty-015`, `cc-state-zero-nonempty-016` |
 | C15 | attempts to recover reference prose | README audit rule above + sentinel in `cc-regen-after-instant-007` (not a scenario) |
 | C16 | window END rung 2: malformed cutoff falls to `publishedAt`, recorded `windowEndSource` (window family of C3/C4; Gate-0 science M2) | `cc-window-rung2-017` |
+| C17 | atomic/compound policy: one vague claim vs two distinct units (zero credit; register #9 deferred pin, delivered Phase 4) | `cc-vague-claim-019` |
 
 ## Resolved at Gate 0 (formerly "Contract ambiguities flagged")
 
