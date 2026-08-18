@@ -81,6 +81,34 @@ describe("serialized results recover no reference prose and no claim text", () =
     }
   });
 
+  it("NO composite score exists on any result surface (§6.4)", async () => {
+    // key-name audit over every serialized result: coverage counts with
+    // explicit numerator/denominator are the ONLY arithmetic; no field may
+    // even be NAMED like a blended quality number
+    const forbiddenKey = /(composite|overall|grade|rating|score)/i;
+    const collectKeys = (value: unknown, keys: Set<string>): void => {
+      if (Array.isArray(value)) {
+        for (const item of value) collectKeys(item, keys);
+      } else if (typeof value === "object" && value !== null) {
+        for (const [key, nested] of Object.entries(value)) {
+          keys.add(key);
+          collectKeys(nested, keys);
+        }
+      }
+    };
+    for (const { id, result } of await allResults()) {
+      const keys = new Set<string>();
+      collectKeys(result, keys);
+      for (const key of keys) {
+        expect(forbiddenKey.test(key), `${id}: field "${key}" reads as a composite score`).toBe(
+          false,
+        );
+      }
+      const report = formatConflictResultReport(result);
+      expect(report).not.toMatch(/composite|overall score|quality score/i);
+    }
+  });
+
   it("hedge fields in results are the claims' OWN hedges (never reference wording)", async () => {
     const scenario = scenarios.find((s) => s.id === "iran-translation-hedge-012")!;
     const result = await scoreFixtureScenario(scenario);
