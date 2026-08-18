@@ -22,7 +22,7 @@ credentials read inline for the integration harness only), `UPDATE_CONFLICT_GOLD
 | `origin/main` | `git fetch` (read-only) + `rev-parse` | `9c5e9cb`, unmoved, ancestor of the target |
 | Range stats | `git rev-list --count` / `git diff --stat` | 7150b49..a2ddca8 = **106 commits / 125 files / +40,970 −4**; ..6b35622 = 104 / 125 / +40,851 −4; b8341e9..6b35622 = **28 files +1,185 −83**; ad10fbd..6b35622 non-md = **22 files +685 −63** — every published figure reproduces exactly |
 | `81a6949` | `git show --stat` | docs-only (ledger + index) — as claimed |
-| `a2ddca8` | `git show --stat` | ledger +35, benchmark page +4/−1 net, its test +15/−1 net — source-changing, as claimed |
+| `a2ddca8` | `git show --numstat` | ledger +35/−0, benchmark page **+3/−1**, its test **+14/−1** — source-changing, as claimed. (The evidence package's "+4/−1 / +15/−1" quoted the `--stat` total-changed-lines column — an off-by-one label nit, not a discrepancy in content.) |
 | Base delta | `git diff e5757ea..7150b49 -- ':!*.md' ':!.env.example'` | **byte-empty** |
 | Freeze list | `git diff --name-only 7150b49..a2ddca8 -- drizzle/ src/db/ src/lib/validation/ src/lib/isw/ src/app/scoreboard/ src/lib/scoreboard/ src/i18n/ src/app/api/cron/ scripts/validate.ts robots sitemap` | **0 files** |
 | QF audit branch | `git log 7150b49..858bb9a` + `diff --stat` | 6 commits, 10 files, +1,912/−0, all docs/AGENTS.md — documentation-only as claimed |
