@@ -99,4 +99,24 @@ their documented extension points:
 | 4 scoring | `codex/conflict-evaluations-p4-scoring` | **PASSED** (science FAIL + legal PASS-WITH-MINORS on `5b38007` -> remediation -> PASS + PASS on `192c082`) | P4 report; ledger P4; 41-scenario acceptance + 14 byte-stable goldens |
 | 5 eval adapter | `codex/conflict-evaluations-p5-adapter` | **PASSED** (dual FAIL on `022d3c1` -> remediation -> PASS + PASS-WITH-MINORS on `2e1422b`; equals-guard hardened at close) | P5 report (+appendices); ledger P5; snapshot-capture design doc |
 | 6 product UI | `codex/conflict-evaluations-p6-product` | **PASSED** (PASS-WITH-MINORS x2 on `1f70852`; MINORs closed at `611f30e`) | P6 report (ruling-3 adjudication, enablement checklist); ledger P6; 23-test feature-off itest |
-| 7 integration | — | pending | |
+| 7 integration | `codex/conflict-evaluations-p7-integration` | **COMPLETE** (all 11 integration gates green; the three FINAL adversarial reviews are commissioned against the final SHA and not yet performed) | P7 report (ancestry audit, main-drift forecast, four-way backtest matrix, soak plan, PR decomposition, 11 gates, residual risks); ledger P7; `docs/designs/CONFLICT-SHADOW-SOAK.md`; `src/lib/conflicts/backtest-matrix.ts` |
+
+## Terminal state (Phase 7)
+
+**`implementation-pass / merge-awaits-operator-review`.**
+
+- Unit **3,194 / 3,194 (227 files)** · integration **150 / 150 (21 files)** ·
+  typecheck clean · lint clean · production build PASS (flag absent) ·
+  `git diff --check` clean.
+- Range vs base `7150b49`: **91 commits, 120 files, +37,686 / −4**.
+  **Migration status: NONE** — `drizzle/` and the journal are untouched; the
+  Phase-2 DDL exists only as design plus disposable fork-only SQL.
+- **Zero paid provider calls, zero production writes, no env change, no deploy,
+  no push, no PR, no merge to `main`** across all eight phases.
+- Proposed later merge order: **quality foundation (`e5757ea`/`7150b49`) FIRST**,
+  then this conflict line (a strict descendant of it). `origin/main` had not
+  advanced at 2026-08-18T10:39:41Z (still `9c5e9cb`, an ancestor of this branch),
+  so there is no main-drift conflict to reconcile today.
+- Enablement remains gated: `CONFLICTS_UI=1` anywhere while the surfaces are
+  fixture-backed would breach standing ruling 3. See the P7 report §5.2 for the
+  full operator decision list.
