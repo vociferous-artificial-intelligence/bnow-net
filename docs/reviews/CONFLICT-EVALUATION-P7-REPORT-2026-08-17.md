@@ -694,8 +694,8 @@ scratchpad:
 | P6 tip / merge | `7ea15a9` / `f7b563c` | gate verdicts at `1f70852`, MINORs closed at `611f30e` |
 | **P7 branch parent** | `f7b563c` | the tree these gates were run against, plus this phase's commits |
 | **P7 gated tip** | **`ad10fbd`** | the exact tree all eleven gates above were run against (`a61a4e7` soak plan → `24a6dae` matrix + report → `ad10fbd` ledger + index) |
-| **P7 branch tip** | **`P7_BRANCH_TIP`** | `ad10fbd` + this one SHA-recording commit, which edits this report and nothing else |
-| **Final integration tip** | **`FINAL_INTEGRATION_TIP`** | the `--no-ff` merge of the P7 branch into `codex/conflict-evaluations-integration-20260817`, plus the one-line addendum commit recording it |
+| **P7 branch tip** | **`de3acc4`** | `ad10fbd` + this one SHA-recording commit, which edits this report and nothing else |
+| **Final integration tip** | **`4e900a6`** (the merge) → this docs-only addendum commit, which is the branch tip | the `--no-ff` merge of the P7 branch into `codex/conflict-evaluations-integration-20260817`, plus the one-line addendum commit recording it |
 | **Migration status** | **NONE** | `drizzle/` and `drizzle/meta/_journal.json` untouched across the entire 91-commit range; the P2 DDL exists only as design + disposable fork-only SQL |
 
 Test results at the gated tip: **unit 3,194 / 3,194 (227 files) · integration
@@ -915,3 +915,26 @@ were reviewing this branch cold.
 | `docs/reviews/CONFLICT-EVALUATION-TEST-LEDGER-2026-08-17.md` | Phase 7 ledger block appended |
 | `docs/reviews/CONFLICT-EVALUATION-WORKSTREAM-INDEX-2026-08-17.md` | Phase 7 row + final SHAs |
 
+
+---
+
+## 10. Closing note — the final SHAs
+
+Recorded after the merge, as a docs-only addendum on the integration branch
+(this section is the only change it makes):
+
+| Identifier | SHA |
+|---|---|
+| P7 gated tip (the tree all eleven gates in §6 ran against) | `ad10fbd` |
+| P7 branch tip (`ad10fbd` + the SHA-recording commit) | `de3acc4` |
+| **Merge commit** — `--no-ff` of `codex/conflict-evaluations-p7-integration` into `codex/conflict-evaluations-integration-20260817`, message "merge phase 7: integration audit, backtest matrix, soak plan, final gates" | **`4e900a6`** |
+| **FINAL INTEGRATION TIP** of `codex/conflict-evaluations-integration-20260817` | **this addendum commit** — a document cannot contain its own hash; resolve it with `git rev-parse --short codex/conflict-evaluations-integration-20260817`, and it is reported in the session's final output |
+
+The merge is a fast-forwardable `--no-ff` of a branch that descended from the
+integration tip `f7b563c`, so the merged tree is byte-identical to `de3acc4`'s
+tree; the gate numbers in §6 therefore describe the merged content exactly.
+This addendum commit edits only this file.
+
+Local-only. Not pushed, no PR, not merged to `main`, not deployed, no
+environment changed, no flag enabled, no production data touched, zero paid
+provider calls.
