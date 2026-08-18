@@ -255,3 +255,37 @@ sitemap review (P6 report §12.6/§14). The legal reviewer's attack campaign
 (31 routes × 5 header sets + 14 crafted variants, fake keys, bodies-only
 trust) found zero text fragments; provider tamper probes all refused typed.
 **Verdicts: PASS-WITH-MINORS ×2. GATE 6: PASSED.**
+
+## Phase 7 (branch `codex/conflict-evaluations-p7-integration`) — full integration gates
+
+Eleven gates per prompt §15. Full detail:
+`docs/reviews/CONFLICT-EVALUATION-P7-REPORT-2026-08-17.md` §6.
+
+| # | Gate | Command | Result |
+|---|---|---|---|
+| 1 | clean worktree | `git diff --check` + `git status` | clean |
+| 2 | targeted per-phase tests | six phase file-sets + the P7 file, run in isolation | P1 157/6 files · P2 100/7 · P3 240/6 · P4 133/9 · P5 78/6 · P6 65/7 · P7 19/1 · whole conflicts package 723/33 — **0 failures** |
+| 3 | typecheck | `npm run typecheck` | clean |
+| 4 | lint | `npm run lint` | clean (0 errors / 0 warnings) |
+| 5 | unit | `npm test` | **3,194 passed / 3,194 (227 files)** — P6 close 3,175/226 + 19 backtest cases in 1 file; zero regressions (base `7150b49` = 2,402/185) |
+| 6 | production build | `npm run build`, `env -i`, `CONFLICTS_UI` ABSENT, unroutable `DATABASE_URL`, `LLM_DISABLE=1` | **PASS**, warning-free; all four conflict routes `ƒ (dynamic)`. Gate-6 reviewer's flag-ON build against an unroutable DB (every page 200, zero runtime DB dependency) cited, not re-run |
+| 7 | integration (full) | `npm run test:integration`, inline-env pattern (NEON keys + DATABASE_URL grepped inline from the ordinary checkout's `.env.local`, never copied/echoed), paid keys blanked, `LLM_DISABLE=1` | **150 passed / 150 (21 files)** — disposable branch `br-wandering-cherry-atk3f7wh` created and deleted; 99.85 s |
+| 8 | CLIs, zero-provider proof | `--profile conflict` × validate-dataset / estimate / offline / offline --fresh / report, under `env -i`; then 8 refusal probes WITH a fake OpenAI key, fake Anthropic key, `EVAL_USD_CAP_DAILY=99`, fake `DATABASE_URL` | all modes exit 0 with zero provider contact (validate 8+6 cases; estimate \$0.0031 explicitly hypothetical; `--fresh` byte-identical except one `updatedAt` line per file; report verdicts `insufficient_data`, honest); **all 8 refusals exit 2 before any client construction** (equals-form incl. uppercase/short-dash, `--execute-live` under the profile, unknown profile, unknown conflict id, workload/profile clash, generic live db-ack) |
+| 9 | browser matrix | cited from Gate 6; artifacts verified present | author matrix `p6-browser/` 56 files (36 PNG + 3 PDF) incl. the found-and-fixed 390 px overflow (`50761e7`); reviewer reproduction `gate6-shots/` (10, incl. 390 RTL + print PDFs) + `gate6-html/` (17) with a driven 33-stop Tab-walk and measured contrast (worst 5.03:1) |
+| 10 | source scan | range-wide greps + the committed sentinel-audit tests | **no client construction, no retry config, no SDK import, no SpendGuard/metering touch, no env file, no credential** in the whole range; the only secret-shaped string is a deliberate unroutable fake DSN in a refusal test; both committed results artifacts are `configKey=offline-fixtures` with no cost/model/key fields; every prose/sentinel audit green |
+| 11 | SHA table | see report §6 gate 11 | base `7150b49` ← `e5757ea`; seven phase tips/merges; **migration status NONE** (`drizzle/` + journal untouched across 91 commits) |
+
+Scope audit vs base: 120 files, +37,686 / −4 (the four deletions are refactored
+helper signatures in `scripts/analysis-eval.ts`). Freeze list untouched:
+`drizzle/`, `src/db/`, `src/lib/validation/*`, `src/lib/isw/*`,
+`src/app/api/cron/validate/*`, `scripts/validate.ts`, `src/app/scoreboard/*`,
+`map-versions.ts`, nav/robots/sitemap/metadata. Sole freeze-adjacent edit: a
+six-line explanatory comment in `src/integration/authz-page-gate.itest.ts`.
+
+Zero paid provider calls, zero production writes, no migration, no env change,
+no deploy, no push, no PR, no merge to `main`.
+
+**GATE 7 (final): the three fresh adversarial reviews (methodology/science,
+safety/operations, product/analyst UX) are commissioned against the final
+integration SHA and are NOT yet performed — §8 of the P7 report is written for
+them preemptively. A final PASS applies only to that exact SHA.**
