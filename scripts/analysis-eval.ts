@@ -769,7 +769,11 @@ async function main(): Promise<void> {
   // construction. Refusing (rather than teaching the parser "=") protects
   // EVERY flag with zero parser-semantics change, and fires before ANY mode
   // work.
-  const equalsForm = process.argv.slice(2).find((a) => /^--[a-z-]+=/.test(a));
+  // The pattern covers ANY dash-prefixed equals token (uppercase, short form,
+  // mixed) — the Gate-5 re-review showed a lowercase-long-form-only guard
+  // still let --PROFILE=conflict / -p=conflict fall through as silently
+  // ignored unknown tokens.
+  const equalsForm = process.argv.slice(2).find((a) => /^-[^=\s]+=/.test(a));
   if (equalsForm !== undefined) {
     const eq = equalsForm.indexOf("=");
     const name = equalsForm.slice(0, eq);

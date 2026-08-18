@@ -105,6 +105,19 @@ describe("conflict-mode CLI refusals (subprocess, blanked env)", () => {
     expect(r.stderr).toMatch(/use "--profile conflict"/);
   }, 60_000);
 
+  it("equals-form refusal covers uppercase and short-dash spellings (Gate-5 re-review residual)", () => {
+    // a lowercase-long-form-only guard let these fall through as silently
+    // ignored unknown tokens toward the generic path
+    for (const argv of [
+      ["--PROFILE=conflict", "--execute-live", "--workload", "validation"],
+      ["-p=conflict", "--execute-live", "--workload", "validation"],
+    ]) {
+      const r = runCli(argv, FAKE_LIVE_ENV);
+      expect(r.status, argv[0]).toBe(2);
+      expect(r.stderr, argv[0]).toMatch(/is not accepted/);
+    }
+  }, 60_000);
+
   it("equals-form refusal covers the generic path too (--workload=validation)", () => {
     const r = runCli(["--workload=validation", "--validate-dataset"], FAKE_LIVE_ENV);
     expect(r.status).toBe(2);

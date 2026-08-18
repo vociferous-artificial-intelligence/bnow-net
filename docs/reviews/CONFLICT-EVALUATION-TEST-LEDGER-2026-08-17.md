@@ -166,3 +166,39 @@ documentation (BINDING P6); action-gate deflation on non-canonical action
 wording ("shelled"/"artillery struck" false-miss — deflationary only) →
 production-gazetteer follow-up.
 **Verdicts: PASS + PASS. GATE 4: PASSED.**
+
+## Phase 5 (branch `codex/conflict-evaluations-p5-adapter`, final tip see closing commit)
+
+| Gate | Command | Result |
+|---|---|---|
+| typecheck | `npx tsc --noEmit` | clean (coordinator, both pre-gate verifiers, both reviewers, both re-reviews) |
+| lint | `npm run lint` | clean |
+| unit | `npm test` | **3,110 passed / 3,110 (219 files)** at the closing tip (base 3,050 + Phase 5; conflicts+evals green under TZ=Asia/Tokyo) |
+| goldens | drift gate | byte-untouched EXCEPT the one sanctioned Gate-4-obligation re-baseline (2 keys in the ladder B-variant: votesK null->5, runGroupKey k=0->k=5), audited exact by both reviewers |
+| CLI (zero-provider) | `scripts/analysis-eval.ts --profile conflict` modes with blanked env + fake-key probes | validate-dataset 8+6 cases OK; offline 14/14 with byte-identical committed artifacts (mod updatedAt); estimate $0.0031 explicitly hypothetical; every live/equals-form/unknown-token refusal exit 2 BEFORE client construction (subprocess-pinned) |
+| scope | range diffstat | src/lib/{evals,conflicts}/ + scripts/analysis-eval.ts (sanctioned additive hunks only, classified line-by-line) + fixtures goldens (sanctioned) + docs; inherited evals plane byte-unchanged; isolation test unmodified 6/6 |
+
+Critical Gate 5 (two independent reviewers): initial verdicts on `022d3c1`
+**FAIL + FAIL**, non-overlapping MAJORs. Ops: the GNU `=` flag spelling was
+silently discarded, bypassing the new refusals and reaching the GENERIC paid
+live path's client construction under mixed spelling + provisioned env.
+Control-plane: register #5's terminal rung was caller-skippable — the scorer
+and persistence gate both passed a scored snapshot-kind result minted WITHOUT
+resolution (two proven probe cells). Plus: snapshot refs silently dropped on
+gap paths (both scorer and wiring layers), the adapter's persistence-gate
+call mutation-uncovered (0/801 kill), dataset identity not covering
+derivation logic, the dynamic-import pin gap, heldout unmasked in the
+conflict report section. Remediated across `82ad8c0`..`2e1422b` (incl. the
+register-#5 twin guards, the equals refusal, derivation-covered identity with
+a sanctioned exact-line artifact refresh, the additive dynamic-import pin,
+and the gap-branch wiring fix that closed the ops reviewer's mid-interruption
+probe). Focused re-reviews on `2e1422b` (both re-run after a session-limit
+interruption; orphaned reviewer worktrees verified clean and removed):
+control-plane **PASS** (twin-guard property mutation-proven; derivation-gap
+re-probed closed; artifact refresh audited line-by-line); ops
+**PASS-WITH-MINORS** (all discharged; residual MINOR: the equals guard was
+lowercase-long-form only — hardened to `/^-[^=\s]+=/` with uppercase/short-
+dash pins in the Gate-5 closing commit). Register-#3 fallback trigger
+adjudicated NOT met (workload honesty verified); no isolation-test amendment
+needed; no new register entry required.
+**Verdicts: PASS + PASS-WITH-MINORS. GATE 5: PASSED.**
