@@ -131,7 +131,14 @@ export interface ConflictBenchmarkEntry {
 }
 
 function loadGoldenResults(): Record<string, unknown> {
-  const raw = readFileSync(join(process.cwd(), GOLDEN_RESULTS_FILE), "utf8");
+  // statically scoped literal path (a `join(process.cwd(), <variable>)` makes
+  // Turbopack's file tracing treat the whole project as a dependency); the
+  // goldens.ts constant is asserted equal so the two paths can never drift
+  if (GOLDEN_RESULTS_FILE !== "fixtures/conflicts/goldens/golden-results-v1.json") {
+    throw new ConflictDomainError("invalid_score_request", "golden results path drifted");
+  }
+  const path = join(process.cwd(), "fixtures", "conflicts", "goldens", "golden-results-v1.json");
+  const raw = readFileSync(path, "utf8");
   const parsed: unknown = JSON.parse(raw);
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
     throw new ConflictDomainError("invalid_score_request", "golden results file is not an object");

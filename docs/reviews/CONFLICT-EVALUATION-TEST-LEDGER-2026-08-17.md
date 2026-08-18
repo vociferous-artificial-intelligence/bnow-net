@@ -202,3 +202,23 @@ dash pins in the Gate-5 closing commit). Register-#3 fallback trigger
 adjudicated NOT met (workload honesty verified); no isolation-test amendment
 needed; no new register entry required.
 **Verdicts: PASS + PASS-WITH-MINORS. GATE 5: PASSED.**
+
+## Phase 6 (branch `codex/conflict-evaluations-p6-product`, final tip see closing commit)
+
+| Gate | Command | Result |
+|---|---|---|
+| typecheck | `npx tsc --noEmit` | clean |
+| lint | `npm run lint` | clean (0 errors, 0 warnings) |
+| unit | `npm test` | **3,166 passed / 3,166 (225 files)** (base 3,110/219 + 56 Phase-6 tests in 6 files; zero base regressions) |
+| integration (full) | `npm run test:integration` (disposable Neon fork, paid keys blanked, LLM_DISABLE=1) | **150 passed / 150 (21 files)** — base 127/20 + 23 `conflict-feature-off.itest.ts` cases (production build; bare-GET + RSC + accepted-session BODY assertions, flag absent AND flag ephemeral-on; positive control non-vacuous); fork deleted |
+| build | `npm run build` (flag absent, dummy non-contact env) | PASS, warning-free; all four conflict routes ƒ (dynamic) |
+| guard-order mutation proofs | delete `requireAcceptedUser` from the evidence page; remove the overview's leading feature guard | fail exactly 3/7 and 2/9 cases respectively, nothing else; both reverted |
+| browser matrix | production serve on :3141, flag injected ephemerally; headless Chrome 151 + CDP media emulation | screenshots/PDFs/metrics in session scratchpad; 390px document-overflow bug FOUND (sr-only labels escaping the scroll clip, scrollWidth 576) and FIXED (`50761e7`), re-measured scrollWidth=390 everywhere, light+dark; feature-off 404s re-proven over HTTP |
+| clean diff | `git diff --check` + tree | clean at the closing commit |
+
+Phase report: `docs/reviews/CONFLICT-EVALUATION-P6-REPORT-2026-08-17.md`
+(IA decisions incl. the register-#8(g) scoreboard-coexistence adjudication,
+guard-ordering table, seven-question mapping, rendering-obligation
+fulfillment, browser-coverage honesty, judgment calls, residual risks).
+Critical Gate 6 (product-clarity/accessibility + legal/authorization/
+truth-in-UI reviewers): PENDING — to be run against the closing tip.
