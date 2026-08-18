@@ -111,6 +111,29 @@ describe("compound partial (roca-compound-partial-009b)", () => {
   });
 });
 
+describe("retention gap (roca-retention-gap-008b)", () => {
+  it("q3 renders BOTH contribution notes — the population difference is the honest cause, not multi-labeling", async () => {
+    featureMock.mockImplementation(() => {});
+    render(await pageFor("russia-ukraine", "roca-retention-gap-008b"));
+
+    // published-output headline is 0 while the corpus-recall buckets hold 1
+    // — the POPULATION note names that cause; the non-additive note alone
+    // would misattribute it (pre-gate MINOR-2)
+    expect(screen.getByTestId("benchmark-headline").textContent).toMatch(
+      /0 of 1 declared Key Takeaways \(0%\)/,
+    );
+    const q3 = screen.getByTestId("q3");
+    expect(within(q3).getByTestId("contribution-population-note").textContent).toContain(
+      "corpus-recall matched takeaways",
+    );
+    expect(q3.textContent).toContain("NON-ADDITIVE"); // both notes present
+    // and the actor clause of the contractual heading is answered here too
+    expect(within(q3).getByTestId("actor-contribution-note").textContent).toContain(
+      "versioned actor rosters",
+    );
+  });
+});
+
 describe("incomparable gulf lane (iran-gulf-unavailable-010b)", () => {
   it("renders the lane as unavailable (incomparable evidence), never a bare zero", async () => {
     featureMock.mockImplementation(() => {});

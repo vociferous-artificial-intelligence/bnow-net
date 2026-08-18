@@ -113,6 +113,22 @@ describe("the seven analyst questions, in contract order", () => {
     expect(within(note).getByRole("link").getAttribute("href")).toBe("/scoreboard");
   });
 
+  it("q3 answers the contractual ACTOR clause and names the contribution population", async () => {
+    featureMock.mockImplementation(() => {});
+    render(await pageFor("russia-ukraine"));
+    const q3 = screen.getByTestId("q3");
+    // pre-gate MINOR-1: the heading is contractual ("…actors…"); the copy
+    // answers the actor clause honestly (rosters govern lanes upstream; the
+    // by-actor table is a recorded future dimension)
+    const actorNote = within(q3).getByTestId("actor-contribution-note");
+    expect(actorNote.textContent).toContain("versioned actor rosters");
+    expect(actorNote.textContent).toContain("not yet computed");
+    // pre-gate MINOR-2: the population is disclosed beside the table
+    const popNote = within(q3).getByTestId("contribution-population-note");
+    expect(popNote.textContent).toContain("corpus-recall matched takeaways");
+    expect(popNote.textContent).toContain("independent of multi-labeling");
+  });
+
   it("teaser tier: no claim text, no takeaway text, no source trail on the overview", async () => {
     featureMock.mockImplementation(() => {});
     render(await pageFor("russia-ukraine"));

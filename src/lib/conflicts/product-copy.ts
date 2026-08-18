@@ -51,6 +51,20 @@ export const SCOREBOARD_COEXISTENCE_NOTE =
 export const NON_ADDITIVE_NOTE =
   "Contribution is multi-label and NON-ADDITIVE: one matched takeaway may appear in several buckets, so bucket totals can exceed the headline numerator and do not sum to it.";
 
+/** Pre-gate MINOR-2: the contribution population, disclosed beside the table.
+ *  The buckets are computed over CORPUS-RECALL matched takeaways while the
+ *  headline scores the PUBLISHED output — on retention-gap days the buckets
+ *  exceed the published numerator purely from this population difference,
+ *  which the non-additivity note alone would misattribute. */
+export const CONTRIBUTION_POPULATION_NOTE =
+  "Computed over corpus-recall matched takeaways; the headline scores the published output. The two populations differ, so bucket totals can exceed the published numerator independent of multi-labeling.";
+
+/** Pre-gate MINOR-1: contract §11's question 3 names ACTORS, and the heading
+ *  is contractual — this line answers the actor clause honestly instead of
+ *  letting the heading over-promise a table that does not exist yet. */
+export const ACTOR_CONTRIBUTION_NOTE =
+  "Actors contribute through the lane assignments — the versioned actor rosters govern how evidence is classified into lanes upstream. A by-actor contribution table is a recorded future dimension permitted by the contribution contract (§7) but not yet computed in the frozen result profile.";
+
 /** Contract §3 partial semantics, rendered beside any partial count. */
 export const PARTIAL_EXPLAINER =
   "A partial is a compound takeaway (several propositions in one bullet) where evidence covers some but not all propositions. Partials count as MISSES in the headline coverage; they are shown separately so compound under-credit stays visible.";

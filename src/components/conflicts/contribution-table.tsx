@@ -4,7 +4,7 @@
 // table. The label is the frozen "matched takeaways with evidence from …".
 
 import type { ConflictContributionTotalsV1 } from "@/lib/conflicts/eval-profile";
-import { NON_ADDITIVE_NOTE } from "@/lib/conflicts/product-copy";
+import { CONTRIBUTION_POPULATION_NOTE, NON_ADDITIVE_NOTE } from "@/lib/conflicts/product-copy";
 import { trackLabel } from "./model";
 
 function BucketList({
@@ -53,6 +53,12 @@ export function ContributionTable({
   return (
     <div>
       <h3 className="text-sm font-semibold">Matched takeaways with evidence from …</h3>
+      <p
+        data-testid="contribution-population-note"
+        className="mt-1 max-w-2xl text-xs text-gray-600 dark:text-gray-400"
+      >
+        {CONTRIBUTION_POPULATION_NOTE}
+      </p>
       <p className="mt-1 max-w-2xl text-xs text-gray-600 dark:text-gray-400">{NON_ADDITIVE_NOTE}</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <BucketList

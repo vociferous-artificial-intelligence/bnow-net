@@ -10,7 +10,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireConflictsUi } from "@/lib/conflicts/feature";
-import { REFERENCE_SERIES_LABELS } from "@/lib/conflicts/product-copy";
+import { ACTOR_CONTRIBUTION_NOTE, REFERENCE_SERIES_LABELS } from "@/lib/conflicts/product-copy";
 import { BenchmarkHeadline } from "@/components/conflicts/benchmark-headline";
 import { ContributionTable } from "@/components/conflicts/contribution-table";
 import { DiagnosticsModule } from "@/components/conflicts/diagnostics-module";
@@ -120,6 +120,14 @@ export default async function BenchmarkDetailPage({
         ) : (
           <ContributionTable totals={scored.contributionTotals} />
         )}
+        {/* pre-gate MINOR-1: the contractual heading names ACTORS — answer
+            that clause honestly beside the table instead of over-promising */}
+        <p
+          data-testid="actor-contribution-note"
+          className="mt-3 max-w-2xl text-sm text-gray-600 dark:text-gray-400"
+        >
+          {ACTOR_CONTRIBUTION_NOTE}
+        </p>
         <div className="mt-3">
           <SourceCountryNote />
         </div>
