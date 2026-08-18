@@ -273,9 +273,9 @@ Eleven gates per prompt §15. Full detail:
 | 8 | CLIs, zero-provider proof | `--profile conflict` × validate-dataset / estimate / offline / offline --fresh / report, under `env -i`; then 8 refusal probes WITH a fake OpenAI key, fake Anthropic key, `EVAL_USD_CAP_DAILY=99`, fake `DATABASE_URL` | all modes exit 0 with zero provider contact (validate 8+6 cases; estimate \$0.0031 explicitly hypothetical; `--fresh` byte-identical except one `updatedAt` line per file; report verdicts `insufficient_data`, honest); **all 8 refusals exit 2 before any client construction** (equals-form incl. uppercase/short-dash, `--execute-live` under the profile, unknown profile, unknown conflict id, workload/profile clash, generic live db-ack) |
 | 9 | browser matrix | cited from Gate 6; artifacts verified present | author matrix `p6-browser/` 56 files (36 PNG + 3 PDF) incl. the found-and-fixed 390 px overflow (`50761e7`); reviewer reproduction `gate6-shots/` (10, incl. 390 RTL + print PDFs) + `gate6-html/` (17) with a driven 33-stop Tab-walk and measured contrast (worst 5.03:1) |
 | 10 | source scan | range-wide greps + the committed sentinel-audit tests | **no client construction, no retry config, no SDK import, no SpendGuard/metering touch, no env file, no credential** in the whole range; the only secret-shaped string is a deliberate unroutable fake DSN in a refusal test; both committed results artifacts are `configKey=offline-fixtures` with no cost/model/key fields; every prose/sentinel audit green |
-| 11 | SHA table | see report §6 gate 11 | base `7150b49` ← `e5757ea`; seven phase tips/merges; **migration status NONE** (`drizzle/` + journal untouched across 91 commits) |
+| 11 | SHA table | see report §6 gate 11 | base `7150b49` ← `e5757ea`; seven phase tips/merges; **migration status NONE** (`drizzle/` + journal untouched across 97 commits) |
 
-Scope audit vs base: 120 files, +37,686 / −4 (the four deletions are refactored
+Scope audit vs base: 124 files, +39,737 / −4 (the four deletions are refactored
 helper signatures in `scripts/analysis-eval.ts`). Freeze list untouched:
 `drizzle/`, `src/db/`, `src/lib/validation/*`, `src/lib/isw/*`,
 `src/app/api/cron/validate/*`, `scripts/validate.ts`, `src/app/scoreboard/*`,

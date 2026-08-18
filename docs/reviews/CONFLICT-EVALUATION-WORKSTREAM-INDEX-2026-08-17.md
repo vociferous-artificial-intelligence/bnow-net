@@ -108,7 +108,7 @@ their documented extension points:
 - Unit **3,194 / 3,194 (227 files)** · integration **150 / 150 (21 files)** ·
   typecheck clean · lint clean · production build PASS (flag absent) ·
   `git diff --check` clean.
-- Range vs base `7150b49`: **91 commits, 120 files, +37,686 / −4**.
+- Range vs base `7150b49`: **97 commits, 124 files, +39,737 / −4**.
   **Migration status: NONE** — `drizzle/` and the journal are untouched; the
   Phase-2 DDL exists only as design plus disposable fork-only SQL.
 - **Zero paid provider calls, zero production writes, no env change, no deploy,

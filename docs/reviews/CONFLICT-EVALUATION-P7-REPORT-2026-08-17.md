@@ -67,8 +67,8 @@ separately**; this report grades only the conflict range below it.
 
 ### 1.3 Conflict-workstream commits (this workstream's scope)
 
-`git rev-list --count 7150b49..HEAD` = **91 commits** (84 non-merge + 7 phase
-merges), **120 files changed, +37,686 / −4**. The only deletions in the whole
+`git rev-list --count 7150b49..HEAD` = **97 commits** (89 non-merge + 8 phase
+merges), **124 files changed, +39,737 / −4**. The only deletions in the whole
 range are 4 lines in `scripts/analysis-eval.ts` (two helper signatures
 refactored while adding the conflict profile's results-path handling).
 
@@ -108,20 +108,32 @@ surprised by the missing `P1-REPORT` filename.
 
 ### 1.5 Range-wide surface audit vs `7150b49` (freeze list)
 
-`git diff --name-only 7150b49..HEAD`, classified:
+`git diff --name-only 7150b49..HEAD`, classified (recomputed at the FINAL integration SHA `35c5c34`; rows sum to 124):
 
 | Area | files | note |
 |---|---|---|
-| `src/lib/conflicts/` | 68 | the whole pure domain + scorer + product view; new package |
+| `src/lib/conflicts/` | 69 | the whole pure domain + scorer + product view; new package |
 | `src/components/conflicts/` | 12 | new |
 | `src/app/conflicts/` | 8 | new routes (4 pages + 4 test files) |
-| `docs/reviews/` | 9 | this workstream's reports/ledger/register/index |
+| `docs/reviews/` | 10 | this workstream's reports/ledger/register/index |
 | `src/integration/` | 5 | 2 new itests, 1 new SQL fixture + README, **1 six-line comment** in `authz-page-gate.itest.ts` |
-| `src/lib/evals/` | 4 | conflict profile + 3 test files (additive; inherited plane byte-unchanged) |
+| `src/lib/evals/` | 5 | conflict profile + 3 test files (additive; inherited plane byte-unchanged) |
 | `docs/evals/` | 4 | conflict scorecard + 2 offline results artifacts |
-| `docs/designs/` | 3 | evaluation contract, reference-report schema, snapshot capture |
+| `docs/designs/` | 4 | evaluation contract, reference-report schema, snapshot capture |
 | `scripts/analysis-eval.ts` | 1 | additive conflict profile (+281 / −4) |
+| `fixtures/conflicts/` | 5 | the 41-scenario acceptance corpus + README + committed goldens |
 | `docs/prompts/` | 1 | the workstream prompt, committed per register #7 |
+
+**Statistics provenance (pre-final-review correction):** the range figures in
+this section were originally computed at the Phase-6 merge `f7b563c` (the P7
+branch parent) and labelled as the HEAD range. They are RECOMPUTED here at the
+final integration SHA `35c5c34` — 97 commits (89 non-merge + 8 merges), 124
+files, +39,737 / −4, and 149 ahead of `origin/main` — and the area table above
+was corrected (it had omitted the `fixtures/conflicts/` row and miscounted
+three others). The deletions figure (−4) was correct at every tip. No gate
+verdict, safety claim, or merge-order conclusion depended on the stale
+numbers. Correction commit: `d4da799` (docs-only, atop the final integration
+SHA; the gate battery of §6 ran at `ad10fbd` and is unaffected).
 
 **Freeze-list verification — all NONE:**
 
@@ -696,7 +708,7 @@ scratchpad:
 | **P7 gated tip** | **`ad10fbd`** | the exact tree all eleven gates above were run against (`a61a4e7` soak plan → `24a6dae` matrix + report → `ad10fbd` ledger + index) |
 | **P7 branch tip** | **`de3acc4`** | `ad10fbd` + this one SHA-recording commit, which edits this report and nothing else |
 | **Final integration tip** | **`4e900a6`** (the merge) → this docs-only addendum commit, which is the branch tip | the `--no-ff` merge of the P7 branch into `codex/conflict-evaluations-integration-20260817`, plus the one-line addendum commit recording it |
-| **Migration status** | **NONE** | `drizzle/` and `drizzle/meta/_journal.json` untouched across the entire 91-commit range; the P2 DDL exists only as design + disposable fork-only SQL |
+| **Migration status** | **NONE** | `drizzle/` and `drizzle/meta/_journal.json` untouched across the entire 97-commit range; the P2 DDL exists only as design + disposable fork-only SQL |
 
 Test results at the gated tip: **unit 3,194 / 3,194 (227 files) · integration
 150 / 150 (21 files) · typecheck clean · lint clean · build PASS ·
@@ -821,7 +833,7 @@ were reviewing this branch cold.
    silently loses its proof. It is recorded as a binding checklist item — but
    it is a checklist item, which is weaker than a test.
 3. **Migration posture is "none", deliberately.** Verify that: `drizzle/` and
-   the journal are untouched across all 91 commits, and the P2 DDL executes
+   the journal are untouched across all 97 commits, and the P2 DDL executes
    only on disposable forks. The corollary risk is that the *real* migration
    has never been reviewed as an applied artifact.
 4. **Snapshot immutability is contract-level, not artifact-level.** The scorer
