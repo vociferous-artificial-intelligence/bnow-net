@@ -59,7 +59,7 @@ export default async function ConflictsIndexPage() {
             </p>
             {view.featured !== null && view.featured.result.state === "scored" ? (
               <p className="mt-2 text-sm">
-                Latest fixture benchmark ({view.featured.result.report.reportDate}):{" "}
+                Latest scored fixture benchmark ({view.featured.result.report.reportDate}):{" "}
                 <Ratio count={view.featured.result.headline.publishedRetention} /> in the published
                 output
               </p>

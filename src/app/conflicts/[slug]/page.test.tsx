@@ -113,6 +113,14 @@ describe("the seven analyst questions, in contract order", () => {
     expect(within(note).getByRole("link").getAttribute("href")).toBe("/scoreboard");
   });
 
+  it("the ROCA overview renders the per-series coexistence note (RU/UA rows example)", async () => {
+    featureMock.mockImplementation(() => {});
+    render(await pageFor("russia-ukraine"));
+    const note = screen.getByTestId("scoreboard-coexistence-note");
+    expect(note.textContent).toContain("separate RU and UA rows");
+    expect(note.textContent).not.toContain("single IR row");
+  });
+
   it("q3 answers the contractual ACTOR clause and names the contribution population", async () => {
     featureMock.mockImplementation(() => {});
     render(await pageFor("russia-ukraine"));

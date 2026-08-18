@@ -6,10 +6,11 @@
 
 import Link from "next/link";
 import {
-  SCOREBOARD_COEXISTENCE_NOTE,
+  SCOREBOARD_COEXISTENCE_NOTES,
   SOURCE_COUNTRY_NOTE,
   TERMINOLOGY_EXPLAINER,
 } from "@/lib/conflicts/product-copy";
+import type { ReferenceSeriesId } from "@/lib/conflicts/vocabulary";
 
 export function TerminologyExplainer() {
   return (
@@ -40,13 +41,13 @@ export function SourceCountryNote() {
   );
 }
 
-export function ScoreboardCoexistenceNote() {
+export function ScoreboardCoexistenceNote({ series }: { series: ReferenceSeriesId }) {
   return (
     <p
       data-testid="scoreboard-coexistence-note"
       className="max-w-2xl text-sm text-gray-700 dark:text-gray-300"
     >
-      {SCOREBOARD_COEXISTENCE_NOTE}{" "}
+      {SCOREBOARD_COEXISTENCE_NOTES[series]}{" "}
       <Link href="/scoreboard" className="underline">
         Open the per-country validation scoreboard
       </Link>

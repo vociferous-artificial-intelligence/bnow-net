@@ -103,7 +103,7 @@ export default async function ConflictOverviewPage({
         ) : (
           <>
             <p className="max-w-2xl text-sm text-gray-700 dark:text-gray-300">
-              Latest fixture benchmark day{" "}
+              Latest scored fixture benchmark day{" "}
               <span className="tabular-nums">{featuredScored.report.reportDate}</span>:{" "}
               <span className="tabular-nums">{publishedUnionCount}</span> published digest claim
               {publishedUnionCount === 1 ? "" : "s"} entered the published-output union for this
@@ -173,7 +173,7 @@ export default async function ConflictOverviewPage({
           </>
         )}
         <div className="mt-3">
-          <ScoreboardCoexistenceNote />
+          <ScoreboardCoexistenceNote series={view.definition.referenceSeries} />
         </div>
         <h3 className="mt-6 mb-2 text-sm font-semibold">All fixture benchmark records</h3>
         <BenchmarkRunList slug={slug} entries={view.entries} />

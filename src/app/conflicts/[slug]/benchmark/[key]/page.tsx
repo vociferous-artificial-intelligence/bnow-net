@@ -136,7 +136,7 @@ export default async function BenchmarkDetailPage({
       <QuestionSection qid="q4" heading="What the external benchmark covered">
         <BenchmarkHeadline result={result} />
         <div className="mt-3">
-          <ScoreboardCoexistenceNote />
+          <ScoreboardCoexistenceNote series={definition.referenceSeries} />
         </div>
       </QuestionSection>
 

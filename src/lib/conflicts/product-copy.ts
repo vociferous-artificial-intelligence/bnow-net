@@ -42,9 +42,14 @@ export const TERMINOLOGY_EXPLAINER = {
 } as const;
 
 /** Contract §11(d): how the conflict-level score relates to the per-country
- *  scoreboard rows for the same reference report. */
-export const SCOREBOARD_COEXISTENCE_NOTE =
-  "The validation scoreboard scores the same reference reports per country (one ROCA report produces separate RU and UA rows there). This conflict view scores each report ONCE at conflict level. They are different aggregations of one report — neither contradicts the other.";
+ *  scoreboard rows for the same reference report — PER SERIES (Gate-6
+ *  product NOTE-2): the RU/UA-rows example is true of ROCA only; an Iran
+ *  Update maps to a single IR row, so Iran pages say that instead. */
+export const SCOREBOARD_COEXISTENCE_NOTES: Readonly<Record<ReferenceSeriesId, string>> = {
+  roca: "The validation scoreboard scores the same reference reports per country (one ROCA report produces separate RU and UA rows there). This conflict view scores each report ONCE at conflict level. They are different aggregations of one report — neither contradicts the other.",
+  iran_update:
+    "The validation scoreboard scores the same reference reports per country (one Iran Update report maps to a single IR row there). This conflict view scores each report ONCE at conflict level. They are different aggregations of one report — neither contradicts the other.",
+};
 
 /** Contract §7 non-additivity disclosure, rendered beside every contribution
  *  table. */
@@ -57,7 +62,7 @@ export const NON_ADDITIVE_NOTE =
  *  exceed the published numerator purely from this population difference,
  *  which the non-additivity note alone would misattribute. */
 export const CONTRIBUTION_POPULATION_NOTE =
-  "Computed over corpus-recall matched takeaways; the headline scores the published output. The two populations differ, so bucket totals can exceed the published numerator independent of multi-labeling.";
+  "Computed over corpus-recall matched takeaways; the headline scores the published output. The two populations differ, so bucket totals can exceed the published numerator independent of multi-labeling — and the buckets can also be EMPTY while the published output matched, when the matching evidence lives outside the corpus-recall population (e.g. a legacy-only theater); the gated evidence view shows the actual contributors.";
 
 /** Pre-gate MINOR-1: contract §11's question 3 names ACTORS, and the heading
  *  is contractual — this line answers the actor clause honestly instead of
