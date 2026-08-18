@@ -14,7 +14,7 @@ vi.mock("next/link", () => ({
 // deleted or reordered behind data access (prompt §14 guard-order rule; the
 // HTTP-level proof lives in src/integration/conflict-feature-off.itest.ts).
 const featureMock = vi.hoisted(() =>
-  vi.fn(() => {
+  vi.fn<() => void>(() => {
     throw new Error("FEATURE_OFF_TEST");
   }),
 );

@@ -18,7 +18,7 @@ const notFoundMock = vi.hoisted(() =>
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
 
 const featureMock = vi.hoisted(() =>
-  vi.fn(() => {
+  vi.fn<() => void>(() => {
     throw new Error("FEATURE_OFF_TEST");
   }),
 );
@@ -78,7 +78,6 @@ describe("the seven analyst questions, in contract order", () => {
     const nodes = ids.map((id) => screen.getByTestId(id));
     for (let i = 1; i < nodes.length; i += 1) {
       expect(
-        // eslint-disable-next-line no-bitwise
         nodes[i - 1].compareDocumentPosition(nodes[i]) & Node.DOCUMENT_POSITION_FOLLOWING,
         `${ids[i - 1]} must precede ${ids[i]}`,
       ).toBeTruthy();

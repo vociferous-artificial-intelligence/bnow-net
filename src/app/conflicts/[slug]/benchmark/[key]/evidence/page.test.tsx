@@ -27,7 +27,7 @@ vi.mock("@/lib/gate", () => ({ requireAcceptedUser: gateMock }));
 // Access-tier pin (contract §11): the feature-off guard runs IMMEDIATELY after
 // the authorization gate, before data access.
 const featureMock = vi.hoisted(() =>
-  vi.fn(() => {
+  vi.fn<() => void>(() => {
     throw new Error("FEATURE_OFF_TEST");
   }),
 );

@@ -18,7 +18,7 @@ const notFoundMock = vi.hoisted(() =>
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
 
 const featureMock = vi.hoisted(() =>
-  vi.fn(() => {
+  vi.fn<() => void>(() => {
     throw new Error("FEATURE_OFF_TEST");
   }),
 );
