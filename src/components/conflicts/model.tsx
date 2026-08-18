@@ -13,11 +13,19 @@ export function pctOf(count: HeadlineCount): number {
   return count.denominator === 0 ? 0 : Math.round((count.matched / count.denominator) * 100);
 }
 
-/** "1 of 3 declared Key Takeaways (33%)" — n/d always beside the %. */
+/** "1 of 3 declared Key Takeaways (33%)" — n/d always beside the %.
+ *
+ *  BIDI ISOLATION (Gate-7 product MINOR-6): the string starts with a digit,
+ *  so inside an RTL paragraph the bidi algorithm reorders it to
+ *  "of 1 declared Key Takeaways (100%) 1" — the numerator visually detaches
+ *  from its ratio. `dir="ltr"` isolates the whole ratio as one LTR run. The
+ *  repo has no house convention for this; the conflicts package establishes
+ *  one here and applies it to every numeric run it emits (see also
+ *  lane-table's Counts). */
 export function Ratio({ count, unitNoun }: { count: HeadlineCount; unitNoun?: string }) {
   const noun = unitNoun ?? "declared Key Takeaways";
   return (
-    <span className="tabular-nums">
+    <span dir="ltr" className="tabular-nums">
       {count.matched} of {count.denominator} {noun} ({pctOf(count)}%)
     </span>
   );

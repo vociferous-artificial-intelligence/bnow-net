@@ -14,8 +14,10 @@ import {
 } from "@/lib/conflicts/product-copy";
 
 function Counts({ c }: { c: { matched: number; partial: number; miss: number } }) {
+  // dir="ltr": leading-digit runs reorder inside an RTL paragraph — same
+  // isolation rule as Ratio (Gate-7 product MINOR-6)
   return (
-    <span className="tabular-nums">
+    <span dir="ltr" className="tabular-nums">
       {c.matched} matched · {c.partial} partial · {c.miss} miss
     </span>
   );
@@ -46,11 +48,11 @@ export function LaneTable({
             Lane coverage — the declared takeaways of this report partitioned by lane
           </caption>
           <thead>
-            <tr className="border-b-2 border-gray-300 text-left dark:border-gray-700">
+            <tr className="border-b-2 border-gray-300 text-start dark:border-gray-700">
               <th scope="col" className="py-2">
                 lane
               </th>
-              <th scope="col" className="text-right">
+              <th scope="col" className="text-end">
                 takeaways
               </th>
               <th scope="col">corpus recall</th>
@@ -60,10 +62,10 @@ export function LaneTable({
           <tbody>
             {lanes.map((row) => (
               <tr key={row.lane} className="border-b border-gray-100 dark:border-gray-800">
-                <th scope="row" className="py-1.5 text-left font-normal">
+                <th scope="row" className="py-1.5 text-start font-normal">
                   {laneById(taxonomyVersion, row.lane).label}
                 </th>
-                <td className="text-right tabular-nums">{row.units}</td>
+                <td className="text-end tabular-nums">{row.units}</td>
                 <td>
                   {row.diagnostic === "unavailable_incomparable" ? (
                     <span

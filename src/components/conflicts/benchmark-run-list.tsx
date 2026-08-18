@@ -42,7 +42,7 @@ export function BenchmarkRunList({
           Fixture benchmark records for this conflict, newest first
         </caption>
         <thead>
-          <tr className="border-b-2 border-gray-300 text-left dark:border-gray-700">
+          <tr className="border-b-2 border-gray-300 text-start dark:border-gray-700">
             <th scope="col" className="py-2">
               report day
             </th>
@@ -90,9 +90,14 @@ export function BenchmarkRunList({
                     className="underline"
                   >
                     detail
+                    {/* the variant is part of the ACCESSIBLE NAME (WCAG
+                        2.4.4): without it the two ladder-variant rows produce
+                        byte-identical link names pointing at different
+                        records (Gate-7 product MINOR-5) */}
                     <span className="sr-only">
                       {" "}
-                      for {entry.scenarioTitle} ({rowDay(entry)})
+                      for {entry.scenarioTitle}
+                      {entry.variantId !== null && ` variant ${entry.variantId}`} ({rowDay(entry)})
                     </span>
                   </Link>
                 </td>
