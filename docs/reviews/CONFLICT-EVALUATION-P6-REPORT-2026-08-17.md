@@ -362,10 +362,21 @@ For the legal/authorization/truth-in-UI reviewer:
 5. Browser verification used `FEATURE_AUTH_GATE` unset for the gated-view
    screenshots (documented dev parity); the enforcement path is proven only by
    the itest + unit gate-order cases.
-6. Enablement-time follow-ups recorded here: scoreboard reciprocal link
-   (flag-guarded), i18n catalog integration, real-result benchmark keys,
-   synthetic-banner retirement decision, robots/sitemap posture review if the
-   surface ever becomes public-by-default.
+6. Enablement-time follow-ups recorded here (Gate-6 legal MINOR-1/NOTE-2
+   folded in as BINDING checklist items):
+   - **Harness continuity (ruling 21; BINDING):** at enablement, when the
+     fixture-backed `conflict-feature-off.itest.ts` is retired or rewritten,
+     the gated evidence route MUST migrate into the
+     `authz-page-gate.itest.ts` ROUTES table (or an equivalent flag-on HTTP
+     harness asserting on response BODIES) — otherwise the route silently
+     loses its body-level authorization proof.
+   - **Robots/sitemap posture review — UNCONDITIONAL at enablement:**
+     flag-on enablement itself makes the teasers public and the gated
+     evidence route a crawlable auth redirect — exactly the shape
+     `robots.ts` disallows `/digests/` for. This is a checklist item for ANY
+     enablement, not only a public-by-default decision.
+   - Scoreboard reciprocal link (flag-guarded), i18n catalog integration,
+     real-result benchmark keys, synthetic-banner retirement decision.
 
 ## 13. Pre-gate verification round (2026-08-18; both verifier verdicts)
 
@@ -414,3 +425,83 @@ clean · `npm test` **3,171 passed / 3,171 (226 files)** (baseline 3,166/225
 + 5 new across 1 new file and 2 extended page tests; zero regressions) ·
 `git diff --check` clean · tree clean · `fixtures/conflicts/goldens`
 untouched.
+
+## 14. Gate-6 verdicts and the closing round (2026-08-18)
+
+**Both Gate-6 reviewers returned PASS-WITH-MINORS on `1f70852` — the gate
+PASSED**; the MINORs and cheap NOTEs were fixed in this closing round
+without re-review (coordinator direction).
+
+**Product-clarity/accessibility reviewer (PASS-WITH-MINORS):** independently
+re-measured the surfaces — numeric AA contrast checks in light AND dark
+(the §12.1/§12.6 visual-only caveat is superseded by the reviewer's own
+measurements), a driven keyboard walk over the native-HTML interaction
+surface, and print rendering (which surfaced MINOR-2's collapsed
+`<details>`). Findings: 2 MINORs + 8 NOTEs, no BLOCKER/MAJOR.
+
+**Legal/authorization/truth-in-UI reviewer (PASS-WITH-MINORS):** ran an
+independent 31-route × 5-header attack campaign over the production build
+(bare/RSC/forged-header permutations across every conflict route and
+neighbor, asserting on response BODIES) — no conflict token, claim text, or
+unit text in any body with the flag absent, and the gated boundary held
+under every header combination with the flag on. Findings: 1 doc-only MINOR
++ 2 doc-only NOTEs, no BLOCKER/MAJOR.
+
+**Ruling-3 adjudication (legal NOTE-1, recorded as directed):** the
+fixture-backed conflict surface is COMPLIANT AS SHIPPED — the
+hidden-entirely default is proven at body level (never demo-labelled
+content leaking through), no fixture data co-mingles with production DB
+tables, and the ephemeral flag-on review mode is operator-commissioned.
+BINDING precondition: real results + synthetic-banner retirement BEFORE any
+production enablement, which requires a decision-log entry at that time.
+Setting `CONFLICTS_UI=1` in ANY Vercel environment while the surface is
+fixture-backed would breach ruling 3.
+
+**Closing-round dispositions:**
+
+- **Product MINOR-1 (asymmetric population note):** on the gulf record the
+  buckets are all empty under a 100% published headline (the match came via
+  a BH legacy digest — outside the corpus-recall population), and the note
+  explained only the exceed direction. `CONTRIBUTION_POPULATION_NOTE` is now
+  symmetric (buckets can also be EMPTY while the published output matched;
+  the gated evidence view shows the actual contributors); the gulf detail
+  test pins the wording beside the three empty buckets and the 1-of-1
+  headline.
+- **Product MINOR-2 (stamps print collapsed):** the method-stamps `<ul>` is
+  extracted into a shared `StampList` rendered twice — inside the
+  interactive `<details>` (now `print:hidden`) and in a screen-`hidden`
+  `print:block` duplicate, so printed records carry their audit identity
+  exactly once. Tailwind v4 core `print:` media variant (the repo imports
+  `tailwindcss` v4 wholesale; no custom variant config needed). Pinned in
+  jsdom (presence + classes + stamp content); the collapsed print state was
+  the reviewer's own print verification — this fix responds to it.
+- **Product NOTE-1:** overview/index wording is now "Latest scored fixture
+  benchmark" (the binding is to the newest SCORED record).
+- **Product NOTE-2:** the scoreboard-coexistence note is per-series
+  (`SCOREBOARD_COEXISTENCE_NOTES`): ROCA surfaces keep the RU/UA-rows
+  example; Iran surfaces say one Iran Update report maps to a single IR
+  row. §11(d) held on both; both variants pinned on their surfaces.
+- **Product NOTE-8:** the benchmark-detail test now walks the seven
+  sections with the same `compareDocumentPosition` order assertion as the
+  overview test (was presence-only).
+- **Product NOTEs 3–7, recorded as enablement follow-ups / accepted:**
+  (3) a mixed-rung pin or committed golden at enablement when a mixed
+  result becomes mintable end-to-end; (4) the q1 middle-branch e2e golden
+  when snapshot kinds become mintable; (5) unit-pinning the featured-null
+  branches is optional (both branches render honest not-0% copy);
+  (6) the 390px in-wrapper scroll is house-consistent and accepted;
+  (7) same-day multiplicity in the run list disappears with real benchmark
+  keys.
+- **Legal MINOR-1 / NOTE-2:** folded into §12.6 as binding
+  enablement-checklist items (harness continuity per ruling 21;
+  unconditional robots/sitemap review). **Legal NOTE-1:** the ruling-3
+  adjudication above.
+
+Itest non-collision re-confirmed for the new copy (symmetric note,
+per-series coexistence variants, "Latest scored fixture benchmark"): none
+contains a `CONFLICT_TOKENS` member; no integration run required.
+
+Closing-round gates (exact): `npx tsc --noEmit` clean · `npm run lint`
+clean · `npm test` **3,175 passed / 3,175 (226 files)** (baseline 3,171/226
++ 4 new pins, zero regressions) · `git diff --check` clean · tree clean ·
+goldens untouched.
