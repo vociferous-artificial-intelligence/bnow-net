@@ -1181,3 +1181,53 @@ The three MEDIUM findings that WOULD change numbers — compound attestation,
 the assessment class, and the keyword rung's `insufficient_data` return — are
 deliberately left to register #12's pre-soak adjudication, with their evidence
 recorded here.
+
+---
+
+## 12. Independent-audit corrections (appended 2026-08-18 by the Fable final audit; historical text above is unedited)
+
+An independent Fable-5 audit (ledger: `CONFLICT-EVALUATION-FABLE-AUDIT-LEDGER-2026-08-18.md`;
+three fresh exact-SHA reviews, PASS-WITH-MINORS ×3 at `a2ddca8`) replayed the complete gate
+battery at the true branch tip and corrects the following statements of record:
+
+1. **§3.2 F2 overstated its own visibility.** "Reported separately as `legacyMatchableDropped`
+   per country so the direction is visible" is false of the rendered output: the field is
+   computed on the typed rows but appears in neither the §3.3 tables nor the aggregates.
+   Independently recomputed counterfactual (matchable reduction applied): legacy union =
+   **14/17 (82.4%) ROCA / 6/8 (75.0%) Iran** — materially above the rendered 68.2%/57.1%
+   baselines. Rendering the field is a recorded follow-up for the module owner.
+2. **§3.2 F5 misstates the production surface.** `src/lib/scoreboard/summary.ts` renders
+   per-run rows and an UNWEIGHTED MEAN of `coverage_pct`; no production surface presents the
+   pooled `15/36` construct. The §3.3 sentence "legacy presents 15/36 across two rows" is the
+   EMULATION'S pooled construct, not what the scoreboard displays. The row-level
+   double-counting critique (overlapping per-country denominators for one report) stands.
+3. **Undisclosed emulation choice (proposed L6).** `emulateLegacyScenario` receives the
+   deterministic designated-final edition via `selectedScenarioReport(...)`, while production
+   scores whichever single `isw_reports` row discovery stored for (theater, date). Absent from
+   L1–L5/F1–F10; direction neutral on this corpus (one multi-edition scenario).
+4. **§3.4 snapshot-probe overgeneralization.** "Under a snapshot-anchored kind every scenario
+   returns `unavailable` / `no_proven_snapshot`" — measured at the tip: **40×
+   `no_proven_snapshot` + 1× `publication_gap`** (the gap scenario keeps its own reason).
+5. **§8.1.c / register #12 probe figure.** "13 of 20 units flagged `keywordUnmatchable`" —
+   re-measured at the tip: 13 of **21** declared units.
+6. **Source-independence labeling.** `independentSources`/`independentSourceCount` count
+   DISTINCT NON-MIRROR DOCUMENTS (`docId`s); `sourceDomain` is not consulted and mirror links
+   are the only dependence model, so two same-outlet articles count as two. The offline
+   report's "independent documents" wording is accurate; the schema names, §8's
+   "source-independence diagnostics", and `THIN_SOURCED_NOTE`'s "independent source documents"
+   overclaim. Pre-soak requirement (audit register F-NEW-1): rename honestly or add a
+   source/dependency-aware diagnostic; the schema rename rides the §5.2 4b profile/epoch
+   change.
+7. **§5.2 enablement checklist — flag coupling (new item 4d).** With `FEATURE_AUTH_GATE`
+   unset, `requireAcceptedUser()` deliberately enforces nothing for anonymous visitors
+   (inherited demo parity), so `CONFLICTS_UI=1` WITHOUT `FEATURE_AUTH_GATE=true` in the same
+   environment serves the gated evidence page's claim text anonymously. Enablement must verify
+   the pair together (production currently sets the auth gate).
+8. **§ Gate-11/§16 presentation.** The acceptance-corpus table reads as complete coverage;
+   two items are partial: the US-strike limb of Iran item 1 (US appears only as
+   target/air-defense actor) and the DST boundary (fixture is mid-DST; the transition is
+   unit-test-pinned in `et-time.test.ts` only).
+9. **Terminal-provenance sentence.** The final-SHA ledger block's "only docs-only commits sit
+   on top of `6b35622`" was true when written and is FALSE at the current tip: `a2ddca8`
+   changes source (+3/−1 page, +14/−1 test). The complete battery has now been replayed at
+   `a2ddca8` by the independent audit (all gates green; audit ledger §5).

@@ -204,3 +204,19 @@ Each entry: date, decision, rationale, alternatives rejected, review status.
       rung MUST return `insufficient_data` instead of a scored zero. This is
       a required-before-soak CODE change, deliberately not made in the
       closeout (it changes matcher behavior and would need its own review).
+
+13. **2026-08-18 — independent Fable final audit: corrections of record (this register is
+    append-only; entries above are unedited).** (a) Entry #2's phrase "kept as a disabled
+    experiment" and contract §3's "DISABLED EXPERIMENT (flagged-off adapter, Phase 4
+    optional)" describe atomic proposition decomposition as if an artifact exists. **No such
+    adapter, module, flag, or function was ever built** — the only accurate statement is P4
+    §2's "was NOT built", which prompt §5.4 permits. Building it later still requires the
+    human-labelled calibration gate of #2. (b) The #12 keyword-rung probe figure is corrected:
+    13 of **21** declared units flagged `keywordUnmatchable` (not "13 of 20"). (c) The #11
+    evidence figure "9/9 real bullets multi-proposition" is a two-report hand-judgment and is
+    itself uncalibrated; #12.2's measured compound rate supersedes it when produced. (d) The
+    audit's full record: `CONFLICT-EVALUATION-FABLE-AUDIT-LEDGER-2026-08-18.md`, finding
+    register, three fresh exact-SHA reviews (PASS-WITH-MINORS ×3 at `a2ddca8`), and
+    `CONFLICT-EVALUATION-FABLE-FINAL-AUDIT-2026-08-18.md`; P7 report §12 carries the
+    itemized corrections. No source, test, fixture, golden, or contract byte was changed by
+    the audit.

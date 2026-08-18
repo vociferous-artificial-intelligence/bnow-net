@@ -160,3 +160,20 @@ their documented extension points:
 - Enablement remains gated: `CONFLICTS_UI=1` anywhere while the surfaces are
   fixture-backed would breach standing ruling 3. See the P7 report §5.2 for the
   full operator decision list.
+
+## Independent-audit correction block (appended 2026-08-18; text above unedited)
+
+- The terminal-state bullet above describes `6b35622`. The ACTUAL branch tip is **`a2ddca8`**
+  (`a2ddca88f7740a148ebeb5372f9ce47dd72ffac4`), which is **source-changing** (the Gate-9
+  DEFECT-1 q7 fix: +3/−1 page, +14/−1 test, +35 ledger): the range vs base at the tip is
+  **106 commits / 125 files / +40,970 −4**, and the tip-true gate figures are unit
+  **3,213/3,213 (228 files)** · integration **151/151 (21 files)**.
+- Which gates ran at which SHA: the eleven-gate battery ran at `ad10fbd`; build+integration
+  were re-run at `6b35622` (`81a6949`); the full browser matrix ran at `6b35622` with a
+  targeted recheck at `a2ddca8`; CLI/network-kill refusals were NOT re-run in-workstream after
+  `ad10fbd`. The independent Fable audit of 2026-08-18 then replayed the COMPLETE battery —
+  including CLI refusals under a hard network kill-switch, HTTP/RSC body probes under
+  production posture, and a fresh browser matrix — at **`a2ddca8`**, all green
+  (`CONFLICT-EVALUATION-FABLE-AUDIT-LEDGER-2026-08-18.md` §5), and recorded three fresh
+  exact-SHA reviews: **PASS-WITH-MINORS ×3**.
+- Corrections of record: P7 report §12 and decision-register entry #13.
