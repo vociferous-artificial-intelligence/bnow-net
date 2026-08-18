@@ -136,5 +136,39 @@ guard placement (disclosed); REMAP-6 track allowlist duplicated as literals
 
 ## 4. Phase-4 fresh exact-SHA reviewer findings
 
-(Recorded after both reviews returned; see the reviewer reports committed beside
-this register and the final audit report §Verdicts.)
+Both reviewers ran as `claude-fable-5` (model id verified from their own contexts;
+effort xhigh per spawn config, honestly reported as such), wrote their attack plans
+BEFORE reading any prior report, reviewed exactly
+`7150b494d1399dddada6e7f917b1c0e76114d458`, left their worktrees clean, and
+independently reproduced the full unit suite (2,402/2,402) and targeted gates.
+
+- **Safety/operations review** (`QUALITY-FOUNDATION-FABLE-AUDIT-SAFETY-REVIEW-2026-08-18.md`):
+  **PASS-WITH-MINORS** — 0 BLOCKER · 0 HIGH · 2 MEDIUM · 4 MINOR · 6 NOTE ·
+  12 clean categories.
+- **Quality/eval-science review** (`QUALITY-FOUNDATION-FABLE-AUDIT-SCIENCE-REVIEW-2026-08-18.md`):
+  **PASS-WITH-MINORS** — 0 BLOCKER · 0 HIGH · 0 MEDIUM · 5 MINOR · 8 NOTE ·
+  25 clean categories (every pinned recency fixture hand-recomputed exactly;
+  committed artifacts regenerate byte-identically under the tip code; gates.ts
+  history precedes every artifact).
+
+Convergent findings (already registered above): safety M1 = G2 NUL claim (**fixed**
+evidence `bd29d89`); safety M2 = G1 untracked prompt (**fixed** `2919970`); safety
+m1 / science MINOR-5 = G3 verdict-SHA gap (**fixed** — both audit reviews bind the
+tip); safety m2 = A9-1; safety m4 = REMAP-5 family; safety n1 = L4-2; safety n2 =
+A10-1/G6; safety n3 = A13-F1; science MINOR-1 = C-A7-1 + C-A7-2; science MINOR-2 =
+C-A6-1; science MINOR-3 (map half) = A8-F2; science MINOR-4 = G2; science N2 =
+FUNNEL-A12-3.
+
+New rows from the fresh reviews:
+
+| ID | Sev | Finding | Disposition |
+|---|---|---|---|
+| SAF-m3 | MINOR | `--db-ack` refusal echoes the exact bypass string and never compares the eval host against the production `DATABASE_URL` host sitting in the same env — a copy-paste slip writes `openai_eval` ledger rows to production | **deferred-unpermitted** (NEW) — cheap hardening (`refuse when hosts match`) before first live eval |
+| SAF-n4 | NOTE | Bounded cap overshoot under concurrency (≤ concurrency−1 batches; documented pre-existing pattern) | **deferred-authorized** (recorded) |
+| SAF-n5 | NOTE | Remap driver's lease-busy wait loop is unbounded (60s sleeps; operator-attended, interrupt-safe) | **deferred-authorized** — `--max-wait` eventually |
+| SAF-n6 | NOTE | `cycle()` constructs the OpenAI client even for zero-batch runs (construction ≠ contact; keyless env errors instead of clean zero) | **deferred-authorized** (cosmetic) |
+| SCI-3b | MINOR | "Number preservation" (a named C2 map category) has NO falsifiable instrument in v1 — a candidate changing "four drones" to "five" still gist-matches; digest-live heldout instrumentation similarly thin (1 of 3 heldout digest cases pinned) | **deferred-unpermitted** (NEW) — fold into the heldout-fidelity-pin item, close before first binding paid eval |
+| SCI-N4 | NOTE | Funnel reconciles `evidenceRecency.claimCount` but not `documentCount` vs relational cited docs — a cheap extra invariant | **deferred-authorized** — follow-up |
+| SCI-N5 | NOTE | `--report` baseline discovery misses `model@effort`-named baseline files (fail-safe: missing baseline → insufficient_data) | **deferred-authorized** — fold into C-A6-2's baseline fix |
+| SCI-N6 | NOTE | `buildDigestVotePrompt` omits production's `reduceGroupsFed()` slice (identical at v1 fixture sizes; documented) | **deferred-authorized** — add to EvalEnvKnobs when cases grow |
+| SCI-N8 | NOTE | Offline validation fixtures bypass `sanitizeMatches` (live path applies it; downstream identity check fail-closes anyway) | **deferred-authorized** (recorded) |

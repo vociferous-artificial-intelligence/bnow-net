@@ -594,6 +594,32 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   and the two final independent reviews:
   `docs/reviews/QUALITY-FOUNDATION-INTEGRATION-2026-08-17.md`.
 
+- **2026-08-18 (independent QF final audit — audit branch only; verdict binds the exact
+  tip)** An operator-commissioned fresh-session audit (`claude-fable-5`/xhigh) audited
+  the frozen QF tip `7150b49` on `codex/quality-foundation-final-audit-20260818`:
+  every gate independently reproduced (unit 2,402/2,402; itest 119/119 on a disposable
+  fork, created+deleted; build PASS; $0 CLI smokes; ten pre-client live refusals; a
+  network-kill full-preflight probe; base 2,187/171 re-run; offline artifacts
+  byte-identical), all fourteen mandated attacks executed, all eight original QF
+  reviewer transcripts recovered (all Fable/xhigh; §12 verdicts verbatim-faithful;
+  archived with hashes in the evidence package), and TWO fresh exact-SHA adversarial
+  reviews returned **PASS-WITH-MINORS on `7150b49`** (safety/ops and quality/science) —
+  curing the e5757ea-vs-tip verdict gap. Zero BLOCKER/HIGH anywhere. Remediation was
+  deliberately docs-only: the governing prompt is now tracked (`2919970`, SHA-256
+  recorded), three factually false/stale report claims carry dated appended corrections
+  (`bd29d89` — the §11 "zero NUL bytes" row chief among them: the byte in
+  digest-persist.ts is pre-existing and harmless, but the claim was false and grep-based
+  scans silently skip that file), and the finding register maps every old and new
+  finding to a disposition with named owners (close-before-first-binding-paid-eval list
+  EXTENDED: baseline filename-trust/self-comparison, degraded-status pairwise
+  denominators, envKnobs absent from report artifacts, numeral-preservation instrument,
+  union-aware lazy-`@/db` pin — the conflict branch's duplicated report path makes C
+  remediations reintegrate semantically, not mechanically). No source/test/env byte
+  changed, so the conflict base `a2ddca8` still contains the exact audited QF tree. No
+  merge/push/PR/deploy/activation/paid call/production write/remap execution/
+  conflict-branch mutation. Status:
+  `independent-qf-audit-pass / QF-merge-may-be-considered; conflict-base-unchanged`.
+  Full record: `docs/reviews/QUALITY-FOUNDATION-FABLE-FINAL-AUDIT-2026-08-18.md`.
 
 ## Conventions
 
