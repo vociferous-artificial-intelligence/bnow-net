@@ -30,7 +30,13 @@ export function BenchmarkRunList({
     );
   }
   return (
-    <div className="overflow-x-auto">
+    // `relative` is load-bearing: the sr-only caption/labels inside are
+    // absolutely positioned, and without a positioned ancestor INSIDE this
+    // clip their boxes resolve against the initial containing block and
+    // widen the DOCUMENT at narrow viewports (measured: 390px viewport,
+    // scrollWidth 576 via the last-column sr-only span). With `relative`
+    // they scroll with the table inside this wrapper.
+    <div className="relative overflow-x-auto">
       <table className="w-full min-w-[560px] text-sm [&_td]:px-2 [&_th]:px-2 [&_td:first-child]:ps-0 [&_th:first-child]:ps-0">
         <caption className="sr-only">
           Fixture benchmark records for this conflict, newest first

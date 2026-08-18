@@ -38,7 +38,9 @@ export function LaneTable({
   const hasIncomparable = lanes.some((row) => row.diagnostic === "unavailable_incomparable");
   return (
     <div>
-      <div className="overflow-x-auto">
+      {/* relative: keeps the abs-positioned sr-only caption inside this clip
+          (see benchmark-run-list.tsx for the measured 390px overflow) */}
+      <div className="relative overflow-x-auto">
         <table className="w-full min-w-[560px] text-sm [&_td]:px-2 [&_th]:px-2 [&_td:first-child]:ps-0 [&_th:first-child]:ps-0">
           <caption className="sr-only">
             Lane coverage — the declared takeaways of this report partitioned by lane
