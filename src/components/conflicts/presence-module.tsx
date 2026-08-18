@@ -25,7 +25,7 @@ export function PresenceModule({ result }: { result: ConflictScoredResultV1 }) {
       <p className="max-w-2xl text-sm text-gray-700 dark:text-gray-300">{PIPELINE_QUESTIONS_NOTE}</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
-          <h4 className="text-sm font-semibold">Corpus recall</h4>
+          <h3 className="text-sm font-semibold">Corpus recall</h3>
           <p className="mt-1 text-lg font-bold">
             <Ratio count={result.headline.corpusRecall} />
           </p>
@@ -46,7 +46,7 @@ export function PresenceModule({ result }: { result: ConflictScoredResultV1 }) {
           )}
         </div>
         <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
-          <h4 className="text-sm font-semibold">Published retention</h4>
+          <h3 className="text-sm font-semibold">Published retention</h3>
           <p className="mt-1 text-lg font-bold">
             <Ratio count={result.headline.publishedRetention} />
           </p>

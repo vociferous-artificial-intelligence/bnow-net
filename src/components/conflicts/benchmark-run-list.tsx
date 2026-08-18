@@ -81,7 +81,9 @@ export function BenchmarkRunList({
                     </span>
                   )}
                 </td>
-                <td>{r.state === "scored" ? <RungBadge label={r.matcherRung} /> : "—"}</td>
+                {/* the word "n/a", never a dash/blank: an unavailable row has
+                    no matcher BY DESIGN, and the cell must say so */}
+                <td>{r.state === "scored" ? <RungBadge label={r.matcherRung} /> : "n/a"}</td>
                 <td>
                   <Link
                     href={`/conflicts/${slug}/benchmark/${entry.benchmarkKey}`}

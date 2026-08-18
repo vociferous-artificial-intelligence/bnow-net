@@ -32,7 +32,7 @@ function ReferenceOnlyList({
 }) {
   return (
     <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
-      <h4 className="text-sm font-semibold">{heading}</h4>
+      <h3 className="text-sm font-semibold">{heading}</h3>
       {records.length === 0 ? (
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">none</p>
       ) : (
@@ -66,7 +66,7 @@ export function DiagnosticsModule({ result }: { result: ConflictScoredResultV1 }
     <div className="space-y-4">
       {thin !== undefined && (
         <div>
-          <h4 className="text-sm font-semibold">Thin-sourced claims</h4>
+          <h3 className="text-sm font-semibold">Thin-sourced claims</h3>
           <p className="mt-1 text-sm tabular-nums">
             corpus recall {thin.corpusRecall.count} of {thin.corpusRecall.denominator} offered
             claims · published retention {thin.publishedRetention.count} of{" "}
@@ -79,7 +79,7 @@ export function DiagnosticsModule({ result }: { result: ConflictScoredResultV1 }
       )}
       {timing !== undefined && (
         <div>
-          <h4 className="text-sm font-semibold">Information lead</h4>
+          <h3 className="text-sm font-semibold">Information lead</h3>
           <p className="mt-1 text-sm tabular-nums">
             corpus recall: median lead by BNOW ingest {hoursLabel(timing.corpusRecall.medianLeadHoursByIngest)} · by
             source-declared publish {hoursLabel(timing.corpusRecall.medianLeadHoursBySourceDeclared)} (
@@ -102,7 +102,7 @@ export function DiagnosticsModule({ result }: { result: ConflictScoredResultV1 }
       )}
       {bnowOnly !== undefined && (
         <div>
-          <h4 className="text-sm font-semibold">BNOW-only in-scope items</h4>
+          <h3 className="text-sm font-semibold">BNOW-only in-scope items</h3>
           <p className="mt-1 text-sm tabular-nums">
             published retention {bnowOnly.publishedRetention.count} (renderable population) · corpus
             recall {bnowOnly.corpusRecall.count} (internal count only — corpus-recall-only claims
@@ -112,7 +112,7 @@ export function DiagnosticsModule({ result }: { result: ConflictScoredResultV1 }
       )}
       {result.referenceOnly !== undefined && (
         <div>
-          <h4 className="text-sm font-semibold">Reference-only takeaways</h4>
+          <h3 className="text-sm font-semibold">Reference-only takeaways</h3>
           <p className="mt-1 max-w-2xl text-xs text-gray-600 dark:text-gray-400">
             Declared takeaways no BNOW claim matched in the named population, listed by stable id
             and lane. Takeaway text is the reference series&apos; own and is never reproduced here.
