@@ -125,3 +125,44 @@ shipping-token coarseness, versioned revision path recorded). The ops
 re-review's overflow-sentinel NOTE (fetch EVIDENCE_MAX_INTAKE+1 so over-limit
 days refuse visibly) is folded into the query contract in the closing commit.
 **Verdicts: PASS + PASS-WITH-MINORS. GATE 3: PASSED.**
+
+## Phase 4 (branch `codex/conflict-evaluations-p4-scoring`, final tip see closing commit)
+
+| Gate | Command | Result |
+|---|---|---|
+| typecheck | `npx tsc --noEmit` | clean (coordinator, four pre-gate verifiers, both reviewers, both re-reviews) |
+| lint | `npm run lint` | clean |
+| unit | `npm test` | **3,050 passed / 3,050 (214 files)** at `192c082` (base 2,920 + Phase 4; conflicts package 648/648 also under TZ=Asia/Tokyo) |
+| goldens | drift gate (`goldens.test.ts`) | committed `fixtures/conflicts/goldens/golden-results-v1.json` (14 byte-stable results incl. 2 ladder variants) byte-identical through BOTH remediation rounds; regeneration deterministic |
+| acceptance corpus | scorer-acceptance loop via the real pipeline | all **41** scenarios (40 + additive `cc-vague-claim-019`) reproduce every deferred expectation: verdict maps, 5 headline pins, contribution, missDiagnostic, laneDiagnostics, independentSources, matcherFixture ladder variants |
+| scope | range diffstat | only `src/lib/conflicts/`, `fixtures/conflicts/` (additive), `docs/reviews/`; freeze list untouched; production `llm-match.ts`/`keywords.ts` reused via exports, never edited |
+| purity | `matcher-import-hygiene.test.ts` + reviewer greps | no provider SDK import, no env-dependent path; full k=5 match under fully blanked env from injected votes; zero paid calls all rounds |
+
+Phase 4 authorship note: implementation spanned two session-limit
+interruptions; the coordinator committed the salvaged tree (impl commit
+proven to build standalone) and the resumed takeover agent's hardening
+converged with it — the race is disclosed in the P4 report §8. FOUR
+independent pre-gate verifications (2 fidelity, 2 legal) were all clean
+before the formal gate.
+
+Critical Gate 4 (two independent reviewers): initial verdicts on `5b38007`
+**FAIL (science) + PASS-WITH-MINORS (legal)**. Science MAJOR: `units: []`
+produced a PERSISTABLE scored 0/0 headline (the §6.4-forbidden case); plus
+thinSourced behaviorally unpinned (a boundary mutation survived all 637
+tests), a proven keyword-rung toponym-only false agreement (Kharkiv probe,
+0.625 ≥ 0.6 with no action compatibility), and duplicate-vote-entry
+hard-fail. Legal MINORs, all empirically proven: stride-3 prose-scan
+evadable by unaligned fragments; raw window anchors an ungated free-text
+channel; offline formatter fabricated zeros on stripped input and
+under-disclosed mixed rungs. Remediated in five commits
+(`8779233`..`192c082`) with goldens byte-identical throughout (the new
+keyword action-class gate landed with zero blast radius). Focused re-reviews
+on `192c082`: **PASS + PASS** — every original probe re-run and caught,
+including a mutation proving the persistence gate catches 0/0 end-to-end
+even without the scorer refusal. NOTE-grade residuals recorded with owners:
+≤64-char anchor-clause tightening option (P5); requested-k-through-fallback
+(BINDING P5); per-population partial counts + pair-weighted timing-median
+documentation (BINDING P6); action-gate deflation on non-canonical action
+wording ("shelled"/"artillery struck" false-miss — deflationary only) →
+production-gazetteer follow-up.
+**Verdicts: PASS + PASS. GATE 4: PASSED.**

@@ -96,7 +96,7 @@ their documented extension points:
 | 1 domain | `codex/conflict-evaluations-p1-domain` | **PASSED** (architecture FAIL on `0d7ab8f` -> remediation -> PASS on `975cdcd`) | `src/lib/conflicts/` (10 modules, 196 tests); ledger P1; register #10 |
 | 2 reference windows | `codex/conflict-evaluations-p2-reference` | **PASSED** (dual FAIL on `651b9d6` -> remediation -> PASS + PASS-WITH-MINORS on `e292ab3`) | schema design doc; P2 report; ledger P2; disposable SQL + itests |
 | 3 evidence union | `codex/conflict-evaluations-p3-evidence` | **PASSED** (dual FAIL on `5f1844c` -> remediation -> PASS + PASS-WITH-MINORS on `9fef8b7`) | P3 report (binding carried conditions §5); ledger P3; 40-scenario acceptance corpus |
-| 4 scoring | — | pending | |
+| 4 scoring | `codex/conflict-evaluations-p4-scoring` | **PASSED** (science FAIL + legal PASS-WITH-MINORS on `5b38007` -> remediation -> PASS + PASS on `192c082`) | P4 report; ledger P4; 41-scenario acceptance + 14 byte-stable goldens |
 | 5 eval adapter | — | pending | |
 | 6 product UI | — | pending | |
 | 7 integration | — | pending | |
