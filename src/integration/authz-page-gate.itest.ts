@@ -76,6 +76,12 @@ const seeded = {
 // One privileged token per route, asserted ABSENT (case-insensitive) from every
 // anonymous response body and PRESENT for the authorized control. Paths are
 // thunks because two of them need ids only known after seeding.
+//
+// The gated conflict route (/conflicts/.../evidence, Phase 6) is deliberately
+// NOT a row here: this server runs with the CONFLICTS_UI flag ABSENT (the
+// production default the ten routes must be graded under), so its positive
+// control could never pass. The equivalent three body assertions run under a
+// flag-on server in src/integration/conflict-feature-off.itest.ts.
 const ROUTES: Array<{ name: string; path: () => string; token: string }> = [
   { name: "/admin/access", path: () => "/admin/access", token: "zqleakprobe-access@example.com" },
   { name: "/admin/ingest", path: () => "/admin/ingest", token: "zqleakprobe doc title" },

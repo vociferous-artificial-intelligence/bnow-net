@@ -202,3 +202,56 @@ dash pins in the Gate-5 closing commit). Register-#3 fallback trigger
 adjudicated NOT met (workload honesty verified); no isolation-test amendment
 needed; no new register entry required.
 **Verdicts: PASS + PASS-WITH-MINORS. GATE 5: PASSED.**
+
+## Phase 6 (branch `codex/conflict-evaluations-p6-product`, final tip see closing commit)
+
+| Gate | Command | Result |
+|---|---|---|
+| typecheck | `npx tsc --noEmit` | clean |
+| lint | `npm run lint` | clean (0 errors, 0 warnings) |
+| unit | `npm test` | **3,166 passed / 3,166 (225 files)** (base 3,110/219 + 56 Phase-6 tests in 6 files; zero base regressions) |
+| integration (full) | `npm run test:integration` (disposable Neon fork, paid keys blanked, LLM_DISABLE=1) | **150 passed / 150 (21 files)** — base 127/20 + 23 `conflict-feature-off.itest.ts` cases (production build; bare-GET + RSC + accepted-session BODY assertions, flag absent AND flag ephemeral-on; positive control non-vacuous); fork deleted |
+| build | `npm run build` (flag absent, dummy non-contact env) | PASS, warning-free; all four conflict routes ƒ (dynamic) |
+| guard-order mutation proofs | delete `requireAcceptedUser` from the evidence page; remove the overview's leading feature guard | fail exactly 3/7 and 2/9 cases respectively, nothing else; both reverted |
+| browser matrix | production serve on :3141, flag injected ephemerally; headless Chrome 151 + CDP media emulation | screenshots/PDFs/metrics in session scratchpad; 390px document-overflow bug FOUND (sr-only labels escaping the scroll clip, scrollWidth 576) and FIXED (`50761e7`), re-measured scrollWidth=390 everywhere, light+dark; feature-off 404s re-proven over HTTP |
+| clean diff | `git diff --check` + tree | clean at the closing commit |
+
+Phase report: `docs/reviews/CONFLICT-EVALUATION-P6-REPORT-2026-08-17.md`
+(IA decisions incl. the register-#8(g) scoreboard-coexistence adjudication,
+guard-ordering table, seven-question mapping, rendering-obligation
+fulfillment, browser-coverage honesty, judgment calls, residual risks).
+Critical Gate 6 (product-clarity/accessibility + legal/authorization/
+truth-in-UI reviewers): PENDING — to be run against the closing tip.
+
+## Phase 6 (branch `codex/conflict-evaluations-p6-product`, final tip see closing commit)
+
+| Gate | Command | Result |
+|---|---|---|
+| typecheck | `npx tsc --noEmit` | clean (author, both pre-gate verifiers, both reviewers, coordinator) |
+| lint | `npm run lint` | clean |
+| unit | `npm test` | **3,175 passed / 3,175 (226 files)** at the closing tip (base 3,110 + Phase 6) |
+| integration (full) | `npm run test:integration` | **150 passed / 150 (21 files)** — base 127 + 23 conflict-feature-off body tests (production build, real HTTP, statuses untrusted); re-run independently by the legal pre-gate verifier AND the Gate-6 legal reviewer on their own disposable forks |
+| build | `npm run build` (flag absent) | PASS, warning-free, all conflict routes dynamic; the Gate-6 product reviewer additionally built+served flag-ON against an UNROUTABLE DATABASE_URL — every page 200, proving zero runtime DB dependency |
+| browser | production serve + headless Chrome/CDP | author matrix (390px/desktop/CDP dark/print/feature-off/empty/partial/unavailable; found+fixed a real 390px overflow) INDEPENDENTLY reproduced by the product reviewer, who closed the disclosed gaps: real driven Tab-walks (33 stops, skip-link first, visible focus, no traps), MEASURED WCAG contrast (worst 5.03:1, AA everywhere), print PDFs, 320px + ar-locale RTL |
+| scope | range diffstat | routes/components/provider/copy/flag + itest + docs; nav/sitemap/robots/metadata/scoreboard untouched (verified in source, built manifests, and served output); sole freeze-adjacent touch = a 6-line comment in authz-page-gate.itest.ts |
+
+Critical Gate 6 (two independent reviewers): verdicts on `1f70852`
+**PASS-WITH-MINORS + PASS-WITH-MINORS** — gate PASSED; MINORs fixed in the
+closing round (`04a55de`..`611f30e`): the symmetric contribution-population
+note (the gulf record rendered empty buckets beside a 100% published
+headline with only the exceed-direction explained), print-visible method
+stamps, per-series coexistence notes, "Latest scored" wording, the
+detail-page section-order walk. Adjudications of record: **ruling 3 —
+compliant as shipped** (hidden-entirely default proven at HTTP body level;
+zero DB co-mingling; ephemeral fixture review operator-commissioned), with
+the BINDING precondition that real results + synthetic-banner retirement
+precede any production enablement via a decision-log entry — and the
+explicit warning that CONFLICTS_UI=1 in any Vercel env while fixture-backed
+would breach ruling 3. Ruling-21 continuity: the gated evidence route's
+body-level authz proof lives in the flag-on itest (documented in-file); at
+enablement it MUST migrate into the authz-page-gate ROUTES table or an
+equivalent harness — now an unconditional checklist item beside the robots/
+sitemap review (P6 report §12.6/§14). The legal reviewer's attack campaign
+(31 routes × 5 header sets + 14 crafted variants, fake keys, bodies-only
+trust) found zero text fragments; provider tamper probes all refused typed.
+**Verdicts: PASS-WITH-MINORS ×2. GATE 6: PASSED.**
