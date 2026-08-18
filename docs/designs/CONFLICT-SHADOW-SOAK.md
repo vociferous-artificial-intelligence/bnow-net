@@ -125,6 +125,28 @@ legacy rows and never against itself.
   `pass_deflationary` — publishable only with an explicit "this number
   understates coverage" label.
 
+### 5.1 REQUIRED second sample: misses, searched against the UNFILTERED corpus
+
+Added by final adversarial review #1 (MINOR-3a). The 120-pair sample above
+draws **(unit, top-candidate-claim)** pairs — it can only ever grade claims
+the pipeline already surfaced as candidates. A claim wrongly excluded UPSTREAM
+(lane classifier `off_scope`/`unclassified`, an eligibility predicate, the
+selection mix cap) can never enter that sample, so it **cannot see its own
+blind spot**: an upstream filter defect reads as a clean miss.
+
+- **Sample:** N ≥ 30 units per conflict scored `miss` in either population,
+  drawn by the same seeded committed sampler.
+- **Method:** a human searches the **unfiltered window corpus** — every
+  ingested document in `[reportDate − 2d, window END]` for the conflict's
+  contributor theaters, WITHOUT the eligibility/classifier filters applied —
+  for evidence that would have satisfied the unit under §6.3.
+- **Recorded per hit:** the claim/document found, and WHICH stage dropped it
+  (classifier lane, eligibility predicate + bounded reason, selection cap, or
+  genuinely absent from the corpus).
+- **Threshold:** upstream-filter false-exclusion rate **≤ 0.10** of sampled
+  misses. Above that the soak reports `upstream_filter_failed` and the matcher
+  grade is not the operative number — the filter is.
+
 ## 6. Variance threshold across repeated runs
 
 Ruling 17's lesson (extraction yield varies wildly between identical runs)
@@ -134,8 +156,18 @@ applies to matching too.
   repeated runs of the same 5 days per conflict:
   - **max−min headline coverage ≤ 5 percentage points** per report;
   - **per-unit verdict flip rate ≤ 5%** of declared units;
-  - **zero flips on `partial` ↔ `matched`** for compound units (a flip there
-    means the compound policy is not being applied consistently).
+  - ~~**zero flips on `partial` ↔ `matched`** for compound units~~ —
+    **VACUOUS AS WRITTEN, and marked so by final adversarial review #1
+    (MINOR-3b).** Under the shipped attestation rule (register #11) no live
+    rung can ever emit `matched` on a compound unit, so the flip this
+    criterion forbids is unreachable by construction: it can never fail and
+    therefore tests nothing. It is retained only as a REGRESSION sentinel —
+    if it ever fires, the attestation rule has been changed without a
+    register entry. **Replacement criterion that can actually fail:**
+    **zero flips on `partial` ↔ `miss` for compound units**, plus
+    **per-unit `matched` ↔ `miss` flip rate ≤ 5%** on ATOMIC units, measured
+    separately from the aggregate flip rate above (an aggregate can hide a
+    concentrated instability in the compound subset).
 - Exceeding any of these is **FAIL** — a benchmark whose number moves 6 points
   on identical inputs is not a benchmark.
 
@@ -180,6 +212,30 @@ under them, and hitting one is an incident to report, not a target to reach.
    and no source full text (the existing scorer/persistence gates already
    refuse prose-shaped anchors; the review confirms the soak adds no new
    channel).
+7. **Register #12's three BLOCKING prerequisites — the metric must be
+   well-defined on real inputs before it is measured** (added by final
+   adversarial review #1, MEDIUM-1):
+   1. a **specified, versioned, human-calibrated derivation of `compound`**
+      from real takeaway text (today `compound` is a hand-authored fixture
+      field with NO derivation for real reports, so the attestation rule of
+      register #11 has no defined input outside the corpus);
+   2. a **measured compound rate over a real report sample** (both series,
+      ≥1 month), reported with its sampling method — the probe that opened
+      this finding covered two real reports (9/9 bullets multi-proposition),
+      which sizes the risk as real but not its magnitude;
+   3. an **explicit adjudication of the attestation rule against that
+      measurement**, recorded as a new register entry: keep the fail-closed
+      rule (accepting in writing that compound units are structurally
+      unmatched by every live rung — on the probed Iran report that is a
+      0/5 headline by construction), or permit ladder-`full` attestation
+      under a STATED evidence standard.
+8. **The two register-#12 diagnostics exist**: the purely-diagnostic
+   assessment/inference unit class (denominator-neutral, reported beside the
+   headline as `partial` is), and the keyword rung returning
+   `insufficient_data` for a conflict whose lanes have no gazetteer coverage
+   (verified: the production gazetteer's 34 canonical toponyms are RU/UA only,
+   and `iran_regional` on that rung scores 0 matched / 0 partial with only
+   13 of 20 units flagged unmatchable).
 
 ## 9. Abort criteria (stop immediately, do not "finish the window")
 
@@ -219,6 +275,33 @@ One document, produced before any enablement decision:
   **diagnostic** — with the explicit statement that neither aggregation
   contradicts the other and that the legacy rows remain the published
   scoreboard until an operator decides otherwise;
+- **a window diagnostic beside that side-by-side** (final review #1 MINOR-2 /
+  backtest limit F10): the day span each method actually saw. Combined
+  eligibility spans `[reportDate − 2d, window END]` while a legacy digest row
+  is one digest date and the Iran series' own declared lookback is ~24h — an
+  asymmetry of roughly 3× that flows toward the combined numerator and is NOT
+  covered by contract §5's "deflationary" sentence. It must be visible in the
+  comparison, not absorbed into it;
+- **the second (miss) sample from §5.1**, with the per-stage attribution of
+  every false exclusion found;
+- **a reconciliation of pair-level precision/recall against the headline**
+  (final review #1 MINOR-3c): the report must state, per conflict, how the
+  graded pair metrics relate to the published headline ratio. Without it the
+  document could report precision 0.95 / recall 0.85 beside an Iran headline
+  of 0/5 and read as success — the pair metrics grade the matcher on the
+  candidates it saw, the headline grades the whole pipeline against the
+  declared units;
+- **the measured non-independence fraction** (final review #1 MINOR-4): per
+  scored report, the fraction of matched units whose supporting documents come
+  from sources ISW cited IN THAT REPORT, computed from the repository's own
+  endnote registry (`source_citations` → `isw_reports` / `sources`, joined to
+  `raw_documents.source_id`, which points at the same `sources` table) at zero
+  provider cost. This upgrades the contract §0 caveat from a disclaimer to a
+  measurement, and the soak report must publish the number beside every
+  coverage figure it presents;
+- **the compound-unit accounting required by register #12**: the measured
+  compound rate over the soaked reports, the derivation version used, and the
+  adjudication outcome of the attestation rule against that measurement;
 - full spend accounting against §7;
 - an explicit recommendation, and the exact remaining gates for enablement.
 

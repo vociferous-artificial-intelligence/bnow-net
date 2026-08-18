@@ -105,9 +105,26 @@ their documented extension points:
 
 **`implementation-pass / merge-awaits-operator-review`.**
 
-- Unit **3,194 / 3,194 (227 files)** · integration **150 / 150 (21 files)** ·
-  typecheck clean · lint clean · production build PASS (flag absent) ·
-  `git diff --check` clean.
+- **The three mandated final adversarial reviews are COMPLETE** (2026-08-18,
+  against `b8341e9`): methodology/evaluation-science, safety/operations, and
+  product/analyst-UX each returned **PASS-WITH-MINORS**. Every finding is
+  either FIXED in the closeout rounds or RECORDED as a pre-soak /
+  pre-enablement obligation — no BLOCKER, no MAJOR, and no reviewer required a
+  scorer or matcher behavior change as a merge condition. Verdicts and
+  per-finding dispositions: P7 report §11; gate numbers: test ledger Gate 7.
+- Unit **3,212 / 3,212 (228 files)** after the closeout rounds (Gate-7 entry
+  3,194/227 + 18 new cases; zero regressions) · integration **150 / 150
+  (21 files)** · typecheck clean · lint clean · production build PASS (flag
+  absent) · `git diff --check` clean · committed goldens **byte-identical**
+  through all three rounds.
+- **Blocking obligations recorded, not silently carried:** register **#11**
+  (compound attestation AS SHIPPED, provisional, narrower than contract §3)
+  and register **#12** (three BLOCKING prerequisites before any shadow soak —
+  a versioned human-calibrated `compound` derivation, a measured compound rate
+  on real reports, and an adjudication of the attestation rule — plus the
+  assessment/inference diagnostic and the keyword rung's `insufficient_data`
+  return). The primary metric is **not yet well-defined on real inputs**, and
+  the P7 report says so in §8.1.a rather than in a footnote.
 - Range vs base `7150b49`: **97 commits, 124 files, +39,737 / −4**.
   **Migration status: NONE** — `drizzle/` and the journal are untouched; the
   Phase-2 DDL exists only as design plus disposable fork-only SQL.

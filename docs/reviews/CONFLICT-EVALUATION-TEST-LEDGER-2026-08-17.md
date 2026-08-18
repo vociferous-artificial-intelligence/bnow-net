@@ -285,7 +285,42 @@ six-line explanatory comment in `src/integration/authz-page-gate.itest.ts`.
 Zero paid provider calls, zero production writes, no migration, no env change,
 no deploy, no push, no PR, no merge to `main`.
 
-**GATE 7 (final): the three fresh adversarial reviews (methodology/science,
-safety/operations, product/analyst UX) are commissioned against the final
-integration SHA and are NOT yet performed — §8 of the P7 report is written for
-them preemptively. A final PASS applies only to that exact SHA.**
+## GATE 7 (final) — COMPLETE: three adversarial reviews, 2026-08-18
+
+All three mandated final reviews ran against the final integration SHA
+`b8341e9` and returned **PASS-WITH-MINORS**. Full verdicts, verification
+highlights, and per-finding dispositions: P7 report §11.
+
+| Review | Verdict | Findings | Independent verification highlights |
+|---|---|---|---|
+| #1 methodology / evaluation science | **PASS-WITH-MINORS** | 3 MEDIUM + 3 MINOR, all docs/register/soak scope (reviewer stated no code change required) | ran the two committed REAL ISW fixtures through the PRODUCTION takeaway parser (9 bullets: 9/9 multi-proposition, ~4 analytic assessments); corpus-wide keyword-rung probe of `iran_regional` (0 matched / 0 partial, 13 of 20 units flagged); the Gate-4 action-class gate measured over 10 realistic pairs (precision 0.40 / recall 0.33, substring FP "white" ⊃ "hit") |
+| #2 safety / operations | **PASS-WITH-MINORS** | 3 MEDIUM + 1 LOW + 1 checklist item | 4-word / 1,317-window prose scan over 71 persisted artifacts — ZERO hits; 23-case body-level authz probe incl. the signed-in-but-UNACCEPTED tier the authored suite does not cover; network-kill-switch CLI attack with fake keys; four-layer mutation test of the register-#5 refusal; independent ruling-3 adjudication (merging does NOT breach it, same enable-time precondition) |
+| #3 product / analyst UX | **PASS-WITH-MINORS** | 6 MINOR + 6 NOTE | real Tab-walk **45/38 stops, zero missing focus rings** (closes P6's own "NOT verified" keyboard item); canvas-resolved contrast, worst conflict-owned pair **4.84:1 light / 7.61:1 dark**; **390px `scrollWidth == clientWidth` on all seven pages**; print stamps exactly once; unroutable-DB proof; bad-input 404s |
+
+### Closeout remediation rounds (three commits' worth of fixes + one docs commit)
+
+| Gate | Command | Result |
+|---|---|---|
+| typecheck | `npx tsc --noEmit` | clean |
+| lint | `npm run lint` | clean (0 errors, 0 warnings) |
+| unit | `npm test` | **3,212 passed / 3,212 (228 files)** — Gate-7 entry 3,194/227 + 18 new cases (1 new file, `localization.test.tsx`); **zero regressions** |
+| golden drift | `goldens.test.ts` inside the full suite + `git status fixtures/` | **byte-identical**; `fixtures/conflicts/` and `docs/evals/` untouched by all three rounds |
+| clean diff / tree | `git diff --check`; `git status` | clean / clean |
+| banner mutation proof | delete `<SyntheticBanner/>` per route, run that route's test | 4/4 — each deletion fails exactly one NAMED test (index, overview, detail, evidence) |
+
+Code fixed in the closeout: intake now type-checks `stub`/`published`/
+`engine`/`currentExtractorVersion` and validates `docId` (integer > 0) at both
+entry points; `independentSourceCount` dedupes by docId; the corpus-recall
+query contract gains a binding row-grain/LIMIT section and a real
+`STUB_ADAPTER_NAMES` reference; `PublishedRetentionClaimSource` gains a full
+contract; the ruling-3 banner is pinned on all four routes plus the flag-ON
+itest; the presence module refuses a bare 0% when every unit is incomparable;
+zero-eligible corpora, empty evidence unions, fixture-demonstration labels,
+unique link names, RTL bidi isolation, and logical table alignment all
+landed with pins.
+
+Recorded, NOT implemented (each needs its own review): the compound-attestation
+adjudication, the assessment/inference diagnostic class, the keyword rung's
+`insufficient_data` return (register #12 — all three BLOCK the soak), and the
+reference-URL/unit-ordinal profile change (P7 §5.2 item 4b — blocks
+enablement).

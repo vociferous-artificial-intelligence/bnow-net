@@ -132,7 +132,7 @@ files, +39,737 / −4, and 149 ahead of `origin/main` — and the area table abo
 was corrected (it had omitted the `fixtures/conflicts/` row and miscounted
 three others). The deletions figure (−4) was correct at every tip. No gate
 verdict, safety claim, or merge-order conclusion depended on the stale
-numbers. Correction commit: `d4da799` (docs-only, atop the final integration
+numbers. Correction commit: `b8341e9` (docs-only, atop the final integration
 SHA; the gate battery of §6 ran at `ad10fbd` and is unaffected).
 
 **Freeze-list verification — all NONE:**
@@ -249,8 +249,13 @@ cannot go stale relative to the corpus without a red suite.
   imports `classifyTakeawayTheater` and `extractSignature` from production, so
   the theater filter under test is literally production's.
 
-Emulation choices (L) and fidelity limits (F), all enumerated in the module and
-pinned by a test that requires all fourteen tags:
+Emulation choices (L) and fidelity limits (F). The module's
+`LEGACY_EMULATION_NOTES` constant enumerates the original **fourteen** (L1–L5,
+F1–F9) and its test pins that count; **F10 below was added by the final
+methodology review in the docs-only closeout round**, so the report currently
+lists one more limit than the module constant. Folding F10 into the constant
+(and its test) is a recorded enablement follow-up — deliberately not done in a
+round whose mandate was no code change:
 
 | tag | choice / limit |
 |---|---|
@@ -259,7 +264,7 @@ pinned by a test that requires all fourteen tags:
 | L3 | numerator population = that ONE country's ONE `military` digest's published claims (`run.ts` selects `d.track='military'` for one iso2 and reads only that digest's claims); stubs excluded (ruling 3) |
 | L4 | Iran gets **no** takeaway filtering (`run.ts` filters ru/ua only), so the ir denominator is every declared unit, scored against ir `military` published claims only |
 | L5 | an oracle `partial` pair counts as a legacy match — the legacy matcher has no partial concept |
-| **F1** | **the legacy matcher is not re-run.** Production matches with k=5 paid LLM votes or the keyword gazetteer; both are forbidden here. Substituting the oracle gives the legacy method a **perfect matcher** — the most generous possible reading — so every legacy miss below is a **structural** miss (wrong population or denominator), never a matcher failure. This is the central emulation choice and the one a reviewer should attack first. |
+| **F1** | **the legacy matcher is not re-run.** Production matches with k=5 paid LLM votes or the keyword gazetteer; both are forbidden here. Substituting the oracle gives the legacy method a **perfect-recall** matcher, so every legacy miss below is a **structural** miss (wrong population or denominator), never a matcher failure. CORRECTED at the final methodology review: this is *generous on recall but NOT an upper bound on legacy's measured coverage* — the oracle also removes legacy's FALSE POSITIVES (the deployed legacy path has no negative/quiet-day rule and no cross-date rule), so on precision-trap units like `roca-quiet-day-010b` and `roca-recurring-template-007` real legacy would likely score HIGHER than shown here. The structural conclusion is unaffected: combined-only units are population-unreachable for legacy no matter how its matcher behaves. This is the central emulation choice and the one a reviewer should attack first. |
 | F2 | `scoreDigest`'s keyword-only `matchable` denominator reduction is **not** applied; applying it would inflate legacy coverage further on top of F1 |
 | F3 | `partial` counts as a legacy match but a combined miss (contract §6.4) — deliberately anti-favourable to the combined method |
 | F4 | "no country digest that day" is not representable in a fixture; a country with zero eligible claims still gets a row scoring 0 (flagged `empty pop.`). Production ru/ua military digests are produced daily, so the row-exists reading is the faithful one |
@@ -268,6 +273,7 @@ pinned by a test that requires all fourteen tags:
 | F7 | the corpus is synthetic and most scenarios declare ONE unit, so per-scenario percentages are degenerate; only aggregates carry signal, and even those are corpus-design artefacts |
 | F8 | single-unit scenarios make production's "all N takeaways off-theater → no run" branch dominant (7 ROCA country rows vanish entirely below). A real 5+-bullet ROCA would **deflate** a denominator instead of **deleting** a row |
 | F9 | everything is scored at evaluation kind `retrospective` — the only kind this workstream may mint (register #5). The snapshot-anchored `unavailable` state is not exercised here; probed for the record, the same scenarios at `at_publication` return `unavailable` / `no_proven_snapshot` |
+| **F10** | **temporal asymmetry, inflation-direction (added by the final methodology review).** Combined eligibility spans `[reportDate − 2d, window END]` day-granular, while the emulated legacy numerator is ONE digest date; the real Iran Update fixture states the series' own lookback is ~24h. The combined method therefore sees roughly **3× the window** the legacy row does, and that difference flows toward the combined numerator. This asymmetry is NOT covered by contract §5's "deflationary" sentence (which is about within-window evidence rules), and it is not quantified on this corpus — every fixture scenario declares claims inside a single day. The soak's legacy side-by-side must therefore report a window diagnostic (§4). |
 
 Zero provider contact: the module reads no environment variable, imports no
 provider SDK, touches no spend machinery, and constructs no client — pinned by
@@ -424,6 +430,31 @@ before the reading code deploys (ruling 4 ordering); a reviewed live conflict
 dispatch path (none exists); confirmed human labellers; legal review of soak
 artifacts.
 
+**Added by the final methodology review (all now in the plan document):**
+
+- **Register #12's three BLOCKING prerequisites** — a versioned, human-
+  calibrated derivation of `compound` for real takeaways; a measured compound
+  rate over a real sample; and an explicit adjudication of the attestation
+  rule against that measurement. Until these exist the primary metric is not
+  well-defined on real inputs (§8.1), so no soak may start.
+- **A second human sample — MISSES.** The 120-pair sample draws
+  (unit, top-candidate-claim) pairs, so a claim wrongly excluded upstream by
+  the lane classifier or the eligibility engine can NEVER enter it: the
+  sample cannot see its own blind spot. N units scored `miss` are now sampled
+  separately, with a human searching the UNFILTERED window corpus for
+  evidence, against a declared threshold.
+- **The `partial ↔ matched` variance criterion is VACUOUS as written** under
+  register #11's attestation rule (no live rung can produce a compound
+  `matched`, so the flip it forbids is unreachable). Marked as such and
+  supplemented with a criterion that can actually fail.
+- **Pair-level precision/recall must be reconciled against the headline.**
+  Without it the report could publish 0.95/0.85 beside an Iran headline of
+  0/5 and read as success.
+- **A legacy side-by-side window diagnostic** (F10): report the day-span each
+  method saw, so the ~3× window asymmetry is visible in the comparison rather
+  than absorbed into it.
+- **Non-independence MEASURED, not merely disclaimed** — see §8.1.
+
 ---
 
 ## 5. PR decomposition and operator decision list
@@ -509,9 +540,32 @@ consolidated — every item is unfinished today):
    gated evidence route MUST move into the `authz-page-gate.itest.ts` ROUTES
    table or an equivalent flag-on body-asserting harness, or it silently loses
    its body-level authorization proof.
-4. **Robots/sitemap posture review — unconditional at enablement.** Flag-on
-   makes the teasers public and the gated evidence route a crawlable auth
-   redirect, exactly the shape `robots.ts` disallows `/digests/` for.
+4. **Robots/sitemap AND page-metadata posture review — unconditional at
+   enablement.** Flag-on makes the teasers public and the gated evidence route
+   a crawlable auth redirect, exactly the shape `robots.ts` disallows
+   `/digests/` for. EXTENDED by final review #2: there is no conflict
+   `metadata` export and no conflict layout, so the ROOT title
+   ("BNOW.NET — validated OSINT intelligence") would apply to synthetic-data
+   pages in browser tabs and link unfurls — the review must cover
+   title/OpenGraph posture, not only crawl directives.
+4b. **Reference-report URL and unit ordinals (final review #3 MINOR-4;
+   enablement blocker, docs-only today).** The frozen result profile carries
+   NO link to the external reference report (the P2 schema design specifies
+   `canonical_url`, but the profile does not carry it), and reference-only
+   units render as opaque ids (`u0 · Front-line maneuver · miss`) with no
+   ordinal or keyword handle — while `/scoreboard` already renders
+   "ISW takeaway #1 · keywords: …" and links the report. Ruling 1 forbids
+   reproducing takeaway TEXT; it forbids neither an ordinal nor a hyperlink.
+   Two items, BOTH requiring a profile/epoch change and BOTH preceding
+   enablement, or q7 ("drill back into the evidence") stays a dead end for
+   the surface's headline use case: (i) carry the reference report's canonical
+   URL into the result profile and link it from the benchmark module;
+   (ii) carry unit ORDINALS (and, if legally clean, the keyword handles the
+   house scoreboard already ships) so a validator can find the bullet.
+4c. **Per-source contribution buckets on an anonymous surface** (final review
+   #3 NOTE-6): the teaser tier renders `bySource` domain buckets while the
+   comparable house surface (`/registry`) is admin-only. Decide the posture at
+   enablement — keep, aggregate, or gate.
 5. Scoreboard reciprocal link (flag-guarded) so the two aggregations of one
    report point at each other, per contract §11(d).
 6. i18n catalog integration for the conflict copy (currently English-only
@@ -817,6 +871,91 @@ were reviewing this branch cold.
     exists for the conflict matcher against human labels — §4 predeclares the
     thresholds precisely because there is no data yet.
 
+#### 8.1.a The primary metric is NOT yet well-defined on real inputs (final review #1, MEDIUM-1)
+
+The final methodology review probed the two committed REAL ISW fixtures —
+`fixtures/isw/roca-2026-06-30.html` and `fixtures/isw/iran-update-2026-07-24.html`
+— through the PRODUCTION takeaway parser and read the resulting 9 bullets
+(4 ROCA + 5 Iran Update). Every one of the 5 Iran takeaways is
+multi-proposition; so are the ROCA bullets.
+
+Against register #11's shipped attestation rule (every ladder rung emits
+`partial` on a compound unit; `partial` is a headline miss; only the fixture
+oracle may attest `full`), that means **a live Iran Update day could produce a
+headline of 0/5 by construction** — not because the corpus lacked the
+developments, but because no live rung is permitted to attest full coverage of
+a compound bullet. On this synthetic corpus the effect is invisible: the
+scenarios are overwhelmingly single-proposition, and the one compound scenario
+(`roca-compound-partial-009b`) is *designed* to be partial.
+
+Two consequences, both recorded rather than fixed (the round's mandate was no
+code change, and the reviewer agreed no code change is required to merge):
+
+- **`compound` has no derivation for real reports.** It is a hand-authored
+  fixture field; nothing in the pipeline computes it from takeaway text. So
+  the attestation rule's INPUT is undefined outside the corpus.
+- **Therefore the headline metric is not well-defined on real inputs yet**, and
+  register #12 makes a versioned human-calibrated `compound` derivation, a
+  measured compound rate on a real sample, and an explicit adjudication of the
+  attestation rule BLOCKING prerequisites for the soak.
+
+#### 8.1.b Construct validity: assessments are not events (final review #1, MEDIUM-2)
+
+Of the same 9 real bullets, roughly 4 are analytic ASSESSMENTS — statements
+about intent, belief, capability, or opinion — rather than reports of discrete
+events. A BNOW claim corpus built from event reporting cannot match those
+under §6.3 material equivalence, however good the matcher is.
+
+Today the only miss sub-label is `incomparable_coverage`, which is an
+EVIDENCE-CLASS statement ("no comparable mapped evidence exists for this
+lane"). So a rendered "1 of 4 (25%)" silently conflates two different
+diagnoses: *we lacked the event* and *this bullet is not an event at all*.
+
+Proposed (design only, NOT implemented, and deliberately denominator-neutral):
+a THIRD purely-diagnostic unit class — assessment/inference — reported beside
+the headline exactly as `partial` is, leaving the §3 denominator untouched.
+Register #12 carries it as a required-before-soak diagnostic. Implementing it
+is a profile change and needs its own review.
+
+#### 8.1.c The keyword rung is degenerate for `iran_regional` (final review #1, MEDIUM-3)
+
+The conflict keyword rung reuses the production gazetteer. That gazetteer's 34
+canonical toponyms are RU/UA only — verified in this round by enumerating
+`TOPONYMS` in `src/lib/validation/keywords.ts`: **zero** Iran, Gulf, Levant, or
+Red Sea entries. Probed corpus-wide by the reviewer, `iran_regional` on the
+keyword rung yields **0 matched / 0 partial, with only 13 of 20 units flagged
+`keywordUnmatchable`** — so a keyword-rung Iran day publishes a scored 0/N
+while the other 7 units render as ordinary misses rather than as unmatchable.
+
+- **Required before soak (code, not done here):** for a conflict whose lanes
+  have no gazetteer coverage the keyword rung must return `insufficient_data`
+  rather than a scored zero. Recorded in register #12; not implemented in the
+  closeout because it changes matcher behavior.
+- **The shared-action-class gate, measured.** The Gate-4 narrowing (a keyword
+  match additionally requires ≥1 shared canonical ACTION class) was measured by
+  the reviewer over 10 realistic pairs: **precision 0.40, recall 0.33**, with a
+  SUBSTRING false positive — "white" contains "hit", so the `strike` action
+  class fires on unrelated text. The gate is still an improvement over
+  toponym-only matching (which is what it replaced), but these numbers say the
+  keyword rung is a degraded fallback in fact as well as in label. The
+  substring-matching defect and the gazetteer stem gaps join the existing
+  production-gazetteer follow-up item, now with numbers attached.
+- **No test exercises the keyword rung on Iran text.** The rung's Iran behavior
+  is unpinned in both directions; a soak-blocking fix should arrive with one.
+
+#### 8.1.d Measure the non-independence instead of only disclaiming it (final review #1, MINOR-4)
+
+Item 7 above says the shared-source caveat is "a caveat, not a correction", and
+that the soak does not attempt to quantify it. The reviewer pointed out that
+the repository already holds the data to quantify it at **zero provider cost**:
+ISW's own endnote registry is in `source_citations` → `isw_reports` / `sources`
+(~351K rows), and `raw_documents.source_id` points at the SAME `sources` table.
+
+So for any scored report the fraction of matched units whose supporting
+documents come from sources ISW cited IN THAT REPORT is computable directly.
+That turns the §0 caveat from a disclaimer into a measurement, and it is now a
+REQUIRED collected metric in the soak plan (design only; not implemented).
+
 ### 8.2 For the safety / operations reviewer
 
 1. **Ruling 3 is the sharpest live risk.** The product surfaces are
@@ -950,3 +1089,95 @@ This addendum commit edits only this file.
 Local-only. Not pushed, no PR, not merged to `main`, not deployed, no
 environment changed, no flag enabled, no production data touched, zero paid
 provider calls.
+
+---
+
+## 11. The three mandated final adversarial reviews (2026-08-18)
+
+All three ran against the final integration SHA **`b8341e9`** and returned
+**PASS-WITH-MINORS**. Every finding is either fixed in the closeout rounds
+below or recorded as a pre-soak / pre-enablement obligation. No reviewer
+raised a BLOCKER or a MAJOR, and none asked for a scorer or matcher behavior
+change as a merge condition.
+
+### 11.1 Review #1 — methodology / evaluation science: PASS-WITH-MINORS
+
+Scope: the metric's construct validity on REAL inputs, the backtest's
+emulation honesty, and the soak plan's ability to fail. Its distinguishing
+move was to stop trusting the synthetic corpus: it ran the two committed real
+ISW fixtures through the PRODUCTION takeaway parser and read the 9 resulting
+bullets, then probed the keyword rung corpus-wide and measured the Gate-4
+shared-action-class gate over 10 realistic pairs. Findings: 3 MEDIUM + 3
+MINOR, all documentation/register/soak-plan scope — the reviewer stated
+explicitly that no code change is required, and the coordinator agreed.
+
+| Finding | Disposition |
+|---|---|
+| MEDIUM-1 compound attestation narrows contract §3; `compound` has no derivation for real reports (9/9 real bullets multi-proposition ⇒ a live Iran headline could be 0/5 by construction) | Register **#11** records the rule AS SHIPPED, its divergence from §3, its fail-closed rationale, and its PROVISIONAL status; register **#12** makes derivation + measurement + adjudication BLOCKING before any soak; report §8.1.a reproduces the probe |
+| MEDIUM-2 construct validity: ~4/9 real bullets are analytic ASSESSMENTS an event corpus cannot match, and `incomparable_coverage` is the only miss sub-label | §8.1.b proposes a THIRD purely-diagnostic unit class (denominator-neutral, reported as `partial` is); register #12 makes it a required-before-soak diagnostic. NOT implemented |
+| MEDIUM-3 keyword rung degenerate for `iran_regional` (gazetteer is RU/UA-only — verified 34/34 canonical toponyms; 0 matched / 0 partial with 13 of 20 units flagged) + the action-gate measured at precision 0.40 / recall 0.33 with a substring false positive ("white" ⊃ "hit") | §8.1.c records both; register #12 lists `insufficient_data`-for-gazetteer-less-conflicts as a required-before-soak CODE change (not made here — it changes matcher behavior); the substring defect joins the production-gazetteer follow-up WITH the measured numbers; the absence of any Iran keyword-rung test is recorded |
+| MINOR-1 backtest F1 overclaimed "most generous possible reading" | F1 corrected: generous on RECALL, not an upper bound on legacy's measured coverage (the oracle also removes legacy's false positives, and the deployed legacy path has no negative/quiet-day or cross-date rule). Numbers unchanged; the structural conclusion is unaffected |
+| MINOR-2 temporal asymmetry absent from the F-list | Added as **F10** (inflation-direction, NOT covered by §5's "deflationary" sentence); the soak now requires a legacy side-by-side window diagnostic |
+| MINOR-3 soak blind spots (pair-only sample; vacuous compound variance criterion; no pair↔headline reconciliation) | Soak plan §5.1 adds a REQUIRED miss sample searched against the UNFILTERED corpus with a ≤0.10 false-exclusion threshold; §6 marks the `partial ↔ matched` criterion vacuous under register #11 and supplements it; §10 requires the reconciliation |
+| MINOR-4 measure the non-independence instead of disclaiming it | §8.1.d + soak §10: the endnote registry (`source_citations` → `isw_reports`/`sources`, joined via `raw_documents.source_id`) makes the ISW-cited-source fraction computable per report at zero provider cost — now a REQUIRED collected metric |
+
+### 11.2 Review #2 — safety / operations: PASS-WITH-MINORS
+
+Scope: fail-closed behavior, ruling-3 containment, authorization at the body
+level, and what an untyped future DB mapper could smuggle past the intake.
+Verification highlights, all independently executed: a **4-word / 1,317-window
+prose scan over 71 persisted artifacts** with **zero hits** in any artifact; a
+**23-case body-level authorization probe** including the signed-in-but-
+**UNACCEPTED** tier that the authored suite does not cover; a
+network-kill-switch CLI attack with fake keys present; and a four-layer
+mutation test of the register-#5 refusal. It reached its own ruling-3
+adjudication INDEPENDENTLY of the Gate-6 reviewer and agreed: **merging does
+not breach ruling 3**, with the same enable-time precondition (real results +
+banner retirement + a decision-log entry before `CONFLICTS_UI=1` anywhere).
+
+| Finding | Disposition |
+|---|---|
+| M-1 intake omits the ruling-3-critical booleans (`stub`, `published`, `engine`, `currentExtractorVersion`) — an untyped mapper omitting `stub` admits a stub row as non-stub, since `undefined` is falsy | FIXED: `validateCandidateIntake` type-checks all four with typed `invalid_candidate_claim` refusals naming the field and never echoing values; the query contract's stub-adapter placeholder is replaced by the new exported `STUB_ADAPTER_NAMES` (evidence-records.ts, mirroring `src/lib/adapters/stubs.ts` and deliberately excluding `telegram_mtproto`, which is a REAL adapter since 2026-07-11) and states how a mapper must populate `stub` |
+| M-2 `independentSourceCount` does not dedupe (a doc listed twice reported 2 and ESCAPED the thin-source diagnostic, disagreeing with the scorer's own deduped metric); `docId` unvalidated at both entry points (NaN passes `typeof === "number"`) | FIXED: Set-based dedupe by docId; `Number.isInteger(docId) && docId > 0` at BOTH the fixture loader and intake. Pinned: the duplicate probe now reports 1 and trips `thinSourced`, and the two independence metrics agree |
+| M-3 row-grain vs LIMIT undocumented (one row per (claim, doc) ⇒ a LIMIT cuts at a ROW boundary, so the intake ceiling never trips while the last claim arrives with a truncated doc list); `PublishedRetentionClaimSource` had no contract at all | FIXED (contract text): the corpus-recall contract now requires bounding a DISTINCT-CLAIM subquery at `EVIDENCE_MAX_INTAKE + 1` and joining docs for exactly those ids — a claim arrives with its COMPLETE doc list or not at all — and states that the ceiling is a post-materialization assertion, not a pushdown. A full contract was written for `PublishedRetentionClaimSource` to the same standard (population, filters, ordering, bound, and its deliberate differences) |
+| L-1 the ruling-3 banner was test-pinned on only 1 of 4 routes (deleting it from the other three left 760/760 green) | FIXED: a named banner assertion on each of the four route tests plus a flag-ON itest assertion over every teaser body. MUTATION-PROVEN: deleting the banner from each page fails exactly one named test on that route (4/4) |
+| Operational checklist: page metadata/titles | §5.2 item 4 extended to title/OpenGraph posture; mirrored into P6 §12.6 |
+
+### 11.3 Review #3 — product / analyst UX: PASS-WITH-MINORS
+
+Scope: whether an analyst can read the numbers correctly, and whether the
+surface's own honesty rules hold at every granularity. Independently measured
+(and closing P6's own "NOT verified" keyboard item): a real **Tab-walk of
+45/38 stops with zero missing focus rings**; canvas-resolved contrast with a
+worst conflict-owned pair of **4.84:1 light / 7.61:1 dark**; **390px
+`scrollWidth == clientWidth` on all seven pages**; print stamps rendering
+**exactly once**; an unroutable-DB proof; and bad-input 404 behavior.
+
+| Finding | Disposition |
+|---|---|
+| MINOR-1 a bare bold "0 of 1 (0%)" corpus card beside a 100% published card, on the very page whose lane table refuses that reading (register #8 H1 was applied at LANE granularity only; on a single-lane report the report-level corpus recall IS that lane) | FIXED: `PresenceModule` renders the lane table's amber qualifier + note (same copy constants) when EVERY corpus-recall unit carries `incomparable_coverage`. The published card keeps its real 1/1 — `missDiagnostic` is a corpus-recall statement by construction |
+| MINOR-2 an EMPTY eligible set and a genuine zero were visually identical (the only signal lived in the COLLAPSED method stamps) — opposite diagnoses for an analyst | FIXED: a terse "(0 eligible claims in the corpus)" qualifier beside the ratio when `eligibleCount === 0`; both states pinned (zero-eligible renders it, a scored zero WITH candidates does not) |
+| MINOR-3 the index card published a coverage % with neither the caveat nor the read-the-n instruction — the first number a visitor sees, outside any benchmark module | FIXED: both render on the card, pinned |
+| MINOR-5 WCAG 2.4.4 — the two ladder-variant rows produced byte-identical accessible link names | FIXED: the variant is part of the accessible name; pinned by asserting all run-list link names are unique |
+| MINOR-6 RTL numeric displacement + physical alignment | FIXED: `dir="ltr"` bidi isolation on the numeric runs in `Ratio` and `Counts` (a convention established for this package, documented in-code), logical `text-start`/`text-end` in both tables, pinned by a new `localization.test.tsx`; P6 §303's unverified RTL claim corrected in place |
+| MINOR-7 the overview's featured record hid that it is an edge-case demonstration (the RU–UA overview features a malformed-cutoff sentinel, n=1, 100%) | FIXED: the detail page's "Fixture demonstration: …" line now renders on the overview too; pinned |
+| MINOR-4 no path from a benchmark record to the external report; reference-only units are opaque ids | RECORDED as an enablement blocker in §5.2 items 4b (URL + ordinals, both requiring a profile/epoch change) and P6 §12.6. NOT implemented — the frozen profile is not changed in a closeout round |
+| NOTE-3 evidence link on records with an empty union | FIXED on both surfaces: an explicit "no evidence view to open" line replaces the link (a sign-in wall in front of an empty view); pinned both ways |
+| NOTE-2 detail contributor links lacked the overview's "; legacy engine" suffix | FIXED; pinned |
+| NOTE-1 per-page `<title>` | RECORDED in §5.2 item 4 (metadata posture) — it is the same enablement review as review #2's finding |
+| NOTE-4 unavailable records print with no audit identity | RECORDED: the method-stamps block renders only for scored results. An unavailable record's provenance IS its identity (kind + reason + report), which does render; carrying a stamp block for unavailable states is an enablement-time polish item |
+| NOTE-5 390px last column off-screen (reorder so the scored population is visible first) | RECORDED, deliberately not done: the tables scroll inside their wrapper (measured `scrollWidth == clientWidth` on all seven pages, so nothing overflows the DOCUMENT), and column order is load-bearing for the run-list's reading order (day → demonstration → coverage → matcher → detail). Reordering is a design decision for the enablement pass, not a closeout edit |
+| NOTE-6 per-source buckets on an anonymous surface vs admin-only `/registry` | RECORDED in §5.2 item 4c as an enablement posture decision |
+
+### 11.4 What the closeout rounds did NOT change
+
+No scorer, matcher, eligibility verdict, or selection behavior changed in a
+way that moves a number: the committed goldens are **byte-identical** through
+all three rounds (the drift gate ran green on every suite execution), and
+`fixtures/conflicts/` was not touched. The intake and docId validations are
+pure refusals of inputs no committed fixture contains; the independence dedupe
+changes a count only when a document is listed twice, which no fixture does.
+The three MEDIUM findings that WOULD change numbers — compound attestation,
+the assessment class, and the keyword rung's `insufficient_data` return — are
+deliberately left to register #12's pre-soak adjudication, with their evidence
+recorded here.

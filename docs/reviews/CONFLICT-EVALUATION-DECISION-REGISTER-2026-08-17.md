@@ -132,3 +132,75 @@ Each entry: date, decision, rationale, alternatives rejected, review status.
     a frozen definition's meaning — the roster is pinned to the theater
     registry, and a future theater addition is a definition change requiring
     a new register entry).
+
+11. **2026-08-18 — compound-unit attestation: every ladder rung emits
+    `partial` on a compound unit; only the deterministic fixture oracle may
+    attest `full`. PROVISIONAL, and narrower than contract §3.** Recorded AS
+    SHIPPED at the request of the final methodology review. What the code
+    does: `pairsFromLlmMatches` and the keyword matcher both set
+    `coverage: unit.compound ? "partial" : "full"`, and `partial` counts as a
+    headline MISS (§6.4) — so **no live matcher can ever mark a compound unit
+    matched**. Contract §3 defines partial as "some but not all
+    propositions", which implies a fully-covered compound unit should be
+    `matched`; the shipped rule is therefore a deliberate NARROWING of the
+    frozen contract, not an implementation of it. Why it was chosen:
+    fail-closed. A rung that cannot verify EVERY proposition of a compound
+    bullet must not claim full coverage of it — an LLM vote returns one
+    (unit, claim, confidence) triple with no per-proposition evidence, and
+    the keyword signature matcher cannot express proposition coverage at all.
+    Over-crediting a compound unit inflates the headline; under-crediting
+    deflates it, and deflation is the honest direction under §5. Measured
+    consequence, from the final review's probe of the two committed REAL ISW
+    fixtures through the production takeaway parser: **5/5 Iran Update
+    takeaways and 4/4 ROCA takeaways are multi-proposition**, so on a real
+    Iran day a live headline could read **0/5 by construction**. BINDING
+    UNTIL SUPERSEDED, and superseding it requires register entry #12's
+    prerequisites plus a new entry here. Alternatives rejected today:
+    allowing ladder-`full` attestation on compound units (unmeasured
+    inflation risk, and no evidence standard exists to justify it); dropping
+    compound units from the denominator (silently changes the §3 denominator
+    and hides the hardest cases).
+
+12. **2026-08-18 — three BLOCKING prerequisites before any shadow soak may be
+    authorized (compound derivation, measurement, adjudication) plus two
+    required diagnostics.** The soak plan (`docs/designs/CONFLICT-SHADOW-SOAK.md`)
+    may not start until ALL of the following exist, because without them the
+    primary metric is not well-defined on real inputs:
+    1. **A specified, versioned, human-calibrated derivation of `compound`
+       from real takeaway text.** Today `compound` is a hand-authored fixture
+       field with NO derivation for real reports: nothing in the pipeline
+       computes it, so the attestation rule of #11 has no defined input
+       outside the corpus. The derivation must be versioned like every other
+       policy input (roster/classifier/scope) and calibrated against human
+       judgement on a real sample.
+    2. **A measured compound rate over a real report sample** (both series,
+       ≥1 month), reported with the sampling method — the 9/9 multi-
+       proposition finding above is two reports, enough to establish the
+       risk, not to size it.
+    3. **An explicit adjudication of #11 against that measurement**, recorded
+       as a new register entry: either keep the fail-closed rule (and accept,
+       in writing, that compound units are structurally unmatched by live
+       rungs), or permit ladder-`full` attestation under a STATED evidence
+       standard (e.g. per-proposition evidence required, or a majority vote
+       explicitly asked to attest completeness).
+    Two diagnostics are required alongside, neither of which may change a
+    denominator:
+    - **An assessment/inference unit class** (final review MEDIUM-2):
+      ~4 of the 9 real bullets are analytic assessments of intent, belief, or
+      opinion, which an EVENT-claim corpus cannot match under §6.3 material
+      equivalence. Today the only miss sub-label is `incomparable_coverage`
+      (an evidence-class statement), so a rendered "1 of 4 (25%)" conflates
+      "we lacked the event" with "this is not an event". The third class is
+      PURELY DIAGNOSTIC — reported beside the headline exactly as `partial`
+      is, denominator unchanged — and is NOT implemented in this workstream.
+    - **A keyword-rung `insufficient_data` return for gazetteer-less
+      conflicts** (final review MEDIUM-3): the conflict keyword rung reuses
+      the production gazetteer, whose 34 canonical toponyms are RU/UA only
+      (verified: zero Iran/Gulf/Levant entries). Probed corpus-wide,
+      `iran_regional` scores **0 matched / 0 partial with only 13 of 20 units
+      flagged `keywordUnmatchable`** — so a keyword-rung Iran day reports a
+      scored 0/N while 7 units render as ordinary misses rather than as
+      unmatchable. For a conflict whose lanes have no gazetteer coverage the
+      rung MUST return `insufficient_data` instead of a scored zero. This is
+      a required-before-soak CODE change, deliberately not made in the
+      closeout (it changes matcher behavior and would need its own review).

@@ -301,6 +301,21 @@ re-measured scrollWidth 390 on every captured page, both schemes.
    audit. Catalog integration for chrome strings is an enablement-time task.
    Localization-safe wrapping conventions are followed (`break-words`,
    `max-w-*`, logical `ps/ms` properties, RTL-safe flex layouts).
+   **CORRECTED 2026-08-18 (final adversarial review #3, MINOR-6).** That claim
+   was written from the source conventions, and the P6 verification matrix
+   (§7) contains **no RTL row** — RTL was never rendered during Phase 6, so
+   the claim was unverified when made. The final product reviewer rendered it
+   first and found two real defects: every ratio reordered under `dir="rtl"`
+   ("1 of 1 declared Key Takeaways (100%)" → "of 1 declared Key Takeaways
+   (100%) 1") because `Ratio` and the lane table's `Counts` emit a leading
+   LTR digit into an RTL paragraph with no bidi isolation; and both tables
+   used PHYSICAL `text-left`/`text-right` while the rest of the package uses
+   logical properties. What is true now: the numeric spans carry `dir="ltr"`
+   isolation (a convention this package establishes for itself — the repo has
+   no house rule), the two tables use logical `text-start`/`text-end`, and
+   both properties are pinned by `src/components/conflicts/localization.test.tsx`.
+   RTL rendering was first verified by the final product reviewer, not by
+   Phase 6.
 5. **Benchmark keys expose fixture scenario ids in URLs.** Honest for a
    synthetic corpus (the ids ARE the record identity); the key segment is
    opaque to the router and migrates to report/edition keys at enablement
@@ -377,6 +392,20 @@ For the legal/authorization/truth-in-UI reviewer:
      enablement, not only a public-by-default decision.
    - Scoreboard reciprocal link (flag-guarded), i18n catalog integration,
      real-result benchmark keys, synthetic-banner retirement decision.
+   - **Page METADATA / title posture** (final review #2): there is no conflict
+     `metadata` export and no conflict layout, so the ROOT title
+     ("BNOW.NET — validated OSINT intelligence") would apply to synthetic-data
+     pages in tab titles and link unfurls. The enablement review must cover
+     title/OpenGraph posture, not only robots/sitemap.
+   - **Reference-report URL + unit ordinals** (final review #3 MINOR-4): the
+     frozen result profile carries no link to the external report and renders
+     reference-only units as opaque ids (`u0 · Front-line maneuver · miss`),
+     while `/scoreboard` already ships "ISW takeaway #1 · keywords: …" plus a
+     report link. Ruling 1 forbids takeaway TEXT — not an ordinal, not a
+     hyperlink. Both items need a profile/epoch change and BOTH precede
+     enablement, or q7 stays a dead end for the headline use case. Full
+     statement in the P7 report §5.2 items 4b/4c (which also carries the
+     per-source-bucket posture question for an anonymous surface).
 
 ## 13. Pre-gate verification round (2026-08-18; both verifier verdicts)
 
