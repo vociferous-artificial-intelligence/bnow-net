@@ -135,8 +135,10 @@ describe("committed golden results (byte-stable)", () => {
       if (!goldenScenarioIds.has(scenario.id)) continue;
       for (const unit of scenario.report?.units ?? []) {
         expect(committed.includes(unit.text), `${scenario.id}: unit text in goldens`).toBe(false);
+        // step 1 — a stride-3 walk missed unaligned 6-word leaks (Gate-4
+        // MINOR-1, reviewer-proven)
         const words = unit.text.split(/\s+/);
-        for (let i = 0; i + 6 <= words.length; i += 3) {
+        for (let i = 0; i + 6 <= words.length; i += 1) {
           const fragment = words.slice(i, i + 6).join(" ");
           expect(committed.includes(fragment), `${scenario.id}: unit fragment in goldens`).toBe(
             false,
@@ -145,6 +147,13 @@ describe("committed golden results (byte-stable)", () => {
       }
       for (const claim of scenario.evidence) {
         expect(committed.includes(claim.text), `${scenario.id}: claim text in goldens`).toBe(false);
+        const words = claim.text.split(/\s+/);
+        for (let i = 0; i + 6 <= words.length; i += 1) {
+          const fragment = words.slice(i, i + 6).join(" ");
+          expect(committed.includes(fragment), `${scenario.id}: claim fragment in goldens`).toBe(
+            false,
+          );
+        }
       }
     }
   });

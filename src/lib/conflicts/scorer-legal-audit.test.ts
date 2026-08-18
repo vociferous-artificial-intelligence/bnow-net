@@ -62,23 +62,58 @@ describe("serialized results recover no reference prose and no claim text", () =
         false,
       );
 
-      const scenario = scenarios.find((s) => id.startsWith(s.id))!;
+      // exact match on the `#`-stripped id (a startsWith prefix could collide
+      // across scenario ids)
+      const baseId = id.split("#")[0];
+      const scenario = scenarios.find((s) => s.id === baseId)!;
       const selected = selectedScenarioReport(scenario);
       for (const unit of selected?.units ?? []) {
         expect(serialized.includes(unit.text), `${id}: unit text leaked`).toBe(false);
         expect(report.includes(unit.text), `${id}: unit text leaked into the report`).toBe(false);
-        // no long fragment either: any 6-word window of the unit text
+        // no long fragment either: EVERY 6-word window of the unit text,
+        // step 1 — a stride-3 walk missed unaligned leaks (Gate-4 MINOR-1,
+        // reviewer-proven on the real corpus) — against BOTH output surfaces
         const words = unit.text.split(/\s+/);
-        for (let i = 0; i + 6 <= words.length; i += 3) {
+        for (let i = 0; i + 6 <= words.length; i += 1) {
           const fragment = words.slice(i, i + 6).join(" ");
           expect(serialized.includes(fragment), `${id}: unit fragment leaked`).toBe(false);
+          expect(report.includes(fragment), `${id}: unit fragment leaked into the report`).toBe(
+            false,
+          );
         }
       }
       // Phase-4 data minimization: claim TEXT never rides into results either
+      // — full string AND every 6-word fragment, both surfaces
       for (const claim of scenario.evidence) {
         expect(serialized.includes(claim.text), `${id}: claim text leaked`).toBe(false);
+        expect(report.includes(claim.text), `${id}: claim text leaked into the report`).toBe(false);
+        const words = claim.text.split(/\s+/);
+        for (let i = 0; i + 6 <= words.length; i += 1) {
+          const fragment = words.slice(i, i + 6).join(" ");
+          expect(serialized.includes(fragment), `${id}: claim fragment leaked`).toBe(false);
+          expect(report.includes(fragment), `${id}: claim fragment leaked into the report`).toBe(
+            false,
+          );
+        }
       }
     }
+  });
+
+  it("raw window anchors on every scored result are bounded tokens, never free text", async () => {
+    // the persistence gate is the authority (isPersistableRawAnchor); this
+    // audit re-checks the STORED surfaces so the raw anchors are an
+    // explicitly scanned surface of this legal audit, not only a gate rule
+    const { isPersistableRawAnchor } = await import("./eval-profile");
+    let scoredCount = 0;
+    for (const { id, result } of await allResults()) {
+      if (result.state !== "scored" || result.window === undefined) continue;
+      scoredCount++;
+      for (const value of [result.window.cutoffAtRaw, result.window.publishedAtRaw]) {
+        if (value === null) continue;
+        expect(isPersistableRawAnchor(value), `${id}: unbounded raw anchor`).toBe(true);
+      }
+    }
+    expect(scoredCount).toBeGreaterThan(0);
   });
 
   it("NO composite score exists on any result surface (§6.4)", async () => {
