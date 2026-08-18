@@ -415,3 +415,21 @@ synthesize 26, engine 7 — 105/105) · typecheck clean · lint clean ·
 full `npm test` **2,251 passed / 2,251 (174 files)**. The integration gate was
 not re-run: `reduce.itest.ts` covers `persistDigest`, which this remediation
 does not touch (funnel/report/docs only).
+
+---
+
+## 9. Dated correction from the 2026-08-18 independent final audit (appended; §§1–8 stay verbatim)
+
+- **§3.1 item 5 overstates the funnel's mapreduce output.** It lists
+  `docsAnalyzed` (distinct documents in fed groups) among the reported mapreduce
+  stages. The engine PERSISTS that number at the stats top level
+  (`synthesize.ts` → `structured.stats.docsAnalyzed`), but the funnel
+  aggregator passes through only `stats.reduce` for mapreduce digests
+  (`quality-funnel.ts` `DigestStages` has no mapreduce field for it), the JSON
+  report omits it, and the human printer emits the placeholder "docsAnalyzed
+  via fed groups: see stats" without the number. The governing prompt's A2
+  minimum-stage list includes "distinct documents represented in fed groups";
+  as shipped, that stage is persisted but NOT surfaced by the funnel report —
+  an operator must read `structured.stats.docsAnalyzed` directly. Recorded as
+  an owned follow-up (surface the persisted value in `DigestStages` + both
+  output modes), not fixed by the audit.

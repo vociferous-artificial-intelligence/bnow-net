@@ -333,3 +333,24 @@ worked as designed.
 Alternatively the operator may merge the integration branch wholesale (it is
 exactly the sum of the three reviewed worktrees + reconciliation + docs);
 the decomposition above exists to allow independent revert granularity.
+
+---
+
+## 15. Dated corrections from the 2026-08-18 independent final audit (appended; §§1–14 above stay verbatim)
+
+- **§11 source-scan row — "zero NUL bytes in changed .ts files" is FALSE.**
+  `src/lib/analysis/digest-persist.ts:286` carries a literal 0x00 (the group-key
+  separator) and the file is in this program's diff (+48/−5). The byte is
+  PRE-EXISTING at `origin/main` `9c5e9cb` (same code, line 243) and is a working
+  separator, not a runtime defect. Probable scan mechanism: grep classifies a
+  NUL-carrying file as binary and silently skips it — exactly the failure mode
+  §8 of the B report documents for map-worker.ts. Consequence worth tracking:
+  grep-based source scans silently skip `digest-persist.ts` until that byte is
+  written as an escape (same escape-only change `c40060e` applied to
+  map-worker.ts).
+- **§13 residual-list precision:** the eval identity residual says report-time
+  prompt/schema/extractor identity is "printed but not gated" — envKnobs are in
+  fact NOT printed in either scorecard artifact (only stored in the results
+  header), so knob drift is invisible at report time, not merely un-gated.
+- The audit's full finding register and verdicts:
+  `docs/reviews/QUALITY-FOUNDATION-FABLE-FINAL-AUDIT-2026-08-18.md`.

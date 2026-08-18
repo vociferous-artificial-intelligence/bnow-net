@@ -342,3 +342,21 @@ Both reviewers received the remediation diff for a focused re-review.
   escape-only change (the separator is now written as the six-character
   backslash-u-0000 escape — byte-identical string semantics, tests green) so
   future reviews' greps cannot silently skip the map worker.
+
+---
+
+## 9. Dated corrections from the 2026-08-18 independent final audit (appended; §§1–8 stay verbatim)
+
+- **§4 failure-table row "Lease lost before final `processed=true`" claims a
+  "unit-covered latch" — no such unit coverage exists.** The `!opts.remap &&
+  (await stillOwner())` gate (`map-worker.ts` step 6) and the mirror-transaction
+  gate are exercised under a lost lease by NO test: the only lost-lease
+  integration case runs remap mode (which has no mirrors and skips step 6), and
+  `map-worker.test.ts`/`route.test.ts` contain no lease references. The persist
+  gate IS itest-pinned. Deleting either unpinned gate passes the entire
+  pre-push suite. Owned follow-up: unit pins for both gates (the ruling-21
+  companion-pin pattern), ideally landed with the deploying PR.
+- **§5 file inventory quotes pre-remediation test counts** (map-remap.test.ts
+  "14 tests", map-worker-spend.test.ts "6 tests"); the tip reality is 20/8.
+  §6's per-file gate rows likewise predate the remediation commits; the
+  integration report's final-tree totals are the authoritative counts.
