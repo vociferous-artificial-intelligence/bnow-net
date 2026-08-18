@@ -380,7 +380,14 @@ code does and what a reviewer should still probe.
   discloses the rung, but Phase 6 must render keyword-rung results as
   degraded, and a reviewer should try recurring-template shapes
   (roca-recurring-template-007 is oracle-pinned empty but has no
-  keyword-rung replay).
+  keyword-rung replay). **NARROWED at the Gate-4 remediation (science
+  MINOR-2, reviewer-proven toponym-ONLY false agreement at score 0.625):
+  the conflict keyword rung now also requires ≥1 shared canonical action
+  class (conflict rung only; production keywords.ts untouched; zero golden
+  or acceptance drift). Same-toponym SAME-action cross-credit remains the
+  residual keyword-rung exposure. The vague-claim keyword replay is now
+  pinned too (cc-vague-claim-019 → 0/2, claim 9401 credits nothing;
+  gazetteer-scope-dependent, noted in the test).**
 - **Missing-data inflation.** The code: unavailable results carry NO
   headline (never 0/0) and require BOTH assemblies to agree on the
   availability verdict and reason (`scorer.ts:376-420`); a gap carries no
@@ -413,13 +420,23 @@ code does and what a reviewer should still probe.
   elsewhere); the legal audit proves the sentinel present in inputs and
   absent from all 43 serialized results and offline reports; the
   committed golden bytes get the same audit; hedges are the claims' own.
-  STILL PROBE: (1) the fragment scan slides in 6-word windows at STRIDE 3
-  — a leak of an isolated 6-word span at an unaligned offset could
-  evade it; a step-1 sliding probe over the goldens is a cheap
-  strengthening; (2) `editionKey`/`reportDate`/`gapDate` are identity
-  strings — the P3 identity validator refuses prose-bearing keys for
-  current-normVersion records, but a reviewer should confirm the refusal
-  covers every path that can reach a persisted result.
+  STILL PROBE: (1) ~~the fragment scan slides in 6-word windows at STRIDE
+  3~~ — **PROVEN AND CLOSED at the Gate-4 remediation** (legal MINOR-1: the
+  reviewer demonstrated an unaligned 6-word leak evading the stride-3 walk
+  on the real corpus; both audits now slide at step 1, the fragment scan
+  also runs against the offline-report string, and claim texts get their
+  own fragment scan on every surface incl. the committed golden bytes);
+  (2) `editionKey`/`reportDate`/`gapDate` are identity strings — the P3
+  identity validator refuses prose-bearing keys for current-normVersion
+  records, but a reviewer should confirm the refusal covers every path
+  that can reach a persisted result. **Gate-4 addition (legal MINOR-2):
+  the raw window anchors (`window.cutoffAtRaw/publishedAtRaw`) were an
+  ungated free-text channel; the persistence gate now requires
+  null / a valid explicit-timezone ISO instant / a bounded short token
+  (≤64 chars, single line, no multiple spaces, no ". " — documented in
+  `isPersistableRawAnchor`), the legal audit scans them as an explicit
+  surface, and `reference-report.ts` carries the Phase-5 stored-error
+  obligation comment for its raw-anchor error messages.**
 - **Stamp-integrity probes found while writing this report** (not charter
   categories, recorded for Gate 4): (1) when ALL rounds of a k=5
   live-compatible run are unusable, the keyword fallback's outcome carries
@@ -428,13 +445,23 @@ code does and what a reviewer should still probe.
   (verified in the committed golden
   `cc-matcher-failclosed-013b#B-zero-valid-rounds`), so a fully-degraded
   k=5 run groups with a hypothetical k=0 configuration; the per-population
-  labels disclose the rung, but if variance analysis will group on
-  `runGroupKey`, consider carrying the requested k through the fallback
-  path in a later phase. (2) In a mixed-rung result (one population `llm`,
-  the other `keyword`), the stamp's single `votesK`/`model` come from the
-  llm side while the top-level label is the more degraded rung — the
-  per-population sub-stamps are the disambiguator; reviewers should
-  confirm any aggregation reads them.
+  labels disclose the rung. **BINDING Phase-5 obligation (Gate-4 science
+  NOTE-3): if variance analysis groups on `runGroupKey`, carry the
+  REQUESTED k through the keyword-fallback path first.** (2) In a
+  mixed-rung result the stamp's single `votesK`/`model` come from the llm
+  side while the top-level label is the more degraded rung — **CLOSED for
+  the offline report at the Gate-4 remediation (legal MINOR-3): a
+  mixed-rung render now shows BOTH per-population labels explicitly and
+  can never read as "keyword with k=5"; any OTHER future aggregation must
+  still read the per-population sub-stamps.**
+- **Phase-6 rendering obligations (Gate-4 science NOTEs 2/4, recorded as
+  binding):** (a) per-population PARTIAL counts must be rendered (the
+  headline `partialDiagnostic` is the cross-population union; the
+  per-population counts are recoverable from the verdict maps and lane
+  rows and must not be presented as one number without saying so);
+  (b) the timing medians are pair-weighted (a claim matched to two units
+  weighs twice) — any Phase-6 rendering of information-lead medians must
+  document that weighting beside the number.
 
 ## 7. Provenance note
 
@@ -507,3 +534,60 @@ Final gates (on the consolidated tree):
 Zero paid provider calls, zero production writes, no migration, no env
 change, no deploy, no push. Gate-4 reviewers should review
 `6a88edf..HEAD` as one unit.
+
+### Gate-4 remediation addendum (both reviewer rounds, this branch)
+
+The legal/source-fidelity review returned PASS-WITH-MINORS and the
+science/matcher review returned FAIL on `5b38007`; the science summary
+otherwise found the arithmetic/verdict core verified-sound. Every finding
+was remediated on this branch; goldens are BYTE-IDENTICAL throughout
+(verified by the drift gate on every run — the anchor gate admits the
+committed 26-char malformed token, the action-class gate changed no
+committed expectation, and the zero-unit refusal touches no fixture).
+
+- **Legal MINOR-1 (stride-3 evasion, proven)** — both prose audits slide at
+  step 1; the fragment scan runs against the offline-report string; claim
+  texts get their own fragment scan on every surface incl. the committed
+  golden bytes.
+- **Legal MINOR-2 (raw-anchor free-text channel)** — the persistence gate
+  is the authority: `isPersistableRawAnchor` (null / ISO instant / bounded
+  ≤64-char single-line token, heuristic documented) with typed
+  `unpersistable_result` refusal; raw anchors added to the legal-audit
+  scanned surfaces; Phase-5 stored-error obligation comment at the
+  `reference-report.ts` raw-anchor error message.
+- **Legal MINOR-3 (formatter)** — `formatConflictResultReport` refuses
+  non-persistable scored input (no fabricated zeros); mixed-rung results
+  render BOTH per-population matcher labels.
+- **Legal NOTE-1** — the §0 non-independence caveat renders with headline
+  coverage in the offline report (shipped early; Phase 6's own explainer
+  obligation is unchanged and asserted as such in the test comment).
+- **Science MAJOR-1 (0/0)** — `scoreConflictReport` refuses zero declared
+  units ("a parse failure, not a benchmark observation") and the
+  persistence gate refuses a zero denominator belt-and-braces.
+- **Science MINOR-1 (thinSourced unpinned)** — the `<2` independent-doc
+  boundary (2 is not thin, 1 is; mirrors add zero) and the hedge classes
+  (claimed/unverified thin; confirmed/assessed not) are behaviorally
+  pinned; the predicate itself matched the §6.4 contract as documented,
+  so no code change. **Mutation-ledger disposition: this pin closes the
+  science review's surviving M1 mutation** (a `<2`→`<1` mutation now
+  fails these tests).
+- **Science MINOR-2 (toponym-only false agreement, proven)** — the
+  action-class compatibility gate LANDED (branch A): full suite + goldens
+  byte-identical, so no revert was needed; the reviewer's exact probe is a
+  named negative test.
+- **Science MINOR-3 (duplicate vote entries)** — `pairsFromLlmMatches`
+  dedupes keep-first (production llm-match parity); the schema-valid
+  duplicate-pair vote now yields an llm-rung result with a single pair.
+- **Science NOTE-1** — the vague-claim KEYWORD replay is pinned
+  (cc-vague-claim-019 → 0/2 both populations; 9401 credits nothing).
+- **Science NOTE-5** — the legal audit resolves scenarios by exact
+  `#`-stripped id, not `startsWith`.
+- **Science NOTEs-2/3/4** — recorded above in §6 as binding Phase-5/6
+  obligations. **NOTE-6** — no change, as directed (the pinned-literal 0.6
+  test design is load-bearing).
+
+Remediation-round gates (exact): typecheck clean · lint clean ·
+`npm test` **3,050 passed / 3,050 (214 files)** (baseline 3,039/214 + 11
+new, zero regressions) · `TZ=Asia/Tokyo` conflicts **648 passed / 648
+(29 files)** · `git diff --check` clean · tree clean · goldens
+byte-identical.
