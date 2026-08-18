@@ -1,0 +1,2919 @@
+{
+  "cc-matcher-failclosed-013b#A-one-valid-round": {
+    "agreements": {
+      "corpusRecall": [
+        {
+          "claims": [
+            {
+              "atCutoff": true,
+              "atPublication": true,
+              "claimId": 9316,
+              "confidence": 0.84,
+              "coverage": "full",
+              "earliestIngestAt": "2026-08-12T05:30:00Z",
+              "hedge": "claimed",
+              "independentSourceCount": 1,
+              "legacy": false,
+              "theater": "ua",
+              "track": "military"
+            }
+          ],
+          "lane": "strikes_air_defense",
+          "unitId": "u0"
+        }
+      ],
+      "publishedRetention": [
+        {
+          "claims": [
+            {
+              "atCutoff": true,
+              "atPublication": true,
+              "claimId": 9316,
+              "confidence": 0.84,
+              "coverage": "full",
+              "earliestIngestAt": "2026-08-12T05:30:00Z",
+              "hedge": "claimed",
+              "independentSourceCount": 1,
+              "legacy": false,
+              "theater": "ua",
+              "track": "military"
+            }
+          ],
+          "lane": "strikes_air_defense",
+          "unitId": "u0"
+        }
+      ]
+    },
+    "bnowOnly": {
+      "corpusRecall": {
+        "count": 0
+      },
+      "publishedRetention": {
+        "count": 0,
+        "items": []
+      }
+    },
+    "conflictId": "russia_ukraine",
+    "contribution": {
+      "u0": {
+        "sources": [
+          "odesa-news.example"
+        ],
+        "theaters": [
+          "ua"
+        ],
+        "tracks": [
+          "military"
+        ]
+      }
+    },
+    "contributionPublishedRetention": {
+      "u0": {
+        "sources": [
+          "odesa-news.example"
+        ],
+        "theaters": [
+          "ua"
+        ],
+        "tracks": [
+          "military"
+        ]
+      }
+    },
+    "contributionTotals": {
+      "bySource": {
+        "odesa-news.example": 1
+      },
+      "byTheater": {
+        "ua": 1
+      },
+      "byTrack": {
+        "military": 1
+      },
+      "nonAdditive": true
+    },
+    "corpusRecall": {
+      "u0": "matched",
+      "u1": "miss"
+    },
+    "evaluationKind": "retrospective",
+    "evidencePolicyVersion": "ru-ua-ev-v1",
+    "headline": {
+      "corpusRecall": {
+        "denominator": 2,
+        "matched": 1
+      },
+      "publishedRetention": {
+        "denominator": 2,
+        "matched": 1
+      }
+    },
+    "headlineLabel": "Key Takeaway benchmark coverage",
+    "independentSources": {
+      "corpusRecall": {
+        "u0": 1
+      },
+      "publishedRetention": {
+        "u0": 1
+      }
+    },
+    "laneTaxonomyVersion": "roca-lanes-v1",
+    "lanes": [
+      {
+        "corpusRecall": {
+          "matched": 1,
+          "miss": 0,
+          "partial": 0
+        },
+        "diagnostic": null,
+        "lane": "strikes_air_defense",
+        "publishedRetention": {
+          "matched": 1,
+          "miss": 0,
+          "partial": 0
+        },
+        "units": 1
+      },
+      {
+        "corpusRecall": {
+          "matched": 0,
+          "miss": 1,
+          "partial": 0
+        },
+        "diagnostic": null,
+        "lane": "strategic_political",
+        "publishedRetention": {
+          "matched": 0,
+          "miss": 1,
+          "partial": 0
+        },
+        "units": 1
+      }
+    ],
+    "matcher": {
+      "corpusRecall": {
+        "label": "llm",
+        "voteRounds": 1
+      },
+      "kind": "llm-compatible",
+      "label": "llm",
+      "model": null,
+      "publishedRetention": {
+        "label": "llm",
+        "voteRounds": 1
+      },
+      "votesK": 5
+    },
+    "matcherRung": "llm",
+    "methodologyEpoch": "conflict-epoch-1",
+    "multiUnitClaims": {
+      "corpusRecall": {},
+      "publishedRetention": {}
+    },
+    "publishedRetention": {
+      "u0": "matched",
+      "u1": "miss"
+    },
+    "referenceOnly": {
+      "corpusRecall": [
+        {
+          "compound": false,
+          "lane": "strategic_political",
+          "missDiagnostic": null,
+          "negative": false,
+          "unitId": "u1",
+          "verdict": "miss"
+        }
+      ],
+      "publishedRetention": [
+        {
+          "compound": false,
+          "lane": "strategic_political",
+          "missDiagnostic": null,
+          "negative": false,
+          "unitId": "u1",
+          "verdict": "miss"
+        }
+      ]
+    },
+    "report": {
+      "cutoffAt": "2026-08-12T19:45:00Z",
+      "editionKey": "roca:2026-08-12:final",
+      "publishedAt": "2026-08-12T23:30:00Z",
+      "reportDate": "2026-08-12",
+      "scopeVersion": "roca-scope-v1",
+      "series": "roca"
+    },
+    "runGroupKey": "russia_ukraine|roca:2026-08-12:final|retrospective|conflict-epoch-1|llm-compatible|k=5",
+    "selection": {
+      "corpusRecall": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 1,
+        "selectedCount": 1,
+        "totalTextBytes": 105
+      },
+      "limits": {
+        "maxCandidates": 100,
+        "mixCapFraction": 0.4,
+        "textByteBudget": 48000
+      },
+      "publishedRetention": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 1,
+        "selectedCount": 1,
+        "totalTextBytes": 105
+      }
+    },
+    "snapshot": {
+      "ref": null
+    },
+    "state": "scored",
+    "thinSourced": {
+      "corpusRecall": {
+        "count": 1,
+        "denominator": 1
+      },
+      "publishedRetention": {
+        "count": 1,
+        "denominator": 1
+      }
+    },
+    "timing": {
+      "corpusRecall": {
+        "agreements": 1,
+        "medianLeadHoursByIngest": 18,
+        "medianLeadHoursBySourceDeclared": 18.7
+      },
+      "publishedRetention": {
+        "agreements": 1,
+        "medianLeadHoursByIngest": 18,
+        "medianLeadHoursBySourceDeclared": 18.7
+      }
+    },
+    "version": 1,
+    "versions": {
+      "actorRosterVersion": "ru-ua-roster-v1",
+      "extractorVersions": [],
+      "laneClassifierVersion": "ru-ua-classifier-v1",
+      "scopeVersion": "roca-scope-v1"
+    },
+    "voteAudit": {
+      "corpusRecall": [
+        {
+          "final": 9316,
+          "unitId": "u0",
+          "votes": [
+            9316
+          ]
+        },
+        {
+          "final": null,
+          "unitId": "u1",
+          "votes": [
+            null
+          ]
+        }
+      ],
+      "publishedRetention": [
+        {
+          "final": 9316,
+          "unitId": "u0",
+          "votes": [
+            9316
+          ]
+        },
+        {
+          "final": null,
+          "unitId": "u1",
+          "votes": [
+            null
+          ]
+        }
+      ]
+    },
+    "window": {
+      "cutoffAtRaw": "2026-08-12T19:45:00Z",
+      "cutoffTreatment": "present",
+      "days": 3,
+      "endDate": "2026-08-12",
+      "publishedAtRaw": "2026-08-12T23:30:00Z",
+      "publishedTreatment": "present",
+      "reportDate": "2026-08-12",
+      "startDate": "2026-08-10",
+      "windowEndSource": "cutoff"
+    },
+    "windowEndSource": "cutoff"
+  },
+  "cc-matcher-failclosed-013b#B-zero-valid-rounds": {
+    "agreements": {
+      "corpusRecall": [
+        {
+          "claims": [
+            {
+              "atCutoff": true,
+              "atPublication": true,
+              "claimId": 9316,
+              "confidence": 0.88,
+              "coverage": "full",
+              "earliestIngestAt": "2026-08-12T05:30:00Z",
+              "hedge": "claimed",
+              "independentSourceCount": 1,
+              "legacy": false,
+              "theater": "ua",
+              "track": "military"
+            }
+          ],
+          "lane": "strikes_air_defense",
+          "unitId": "u0"
+        }
+      ],
+      "publishedRetention": [
+        {
+          "claims": [
+            {
+              "atCutoff": true,
+              "atPublication": true,
+              "claimId": 9316,
+              "confidence": 0.88,
+              "coverage": "full",
+              "earliestIngestAt": "2026-08-12T05:30:00Z",
+              "hedge": "claimed",
+              "independentSourceCount": 1,
+              "legacy": false,
+              "theater": "ua",
+              "track": "military"
+            }
+          ],
+          "lane": "strikes_air_defense",
+          "unitId": "u0"
+        }
+      ]
+    },
+    "bnowOnly": {
+      "corpusRecall": {
+        "count": 0
+      },
+      "publishedRetention": {
+        "count": 0,
+        "items": []
+      }
+    },
+    "conflictId": "russia_ukraine",
+    "contribution": {
+      "u0": {
+        "sources": [
+          "odesa-news.example"
+        ],
+        "theaters": [
+          "ua"
+        ],
+        "tracks": [
+          "military"
+        ]
+      }
+    },
+    "contributionPublishedRetention": {
+      "u0": {
+        "sources": [
+          "odesa-news.example"
+        ],
+        "theaters": [
+          "ua"
+        ],
+        "tracks": [
+          "military"
+        ]
+      }
+    },
+    "contributionTotals": {
+      "bySource": {
+        "odesa-news.example": 1
+      },
+      "byTheater": {
+        "ua": 1
+      },
+      "byTrack": {
+        "military": 1
+      },
+      "nonAdditive": true
+    },
+    "corpusRecall": {
+      "u0": "matched",
+      "u1": "miss"
+    },
+    "evaluationKind": "retrospective",
+    "evidencePolicyVersion": "ru-ua-ev-v1",
+    "headline": {
+      "corpusRecall": {
+        "denominator": 2,
+        "matched": 1
+      },
+      "publishedRetention": {
+        "denominator": 2,
+        "matched": 1
+      }
+    },
+    "headlineLabel": "Key Takeaway benchmark coverage",
+    "independentSources": {
+      "corpusRecall": {
+        "u0": 1
+      },
+      "publishedRetention": {
+        "u0": 1
+      }
+    },
+    "keywordUnmatchable": 1,
+    "laneTaxonomyVersion": "roca-lanes-v1",
+    "lanes": [
+      {
+        "corpusRecall": {
+          "matched": 1,
+          "miss": 0,
+          "partial": 0
+        },
+        "diagnostic": null,
+        "lane": "strikes_air_defense",
+        "publishedRetention": {
+          "matched": 1,
+          "miss": 0,
+          "partial": 0
+        },
+        "units": 1
+      },
+      {
+        "corpusRecall": {
+          "matched": 0,
+          "miss": 1,
+          "partial": 0
+        },
+        "diagnostic": null,
+        "lane": "strategic_political",
+        "publishedRetention": {
+          "matched": 0,
+          "miss": 1,
+          "partial": 0
+        },
+        "units": 1
+      }
+    ],
+    "matcher": {
+      "corpusRecall": {
+        "label": "keyword",
+        "voteRounds": null
+      },
+      "kind": "llm-compatible",
+      "label": "keyword",
+      "model": null,
+      "publishedRetention": {
+        "label": "keyword",
+        "voteRounds": null
+      },
+      "votesK": null
+    },
+    "matcherRung": "keyword",
+    "methodologyEpoch": "conflict-epoch-1",
+    "multiUnitClaims": {
+      "corpusRecall": {},
+      "publishedRetention": {}
+    },
+    "publishedRetention": {
+      "u0": "matched",
+      "u1": "miss"
+    },
+    "referenceOnly": {
+      "corpusRecall": [
+        {
+          "compound": false,
+          "lane": "strategic_political",
+          "missDiagnostic": null,
+          "negative": false,
+          "unitId": "u1",
+          "verdict": "miss"
+        }
+      ],
+      "publishedRetention": [
+        {
+          "compound": false,
+          "lane": "strategic_political",
+          "missDiagnostic": null,
+          "negative": false,
+          "unitId": "u1",
+          "verdict": "miss"
+        }
+      ]
+    },
+    "report": {
+      "cutoffAt": "2026-08-12T19:45:00Z",
+      "editionKey": "roca:2026-08-12:final",
+      "publishedAt": "2026-08-12T23:30:00Z",
+      "reportDate": "2026-08-12",
+      "scopeVersion": "roca-scope-v1",
+      "series": "roca"
+    },
+    "runGroupKey": "russia_ukraine|roca:2026-08-12:final|retrospective|conflict-epoch-1|llm-compatible|k=0",
+    "selection": {
+      "corpusRecall": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 1,
+        "selectedCount": 1,
+        "totalTextBytes": 105
+      },
+      "limits": {
+        "maxCandidates": 100,
+        "mixCapFraction": 0.4,
+        "textByteBudget": 48000
+      },
+      "publishedRetention": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 1,
+        "selectedCount": 1,
+        "totalTextBytes": 105
+      }
+    },
+    "snapshot": {
+      "ref": null
+    },
+    "state": "scored",
+    "thinSourced": {
+      "corpusRecall": {
+        "count": 1,
+        "denominator": 1
+      },
+      "publishedRetention": {
+        "count": 1,
+        "denominator": 1
+      }
+    },
+    "timing": {
+      "corpusRecall": {
+        "agreements": 1,
+        "medianLeadHoursByIngest": 18,
+        "medianLeadHoursBySourceDeclared": 18.7
+      },
+      "publishedRetention": {
+        "agreements": 1,
+        "medianLeadHoursByIngest": 18,
+        "medianLeadHoursBySourceDeclared": 18.7
+      }
+    },
+    "version": 1,
+    "versions": {
+      "actorRosterVersion": "ru-ua-roster-v1",
+      "extractorVersions": [],
+      "laneClassifierVersion": "ru-ua-classifier-v1",
+      "scopeVersion": "roca-scope-v1"
+    },
+    "voteAudit": {
+      "corpusRecall": null,
+      "publishedRetention": null
+    },
+    "window": {
+      "cutoffAtRaw": "2026-08-12T19:45:00Z",
+      "cutoffTreatment": "present",
+      "days": 3,
+      "endDate": "2026-08-12",
+      "publishedAtRaw": "2026-08-12T23:30:00Z",
+      "publishedTreatment": "present",
+      "reportDate": "2026-08-12",
+      "startDate": "2026-08-10",
+      "windowEndSource": "cutoff"
+    },
+    "windowEndSource": "cutoff"
+  },
+  "cc-publication-gap-002": {
+    "conflictId": "iran_regional",
+    "evaluationKind": "retrospective",
+    "evidencePolicyVersion": "iran-ev-v1",
+    "gapDate": "2026-08-11",
+    "laneTaxonomyVersion": "iran-lanes-v1",
+    "methodologyEpoch": "conflict-epoch-1",
+    "series": "iran_update",
+    "state": "unavailable",
+    "unavailableReason": "publication_gap",
+    "version": 1
+  },
+  "cc-state-zero-empty-015": {
+    "agreements": {
+      "corpusRecall": [],
+      "publishedRetention": []
+    },
+    "bnowOnly": {
+      "corpusRecall": {
+        "count": 0
+      },
+      "publishedRetention": {
+        "count": 0,
+        "items": []
+      }
+    },
+    "conflictId": "iran_regional",
+    "contribution": {},
+    "contributionPublishedRetention": {},
+    "contributionTotals": {
+      "bySource": {},
+      "byTheater": {},
+      "byTrack": {},
+      "nonAdditive": true
+    },
+    "corpusRecall": {
+      "u0": "miss"
+    },
+    "evaluationKind": "retrospective",
+    "evidencePolicyVersion": "iran-ev-v1",
+    "headline": {
+      "corpusRecall": {
+        "denominator": 1,
+        "matched": 0
+      },
+      "publishedRetention": {
+        "denominator": 1,
+        "matched": 0
+      }
+    },
+    "headlineLabel": "Key Takeaway benchmark coverage",
+    "independentSources": {
+      "corpusRecall": {},
+      "publishedRetention": {}
+    },
+    "laneTaxonomyVersion": "iran-lanes-v1",
+    "lanes": [
+      {
+        "corpusRecall": {
+          "matched": 0,
+          "miss": 1,
+          "partial": 0
+        },
+        "diagnostic": null,
+        "lane": "proxy_partner",
+        "publishedRetention": {
+          "matched": 0,
+          "miss": 1,
+          "partial": 0
+        },
+        "units": 1
+      }
+    ],
+    "matcher": {
+      "corpusRecall": {
+        "label": "fixture-oracle",
+        "voteRounds": null
+      },
+      "kind": "fixture-oracle",
+      "label": "fixture-oracle",
+      "model": null,
+      "publishedRetention": {
+        "label": "fixture-oracle",
+        "voteRounds": null
+      },
+      "votesK": null
+    },
+    "matcherRung": "fixture-oracle",
+    "methodologyEpoch": "conflict-epoch-1",
+    "multiUnitClaims": {
+      "corpusRecall": {},
+      "publishedRetention": {}
+    },
+    "publishedRetention": {
+      "u0": "miss"
+    },
+    "referenceOnly": {
+      "corpusRecall": [
+        {
+          "compound": false,
+          "lane": "proxy_partner",
+          "missDiagnostic": null,
+          "negative": false,
+          "unitId": "u0",
+          "verdict": "miss"
+        }
+      ],
+      "publishedRetention": [
+        {
+          "compound": false,
+          "lane": "proxy_partner",
+          "missDiagnostic": null,
+          "negative": false,
+          "unitId": "u0",
+          "verdict": "miss"
+        }
+      ]
+    },
+    "report": {
+      "cutoffAt": "2026-08-08T16:00:00Z",
+      "editionKey": "iran_update:2026-08-08:final",
+      "publishedAt": "2026-08-08T21:30:00Z",
+      "reportDate": "2026-08-08",
+      "scopeVersion": "iran-update-scope-v1",
+      "series": "iran_update"
+    },
+    "runGroupKey": "iran_regional|iran_update:2026-08-08:final|retrospective|conflict-epoch-1|fixture-oracle|k=0",
+    "selection": {
+      "corpusRecall": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 0,
+        "selectedCount": 0,
+        "totalTextBytes": 0
+      },
+      "limits": {
+        "maxCandidates": 100,
+        "mixCapFraction": 0.4,
+        "textByteBudget": 48000
+      },
+      "publishedRetention": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 0,
+        "selectedCount": 0,
+        "totalTextBytes": 0
+      }
+    },
+    "snapshot": {
+      "ref": null
+    },
+    "state": "scored",
+    "thinSourced": {
+      "corpusRecall": {
+        "count": 0,
+        "denominator": 0
+      },
+      "publishedRetention": {
+        "count": 0,
+        "denominator": 0
+      }
+    },
+    "timing": {
+      "corpusRecall": {
+        "agreements": 0,
+        "medianLeadHoursByIngest": null,
+        "medianLeadHoursBySourceDeclared": null
+      },
+      "publishedRetention": {
+        "agreements": 0,
+        "medianLeadHoursByIngest": null,
+        "medianLeadHoursBySourceDeclared": null
+      }
+    },
+    "version": 1,
+    "versions": {
+      "actorRosterVersion": "iran-roster-v1",
+      "extractorVersions": [],
+      "laneClassifierVersion": "iran-classifier-v1",
+      "scopeVersion": "iran-update-scope-v1"
+    },
+    "voteAudit": {
+      "corpusRecall": null,
+      "publishedRetention": null
+    },
+    "window": {
+      "cutoffAtRaw": "2026-08-08T16:00:00Z",
+      "cutoffTreatment": "present",
+      "days": 3,
+      "endDate": "2026-08-08",
+      "publishedAtRaw": "2026-08-08T21:30:00Z",
+      "publishedTreatment": "present",
+      "reportDate": "2026-08-08",
+      "startDate": "2026-08-06",
+      "windowEndSource": "cutoff"
+    },
+    "windowEndSource": "cutoff"
+  },
+  "cc-vague-claim-019": {
+    "agreements": {
+      "corpusRecall": [
+        {
+          "claims": [
+            {
+              "atCutoff": true,
+              "atPublication": true,
+              "claimId": 9402,
+              "confidence": null,
+              "coverage": "full",
+              "earliestIngestAt": "2026-08-09T09:55:00Z",
+              "hedge": "claimed",
+              "independentSourceCount": 1,
+              "legacy": false,
+              "theater": "ir",
+              "track": "military"
+            }
+          ],
+          "lane": "maritime",
+          "unitId": "u0"
+        }
+      ],
+      "publishedRetention": [
+        {
+          "claims": [
+            {
+              "atCutoff": true,
+              "atPublication": true,
+              "claimId": 9402,
+              "confidence": null,
+              "coverage": "full",
+              "earliestIngestAt": "2026-08-09T09:55:00Z",
+              "hedge": "claimed",
+              "independentSourceCount": 1,
+              "legacy": false,
+              "theater": "ir",
+              "track": "military"
+            }
+          ],
+          "lane": "maritime",
+          "unitId": "u0"
+        }
+      ]
+    },
+    "bnowOnly": {
+      "corpusRecall": {
+        "count": 1
+      },
+      "publishedRetention": {
+        "count": 1,
+        "items": [
+          {
+            "claimId": 9401,
+            "hedge": "claimed",
+            "lane": "maritime",
+            "legacy": false,
+            "theater": "ir",
+            "track": "military"
+          }
+        ]
+      }
+    },
+    "conflictId": "iran_regional",
+    "contribution": {
+      "u0": {
+        "sources": [
+          "maritime-monitor.example"
+        ],
+        "theaters": [
+          "ir"
+        ],
+        "tracks": [
+          "military"
+        ]
+      }
+    },
+    "contributionPublishedRetention": {
+      "u0": {
+        "sources": [
+          "maritime-monitor.example"
+        ],
+        "theaters": [
+          "ir"
+        ],
+        "tracks": [
+          "military"
+        ]
+      }
+    },
+    "contributionTotals": {
+      "bySource": {
+        "maritime-monitor.example": 1
+      },
+      "byTheater": {
+        "ir": 1
+      },
+      "byTrack": {
+        "military": 1
+      },
+      "nonAdditive": true
+    },
+    "corpusRecall": {
+      "u0": "matched",
+      "u1": "miss"
+    },
+    "evaluationKind": "retrospective",
+    "evidencePolicyVersion": "iran-ev-v1",
+    "headline": {
+      "corpusRecall": {
+        "denominator": 2,
+        "matched": 1
+      },
+      "publishedRetention": {
+        "denominator": 2,
+        "matched": 1
+      }
+    },
+    "headlineLabel": "Key Takeaway benchmark coverage",
+    "independentSources": {
+      "corpusRecall": {
+        "u0": 1
+      },
+      "publishedRetention": {
+        "u0": 1
+      }
+    },
+    "laneTaxonomyVersion": "iran-lanes-v1",
+    "lanes": [
+      {
+        "corpusRecall": {
+          "matched": 1,
+          "miss": 1,
+          "partial": 0
+        },
+        "diagnostic": null,
+        "lane": "maritime",
+        "publishedRetention": {
+          "matched": 1,
+          "miss": 1,
+          "partial": 0
+        },
+        "units": 2
+      }
+    ],
+    "matcher": {
+      "corpusRecall": {
+        "label": "fixture-oracle",
+        "voteRounds": null
+      },
+      "kind": "fixture-oracle",
+      "label": "fixture-oracle",
+      "model": null,
+      "publishedRetention": {
+        "label": "fixture-oracle",
+        "voteRounds": null
+      },
+      "votesK": null
+    },
+    "matcherRung": "fixture-oracle",
+    "methodologyEpoch": "conflict-epoch-1",
+    "multiUnitClaims": {
+      "corpusRecall": {},
+      "publishedRetention": {}
+    },
+    "publishedRetention": {
+      "u0": "matched",
+      "u1": "miss"
+    },
+    "referenceOnly": {
+      "corpusRecall": [
+        {
+          "compound": false,
+          "lane": "maritime",
+          "missDiagnostic": null,
+          "negative": false,
+          "unitId": "u1",
+          "verdict": "miss"
+        }
+      ],
+      "publishedRetention": [
+        {
+          "compound": false,
+          "lane": "maritime",
+          "missDiagnostic": null,
+          "negative": false,
+          "unitId": "u1",
+          "verdict": "miss"
+        }
+      ]
+    },
+    "report": {
+      "cutoffAt": "2026-08-09T16:00:00Z",
+      "editionKey": "iran_update:2026-08-09:final",
+      "publishedAt": "2026-08-09T21:30:00Z",
+      "reportDate": "2026-08-09",
+      "scopeVersion": "iran-update-scope-v1",
+      "series": "iran_update"
+    },
+    "runGroupKey": "iran_regional|iran_update:2026-08-09:final|retrospective|conflict-epoch-1|fixture-oracle|k=0",
+    "selection": {
+      "corpusRecall": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 2,
+        "selectedCount": 2,
+        "totalTextBytes": 221
+      },
+      "limits": {
+        "maxCandidates": 100,
+        "mixCapFraction": 0.4,
+        "textByteBudget": 48000
+      },
+      "publishedRetention": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 2,
+        "selectedCount": 2,
+        "totalTextBytes": 221
+      }
+    },
+    "snapshot": {
+      "ref": null
+    },
+    "state": "scored",
+    "thinSourced": {
+      "corpusRecall": {
+        "count": 2,
+        "denominator": 2
+      },
+      "publishedRetention": {
+        "count": 2,
+        "denominator": 2
+      }
+    },
+    "timing": {
+      "corpusRecall": {
+        "agreements": 1,
+        "medianLeadHoursByIngest": 11.6,
+        "medianLeadHoursBySourceDeclared": 12.3
+      },
+      "publishedRetention": {
+        "agreements": 1,
+        "medianLeadHoursByIngest": 11.6,
+        "medianLeadHoursBySourceDeclared": 12.3
+      }
+    },
+    "version": 1,
+    "versions": {
+      "actorRosterVersion": "iran-roster-v1",
+      "extractorVersions": [],
+      "laneClassifierVersion": "iran-classifier-v1",
+      "scopeVersion": "iran-update-scope-v1"
+    },
+    "voteAudit": {
+      "corpusRecall": null,
+      "publishedRetention": null
+    },
+    "window": {
+      "cutoffAtRaw": "2026-08-09T16:00:00Z",
+      "cutoffTreatment": "present",
+      "days": 3,
+      "endDate": "2026-08-09",
+      "publishedAtRaw": "2026-08-09T21:30:00Z",
+      "publishedTreatment": "present",
+      "reportDate": "2026-08-09",
+      "startDate": "2026-08-07",
+      "windowEndSource": "cutoff"
+    },
+    "windowEndSource": "cutoff"
+  },
+  "cc-window-rung2-017": {
+    "agreements": {
+      "corpusRecall": [
+        {
+          "claims": [
+            {
+              "atCutoff": null,
+              "atPublication": true,
+              "claimId": 9324,
+              "confidence": null,
+              "coverage": "full",
+              "earliestIngestAt": "2026-08-14T00:50:00Z",
+              "hedge": "claimed",
+              "independentSourceCount": 1,
+              "legacy": false,
+              "theater": "ua",
+              "track": "military"
+            }
+          ],
+          "lane": "strikes_air_defense",
+          "unitId": "u0"
+        }
+      ],
+      "publishedRetention": [
+        {
+          "claims": [
+            {
+              "atCutoff": null,
+              "atPublication": true,
+              "claimId": 9324,
+              "confidence": null,
+              "coverage": "full",
+              "earliestIngestAt": "2026-08-14T00:50:00Z",
+              "hedge": "claimed",
+              "independentSourceCount": 1,
+              "legacy": false,
+              "theater": "ua",
+              "track": "military"
+            }
+          ],
+          "lane": "strikes_air_defense",
+          "unitId": "u0"
+        }
+      ]
+    },
+    "bnowOnly": {
+      "corpusRecall": {
+        "count": 0
+      },
+      "publishedRetention": {
+        "count": 0,
+        "items": []
+      }
+    },
+    "conflictId": "russia_ukraine",
+    "contribution": {
+      "u0": {
+        "sources": [
+          "danube-ports.example"
+        ],
+        "theaters": [
+          "ua"
+        ],
+        "tracks": [
+          "military"
+        ]
+      }
+    },
+    "contributionPublishedRetention": {
+      "u0": {
+        "sources": [
+          "danube-ports.example"
+        ],
+        "theaters": [
+          "ua"
+        ],
+        "tracks": [
+          "military"
+        ]
+      }
+    },
+    "contributionTotals": {
+      "bySource": {
+        "danube-ports.example": 1
+      },
+      "byTheater": {
+        "ua": 1
+      },
+      "byTrack": {
+        "military": 1
+      },
+      "nonAdditive": true
+    },
+    "corpusRecall": {
+      "u0": "matched"
+    },
+    "evaluationKind": "retrospective",
+    "evidencePolicyVersion": "ru-ua-ev-v1",
+    "headline": {
+      "corpusRecall": {
+        "denominator": 1,
+        "matched": 1
+      },
+      "publishedRetention": {
+        "denominator": 1,
+        "matched": 1
+      }
+    },
+    "headlineLabel": "Key Takeaway benchmark coverage",
+    "independentSources": {
+      "corpusRecall": {
+        "u0": 1
+      },
+      "publishedRetention": {
+        "u0": 1
+      }
+    },
+    "laneTaxonomyVersion": "roca-lanes-v1",
+    "lanes": [
+      {
+        "corpusRecall": {
+          "matched": 1,
+          "miss": 0,
+          "partial": 0
+        },
+        "diagnostic": null,
+        "lane": "strikes_air_defense",
+        "publishedRetention": {
+          "matched": 1,
+          "miss": 0,
+          "partial": 0
+        },
+        "units": 1
+      }
+    ],
+    "matcher": {
+      "corpusRecall": {
+        "label": "fixture-oracle",
+        "voteRounds": null
+      },
+      "kind": "fixture-oracle",
+      "label": "fixture-oracle",
+      "model": null,
+      "publishedRetention": {
+        "label": "fixture-oracle",
+        "voteRounds": null
+      },
+      "votesK": null
+    },
+    "matcherRung": "fixture-oracle",
+    "methodologyEpoch": "conflict-epoch-1",
+    "multiUnitClaims": {
+      "corpusRecall": {},
+      "publishedRetention": {}
+    },
+    "publishedRetention": {
+      "u0": "matched"
+    },
+    "referenceOnly": {
+      "corpusRecall": [],
+      "publishedRetention": []
+    },
+    "report": {
+      "cutoffAt": null,
+      "editionKey": "roca:2026-08-13:final",
+      "publishedAt": "2026-08-14T01:15:00Z",
+      "reportDate": "2026-08-13",
+      "scopeVersion": "roca-scope-v1",
+      "series": "roca"
+    },
+    "runGroupKey": "russia_ukraine|roca:2026-08-13:final|retrospective|conflict-epoch-1|fixture-oracle|k=0",
+    "selection": {
+      "corpusRecall": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 1,
+        "selectedCount": 1,
+        "totalTextBytes": 130
+      },
+      "limits": {
+        "maxCandidates": 100,
+        "mixCapFraction": 0.4,
+        "textByteBudget": 48000
+      },
+      "publishedRetention": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 1,
+        "selectedCount": 1,
+        "totalTextBytes": 130
+      }
+    },
+    "snapshot": {
+      "ref": null
+    },
+    "state": "scored",
+    "thinSourced": {
+      "corpusRecall": {
+        "count": 1,
+        "denominator": 1
+      },
+      "publishedRetention": {
+        "count": 1,
+        "denominator": 1
+      }
+    },
+    "timing": {
+      "corpusRecall": {
+        "agreements": 1,
+        "medianLeadHoursByIngest": 0.4,
+        "medianLeadHoursBySourceDeclared": 0.9
+      },
+      "publishedRetention": {
+        "agreements": 1,
+        "medianLeadHoursByIngest": 0.4,
+        "medianLeadHoursBySourceDeclared": 0.9
+      }
+    },
+    "version": 1,
+    "versions": {
+      "actorRosterVersion": "ru-ua-roster-v1",
+      "extractorVersions": [],
+      "laneClassifierVersion": "ru-ua-classifier-v1",
+      "scopeVersion": "roca-scope-v1"
+    },
+    "voteAudit": {
+      "corpusRecall": null,
+      "publishedRetention": null
+    },
+    "window": {
+      "cutoffAtRaw": "cutoff 1500 hrs local time",
+      "cutoffTreatment": "malformed_treated_as_missing",
+      "days": 4,
+      "endDate": "2026-08-14",
+      "publishedAtRaw": "2026-08-14T01:15:00Z",
+      "publishedTreatment": "present",
+      "reportDate": "2026-08-13",
+      "startDate": "2026-08-11",
+      "windowEndSource": "published"
+    },
+    "windowEndSource": "published"
+  },
+  "iran-direct-kinetic-001": {
+    "agreements": {
+      "corpusRecall": [
+        {
+          "claims": [
+            {
+              "atCutoff": true,
+              "atPublication": true,
+              "claimId": 9101,
+              "confidence": null,
+              "coverage": "full",
+              "earliestIngestAt": "2026-08-08T08:10:00Z",
+              "hedge": "claimed",
+              "independentSourceCount": 1,
+              "legacy": false,
+              "theater": "ir",
+              "track": "military"
+            }
+          ],
+          "lane": "direct_kinetic",
+          "unitId": "u0"
+        }
+      ],
+      "publishedRetention": [
+        {
+          "claims": [
+            {
+              "atCutoff": true,
+              "atPublication": true,
+              "claimId": 9101,
+              "confidence": null,
+              "coverage": "full",
+              "earliestIngestAt": "2026-08-08T08:10:00Z",
+              "hedge": "claimed",
+              "independentSourceCount": 1,
+              "legacy": false,
+              "theater": "ir",
+              "track": "military"
+            }
+          ],
+          "lane": "direct_kinetic",
+          "unitId": "u0"
+        }
+      ]
+    },
+    "bnowOnly": {
+      "corpusRecall": {
+        "count": 0
+      },
+      "publishedRetention": {
+        "count": 0,
+        "items": []
+      }
+    },
+    "conflictId": "iran_regional",
+    "contribution": {
+      "u0": {
+        "sources": [
+          "tehran-monitor.example"
+        ],
+        "theaters": [
+          "ir"
+        ],
+        "tracks": [
+          "military"
+        ]
+      }
+    },
+    "contributionPublishedRetention": {
+      "u0": {
+        "sources": [
+          "tehran-monitor.example"
+        ],
+        "theaters": [
+          "ir"
+        ],
+        "tracks": [
+          "military"
+        ]
+      }
+    },
+    "contributionTotals": {
+      "bySource": {
+        "tehran-monitor.example": 1
+      },
+      "byTheater": {
+        "ir": 1
+      },
+      "byTrack": {
+        "military": 1
+      },
+      "nonAdditive": true
+    },
+    "corpusRecall": {
+      "u0": "matched"
+    },
+    "evaluationKind": "retrospective",
+    "evidencePolicyVersion": "iran-ev-v1",
+    "headline": {
+      "corpusRecall": {
+        "denominator": 1,
+        "matched": 1
+      },
+      "publishedRetention": {
+        "denominator": 1,
+        "matched": 1
+      }
+    },
+    "headlineLabel": "Key Takeaway benchmark coverage",
+    "independentSources": {
+      "corpusRecall": {
+        "u0": 1
+      },
+      "publishedRetention": {
+        "u0": 1
+      }
+    },
+    "laneTaxonomyVersion": "iran-lanes-v1",
+    "lanes": [
+      {
+        "corpusRecall": {
+          "matched": 1,
+          "miss": 0,
+          "partial": 0
+        },
+        "diagnostic": null,
+        "lane": "direct_kinetic",
+        "publishedRetention": {
+          "matched": 1,
+          "miss": 0,
+          "partial": 0
+        },
+        "units": 1
+      }
+    ],
+    "matcher": {
+      "corpusRecall": {
+        "label": "fixture-oracle",
+        "voteRounds": null
+      },
+      "kind": "fixture-oracle",
+      "label": "fixture-oracle",
+      "model": null,
+      "publishedRetention": {
+        "label": "fixture-oracle",
+        "voteRounds": null
+      },
+      "votesK": null
+    },
+    "matcherRung": "fixture-oracle",
+    "methodologyEpoch": "conflict-epoch-1",
+    "multiUnitClaims": {
+      "corpusRecall": {},
+      "publishedRetention": {}
+    },
+    "publishedRetention": {
+      "u0": "matched"
+    },
+    "referenceOnly": {
+      "corpusRecall": [],
+      "publishedRetention": []
+    },
+    "report": {
+      "cutoffAt": "2026-08-08T16:00:00Z",
+      "editionKey": "iran_update:2026-08-08:final",
+      "publishedAt": "2026-08-08T21:30:00Z",
+      "reportDate": "2026-08-08",
+      "scopeVersion": "iran-update-scope-v1",
+      "series": "iran_update"
+    },
+    "runGroupKey": "iran_regional|iran_update:2026-08-08:final|retrospective|conflict-epoch-1|fixture-oracle|k=0",
+    "selection": {
+      "corpusRecall": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 1,
+        "selectedCount": 1,
+        "totalTextBytes": 147
+      },
+      "limits": {
+        "maxCandidates": 100,
+        "mixCapFraction": 0.4,
+        "textByteBudget": 48000
+      },
+      "publishedRetention": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 1,
+        "selectedCount": 1,
+        "totalTextBytes": 147
+      }
+    },
+    "snapshot": {
+      "ref": null
+    },
+    "state": "scored",
+    "thinSourced": {
+      "corpusRecall": {
+        "count": 1,
+        "denominator": 1
+      },
+      "publishedRetention": {
+        "count": 1,
+        "denominator": 1
+      }
+    },
+    "timing": {
+      "corpusRecall": {
+        "agreements": 1,
+        "medianLeadHoursByIngest": 13.3,
+        "medianLeadHoursBySourceDeclared": 14
+      },
+      "publishedRetention": {
+        "agreements": 1,
+        "medianLeadHoursByIngest": 13.3,
+        "medianLeadHoursBySourceDeclared": 14
+      }
+    },
+    "version": 1,
+    "versions": {
+      "actorRosterVersion": "iran-roster-v1",
+      "extractorVersions": [],
+      "laneClassifierVersion": "iran-classifier-v1",
+      "scopeVersion": "iran-update-scope-v1"
+    },
+    "voteAudit": {
+      "corpusRecall": null,
+      "publishedRetention": null
+    },
+    "window": {
+      "cutoffAtRaw": "2026-08-08T16:00:00Z",
+      "cutoffTreatment": "present",
+      "days": 3,
+      "endDate": "2026-08-08",
+      "publishedAtRaw": "2026-08-08T21:30:00Z",
+      "publishedTreatment": "present",
+      "reportDate": "2026-08-08",
+      "startDate": "2026-08-06",
+      "windowEndSource": "cutoff"
+    },
+    "windowEndSource": "cutoff"
+  },
+  "iran-gulf-unavailable-010b": {
+    "agreements": {
+      "corpusRecall": [],
+      "publishedRetention": [
+        {
+          "claims": [
+            {
+              "atCutoff": true,
+              "atPublication": true,
+              "claimId": 9111,
+              "confidence": null,
+              "coverage": "full",
+              "earliestIngestAt": "2026-08-07T12:45:00Z",
+              "hedge": "claimed",
+              "independentSourceCount": 1,
+              "legacy": true,
+              "theater": "bh",
+              "track": "military"
+            }
+          ],
+          "lane": "maritime",
+          "unitId": "u0"
+        }
+      ]
+    },
+    "bnowOnly": {
+      "corpusRecall": {
+        "count": 0
+      },
+      "publishedRetention": {
+        "count": 0,
+        "items": []
+      }
+    },
+    "conflictId": "iran_regional",
+    "contribution": {},
+    "contributionPublishedRetention": {
+      "u0": {
+        "sources": [
+          "gulf-defense-wire.example"
+        ],
+        "theaters": [
+          "bh"
+        ],
+        "tracks": [
+          "military"
+        ]
+      }
+    },
+    "contributionTotals": {
+      "bySource": {},
+      "byTheater": {},
+      "byTrack": {},
+      "nonAdditive": true
+    },
+    "corpusRecall": {
+      "u0": "miss"
+    },
+    "evaluationKind": "retrospective",
+    "evidencePolicyVersion": "iran-ev-v1",
+    "headline": {
+      "corpusRecall": {
+        "denominator": 1,
+        "matched": 0
+      },
+      "publishedRetention": {
+        "denominator": 1,
+        "matched": 1
+      }
+    },
+    "headlineLabel": "Key Takeaway benchmark coverage",
+    "independentSources": {
+      "corpusRecall": {},
+      "publishedRetention": {
+        "u0": 1
+      }
+    },
+    "laneDiagnostics": {
+      "maritime": "unavailable_incomparable"
+    },
+    "laneTaxonomyVersion": "iran-lanes-v1",
+    "lanes": [
+      {
+        "corpusRecall": {
+          "matched": 0,
+          "miss": 1,
+          "partial": 0
+        },
+        "diagnostic": "unavailable_incomparable",
+        "lane": "maritime",
+        "publishedRetention": {
+          "matched": 1,
+          "miss": 0,
+          "partial": 0
+        },
+        "units": 1
+      }
+    ],
+    "matcher": {
+      "corpusRecall": {
+        "label": "fixture-oracle",
+        "voteRounds": null
+      },
+      "kind": "fixture-oracle",
+      "label": "fixture-oracle",
+      "model": null,
+      "publishedRetention": {
+        "label": "fixture-oracle",
+        "voteRounds": null
+      },
+      "votesK": null
+    },
+    "matcherRung": "fixture-oracle",
+    "methodologyEpoch": "conflict-epoch-1",
+    "missDiagnostic": {
+      "u0": "incomparable_coverage"
+    },
+    "multiUnitClaims": {
+      "corpusRecall": {},
+      "publishedRetention": {}
+    },
+    "publishedRetention": {
+      "u0": "matched"
+    },
+    "referenceOnly": {
+      "corpusRecall": [
+        {
+          "compound": false,
+          "lane": "maritime",
+          "missDiagnostic": "incomparable_coverage",
+          "negative": false,
+          "unitId": "u0",
+          "verdict": "miss"
+        }
+      ],
+      "publishedRetention": []
+    },
+    "report": {
+      "cutoffAt": "2026-08-08T16:00:00Z",
+      "editionKey": "iran_update:2026-08-08:final",
+      "publishedAt": "2026-08-08T21:30:00Z",
+      "reportDate": "2026-08-08",
+      "scopeVersion": "iran-update-scope-v1",
+      "series": "iran_update"
+    },
+    "runGroupKey": "iran_regional|iran_update:2026-08-08:final|retrospective|conflict-epoch-1|fixture-oracle|k=0",
+    "selection": {
+      "corpusRecall": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 0,
+        "selectedCount": 0,
+        "totalTextBytes": 0
+      },
+      "limits": {
+        "maxCandidates": 100,
+        "mixCapFraction": 0.4,
+        "textByteBudget": 48000
+      },
+      "publishedRetention": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 1,
+        "selectedCount": 1,
+        "totalTextBytes": 113
+      }
+    },
+    "snapshot": {
+      "ref": null
+    },
+    "state": "scored",
+    "thinSourced": {
+      "corpusRecall": {
+        "count": 0,
+        "denominator": 0
+      },
+      "publishedRetention": {
+        "count": 1,
+        "denominator": 1
+      }
+    },
+    "timing": {
+      "corpusRecall": {
+        "agreements": 0,
+        "medianLeadHoursByIngest": null,
+        "medianLeadHoursBySourceDeclared": null
+      },
+      "publishedRetention": {
+        "agreements": 1,
+        "medianLeadHoursByIngest": 32.8,
+        "medianLeadHoursBySourceDeclared": 33.5
+      }
+    },
+    "version": 1,
+    "versions": {
+      "actorRosterVersion": "iran-roster-v1",
+      "extractorVersions": [],
+      "laneClassifierVersion": "iran-classifier-v1",
+      "scopeVersion": "iran-update-scope-v1"
+    },
+    "voteAudit": {
+      "corpusRecall": null,
+      "publishedRetention": null
+    },
+    "window": {
+      "cutoffAtRaw": "2026-08-08T16:00:00Z",
+      "cutoffTreatment": "present",
+      "days": 3,
+      "endDate": "2026-08-08",
+      "publishedAtRaw": "2026-08-08T21:30:00Z",
+      "publishedTreatment": "present",
+      "reportDate": "2026-08-08",
+      "startDate": "2026-08-06",
+      "windowEndSource": "cutoff"
+    },
+    "windowEndSource": "cutoff"
+  },
+  "iran-two-events-011": {
+    "agreements": {
+      "corpusRecall": [
+        {
+          "claims": [
+            {
+              "atCutoff": true,
+              "atPublication": true,
+              "claimId": 9112,
+              "confidence": null,
+              "coverage": "full",
+              "earliestIngestAt": "2026-08-08T05:00:00Z",
+              "hedge": "claimed",
+              "independentSourceCount": 1,
+              "legacy": false,
+              "theater": "ir",
+              "track": "military"
+            }
+          ],
+          "lane": "proxy_partner",
+          "unitId": "u0"
+        }
+      ],
+      "publishedRetention": [
+        {
+          "claims": [
+            {
+              "atCutoff": true,
+              "atPublication": true,
+              "claimId": 9112,
+              "confidence": null,
+              "coverage": "full",
+              "earliestIngestAt": "2026-08-08T05:00:00Z",
+              "hedge": "claimed",
+              "independentSourceCount": 1,
+              "legacy": false,
+              "theater": "ir",
+              "track": "military"
+            }
+          ],
+          "lane": "proxy_partner",
+          "unitId": "u0"
+        }
+      ]
+    },
+    "bnowOnly": {
+      "corpusRecall": {
+        "count": 0
+      },
+      "publishedRetention": {
+        "count": 0,
+        "items": []
+      }
+    },
+    "conflictId": "iran_regional",
+    "contribution": {
+      "u0": {
+        "sources": [
+          "regional-alerts.example"
+        ],
+        "theaters": [
+          "ir"
+        ],
+        "tracks": [
+          "military"
+        ]
+      }
+    },
+    "contributionPublishedRetention": {
+      "u0": {
+        "sources": [
+          "regional-alerts.example"
+        ],
+        "theaters": [
+          "ir"
+        ],
+        "tracks": [
+          "military"
+        ]
+      }
+    },
+    "contributionTotals": {
+      "bySource": {
+        "regional-alerts.example": 1
+      },
+      "byTheater": {
+        "ir": 1
+      },
+      "byTrack": {
+        "military": 1
+      },
+      "nonAdditive": true
+    },
+    "corpusRecall": {
+      "u0": "matched",
+      "u1": "miss"
+    },
+    "evaluationKind": "retrospective",
+    "evidencePolicyVersion": "iran-ev-v1",
+    "headline": {
+      "corpusRecall": {
+        "denominator": 2,
+        "matched": 1
+      },
+      "publishedRetention": {
+        "denominator": 2,
+        "matched": 1
+      }
+    },
+    "headlineLabel": "Key Takeaway benchmark coverage",
+    "independentSources": {
+      "corpusRecall": {
+        "u0": 1
+      },
+      "publishedRetention": {
+        "u0": 1
+      }
+    },
+    "laneTaxonomyVersion": "iran-lanes-v1",
+    "lanes": [
+      {
+        "corpusRecall": {
+          "matched": 1,
+          "miss": 0,
+          "partial": 0
+        },
+        "diagnostic": null,
+        "lane": "proxy_partner",
+        "publishedRetention": {
+          "matched": 1,
+          "miss": 0,
+          "partial": 0
+        },
+        "units": 1
+      },
+      {
+        "corpusRecall": {
+          "matched": 0,
+          "miss": 1,
+          "partial": 0
+        },
+        "diagnostic": null,
+        "lane": "maritime",
+        "publishedRetention": {
+          "matched": 0,
+          "miss": 1,
+          "partial": 0
+        },
+        "units": 1
+      }
+    ],
+    "matcher": {
+      "corpusRecall": {
+        "label": "fixture-oracle",
+        "voteRounds": null
+      },
+      "kind": "fixture-oracle",
+      "label": "fixture-oracle",
+      "model": null,
+      "publishedRetention": {
+        "label": "fixture-oracle",
+        "voteRounds": null
+      },
+      "votesK": null
+    },
+    "matcherRung": "fixture-oracle",
+    "methodologyEpoch": "conflict-epoch-1",
+    "multiUnitClaims": {
+      "corpusRecall": {},
+      "publishedRetention": {}
+    },
+    "publishedRetention": {
+      "u0": "matched",
+      "u1": "miss"
+    },
+    "referenceOnly": {
+      "corpusRecall": [
+        {
+          "compound": false,
+          "lane": "maritime",
+          "missDiagnostic": null,
+          "negative": false,
+          "unitId": "u1",
+          "verdict": "miss"
+        }
+      ],
+      "publishedRetention": [
+        {
+          "compound": false,
+          "lane": "maritime",
+          "missDiagnostic": null,
+          "negative": false,
+          "unitId": "u1",
+          "verdict": "miss"
+        }
+      ]
+    },
+    "report": {
+      "cutoffAt": "2026-08-08T16:00:00Z",
+      "editionKey": "iran_update:2026-08-08:final",
+      "publishedAt": "2026-08-08T21:30:00Z",
+      "reportDate": "2026-08-08",
+      "scopeVersion": "iran-update-scope-v1",
+      "series": "iran_update"
+    },
+    "runGroupKey": "iran_regional|iran_update:2026-08-08:final|retrospective|conflict-epoch-1|fixture-oracle|k=0",
+    "selection": {
+      "corpusRecall": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 1,
+        "selectedCount": 1,
+        "totalTextBytes": 109
+      },
+      "limits": {
+        "maxCandidates": 100,
+        "mixCapFraction": 0.4,
+        "textByteBudget": 48000
+      },
+      "publishedRetention": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 1,
+        "selectedCount": 1,
+        "totalTextBytes": 109
+      }
+    },
+    "snapshot": {
+      "ref": null
+    },
+    "state": "scored",
+    "thinSourced": {
+      "corpusRecall": {
+        "count": 1,
+        "denominator": 1
+      },
+      "publishedRetention": {
+        "count": 1,
+        "denominator": 1
+      }
+    },
+    "timing": {
+      "corpusRecall": {
+        "agreements": 1,
+        "medianLeadHoursByIngest": 16.5,
+        "medianLeadHoursBySourceDeclared": 17
+      },
+      "publishedRetention": {
+        "agreements": 1,
+        "medianLeadHoursByIngest": 16.5,
+        "medianLeadHoursBySourceDeclared": 17
+      }
+    },
+    "version": 1,
+    "versions": {
+      "actorRosterVersion": "iran-roster-v1",
+      "extractorVersions": [],
+      "laneClassifierVersion": "iran-classifier-v1",
+      "scopeVersion": "iran-update-scope-v1"
+    },
+    "voteAudit": {
+      "corpusRecall": null,
+      "publishedRetention": null
+    },
+    "window": {
+      "cutoffAtRaw": "2026-08-08T16:00:00Z",
+      "cutoffTreatment": "present",
+      "days": 3,
+      "endDate": "2026-08-08",
+      "publishedAtRaw": "2026-08-08T21:30:00Z",
+      "publishedTreatment": "present",
+      "reportDate": "2026-08-08",
+      "startDate": "2026-08-06",
+      "windowEndSource": "cutoff"
+    },
+    "windowEndSource": "cutoff"
+  },
+  "roca-compound-partial-009b": {
+    "agreements": {
+      "corpusRecall": [
+        {
+          "claims": [
+            {
+              "atCutoff": true,
+              "atPublication": true,
+              "claimId": 9010,
+              "confidence": null,
+              "coverage": "partial",
+              "earliestIngestAt": "2026-08-10T09:00:00Z",
+              "hedge": "claimed",
+              "independentSourceCount": 1,
+              "legacy": false,
+              "theater": "ua",
+              "track": "military"
+            }
+          ],
+          "lane": "strikes_air_defense",
+          "unitId": "u0"
+        }
+      ],
+      "publishedRetention": [
+        {
+          "claims": [
+            {
+              "atCutoff": true,
+              "atPublication": true,
+              "claimId": 9010,
+              "confidence": null,
+              "coverage": "partial",
+              "earliestIngestAt": "2026-08-10T09:00:00Z",
+              "hedge": "claimed",
+              "independentSourceCount": 1,
+              "legacy": false,
+              "theater": "ua",
+              "track": "military"
+            }
+          ],
+          "lane": "strikes_air_defense",
+          "unitId": "u0"
+        }
+      ]
+    },
+    "bnowOnly": {
+      "corpusRecall": {
+        "count": 0
+      },
+      "publishedRetention": {
+        "count": 0,
+        "items": []
+      }
+    },
+    "conflictId": "russia_ukraine",
+    "contribution": {},
+    "contributionPublishedRetention": {},
+    "contributionTotals": {
+      "bySource": {},
+      "byTheater": {},
+      "byTrack": {},
+      "nonAdditive": true
+    },
+    "corpusRecall": {
+      "u0": "partial"
+    },
+    "evaluationKind": "retrospective",
+    "evidencePolicyVersion": "ru-ua-ev-v1",
+    "headline": {
+      "corpusRecall": {
+        "denominator": 1,
+        "matched": 0
+      },
+      "partialDiagnostic": 1,
+      "publishedRetention": {
+        "denominator": 1,
+        "matched": 0
+      }
+    },
+    "headlineLabel": "Key Takeaway benchmark coverage",
+    "independentSources": {
+      "corpusRecall": {
+        "u0": 1
+      },
+      "publishedRetention": {
+        "u0": 1
+      }
+    },
+    "laneTaxonomyVersion": "roca-lanes-v1",
+    "lanes": [
+      {
+        "corpusRecall": {
+          "matched": 0,
+          "miss": 0,
+          "partial": 1
+        },
+        "diagnostic": null,
+        "lane": "strikes_air_defense",
+        "publishedRetention": {
+          "matched": 0,
+          "miss": 0,
+          "partial": 1
+        },
+        "units": 1
+      }
+    ],
+    "matcher": {
+      "corpusRecall": {
+        "label": "fixture-oracle",
+        "voteRounds": null
+      },
+      "kind": "fixture-oracle",
+      "label": "fixture-oracle",
+      "model": null,
+      "publishedRetention": {
+        "label": "fixture-oracle",
+        "voteRounds": null
+      },
+      "votesK": null
+    },
+    "matcherRung": "fixture-oracle",
+    "methodologyEpoch": "conflict-epoch-1",
+    "multiUnitClaims": {
+      "corpusRecall": {},
+      "publishedRetention": {}
+    },
+    "publishedRetention": {
+      "u0": "partial"
+    },
+    "referenceOnly": {
+      "corpusRecall": [
+        {
+          "compound": true,
+          "lane": "strikes_air_defense",
+          "missDiagnostic": null,
+          "negative": false,
+          "unitId": "u0",
+          "verdict": "partial"
+        }
+      ],
+      "publishedRetention": [
+        {
+          "compound": true,
+          "lane": "strikes_air_defense",
+          "missDiagnostic": null,
+          "negative": false,
+          "unitId": "u0",
+          "verdict": "partial"
+        }
+      ]
+    },
+    "report": {
+      "cutoffAt": "2026-08-10T19:45:00Z",
+      "editionKey": "roca:2026-08-10:final",
+      "publishedAt": "2026-08-10T23:30:00Z",
+      "reportDate": "2026-08-10",
+      "scopeVersion": "roca-scope-v1",
+      "series": "roca"
+    },
+    "runGroupKey": "russia_ukraine|roca:2026-08-10:final|retrospective|conflict-epoch-1|fixture-oracle|k=0",
+    "selection": {
+      "corpusRecall": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 1,
+        "selectedCount": 1,
+        "totalTextBytes": 109
+      },
+      "limits": {
+        "maxCandidates": 100,
+        "mixCapFraction": 0.4,
+        "textByteBudget": 48000
+      },
+      "publishedRetention": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 1,
+        "selectedCount": 1,
+        "totalTextBytes": 109
+      }
+    },
+    "snapshot": {
+      "ref": null
+    },
+    "state": "scored",
+    "thinSourced": {
+      "corpusRecall": {
+        "count": 1,
+        "denominator": 1
+      },
+      "publishedRetention": {
+        "count": 1,
+        "denominator": 1
+      }
+    },
+    "timing": {
+      "corpusRecall": {
+        "agreements": 1,
+        "medianLeadHoursByIngest": 14.5,
+        "medianLeadHoursBySourceDeclared": 15.3
+      },
+      "publishedRetention": {
+        "agreements": 1,
+        "medianLeadHoursByIngest": 14.5,
+        "medianLeadHoursBySourceDeclared": 15.3
+      }
+    },
+    "version": 1,
+    "versions": {
+      "actorRosterVersion": "ru-ua-roster-v1",
+      "extractorVersions": [],
+      "laneClassifierVersion": "ru-ua-classifier-v1",
+      "scopeVersion": "roca-scope-v1"
+    },
+    "voteAudit": {
+      "corpusRecall": null,
+      "publishedRetention": null
+    },
+    "window": {
+      "cutoffAtRaw": "2026-08-10T19:45:00Z",
+      "cutoffTreatment": "present",
+      "days": 3,
+      "endDate": "2026-08-10",
+      "publishedAtRaw": "2026-08-10T23:30:00Z",
+      "publishedTreatment": "present",
+      "reportDate": "2026-08-10",
+      "startDate": "2026-08-08",
+      "windowEndSource": "cutoff"
+    },
+    "windowEndSource": "cutoff"
+  },
+  "roca-quiet-day-010b": {
+    "agreements": {
+      "corpusRecall": [],
+      "publishedRetention": []
+    },
+    "bnowOnly": {
+      "corpusRecall": {
+        "count": 1
+      },
+      "publishedRetention": {
+        "count": 1,
+        "items": [
+          {
+            "claimId": 9011,
+            "hedge": "claimed",
+            "lane": "frontline_maneuver",
+            "legacy": false,
+            "theater": "ua",
+            "track": "military"
+          }
+        ]
+      }
+    },
+    "conflictId": "russia_ukraine",
+    "contribution": {},
+    "contributionPublishedRetention": {},
+    "contributionTotals": {
+      "bySource": {},
+      "byTheater": {},
+      "byTrack": {},
+      "nonAdditive": true
+    },
+    "corpusRecall": {
+      "u0": "miss"
+    },
+    "evaluationKind": "retrospective",
+    "evidencePolicyVersion": "ru-ua-ev-v1",
+    "headline": {
+      "corpusRecall": {
+        "denominator": 1,
+        "matched": 0
+      },
+      "publishedRetention": {
+        "denominator": 1,
+        "matched": 0
+      }
+    },
+    "headlineLabel": "Key Takeaway benchmark coverage",
+    "independentSources": {
+      "corpusRecall": {},
+      "publishedRetention": {}
+    },
+    "laneTaxonomyVersion": "roca-lanes-v1",
+    "lanes": [
+      {
+        "corpusRecall": {
+          "matched": 0,
+          "miss": 1,
+          "partial": 0
+        },
+        "diagnostic": null,
+        "lane": "frontline_maneuver",
+        "publishedRetention": {
+          "matched": 0,
+          "miss": 1,
+          "partial": 0
+        },
+        "units": 1
+      }
+    ],
+    "matcher": {
+      "corpusRecall": {
+        "label": "fixture-oracle",
+        "voteRounds": null
+      },
+      "kind": "fixture-oracle",
+      "label": "fixture-oracle",
+      "model": null,
+      "publishedRetention": {
+        "label": "fixture-oracle",
+        "voteRounds": null
+      },
+      "votesK": null
+    },
+    "matcherRung": "fixture-oracle",
+    "methodologyEpoch": "conflict-epoch-1",
+    "multiUnitClaims": {
+      "corpusRecall": {},
+      "publishedRetention": {}
+    },
+    "publishedRetention": {
+      "u0": "miss"
+    },
+    "referenceOnly": {
+      "corpusRecall": [
+        {
+          "compound": false,
+          "lane": "frontline_maneuver",
+          "missDiagnostic": null,
+          "negative": true,
+          "unitId": "u0",
+          "verdict": "miss"
+        }
+      ],
+      "publishedRetention": [
+        {
+          "compound": false,
+          "lane": "frontline_maneuver",
+          "missDiagnostic": null,
+          "negative": true,
+          "unitId": "u0",
+          "verdict": "miss"
+        }
+      ]
+    },
+    "report": {
+      "cutoffAt": "2026-08-10T19:45:00Z",
+      "editionKey": "roca:2026-08-10:final",
+      "publishedAt": "2026-08-10T23:30:00Z",
+      "reportDate": "2026-08-10",
+      "scopeVersion": "roca-scope-v1",
+      "series": "roca"
+    },
+    "runGroupKey": "russia_ukraine|roca:2026-08-10:final|retrospective|conflict-epoch-1|fixture-oracle|k=0",
+    "selection": {
+      "corpusRecall": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 1,
+        "selectedCount": 1,
+        "totalTextBytes": 110
+      },
+      "limits": {
+        "maxCandidates": 100,
+        "mixCapFraction": 0.4,
+        "textByteBudget": 48000
+      },
+      "publishedRetention": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 1,
+        "selectedCount": 1,
+        "totalTextBytes": 110
+      }
+    },
+    "snapshot": {
+      "ref": null
+    },
+    "state": "scored",
+    "thinSourced": {
+      "corpusRecall": {
+        "count": 1,
+        "denominator": 1
+      },
+      "publishedRetention": {
+        "count": 1,
+        "denominator": 1
+      }
+    },
+    "timing": {
+      "corpusRecall": {
+        "agreements": 0,
+        "medianLeadHoursByIngest": null,
+        "medianLeadHoursBySourceDeclared": null
+      },
+      "publishedRetention": {
+        "agreements": 0,
+        "medianLeadHoursByIngest": null,
+        "medianLeadHoursBySourceDeclared": null
+      }
+    },
+    "version": 1,
+    "versions": {
+      "actorRosterVersion": "ru-ua-roster-v1",
+      "extractorVersions": [],
+      "laneClassifierVersion": "ru-ua-classifier-v1",
+      "scopeVersion": "roca-scope-v1"
+    },
+    "voteAudit": {
+      "corpusRecall": null,
+      "publishedRetention": null
+    },
+    "window": {
+      "cutoffAtRaw": "2026-08-10T19:45:00Z",
+      "cutoffTreatment": "present",
+      "days": 3,
+      "endDate": "2026-08-10",
+      "publishedAtRaw": "2026-08-10T23:30:00Z",
+      "publishedTreatment": "present",
+      "reportDate": "2026-08-10",
+      "startDate": "2026-08-08",
+      "windowEndSource": "cutoff"
+    },
+    "windowEndSource": "cutoff"
+  },
+  "roca-retention-gap-008b": {
+    "agreements": {
+      "corpusRecall": [
+        {
+          "claims": [
+            {
+              "atCutoff": true,
+              "atPublication": true,
+              "claimId": 9009,
+              "confidence": null,
+              "coverage": "full",
+              "earliestIngestAt": "2026-08-10T13:03:00Z",
+              "hedge": "claimed",
+              "independentSourceCount": 1,
+              "legacy": false,
+              "theater": "ua",
+              "track": "military"
+            }
+          ],
+          "lane": "frontline_maneuver",
+          "unitId": "u0"
+        }
+      ],
+      "publishedRetention": []
+    },
+    "bnowOnly": {
+      "corpusRecall": {
+        "count": 0
+      },
+      "publishedRetention": {
+        "count": 0,
+        "items": []
+      }
+    },
+    "conflictId": "russia_ukraine",
+    "contribution": {
+      "u0": {
+        "sources": [
+          "brigade-channel.example"
+        ],
+        "theaters": [
+          "ua"
+        ],
+        "tracks": [
+          "military"
+        ]
+      }
+    },
+    "contributionPublishedRetention": {},
+    "contributionTotals": {
+      "bySource": {
+        "brigade-channel.example": 1
+      },
+      "byTheater": {
+        "ua": 1
+      },
+      "byTrack": {
+        "military": 1
+      },
+      "nonAdditive": true
+    },
+    "corpusRecall": {
+      "u0": "matched"
+    },
+    "evaluationKind": "retrospective",
+    "evidencePolicyVersion": "ru-ua-ev-v1",
+    "headline": {
+      "corpusRecall": {
+        "denominator": 1,
+        "matched": 1
+      },
+      "publishedRetention": {
+        "denominator": 1,
+        "matched": 0
+      }
+    },
+    "headlineLabel": "Key Takeaway benchmark coverage",
+    "independentSources": {
+      "corpusRecall": {
+        "u0": 1
+      },
+      "publishedRetention": {}
+    },
+    "laneTaxonomyVersion": "roca-lanes-v1",
+    "lanes": [
+      {
+        "corpusRecall": {
+          "matched": 1,
+          "miss": 0,
+          "partial": 0
+        },
+        "diagnostic": null,
+        "lane": "frontline_maneuver",
+        "publishedRetention": {
+          "matched": 0,
+          "miss": 1,
+          "partial": 0
+        },
+        "units": 1
+      }
+    ],
+    "matcher": {
+      "corpusRecall": {
+        "label": "fixture-oracle",
+        "voteRounds": null
+      },
+      "kind": "fixture-oracle",
+      "label": "fixture-oracle",
+      "model": null,
+      "publishedRetention": {
+        "label": "fixture-oracle",
+        "voteRounds": null
+      },
+      "votesK": null
+    },
+    "matcherRung": "fixture-oracle",
+    "methodologyEpoch": "conflict-epoch-1",
+    "multiUnitClaims": {
+      "corpusRecall": {},
+      "publishedRetention": {}
+    },
+    "publishedRetention": {
+      "u0": "miss"
+    },
+    "referenceOnly": {
+      "corpusRecall": [],
+      "publishedRetention": [
+        {
+          "compound": false,
+          "lane": "frontline_maneuver",
+          "missDiagnostic": null,
+          "negative": false,
+          "unitId": "u0",
+          "verdict": "miss"
+        }
+      ]
+    },
+    "report": {
+      "cutoffAt": "2026-08-10T19:45:00Z",
+      "editionKey": "roca:2026-08-10:final",
+      "publishedAt": "2026-08-10T23:30:00Z",
+      "reportDate": "2026-08-10",
+      "scopeVersion": "roca-scope-v1",
+      "series": "roca"
+    },
+    "runGroupKey": "russia_ukraine|roca:2026-08-10:final|retrospective|conflict-epoch-1|fixture-oracle|k=0",
+    "selection": {
+      "corpusRecall": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 1,
+        "selectedCount": 1,
+        "totalTextBytes": 142
+      },
+      "limits": {
+        "maxCandidates": 100,
+        "mixCapFraction": 0.4,
+        "textByteBudget": 48000
+      },
+      "publishedRetention": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 0,
+        "selectedCount": 0,
+        "totalTextBytes": 0
+      }
+    },
+    "snapshot": {
+      "ref": null
+    },
+    "state": "scored",
+    "thinSourced": {
+      "corpusRecall": {
+        "count": 1,
+        "denominator": 1
+      },
+      "publishedRetention": {
+        "count": 0,
+        "denominator": 0
+      }
+    },
+    "timing": {
+      "corpusRecall": {
+        "agreements": 1,
+        "medianLeadHoursByIngest": 10.4,
+        "medianLeadHoursBySourceDeclared": 11.2
+      },
+      "publishedRetention": {
+        "agreements": 0,
+        "medianLeadHoursByIngest": null,
+        "medianLeadHoursBySourceDeclared": null
+      }
+    },
+    "version": 1,
+    "versions": {
+      "actorRosterVersion": "ru-ua-roster-v1",
+      "extractorVersions": [],
+      "laneClassifierVersion": "ru-ua-classifier-v1",
+      "scopeVersion": "roca-scope-v1"
+    },
+    "voteAudit": {
+      "corpusRecall": null,
+      "publishedRetention": null
+    },
+    "window": {
+      "cutoffAtRaw": "2026-08-10T19:45:00Z",
+      "cutoffTreatment": "present",
+      "days": 3,
+      "endDate": "2026-08-10",
+      "publishedAtRaw": "2026-08-10T23:30:00Z",
+      "publishedTreatment": "present",
+      "reportDate": "2026-08-10",
+      "startDate": "2026-08-08",
+      "windowEndSource": "cutoff"
+    },
+    "windowEndSource": "cutoff"
+  },
+  "roca-ua-only-001b": {
+    "agreements": {
+      "corpusRecall": [
+        {
+          "claims": [
+            {
+              "atCutoff": true,
+              "atPublication": true,
+              "claimId": 9001,
+              "confidence": null,
+              "coverage": "full",
+              "earliestIngestAt": "2026-08-10T07:00:00Z",
+              "hedge": "claimed",
+              "independentSourceCount": 1,
+              "legacy": false,
+              "theater": "ua",
+              "track": "military"
+            }
+          ],
+          "lane": "frontline_maneuver",
+          "unitId": "u0"
+        }
+      ],
+      "publishedRetention": [
+        {
+          "claims": [
+            {
+              "atCutoff": true,
+              "atPublication": true,
+              "claimId": 9001,
+              "confidence": null,
+              "coverage": "full",
+              "earliestIngestAt": "2026-08-10T07:00:00Z",
+              "hedge": "claimed",
+              "independentSourceCount": 1,
+              "legacy": false,
+              "theater": "ua",
+              "track": "military"
+            }
+          ],
+          "lane": "frontline_maneuver",
+          "unitId": "u0"
+        }
+      ]
+    },
+    "bnowOnly": {
+      "corpusRecall": {
+        "count": 0
+      },
+      "publishedRetention": {
+        "count": 0,
+        "items": []
+      }
+    },
+    "conflictId": "russia_ukraine",
+    "contribution": {
+      "u0": {
+        "sources": [
+          "frontline-wire.example"
+        ],
+        "theaters": [
+          "ua"
+        ],
+        "tracks": [
+          "military"
+        ]
+      }
+    },
+    "contributionPublishedRetention": {
+      "u0": {
+        "sources": [
+          "frontline-wire.example"
+        ],
+        "theaters": [
+          "ua"
+        ],
+        "tracks": [
+          "military"
+        ]
+      }
+    },
+    "contributionTotals": {
+      "bySource": {
+        "frontline-wire.example": 1
+      },
+      "byTheater": {
+        "ua": 1
+      },
+      "byTrack": {
+        "military": 1
+      },
+      "nonAdditive": true
+    },
+    "corpusRecall": {
+      "u0": "matched"
+    },
+    "evaluationKind": "retrospective",
+    "evidencePolicyVersion": "ru-ua-ev-v1",
+    "headline": {
+      "corpusRecall": {
+        "denominator": 1,
+        "matched": 1
+      },
+      "publishedRetention": {
+        "denominator": 1,
+        "matched": 1
+      }
+    },
+    "headlineLabel": "Key Takeaway benchmark coverage",
+    "independentSources": {
+      "corpusRecall": {
+        "u0": 1
+      },
+      "publishedRetention": {
+        "u0": 1
+      }
+    },
+    "laneTaxonomyVersion": "roca-lanes-v1",
+    "lanes": [
+      {
+        "corpusRecall": {
+          "matched": 1,
+          "miss": 0,
+          "partial": 0
+        },
+        "diagnostic": null,
+        "lane": "frontline_maneuver",
+        "publishedRetention": {
+          "matched": 1,
+          "miss": 0,
+          "partial": 0
+        },
+        "units": 1
+      }
+    ],
+    "matcher": {
+      "corpusRecall": {
+        "label": "fixture-oracle",
+        "voteRounds": null
+      },
+      "kind": "fixture-oracle",
+      "label": "fixture-oracle",
+      "model": null,
+      "publishedRetention": {
+        "label": "fixture-oracle",
+        "voteRounds": null
+      },
+      "votesK": null
+    },
+    "matcherRung": "fixture-oracle",
+    "methodologyEpoch": "conflict-epoch-1",
+    "multiUnitClaims": {
+      "corpusRecall": {},
+      "publishedRetention": {}
+    },
+    "publishedRetention": {
+      "u0": "matched"
+    },
+    "referenceOnly": {
+      "corpusRecall": [],
+      "publishedRetention": []
+    },
+    "report": {
+      "cutoffAt": "2026-08-10T19:45:00Z",
+      "editionKey": "roca:2026-08-10:final",
+      "publishedAt": "2026-08-10T23:30:00Z",
+      "reportDate": "2026-08-10",
+      "scopeVersion": "roca-scope-v1",
+      "series": "roca"
+    },
+    "runGroupKey": "russia_ukraine|roca:2026-08-10:final|retrospective|conflict-epoch-1|fixture-oracle|k=0",
+    "selection": {
+      "corpusRecall": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 1,
+        "selectedCount": 1,
+        "totalTextBytes": 139
+      },
+      "limits": {
+        "maxCandidates": 100,
+        "mixCapFraction": 0.4,
+        "textByteBudget": 48000
+      },
+      "publishedRetention": {
+        "budgetOutCount": 0,
+        "cappedOutCount": 0,
+        "eligibleCount": 1,
+        "selectedCount": 1,
+        "totalTextBytes": 139
+      }
+    },
+    "snapshot": {
+      "ref": null
+    },
+    "state": "scored",
+    "thinSourced": {
+      "corpusRecall": {
+        "count": 1,
+        "denominator": 1
+      },
+      "publishedRetention": {
+        "count": 1,
+        "denominator": 1
+      }
+    },
+    "timing": {
+      "corpusRecall": {
+        "agreements": 1,
+        "medianLeadHoursByIngest": 16.5,
+        "medianLeadHoursBySourceDeclared": 17.5
+      },
+      "publishedRetention": {
+        "agreements": 1,
+        "medianLeadHoursByIngest": 16.5,
+        "medianLeadHoursBySourceDeclared": 17.5
+      }
+    },
+    "version": 1,
+    "versions": {
+      "actorRosterVersion": "ru-ua-roster-v1",
+      "extractorVersions": [],
+      "laneClassifierVersion": "ru-ua-classifier-v1",
+      "scopeVersion": "roca-scope-v1"
+    },
+    "voteAudit": {
+      "corpusRecall": null,
+      "publishedRetention": null
+    },
+    "window": {
+      "cutoffAtRaw": "2026-08-10T19:45:00Z",
+      "cutoffTreatment": "present",
+      "days": 3,
+      "endDate": "2026-08-10",
+      "publishedAtRaw": "2026-08-10T23:30:00Z",
+      "publishedTreatment": "present",
+      "reportDate": "2026-08-10",
+      "startDate": "2026-08-08",
+      "windowEndSource": "cutoff"
+    },
+    "windowEndSource": "cutoff"
+  }
+}
