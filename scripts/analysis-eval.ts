@@ -589,7 +589,7 @@ function conflictModeReport(
       results: Object.values(rf.results),
       splitOf,
     });
-    sections.push(mod.renderConflictSectionMarkdown(run, rf));
+    sections.push(mod.renderConflictSectionMarkdown(run, rf, showHeldoutDetail));
     if (rf.datasetContentHash !== run.contentHash) {
       console.error(
         `[conflict/${id}] SOURCES CHANGED since this run (recorded ${rf.datasetContentHash.slice(0, 12)}, current ${run.contentHash.slice(0, 12)}) — verdict degraded to insufficient_data`,

@@ -2,7 +2,7 @@
   "workload": "validation",
   "configKey": "offline-fixtures",
   "datasetVersion": "conflict-roca-v1",
-  "datasetContentHash": "427b71033bb977b4c5111a8e4dffffef66727cf948db5022572e94962d7baad6",
+  "datasetContentHash": "bb53aa70f176901b158fad10f89c47061dad163bc85b3ea05e38ff0d98960079",
   "identity": {
     "provider": "stub",
     "model": "offline-fixtures",
@@ -20,7 +20,7 @@
     "mapOutTokensPerDoc": 200,
     "mapContentChars": 1500
   },
-  "updatedAt": "2026-08-18T02:18:34.586Z",
+  "updatedAt": "2026-08-18T02:58:12.279Z",
   "meter": {
     "attempts": 0,
     "reservations": 0,

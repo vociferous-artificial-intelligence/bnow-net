@@ -30,6 +30,7 @@ import {
   OFFLINE_CONFIG_KEY,
   ZERO_METER,
   currentEnvKnobs,
+  sha256,
   emptyEvalResultsFile,
   mergeEvalResults,
   offlineIdentity,
@@ -270,13 +271,41 @@ describe("report section + purity", () => {
     for (const c of run.dataset.cases) {
       rf = mergeEvalResults(rf, header, [await scoreConflictOfflineCase(run, c.id, 0, "t")], ZERO_METER);
     }
+    // DEFAULT: heldout coverage/rung/run-group detail is MASKED (Gate-5 ops
+    // NOTE-1 — the inherited --show-heldout-detail convention)
     const md = renderConflictSectionMarkdown(run, rf);
     expect(md).toContain("Key Takeaway benchmark coverage");
     expect(md).toContain("not independent confirmation");
-    expect(md).toContain("unavailable (publication_gap) — no score exists; distinct from 0");
-    expect(md).toMatch(/corpus \d+\/\d+ · retained \d+\/\d+/);
+    expect(md).toContain("heldout iteration channel"); // the masking note
+    expect(md).toContain("| heldout (masked) | heldout (masked) | heldout (masked) |");
+    // the heldout publication-gap case's coverage cell is hidden by default…
+    expect(md).not.toContain("unavailable (publication_gap) — no score exists; distinct from 0");
+    expect(md).toMatch(/corpus \d+\/\d+ · retained \d+\/\d+/); // development rows unmasked
     // "accuracy" may appear ONLY inside the "never accuracy" disclaimer
     expect(md.replaceAll("never accuracy", "")).not.toMatch(/accuracy/i);
+    // …and revealed under the operator flag
+    const mdFull = renderConflictSectionMarkdown(run, rf, true);
+    expect(mdFull).toContain("unavailable (publication_gap) — no score exists; distinct from 0");
+    expect(mdFull).not.toContain("heldout (masked)");
+    expect(mdFull).not.toContain("heldout iteration channel");
+  });
+
+  it("contentHash covers the BUILT dataset, not only the source files (derivation identity)", () => {
+    for (const id of CONFLICTS) {
+      // the OLD file-only formula: an edit to CONFLICT_CASE_PLANS /
+      // caseInputOf / caseLabelsOf / createdAt changed the built dataset
+      // while this value stayed equal, so resume did not refuse. The folded
+      // hash must differ from it (removing the fold makes them equal again —
+      // the mutation kill).
+      const fileOnly = sha256(
+        conflictDatasetSourceFiles(id)
+          .map((f) => `${f}:${sha256(readFileSync(join(process.cwd(), f)))}`)
+          .join("\n"),
+      );
+      expect(runs[id].contentHash).not.toBe(fileOnly);
+      // the dataset-passing and bare call forms agree (no drift between them)
+      expect(conflictDatasetContentHash(id, runs[id].dataset)).toBe(runs[id].contentHash);
+    }
   });
 
   it("the profile module is structurally provider-free: no env reads, no SDK import, no network primitives", () => {

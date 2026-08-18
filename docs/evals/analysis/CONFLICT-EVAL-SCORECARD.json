@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-18T02:18:39.276Z",
+  "generatedAt": "2026-08-18T02:58:12.629Z",
   "headerNote": "CONFLICT PROFILE (validation workload, register #3): offline-fixtures results score the FROZEN conflict fixture corpus through the real conflict pipeline and byte-compare against the committed goldens — a machinery/drift proof, NOT a model evaluation; no paid calls are involved. Verdicts use the inherited preset gates; with no live baseline they read insufficient_data by construction.",
   "scorecards": [
     {
@@ -30,7 +30,7 @@
           "presentResults": 8,
           "missingResults": 0,
           "missingHeldout": 0,
-          "datasetContentHash": "427b71033bb977b4c5111a8e4dffffef66727cf948db5022572e94962d7baad6",
+          "datasetContentHash": "bb53aa70f176901b158fad10f89c47061dad163bc85b3ea05e38ff0d98960079",
           "heldoutPresent": {
             "typical": 1,
             "edge": 1,
@@ -210,7 +210,7 @@
           "presentResults": 6,
           "missingResults": 0,
           "missingHeldout": 0,
-          "datasetContentHash": "109fcfff6e69f1de346252f99785bb68e2cd5f73390fb58506647fc9894bb836",
+          "datasetContentHash": "83c39aaf3c5fa6298c0bea429ce593bde110cf20b4125c8f10912ec46b20230f",
           "heldoutPresent": {
             "typical": 1,
             "edge": 1,

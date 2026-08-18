@@ -72,6 +72,7 @@ import {
 } from "../conflicts/goldens";
 import { classifyTimeAnchor, parseIsoInstantMs } from "../conflicts/instants";
 import { assertPersistableConflictResultV1 } from "../conflicts/eval-profile";
+import { stableStringify } from "../conflicts/serialization";
 import { CONFLICT_IDS, type ConflictId } from "../conflicts/vocabulary";
 import type {
   AnalysisEvalDataset,
@@ -170,10 +171,24 @@ export function conflictDatasetSourceFiles(conflictId: ConflictId): readonly str
   return [scenarioFile, "fixtures/conflicts/crosscutting-scenarios-v1.json", GOLDEN_RESULTS_FILE];
 }
 
-export function conflictDatasetContentHash(conflictId: ConflictId): string {
+export function conflictDatasetContentHash(
+  conflictId: ConflictId,
+  dataset?: AnalysisEvalDataset,
+): string {
   const parts = conflictDatasetSourceFiles(conflictId).map(
     (f) => `${f}:${sha256(readFileSync(join(process.cwd(), f)))}`,
   );
+  // derivation coverage (Gate-5 control-plane MINOR-2): hashing only the
+  // source FILES left the derivation logic (CONFLICT_CASE_PLANS /
+  // caseInputOf / caseLabelsOf / the pinned createdAt) outside the dataset
+  // identity — an edit there changed the BUILT dataset while the hash stayed
+  // equal, so resume did not refuse. The built dataset is deterministic
+  // (createdAt pinned), so its canonical serialization is folded in.
+  // buildConflictEvalRun passes its already-built dataset; a bare call
+  // builds one (one level, no recursion — the build never calls back in
+  // without a dataset).
+  const built = dataset ?? buildConflictEvalRun(conflictId).dataset;
+  parts.push(`dataset:${sha256(stableStringify(built))}`);
   return sha256(parts.join("\n"));
 }
 
@@ -335,7 +350,12 @@ export function buildConflictEvalRun(conflictId: ConflictId): ConflictEvalRun {
     createdAt: CONFLICT_DATASET_CREATED_AT,
     cases,
   };
-  return { conflictId, dataset, contentHash: conflictDatasetContentHash(conflictId), entries };
+  return {
+    conflictId,
+    dataset,
+    contentHash: conflictDatasetContentHash(conflictId, dataset),
+    entries,
+  };
 }
 
 export function conflictIdForDataset(datasetVersion: ConflictEvalDatasetId): ConflictId {
@@ -485,8 +505,13 @@ function headlineCell(result: ConflictResultV1): string {
  *  per-case state, Key-Takeaway headline ratios (numerator/denominator, both
  *  populations), matcher rung, and run group. Identity strings only — the
  *  payloads structurally carry no unit/claim text. */
-export function renderConflictSectionMarkdown(run: ConflictEvalRun, rf: EvalResultsFile): string {
+export function renderConflictSectionMarkdown(
+  run: ConflictEvalRun,
+  rf: EvalResultsFile,
+  showHeldoutDetail = false,
+): string {
   const lines: string[] = [];
+  const splitOf = new Map(run.dataset.cases.map((c) => [c.id, c.split]));
   lines.push(`### Conflict profile detail — ${run.conflictId} (${run.dataset.datasetVersion})`);
   lines.push("");
   lines.push(
@@ -495,6 +520,15 @@ export function renderConflictSectionMarkdown(run: ConflictEvalRun, rf: EvalResu
       "independent confirmation. `unavailable` is a provenance statement, never a 0%.",
   );
   lines.push("");
+  if (!showHeldoutDetail) {
+    // the inherited scorecard convention (renderAnalysisScorecardMarkdown):
+    // heldout rows show status only by default so a committed report cannot
+    // become a heldout iteration channel
+    lines.push(
+      "_Heldout rows mask coverage/rung/run-group detail by default so this section cannot become a heldout iteration channel (`--show-heldout-detail` reveals it for operator calibration)._",
+    );
+    lines.push("");
+  }
   lines.push("| case | rep | state | Key Takeaway coverage (matched/denominator) | matcher rung | run group |");
   lines.push("|---|---|---|---|---|---|");
   const rows = Object.values(rf.results).sort((a, b) =>
@@ -504,6 +538,13 @@ export function renderConflictSectionMarkdown(run: ConflictEvalRun, rf: EvalResu
     const checks = r.checks as Partial<ConflictValidationCaseChecks>;
     const payload = checks.conflictResultV1;
     if (payload === undefined) continue;
+    const masked = splitOf.get(r.caseId) === "heldout" && !showHeldoutDetail;
+    if (masked) {
+      lines.push(
+        `| ${r.caseId} | ${r.repetition} | ${payload.state} | heldout (masked) | heldout (masked) | heldout (masked) |`,
+      );
+      continue;
+    }
     const rung = payload.state === "scored" ? payload.matcherRung : "—";
     const group = payload.state === "scored" ? `\`${payload.runGroupKey ?? "—"}\`` : "—";
     lines.push(

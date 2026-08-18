@@ -1,4 +1,4 @@
-# Analysis eval scorecard — 2026-08-18T02:18:39.276Z
+# Analysis eval scorecard — 2026-08-18T02:58:12.629Z
 
 > CONFLICT PROFILE (validation workload, register #3): offline-fixtures results score the FROZEN conflict fixture corpus through the real conflict pipeline and byte-compare against the committed goldens — a machinery/drift proof, NOT a model evaluation; no paid calls are involved. Verdicts use the inherited preset gates; with no live baseline they read insufficient_data by construction.
 
@@ -8,7 +8,7 @@ Identity: provider=stub model=offline-fixtures effort=absent approval=baseline r
 
 | metric | value |
 |---|---|
-| completeness | scope=full · 8/8 results present (0 missing, 0 heldout missing) · reps=1 · datasetHash=427b71033bb9 · COMPLETE |
+| completeness | scope=full · 8/8 results present (0 missing, 0 heldout missing) · reps=1 · datasetHash=bb53aa70f176 · COMPLETE |
 | cases (scored / schema-invalid / provider-error / skipped) | 8 / 0 / 0 / 0 of 8 |
 | checks passed | 8/8 |
 | machinery proof (result matches fixture expectation) | 8/8 |
@@ -45,7 +45,7 @@ Identity: provider=stub model=offline-fixtures effort=absent approval=baseline r
 
 | metric | value |
 |---|---|
-| completeness | scope=full · 6/6 results present (0 missing, 0 heldout missing) · reps=1 · datasetHash=109fcfff6e69 · COMPLETE |
+| completeness | scope=full · 6/6 results present (0 missing, 0 heldout missing) · reps=1 · datasetHash=83c39aaf3c5f · COMPLETE |
 | cases (scored / schema-invalid / provider-error / skipped) | 6 / 0 / 0 / 0 of 6 |
 | checks passed | 6/6 |
 | machinery proof (result matches fixture expectation) | 6/6 |
@@ -101,26 +101,30 @@ _Heldout rows show status only — per-case failure detail is hidden by default 
 
 Headline label: "Key Takeaway benchmark coverage" — agreement with the named expert benchmark, never accuracy; ISW/CTP reads many of the same open sources as BNOW, so agreement is not independent confirmation. `unavailable` is a provenance statement, never a 0%.
 
+_Heldout rows mask coverage/rung/run-group detail by default so this section cannot become a heldout iteration channel (`--show-heldout-detail` reveals it for operator calibration)._
+
 | case | rep | state | Key Takeaway coverage (matched/denominator) | matcher rung | run group |
 |---|---|---|---|---|---|
 | cc-matcher-failclosed-013b-a-one-valid-round | 0 | scored | corpus 1/2 · retained 1/2 | llm | `russia_ukraine|roca:2026-08-12:final|retrospective|conflict-epoch-1|llm-compatible|k=5` |
-| cc-matcher-failclosed-013b-b-zero-valid-rounds | 0 | scored | corpus 1/2 · retained 1/2 | keyword | `russia_ukraine|roca:2026-08-12:final|retrospective|conflict-epoch-1|llm-compatible|k=5` |
+| cc-matcher-failclosed-013b-b-zero-valid-rounds | 0 | scored | heldout (masked) | heldout (masked) | heldout (masked) |
 | cc-regen-after-instant-007 | 0 | scored | corpus 1/1 · retained 1/1 | fixture-oracle | `russia_ukraine|roca:2026-08-12:final|retrospective|conflict-epoch-1|fixture-oracle|k=0` |
 | cc-window-rung2-017 | 0 | scored | corpus 1/1 · retained 1/1 | fixture-oracle | `russia_ukraine|roca:2026-08-13:final|retrospective|conflict-epoch-1|fixture-oracle|k=0` |
 | roca-compound-partial-009b | 0 | scored | corpus 0/1 · retained 0/1 | fixture-oracle | `russia_ukraine|roca:2026-08-10:final|retrospective|conflict-epoch-1|fixture-oracle|k=0` |
-| roca-quiet-day-010b | 0 | scored | corpus 0/1 · retained 0/1 | fixture-oracle | `russia_ukraine|roca:2026-08-10:final|retrospective|conflict-epoch-1|fixture-oracle|k=0` |
-| roca-retention-gap-008b | 0 | scored | corpus 1/1 · retained 0/1 | fixture-oracle | `russia_ukraine|roca:2026-08-10:final|retrospective|conflict-epoch-1|fixture-oracle|k=0` |
+| roca-quiet-day-010b | 0 | scored | heldout (masked) | heldout (masked) | heldout (masked) |
+| roca-retention-gap-008b | 0 | scored | heldout (masked) | heldout (masked) | heldout (masked) |
 | roca-ua-only-001b | 0 | scored | corpus 1/1 · retained 1/1 | fixture-oracle | `russia_ukraine|roca:2026-08-10:final|retrospective|conflict-epoch-1|fixture-oracle|k=0` |
 
 ### Conflict profile detail — iran_regional (conflict-iran-v1)
 
 Headline label: "Key Takeaway benchmark coverage" — agreement with the named expert benchmark, never accuracy; ISW/CTP reads many of the same open sources as BNOW, so agreement is not independent confirmation. `unavailable` is a provenance statement, never a 0%.
 
+_Heldout rows mask coverage/rung/run-group detail by default so this section cannot become a heldout iteration channel (`--show-heldout-detail` reveals it for operator calibration)._
+
 | case | rep | state | Key Takeaway coverage (matched/denominator) | matcher rung | run group |
 |---|---|---|---|---|---|
-| cc-publication-gap-002 | 0 | unavailable | unavailable (publication_gap) — no score exists; distinct from 0 | — | — |
+| cc-publication-gap-002 | 0 | unavailable | heldout (masked) | heldout (masked) | heldout (masked) |
 | cc-state-zero-empty-015 | 0 | scored | corpus 0/1 · retained 0/1 | fixture-oracle | `iran_regional|iran_update:2026-08-08:final|retrospective|conflict-epoch-1|fixture-oracle|k=0` |
-| cc-vague-claim-019 | 0 | scored | corpus 1/2 · retained 1/2 | fixture-oracle | `iran_regional|iran_update:2026-08-09:final|retrospective|conflict-epoch-1|fixture-oracle|k=0` |
+| cc-vague-claim-019 | 0 | scored | heldout (masked) | heldout (masked) | heldout (masked) |
 | iran-direct-kinetic-001 | 0 | scored | corpus 1/1 · retained 1/1 | fixture-oracle | `iran_regional|iran_update:2026-08-08:final|retrospective|conflict-epoch-1|fixture-oracle|k=0` |
 | iran-gulf-unavailable-010b | 0 | scored | corpus 0/1 · retained 1/1 | fixture-oracle | `iran_regional|iran_update:2026-08-08:final|retrospective|conflict-epoch-1|fixture-oracle|k=0` |
-| iran-two-events-011 | 0 | scored | corpus 1/2 · retained 1/2 | fixture-oracle | `iran_regional|iran_update:2026-08-08:final|retrospective|conflict-epoch-1|fixture-oracle|k=0` |
+| iran-two-events-011 | 0 | scored | heldout (masked) | heldout (masked) | heldout (masked) |
