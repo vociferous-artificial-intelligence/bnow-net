@@ -25,6 +25,7 @@ const PHASE4_MODULES = [
   "goldens.ts",
   "offline-report.ts",
   "eval-profile.ts",
+  "snapshot-ref.ts",
 ] as const;
 
 // forbidden in Phase-4 module SOURCE: env reads, provider SDK imports,

@@ -49,6 +49,11 @@ export interface FixtureScoreOptions {
   kind?: EvaluationKind;
   /** default: the deterministic fixture oracle for the scenario */
   matcher?: ConflictMatcher;
+  /** Phase 5: a verified ConflictSnapshotRefV1 to stamp into the result
+   *  (resolve it through resolveConflictSnapshot first). ABSENT by default —
+   *  the golden path passes nothing, so committed golden bytes carry
+   *  `snapshot: { ref: null }` unchanged. */
+  snapshotRef?: import("./snapshot-ref").ConflictSnapshotRefV1;
 }
 
 export async function scoreFixtureScenario(
@@ -78,6 +83,10 @@ export async function scoreFixtureScenario(
             series: CONFLICT_REGISTRY[scenario.conflictId].referenceSeries,
             gapDate: gapDateOf(scenario),
           },
+          // Same spread as the report branch: a caller-supplied ref must reach
+          // the scorer's every-path validation even on gap days (a garbage ref
+          // silently dropped here would bypass the ops-MINOR-1 hoist).
+          ...(options.snapshotRef !== undefined ? { snapshot: options.snapshotRef } : {}),
         }
       : {
           conflictId: scenario.conflictId,
@@ -91,6 +100,7 @@ export async function scoreFixtureScenario(
             units: declaredUnitsOf(scenario.conflictId, selected),
           },
           gap: null,
+          ...(options.snapshotRef !== undefined ? { snapshot: options.snapshotRef } : {}),
         };
   return scoreConflictReport(scoreRequest, corpus, retention, matcher);
 }

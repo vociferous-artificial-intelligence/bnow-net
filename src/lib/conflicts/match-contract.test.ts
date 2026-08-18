@@ -230,6 +230,12 @@ describe("cc-matcher-failclosed-013b corpus pins through the REAL adapter", () =
     expect(outcome.keywordUnmatchable).toBe(1); // signal-less u1 stays a denominator miss
     expect(outcome.votes).toBeNull();
     expect(outcome.model).toBeNull();
+    // requested-k threading (Gate-4 science NOTE-3, binding P5): the REQUESTED
+    // vote budget survives the fallback — a fully-degraded k=5 run groups
+    // with k=5 configurations, never with a hypothetical k=0; voteRounds
+    // stays null (zero usable rounds is the keyword rung's honest count)
+    expect(outcome.votesK).toBe(5);
+    expect(outcome.voteRounds).toBeNull();
     // the keyword rung still matches the signal-bearing unit
     expect(outcome.matches.map((m) => ({ unitId: m.unitId, claimId: m.claimId }))).toEqual([
       { unitId: "u0", claimId: 9316 },

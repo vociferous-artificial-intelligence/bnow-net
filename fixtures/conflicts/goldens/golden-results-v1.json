@@ -470,7 +470,7 @@
         "label": "keyword",
         "voteRounds": null
       },
-      "votesK": null
+      "votesK": 5
     },
     "matcherRung": "keyword",
     "methodologyEpoch": "conflict-epoch-1",
@@ -512,7 +512,7 @@
       "scopeVersion": "roca-scope-v1",
       "series": "roca"
     },
-    "runGroupKey": "russia_ukraine|roca:2026-08-12:final|retrospective|conflict-epoch-1|llm-compatible|k=0",
+    "runGroupKey": "russia_ukraine|roca:2026-08-12:final|retrospective|conflict-epoch-1|llm-compatible|k=5",
     "selection": {
       "corpusRecall": {
         "budgetOutCount": 0,

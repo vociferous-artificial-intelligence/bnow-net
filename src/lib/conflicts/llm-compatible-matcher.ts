@@ -115,8 +115,16 @@ export class LlmCompatibleMatcher implements ConflictMatcher {
     );
     if (resolution.rung === "keyword") {
       // ZERO usable rounds: the inherited ladder's rung 3 — the keyword
-      // fallback scores, honestly labeled by the fallback itself
-      return this.config.keywordFallback.match(units, claims);
+      // fallback scores, honestly labeled by the fallback itself.
+      // REQUESTED-k THREADING (Gate-4 science NOTE-3, binding Phase 5): the
+      // requested vote budget k is CONFIGURATION identity, so it is carried
+      // through the fallback into the outcome — a fully-degraded k=5 run must
+      // group with other k=5 runs in runGroupKey-based variance analysis, not
+      // with a hypothetical k=0 configuration. voteRounds stays null: the
+      // keyword rung scored zero usable rounds, and the per-population labels
+      // still disclose the degradation.
+      const fallback = await this.config.keywordFallback.match(units, claims);
+      return { ...fallback, votesK: this.config.votesK };
     }
     return {
       label: resolution.rung,

@@ -84,6 +84,11 @@ import {
 import { assertMatchableUnits } from "./match-contract";
 import { parseReferenceReportIdentity } from "./reference-report";
 import {
+  snapshotKindsForEvaluation,
+  validateConflictSnapshotRefV1,
+  type ConflictSnapshotRefV1,
+} from "./snapshot-ref";
+import {
   METHODOLOGY_EPOCH,
   type ConflictId,
   type EvaluationKind,
@@ -114,6 +119,13 @@ export interface ConflictScoreRequest {
   /** null = a true publication gap (gap must then be provided) */
   report: ConflictScoreReport | null;
   gap: { series: ReferenceSeriesId; gapDate: string } | null;
+  /** Phase 5 (snapshot-ref.ts): the VERIFIED snapshot ref that backed the
+   *  scoring inputs, or null/absent (plain retrospective / fixture path —
+   *  the default, which stamps `snapshot: { ref: null }` and leaves golden
+   *  bytes untouched). Callers resolve artifact existence/hash through
+   *  resolveConflictSnapshot BEFORE scoring; the scorer re-validates the
+   *  ref's structure and identity fail-closed. */
+  snapshot?: ConflictSnapshotRefV1 | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -372,6 +384,37 @@ export async function scoreConflictReport(
     evaluationKind: request.evaluationKind,
   };
 
+  // Phase-5 snapshot identity, validated on EVERY path (Gate-5 ops MINOR-1:
+  // an invalid ref is an invalid REQUEST — a gap/unavailable request carrying
+  // garbage previously returned a normal result with the ref silently
+  // dropped). Structure + identity validation is fail-closed HERE; artifact
+  // existence/hash resolution happens upstream via resolveConflictSnapshot —
+  // the scorer is pure and does no IO. Error messages never echo ref values
+  // (stored-error discipline). Unavailable/gap variants still carry NO
+  // snapshot stamp (their shapes have no snapshot field by design): a valid
+  // ref on those paths is simply not stamped.
+  const snapshotRef = request.snapshot ?? null;
+  if (snapshotRef !== null) {
+    if (validateConflictSnapshotRefV1(snapshotRef).length > 0) {
+      throw new ConflictDomainError(
+        "invalid_score_request",
+        "request.snapshot is not a valid ConflictSnapshotRefV1",
+      );
+    }
+    if (snapshotRef.conflictId !== request.conflictId) {
+      throw new ConflictDomainError(
+        "invalid_score_request",
+        "request.snapshot names a different conflict than the request",
+      );
+    }
+    if (!snapshotKindsForEvaluation(request.evaluationKind).includes(snapshotRef.captureKind)) {
+      throw new ConflictDomainError(
+        "invalid_score_request",
+        "request.snapshot capture kind cannot back this evaluation kind",
+      );
+    }
+  }
+
   // -- unavailable paths (both assemblies must agree; never half-scored) --
   if (corpus.status === "unavailable" || retention.status === "unavailable") {
     if (corpus.status !== "unavailable" || retention.status !== "unavailable") {
@@ -430,6 +473,20 @@ export async function scoreConflictReport(
     throw new ConflictDomainError(
       "invalid_score_request",
       "a request with a report must not carry a gap",
+    );
+  }
+  // REGISTER #5, mechanically (Gate-5 control-plane MAJOR-1; the twin of the
+  // persistence-gate refusal): no reviewed capture path exists in this
+  // workstream, so a snapshot-anchored evaluation kind can NEVER produce a
+  // SCORED result — snapshot resolution refuses upstream
+  // (population_unproven), and this guard makes that terminal rung
+  // non-skippable by a caller that mints assemblies without resolution. The
+  // future reviewed capture path lifts this refusal via its own
+  // decision-register entry.
+  if (request.evaluationKind !== "retrospective") {
+    throw new ConflictDomainError(
+      "invalid_score_request",
+      `evaluation kind ${request.evaluationKind} cannot produce a scored result: no reviewed capture path exists (register #5) — snapshot kinds terminate unavailable/no_proven_snapshot`,
     );
   }
   const report = request.report;
@@ -605,7 +662,7 @@ export async function scoreConflictReport(
       matcher.kind,
       `k=${matcherStamp.votesK ?? 0}`,
     ].join("|"),
-    snapshot: { ref: null },
+    snapshot: { ref: snapshotRef },
   };
 
   throwOnIdentityIssues(result);

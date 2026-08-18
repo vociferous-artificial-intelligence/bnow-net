@@ -24,6 +24,7 @@ import {
   GOLDEN_LADDER_SCENARIO_ID,
   GOLDEN_RESULTS_FILE,
   GOLDEN_SCENARIO_IDS,
+  scoreFixtureScenario,
 } from "./goldens";
 
 const scenarios = loadConflictFixtureScenarios();
@@ -52,6 +53,17 @@ describe("committed golden results (byte-stable)", () => {
   it("golden generation is deterministic: two independent runs produce identical bytes", async () => {
     const [a, b] = [await regenerate(), await regenerate()];
     expect(a.bytes).toBe(b.bytes);
+  });
+
+  it("a caller-supplied snapshot ref reaches the scorer's validation on the GAP branch too", async () => {
+    // Gate-5 ops re-review probe (surfaced mid-review): before this wiring
+    // fix, the gap branch of scoreFixtureScenario silently dropped
+    // options.snapshotRef, bypassing the scorer's every-path validation.
+    const gap = scenarios.find((s) => s.id === "cc-publication-gap-002");
+    expect(gap).toBeDefined();
+    await expect(
+      scoreFixtureScenario(gap!, { snapshotRef: { garbage: true } as never }),
+    ).rejects.toThrow(/snapshot/i);
   });
 
   it("the golden set covers the mandated matrix (both conflicts, gap, gulf lane, compound-partial, retention gap, quiet day, ladder, the five headline pins)", async () => {
