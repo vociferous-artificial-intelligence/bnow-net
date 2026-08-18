@@ -203,8 +203,17 @@ env):
   conflict cases, the lowest-claimId single-label slot is a projection of
   the full pair set — the extension carries the truth; do not read the
   slot as complete.
-- Scorecard timestamps are RUN artifacts (regeneration changes them) —
-  byte-stability claims cover results/goldens, not the scorecard header.
+- Byte-stability, stated exactly (Gate-5 ops MINOR-2 correction):
+  from-scratch regeneration of the two committed results files is
+  byte-identical EXCEPT one `updatedAt` wall-clock header line per file (an
+  inherited results-format field); resume and all scoring CONTENT are fully
+  byte-stable. Scorecard `generatedAt` headers are likewise run artifacts.
+- Hostile-id ANSI echo to stderr (Gate-5 ops NOTE-2, recorded as an
+  inherited nit): a hostile case id passed to `--only` is echoed raw to the
+  console by the INHERITED generic path — console-only, never written to any
+  artifact, and the refusal precedes any write. Future hardening: strip
+  control bytes from operator-echoed identifiers at the CLI boundary; no
+  change this phase.
 - The estimate mode's "hypothetical" wording is load-bearing: no live
   conflict path exists, and the estimate must never be read as a plan.
 - `docs/designs/CONFLICT-SNAPSHOT-CAPTURE.md` is a DESIGN, not
@@ -221,3 +230,99 @@ as an escape so the test file stays text-diffable).
 
 Zero paid provider calls, zero production writes, no migration, no env
 change, no deploy, no push — branch/worktree only.
+
+## 9. Gate-5 remediation rounds (both reviewers; this branch)
+
+The Gate-5 paid-call/ops reviewer and the control-plane/snapshot-provenance
+reviewer both returned FAIL on `022d3c1`; every finding is remediated below.
+`fixtures/conflicts/goldens` is byte-untouched throughout.
+
+**Ops round:**
+
+- **MAJOR-1 (equals-form flags, reproduced by the reviewer):**
+  `--profile=conflict` was silently discarded by the space-separated-only
+  `flagValue`, defeating the profile allowlist and the conflict live-mode
+  refusal — the reviewer's probe reached `buildLiveDeps` (client
+  construction) on the GENERIC live path with a key present. Fixed with the
+  REFUSE approach: `main()` scans argv for `^--[a-z-]+=` before ANY mode
+  work and exits 2 naming the token and the space-separated form —
+  protecting every flag with zero parser-semantics change. Subprocess pins:
+  the reviewer's exact probe argv with FAKE credentials in the environment
+  (refusal precedes any client construction), the generic-path
+  `--workload=validation`, and a validate-dataset run carrying an equals
+  token (no dataset work runs).
+- **MINOR-1 (snapshot validation scorer-path-only):** the ref
+  structure/identity validation is hoisted above the scored/gap fork — an
+  invalid ref is an invalid REQUEST on every path. Unavailable/gap variants
+  still carry no snapshot stamp (their shapes have no snapshot field by
+  design); a valid ref on those paths is accepted and simply not stamped —
+  both pinned.
+- **MINOR-2:** the §7 byte-stability disclosure corrected to the exact
+  statement above.
+- **NOTE-1 (heldout masking):** `renderConflictSectionMarkdown` now follows
+  the inherited `--show-heldout-detail` convention — heldout rows mask
+  coverage/rung/run-group with `heldout (masked)` placeholders plus the
+  inherited-style note, unmasked under the flag; the CLI threads the flag.
+  The committed scorecard was regenerated once through the normal CLI
+  (sanctioned refresh; diff = masked heldout rows + the note + `generatedAt`
+  + the new dataset hashes below).
+- **NOTE-2:** recorded in §7 as an inherited nit; no code change.
+
+**Control-plane round:**
+
+- **MAJOR-1 (register #5's terminal rung was caller-skippable; two probe
+  cells proven):** (a) a snapshot evaluation kind with assembled populations
+  minted `state: "scored"` with `snapshot: {ref: null}` and PASSED the
+  persistence gate; (b) an unresolved structurally-valid snapshot-kind ref
+  was AFFIRMATIVELY stamped. Closed with the house twin-guard pattern:
+  the scorer's scored path refuses any `evaluationKind !== "retrospective"`
+  (typed, citing register #5 — no reviewed capture path exists), and the
+  persistence gate refuses a SCORED result under any snapshot kind AND a
+  stamped ref whose captureKind cannot back the result's evaluation kind.
+  All four probe cells pinned refused; the sanctioned paths pinned green
+  (retrospective + fixture ref scored, stamped, persistable; snapshot kinds
+  through `scoreFixtureScenario` still return `unavailable` via the
+  assembler). The future reviewed capture path lifts these refusals via its
+  own decision-register entry (stated in the code comments).
+- **MINOR-1 (adapter gate call not mutation-covered):** ruling-21 spy
+  pattern in `conflict-profile-gate-spy.test.ts` — the gate is spied around
+  the real implementation; the publication-GAP case is the clean mutation
+  kill (the scorer's gap path never calls its own gate, so the adapter's
+  call is the ONLY one: exactly 1 expected), and the scored case documents
+  the twin-call architecture (exactly 2). MUTATION-PROVEN: deleting the
+  adapter's `assertPersistableConflictResultV1(result)` call fails both new
+  tests (2/2 failed) and restoring it goes green.
+- **MINOR-2 (derivation not in the dataset identity):**
+  `conflictDatasetContentHash` now folds `sha256(stableStringify(built
+  dataset))` into the hash beside the source-file hashes (deterministic —
+  `createdAt` is pinned; `buildConflictEvalRun` passes its already-built
+  dataset, so no double build and no recursion). Pinned: the new hash
+  differs from the old file-only formula (removing the fold is the mutation
+  kill) and the two call forms agree. CONSEQUENCE, handled as sanctioned:
+  both dataset identities changed, so the two results files + scorecard
+  were regenerated ONCE through the normal CLI (`--fresh` then `--report`,
+  blanked env). Artifact diff, verified line-by-line: each results file
+  changed in EXACTLY `datasetContentHash` + `updatedAt` (roca
+  `427b71033bb9…` → `bb53aa70f176…`; iran `109fcfff6e69…` → `83c39aaf3c5f…`);
+  the scorecards changed in `generatedAt`, the two datasetHash identity
+  fields, and the NOTE-1 heldout masking — nothing else.
+- **MINOR-3 (dynamic-import pin):** `cli-dynamic-imports.test.ts` (NEW,
+  additive — `isolation.test.ts` is inherited-frozen and untouched) asserts
+  the CLI's dynamic `import(...)` specifier set equals exactly
+  {`../src/lib/evals/live-runner`,
+  `../src/lib/evals/conflict-validation-profile`}. MUTATION-PROVEN: an
+  appended fake dynamic import fails the pin (1/1 failed), removed and
+  green.
+
+**Reviewer verified-clean lists (referenced):** ops — refusal matrix,
+blanked-env purity of every conflict mode, artifact write discipline;
+control-plane — prohibition sweep, workload honesty (the register-#3
+fallback trigger NOT met), identity/resume, refusal matrix, the golden
+re-baseline audit, committed artifacts, and mutation ledger M1–M5.
+
+**Remediation-round gates (exact):** typecheck clean · lint clean ·
+`npm test` **3,108 passed / 3,108 (219 files)** (pre-round 3,097/217 + 11
+new across 2 new files, zero regressions) · `TZ=Asia/Tokyo` conflicts+evals
+**812 passed / 812 (42 files)** · `git diff --check` clean · tree clean ·
+`fixtures/conflicts/goldens` byte-untouched · docs/evals artifacts
+refreshed once as sanctioned.
