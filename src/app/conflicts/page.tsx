@@ -9,7 +9,10 @@
 
 import Link from "next/link";
 import { requireConflictsUi } from "@/lib/conflicts/feature";
-import { REFERENCE_SERIES_LABELS } from "@/lib/conflicts/product-copy";
+import {
+  NON_INDEPENDENCE_CAVEAT,
+  REFERENCE_SERIES_LABELS,
+} from "@/lib/conflicts/product-copy";
 import { SyntheticBanner } from "@/components/conflicts/synthetic-banner";
 import { TerminologyExplainer } from "@/components/conflicts/explainers";
 import { Ratio } from "@/components/conflicts/model";
@@ -58,11 +61,26 @@ export default async function ConflictsIndexPage() {
                 .join(", ")}
             </p>
             {view.featured !== null && view.featured.result.state === "scored" ? (
-              <p className="mt-2 text-sm">
-                Latest scored fixture benchmark ({view.featured.result.report.reportDate}):{" "}
-                <Ratio count={view.featured.result.headline.publishedRetention} /> in the published
-                output
-              </p>
+              <>
+                <p className="mt-2 text-sm">
+                  Latest scored fixture benchmark ({view.featured.result.report.reportDate}):{" "}
+                  <Ratio count={view.featured.result.headline.publishedRetention} /> in the
+                  published output
+                </p>
+                {/* this card is the FIRST coverage number a visitor sees and
+                    sits outside any benchmark module, so the caveat and the
+                    read-the-n instruction travel WITH it (Gate-7 product
+                    MINOR-3) — a bare % with neither is exactly the
+                    out-of-context number the contract §0 caveat exists to
+                    prevent */}
+                <p
+                  data-testid="index-card-caveat"
+                  className="mt-1 max-w-2xl text-xs text-gray-600 dark:text-gray-400"
+                >
+                  {NON_INDEPENDENCE_CAVEAT} Small denominators are shown as-is — read the n, not
+                  just the percentage.
+                </p>
+              </>
             ) : (
               <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                 No scored fixture benchmark — unavailable, not 0%.

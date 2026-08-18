@@ -32,7 +32,7 @@ export default async function BenchmarkDetailPage({
 }) {
   requireConflictsUi();
   const { slug, key } = await params;
-  const { conflictIdForSlug, loadBenchmarkDetail } = await import(
+  const { conflictIdForSlug, loadBenchmarkDetail, publishedUnionCountOf } = await import(
     "@/lib/conflicts/product-view"
   );
   const conflictId = conflictIdForSlug(slug);
@@ -42,6 +42,7 @@ export default async function BenchmarkDetailPage({
   const { entry, definition, markers } = detail;
   const result = entry.result;
   const scored = result.state === "scored" ? result : null;
+  const publishedUnionCount = scored === null ? null : publishedUnionCountOf(scored);
 
   return (
     <main id="main" className="mx-auto max-w-4xl p-6">
@@ -97,17 +98,29 @@ export default async function BenchmarkDetailPage({
         ) : (
           <>
             <LaneTable lanes={scored.lanes ?? []} taxonomyVersion={scored.laneTaxonomyVersion} />
-            <p className="mt-2 text-sm">
-              <Link
-                href={`/conflicts/${slug}/benchmark/${entry.benchmarkKey}/evidence`}
-                className="underline"
+            {/* Gate-7 product NOTE-3: an empty union is a sign-in wall in
+                front of an empty view — say so rather than link */}
+            {publishedUnionCount === 0 ? (
+              <p
+                data-testid="empty-evidence-note"
+                className="mt-2 text-sm text-gray-600 dark:text-gray-400"
               >
-                Read the published claims behind this record
-              </Link>{" "}
-              <span className="text-xs text-gray-600 dark:text-gray-400">
-                (subscriber sign-in required)
-              </span>
-            </p>
+                No published digest claims entered this record&apos;s published-output union, so
+                there is no evidence view to open for it.
+              </p>
+            ) : (
+              <p className="mt-2 text-sm">
+                <Link
+                  href={`/conflicts/${slug}/benchmark/${entry.benchmarkKey}/evidence`}
+                  className="underline"
+                >
+                  Read the published claims behind this record
+                </Link>{" "}
+                <span className="text-xs text-gray-600 dark:text-gray-400">
+                  (subscriber sign-in required)
+                </span>
+              </p>
+            )}
           </>
         )}
       </QuestionSection>
@@ -172,8 +185,12 @@ export default async function BenchmarkDetailPage({
               <Link href={`/digests/${t.theater}`} className="underline">
                 {t.theater.toUpperCase()} digest archive
               </Link>{" "}
+              {/* the legacy-engine qualifier that the overview already
+                  carries — the two contributor lists now read alike
+                  (Gate-7 product NOTE-2) */}
               <span className="text-xs text-gray-600 dark:text-gray-400">
-                (digests are subscriber surfaces)
+                (digests are subscriber surfaces
+                {t.comparability === "legacy_only" ? "; legacy engine" : ""})
               </span>
             </li>
           ))}

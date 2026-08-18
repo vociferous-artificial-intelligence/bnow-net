@@ -42,7 +42,7 @@ export default async function ConflictOverviewPage({
 }) {
   requireConflictsUi();
   const { slug } = await params;
-  const { conflictIdForSlug, loadConflictProductView } = await import(
+  const { conflictIdForSlug, loadConflictProductView, publishedUnionCountOf } = await import(
     "@/lib/conflicts/product-view"
   );
   const conflictId = conflictIdForSlug(slug);
@@ -52,14 +52,7 @@ export default async function ConflictOverviewPage({
   const featuredScored =
     featured !== null && featured.result.state === "scored" ? featured.result : null;
   const publishedUnionCount =
-    featuredScored === null
-      ? null
-      : new Set([
-          ...(featuredScored.agreements?.publishedRetention ?? []).flatMap((a) =>
-            a.claims.map((c) => c.claimId),
-          ),
-          ...(featuredScored.bnowOnly?.publishedRetention.items ?? []).map((i) => i.claimId),
-        ]).size;
+    featuredScored === null ? null : publishedUnionCountOf(featuredScored);
 
   return (
     <main id="main" className="mx-auto max-w-4xl p-6">
@@ -115,17 +108,29 @@ export default async function ConflictOverviewPage({
                 taxonomyVersion={featuredScored.laneTaxonomyVersion}
               />
             </div>
-            <p className="mt-2 text-sm">
-              <Link
-                href={`/conflicts/${slug}/benchmark/${featured.benchmarkKey}/evidence`}
-                className="underline"
+            {/* an empty union costs a click plus a sign-in wall to reach
+                nothing — say so instead of linking (Gate-7 product NOTE-3) */}
+            {publishedUnionCount === 0 ? (
+              <p
+                data-testid="empty-evidence-note"
+                className="mt-2 text-sm text-gray-600 dark:text-gray-400"
               >
-                Read the published claims behind this day
-              </Link>{" "}
-              <span className="text-xs text-gray-600 dark:text-gray-400">
-                (subscriber sign-in required — claim text and source trails are gated)
-              </span>
-            </p>
+                No published digest claims entered this record&apos;s published-output union, so
+                there is no evidence view to open for it.
+              </p>
+            ) : (
+              <p className="mt-2 text-sm">
+                <Link
+                  href={`/conflicts/${slug}/benchmark/${featured.benchmarkKey}/evidence`}
+                  className="underline"
+                >
+                  Read the published claims behind this day
+                </Link>{" "}
+                <span className="text-xs text-gray-600 dark:text-gray-400">
+                  (subscriber sign-in required — claim text and source trails are gated)
+                </span>
+              </p>
+            )}
           </>
         )}
       </QuestionSection>
@@ -158,6 +163,17 @@ export default async function ConflictOverviewPage({
           </p>
         ) : (
           <>
+            {/* the featured record is a synthetic EDGE-CASE demonstration as
+                often as not (the RU–UA overview features a malformed-cutoff
+                sentinel, n=1); the detail page always says so and the
+                overview did not (Gate-7 product MINOR-7) */}
+            <p
+              data-testid="featured-demonstration"
+              className="mb-1 max-w-2xl text-sm text-gray-600 dark:text-gray-400"
+            >
+              Fixture demonstration: {featured.scenarioTitle}
+              {featured.variantId !== null && ` · variant ${featured.variantId}`}
+            </p>
             <p className="mb-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
               {featured.result.state === "scored" ? (
                 <>

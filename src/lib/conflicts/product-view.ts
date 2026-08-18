@@ -255,6 +255,21 @@ export interface PartialCounts {
   union: number;
 }
 
+/** Distinct claims in the PUBLISHED-RETENTION union of one scored result —
+ *  matched claims plus in-scope BNOW-only items. Zero means the gated
+ *  evidence view for that record would be empty, so the surfaces re-label
+ *  their evidence links instead of spending a sign-in wall on nothing
+ *  (Gate-7 product NOTE-3). Extracted from the overview's inline expression
+ *  so both surfaces compute it identically. */
+export function publishedUnionCountOf(result: ConflictScoredResultV1): number {
+  return new Set([
+    ...(result.agreements?.publishedRetention ?? []).flatMap((a) =>
+      a.claims.map((c) => c.claimId),
+    ),
+    ...(result.bnowOnly?.publishedRetention.items ?? []).map((i) => i.claimId),
+  ]).size;
+}
+
 export function partialCountsOf(result: ConflictScoredResultV1): PartialCounts {
   const count = (verdicts: Readonly<Record<string, string>>): number =>
     Object.values(verdicts).filter((v) => v === "partial").length;
