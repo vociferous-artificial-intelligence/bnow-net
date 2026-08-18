@@ -52,6 +52,77 @@ describe("fixture corpus loading", () => {
     expect(scenarios.reduce((n, s) => n + s.evidence.length, 0)).toBe(52);
   });
 
+  it("the loader refuses a non-positive-integer docId (traceability key, Gate-7 safety M-2)", async () => {
+    const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join: joinPath } = await import("node:path");
+    const { loadConflictFixtureFile } = await import("./fixture-corpus");
+    const { ConflictDomainError } = await import("./errors");
+    const dir = mkdtempSync(joinPath(tmpdir(), "conflict-docid-"));
+    try {
+      const scenarioWith = (docId: unknown) => ({
+        synthetic: true,
+        provenance: "authored-2026-08-17",
+        disclaimer: "synthetic test fixture",
+        conflictId: "iran_regional",
+        scenarios: [
+          {
+            id: "tmp-docid-probe",
+            conflictId: "iran_regional",
+            report: {
+              series: "iran_update",
+              editionKey: "iran_update:2026-08-08:final",
+              reportDate: "2026-08-08",
+              cutoffAt: null,
+              publishedAt: null,
+              units: [],
+            },
+            evidence: [
+              {
+                claimId: 1,
+                theater: "ir",
+                track: "military",
+                text: "synthetic probe claim",
+                hedging: "claimed",
+                claimDate: "2026-08-08",
+                docs: [
+                  {
+                    docId,
+                    adapter: "rss",
+                    platform: null,
+                    sourceDomain: "probe.example",
+                    publishedAt: null,
+                    fetchedAt: null,
+                    mirrorOfDocId: null,
+                  },
+                ],
+                engine: "mapreduce",
+                currentExtractorVersion: true,
+                published: true,
+                stub: false,
+              },
+            ],
+            expected: {},
+          },
+        ],
+      });
+      for (const bad of [0, -3, 2.5, Number.NaN]) {
+        writeFileSync(joinPath(dir, "bad.json"), JSON.stringify(scenarioWith(bad)), "utf8");
+        expect(() => loadConflictFixtureFile("bad.json", dir), `docId ${String(bad)}`).toThrowError(
+          ConflictDomainError,
+        );
+        expect(() => loadConflictFixtureFile("bad.json", dir)).toThrow(
+          /doc\.docId must be a positive integer/,
+        );
+      }
+      // a positive integer still loads
+      writeFileSync(joinPath(dir, "ok.json"), JSON.stringify(scenarioWith(42)), "utf8");
+      expect(loadConflictFixtureFile("ok.json", dir)[0].evidence[0].docs[0].docId).toBe(42);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("loader IO and JSON-parse failures are TYPED domain errors (temp dir, never the repo)", async () => {
     const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");

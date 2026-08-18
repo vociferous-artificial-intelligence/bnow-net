@@ -554,6 +554,35 @@ describe("stamps and result variants", () => {
     expect(result.thinSourced!.publishedRetention).toEqual({ count: 3, denominator: 6 });
   });
 
+  it("a document listed TWICE counts as ONE independent source and still trips thinSourced", async () => {
+    // Gate-7 safety M-2: independentSourceCount was a bare .filter().length,
+    // so a duplicated docId reported 2 and ESCAPED the thin-source
+    // diagnostic — while the scorer's per-unit independence metric already
+    // deduped, so the two disagreed on identical data.
+    const dupDoc = (docId: number) => ({
+      docId,
+      adapter: "rss",
+      platform: null,
+      sourceDomain: "dup.example",
+      publishedAt: "2026-08-10T06:00:00Z",
+      fetchedAt: "2026-08-10T07:00:00Z",
+      mirrorOfDocId: null,
+      sourceLanguage: null,
+    });
+    const duplicated = claim(31, "ua", "Synthetic assaults repelled near Kupiansk (one doc, listed twice).", {
+      docs: [dupDoc(96001), dupDoc(96001)],
+    });
+    const { corpus, retention } = await assemblies([duplicated]);
+    const result = expectScored(
+      await scoreConflictReport(request([U0]), corpus, retention, fakeOracle([full("u0", 31)])),
+    );
+    // ONE independent source, so the claim IS thin-sourced (hedge claimed)
+    expect(result.thinSourced!.corpusRecall).toEqual({ count: 1, denominator: 1 });
+    // and the per-unit independence metric agrees with it — the two
+    // independence numbers can no longer disagree on the same data
+    expect(result.independentSources!.corpusRecall).toEqual({ u0: 1 });
+  });
+
   it("a duplicate (unit, claim) entry inside one usable vote dedupes first-entry-wins (production parity)", async () => {
     const { corpus, retention } = await assemblies([UA_CLAIM]);
     // schema-valid vote repeating the same pair — production llm-match

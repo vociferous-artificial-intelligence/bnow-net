@@ -214,6 +214,58 @@ describe("fail-closed refusals (before any candidate access)", () => {
     expect(ok.status).toBe("assembled");
   });
 
+  it("intake refuses a candidate MISSING or mistyping any disposition-critical field", async () => {
+    // Gate-7 safety M-1: the engine reads these as `if (candidate.stub)` /
+    // `if (!candidate.published)` / `engine === "legacy"` /
+    // `!currentExtractorVersion`, so an untyped DB mapper that OMITTED one
+    // hands over `undefined` — falsy — and a STUB row would enter the
+    // population as non-stub (ruling 3). Omission and mistyping both refuse.
+    const fields = {
+      stub: /stub must be present and boolean/,
+      published: /published must be present and boolean/,
+      currentExtractorVersion: /currentExtractorVersion must be present and boolean/,
+      engine: /engine must be one of/,
+    } as const;
+    for (const [field, pattern] of Object.entries(fields)) {
+      const omitted = { ...claim() } as Record<string, unknown>;
+      delete omitted[field];
+      await expect(
+        assembleCorpusRecallEvidence(
+          request(),
+          sourceOf([omitted as unknown as CandidateClaim]),
+        ),
+        `omitted ${field}`,
+      ).rejects.toThrow(pattern);
+
+      const mistyped = { ...claim(), [field]: "yes" } as unknown as CandidateClaim;
+      await expect(
+        assembleCorpusRecallEvidence(request(), sourceOf([mistyped])),
+        `mistyped ${field}`,
+      ).rejects.toThrow(pattern);
+    }
+    // the retention assembly validates the same intake
+    const noStub = { ...claim() } as Record<string, unknown>;
+    delete noStub.stub;
+    await expect(
+      assemblePublishedRetentionEvidence(
+        request(),
+        sourceOf([noStub as unknown as CandidateClaim]),
+      ),
+    ).rejects.toThrow(/stub must be present/);
+  });
+
+  it("intake refuses non-integer, zero, negative, and NaN docIds (traceability keys)", async () => {
+    for (const docId of [0, -5, 2.5, NaN]) {
+      await expect(
+        assembleCorpusRecallEvidence(
+          request(),
+          sourceOf([claim({ docs: [doc({ docId })] })]),
+        ),
+        `docId ${String(docId)}`,
+      ).rejects.toThrow(/doc\.docId must be a positive integer/);
+    }
+  });
+
   it("intake ceiling: 1000 candidates accepted, 1001 refused visibly (never truncated)", async () => {
     expect(EVIDENCE_MAX_INTAKE).toBe(1000);
     const mk = (n: number) => Array.from({ length: n }, (_, i) => claim({ claimId: 500_000 + i }));

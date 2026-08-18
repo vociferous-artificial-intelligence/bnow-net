@@ -152,10 +152,21 @@ function windowReasonOf(ctx: EligibilityContext, claimDate: string): string {
   return "window:in";
 }
 
-/** Count of the candidate's own non-mirror documents (mirrors add zero
- *  independence — contract §6.3). */
+/** Count of the candidate's own non-mirror DISTINCT documents (mirrors add
+ *  zero independence — contract §6.3).
+ *
+ *  DEDUPED BY docId (Gate-7 safety M-2): a bare `.filter().length` counted a
+ *  document listed twice as two independent sources, which inflated this
+ *  count and let the claim ESCAPE the thin-source diagnostic — while the
+ *  scorer's per-unit independence metric already deduped, so the two
+ *  disagreed on the same data. Intake validation additionally refuses
+ *  non-integer/non-positive docIds, so the Set keys are real row ids. */
 export function independentSourceCount(candidate: CandidateClaim): number {
-  return candidate.docs.filter((d) => d.mirrorOfDocId === null).length;
+  const distinct = new Set<number>();
+  for (const doc of candidate.docs) {
+    if (doc.mirrorOfDocId === null) distinct.add(doc.docId);
+  }
+  return distinct.size;
 }
 
 /**

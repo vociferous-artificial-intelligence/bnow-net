@@ -87,7 +87,14 @@ export interface ConflictFixtureScenario {
 function parseDoc(scenarioId: string, raw: unknown): CandidateDoc {
   if (!isRecord(raw)) fail(scenarioId, "doc is not an object");
   const { docId, adapter, platform, sourceDomain, publishedAt, fetchedAt, mirrorOfDocId } = raw;
-  if (typeof docId !== "number") fail(scenarioId, "doc.docId must be a number");
+  // integer + positive, not merely "a number" (Gate-7 safety M-2): NaN and
+  // fractional/negative ids passed the old typeof check, and a NaN docId
+  // serializes as a null source-document link — ruling 2's letter satisfied,
+  // its intent (a real raw_documents row) defeated — while also degrading the
+  // canonical `a.docId - b.docId` doc ordering
+  if (typeof docId !== "number" || !Number.isInteger(docId) || docId <= 0) {
+    fail(scenarioId, "doc.docId must be a positive integer");
+  }
   if (typeof adapter !== "string") fail(scenarioId, "doc.adapter must be a string");
   if (platform !== null && typeof platform !== "string") fail(scenarioId, "doc.platform must be string|null");
   if (typeof sourceDomain !== "string") fail(scenarioId, "doc.sourceDomain must be a string");

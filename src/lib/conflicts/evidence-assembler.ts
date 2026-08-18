@@ -79,6 +79,8 @@ import {
   type EvidenceSelectionLimits,
 } from "./evidence-selection";
 import {
+  CANDIDATE_ENGINES,
+  isCandidateEngine,
   type CandidateClaim,
   type CandidateDoc,
   type CorpusRecallRecord,
@@ -160,16 +162,32 @@ export interface CorpusRecallClaimSource {
    *       AND dc.claim_date BETWEEN <window.startDate> AND <window.endDate>
    *       AND dc.extractor_version = ANY(<mapExtractorVersion() current set —
    *           src/lib/analysis/map-versions.ts, the ONLY sanctioned accessor>)
-   *       AND rd.adapter NOT IN (<stub adapters — truth-in-UI, ruling 3>)
+   *       AND rd.adapter <> ALL(STUB_ADAPTER_NAMES)  -- evidence-records.ts,
+   *           mirroring src/lib/adapters/stubs.ts (ruling 3). The mapper sets
+   *           CandidateClaim.stub = STUB_ADAPTER_NAMES.includes(rd.adapter)
+   *           — it must SET the boolean, never omit it: intake refuses a
+   *           candidate whose `stub` is absent, because `undefined` is falsy
+   *           and would admit a stub row as non-stub.
    *     ORDER BY <registry source reliability> DESC NULLS LAST, dc.id ASC
-   *     LIMIT <= EVIDENCE_MAX_INTAKE   -- MANDATORY: the assembler REFUSES
-   *                                    -- larger batches, never truncates
    *
-   *  Overflow sentinel (Gate-3 ops re-review): fetch EVIDENCE_MAX_INTAKE + 1
-   *  rows, not EVIDENCE_MAX_INTAKE — a LIMIT exactly at the ceiling would
-   *  silently narrow a genuinely over-limit day to its top rows by
-   *  reliability with no refusal ever firing; the +1 row trips the
-   *  assembler's intake refusal so such days fail VISIBLY instead.
+   *  ROW GRAIN vs LIMIT — BINDING (Gate-7 safety M-3). This query is
+   *  one row per (claim, document), so a LIMIT on the JOINED stream cuts at a
+   *  ROW boundary, not a claim boundary: 1,001 joined rows may group into
+   *  ~400 claims, so the assembler's `candidates.length` ceiling never trips
+   *  while the LAST claim arrives with a SILENTLY TRUNCATED doc list —
+   *  lowering independentSourceCount, flipping the thin-source diagnostic,
+   *  and potentially manufacturing a spurious `mirror_only` exclusion.
+   *  Therefore:
+   *    1. bound a DISTINCT-CLAIM subquery — select the eligible claim ids
+   *       (ordered as above) with `LIMIT EVIDENCE_MAX_INTAKE + 1` — then
+   *    2. join documents for EXACTLY those ids with no further limit.
+   *  A claim MUST arrive with its COMPLETE document list or not at all. The
+   *  +1 overflow sentinel belongs on the CLAIM-ID subquery: a LIMIT exactly
+   *  at the ceiling would silently narrow a genuinely over-limit day to its
+   *  top claims with no refusal ever firing, whereas the +1 trips the intake
+   *  refusal so such days fail VISIBLY. Note that the intake ceiling is a
+   *  POST-MATERIALIZATION assertion, not a pushdown: the source must apply
+   *  its own LIMIT — the assembler can only refuse what it was handed.
    *
    *  Supporting indexes already present in src/db/schema.ts:
    *  `doc_claims_track_date_idx` (track, claim_date) drives the track+window
@@ -183,7 +201,42 @@ export interface CorpusRecallClaimSource {
 
 export interface PublishedRetentionClaimSource {
   /** Candidates that GENUINELY appeared in the designated user-facing digests
-   *  (published claims only — register #4). */
+   *  (published claims only — register #4).
+   *
+   *  REAL-BACKEND QUERY CONTRACT (binding; written to the same standard as
+   *  CorpusRecallClaimSource above — Gate-7 safety M-3 found this interface
+   *  carried no contract and no bound at all):
+   *
+   *  POPULATION (register #4): claims that appeared in the DESIGNATED
+   *  existing digests — never a new conflict synthesis. For
+   *  `russia_ukraine` that is the ru+ua `military` digests; for
+   *  `iran_regional` the ir `military`/`nuclear`/`elite_politics` digests
+   *  PLUS the legacy il/gulf contributors' `military` digests
+   *  (LEGACY_CONTRIBUTOR_TRACKS). Membership is proven by the claim's
+   *  presence in a published digest's claim set, not inferred from
+   *  eligibility.
+   *
+   *    SELECT dc.<claim fields>, rd.<doc fields per claim>
+   *      FROM <published digest claims for the designated theater/track set>
+   *      JOIN raw_documents rd ON rd.id = dc.raw_document_id
+   *     WHERE <digest theater/track ∈ the designated set for def>
+   *       AND dc.claim_date BETWEEN <window.startDate> AND <window.endDate>
+   *       AND rd.adapter <> ALL(STUB_ADAPTER_NAMES)   -- ruling 3
+   *     ORDER BY <registry source reliability> DESC NULLS LAST, dc.id ASC
+   *
+   *  DIFFERENCES from corpus recall, deliberate: extractor version is NOT
+   *  filtered (the retention question is what the published output
+   *  contained, not which map version produced it — a published claim from a
+   *  superseded version is still a member), and legacy-engine claims ARE
+   *  members, labeled (`engine: "legacy"` → the assembler's `legacy: true`).
+   *  The mapper must still SET `engine`, `published`, `stub`, and
+   *  `currentExtractorVersion` explicitly — intake refuses any of the four
+   *  missing.
+   *
+   *  The SAME row-grain rule binds here: bound a DISTINCT-CLAIM subquery at
+   *  `EVIDENCE_MAX_INTAKE + 1` and join documents for exactly those ids; a
+   *  claim arrives with its complete doc list or not at all, and the intake
+   *  ceiling is a post-materialization assertion, not a pushdown. */
   publishedRetentionCandidates(
     def: ConflictDefinition,
     window: EvaluationWindow,
@@ -402,6 +455,49 @@ function validateCandidateIntake(candidates: readonly CandidateClaim[]): void {
         "invalid_candidate_claim",
         `claim ${c.claimId} text exceeds EVIDENCE_MAX_RECORD_TEXT_BYTES (${EVIDENCE_MAX_RECORD_TEXT_BYTES} UTF-8 bytes)`,
       );
+    }
+    // The four DISPOSITION-CRITICAL fields (Gate-7 safety M-1). The engine
+    // reads them as `if (candidate.stub)` / `if (!candidate.published)` /
+    // `engine === "legacy"` / `!currentExtractorVersion`, so an untyped DB
+    // row mapper that OMITTED one would hand over `undefined` — falsy — and
+    // a STUB row would enter the population as non-stub (ruling 3), an
+    // unpublished claim as published (register #4), or a superseded/legacy
+    // row as current mapreduce (rulings 13/18). Presence + type are required
+    // here; values are never echoed into the error.
+    if (typeof c.stub !== "boolean") {
+      throw new ConflictDomainError(
+        "invalid_candidate_claim",
+        `claim ${c.claimId}: stub must be present and boolean (ruling 3 — an omitted flag would admit a stub row as non-stub)`,
+      );
+    }
+    if (typeof c.published !== "boolean") {
+      throw new ConflictDomainError(
+        "invalid_candidate_claim",
+        `claim ${c.claimId}: published must be present and boolean (register #4 — an omitted flag would admit an unpublished claim into published retention)`,
+      );
+    }
+    if (typeof c.currentExtractorVersion !== "boolean") {
+      throw new ConflictDomainError(
+        "invalid_candidate_claim",
+        `claim ${c.claimId}: currentExtractorVersion must be present and boolean (rulings 13/18 — an omitted flag would admit a superseded extraction as current)`,
+      );
+    }
+    if (!isCandidateEngine(c.engine)) {
+      throw new ConflictDomainError(
+        "invalid_candidate_claim",
+        `claim ${c.claimId}: engine must be one of ${CANDIDATE_ENGINES.join("|")} (comparability is decided from it — rulings 13/18)`,
+      );
+    }
+    // docIds are the traceability keys (ruling 2), the independence Set keys,
+    // and the canonical doc sort key — NaN/fractional/negative ids defeated
+    // all three while satisfying `typeof === "number"`
+    for (const doc of c.docs) {
+      if (!Number.isInteger(doc.docId) || doc.docId <= 0) {
+        throw new ConflictDomainError(
+          "invalid_candidate_claim",
+          `claim ${c.claimId}: every doc.docId must be a positive integer (traceability, independence dedupe, and canonical ordering all key on it)`,
+        );
+      }
     }
   }
 }

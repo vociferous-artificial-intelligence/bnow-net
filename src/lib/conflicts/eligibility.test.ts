@@ -215,6 +215,20 @@ describe("corpus-recall eligibility — frozen exclusion precedence (dominant re
     expect(ev.applicableExclusions).toEqual(["superseded_version", "mirror_only"]);
   });
 
+  it("independentSourceCount dedupes by docId and still counts mirrors as zero", () => {
+    // Gate-7 safety M-2: the same document listed twice is ONE source
+    const twice = claim({ docs: [doc({ docId: 5 }), doc({ docId: 5 })] });
+    expect(independentSourceCount(twice)).toBe(1);
+    // distinct docs still count independently…
+    expect(independentSourceCount(claim({ docs: [doc({ docId: 5 }), doc({ docId: 6 })] }))).toBe(2);
+    // …and a duplicated MIRROR adds nothing either way
+    expect(
+      independentSourceCount(
+        claim({ docs: [doc({ docId: 5 }), doc({ docId: 9, mirrorOfDocId: 5 }), doc({ docId: 9, mirrorOfDocId: 5 })] }),
+      ),
+    ).toBe(1);
+  });
+
   it("Gate-3 probe sentences: bare area/actor tokens never admit neutral claims", () => {
     // each of these previously matched a roster entry on a bare token and was
     // INCLUDED (the actor governed the lane at rung 3); all must be excluded

@@ -133,6 +133,23 @@ export const CANDIDATE_DOC_KEYS = [
   "sourceLanguage",
 ] as const;
 
+/** Adapter names whose documents are FIXTURE STUBS (ruling 3: stub data never
+ *  persists or renders as fact). SOURCE OF TRUTH: `src/lib/adapters/stubs.ts`
+ *  — today exactly the two `FixtureStubAdapter` instances exported there
+ *  (`xStub` name "x", `acledStub` name "acled"). Deliberately NOT
+ *  `telegram_mtproto`: that name once belonged to a stub but the REAL MTProto
+ *  adapter owns it since 2026-07-11, and stubs.ts warns in-file that it must
+ *  not be treated as stub contamination.
+ *
+ *  This constant exists so the documented corpus-recall query contract can
+ *  name a real symbol instead of a prose placeholder (Gate-7 safety M-1). A
+ *  future DB mapper populates `CandidateClaim.stub` from it — a row whose
+ *  `raw_documents.adapter` is in this list is `stub: true` — and the
+ *  assembler's intake validation refuses a candidate that omits the boolean,
+ *  so an untyped mapper cannot let a stub through as `undefined`. Keep this
+ *  list in sync with stubs.ts whenever an adapter is stubbed or unstubbed. */
+export const STUB_ADAPTER_NAMES = ["x", "acled"] as const;
+
 // ---------------------------------------------------------------------------
 // Per-claim availability diagnostics (contract §6.4; at-publish proxy semantics)
 // ---------------------------------------------------------------------------
