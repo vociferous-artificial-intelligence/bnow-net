@@ -99,7 +99,7 @@ their documented extension points:
 | 4 scoring | `codex/conflict-evaluations-p4-scoring` | **PASSED** (science FAIL + legal PASS-WITH-MINORS on `5b38007` -> remediation -> PASS + PASS on `192c082`) | P4 report; ledger P4; 41-scenario acceptance + 14 byte-stable goldens |
 | 5 eval adapter | `codex/conflict-evaluations-p5-adapter` | **PASSED** (dual FAIL on `022d3c1` -> remediation -> PASS + PASS-WITH-MINORS on `2e1422b`; equals-guard hardened at close) | P5 report (+appendices); ledger P5; snapshot-capture design doc |
 | 6 product UI | `codex/conflict-evaluations-p6-product` | **PASSED** (PASS-WITH-MINORS x2 on `1f70852`; MINORs closed at `611f30e`) | P6 report (ruling-3 adjudication, enablement checklist); ledger P6; 23-test feature-off itest |
-| 7 integration | `codex/conflict-evaluations-p7-integration` | **COMPLETE** (all 11 integration gates green; the three FINAL adversarial reviews are commissioned against the final SHA and not yet performed) | P7 report (ancestry audit, main-drift forecast, four-way backtest matrix, soak plan, PR decomposition, 11 gates, residual risks); ledger P7; `docs/designs/CONFLICT-SHADOW-SOAK.md`; `src/lib/conflicts/backtest-matrix.ts` |
+| 7 integration | `codex/conflict-evaluations-p7-integration` | **PASSED** (all 11 integration gates green; the three FINAL adversarial reviews are COMPLETE - PASS-WITH-MINORS x3 on `b8341e9`, findings fixed or recorded in the closeout rounds ending at `a065490`) | P7 report (ancestry audit, main-drift forecast, four-way backtest matrix, soak plan, PR decomposition, 11 gates, residual risks); ledger P7; `docs/designs/CONFLICT-SHADOW-SOAK.md`; `src/lib/conflicts/backtest-matrix.ts` |
 
 ## Terminal state (Phase 7)
 
@@ -125,9 +125,22 @@ their documented extension points:
   assessment/inference diagnostic and the keyword rung's `insufficient_data`
   return). The primary metric is **not yet well-defined on real inputs**, and
   the P7 report says so in §8.1.a rather than in a footnote.
-- Range vs base `7150b49`: **97 commits, 124 files, +39,737 / −4**.
-  **Migration status: NONE** — `drizzle/` and the journal are untouched; the
-  Phase-2 DDL exists only as design plus disposable fork-only SQL.
+- **FINAL SHA = the tip of `codex/conflict-evaluations-integration-20260817`**
+  — `a065490` (the last closeout-round commit) plus this single docs-only
+  bookkeeping commit on top of it. The tip is deliberately NOT spelled here: a
+  commit cannot name its own hash, and every earlier attempt to do so went
+  stale on amend. Resolve it with
+  `git rev-parse --short codex/conflict-evaluations-integration-20260817`.
+  Range vs base `7150b49` at that tip: **104 commits, 125 files, ~+40,846 / −4**
+  (the insertion count moves by a line or two with this commit's own text);
+  156 ahead of `origin/main`. (The 97/124/+39,737
+  figures quoted in the P7 report §1 are correct at the integration SHA
+  `35c5c34` that report describes and are labelled as such; the closeout
+  rounds `b8341e9`..`a065490` add the difference.) **Migration status: NONE** —
+  `drizzle/`, the journal, `src/db/`, the validation/ISW stack, the scoreboard,
+  nav, sitemap and robots are ALL untouched across the whole range (verified at
+  the final SHA); the Phase-2 DDL exists only as design plus disposable
+  fork-only SQL.
 - **Zero paid provider calls, zero production writes, no env change, no deploy,
   no push, no PR, no merge to `main`** across all eight phases.
 - Proposed later merge order: **quality foundation (`e5757ea`/`7150b49`) FIRST**,
