@@ -9,7 +9,7 @@ import "./env";
 // (env caps) AND the --budget-usd command allowance, cumulative across resumes
 // via a provider_state checkpoint that is never the live x_api watermark row.
 // Resume = rerun the SAME command; a completed checkpoint reruns as a no-op.
-// The X provider lease serializes this against the :20 scheduled poll.
+// The X provider lease serializes this against the :02 scheduled poll.
 //
 // NOTE (2026-07-15): the scheduled poll now AUTOMATICALLY runs a bounded
 // self-catch-up when the watermark is parked (src/lib/adapters/x-auto-catchup.ts,

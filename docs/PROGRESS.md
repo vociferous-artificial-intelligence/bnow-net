@@ -2722,3 +2722,79 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
    labelled, observation plan, rollback), commit, push branch, open DRAFT PR.
    NOT deployed by this work; savings are estimates until the separately
    approved deploy + 48–72h observation window.
+
+## 2026-08-17 07:55 UTC — Candidate B merged + deployed; observation window open
+
+1. Preflight: main = origin/main = `26989f7`; PR #4 head `ab8150d`, MERGEABLE/CLEAN,
+   gate + integration green, no reviews/comments; production re-verified as
+   `dpl_Dg713ne5Vu6aiGGsbfs6uxgPKZNC` (from `26989f7`) via /health `data-dpl-id`;
+   no deployment pending. 72h read-only baseline captured (all cron jobs green;
+   Neon prod endpoint 1 CU fixed, default 300s autosuspend, cumulative
+   active_time_seconds 1,144,967 at 06:45Z).
+2. Merge: PR #4 marked ready and merged 06:44:54Z as `9c5e9cb` (normal merge commit,
+   reviewed commits preserved, branch retained); local main fast-forwarded; merged
+   diff re-verified = 3 schedule strings + 3 doc files.
+3. Deploy: Vercel project has no connected Git repo (no auto-deploys), so one CLI
+   deploy from the clean merged root clone: `dpl_CDnECGnXvoZFKnA9QQziz59pmpu2`,
+   READY 06:47:53Z (44s build), aliased bnow.net, git meta `9c5e9cb`, /health stamps
+   the commit. Cron table verified: telegram :01 / x :02 / mtproto :03 moved; the
+   other 11 entries byte-identical. No migration, no env change, zero paid calls,
+   read-only DB checks only.
+4. First natural cycle PASSED (07:00 fast 163.1s · 07:00 validate 15.3s normal
+   pattern · 07:01 telegram 146.4s/114 docs · 07:02 x 43.4s/115 docs, lease+watermark
+   coherent · 07:03 mtproto 89.4s/295 docs/40 channels; overlap contention-free; no
+   5xx/auth errors; transition gaps 51/42/28 min ≤ reviewed ~58m bound). Map stayed
+   :40 and ran normally (07:40:42, 181.1s, ok, 377 claims).
+5. Observation window OPEN 2026-08-17T07:00:00Z → close 2026-08-19T07:00Z–
+   2026-08-20T07:00Z per Phase-1 §7. Savings remain an ESTIMATE (~17–19%) until it
+   closes; the Neon consumption API lags — compare settled values. Rollback target
+   `dpl_Dg713ne5Vu6aiGGsbfs6uxgPKZNC` (not needed). PR #5 stays undeployed.
+6. Closeout: standing docs corrected in place (AGENTS.md Live/Crons; CURRENT-STATE
+   Crons/Deploy/MTProto minutes; three ":20 poll" comments → ":02"); decision-log
+   entry appended; Phase-1 review §10 deployment record appended. Supporting
+   change: eslint global ignores add `.claude/**` beside `.workstream/**` so lint
+   and the pre-push gate stay truthful from the root clone. Gates on this tree:
+   `git diff --check` clean · typecheck clean · lint clean · unit 2,123/2,123
+   (166 files).
+
+## 2026-08-19 — Candidate B 48-hour observation window CLOSED: PASS
+
+1. Window ran its full planned length: `2026-08-17T07:00:00Z → 2026-08-19T07:00:00Z`.
+   Deployment `dpl_CDnECGnXvoZFKnA9QQziz59pmpu2` was READY 06:47:53Z; the formal
+   window opened at the next whole hour so every measured hour ran the clustered
+   schedule. **Verdict PASS** — Candidate B stays deployed, no rollback, and no
+   extension to 72h is required.
+2. Compute (Neon read-only branch-consumption endpoint; production is fixed at 1 CU,
+   so CU-seconds are treated as active-compute seconds — an inference from that fixed
+   configuration, not an API guarantee): pre-deploy 24h 69,860 CU-s / 19.41 h /
+   48.51 active min per hour; post-deploy day 1 62,266 / 17.30 h / −10.9%; day 2
+   58,480 / 16.24 h / −16.3%; **full 48h 120,746 / 33.54 h / 41.93 min per hour =
+   −13.6%** vs the DOUBLED pre-deploy 24h baseline (139,720 CU-s — no true
+   48h-before window was measured). ≈5.27 active-compute hours saved over 48h,
+   ≈2.64 h/day.
+3. The ~17–19% pre-deploy estimate is SUPERSEDED by the measured **~13–14%**
+   (13.6% this window). Phase-1 §§1–9 keep the original estimate verbatim as history.
+4. Not a quiet-corpus artifact: core ingest ROSE — 7,812 documents pre-deploy 24h vs
+   9,623 (+23.2%) and 9,325 (+19.4%) post-deploy, 18,948 over 48h = **+21.3%** vs the
+   doubled baseline.
+5. Operations: **398/398 scheduled runs succeeded** (fast 192 · telegram 48 · x 48 ·
+   mtproto 48 · map 48 · digest finalize 2 · digest intraday 6 · validate 2 · enrich 2 ·
+   datadark 2); zero failed, killed, or contention-skipped runs; zero NEW unfinished
+   rows. The five open `finished_at IS NULL` rows all predate the deploy (telegram
+   07-28, three x 08-13, telegram 08-15) — pre-existing, not regressions. All 48 map
+   cycles completed at the unchanged :40; digests/validation/enrichment/DataDark normal;
+   digests current; no stub data. X checkpoint clear (no lock skips/budget stops/request
+   failures); MTProto current (140/163 channels since deploy, zero resolve errors).
+6. Errors: zero production 5xx; only the known non-fatal GramJS `CastError` noise (#69);
+   no new signature; no pgbouncer/connection-exhaustion/statement-timeout/advisory-lock/
+   `ECONNREFUSED` signature; zero deadlocks and conflicts. `/health` = DB OK, build
+   `9c5e9cb`, deployment `dpl_CDnECGnXvoZFKnA9QQziz59pmpu2`.
+7. `map_health` still reports `stale_ir,stale_ru,stale_ua` — pre-existing baseline
+   backlog debt carried in at deploy time, NOT resolved by this release and NOT a
+   Candidate B regression.
+8. Recorded permanently: AGENTS.md Live/repository line corrected in place + decision-log
+   entry appended; CURRENT-STATE Crons/Deploy lines corrected in place; Phase-1 review
+   §11 closeout appended (§§1–10 untouched). **This closeout is documentation only —
+   merging it is not a deployment; production keeps running `9c5e9cb`.** Next stage:
+   PR #5 routing baseline, reconciled against the resulting `main`, fully retested, and
+   soaked separately for 24h with every candidate-model variable unset.
