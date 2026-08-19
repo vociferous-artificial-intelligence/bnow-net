@@ -259,3 +259,130 @@ section is the pre-deployment review, preserved verbatim.
   pre-merge): NOT needed.
 
 Final status: **deployed / first-cycle-pass / observation-window-open**
+
+## 11. Observation-window closeout (appended 2026-08-19 — §§1–10 unchanged)
+
+§10's `observation-window-open` status and its `~17–19%` estimate are
+SUPERSEDED by this section. §§1–9 remain the pre-deployment review and §10 the
+deployment/first-cycle record; both are preserved verbatim as historical
+statements of what was known at the time.
+
+**Verdict: PASS.** Candidate B remains deployed. No rollback. The gate closes
+at 48 hours — no extension to 72 hours is required — and it is safe to proceed
+to the routing-baseline release stage.
+
+Exact window: **2026-08-17T07:00:00Z → 2026-08-19T07:00:00Z** (48h). The
+deployment became READY at 2026-08-17T06:47:53Z; the formal window deliberately
+opened at the following whole hour, so every measured hour ran the clustered
+schedule end-to-end. Window close = 2026-08-19T07:00:00Z.
+
+### 11.1 Compute (§7 item 1)
+
+Hourly production-branch figures were read from Neon's **read-only**
+branch-consumption endpoint, which does not wake the compute. The endpoint
+reports `compute_unit_seconds`. The production endpoint is configured at
+**exactly 1 CU**, so CU-seconds are treated here as active-compute seconds —
+**that equivalence is an inference from the fixed 1-CU configuration, not
+something Neon's API asserts.**
+
+| Window | Compute | Active-compute | vs pre-deploy 24h |
+|---|---:|---:|---:|
+| Immediate pre-deploy 24h | 69,860 CU-s | 19.41 h | baseline |
+| Post-deploy day 1 (24h) | 62,266 CU-s | 17.30 h | −10.9% |
+| Post-deploy day 2 (24h) | 58,480 CU-s | 16.24 h | −16.3% |
+| **Full post-deploy 48h** | **120,746 CU-s** | **33.54 h** | **−13.6%** |
+
+The 48-hour line compares against **twice the immediate pre-deploy 24-hour
+value (139,720 CU-s)** — no true 48-hours-before window was measured, so the
+−13.6% is a doubled-24h comparison by construction, not a direct
+48h-before/48h-after measurement.
+
+Average active time fell from **48.51** to **41.93** minutes per wall-clock
+hour: ≈**5.27 active-compute hours saved over 48 hours**, ≈**2.64 hours/day**.
+
+**Practical result: a ~13–14% reduction — below the ~17–19% projected in §§1–9
+and repeated in §10.** The projection's direction was right and the mechanism
+held; its magnitude was optimistic. Report ~13–14% going forward.
+
+### 11.2 Load counter-check (§7 item 5)
+
+The saving is not an artifact of an unusually quiet ingestion period — core
+ingest *rose*:
+
+| Window | Documents inserted | vs pre-deploy 24h |
+|---|---:|---:|
+| Immediate pre-deploy 24h | 7,812 | baseline |
+| Post-deploy day 1 | 9,623 | +23.2% |
+| Post-deploy day 2 | 9,325 | +19.4% |
+| **Full post-deploy 48h** | **18,948** | **+21.3%** vs doubled baseline |
+
+Less compute while ingesting ~21% more documents is the intended scheduling
+effect.
+
+### 11.3 Operations (§7 items 3, 4, 6, 7, 8)
+
+- **398/398 expected scheduled runs succeeded** in the exact window: fast
+  ingest 192 · telegram 48 · x 48 · mtproto 48 · map 48 · digest finalize 2 ·
+  digest intraday 6 · validate 2 · enrich 2 · datadark 2. Zero failed, zero
+  killed, zero contention-skipped runs, and **zero new unfinished rows**.
+- Five `finished_at IS NULL` rows remain in `cron_runs`, and **all five predate
+  the deployment**: one telegram from 2026-07-28, three x from 2026-08-13, one
+  telegram from 2026-08-15. These are pre-existing stale rows under the
+  ruling-10 timeout signal, **not** Candidate B regressions.
+- All 48 natural map cycles completed successfully at the unchanged :40 slot.
+  Digest, validation, enrichment, and DataDark jobs completed normally, and
+  production digests remained current. No stub data appeared anywhere.
+- X: checkpoint healthy — no lock skips, no budget stops, no request failures.
+- MTProto: current — 140 of 163 channels fetched since deployment, zero
+  resolve errors.
+- `map_health` still reports `stale_ir,stale_ru,stale_ua`. This is the
+  **pre-existing ru/ua/ir backlog debt recorded at the deployment baseline**;
+  it was **not resolved by this release**, and it is not a Candidate B
+  regression or a contention event.
+
+### 11.4 Errors and connection pressure (§7 item 9)
+
+- Vercel recorded **zero production HTTP 5xx** responses in the window.
+- The only error-level runtime records were the already-known, non-fatal GramJS
+  peer-type `CastError` noise tracked as OPEN-TASKS #69. **No new error
+  signature appeared.**
+- No pgbouncer, connection-exhaustion, statement-timeout, advisory-lock, or
+  `ECONNREFUSED` signature was found — the clustered :01–:03 minutes are where
+  such pressure would have shown first.
+- Database activity was normal: zero deadlocks, zero conflicts observed.
+- `/health` reported **DB OK**, build **`9c5e9cb`**, deployment
+  **`dpl_CDnECGnXvoZFKnA9QQziz59pmpu2`**.
+
+### 11.5 Release decision
+
+Candidate B stays in production. The next stage is PR #5 (model-routing
+baseline), which is reconciled against the `main` that results from merging
+this closeout, fully retested, and then handled as its **own** separately
+deployed 24-hour routing-equivalence soak with every candidate-model variable
+unset.
+
+**This closeout is documentation only. Merging it is not a deployment**: no
+Vercel action, no environment-variable change, and no production write are part
+of it, and production continues to run `9c5e9cb` on
+`dpl_CDnECGnXvoZFKnA9QQziz59pmpu2`.
+
+### 11.6 What this closeout does NOT claim
+
+Stated plainly so the verdict is not read as broader than the evidence:
+
+- §7 item 2 (endpoint suspend/resume cycle counts and the specific quiet
+  `:04–:15 / :21–:30 / :46–:00` idle gaps) was **not separately enumerated**.
+  The drop from 48.51 to 41.93 active minutes per wall-clock hour is the
+  observable consequence, and it is consistent with the predicted idle
+  behavior, but the cycle-count check itself was not run.
+- §7 item 3's per-job wall-clock **duration deltas were not tabulated** across
+  the window. What is asserted is the disposition of every run: 398/398
+  succeeded, none failed, none were killed, none skipped on contention, and no
+  new unfinished row appeared. §10's first-cycle timings remain the only
+  duration-level comparison on record.
+- The `stale_ir,stale_ru,stale_ua` map backlog is **still open**. Nothing here
+  claims it was resolved.
+- The `~13–14%` figure is specific to this window's load and schedule; it is a
+  measurement, not a guarantee about future months.
+
+Final status: **deployed / observation-window-closed / PASS (measured ~13.6%)**

@@ -353,8 +353,9 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   (typecheck+lint+test), which does not include the integration suite.
 - **Crons (vercel.json):** ingest fast */15 · telegram :01 · x :02 · mtproto :03
   (hourly starts clustered by the 2026-08-17 Candidate B release — :10/:20/:35 before —
-  so ingestion wake-ups share the :00 fast-ingest window; ~17–19% Neon active-compute
-  reduction is an ESTIMATE until its 48–72h observation window closes) ·
+  so ingestion wake-ups share the :00 fast-ingest window; 48h observation window CLOSED
+  PASS 2026-08-19T07:00Z with a MEASURED 13.6% Neon active-compute reduction, i.e. ~13–14%,
+  below the pre-deploy ~17–19% estimate — evidence: Phase-1 review §11) ·
   map :40 (hourly) · digest 02:00 (D+1 finalize) + 04:00/10:00/19:30 (intraday, rolling window,
   delta-framed) · validate 07:00 (scores yesterday = the finalized digest) ·
   enrich 08:00 · datadark 09:00 · trade monthly (2nd) · materials monthly (3rd).
@@ -363,7 +364,10 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   session-gated; see Ingestion above.)
 - **Deploy:** current production `dpl_CDnECGnXvoZFKnA9QQziz59pmpu2` (2026-08-17 Candidate B
   cron-clustering release from `main` merge `9c5e9cb` / PR #4, READY, aliased bnow.net;
-  `/health` stamps `9c5e9cb` — root-clone CLI deploy, so git metadata shipped). Lineage: the
+  `/health` stamps `9c5e9cb` — root-clone CLI deploy, so git metadata shipped). Its 48h
+  observation window CLOSED PASS on 2026-08-19T07:00Z and Candidate B stays deployed; the
+  documentation closeout that records this is NOT itself a deployment, so production keeps
+  running `9c5e9cb`. Lineage: the
   Iran-recovery branch merged to `main` as PR #2 (`26989f7`) and was redeployed 2026-08-16 as
   `dpl_Dg713ne5Vu6aiGGsbfs6uxgPKZNC`, now the rollback target. Command:
   `npx vercel@latest deploy --prod --yes` via the machine CLI session
