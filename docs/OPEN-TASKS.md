@@ -169,7 +169,11 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     processed — sprint 2 handled its own two prompt revisions by hand-resetting `processed`
     on the affected docs. The proper tool is a budget-gated `scripts/map-remap.ts` that
     ignores `processed` and anti-joins `doc_map_state` on the *current* versions. Until it
-    exists, any prompt iteration silently applies only to new docs.
+    exists, any prompt iteration silently applies only to new docs. **Now a hard
+    prerequisite (2026-08-17 routing seam):** map is locked to the gpt-4o-mini/no-effort
+    baseline with no env override — `MAP_MODEL` or a validated `MAP_REASONING_EFFORT` is
+    refused `MAP ACTIVATION BLOCKED` — until this remap path exists and activation is
+    explicitly authorized. Pricing or `analysis-reg-v1` approval alone does not unlock it.
 34. ~~**`doc_claims.quote_orig` is best-effort: ~15% fail verbatim containment.**~~
     ✅ 2026-07-09 (MR sprint 3): `quote_verified` stamped at insert by the map worker
     (shared normalization in `quote-verify.ts` — unicode/bidi-isolate/whitespace
@@ -730,3 +734,42 @@ docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md)
 80. **[maintenance] `.env.local`'s `DATABASE_URL_UNPOOLED` credentials are stale** (auth
     fails). Operator: re-pull from the Neon console. Until then scripts fall through to
     the pooled DSN (`registry-materialize` now treats an empty override as absent).
+
+### New (from the cloud-model routing seams reconciliation — 2026-08-20, PR #5,
+docs/reviews/CLOUD-MODEL-ROUTING-SEAMS-2026-08-17.md §12.11)
+
+81. **[Tier 2 — activation gate] No candidate model has a paid representative
+    evaluation.** `analysis-reg-v1` (`src/lib/llm/analysis-registry.ts`) holds
+    baseline-only approvals (gpt-4o-mini, effort absent, status `baseline`) and ZERO
+    `evaluated_candidate` entries, and there is no production bypass. Promoting any
+    candidate for any of the five analysis workloads needs its own representative
+    evaluation against that workload's gate (mapreduce A/B, validation majority-vote
+    design, digest production baseline), a registry entry citing that evidence, and
+    explicit operator spend authorization. Separately blocked/unauthorized — the routing
+    seam only makes the gate enforceable; it does not schedule the evaluation.
+82. **[Tier 2 — spend hygiene] `scripts/ask-eval-harvest.ts` still constructs an
+    unguarded, default-retry OpenAI client.** The routing hardening put every ANALYSIS
+    dispatch behind `analysisOpenAiClient()` (`maxRetries: 0`, one reservation per physical
+    dispatch, source-scan test-pinned), but this Ask eval-tooling script is outside that
+    scan and can still retry a billed call without a matching reservation. Out of scope for
+    PR #5; fix by routing it through the guarded client seam or documenting it as
+    operator-only tooling that must not run unattended.
+83. **[Tier 3 — blocked] The Anthropic provider seam remains unmetered and inactive.**
+    `ANTHROPIC_API_KEY` is absent everywhere and the seam is auto-selected only when an
+    Anthropic key exists and no OpenAI key does, so nothing dispatches through it today —
+    but it is not wired through `model-config.ts`, the analysis registry, or the pricing
+    table, so activating it would bypass all three gates. Wiring it is its own follow-up
+    and a prerequisite to ever setting an Anthropic key.
+84. **[Tier 1 — deploy gate] Re-confirm `ASK_USD_CAP_DAILY` headroom under the corrected
+    gpt-5-mini price before deploying PR #5.** The correction ($0.125/$1 → $0.25/$2 per 1M
+    tokens) doubles the Ask rerank reservation and recorded estimate at deploy —
+    `rerankCeilingUsd()` $0.005125 → $0.01025, per-Ask worst case $0.067625 → $0.07275 —
+    with no change in what OpenAI actually bills. Measured read-only 2026-08-20: cap $2/day
+    (Production + Preview; absent in Development), `openai_ask` $0 since 2026-07-21,
+    largest day ever $0.2748, all-time $0.4468 vs the $10 per-provider `LLM_SPRINT_USD_CAP`
+    backstop — ample headroom today, so this does NOT block the merge. It blocks the deploy
+    only in the sense that the check must be re-run against the day's real usage at release
+    time, and the `ask_usage`/allowance numbers will visibly shift afterwards.
+    Cross-reference: **#33** is the other routing follow-up — it is now a hard prerequisite
+    to unlocking the map activation lock, tracked under its own existing ID, not duplicated
+    here.

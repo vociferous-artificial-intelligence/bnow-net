@@ -12,11 +12,19 @@
 // survives only if a majority of runs independently produce it.
 
 import { Pool } from "@neondatabase/serverless";
-import OpenAI from "openai";
+import type OpenAI from "openai";
+import { analysisOpenAiClient } from "./openai-client";
+import {
+  analysisChatParams,
+  dispatchIdentity,
+  resolveWorkloadModel,
+  workloadDispatchConfig,
+  type AnalysisDispatchConfig,
+} from "../llm/model-config";
+import { estimateCostUsd } from "../llm/pricing";
 import {
   LlmBudgetError,
   assertLlmEnabled,
-  estimateUsd,
   reduceGuardFromEnv,
   reduceMaxOutputTokens,
 } from "../usage/llm-guard";
@@ -24,7 +32,6 @@ import type { SpendGuard } from "../usage/spend-guard";
 import { isSkipped, persistDigest, type DigestSkipped, type PersistEvent } from "./digest-persist";
 import { isPersonAllegation } from "./publication-guard";
 import { summarizeLlmCalls, type DigestResult } from "./digest";
-import { MAP_MODEL } from "./map-prompts";
 import { loadReduceClaims } from "./reduce-io";
 import { clusterClaims, isMetaClaim, rankGroups, type ClaimGroup, type Hedging } from "./reduce";
 import { TRACKS, type Track } from "./tracks";
@@ -390,13 +397,26 @@ export function finalizeEvents(
 
 // ---- the engine ---------------------------------------------------------------
 
-export const MAPREDUCE_PROVIDER_TAG = `openai:${MAP_MODEL}+mapreduce`;
+/** Provider tag persisted on mapreduce digests. Records the ACTUAL dispatched
+ *  models, resolved at call time: while map and reduce resolve to the same
+ *  model (every default) this is byte-identical to the historical
+ *  `openai:<model>+mapreduce` tag; when REDUCE_MODEL diverges, the reduce
+ *  model is recorded explicitly so a digest row never misattributes its
+ *  synthesis model to the extraction model. */
+export function mapreduceProviderTag(): string {
+  const map = resolveWorkloadModel("map").model;
+  const reduce = resolveWorkloadModel("reduce").model;
+  return map === reduce
+    ? `openai:${map}+mapreduce`
+    : `openai:${map}+mapreduce+reduce=${reduce}`;
+}
 
 /** One synthesis vote. Truncation retries once with half the groups (the retry
  *  is a different input, hence a legitimate second opinion, and is counted). */
 async function synthesisVote(
   openai: OpenAI,
   guard: SpendGuard,
+  dispatch: AnalysisDispatchConfig,
   track: Track,
   theater: string,
   date: string,
@@ -410,7 +430,7 @@ async function synthesisVote(
     if (!reserve.ok) throw new LlmBudgetError(reserve.reason);
     const request = () =>
       openai.chat.completions.create({
-        model: MAP_MODEL,
+        model: dispatch.model,
         messages: [
           { role: "system", content: synthesisSystemPrompt(track, theater) },
           { role: "user", content: synthesisUserMessage(theater, date, fed, totals) },
@@ -423,8 +443,13 @@ async function synthesisVote(
             strict: true,
           },
         },
-        temperature: 0.2,
-        max_completion_tokens: reduceMaxOutputTokens(),
+        // default (non-reasoning) params stay byte-identical to the historical
+        // `temperature: 0.2, max_completion_tokens: …`; a reasoning model drops
+        // temperature and may add reasoning_effort (model-config.ts)
+        ...analysisChatParams(dispatch, {
+          temperature: 0.2,
+          maxCompletionTokens: reduceMaxOutputTokens(),
+        }),
       });
     let completion;
     try {
@@ -441,8 +466,9 @@ async function synthesisVote(
     const promptTokens = completion.usage?.prompt_tokens ?? 0;
     const completionTokens = completion.usage?.completion_tokens ?? 0;
     const truncated = choice?.finish_reason === "length";
-    await guard.record(1, promptTokens + completionTokens, estimateUsd(promptTokens, completionTokens));
-    llmCalls.push({ promptTokens, completionTokens, estUsd: estimateUsd(promptTokens, completionTokens), truncated });
+    const estUsd = estimateCostUsd(dispatch.model, promptTokens, completionTokens);
+    await guard.record(1, promptTokens + completionTokens, estUsd);
+    llmCalls.push({ promptTokens, completionTokens, estUsd, truncated });
 
     if (truncated) {
       if (fed.length <= 25) return null; // hard failure for this vote
@@ -536,6 +562,10 @@ export async function generateMapReduceDigest(
   const trackCfg = TRACKS[track];
   if (!trackCfg.countries.includes(countryIso2)) return null;
   assertLlmEnabled("reduce synthesize");
+  // Fail closed BEFORE any DB work, reservation, or billed call: an unpriced
+  // REDUCE model or invalid REDUCE_REASONING_EFFORT throws typed here.
+  const dispatch = workloadDispatchConfig("reduce");
+  const providerTag = mapreduceProviderTag();
   const windowMode = opts.window ?? "day";
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -579,14 +609,14 @@ export async function generateMapReduceDigest(
     // K synthesis votes
     const guard = reduceGuardFromEnv();
     await guard.init();
-    const openai = new OpenAI();
+    const openai = analysisOpenAiClient();
     const k = reduceVotes();
     const llmCalls: LlmUsage[] = [];
     const votes: VoteEvent[][] = [];
     let droppedGidRefs = 0;
     let failedVotes = 0;
     for (let v = 0; v < k; v++) {
-      const vote = await synthesisVote(openai, guard, track, countryIso2, date, fed, totals, llmCalls);
+      const vote = await synthesisVote(openai, guard, dispatch, track, countryIso2, date, fed, totals, llmCalls);
       if (vote === null) {
         failedVotes++;
         continue;
@@ -627,6 +657,10 @@ export async function generateMapReduceDigest(
       stats: {
         engine: "mapreduce",
         reduce: {
+          // durable dispatch identity from the exact config every vote used
+          // (release hardening 2026-08-17); map-side identity is carried by
+          // each doc_claims row's extractor_version
+          dispatch: dispatchIdentity(dispatch),
           window: { from, to, mode: windowMode },
           claims: claims.length,
           metaDropped,
@@ -652,7 +686,7 @@ export async function generateMapReduceDigest(
       countryIso2,
       date,
       track,
-      provider: MAPREDUCE_PROVIDER_TAG,
+      provider: providerTag,
       structured,
       events,
       mdPrelude,
@@ -667,7 +701,7 @@ export async function generateMapReduceDigest(
       events: events.length,
       claims: outcome.claimCount,
       droppedClaims: droppedGidRefs,
-      provider: MAPREDUCE_PROVIDER_TAG,
+      provider: providerTag,
       docsAnalyzed: structured.stats.docsAnalyzed as number,
     };
   } finally {

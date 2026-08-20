@@ -107,3 +107,15 @@ One dependency to keep in view: **ASK is downstream of corpus coverage.** Its ce
 - Embeddings: text-embedding-3-small $0.02/1M · text-embedding-3-large $0.13/1M
 
 *Cost-per-query figures are estimates from the token anatomy above; validate against the `ask_usage` table's logged token counts once live.*
+
+---
+
+**Dated correction (2026-08-17, release hardening of the model-routing branch):**
+the gpt-5-mini price cited above ($0.125/$1 per 1M, sourced from pricepertoken.com
+on 2026-07-11) no longer matches OpenAI's official documentation, which lists
+$0.25 input / $2.00 output (cached input $0.025) per 1M tokens — verified
+2026-08-17 on developers.openai.com (pricing page + the gpt-5-mini model page).
+The metering tables (src/lib/llm/pricing.ts, src/lib/ask/registry.ts) were
+corrected on that date; the text above is preserved verbatim as the historical
+record of what was believed at assessment time. The cost-parity argument in §4
+("a typical ASK query costs the same") no longer holds at the corrected price.

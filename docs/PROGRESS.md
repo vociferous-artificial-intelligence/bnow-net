@@ -2723,6 +2723,61 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
    NOT deployed by this work; savings are estimates until the separately
    approved deploy + 48–72h observation window.
 
+## 2026-08-17 02:05 UTC — plan: cloud-model routing seams (branch codex/cloud-model-routing-seams-20260816)
+
+1. Typed call-time resolver `src/lib/llm/model-config.ts`: per-workload model
+   (`MAP/REDUCE/DIGEST/VALIDATION/ENTITY_AUDIT_MODEL` → `OPENAI_MODEL` →
+   gpt-4o-mini) + validated `*_REASONING_EFFORT`; unpriced models and invalid
+   efforts FAIL CLOSED before any reservation or dispatch.
+2. Route the five analysis dispatch sites through it (map worker, reduce
+   synthesis, legacy digest provider, llm-match, entity-audit); decouple map
+   from reduce (shared `MAP_MODEL` const removed); provider tags record actual
+   dispatched models; metering becomes model-aware via the single price
+   authority `src/lib/llm/pricing.ts`.
+3. Extractor-version identity: MAP_MODEL / validated MAP_REASONING_EFFORT bump
+   `mapExtractorVersion()`; REDUCE_* never do; absent envs byte-identical to
+   the historical basis (test-pinned).
+4. Dry-run inspector `scripts/model-routing-inspect.ts` (no provider calls),
+   commented `.env.example`, comprehensive resolver/params/pricing tests.
+5. Gates (typecheck/lint/unit/build/itest) → two isolated adversarial reviews
+   with remediation → `docs/reviews/CLOUD-MODEL-ROUTING-SEAMS-2026-08-17.md`
+   → commit, push, DRAFT PR. Defaults byte-equivalent to main; NO model
+   activated, NO env set, NO paid call, NO deploy from this branch.
+
+## 2026-08-17 03:00 UTC — plan: release hardening of the model-routing branch (merge held until it passes)
+
+1. Analysis-workload QUALITY registry (`src/lib/llm/analysis-registry.ts`,
+   analysis-reg-v1): dispatch now requires exact pricing AND an exact
+   (workload, model, effort) approval; seeded with ONLY the grandfathered
+   gpt-4o-mini/no-effort production baseline for all five workloads.
+2. gpt-5-mini price corrected to the official $0.25/$2.00 per 1M in every
+   table/mirror/test (pricing.ts, ask/registry.ts, eval-set, tests; dated
+   correction appended to the 2026-07-11 assessment) — Ask rerank metering was
+   understating spend ~2×.
+3. `maxRetries: 0` at every analysis OpenAI client via the shared factory
+   (`src/lib/analysis/openai-client.ts`), source-scan test pins it; explicit
+   429 retries keep their fresh-reservation discipline.
+4. llm-match single-shot SpendGuard gap CLOSED: every validation dispatch
+   reserves before and records after; cap unset/exhausted degrades to the
+   keyword matcher with zero provider calls (mocked-SDK tests assert 1:1:1
+   reservation:call:metering).
+5. MAP ACTIVATION hard lock: only the baseline map model/effort may dispatch;
+   non-baseline fails closed with the remap-required message (no env
+   override); reduce stays independent; `.env.example` corrected (a version
+   bump does NOT remap historical documents).
+6. Durable dispatch identity (model, explicit-null effort, registry version,
+   approval status) persisted per output: digest structured.stats.llmDispatch,
+   mapreduce stats.reduce.dispatch, map + entity-audit cron counts,
+   validation_runs.details.dispatch.
+7. ask-events itest failure DIAGNOSED on a disposable fork ("this week"
+   collapsed to Monday-only + zero in-window Kherson claims + three Kherson
+   entities → answered with empty snapshot) and fixed as a deterministic
+   seeded fixture; spend-guard's lazy @/db import memoized (concurrent-import
+   race under mocks).
+8. Gates → two fresh adversarial reviews → report §12 hardening section →
+   commit, push, update draft PR #5. No paid call, no model activation, no
+   env change, no deploy.
+
 ## 2026-08-17 07:55 UTC — Candidate B merged + deployed; observation window open
 
 1. Preflight: main = origin/main = `26989f7`; PR #4 head `ab8150d`, MERGEABLE/CLEAN,
@@ -2798,3 +2853,55 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
    merging it is not a deployment; production keeps running `9c5e9cb`.** Next stage:
    PR #5 routing baseline, reconciled against the resulting `main`, fully retested, and
    soaked separately for 24h with every candidate-model variable unset.
+
+## 2026-08-20 12:45 UTC — PR #5 reconciled onto post-PR #6 main (repository only; still DRAFT)
+
+1. Rebased the five audited PR #5 commits (`8953008 359750c 030d526 f34aee8 0e469f7`,
+   base `26989f7`) onto `origin/main` `181a218` as `6636c5a 7e14e26 82c41b7 d882fcf
+   851d3e7` — order, messages and authorship preserved; nothing squashed, reworded,
+   amended or reordered. Recovery ref `pr5-audited-head-0e469f7` + tag
+   `pr5-audited-2026-08-17` still pin the audited head.
+2. `docs/PROGRESS.md` was the ONLY overlapping path. Its single add/add region was resolved
+   by placing both sides' blocks verbatim in timestamp order — 01:50 main · 02:05 PR5 ·
+   03:00 PR5 · 07:55 main · 2026-08-19 main — with zero deletions or rewrites: 2,709 base +
+   91 main + 55 PR5 = 2,855 lines, and the first 2,709 lines are byte-identical to the base.
+3. Fidelity proven mechanically, not asserted: `git range-diff` returns five 1:1 rows whose
+   only 18 changed lines sit inside `## docs/PROGRESS.md ##`; the non-PROGRESS delta against
+   the new base is byte-identical to the original delta against the old one (158,229 bytes,
+   sha256 `5c533e7b…30d58`); 31 of the 32 blobs are object-identical to `0e469f7`; no PR #4
+   or PR #6 change is reverted; `git diff --check` clean.
+4. Gates re-run on the reconciled tree (Node 24.14.0 / npm 11.9.0, lockfile untouched):
+   typecheck clean · lint clean · unit **2,187/2,187 over 171 files** · production build
+   PASS against a dummy `DATABASE_URL` that was never contacted · integration **107/107
+   over 17 files** on a disposable Neon fork (created, run, deleted) with `LLM_DISABLE=1`
+   and every provider key blanked. `ask-events.itest.ts` — the file PR #5 repairs — passed
+   on every independent fresh fork it ran on in this phase. The repository has NO clock
+   injection, so only one weekday (Thursday) was exercised live; the seed's
+   calendar-independence is proven statically instead — it dates its Kherson claim to the
+   current UTC day, and `parseWindow`'s "this week" always ends at that same day
+   (Monday-start, `to = today`), so the seeded claim is in-window on every weekday
+   including Monday. The only residual is the documented seconds-wide UTC
+   Sunday→Monday-midnight crossing between seed and ask().
+5. Routing verified read-only: the dry-run inspector reports all five workloads
+   `gpt-4o-mini / source=default / effort=— / priced=yes / approved=baseline / dispatch=ok`
+   under `analysis-reg-v1`, and all six documented negative scenarios fail closed with
+   their exact reason. `mapExtractorVersion()` is byte-identical between `181a218` and this
+   tree across all 30 (track, theater) combinations and matches all six live production
+   pairs in `doc_claims`.
+6. Environment verified read-only by name listing (nothing added, changed, removed or
+   decrypted): all ten routing variables and `OPENAI_MODEL` are ABSENT in Production,
+   Preview and Development; `LLM_SPRINT_USD_CAP` and `ASK_USD_CAP_DAILY` are present in
+   Production. Ask headroom recomputed at the corrected gpt-5-mini rates ($0.25 in /
+   $2.00 out per 1M): rerank reservation $0.005125 → $0.01025, per-Ask worst case
+   $0.067625 → $0.07275 against a $2/day cap; `openai_ask` has spent $0 since 2026-07-21,
+   largest day ever $0.2748, all-time $0.4468 vs the $10 per-provider backstop.
+7. Recorded permanently in this commit: AGENTS.md standing sections corrected in place
+   (architecture, directory map, current state, quality/ops counts, rulings 4 and 13) plus
+   one appended decision-log entry; `docs/CURRENT-STATE.md` corrected in place with a new
+   model-routing bullet; `docs/OPEN-TASKS.md` registers #81–#84 and cross-references the
+   existing #33 as the map-activation prerequisite.
+8. **State at this commit: PR #5 is still a DRAFT and is NOT merged.** Production continues
+   to run `9c5e9cb` / `dpl_CDnECGnXvoZFKnA9QQziz59pmpu2` (`/health` DB OK, checked
+   2026-08-20). No model was activated, no environment variable was changed, nothing was
+   deployed, no paid provider call was made, and no production database write occurred —
+   the only production contact was read-only SELECTs and read-only listings.

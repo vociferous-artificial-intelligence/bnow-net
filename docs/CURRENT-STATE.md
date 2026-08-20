@@ -139,6 +139,35 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   (the pooled DSN routes unlock to a different backend), leaving later cycles `skipped`;
   a stranded holder is identifiable as idle + lock held + NO open map cron_runs row and
   is safe to pg_terminate; the durable fix is a transaction-scoped lock.
+- **Model routing (PR #5 — repository code, NOT deployed):** `src/lib/llm/model-config.ts`
+  is the ONE authority for which model each analysis workload dispatches and at what
+  reasoning effort — map, reduce, digest, validation, entity_audit — resolved at CALL time,
+  precedence `<WORKLOAD>_MODEL` → `OPENAI_MODEL` → `gpt-4o-mini` (values trimmed;
+  blank/whitespace = absent). Effort allowlist `minimal|low|medium|high`, reasoning models
+  only. Dispatch requires BOTH an exact price in `src/lib/llm/pricing.ts` (the single
+  analysis metering price authority) AND an exact `analysis-reg-v1` approval in
+  `src/lib/llm/analysis-registry.ts`; `workloadDispatchConfig()` throws before any
+  SpendGuard reservation and before any provider client is built, so an invalid effort, an
+  effort on a non-reasoning model, an unpriced model or an unapproved (workload, model,
+  effort) all FAIL CLOSED. The registry holds baseline-only approvals — gpt-4o-mini, effort
+  absent, status `baseline`, one per workload — and ZERO `evaluated_candidate` entries:
+  **no candidate model is evaluated or activated.** Map is additionally HARD-LOCKED to the
+  baseline with no env override (`MAP ACTIVATION BLOCKED`), because `MAP_MODEL` or a
+  validated `MAP_REASONING_EFFORT` bumps `mapExtractorVersion()` without remapping history
+  — OPEN-TASKS #33 is the prerequisite; `REDUCE_*` never affects that version. Ask is
+  deliberately not routed here (`ASK_ANSWER_MODEL`/`ASK_RERANK_MODEL` stay scorecard-gated).
+  Every dispatch persists a durable identity (model, effort, registry version, approval) in
+  `digests.structured.stats.llmDispatch`, `stats.reduce.dispatch`,
+  `validation_runs.details.dispatch` and `cron_runs.counts.dispatch` — ids and statuses
+  only, no prompt content, no secret. Dry-run inspector: `npx tsx
+  scripts/model-routing-inspect.ts` (no provider request, no DB connection). Verified
+  read-only 2026-08-20: all ten routing envs and `OPENAI_MODEL` are ABSENT in Production,
+  Preview and Development; the inspector reports all five workloads
+  `gpt-4o-mini / source=default / effort=— / priced=yes / approved=baseline / dispatch=ok`;
+  `mapExtractorVersion()` is byte-identical to `origin/main` across all 30 (track, theater)
+  combinations and matches all six live production pairs in `doc_claims`
+  (ru+ua military `d73cc83ed8df`, ru+ir elite_politics `15a6078371bd`, ir military
+  `75e0ff6403db`, ir nuclear `19c06260f149`).
 - **Digests — two engines behind `DIGEST_ENGINE`; prod is FLIPPED to `mapreduce`
   (2026-07-09; code default is still legacy when the env is unset, which is the
   rollback):** legacy = the 100-doc batch extraction (source-mix quota, ladder);
@@ -199,7 +228,15 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   listwise rerank, gpt-5 answerer with refusal handling; ~$0.011/query; capped
   100/user/day + $10/day global (`ASK_USER_DAILY_LIMIT`/`ASK_GLOBAL_DAILY_BUDGET_USD`)
   + guard caps `ASK_USD_CAP_DAILY=2`/`EMBED_USD_CAP_DAILY=1`, all four in Production
-  AND Preview; rollback = `ASK_PIPELINE=legacy` plain env + redeploy. **Polished
+  AND Preview (`ASK_USD_CAP_DAILY` is Production+Preview only — absent in Development;
+  **metering correction pending deployment:** PR #5 fixes gpt-5-mini's price from
+  $0.125/$1 to the official $0.25/$2 per 1M tokens, so on deploy the rerank reservation and
+  recorded estimate DOUBLE — `rerankCeilingUsd()` $0.005125 → $0.01025, per-Ask worst case
+  $0.067625 → $0.07275 — with no change in what OpenAI actually bills; the app had been
+  under-metering. Read-only 2026-08-20: `openai_ask` has spent $0 since 2026-07-21, its
+  largest day ever is $0.2748, all-time $0.4468, so the $2/day cap and the $10 per-provider
+  `LLM_SPRINT_USD_CAP` backstop both keep ample headroom — re-confirm at deploy,
+  OPEN-TASKS #84); rollback = `ASK_PIPELINE=legacy` plain env + redeploy. **Polished
   2026-07-12 (ask-polish sprint):** paid pipeline runs ONLY from the form's server
   action — GET /ask?q= prefills, never executes (closes OPEN-TASKS #48
   double-billing); **one-click home handoff (2026-07-16):** the signed-in home Ask box
@@ -345,9 +382,12 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   Signals proof; optional analytics was left off and persisted `denied`. It remains the standing
   verification identity and was signed back out after the proof. Evidence:
   `docs/reviews/POSTHOG-ANALYTICS-IMPLEMENTATION-NOTE-2026-07-14.md`.
-- **Tests:** 2,122 unit tests / 167 files green on the recovery branch (`npm test`, ~5s) +
-  106/106 Neon-branch integration tests / 17 files (incl. `map-budget-stop.itest.ts` and
-  `isw-citation-refresh.itest.ts`, both against production forks with zero paid calls).
+- **Tests:** 2,187 unit tests / 171 files green (`npm test`, ~5s) + 107/107 Neon-branch
+  integration tests / 17 files (incl. `map-budget-stop.itest.ts` and
+  `isw-citation-refresh.itest.ts`, both against disposable production forks with zero paid
+  calls) — measured 2026-08-20 on the PR #5 routing-seams reconciliation tree with
+  `LLM_DISABLE=1` and every provider key blanked; the fork is deleted after each run.
+  PR #5 adds the five new routing test files (166 → 171) and +64 tests.
   The saved `NEON_API_KEY` works (disposable branches created and deleted cleanly). CI
   mirror: `.github/workflows/ci.yml`; the enforced pre-push gate is `.githooks/pre-push`
   (typecheck+lint+test), which does not include the integration suite.
@@ -367,7 +407,11 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   `/health` stamps `9c5e9cb` — root-clone CLI deploy, so git metadata shipped). Its 48h
   observation window CLOSED PASS on 2026-08-19T07:00Z and Candidate B stays deployed; the
   documentation closeout that records this is NOT itself a deployment, so production keeps
-  running `9c5e9cb`. Lineage: the
+  running `9c5e9cb`. **The repository is now AHEAD of production:** PR #5's model-routing
+  seams (see the Model-routing bullet above) are repository code only — merging them is not
+  deploying them, and production stays on `9c5e9cb` / `dpl_CDnECGnXvoZFKnA9QQziz59pmpu2`
+  (`/health` DB OK, re-verified 2026-08-20) until a separately authorized release with its
+  own 24h routing-equivalence soak. Lineage: the
   Iran-recovery branch merged to `main` as PR #2 (`26989f7`) and was redeployed 2026-08-16 as
   `dpl_Dg713ne5Vu6aiGGsbfs6uxgPKZNC`, now the rollback target. Command:
   `npx vercel@latest deploy --prod --yes` via the machine CLI session

@@ -3,6 +3,7 @@ import { overwriteVerdict } from "./digest-persist";
 import type { ClaimGroup } from "./reduce";
 import {
   finalizeEvents,
+  mapreduceProviderTag,
   mergeVotes,
   parseVote,
   reduceGroupsFed,
@@ -350,5 +351,33 @@ describe("synthesis prompt carries the attribution hard rules", () => {
     expect(p).toContain("Preserve attribution and hedging in ALL prose");
     expect(p).toContain("Never add causation, motive, or speculation");
     expect(p).toContain("allegation about a named person");
+  });
+});
+
+describe("mapreduceProviderTag", () => {
+  const KEYS = ["MAP_MODEL", "REDUCE_MODEL", "OPENAI_MODEL"] as const;
+  const saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
+  afterEach(() => {
+    for (const k of KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  });
+
+  it("defaults stay byte-identical to the historical tag", () => {
+    for (const k of KEYS) delete process.env[k];
+    expect(mapreduceProviderTag()).toBe("openai:gpt-4o-mini+mapreduce");
+  });
+
+  it("OPENAI_MODEL moves both stages together — still the historical shape", () => {
+    for (const k of KEYS) delete process.env[k];
+    process.env.OPENAI_MODEL = "gpt-4o";
+    expect(mapreduceProviderTag()).toBe("openai:gpt-4o+mapreduce");
+  });
+
+  it("a diverging REDUCE_MODEL is recorded explicitly (actual dispatched models)", () => {
+    for (const k of KEYS) delete process.env[k];
+    process.env.REDUCE_MODEL = "gpt-5-mini";
+    expect(mapreduceProviderTag()).toBe("openai:gpt-4o-mini+mapreduce+reduce=gpt-5-mini");
   });
 });
