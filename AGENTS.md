@@ -27,6 +27,11 @@ Tailwind v4 · Auth.js (magic link, `session.strategy='database'`) · Vitest (no
 @testing-library per-file for component tests). LLM behind `AnalysisProvider`: `openai` live
 (gpt-4o-mini), `anthropic` implemented in the seam (no key in any env yet — auto-selected if
 an Anthropic key exists and no OpenAI key does), `stub` deterministic fallback.
+Which model each ANALYSIS workload dispatches — map, reduce, digest, validation,
+entity_audit — is resolved at CALL time by `src/lib/llm/model-config.ts`, the one routing
+authority (call sites never read `OPENAI_MODEL`/`*_MODEL` themselves); Ask keeps its own
+scorecard-gated models and is deliberately not routed there. Every analysis workload
+resolves to gpt-4o-mini with no reasoning effort today.
 **No shadcn/ui and no Radix.** UI deps are clsx + tailwind-merge + lucide-react; interactive
 primitives (e.g. `src/components/nav-dropdown.tsx`) are hand-rolled to WAI-ARIA patterns.
 
@@ -70,6 +75,10 @@ src/lib/adapters/   SourceAdapter impls: rss, gdelt, telegram-web, telegram-mtpr
                     into prod ingest
 src/lib/analysis/   AnalysisProvider (openai/anthropic/stub), digest, tracks, source-mix,
                     map stage (map-worker, map-prompts, map-dedup, minhash)
+src/lib/llm/        analysis-model routing + money authorities: model-config.ts (the ONE
+                    per-workload model/effort resolver + fail-closed dispatch gate),
+                    analysis-registry.ts (analysis-reg-v1 quality approvals — baseline
+                    only), pricing.ts (the single analysis metering price table)
 src/lib/isw/        crawler, endnote parser, hedging classifier, registry materializer
 src/lib/validation/ ISW scoreboard: keyword gazetteer + majority-vote LLM matcher
 src/lib/usage/      SpendGuard, llm-guard (caps + kill-switch), cron-run bookkeeping
@@ -146,6 +155,22 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   operator alerts (`map-health.ts`, state in provider_state `map_health`), and the map cap
   is now `MAP_SPRINT_USD_CAP=40` (map-only; `LLM_SPRINT_USD_CAP=10` unchanged for every
   other path). Recovery details: the 2026-08-15 decision-log entry.
+- **Analysis model routing (repository code — NOT deployed):** PR #5's workload-scoped
+  routing seam is in the repository: `src/lib/llm/model-config.ts` resolves (model, effort)
+  per workload at call time (`<WORKLOAD>_MODEL` → `OPENAI_MODEL` → gpt-4o-mini) and FAILS
+  CLOSED — before any SpendGuard reservation or provider-client construction — on an
+  invalid effort, an unpriced model, or a (workload, model, effort) with no
+  `analysis-reg-v1` approval; `src/lib/llm/analysis-registry.ts` holds baseline-only
+  approvals (gpt-4o-mini, effort absent, status `baseline`) with ZERO
+  `evaluated_candidate` entries; map carries a HARD activation lock with no env override.
+  All ten routing envs (`MAP/REDUCE/DIGEST/VALIDATION/ENTITY_AUDIT_MODEL` +
+  `*_REASONING_EFFORT`) and `OPENAI_MODEL` are ABSENT in Production, Preview and
+  Development (verified read-only 2026-08-20), so every workload resolves to the historical
+  baseline and `mapExtractorVersion()` stays byte-identical to the deployed corpus's — all
+  six live production (theater, track) pairs re-verified against `doc_claims` on
+  2026-08-20. **Merging this is not deploying it:** production keeps running `9c5e9cb` /
+  `dpl_CDnECGnXvoZFKnA9QQziz59pmpu2` until a separately authorized deployment, so
+  repository code is AHEAD of production.
 - **Product/access:** invite-only private beta; public access request flow; pricing redirects to
   `/access`. Registry/admin surfaces remain admin-only. Signals are anonymous teaser-only and
   accepted-user detailed, with source-attributed named people + non-endorsement notice. Ask v2,
@@ -166,8 +191,10 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   Postmark `BNOW.NET <no-reply@bnow.net>` is live; magic-link guidance is single-use/24h and
   copy-before-opening. PostHog is production-only, explicit opt-in, allowlist-sanitized, UUID
   identity, no Ask/Search/source text; GeoIP is retained per disclosed operator ruling.
-- **Quality/ops:** 2,049 unit tests / 161 files on main + 72 real-Postgres integration tests /
-  14 files, all green. Production DB migrated through 0027 (2026-07-21, verified + idempotent).
+- **Quality/ops:** 2,187 unit tests / 171 files + 107 real-Postgres integration tests /
+  17 files, all green (measured 2026-08-20 on the PR #5 reconciliation tree; the previous
+  `2,049 / 161` + `72 / 14` figures were stale). Production DB migrated through 0027
+  (2026-07-21, verified + idempotent).
   Enforced pre-push gate = typecheck+lint+test. Crons: fast */15; telegram :01; X :02;
   MTProto :03 (clustered since the 2026-08-17 Candidate B release; :10/:20/:35 before);
   map :40; digest 4×/day; validate/enrich/datadark daily; trade/materials monthly.
@@ -204,6 +231,14 @@ Invariants — absolute, each owned here:
    `EMBED_USD_CAP_DAILY` (daily, ask v2 + embeddings), `X_SPRINT_USD_CAP` +
    `X_DAILY_USD_CAP`, `OPENSANCTIONS_CALL_CAP`. Set a new cap env in ALL Vercel envs
    BEFORE deploying the guard that reads it, or you stop that pipeline.
+   **Analysis dispatch additionally fails closed on CONFIGURATION** (2026-08-17 routing
+   seam): `workloadDispatchConfig()` refuses — before `tryReserve()` and before any
+   provider client is built — an invalid `*_REASONING_EFFORT`, an effort set for a
+   non-reasoning model, a model with no entry in `src/lib/llm/pricing.ts`, or a
+   (workload, model, effort) with no `analysis-reg-v1` approval. `pricing.ts` is the
+   SINGLE price authority for analysis metering (the Ask registry parity-pins it), and
+   pricing is necessary but NOT sufficient: an entry there means a model can be metered,
+   an entry in `analysis-registry.ts` means it is approved to serve production.
 5. **Migrations:** never edit or delete an applied migration; evolve forward with a new
    one. `9999_claim_source_trigger.sql` re-asserts without DROP, always applies last —
    never renumber it or let drizzle-kit regeneration drop it.
@@ -234,7 +269,16 @@ Operational rulings:
 13. Map extraction is versioned: `extractor_version` = model + prompt hash; consumers
     filter to `mapExtractorVersion()` current versions or they double-count.
     `raw_documents.processed` means exactly "map reached a final disposition"; version
-    bumps need their own remap path (OPEN-TASKS #33).
+    bumps need their own remap path (OPEN-TASKS #33). **Version basis + hard activation
+    lock (2026-08-17 routing seam):** the basis reads the MAP workload's resolution, so
+    `MAP_MODEL` — and a validated, reasoning-capable `MAP_REASONING_EFFORT`, appended only
+    when set — bump the version, while `REDUCE_*` NEVER does (reduce reads doc_claims, it
+    does not write them) and the all-absent basis is byte-identical to the historical one.
+    Because a bump does not remap history (the worker selects `processed = false` only),
+    map is HARD-LOCKED to the baseline (gpt-4o-mini, effort absent): any other map
+    model/effort is refused with `MAP ACTIVATION BLOCKED`. There is NO env override, and
+    pricing or registry approval alone does not unlock it — #33's version-aware remap path
+    plus explicit operator activation authorization are required first.
 14. Digest corpora are strictly per-theater (`rd.country_iso2`), reliability-ordered,
     with the ~40% source-mix cap on gather window and LLM batch.
 15. Nav promotes only ru/ua/ir in the Coverage dropdown (promoting the shallow 6–9-digest
@@ -651,6 +695,71 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   routing-equivalence soak with every candidate-model variable unset. **This closeout is
   documentation only: merging it is NOT a deployment, and production continues to run
   `9c5e9cb` / `dpl_CDnECGnXvoZFKnA9QQziz59pmpu2` unchanged.** Report: Phase-1 review §11.
+
+- **2026-08-20 (cloud-model routing seams reconciled onto post-PR #6 main — repository
+  only; PR #5 stays DRAFT, nothing deployed)** PR #5's five audited commits
+  (`8953008 359750c 030d526 f34aee8 0e469f7`, base `26989f7`) were replayed onto
+  `origin/main` `181a218` as `6636c5a 7e14e26 82c41b7 d882fcf 851d3e7` — order, messages,
+  authorship preserved; nothing squashed, reworded or reordered. `docs/PROGRESS.md` was the
+  ONLY overlapping path and its single add/add region was resolved by placing both sides'
+  blocks verbatim in timestamp order (01:50 main · 02:05 PR5 · 03:00 PR5 · 07:55 main ·
+  08-19 main), zero deletions or rewrites on either side. Fidelity is mechanical, not
+  asserted: `git range-diff` returns five 1:1 rows whose only changed lines (18) sit inside
+  `## docs/PROGRESS.md ##`; the non-PROGRESS delta against the new base is byte-identical
+  to the original delta against the old one (158,229 bytes, sha256 `5c533e7b…30d58`);
+  31 of the 32 blobs are object-identical to `0e469f7`; no PR #4/#6 change is reverted.
+  **What the merged repository now owns.** `src/lib/llm/model-config.ts` is the ONE
+  authority for "which model does this analysis workload dispatch, at what reasoning
+  effort" — map, reduce, digest, validation, entity_audit — resolved at CALL time
+  (`<WORKLOAD>_MODEL` → `OPENAI_MODEL` → gpt-4o-mini; blank/whitespace = absent), so call
+  sites no longer read model envs themselves and the reduce stage is decoupled from map's
+  former module-load `MAP_MODEL` const. `src/lib/llm/analysis-registry.ts`
+  (`analysis-reg-v1`) is a SEPARATE quality gate seeded with baseline-only approvals —
+  gpt-4o-mini, effort absent, status `baseline`, one per workload — and ZERO
+  `evaluated_candidate` entries. `src/lib/llm/pricing.ts` is the single analysis metering
+  price authority. Dispatch requires BOTH pricing and approval: `workloadDispatchConfig()`
+  throws `ModelConfigError` BEFORE any `SpendGuard.tryReserve()` and before any provider
+  client is constructed when the effort is invalid, an effort is set for a non-reasoning
+  model, the model is unpriced, or the exact (workload, model, effort) is unapproved
+  (standing ruling 4 updated). Map additionally carries a HARD activation lock with NO env
+  override: any non-baseline map model/effort is refused `MAP ACTIVATION BLOCKED`, because
+  `mapExtractorVersion()`'s basis reads the map workload's resolution and a bump does not
+  remap history (the worker selects `processed = false` only) — `REDUCE_*` never touches
+  that version, and the all-absent basis is byte-identical to the historical one (ruling 13
+  updated; OPEN-TASKS #33 remains the prerequisite). Ask is deliberately NOT routed here
+  and keeps its scorecard-gated `ASK_ANSWER_MODEL`/`ASK_RERANK_MODEL`.
+  **Money.** gpt-5-mini pricing is CORRECTED from $0.125/$1 to the official $0.25 in /
+  $2.00 out per 1M tokens: the app had been under-metering it 2×. On deployment the Ask
+  rerank reservation and recorded estimate DOUBLE — `rerankCeilingUsd()` $0.005125 →
+  $0.01025, per-Ask worst case $0.067625 → $0.07275 — with no change in what OpenAI
+  actually bills. Read-only production evidence taken 2026-08-20: `ASK_USD_CAP_DAILY` = $2
+  (repository-recorded read-back; not decrypted), `openai_ask` has spent $0.0000 since
+  2026-07-21 and its largest day ever is $0.2748 (2026-07-12), so even doubling every
+  recorded dollar leaves ≥72% of the daily cap free; all-time `openai_ask` is $0.4468
+  against the $10 `LLM_SPRINT_USD_CAP` per-provider backstop. Headroom is sufficient; it is
+  re-checked at deploy time, not waived (OPEN-TASKS #84).
+  **Nothing is activated and nothing is deployed.** All ten routing envs
+  (`MAP/REDUCE/DIGEST/VALIDATION/ENTITY_AUDIT_MODEL` + `*_REASONING_EFFORT`) and
+  `OPENAI_MODEL` are ABSENT in Production, Preview and Development (verified read-only
+  2026-08-20 by name listing; no value added, changed, removed or decrypted), so every
+  workload resolves to the gpt-4o-mini baseline. The dry-run inspector reports all five
+  workloads `source=default effort=— priced=yes approved=baseline dispatch=ok`, and the six
+  documented negative scenarios each fail closed with their exact reason.
+  `mapExtractorVersion()` is byte-identical between `181a218` and this tree across all 30
+  (track, theater) combinations, and matches all six live production (theater, track) pairs
+  in `doc_claims`. Gates on the reconciled tree: `git diff --check` clean · typecheck clean
+  · lint clean · unit **2,187/2,187 over 171 files** · production build PASS (dummy
+  `DATABASE_URL`, never contacted) · integration **107/107 over 17 files** on disposable
+  Neon forks, deleted afterwards, with `LLM_DISABLE=1` and every provider key blanked.
+  ZERO paid provider calls, zero production database writes, no migration, no lockfile
+  change, no env change, no deploy. **Merging PR #5 is NOT deploying it:** production
+  continues to run `9c5e9cb` / `dpl_CDnECGnXvoZFKnA9QQziz59pmpu2` (verified `/health` DB OK,
+  2026-08-20), so repository code is deliberately AHEAD of production until a separately
+  authorized release with its own routing-equivalence soak. Binding until superseded:
+  activating ANY candidate model requires its own paid representative evaluation, an
+  `evaluated_candidate` registry entry, and explicit operator authorization — and for map,
+  the #33 remap path first. Report:
+  `docs/reviews/CLOUD-MODEL-ROUTING-SEAMS-2026-08-17.md`.
 
 ## Conventions
 

@@ -2853,3 +2853,55 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
    merging it is not a deployment; production keeps running `9c5e9cb`.** Next stage:
    PR #5 routing baseline, reconciled against the resulting `main`, fully retested, and
    soaked separately for 24h with every candidate-model variable unset.
+
+## 2026-08-20 12:45 UTC — PR #5 reconciled onto post-PR #6 main (repository only; still DRAFT)
+
+1. Rebased the five audited PR #5 commits (`8953008 359750c 030d526 f34aee8 0e469f7`,
+   base `26989f7`) onto `origin/main` `181a218` as `6636c5a 7e14e26 82c41b7 d882fcf
+   851d3e7` — order, messages and authorship preserved; nothing squashed, reworded,
+   amended or reordered. Recovery ref `pr5-audited-head-0e469f7` + tag
+   `pr5-audited-2026-08-17` still pin the audited head.
+2. `docs/PROGRESS.md` was the ONLY overlapping path. Its single add/add region was resolved
+   by placing both sides' blocks verbatim in timestamp order — 01:50 main · 02:05 PR5 ·
+   03:00 PR5 · 07:55 main · 2026-08-19 main — with zero deletions or rewrites: 2,709 base +
+   91 main + 55 PR5 = 2,855 lines, and the first 2,709 lines are byte-identical to the base.
+3. Fidelity proven mechanically, not asserted: `git range-diff` returns five 1:1 rows whose
+   only 18 changed lines sit inside `## docs/PROGRESS.md ##`; the non-PROGRESS delta against
+   the new base is byte-identical to the original delta against the old one (158,229 bytes,
+   sha256 `5c533e7b…30d58`); 31 of the 32 blobs are object-identical to `0e469f7`; no PR #4
+   or PR #6 change is reverted; `git diff --check` clean.
+4. Gates re-run on the reconciled tree (Node 24.14.0 / npm 11.9.0, lockfile untouched):
+   typecheck clean · lint clean · unit **2,187/2,187 over 171 files** · production build
+   PASS against a dummy `DATABASE_URL` that was never contacted · integration **107/107
+   over 17 files** on a disposable Neon fork (created, run, deleted) with `LLM_DISABLE=1`
+   and every provider key blanked. `ask-events.itest.ts` — the file PR #5 repairs — passed
+   on every independent fresh fork it ran on in this phase. The repository has NO clock
+   injection, so only one weekday (Thursday) was exercised live; the seed's
+   calendar-independence is proven statically instead — it dates its Kherson claim to the
+   current UTC day, and `parseWindow`'s "this week" always ends at that same day
+   (Monday-start, `to = today`), so the seeded claim is in-window on every weekday
+   including Monday. The only residual is the documented seconds-wide UTC
+   Sunday→Monday-midnight crossing between seed and ask().
+5. Routing verified read-only: the dry-run inspector reports all five workloads
+   `gpt-4o-mini / source=default / effort=— / priced=yes / approved=baseline / dispatch=ok`
+   under `analysis-reg-v1`, and all six documented negative scenarios fail closed with
+   their exact reason. `mapExtractorVersion()` is byte-identical between `181a218` and this
+   tree across all 30 (track, theater) combinations and matches all six live production
+   pairs in `doc_claims`.
+6. Environment verified read-only by name listing (nothing added, changed, removed or
+   decrypted): all ten routing variables and `OPENAI_MODEL` are ABSENT in Production,
+   Preview and Development; `LLM_SPRINT_USD_CAP` and `ASK_USD_CAP_DAILY` are present in
+   Production. Ask headroom recomputed at the corrected gpt-5-mini rates ($0.25 in /
+   $2.00 out per 1M): rerank reservation $0.005125 → $0.01025, per-Ask worst case
+   $0.067625 → $0.07275 against a $2/day cap; `openai_ask` has spent $0 since 2026-07-21,
+   largest day ever $0.2748, all-time $0.4468 vs the $10 per-provider backstop.
+7. Recorded permanently in this commit: AGENTS.md standing sections corrected in place
+   (architecture, directory map, current state, quality/ops counts, rulings 4 and 13) plus
+   one appended decision-log entry; `docs/CURRENT-STATE.md` corrected in place with a new
+   model-routing bullet; `docs/OPEN-TASKS.md` registers #81–#84 and cross-references the
+   existing #33 as the map-activation prerequisite.
+8. **State at this commit: PR #5 is still a DRAFT and is NOT merged.** Production continues
+   to run `9c5e9cb` / `dpl_CDnECGnXvoZFKnA9QQziz59pmpu2` (`/health` DB OK, checked
+   2026-08-20). No model was activated, no environment variable was changed, nothing was
+   deployed, no paid provider call was made, and no production database write occurred —
+   the only production contact was read-only SELECTs and read-only listings.
