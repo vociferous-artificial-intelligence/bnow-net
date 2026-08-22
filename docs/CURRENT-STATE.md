@@ -139,7 +139,7 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   (the pooled DSN routes unlock to a different backend), leaving later cycles `skipped`;
   a stranded holder is identifiable as idle + lock held + NO open map cron_runs row and
   is safe to pg_terminate; the durable fix is a transaction-scoped lock.
-- **Model routing (PR #5 — repository code, NOT deployed):** `src/lib/llm/model-config.ts`
+- **Model routing (PR #5 — LIVE in production since 2026-08-20, `dpl_GH6UWFojKPEgPrhBiT7utPBPnQBJ` / `7336b9c`; 24h formal soak CLOSED PASS 2026-08-21):** `src/lib/llm/model-config.ts`
   is the ONE authority for which model each analysis workload dispatches and at what
   reasoning effort — map, reduce, digest, validation, entity_audit — resolved at CALL time,
   precedence `<WORKLOAD>_MODEL` → `OPENAI_MODEL` → `gpt-4o-mini` (values trimmed;
@@ -175,8 +175,15 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   corroboration promotion, entity canonicalization) + K=5-voted synthesis over the
   top ~200 ranked claim groups — model cites group ids only, docIds/hedging derive
   server-side. A/B gate PASSED (coverage 25.0 vs 21.1, unsupported 0.30 vs 0.41,
-  variance 6.9 vs 8.0; `docs/reviews/MR3-REDUCE-RESULTS.md`). Gulf theaters have no
-  doc_claims, so they fall back to legacy automatically. Both engines persist
+  variance 6.9 vs 8.0; `docs/reviews/MR3-REDUCE-RESULTS.md`). A theater falls back to
+  legacy automatically whenever its digest window finds no CURRENT-version doc_claims.
+  **Corrected 2026-08-21: that fallback is now UNIVERSAL — since 2026-08-17 every digest
+  (11/day, all theaters) has been produced by the LEGACY engine**, and
+  `provider_state.map_health` reads `stale_ir,stale_ru,stale_ua`. Before that only ir got
+  mapreduce (1–3/day). The map worker is healthy but is draining the ru/ua backlog, so
+  current-day windows hold no current-version claims. Compounding cause: OPEN-TASKS #86
+  (≈50% of map micro-batches rejected `400 Invalid body` since 2026-07-16, root-caused to
+  surrogate-splitting truncation at `map-prompts.ts:164`). Tracked as #88. Both engines persist
   through ONE shared path (`digest-persist.ts`) whose overwrite guard refuses empty
   AND thin (<50% prior claims) regenerations (#32 closed; FORCE_REGEN=1 override),
   and which now runs the deterministic **publication-safety guard**

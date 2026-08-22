@@ -89,25 +89,40 @@ transaction, each `persistBatch` transaction, and the final `processed=true`
 update). After a successful renew there are `ttl` (default 120s) of ownership
 ahead, and each write is one short transaction (a batch is ≤25 docs; observed
 batch persists are sub-second), so a takeover — which requires PROVEN expiry
-— ordinarily cannot begin until long after the write commits.
+— ordinarily cannot begin before the write commits.
 
-**Residual windows, stated honestly (concurrency review 1, MINORs 1–2):**
-(a) a single physical HTTP call can outlive the TTL (the SDK's own request
+**Residual windows, stated exactly (concurrency review 1 MINORs 1–2;
+CORRECTED 2026-08-21, see the correction note below):**
+
+(a) A single physical HTTP call can outlive the TTL (the SDK's own request
 timeout is longer than 120s); the takeover is then legitimate, the stale
 holder's next keepalive/ownership check fails and it discards its unpersisted
-work — already metered — so the worst case is bounded duplicate BILLING of
-in-flight batches (≤ concurrency), never a second writer under normal
-operation. (b) The renew-before-write gate is not atomic with the write: a
-pathological ≥TTL stall BETWEEN the renew executing on the DB and the write
-transaction committing would let a superseded holder commit after a takeover.
-The unique keys (`doc_claims(doc,track,version,ordinal)` + `doc_map_state`
-PK, `ON CONFLICT DO NOTHING`) then prevent duplicates but not a
-mixed-generation claim set for that one (doc, track, version) — first-writer-
-wins per ordinal, with `doc_map_state.claim_count` from the first writer.
-This requires a single-statement stall longer than the full TTL (≥120s) at
-exactly the wrong instant; it is documented as the accepted residual rather
-than papered over — eliminating it outright needs a fence column on the map
-tables (a schema change deliberately out of this program's scope).
+work — already metered — so the usual consequence is bounded duplicate
+BILLING of in-flight batches (≤ concurrency).
+
+(b) **The lease is not a fenced writer.** The fence counter is DIAGNOSTIC
+ONLY: no map write carries it and no map table checks it. Writes are protected
+by a token OWNERSHIP RE-CHECK (a full-TTL renew) performed immediately before
+the write — a check-then-act, not an atomic statement fence. The unprotected
+window is therefore the WHOLE renew-to-COMMIT span, not a single statement:
+for a 25-doc `persistBatch` that span is a multi-statement transaction of
+roughly a hundred networked round-trips. If that entire span stalls past the
+full TTL at exactly the wrong instant, a takeover can land first and BOTH
+generations may commit. The unique keys
+(`doc_claims(doc,track,version,ordinal)` + `doc_map_state` PK, `ON CONFLICT DO
+NOTHING`) keep that duplicate-proof but not interleave-proof: the result is a
+first-writer-wins MIXED-GENERATION claim set for that one (doc, track,
+version), with `doc_map_state.claim_count` from the first writer.
+Traceability and publication safety are unaffected (every interleaved claim
+was genuinely extracted from its own document, and these are shadow-map tables
+only). Eliminating the residual outright needs a fence column on the map
+tables so each write can refuse a lower fence in the same statement — a schema
+change deliberately deferred (OPEN-TASKS #85).
+
+What the lease DOES deliver, stated without overreach: it is strictly safer
+than the `pg_try_advisory_lock` it replaces — no pooled-session stranding,
+takeover only after proven expiry against the DB clock, per-acquisition
+tokens (structural ABA protection), and a monotonic fence for diagnostics.
 
 **Lost-lease money rule (ruling 8):** `extractBatch` meters every billed
 response to `provider_usage` immediately after the response and BEFORE
@@ -226,7 +241,7 @@ api.openai.com; bulk LLM work runs on Vercel). Contract:
 | Two simultaneous cycle starts | One acquires; other returns `skipped`, zero paid calls/writes | itest (concurrent CAS race) + unit |
 | Crash / route timeout mid-run | Lease expires after ≤TTL; next run takes over with fence+1; unfinished docs re-selected (processed still false / pair still missing) | itest (expired takeover, fence 7→8) |
 | Lease lost after billed response, before persist | Usage metered first; parsed results discarded; no map write; docs stay eligible | itest (provider_usage +1 req, zero doc_claims/doc_map_state, healthy rerun re-selects) |
-| Lease lost before final `processed=true` | Update skipped; docs re-selected later (idempotent) | code path + unit-covered latch |
+| Lease lost before final `processed=true` | Update skipped; docs re-selected later (idempotent) | always-run unit pins (`map-worker-lease-writes.test.ts`, mutation-proven) — the original "unit-covered latch" claim was FALSE until 2026-08-21; see §9 |
 | DB down during acquire | `outcome: "error"` → treated as busy: zero paid calls, zero writes | unit (throwing driver) |
 | DB down during renew | Fails safe as lost: stop writing, discard | code path (`stillOwner` catch) |
 | Stale holder release/renew after takeover | Refused no-ops | itest + unit |
@@ -291,8 +306,8 @@ findings and dispositions:
 | 2 | spend | MAJOR | `--budget <garbage>` → NaN disables BOTH driver budget gates (every comparison false) | **FIXED**: `driveMapRemap` fails closed on a non-finite/non-positive budget under `--execute`; same guard added to `driveMapBackfill` under `--apply` (the pre-existing precedent hole); unit tests pin both NaN and 0 |
 | 3 | spend | MAJOR | No route-capability handshake: against an old deployed route the driver silently runs BACKFILL selection and checkpoints remap days "complete" | **FIXED**: phase 1 aborts when a dry response carries no `maxSelectedId` (a remap-capable route always echoes it, empty days included); live responses re-checked as defense; unit tests pin the abort |
 | 4 | concurrency (MAJOR) / spend (MINOR) | — | Checkpoint `complete` flags are extractor-version-blind: rerunning after the next version bump silently no-ops | **FIXED**: the checkpoint stores a digest of the versions its flags were proven under; any change resets the day states (doc_map_state remains the no-rebill authority); unit test proves a v1-complete day re-drains under v2 |
-| 5 | both | MINOR | Renew cadence: a 429 sleep or truncation-split tree could outlive the TTL with zero renewals → legitimate takeover + duplicate billing of in-flight work; report claimed "a live holder never expires" | **FIXED + REWORDED**: `extractBatch` takes a keepalive invoked before EVERY physical attempt (fresh-reservation point), so renewals track the batch tree; the report and module header now state the honest residual — a single HTTP call longer than the TTL can still expire the holder, bounded to duplicate billing, never a second writer |
-| 6 | concurrency | MINOR | Renew-before-write not atomic with the write: a ≥TTL single-statement stall can produce a mixed-generation claim set; "defense in depth" overstated | **DOCUMENTED** (§2 residual b): requires a ≥120s stall at exactly the wrong instant; the complete fix is a fence column on the map tables — a schema change out of this program's scope, recorded as the accepted residual |
+| 5 | both | MINOR | Renew cadence: a 429 sleep or truncation-split tree could outlive the TTL with zero renewals → legitimate takeover + duplicate billing of in-flight work; report claimed "a live holder never expires" | **FIXED + REWORDED**: `extractBatch` takes a keepalive invoked before EVERY physical attempt (fresh-reservation point), so renewals track the batch tree; the report and module header now state the honest residual — a single HTTP call longer than the TTL can still expire the holder, bounded to duplicate billing. (The original wording of this cell ended "never a second writer"; that absolute was withdrawn on 2026-08-21 — see §2 residual (b) and the correction note.) |
+| 6 | concurrency | MINOR | Renew-before-write not atomic with the write: a ≥TTL stall can produce a mixed-generation claim set; "defense in depth" overstated | **DOCUMENTED** (§2 residual b): the stalling span is renew-to-COMMIT — the whole multi-statement persist transaction, ~100 round-trips for a 25-doc batch, NOT one statement as this cell originally said (corrected 2026-08-21, §9); the complete fix is a fence column on the map tables — a schema change out of this program's scope, recorded as the accepted residual (OPEN-TASKS #85) |
 | 7 | both | MINOR | 3 consecutive benign `run_cap` stops at one cursor aborted the day as a stall despite genuine server-side progress | **FIXED**: only batch-error/lease-lost calls count toward the stall bound; run_cap loops at the same cursor (the anti-join shrinks the remaining pairs); unit test proves 4 consecutive run_cap calls still drain the day |
 | 8 | spend | MINOR | MAX_SWEEPS left a permanent checkpoint dead-end ("later invocation" could never happen) | **FIXED**: sweep allowance resets per invocation; unit test proves the day retries and completes on the next run |
 | 9 | spend | MINOR | `counts.lease.released = 1` recorded even for a refused release | **FIXED**: `MapLeaseHandle.release()` returns the actual outcome; counts record 0 on a refused/failed release |
@@ -342,3 +357,32 @@ Both reviewers received the remediation diff for a focused re-review.
   escape-only change (the separator is now written as the six-character
   backslash-u-0000 escape — byte-identical string semantics, tests green) so
   future reviews' greps cannot silently skip the map worker.
+
+## 9. Correction note — 2026-08-21 (release of this work onto `main`)
+
+Recorded here rather than silently rewritten, because this report is the
+evidence trail two adversarial review cycles were graded against.
+
+1. **Withdrawn absolute: "never a second writer."** §2 (residual a) and the
+   review-table row 5 both asserted that the token gate makes a second writer
+   impossible. It does not. The token gate authorizes; it does not exclude.
+   The corrected §2 (residual b) above states the accepted reality: the fence
+   is diagnostic-only, writes re-check token ownership but are not
+   statement-fenced, the residual window is renew-to-COMMIT, and a
+   pathological full-TTL stall of that whole span can produce a
+   mixed-generation first-writer-wins claim set. Independently found as audit
+   L4-2 / safety-review n1; the same absolute was removed from
+   `src/lib/analysis/map-lease.ts` and `src/lib/analysis/map-worker.ts`.
+2. **Withdrawn mischaracterization: "single-statement stall."** The stall that
+   admits a second committer is not one statement; it is the entire
+   renew-to-COMMIT span (~100 round-trips for a 25-doc persist).
+3. **§4 failure-table row "Lease lost before final `processed=true`" said
+   "unit-covered latch."** It was not unit-covered — only the Neon-gated
+   integration suite exercised it (audit L4-1). It IS unit-covered now:
+   `src/lib/analysis/map-worker-lease-writes.test.ts`, which also pins the
+   mirror/doc_dedup transaction gate and the remap `processed` invariant.
+4. **The fence-column fix now has an ID:** OPEN-TASKS #85.
+
+Everything else in this report was re-verified during the 2026-08-21 release
+rebase and stands. Release record:
+`docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md`.
