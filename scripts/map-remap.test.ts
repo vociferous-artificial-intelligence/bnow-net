@@ -682,11 +682,30 @@ describe("checkpoint target binding — discriminating pins (review MINOR-1)", (
 
 describe("theater allowlist (review MINOR-3)", () => {
   it("refuses an unknown theater BEFORE any call, instead of reporting a false COMPLETE", async () => {
-    for (const bad of ["ru,ua", "RU ", "zz", "", "russia"]) {
+    for (const bad of ["ru,ua", "zz", "", "russia", "ru ua"]) {
       const { promise, calls } = driveCapturing(undefined, { theater: bad });
       await expect(promise).rejects.toThrow(/--theater must be one of/);
       expect(calls).toHaveLength(0);
     }
+  });
+
+  it("accepts an operator's case/whitespace habit and NORMALIZES it", async () => {
+    // `--theater IR` worked before the allowlist (the route lowercases), so the
+    // guard must not newly break it — and the normalized value is what reaches
+    // both the route param and the checkpoint key, so the key is unambiguous
+    for (const ok of ["IR", " ir ", "Ir"]) {
+      const { promise, calls } = driveCapturing([dry()], { theater: ok, execute: false });
+      await expect(promise).resolves.toBeDefined();
+      expect(calls[0]).toContain("theater=ir");
+      expect(calls[0]).not.toContain("theater=IR");
+    }
+  });
+
+  it("the checkpoint key is case-independent, so IR and ir resume each other", async () => {
+    const store = memoryCheckpointStore();
+    await drive([dry({ selected: 0, docTrackPairs: 0, estUsd: 0 })], { store, theater: "IR" });
+    await drive([dry({ selected: 0, docTrackPairs: 0, estUsd: 0 })], { store, theater: "ir" });
+    expect([...store.state.keys()]).toEqual(["remap_ir_all_2026-07-30_2026-07-30"]);
   });
 
   it("the allowlist is derived from TRACKS, so it cannot drift from applicableTracks()", () => {
@@ -753,6 +772,41 @@ describe("bounded lease-busy wait (review MINOR-4)", () => {
     expect(result.incompleteDays).toEqual([]);
     expect(result.claims).toBe(5);
   });
+
+  it("the counter RESETS: far more than 30 non-consecutive skips never abort", async () => {
+    // One skip cannot distinguish "reset" from "no reset" — deleting `skips = 0`
+    // passed the whole suite until this case (spend re-review 2026-08-21,
+    // MINOR-A). Alternating skip/progress crosses the bound many times over
+    // while never being CONSECUTIVE, which is exactly what the bound means.
+    const calls: string[] = [];
+    const ROUNDS = MAX_CONSECUTIVE_SKIPS * 2;
+    let cursor = 0;
+    let round = 0;
+    const result = await driveMapRemap({
+      base: "https://example.test",
+      secret: "s",
+      theater: "ir",
+      from: "2026-07-30",
+      to: "2026-07-30",
+      budgetUsd: 50,
+      execute: true,
+      log: () => {},
+      call: async (_b: string, _s: string, params: string) => {
+        calls.push(params);
+        if (calls.length === 1) return dry({ selected: 5, docTrackPairs: 5, estUsd: 0.001 });
+        // …skip, progress, skip, progress… never two skips in a row
+        if (calls.length % 2 === 0) return live({ selected: 5, skipped: "busy" });
+        round += 1;
+        if (round > ROUNDS) return live({ selected: 0 }); // drain out
+        cursor += 10;
+        return live({ selected: 5, docTrackPairs: 0, maxSelectedId: cursor });
+      },
+      sleep: async () => {},
+      store: memoryCheckpointStore(),
+    });
+    expect(result.aborted).toBeUndefined();
+    expect(calls.filter((p) => !p.includes("dry=1")).length).toBeGreaterThan(MAX_CONSECUTIVE_SKIPS);
+  });
 });
 
 describe("a refused target configuration is surfaced, not discovered mid-run (review NOTE-6)", () => {
@@ -772,5 +826,65 @@ describe("a refused target configuration is surfaced, not discovered mid-run (re
     const { promise } = driveCapturing([dry()], { log: (l: string) => lines.push(l), execute: false });
     await promise;
     expect(lines.join("\n")).not.toMatch(/WOULD BE REFUSED/);
+  });
+});
+
+describe("an impossible scope is a typo, not a drained corpus (re-review MINOR-D)", () => {
+  it("refuses a track that is not configured for the theater", async () => {
+    const { promise, calls } = driveCapturing(undefined, { theater: "ru", track: "nuclear" });
+    await expect(promise).rejects.toThrow(/--track nuclear is not configured for theater ru/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("allows every genuinely configured pair", async () => {
+    for (const [theater, track] of [
+      ["ru", "military"],
+      ["ru", "elite_politics"],
+      ["ir", "nuclear"],
+      ["ua", "military"],
+    ] as const) {
+      const { promise } = driveCapturing([dry()], { theater, track, execute: false });
+      await expect(promise).resolves.toBeDefined();
+    }
+  });
+
+  it("a zero-eligible range is reported as ambiguous, never as proven coverage", async () => {
+    const lines: string[] = [];
+    const { promise } = driveCapturing([dry({ selected: 0, docTrackPairs: 0, estUsd: 0 })], {
+      theater: "il", // allowlisted, but outside the map worker's ru,ua,ir lens
+      execute: false,
+      log: (l: string) => lines.push(l),
+    });
+    await promise;
+    const out = lines.join("\n");
+    expect(out).toMatch(/ALREADY CURRENT under these versions, or it was never in scope/);
+  });
+
+  it("the final summary carries the caveat too, so COMPLETE cannot be read alone", async () => {
+    const lines: string[] = [];
+    const { promise } = driveCapturing(
+      [dry({ selected: 0, docTrackPairs: 0, estUsd: 0 }), live({ selected: 0 })],
+      { theater: "il", log: (l: string) => lines.push(l) },
+    );
+    await promise;
+    expect(lines.join("\n")).toMatch(/COMPLETE \(nothing was eligible — see the NOTE above\)/);
+  });
+
+  it("a range that DID work reports a plain COMPLETE (pin is not vacuous)", async () => {
+    const lines: string[] = [];
+    const { promise } = driveCapturing(
+      [
+        dry({ selected: 2, docTrackPairs: 2, estUsd: 0.001 }),
+        live({ selected: 2, docTrackPairs: 2, claims: 2, maxSelectedId: 9, estUsd: 0.001 }),
+        live({ selected: 0 }),
+        live({ selected: 2, docTrackPairs: 0, maxSelectedId: 9 }),
+        live({ selected: 0 }),
+      ],
+      { log: (l: string) => lines.push(l) },
+    );
+    await promise;
+    const out = lines.join("\n");
+    expect(out).toMatch(/REMAP COMPLETE — pairs attempted 2/);
+    expect(out).not.toMatch(/nothing was eligible/);
   });
 });

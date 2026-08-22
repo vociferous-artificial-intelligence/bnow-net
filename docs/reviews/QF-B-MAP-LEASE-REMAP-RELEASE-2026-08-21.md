@@ -178,7 +178,74 @@ this branch's copy.
 
 ## 6. Exact-SHA gates
 
-*(filled in against the reviewed SHA)*
+Run on a clean tree at the remediated SHA `11e0754f9b91a0e6c8ea16cc10fb359bb9abd6f9`
+(Node v24.14.0 / npm 11.9.0, macOS). The first review round ran the same
+battery at `028a1236`; both sets of numbers are given where they differ.
+
+| Gate | Command | Result at `11e0754` | at `028a123` |
+|---|---|---|---|
+| Clean tree | `git status --porcelain` | empty | empty |
+| Whitespace | `git diff --check origin/main..HEAD` | clean | clean |
+| Conflict markers | grep for added `<<<<<<<` / `=======` / `>>>>>>>` | none | none |
+| Secrets | perl scan of every ADDED line for `sk-…`, `AKIA…`, private keys, credentialed DSNs, bearer tokens, `napi_…` | none | none |
+| Generated files | no `.next/`, `out/`, `build/`, `coverage/`, `dist/`, `node_modules/` in the delta | none | none |
+| **Migration** | `git diff --name-only origin/main..HEAD -- drizzle/ src/db/` | **0 files** | 0 files |
+| **Schedule** | `… -- vercel.json .github/` | **0 files** | 0 files |
+| **Lockfile / deps** | `… -- package.json package-lock.json` | **0 files** | 0 files |
+| **Env** | only `.env.example` (+14/−5): comment-only, documents `MAP_LEASE_TTL_SEC` as an optional COMMENTED-OUT knob with a code default of 120s clamped to [30,600] | no requirement added | same |
+| NUL bytes | perl scan of every changed `.ts` | none (and `map-worker.ts` becomes NUL-free vs `main`'s 2) | same |
+| Typecheck | `npm run typecheck` | clean | clean |
+| Lint | `npm run lint` | **0 errors, 0 warnings** | 0/0 |
+| Unit suite | `npm test` | **2,294 passed / 2,294 · 176 files** | 2,270 / 175 |
+| Baseline for comparison | `npm test` at `origin/main` `7336b9c`, measured in a disposable worktree | **2,187 / 171** (Δ +107 tests, +5 files) | — |
+| Production build | dummy unroutable DSN `postgres://build:build@127.0.0.1:1/builddb`, `LLM_DISABLE=1`, every paid provider key blank | **PASS** | PASS |
+| Integration suite | `npm run test:integration` — disposable Neon branch, created and DELETED, paid keys blank, `LLM_DISABLE=1` | **118 passed / 118 · 19 files** (`br-sparkling-math-atjvz01p`) | 118 / 19 (`br-frosty-block-atfvis7r`) |
+| Targeted map itests | `… -- map-lease map-remap map-budget-stop` | **13 / 13 · 3 files** | 13 / 13 |
+| Pre-push hook | `bash .githooks/pre-push` (explicit) | **all green** | all green |
+| Remap CLI refusals | 12 malformed invocations against an UNROUTABLE base `http://127.0.0.1:1` | **all 12 refuse before phase 1** | 9 / 9 |
+
+The refusal set: `--limit abc|0|-5|2.5`, `--cap abc|0`, `--budget abc --execute`,
+`--execute` without `--budget`, `--track bogus`, and `--theater ru,ua|zz|RU`.
+Each is proved to refuse BEFORE any route call by the absence of the phase-1
+`map remap — …` header, which prints immediately before the first request. The
+base was an unroutable loopback port, so no production contact was possible
+even had a refusal failed to fire. **No live remap was executed at any point.**
+
+`--theater` matching is deliberately exact and lower-case: `RU` is refused
+rather than coerced, so the theater embedded in the checkpoint key can never
+be ambiguous. The error names the allowed set.
+
+### CI note
+
+The repository has **no GitHub Actions secrets configured**, so CI's
+`integration` job takes its `if [ -z "$NEON_API_KEY" ]` branch and exits 0
+without running anything. **That green check is not evidence of an integration
+run.** The mandatory evidence is the locally recorded disposable-Neon run
+above. CI's `gate` job (typecheck + lint + `npm test`) does run for real.
+
+### Mutation proofs
+
+Every guard this change relies on was proved load-bearing by deleting it and
+confirming the always-run suite fails — and fails on the intended cases only.
+
+| Guard deleted | Result |
+|---|---|
+| `!opts.remap` on the final `processed=true` update | fails exactly the 2 remap pins |
+| `stillOwner()` before the mirror / `doc_dedup` transaction | fails exactly that gate's 2 pins |
+| `stillOwner()` in the final-flag condition | fails exactly that gate's pin |
+| `stillOwner()` before `persistBatch` | fails exactly that gate's pin *(this one passed the entire suite until the review round)* |
+| acquire's conflict-side free-or-expired `WHERE` | fails 2 lease-SQL pins |
+| `renew`'s token predicate | fails its lease-SQL pin |
+| `release`'s token predicate | fails its lease-SQL pin |
+| `parseCountFlag` reduced to bare `Number()` | fails the numeric-flag sweep |
+| `targetMatch` treating an absent target as consent | fails the discriminating checkpoint pin |
+| the `--theater` allowlist | fails the theater refusal pin |
+| `MAX_CONSECUTIVE_SKIPS` bound | fails the bounded-wait pin (via a tripwire, so it fails rather than hangs) |
+| route `?cap=` validation | fails the malformed-cap pin |
+| `reserve()` before the 429 retry | fails 4 spend-cardinality pins |
+| `guard.record()` moved below `parseMapResults` | fails 3 meter-before-parse pins |
+
+Every mutation was restored and the tree re-verified clean.
 
 ## 7. Independent adversarial reviews
 
@@ -248,13 +315,59 @@ explicitly: no path on this delta lets a malformed input, a lost lease, a
 retry, a truncation split, or a checkpoint cause a single unmetered or
 duplicated billed call.
 
-### Focused re-review
+### Round 2 — focused re-review at `11e0754`
 
-Every fix above is test-and-documentation plus three small guards
-(route `?cap=` validation, the `--theater` allowlist, the bounded busy-wait,
-and the dry-run refusal surface). Both reviewers were re-commissioned against
-the exact new SHA to verify the remediations and to attack the new guards.
-Their verdicts are in §7.1.
+Both reviewers were re-commissioned against the exact remediated SHA, each
+resumed with its own first-round context, and each asked to re-run its own
+mutations and to attack the four NEW guards for false positives and caller
+breakage.
+
+| Reviewer | Re-review verdict | Result |
+|---|---|---|
+| Concurrency / Postgres / lease | **PASS-WITH-MINORS** | M4–M7 all flip from surviving to caught; 0 BLOCKER/HIGH/MAJOR/MEDIUM; 2 new MINOR/NOTE |
+| Spend / versioning / remap-safety | **PASS-WITH-MINORS** | its two survivors (M5, M7) both caught; 0 BLOCKER/HIGH/MAJOR/**MEDIUM**; 5 new MINOR, 2 NOTE, none with dollar exposure |
+
+Both verified the four new guards independently and found no false positive
+and no broken caller: the `?cap=` validation breaks nothing (the Vercel cron
+sends no query at all; both drivers send validated positive integers or the
+hardcoded `cap=20000`); `TRACKS` is a zero-import pure data module so the
+script's graph is unaffected; the 30-skip bound sits at a ~29-minute floor
+against a ~23-minute worst-case legitimate hold (800s `maxDuration` + one TTL);
+and `estDispatchBlocked` is produced by the *identical* function the live path
+throws on, so it cannot manufacture a false abort, and it can never reach
+`cron_runs` because dry results return before `withCronRun`.
+
+The lease reviewer also **endorsed the #90 deferral** after re-deriving the
+reachability itself, and noted that the new `map-lease-sql.test.ts` improves
+#90's position: the acquire predicate's exact text is now pinned, so
+implementing #90 must deliberately edit that assertion and cannot land
+silently.
+
+### Round 2 findings — all closed in this PR
+
+| ID | Reviewer | Finding | Disposition |
+|---|---|---|---|
+| MINOR-A (lease) / NOTE-A (spend) | both | The `--theater` allowlist stopped one file short of its own stated standard: `scripts/map-backfill.ts` is in this delta, takes the same flag, and has the same "zero selected = day mapped" logic. Lower harm (no checkpoint, so the false completion is transient) but the same class. | **FIXED** — `normalizeTheaterFlag` and `MAP_DRIVER_THEATERS` now live in `map-backfill.ts` (the import direction both reviewers noted) and both drivers use them. |
+| MINOR-C (spend) / NOTE-B (lease) | both | The allowlist newly refused `--theater IR`, which worked before because the route lowercases. | **FIXED** — the shared validator is case- and whitespace-insensitive and NORMALIZES, so `IR`, ` ir ` and `Ir` all work and all produce the same checkpoint key. Pinned, including that `IR` and `ir` resume each other. |
+| MINOR-A (spend) | spend | The bounded-wait test exercised exactly ONE skip, so it could not distinguish "reset" from "no reset" — deleting `skips = 0` passed the full suite. Same non-discriminating shape as the MINOR-1 fixed one file over. | **FIXED** — a new case alternates skip/progress for more than twice the bound without ever being consecutive; the reviewer's exact mutation now fails. |
+| MINOR-B (spend) / NOTE-A (lease) | both | `estDispatchBlocked`'s *production* was unpinned (only its consumption was), so deleting one line in `map-worker.ts` silently un-fixed NOTE-6. | **FIXED** — a worker-level dry-run pin under `MAP_MODEL=gpt-5`, plus a baseline control proving the field stays absent when nothing is blocked. |
+| MINOR-D | spend | The allowlist patched one input path but the underlying false-COMPLETE stayed reachable: `--theater ru --track nuclear` (nuclear runs on `ir` only) and `--theater il` (allowlisted but outside the map worker's lens) both print a confident REMAP COMPLETE over zero work. | **FIXED, two ways** — an impossible (theater, track) pair is refused outright, and a range with zero eligible docs now prints an explicit ambiguity NOTE and a qualified `COMPLETE (nothing was eligible — see the NOTE above)`. Deliberately NOT an abort: a genuine idempotent re-run after a completed remap also finds zero eligible, and that case must still succeed. |
+| MINOR-E | spend | OPEN-TASKS #91 described the `?cap=` hole that the same commit had already closed, sending a reader after a defect that no longer exists — the same class as the MINOR-5 just fixed. | **FIXED** — #91 now records the ACTUAL residual (`?theater=` is the last unvalidated route param) and notes what was closed. |
+| NOTE-B | spend | `parseCountFlag` accepted `1e21`, which the route's `^\d+$` rejects — the CLI accept-set had become a strict superset of the route's. | **FIXED** — `Number.isSafeInteger`, pinned with `1e21` and `9007199254740993`. |
+| NOTE-A (lease) | lease | superseded by MINOR-B's fix | closed |
+
+Five further mutations were run against this round's guards (the reviewers'
+own M14 and M16 among them) and **all five are caught**.
+
+### Stopping rule, stated plainly
+
+Round 2 produced no BLOCKER, HIGH, MAJOR or MEDIUM from either reviewer, and
+every round-2 finding is closed above. Round 3 is a confirmation pass only. If
+it surfaces further items at MINOR or below, they are recorded as tracked
+follow-ups rather than fixed, because each additional fold-in round moves the
+merged tree further from the tree that was adversarially reviewed — the exact
+provenance failure (`QF-PROV-3` / `G3`) the independent audit criticised in the
+program this work comes from.
 
 ## 8. Deploy, rollback, and the lease soak
 

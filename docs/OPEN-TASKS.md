@@ -874,13 +874,16 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     2026-08-21 release: altering the core CAS predicate immediately before a 24-hour lease
     soak would trade a proven-unreachable failure mode for unproven SQL. Found by the
     independent lease review (MINOR-1).
-91. **[Tier 3 — consistency] Route numeric params are not fail-closed the way the CLI flags
-    now are.** `src/app/api/cron/map/route.ts` does `docCap: cap ? Number(cap) : undefined`,
-    so `?cap=abc` yields NaN, which survives `opts.docCap ?? mapRunDocCap()` (NaN is not
-    nullish) and reaches `LIMIT $4` as a Postgres type error — fail-loud, so not a spend
-    risk. `?cap=0` yields `LIMIT 0`, i.e. zero rows selected, which a naive sweep could read
-    as "day drained"; the only route to that is a hand-written authenticated request, since
-    `parseCountFlag` now rejects 0 at both drivers. `?after=` and `?track=` ARE strictly
-    validated. Recorded because the 2026-08-21 REMAP-3 fix landed at the CLI boundary and
-    inside the drivers but not at the route, so the two boundaries now have different
-    postures. Found by the independent lease review (NOTE-2).
+91. **[Tier 3 — consistency] `?theater=` is still unvalidated at the map cron route.**
+    `src/app/api/cron/map/route.ts` lowercases `?theater=` and passes it straight to
+    `rd.country_iso2 = ANY($1)`. An unknown value selects nothing, and "selects nothing" is
+    how both drivers conclude a day is drained — so a hand-written authenticated request
+    with a typo'd theater reads as a drained corpus. Both DRIVERS now refuse an unknown
+    theater (`normalizeTheaterFlag`, allowlist derived from `TRACKS`), and `?date=`,
+    `?after=`, `?track=` and — as of 2026-08-21 — `?cap=` are all strictly validated at the
+    route, so this is the last unvalidated route param. Fix: allowlist it the same way, or
+    accept it as deliberate (an operator may legitimately want to map a theater outside
+    `MAP_THEATERS`). $0 exposure — under-selection only, never over-spend. Found by the
+    independent lease review (NOTE-2) and sharpened by the spend re-review (MINOR-E), which
+    caught the first draft of this entry describing the `?cap=` hole that the same commit
+    had already closed.

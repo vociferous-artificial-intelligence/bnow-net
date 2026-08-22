@@ -89,12 +89,14 @@ import "./env";
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { TRACKS } from "../src/lib/analysis/tracks";
 import { utcDayRange } from "../src/lib/time/day-boundary";
+import { TRACKS, type Track } from "../src/lib/analysis/tracks";
 import {
+  MAP_DRIVER_THEATERS,
   MapTransportError,
   callMap,
   msToNextUtcDay,
+  normalizeTheaterFlag,
   parseCountFlag,
   parseUsdFlag,
   type MapCallResult,
@@ -246,13 +248,11 @@ export const MAX_CONSECUTIVE_SKIPS = 30;
 
 /** Theaters any configured track can actually map. A typo (or a plausible
  *  "--theater ru,ua") otherwise selects nothing, every day's first sweep
- *  returns zero pairs, every day is marked complete, and the run prints a
- *  confident REMAP COMPLETE over zero work (independent spend review
- *  2026-08-21, MINOR-3). Derived from the same TRACKS config the worker's
- *  applicableTracks() uses, so it cannot drift. */
-export const REMAP_THEATERS: string[] = [
-  ...new Set(Object.values(TRACKS).flatMap((t) => t.countries)),
-].sort();
+ *  returns zero pairs, every day is marked complete IN THE CHECKPOINT, and the
+ *  run prints a confident REMAP COMPLETE over zero work (independent spend
+ *  review 2026-08-21, MINOR-3). Shared with map-backfill.ts, and derived there
+ *  from the same TRACKS config the worker's applicableTracks() uses. */
+export const REMAP_THEATERS = MAP_DRIVER_THEATERS;
 
 export async function driveMapRemap(opts: RemapDriveOpts): Promise<RemapDriveResult> {
   const log = opts.log ?? console.log;
@@ -278,16 +278,24 @@ export async function driveMapRemap(opts: RemapDriveOpts): Promise<RemapDriveRes
   // An unknown theater selects nothing, and "selects nothing" is exactly how a
   // day proves itself drained — so a typo would print REMAP COMPLETE over zero
   // work. Refuse instead (spend review 2026-08-21, MINOR-3).
-  if (!REMAP_THEATERS.includes(opts.theater)) {
-    throw new Error(
-      `--theater must be one of ${REMAP_THEATERS.join("|")} (got ${JSON.stringify(opts.theater)}) — an unknown theater selects nothing and would report a false COMPLETE`,
-    );
+  const theater = normalizeTheaterFlag(opts.theater);
+  // A track that is not configured for this theater gives every doc zero
+  // applicable tracks, which is indistinguishable from "already drained" —
+  // `--theater ru --track nuclear` would print a confident REMAP COMPLETE over
+  // zero work (spend re-review 2026-08-21, MINOR-D). Refuse the pair instead.
+  if (opts.track) {
+    const cfg = TRACKS[opts.track as Track];
+    if (!cfg || !cfg.countries.includes(theater)) {
+      throw new Error(
+        `--track ${opts.track} is not configured for theater ${theater} (it runs on ${cfg ? cfg.countries.join("|") : "no theater"}) — this pair selects nothing and would report a false COMPLETE`,
+      );
+    }
   }
   const days = utcDayRange(opts.from, opts.to ?? new Date().toISOString().slice(0, 10));
   if (days.length === 0) throw new Error(`empty day range ${opts.from}..${opts.to}`);
   const trackParam = opts.track ? `&track=${opts.track}` : "";
-  const baseParams = `remap=1&theater=${opts.theater}${trackParam}`;
-  const key = `remap_${opts.theater}_${opts.track ?? "all"}_${days[0]}_${days[days.length - 1]}`;
+  const baseParams = `remap=1&theater=${theater}${trackParam}`;
+  const key = `remap_${theater}_${opts.track ?? "all"}_${days[0]}_${days[days.length - 1]}`;
 
   const callWithRetry = async (params: string): Promise<MapCallResult> => {
     for (let attempt = 1; ; attempt++) {
@@ -303,7 +311,7 @@ export async function driveMapRemap(opts: RemapDriveOpts): Promise<RemapDriveRes
 
   // -- phase 1: estimate (dry remap runs — no LLM, no writes, no lease) -------
   log(
-    `map remap — ${days[0]} … ${days[days.length - 1]} theater=${opts.theater}` +
+    `map remap — ${days[0]} … ${days[days.length - 1]} theater=${theater}` +
       `${opts.track ? ` track=${opts.track}` : ""} via ${opts.base}`,
   );
   log(`\n== phase 1: estimate (dry runs — no LLM calls, no writes) ==`);
@@ -349,6 +357,17 @@ export async function driveMapRemap(opts: RemapDriveOpts): Promise<RemapDriveRes
     `ELIGIBLE: ${eligibleDocs} docs / ${eligiblePairs} doc-track pairs · ` +
       `ESTIMATE TOTAL: $${estTotal.toFixed(4)} (budget $${opts.budgetUsd})\n`,
   );
+  // "nothing eligible" is the SAME observation as "already fully remapped", and
+  // the sweep logic cannot tell them apart — so say so out loud rather than
+  // letting a mis-scoped run read as proven coverage (spend re-review MINOR-D).
+  const nothingEligible = eligibleDocs === 0 && eligiblePairs === 0;
+  if (nothingEligible) {
+    log(
+      `NOTE: this range is ALREADY CURRENT under these versions, or it was never in scope — ` +
+        `zero eligible docs is the same observation either way. Confirm the theater/track/date ` +
+        `range is what you meant before reading any COMPLETE below as proven coverage.`,
+    );
+  }
 
   const none: Omit<RemapDriveResult, "aborted"> = {
     days,
@@ -586,7 +605,7 @@ export async function driveMapRemap(opts: RemapDriveOpts): Promise<RemapDriveRes
   }
 
   log(
-    `REMAP ${incompleteDays.length === 0 ? "COMPLETE" : "PARTIAL"} — ` +
+    `REMAP ${incompleteDays.length === 0 ? (nothingEligible ? "COMPLETE (nothing was eligible — see the NOTE above)" : "COMPLETE") : "PARTIAL"} — ` +
       `pairs attempted ${pairsAttempted} · claims ${claims} · actual $${actualTotal.toFixed(4)} ` +
       `(modelled $${estTotal.toFixed(4)})${incompleteDays.length ? ` · incomplete: ${incompleteDays.join(", ")}` : ""}`,
   );

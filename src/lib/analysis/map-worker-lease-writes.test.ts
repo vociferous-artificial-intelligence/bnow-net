@@ -533,6 +533,28 @@ describe("lease hard boundaries", () => {
     expect(h.openaiConstructed).toBe(0);
   });
 
+  it("a dry run REPORTS a configuration the activation lock would refuse", async () => {
+    // the pre-execution printout is the operator's decision surface: a dry run
+    // must not promise a dispatch the live run will reject (lease review
+    // NOTE-A pinned the consumption of this field but not its production)
+    oneBatchFixture();
+    process.env.MAP_MODEL = "gpt-5";
+    const counts = await runMapCycle({ theaters: ["ru"], dryRun: true, leaseDriver: leaseDriver() });
+    expect(counts.estModel).toBe("gpt-5");
+    expect(counts.estDispatchBlocked).toMatch(/MAP ACTIVATION BLOCKED/);
+    // still a dry run: no lease, no spend, no writes
+    expect(h.order.filter((e) => e.startsWith("lease."))).toHaveLength(0);
+    expect(writes()).toHaveLength(0);
+    expect(h.openaiCalls).toBe(0);
+  });
+
+  it("a dry run under the BASELINE reports no refusal (pin is not vacuous)", async () => {
+    oneBatchFixture();
+    const counts = await runMapCycle({ theaters: ["ru"], dryRun: true, leaseDriver: leaseDriver() });
+    expect(counts.estModel).toBe("gpt-4o-mini");
+    expect(counts.estDispatchBlocked).toBeUndefined();
+  });
+
   it("a dry run takes no lease and writes nothing (provider_state included)", async () => {
     oneBatchFixture();
     const acquireSpy = vi.fn();

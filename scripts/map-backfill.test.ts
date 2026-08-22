@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  MAP_DRIVER_THEATERS,
   MapTransportError,
   driveMapBackfill,
   msToNextUtcDay,
+  normalizeTheaterFlag,
+  parseCountFlag,
+  parseUsdFlag,
   type MapCallResult,
   type MapDriveOpts,
 } from "./map-backfill";
@@ -157,5 +161,58 @@ describe("msToNextUtcDay", () => {
   it("targets 90s past the next UTC midnight", () => {
     const now = new Date("2026-08-15T23:00:00Z");
     expect(msToNextUtcDay(now)).toBe(3600_000 + 90_000);
+  });
+});
+
+describe("fail-closed CLI flags (2026-08-21 reviews)", () => {
+  it("--cap must be a positive whole number, refused before any call", async () => {
+    for (const bad of [NaN, Infinity, 0, -1, 2.5]) {
+      await expect(drive([], { runCap: bad })).rejects.toThrow(/--cap must be a positive whole number/);
+    }
+    // parser-level, at the flag boundary
+    for (const bad of ["", " ", "abc", "0", "-1", "2.5", "1,000"]) {
+      expect(() => parseCountFlag("--cap", bad)).toThrow(/positive whole number/);
+    }
+    expect(parseCountFlag("--cap", "400")).toBe(400);
+    // the CLI accept-set must not exceed the route's ^\d+$ / LIMIT range
+    // (spend re-review 2026-08-21, NOTE-B)
+    expect(() => parseCountFlag("--cap", "1e21")).toThrow(/positive whole number/);
+    expect(() => parseCountFlag("--cap", "9007199254740993")).toThrow(/positive whole number/);
+    expect(parseCountFlag("--cap", "1e3")).toBe(1000);
+  });
+
+  it("--budget keeps its finite-positive contract under --apply", async () => {
+    for (const bad of [NaN, 0, -1]) {
+      await expect(drive([], { budgetUsd: bad })).rejects.toThrow(/finite positive/);
+    }
+    for (const bad of ["", "abc", "NaN", "Infinity", "0", "-2"]) {
+      expect(() => parseUsdFlag("--budget", bad)).toThrow(/finite positive USD/);
+    }
+    expect(parseUsdFlag("--budget", "0.25")).toBe(0.25);
+  });
+
+  it("--theater is allowlisted here too: a typo cannot sweep every day over zero work", async () => {
+    // this driver has NO checkpoint store, so the false completion is transient
+    // rather than durable — but it is still a false completion (lease review
+    // MINOR-A applies the touched-sibling standard the route fix invoked)
+    for (const bad of ["ru,ua", "zz", "russia", ""]) {
+      await expect(drive([], { theater: bad })).rejects.toThrow(/--theater must be one of/);
+    }
+  });
+
+  it("--theater accepts an operator's case habit and normalizes it", async () => {
+    const { calls } = await drive(
+      [{ ok: true, category: null, counts: { pending: 0, estUsd: 0 } }],
+      { theater: "IR", apply: false },
+    );
+    expect(calls[0]).toContain("theater=ir");
+    expect(calls[0]).not.toContain("theater=IR");
+    expect(normalizeTheaterFlag(" Ru ")).toBe("ru");
+  });
+
+  it("the allowlist is shared with the remap driver and derived from TRACKS", () => {
+    expect(MAP_DRIVER_THEATERS).toEqual([...new Set(MAP_DRIVER_THEATERS)].sort());
+    expect(MAP_DRIVER_THEATERS).toContain("ru");
+    expect(MAP_DRIVER_THEATERS).not.toContain("zz");
   });
 });
