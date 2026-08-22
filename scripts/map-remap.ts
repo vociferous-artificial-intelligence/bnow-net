@@ -60,11 +60,24 @@ import "./env";
 // --limit max doc-track pairs to attempt this invocation (bounded total;
 // resumable) · --state <file> checkpoint path (default
 // data/remap-state/<key>.json, gitignored) · --wait-daily · --execute.
+//
+// EVERY numeric flag is parsed FAIL-CLOSED (parseUsdFlag/parseCountFlag in
+// map-backfill.ts): non-numeric, empty, non-finite, zero, negative — and, for
+// counts, fractional — input throws before a single call is made. NaN silently
+// removes a bound (it compares false against every threshold), so a typo must
+// never reach a comparison.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { utcDayRange } from "../src/lib/time/day-boundary";
-import { MapTransportError, callMap, msToNextUtcDay, type MapCallResult } from "./map-backfill";
+import {
+  MapTransportError,
+  callMap,
+  msToNextUtcDay,
+  parseCountFlag,
+  parseUsdFlag,
+  type MapCallResult,
+} from "./map-backfill";
 
 type Counts = Record<string, number | string | undefined>;
 const n = (c: Counts, k: string) => Number(c[k] ?? 0);
@@ -95,6 +108,43 @@ export interface RemapCheckpoint {
    *  a version bump invalidates every day's `complete` flag (doc_map_state is
    *  the real record; the checkpoint must never outrank it) */
   versionsDigest?: string;
+  /** the ROUTE TARGET those `complete` flags were proven against (normalized
+   *  origin+path, never a credential) — a checkpoint earned against one
+   *  deployment must not suppress sweeps against another (audit REMAP-5) */
+  target?: string;
+}
+
+/** Stable, non-sensitive identity for the deployment this checkpoint's day
+ *  states were proven against.
+ *
+ *  Deliberately derived ONLY from the operator's own route base: lowercase
+ *  scheme + host + path, with any userinfo, query and fragment stripped, so
+ *  the value written to disk can never carry a token, a password, or a
+ *  connection string. It is written into a gitignored state file, but the
+ *  no-secret property is a property of the FUNCTION, not of the file.
+ *
+ *  Scope, stated exactly: this binds the checkpoint to a route ADDRESS. Two
+ *  deployments answering on the same base URL with different databases are
+ *  indistinguishable here — the route exposes no non-sensitive database
+ *  identity to bind to, and inventing one would mean changing the deployed
+ *  route contract. That residual is harmless because the checkpoint is only a
+ *  SCAN accelerator: `doc_map_state` remains the sole no-rebill authority, so
+ *  the worst case a wrong checkpoint can cause is a skipped SCAN, never a
+ *  double charge — and mismatch resets the scan state rather than trusting
+ *  it. */
+export function remapTargetId(base: string): string {
+  try {
+    const u = new URL(base);
+    u.username = "";
+    u.password = "";
+    u.search = "";
+    u.hash = "";
+    return `${u.protocol}//${u.host}${u.pathname.replace(/\/+$/, "")}`.toLowerCase();
+  } catch {
+    // not a parseable URL: still normalize, still no secret (this is the
+    // operator's own --base/MAP_BACKFILL_BASE value)
+    return base.trim().replace(/\/+$/, "").toLowerCase();
+  }
 }
 
 export interface RemapCheckpointStore {
@@ -174,6 +224,17 @@ export async function driveMapRemap(opts: RemapDriveOpts): Promise<RemapDriveRes
   // compares false against everything — spend review 1, MAJOR-2)
   if (opts.execute && (!Number.isFinite(opts.budgetUsd) || opts.budgetUsd <= 0)) {
     throw new Error(`--execute requires a finite positive --budget (got ${opts.budgetUsd})`);
+  }
+  // Same class, one flag over (audit REMAP-3): a NaN --limit compares false
+  // against `pairsAttempted >= limit` and silently removes the pair ceiling; a
+  // NaN/zero --cap rides into the route as ?cap= and a cap of 0 selects
+  // NOTHING, which the sweep logic would read as "day drained". Both bounds
+  // fail closed here — before phase 1 issues a single call.
+  if (opts.limit !== undefined && (!Number.isInteger(opts.limit) || opts.limit <= 0)) {
+    throw new Error(`--limit must be a positive whole number of doc-track pairs (got ${opts.limit})`);
+  }
+  if (opts.cap !== undefined && (!Number.isInteger(opts.cap) || opts.cap <= 0)) {
+    throw new Error(`--cap must be a positive whole number of docs (got ${opts.cap})`);
   }
   const days = utcDayRange(opts.from, opts.to ?? new Date().toISOString().slice(0, 10));
   if (days.length === 0) throw new Error(`empty day range ${opts.from}..${opts.to}`);
@@ -261,12 +322,29 @@ export async function driveMapRemap(opts: RemapDriveOpts): Promise<RemapDriveRes
   // versions; a version bump makes them stale (the canonical workflow is
   // "bump version -> remap") and doc_map_state — the real record — must win
   // (concurrency review 1, MAJOR-2). Reset day states on any version change.
+  //
+  // The checkpoint accelerates SCANNING; it is never an authority. Its
+  // `complete` flags are honoured only when they were proven under BOTH the
+  // same extractor versions AND the same route target. Anything else — a
+  // version bump, a different deployment, or a checkpoint written before
+  // either binding existed (missing field = unknown provenance) — resets the
+  // day states. Resetting only ever costs a re-scan: doc_map_state still
+  // refuses to re-dispatch, and therefore to re-bill, any completed pair.
   const versionsDigest = JSON.stringify([...versions.entries()].sort());
-  if (cp.versionsDigest !== undefined && cp.versionsDigest !== versionsDigest) {
-    log("extractor versions changed since the checkpoint — resetting day states (doc_map_state still prevents any rebilling)");
+  const target = remapTargetId(opts.base);
+  const versionsMatch = cp.versionsDigest === versionsDigest;
+  const targetMatch = cp.target === target;
+  if (!versionsMatch || !targetMatch) {
+    if (Object.keys(cp.days).length > 0) {
+      const why = !versionsMatch
+        ? `extractor versions changed (${cp.versionsDigest === undefined ? "checkpoint predates version binding" : "bumped"})`
+        : `checkpoint belongs to a different target (${cp.target ?? "unbound"} != ${target})`;
+      log(`${why} — resetting day states (doc_map_state still prevents any rebilling)`);
+    }
     cp.days = {};
   }
   cp.versionsDigest = versionsDigest;
+  cp.target = target;
   let actualTotal = cp.totalUsd;
   let pairsAttempted = 0;
   let claims = 0;
@@ -461,6 +539,11 @@ async function main() {
   const execute = args.includes("--execute");
   const budget = argVal("--budget");
   if (execute && budget === undefined) throw new Error("--execute requires an explicit --budget USD");
+  // every numeric flag is parsed fail-closed BEFORE the driver is constructed,
+  // so a typo can never reach a comparison as NaN
+  const budgetUsd = parseUsdFlag("--budget", budget);
+  const cap = parseCountFlag("--cap", argVal("--cap"));
+  const limit = parseCountFlag("--limit", argVal("--limit"));
 
   const stateDir = argVal("--state") ?? path.join(__dirname, "..", "data", "remap-state");
   const result = await driveMapRemap({
@@ -470,10 +553,10 @@ async function main() {
     track,
     from: argVal("--from") ?? "2026-07-04",
     to: argVal("--to"),
-    budgetUsd: Number(budget ?? 0),
+    budgetUsd: budgetUsd ?? 0,
     execute,
-    cap: argVal("--cap") ? Number(argVal("--cap")) : undefined,
-    limit: argVal("--limit") ? Number(argVal("--limit")) : undefined,
+    cap,
+    limit,
     waitDaily: args.includes("--wait-daily"),
     store: fileCheckpointStore(stateDir),
   });

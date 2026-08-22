@@ -46,9 +46,11 @@ import { TRACKS, type Track } from "./tracks";
 // driver, and the remap operator, serialized by the durable provider_state
 // lease in map-lease.ts (the former session advisory lock stranded on the Neon
 // pooler — OPEN-TASKS #77). The lease is acquired BEFORE any reservation or
-// dispatch, renewed at every batch boundary, and re-verified immediately
-// before every map write; a lost lease discards parsed results (their billed
-// usage is already metered) and makes no further writes.
+// dispatch, renewed at every physical provider attempt, and re-verified
+// immediately before every map write; a lost lease discards parsed results
+// (their billed usage is already metered) and makes no further writes. The
+// pre-write re-check is a check-then-act, not a statement fence — map-lease.ts
+// states the accepted renew-to-COMMIT residual exactly.
 //
 // Remap mode (OPEN-TASKS #33, scripts/map-remap.ts): eligibility ignores
 // raw_documents.processed and instead anti-joins doc_map_state against the
@@ -335,10 +337,17 @@ async function cycle(
   // and every new dispatch; parsed-but-unpersisted results are discarded (their
   // billed usage is already in provider_usage — metering precedes discarding).
   const leaseLost = { current: false };
-  /** Re-verify ownership (full-TTL renew) immediately before a write. A write
-   *  then runs with a fresh full TTL ahead of it, so a competing takeover —
-   *  which requires PROVEN expiry — cannot begin until long after the short
-   *  transaction commits. Dry runs (lease === null) never reach any write. */
+  /** Re-verify ownership (full-TTL renew) immediately before a write, so the
+   *  write starts with a fresh full TTL ahead of it and a competing takeover —
+   *  which requires PROVEN expiry — ordinarily cannot begin before the short
+   *  transaction commits. This is a CHECK-THEN-ACT, not a statement fence: the
+   *  unprotected window is the whole renew-to-COMMIT span (for a 25-doc
+   *  persistBatch, a multi-statement transaction of ~100 round-trips). A stall
+   *  of that entire span past the full TTL can admit a second committer, whose
+   *  bounded consequence is a first-writer-wins mixed-generation claim set for
+   *  one (doc, track, version) — see the accepted residual in map-lease.ts and
+   *  the deferred fence-column fix (OPEN-TASKS #85). Dry runs (lease === null)
+   *  never reach any write. */
   const stillOwner = async (): Promise<boolean> => {
     if (lease === null) return true;
     if (leaseLost.current) return false;

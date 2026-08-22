@@ -20,16 +20,20 @@
 //   actual ABA protection).
 // - Every acquisition (fresh, sequential, or expiry takeover) increments a
 //   monotonic FENCE counter that survives release — a later holder always
-//   carries a strictly larger fence than any earlier one. The fence orders
-//   diagnostics/log lines across crashes; no data write checks it (writes are
-//   gated by the token via the ownership re-check, not by a fence column).
-// - RENEW is token-checked and resets the FULL TTL. Two current owners are
+//   carries a strictly larger fence than any earlier one. The fence is
+//   DIAGNOSTIC ONLY: it orders log lines across crashes, and NO data write
+//   carries or checks it. Writes are gated by a token ownership re-check
+//   before the write, which is a check-then-act and not a statement fence
+//   (see the residual at the bottom of this header).
+// - RENEW is token-checked and resets the FULL TTL. Two AUTHORIZED owners are
 //   impossible: renew succeeds only while this token is still the row's token,
 //   and a takeover atomically replaces the token, after which the old holder's
 //   renew returns false (the "lost" signal). An expired-but-not-yet-taken-over
 //   holder may still renew — until the takeover CAS lands there is exactly one
-//   token, so there is never a moment with two writers who both believe they
-//   hold the lease.
+//   token, so no two holders ever both hold a VALID token at the same instant.
+//   That is an authorization property, not a write-exclusion property: a
+//   holder whose token was valid when it checked can still be mid-write when
+//   the takeover lands (see the residual at the bottom of this header).
 // - RELEASE is token-checked, preserves the fence, and never throws (safe in
 //   finally). A stale holder's release is a no-op returning false.
 // - A database failure during acquire fails SAFELY: no lease -> the caller
@@ -43,8 +47,32 @@
 // single physical call outlives the TTL (the SDK's own request timeout is
 // longer): the takeover is then legitimate, the stale holder's next
 // renew/ownership check fails and it discards its unpersisted work (already
-// metered), and the worst case is bounded duplicate BILLING of in-flight
-// batches — never a second writer (writes are token-gated).
+// metered), and the usual consequence is bounded duplicate BILLING of
+// in-flight batches.
+//
+// WHAT THIS LEASE IS NOT — the accepted residual, stated exactly:
+//
+// This lease is strictly safer than the pg_try_advisory_lock it replaces (no
+// pooled-session stranding, proven-expiry takeover only, per-acquisition
+// tokens, DB-clock expiry), but it is NOT a fenced writer. The fence counter
+// is DIAGNOSTIC ONLY: no map write carries it and no map table checks it.
+// Writes are protected by a token OWNERSHIP RE-CHECK (a full-TTL renew)
+// performed immediately BEFORE the write — a check-then-act, not an atomic
+// statement fence. The unprotected window is therefore the whole
+// renew-to-COMMIT span, not a single statement: for a 25-doc persistBatch
+// that span is a multi-statement transaction of roughly a hundred networked
+// round-trips. If that entire span stalls for longer than the full TTL at
+// exactly the wrong instant, a takeover can land first and BOTH generations
+// may commit. The unique keys (doc_claims(doc,track,version,ordinal) and the
+// doc_map_state PK, both ON CONFLICT DO NOTHING) keep that duplicate-proof
+// but not interleave-proof: the result is a first-writer-wins MIXED-GENERATION
+// claim set for that one (doc, track, version). Traceability and publication
+// safety are unaffected (every interleaved claim was genuinely extracted from
+// its own document, and these are shadow-map tables only).
+//
+// Eliminating the residual outright requires a fence column on the map tables
+// so each write can refuse a lower fence in the same statement — a schema
+// change deliberately deferred out of this change set (OPEN-TASKS #85).
 
 import { randomUUID } from "node:crypto";
 import { envNum } from "../usage/spend-guard";

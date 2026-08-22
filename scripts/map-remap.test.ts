@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { MapCallResult } from "./map-backfill";
+import { msToNextUtcDay, type MapCallResult } from "./map-backfill";
+import { parseCountFlag, parseUsdFlag } from "./map-backfill";
 import {
   MAX_SWEEPS,
   driveMapRemap,
   memoryCheckpointStore,
+  remapTargetId,
   type RemapDriveOpts,
 } from "./map-remap";
 
@@ -295,6 +297,14 @@ describe("stops, waits, and resume", () => {
     const noWait = await drive([dry({ estUsd: 0.01, selected: 5, docTrackPairs: 5 }), stopped("daily_cap")]);
     expect(noWait.result.aborted).toContain("daily_cap");
 
+    // The wait length is "until the next UTC day" computed at call time, so it
+    // is only >1h for most of the day: the previous `> 3_600_000` assertion
+    // FAILED whenever the suite ran inside the last hour before UTC midnight
+    // (reproduced at 23:54Z on the audited tip — a real clock-dependent flake
+    // in the enforced pre-push gate, not a behaviour change). Pin it against
+    // the same helper the driver uses instead, accepting either side of a
+    // midnight rollover that lands mid-test.
+    const beforeMs = msToNextUtcDay(new Date());
     const withWait = await drive(
       [
         dry({ estUsd: 0.01, selected: 5, docTrackPairs: 5 }),
@@ -306,8 +316,16 @@ describe("stops, waits, and resume", () => {
       ],
       { waitDaily: true },
     );
+    const afterMs = msToNextUtcDay(new Date());
     expect(withWait.result.aborted).toBeUndefined();
-    expect(withWait.slept.some((ms) => ms > 3_600_000)).toBe(true); // waited out the UTC day
+    // waited out the UTC day: a sleep matching msToNextUtcDay, never the 60s
+    // lease-busy sleep or the 30s transport backoff
+    expect(
+      withWait.slept.some(
+        (ms) => Math.abs(ms - beforeMs) <= 5_000 || Math.abs(ms - afterMs) <= 5_000,
+      ),
+    ).toBe(true);
+    expect(withWait.slept).not.toContain(60_000);
   });
 
   it("a lease-busy skip waits 60s and retries the SAME cursor", async () => {
@@ -393,5 +411,207 @@ describe("stops, waits, and resume", () => {
     );
     expect(result.aborted).toContain("transport");
     expect(slept.filter((ms) => ms === 30_000)).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Repairs for the 2026-08-18 independent audit (REMAP-3 numeric fail-close,
+// REMAP-5 checkpoint target identity). Both classes have the same shape: a
+// value that should bound the run instead silently stops bounding it.
+// ---------------------------------------------------------------------------
+
+/** Like drive(), but usable for REJECTIONS: exposes the call log even when
+ *  driveMapRemap throws, so "refused BEFORE any call" is provable. */
+function driveCapturing(script: Array<MapCallResult> = [dry()], over: Partial<RemapDriveOpts> = {}) {
+  const calls: string[] = [];
+  let i = 0;
+  const promise = driveMapRemap({
+    base: "https://example.test",
+    secret: "s",
+    theater: "ir",
+    from: "2026-07-30",
+    to: "2026-07-30",
+    budgetUsd: 5,
+    execute: true,
+    log: () => {},
+    call: async (_b: string, _s: string, params: string) => {
+      calls.push(params);
+      return script[Math.min(i++, script.length - 1)];
+    },
+    sleep: async () => {},
+    store: memoryCheckpointStore(),
+    ...over,
+  });
+  return { promise, calls };
+}
+
+describe("fail-closed numeric flags (audit REMAP-3)", () => {
+  // NaN compares false against every threshold, so a malformed count does not
+  // "use the default" — it REMOVES the bound. `--budget` was fixed in review 1;
+  // its siblings were not swept until now.
+  const badCounts: Array<[string, unknown]> = [
+    ["NaN", NaN],
+    ["Infinity", Infinity],
+    ["-Infinity", -Infinity],
+    ["zero", 0],
+    ["negative", -5],
+    ["fractional", 2.5],
+  ];
+
+  for (const [label, value] of badCounts) {
+    it(`--limit rejects ${label} BEFORE any route call`, async () => {
+      const { promise, calls } = driveCapturing(undefined, { limit: value as number });
+      await expect(promise).rejects.toThrow(/--limit must be a positive whole number/);
+      expect(calls).toHaveLength(0);
+    });
+
+    it(`--cap rejects ${label} BEFORE any route call`, async () => {
+      const { promise, calls } = driveCapturing(undefined, { cap: value as number });
+      await expect(promise).rejects.toThrow(/--cap must be a positive whole number/);
+      expect(calls).toHaveLength(0);
+    });
+  }
+
+  it("a cap of 0 can no longer masquerade as a drained day", async () => {
+    // cap=0 rides into the route as ?cap=0 -> LIMIT 0 -> selected=0, which the
+    // sweep logic reads as "zero pairs across a whole sweep" and would mark the
+    // day COMPLETE without doing any work. The bound now refuses instead.
+    const { promise, calls } = driveCapturing([live({ selected: 0 })], { cap: 0 });
+    await expect(promise).rejects.toThrow(/--cap must be a positive whole number/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("valid bounds still pass through untouched", async () => {
+    const { promise } = driveCapturing(
+      [
+        dry({ selected: 5, docTrackPairs: 5, estUsd: 0.001 }),
+        live({ selected: 5, docTrackPairs: 5, claims: 1, maxSelectedId: 9, estUsd: 0.001 }),
+      ],
+      { cap: 250, limit: 3 },
+    );
+    const result = await promise;
+    expect(result.aborted).toContain("--limit 3");
+  });
+
+  it("the existing finite-positive --budget behaviour is retained", async () => {
+    await expect(driveCapturing(undefined, { budgetUsd: NaN }).promise).rejects.toThrow(/finite positive/);
+    await expect(driveCapturing(undefined, { budgetUsd: 0 }).promise).rejects.toThrow(/finite positive/);
+    await expect(driveCapturing(undefined, { budgetUsd: -1 }).promise).rejects.toThrow(/finite positive/);
+    // fractional dollars are legitimate and must NOT be rejected
+    const { promise } = driveCapturing([dry()], { budgetUsd: 0.25 });
+    await expect(promise).resolves.toBeDefined();
+  });
+});
+
+describe("CLI numeric parsers (fail-closed at the flag boundary)", () => {
+  it("parseCountFlag rejects every malformed count and passes whole positives", () => {
+    for (const bad of ["", "  ", "abc", "NaN", "Infinity", "-Infinity", "0", "-1", "2.5", "1,000"]) {
+      expect(() => parseCountFlag("--limit", bad)).toThrow(/positive whole number/);
+    }
+    expect(parseCountFlag("--limit", "400")).toBe(400);
+    expect(parseCountFlag("--limit", " 12 ")).toBe(12);
+    expect(parseCountFlag("--limit", "1e3")).toBe(1000);
+    expect(parseCountFlag("--limit", undefined)).toBeUndefined();
+  });
+
+  it("parseUsdFlag rejects malformed money but keeps fractions", () => {
+    for (const bad of ["", "abc", "NaN", "Infinity", "0", "-2"]) {
+      expect(() => parseUsdFlag("--budget", bad)).toThrow(/finite positive USD/);
+    }
+    expect(parseUsdFlag("--budget", "0.25")).toBe(0.25);
+    expect(parseUsdFlag("--budget", "4")).toBe(4);
+    expect(parseUsdFlag("--budget", undefined)).toBeUndefined();
+  });
+});
+
+describe("checkpoint target identity (audit REMAP-5)", () => {
+  it("normalizes to a stable identifier and never carries a credential", () => {
+    expect(remapTargetId("https://BNOW-net.vercel.app/")).toBe("https://bnow-net.vercel.app");
+    expect(remapTargetId("https://bnow-net.vercel.app")).toBe("https://bnow-net.vercel.app");
+    // userinfo, query and fragment are stripped: nothing secret reaches disk
+    const withSecret = remapTargetId("https://user:sup3rsecret@example.test/api?token=abcd#frag");
+    expect(withSecret).toBe("https://example.test/api");
+    expect(withSecret).not.toContain("sup3rsecret");
+    expect(withSecret).not.toContain("abcd");
+    // different deployments are different identities
+    expect(remapTargetId("https://preview.example.test")).not.toBe(remapTargetId("https://example.test"));
+  });
+
+  const v1 = { "military:ir": "gpt-4o-mini/v1" } as never;
+  const drainScript = () => [
+    dry({ selected: 2, docTrackPairs: 2, estUsd: 0.001, remapVersions: v1 }),
+    live({ selected: 2, docTrackPairs: 2, claims: 2, maxSelectedId: 9, estUsd: 0.001 }),
+    live({ selected: 0 }),
+    live({ selected: 2, docTrackPairs: 0, maxSelectedId: 9 }),
+    live({ selected: 0 }),
+  ];
+
+  it("a checkpoint earned against ANOTHER target does not suppress the sweep", async () => {
+    const store = memoryCheckpointStore();
+    const first = await drive(drainScript(), { store, base: "https://prod.example.test" });
+    expect(first.result.incompleteDays).toEqual([]);
+
+    // same theater/track/day-range/versions, DIFFERENT deployment: the day
+    // states are scan-only state and must be re-proven here
+    const second = await drive(drainScript(), { store, base: "https://preview.example.test" });
+    expect(second.calls.filter((p) => !p.includes("dry=1")).length).toBeGreaterThan(0);
+    expect(second.result.claims).toBe(2);
+  });
+
+  it("same target + same versions still resumes: completed days are skipped", async () => {
+    const store = memoryCheckpointStore();
+    await drive(drainScript(), { store, base: "https://prod.example.test" });
+    const second = await drive(
+      [dry({ selected: 2, docTrackPairs: 0, estUsd: 0, remapVersions: v1 })],
+      { store, base: "https://prod.example.test" },
+    );
+    // day already complete under the same identity -> zero live calls
+    expect(second.calls.filter((p) => !p.includes("dry=1"))).toHaveLength(0);
+  });
+
+  it("a trailing slash / case difference is the SAME target (no spurious re-drain)", async () => {
+    const store = memoryCheckpointStore();
+    await drive(drainScript(), { store, base: "https://Prod.Example.test" });
+    const second = await drive(
+      [dry({ selected: 2, docTrackPairs: 0, estUsd: 0, remapVersions: v1 })],
+      { store, base: "https://prod.example.test/" },
+    );
+    expect(second.calls.filter((p) => !p.includes("dry=1"))).toHaveLength(0);
+  });
+
+  it("a legacy checkpoint with no target binding is NOT trusted", async () => {
+    const store = memoryCheckpointStore();
+    // hand-written state file from before the binding existed: complete=true
+    // with no target and no versionsDigest
+    store.state.set("remap_ir_all_2026-07-30_2026-07-30", {
+      key: "remap_ir_all_2026-07-30_2026-07-30",
+      days: { "2026-07-30": { afterId: 0, sweepPairs: 0, sweeps: 1, complete: true, usd: 0, claims: 0 } },
+      totalUsd: 0,
+    });
+    const run = await drive(drainScript(), { store, base: "https://prod.example.test" });
+    // the unbound "complete" flag was discarded and the day was re-proven
+    expect(run.calls.filter((p) => !p.includes("dry=1")).length).toBeGreaterThan(0);
+    expect(run.result.claims).toBe(2);
+  });
+
+  it("the checkpoint never outranks doc_map_state: a reset only re-SCANS", async () => {
+    const store = memoryCheckpointStore();
+    const first = await drive(drainScript(), { store, base: "https://prod.example.test" });
+    // after a reset the server answers "nothing left" (doc_map_state already
+    // holds every current-version pair) — the re-scan finds zero pairs and
+    // bills NOTHING NEW, which is exactly why resetting is the safe direction
+    const second = await drive(
+      [
+        dry({ selected: 2, docTrackPairs: 0, estUsd: 0, remapVersions: v1 }),
+        live({ selected: 2, docTrackPairs: 0, maxSelectedId: 9, estUsd: 0 }),
+        live({ selected: 0 }),
+      ],
+      { store, base: "https://preview.example.test" },
+    );
+    expect(second.result.claims).toBe(0);
+    // zero INCREMENTAL spend; the carried cumulative total is deliberately not
+    // reset (it can only make the budget gate stricter, never looser)
+    expect(second.result.actualTotal).toBe(first.result.actualTotal);
+    expect(second.result.incompleteDays).toEqual([]);
   });
 });
