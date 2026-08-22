@@ -26,6 +26,7 @@ import "./env";
 // (scripts/x-gap-rescore.ts); the CLI below runs only when this file is the
 // entrypoint.
 
+import { TRACKS } from "../src/lib/analysis/tracks";
 import { utcDayRange } from "../src/lib/time/day-boundary";
 
 type Counts = Record<string, number | string | undefined>;
@@ -110,6 +111,69 @@ export interface MapDriveResult {
 
 const TRANSPORT_RETRIES = 3;
 
+// -- fail-closed CLI numeric parsing ---------------------------------------
+// A malformed numeric flag must never SILENTLY REMOVE a safety bound. NaN
+// compares false against every threshold, so `--limit abc` disables a pair
+// ceiling and `--budget abc` once disabled both spend gates (spend review 1,
+// MAJOR-2; audit REMAP-3 found the surviving sibling). These parsers refuse
+// non-numeric, empty, non-finite, zero, and negative input — and, for counts,
+// fractional input, because a count of 2.5 docs is a typo, not an intent.
+// Shared with scripts/map-remap.ts (which imports from here — never the other
+// way round, so there is no import cycle).
+
+/** Theaters any configured track can actually map, derived from the same TRACKS
+ *  config `applicableTracks()` uses so it cannot drift. An unknown theater
+ *  selects NOTHING, and "selects nothing" is exactly how both drivers conclude
+ *  a day is drained — so a typo would report a confident completion over zero
+ *  work (independent reviews 2026-08-21, spend MINOR-3 / lease MINOR-A). */
+export const MAP_DRIVER_THEATERS: string[] = [
+  ...new Set(Object.values(TRACKS).flatMap((t) => t.countries)),
+].sort();
+
+/** Validate and NORMALIZE a --theater flag. Case-insensitive (an operator
+ *  habit of `--theater IR` must not newly break) but normalized to lower case,
+ *  so the theater embedded in a remap checkpoint key can never be ambiguous. */
+export function normalizeTheaterFlag(raw: string): string {
+  const theater = raw.trim().toLowerCase();
+  if (!MAP_DRIVER_THEATERS.includes(theater)) {
+    throw new Error(
+      `--theater must be one of ${MAP_DRIVER_THEATERS.join("|")} (got ${JSON.stringify(raw)}) — an unknown theater selects nothing and would report a false completion`,
+    );
+  }
+  return theater;
+}
+
+/** Positive whole-number CLI flag (document/pair counts). undefined passes
+ *  through so a caller's own default still applies. */
+export function parseCountFlag(name: string, raw: string | undefined): number | undefined {
+  if (raw === undefined) return undefined;
+  const trimmed = raw.trim();
+  const v = trimmed === "" ? NaN : Number(trimmed);
+  // isSafeInteger, not isInteger: 1e21 is an "integer" that the route's
+  // ^\d+$ check rejects and Postgres cannot use as a LIMIT, so accepting it
+  // here would make the CLI accept-set a strict superset of the route's
+  // (spend re-review 2026-08-21, NOTE-B)
+  if (!Number.isSafeInteger(v) || v <= 0) {
+    throw new Error(
+      `${name} must be a positive whole number (got ${JSON.stringify(raw)}) — refusing to run with an unbounded or nonsensical limit`,
+    );
+  }
+  return v;
+}
+
+/** Finite, strictly positive USD CLI flag (fractions are legitimate dollars). */
+export function parseUsdFlag(name: string, raw: string | undefined): number | undefined {
+  if (raw === undefined) return undefined;
+  const trimmed = raw.trim();
+  const v = trimmed === "" ? NaN : Number(trimmed);
+  if (!Number.isFinite(v) || v <= 0) {
+    throw new Error(
+      `${name} must be a finite positive USD amount (got ${JSON.stringify(raw)}) — refusing to run with a disabled spend gate`,
+    );
+  }
+  return v;
+}
+
 /** ms until 90s past the next UTC midnight (margin for the day-row rollover) */
 export function msToNextUtcDay(now: Date): number {
   const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
@@ -121,7 +185,22 @@ export async function driveMapBackfill(opts: MapDriveOpts): Promise<MapDriveResu
   const call = opts.call ?? callMap;
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const runCap = opts.runCap ?? 400;
-  const theaterParam = opts.theater ? `&theater=${opts.theater}` : "";
+  // a garbage --budget (NaN) would compare false against every spend total and
+  // silently disable both budget gates — fail closed instead
+  if (opts.apply && (!Number.isFinite(opts.budgetUsd) || opts.budgetUsd <= 0)) {
+    throw new Error(`--apply requires a finite positive --budget (got ${opts.budgetUsd})`);
+  }
+  // a NaN/zero/fractional runCap rides into the route as ?cap= and resolves to
+  // a nonsensical LIMIT — cap=0 in particular selects nothing, which a caller
+  // can misread as "drained". Fail closed here, before any call.
+  if (!Number.isInteger(runCap) || runCap <= 0) {
+    throw new Error(`--cap must be a positive whole number of docs (got ${opts.runCap})`);
+  }
+  // map-backfill has no checkpoint store, so a typo'd theater is transient
+  // rather than durable — but it still sweeps every day over zero work and
+  // finishes confidently, so it fails closed here too (lease review MINOR-A).
+  const theater = opts.theater === undefined ? undefined : normalizeTheaterFlag(opts.theater);
+  const theaterParam = theater ? `&theater=${theater}` : "";
   const days = utcDayRange(opts.from, opts.to ?? new Date().toISOString().slice(0, 10));
   if (days.length === 0) throw new Error(`empty day range ${opts.from}..${opts.to}`);
   log(
@@ -249,8 +328,8 @@ async function main() {
     secret,
     from: argVal("--from") ?? "2026-07-04",
     to: argVal("--to"),
-    budgetUsd: Number(argVal("--budget") ?? 6),
-    runCap: Number(argVal("--cap") ?? 400),
+    budgetUsd: parseUsdFlag("--budget", argVal("--budget")) ?? 6,
+    runCap: parseCountFlag("--cap", argVal("--cap")) ?? 400,
     theater: argVal("--theater"),
     waitDaily: args.includes("--wait-daily"),
     apply: args.includes("--apply"),

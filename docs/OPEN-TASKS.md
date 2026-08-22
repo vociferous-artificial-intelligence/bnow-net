@@ -174,6 +174,17 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     baseline with no env override — `MAP_MODEL` or a validated `MAP_REASONING_EFFORT` is
     refused `MAP ACTIVATION BLOCKED` — until this remap path exists and activation is
     explicitly authorized. Pricing or `analysis-reg-v1` approval alone does not unlock it.
+    **STATUS 2026-08-21 — TOOL IMPLEMENTED, NEVER EXECUTED (not closed).**
+    `scripts/map-remap.ts` plus remap mode in `runMapCycle` shipped 2026-08-21
+    (`docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md`): dry-run-first, resumable,
+    lease-safe, route-capability-gated, fail-closed on every numeric flag, checkpoint bound
+    to extractor versions AND route target, and structurally incapable of writing
+    `raw_documents.processed` or of deleting/rewriting historical `doc_claims`. It has NOT
+    been run against production or any deployed route — remap is therefore NOT
+    production-proven, and no yield, cost, or completion figure for it exists. Unlocking the
+    MAP activation lock still requires, in addition: a costed remap of the historical
+    corpus actually executed under explicit operator spend authorization, and a paid
+    representative scorecard for the candidate model (#81).
 34. ~~**`doc_claims.quote_orig` is best-effort: ~15% fail verbatim containment.**~~
     ✅ 2026-07-09 (MR sprint 3): `quote_verified` stamped at insert by the map worker
     (shared normalization in `quote-verify.ts` — unicode/bidi-isolate/whitespace
@@ -715,6 +726,18 @@ docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md)
     `pg_try_advisory_xact_lock` on a connection that stays pinned for the cycle (or a
     provider_state lease like x-lease). Interim recovery tooling used a janitor with the
     exact predicate above.
+    **STATUS 2026-08-21 — IMPLEMENTED, AWAITING PRODUCTION SOAK (not closed).** The
+    durable fix is the `provider_state` `map_lease` row
+    (`src/lib/analysis/map-lease.ts`): single-statement CAS acquire under proven expiry
+    against the DB clock, per-acquisition tokens, token-checked renew/release, monotonic
+    diagnostic fence — no session state for a pooler to strand. Merged 2026-08-21
+    (`docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md`); the production
+    deployment identity and the formal soak window are recorded in the closeout
+    decision-log entry appended AFTER the deploy, not here. This item stays
+    OPEN until the formal 24-hour lease soak closes PASS: 24 natural hourly cycles,
+    monotonic fences, clean release, zero lost leases, no unexplained busy/takeover, zero
+    failed or unfinished cycles, baseline routing, stable metering and yield, no
+    extractor-version drift. The accepted residual the lease does NOT close is #85.
 78. **[Tier 2 — release hygiene] A CLI deploy from a git WORKTREE ships no commit stamp.**
     A worktree's `.git` is a FILE (gitdir pointer), which defeats the Vercel CLI's git
     metadata detection: `/health` on `dpl_9xyqCLfZn6n8WTifQ6BpgpV9wJja` renders an empty
@@ -773,3 +796,94 @@ docs/reviews/CLOUD-MODEL-ROUTING-SEAMS-2026-08-17.md §12.11)
     Cross-reference: **#33** is the other routing follow-up — it is now a hard prerequisite
     to unlocking the map activation lock, tracked under its own existing ID, not duplicated
     here.
+
+### New (from the QF Worktree B map-lease/remap release — 2026-08-21, PR #7,
+docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
+
+85. **[Tier 2 — concurrency] Fence column on the map tables (the residual the lease
+    deliberately does NOT close).** `src/lib/analysis/map-lease.ts` is strictly safer than
+    the `pg_try_advisory_lock` it replaces, but it is not a fenced writer: the fence
+    counter is diagnostic-only, and map writes are protected by a token OWNERSHIP RE-CHECK
+    (a full-TTL renew) performed immediately before the write — a check-then-act, not an
+    atomic statement fence. The unprotected window is the whole renew-to-COMMIT span
+    (~100 networked round-trips for a 25-doc `persistBatch`). If that entire span stalls
+    past the full TTL at exactly the wrong instant, a takeover can land first and both
+    generations commit; the unique keys keep that duplicate-proof but not interleave-proof,
+    so the bounded worst case is a first-writer-wins MIXED-GENERATION claim set for one
+    (doc, track, version). Traceability and publication safety are unaffected (shadow-map
+    tables only; every interleaved claim was genuinely extracted from its own document).
+    Complete fix: add a fence column to `doc_claims`/`doc_map_state` and have each write
+    refuse a lower fence in the same statement — a MIGRATION, deliberately out of the
+    2026-08-21 release's scope. Audit refs: G4, L4-2, safety-review n1.
+86. **[Tier 1 — quality/spend] ~50% of map micro-batches are rejected by the provider with
+    `400 Invalid body: failed to parse JSON value`.** Measured from `cron_runs`: 0% through
+    2026-07-15, first appearing 2026-07-16 (7.1%), climbing to a ~45–54% plateau and flat
+    across every deploy boundary since (08-19 46.6% · 08-20 45.4% · 08-21 52.7%) — so it is
+    not a routing or lease regression, it is standing corpus damage. **Root cause
+    identified 2026-08-21:** `mapDocLine` truncates with `body.slice(0, mapContentChars())`
+    (`src/lib/analysis/map-prompts.ts:164`), a UTF-16 slice that can cut a surrogate PAIR in
+    half; the resulting lone surrogate survives `JSON.stringify` as an unpaired escape and
+    the API rejects the entire request body — so ONE emoji-truncating doc kills its whole
+    20-doc batch. The growth curve matches the growth of emoji-bearing Telegram/X content.
+    Fix: truncate on code points (or strip/repair lone surrogates) before building the
+    prompt, and add a fixture test with an emoji at the truncation boundary. Deliberately
+    NOT fixed in the 2026-08-21 map-lease release — `map-prompts.ts` is outside that PR's
+    delta and changing extraction behaviour would confound the lease soak. This is the
+    largest single lever on map yield currently known.
+87. **[Tier 2 — observability] `digest:finalize` swallows per-digest failures into an
+    in-run counter while `cron_runs.ok` stays true.** Days 2026-08-01, 08-03 (×2), 08-04,
+    08-15 and 08-21 each recorded `counts.errors >= 1` with the same
+    `400 Invalid body: failed to parse JSON value` signature as #86, yet the run is green
+    and no alert fires. Either classify a non-zero digest `errors` count as unhealthy (the
+    map worker's 2026-08-15 precedent) or surface it through `map-health`-style alerting.
+    Same root-cause family as #86.
+88. **[Tier 1 — pipeline] No digest has used the mapreduce engine since 2026-08-17.** All
+    11 digests/day fall back to legacy because their windows find no current-version
+    `doc_claims`; `provider_state.map_health` reads `stale_ir,stale_ru,stale_ua`. The map
+    worker is healthy (~4–6K claims/day) but is draining the ru/ua BACKLOG — old documents
+    — so nothing lands in the current-day window. Consequence: the A/B-validated mapreduce
+    quality gains (and ruling 18's whole configuration) are not reaching production output,
+    while `DIGEST_ENGINE=mapreduce` and the standing documentation both said otherwise
+    (corrected in place 2026-08-21). Blocked-on: #86 (recover ~50% of lost map throughput),
+    then a decision on whether to prioritise recent documents over strict backlog order.
+89. **[Tier 3 — correctness, latent] The map dedup gate's reference-side exact-md5 index is
+    dead.** `map-worker.ts` casts the reference rows `as DedupDoc[]` while the SQL aliases
+    the column `content_md5`, so `ref.contentMd5` is `undefined` and every reference doc is
+    indexed under the key `undefined`. Exact-match mirror detection against the persisted
+    canonical window therefore never fires; only the minhash path and candidate-vs-candidate
+    exact matching work (which is why `mirrorsExact` is non-zero and the bug is invisible).
+    PRE-EXISTING and byte-identical on `origin/main` — the 2026-08-21 map-lease release
+    neither introduced nor changed it. Fix is one line, but it will change mirror rates, so
+    it wants its own before/after measurement rather than a ride-along.
+90. **[Tier 3 — latent, fail-silent] A `map_lease` row carrying a token but a broken
+    `expiresAt` wedges the map stage permanently while reporting `ok=true`.** The acquire
+    CAS takes over only when `state->>'token' IS NULL OR (state->>'expiresAt')::timestamptz
+    <= now()`. If `expiresAt` is absent or JSON-null the cast yields SQL NULL, the predicate
+    evaluates to NULL rather than TRUE, and `DO UPDATE` never fires — the lease is
+    unclaimable forever. If `expiresAt` is a non-parseable string the cast RAISES,
+    `acquireMapLease` catches it and returns `outcome: "error"`. Both terminal states
+    surface as `counts.skipped` with `cron_runs.ok = true` — indistinguishable from the
+    2026-07-29 outage shape (418 green runs while `doc_claims` starved). **Not currently
+    reachable:** no code path in this repository writes either shape (`tryAcquire` writes
+    all four keys, `renew` uses `jsonb_set`, `release` writes `{fence}` with the token
+    absent, which is the intended FREE state); it needs an external writer or a partial
+    restore. Detection exists indirectly — `runScheduledMapHealth` still runs on skipped
+    cycles and would raise `stale_*`. Fix, when taken: add `OR (state->>'expiresAt') IS
+    NULL` to the conflict `WHERE` and use a non-raising cast for the garbage case, with an
+    integration test that seeds each malformed shape. Deliberately NOT changed in the
+    2026-08-21 release: altering the core CAS predicate immediately before a 24-hour lease
+    soak would trade a proven-unreachable failure mode for unproven SQL. Found by the
+    independent lease review (MINOR-1).
+91. **[Tier 3 — consistency] `?theater=` is still unvalidated at the map cron route.**
+    `src/app/api/cron/map/route.ts` lowercases `?theater=` and passes it straight to
+    `rd.country_iso2 = ANY($1)`. An unknown value selects nothing, and "selects nothing" is
+    how both drivers conclude a day is drained — so a hand-written authenticated request
+    with a typo'd theater reads as a drained corpus. Both DRIVERS now refuse an unknown
+    theater (`normalizeTheaterFlag`, allowlist derived from `TRACKS`), and `?date=`,
+    `?after=`, `?track=` and — as of 2026-08-21 — `?cap=` are all strictly validated at the
+    route, so this is the last unvalidated route param. Fix: allowlist it the same way, or
+    accept it as deliberate (an operator may legitimately want to map a theater outside
+    `MAP_THEATERS`). $0 exposure — under-selection only, never over-spend. Found by the
+    independent lease review (NOTE-2) and sharpened by the spend re-review (MINOR-E), which
+    caught the first draft of this entry describing the `?cap=` hole that the same commit
+    had already closed.

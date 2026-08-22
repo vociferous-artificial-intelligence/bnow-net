@@ -2905,3 +2905,43 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
    2026-08-20). No model was activated, no environment variable was changed, nothing was
    deployed, no paid provider call was made, and no production database write occurred —
    the only production contact was read-only SELECTs and read-only listings.
+
+## 2026-08-21 — QF Worktree B: PR #5 soak closure, B-only rebase, audit repairs
+
+1. **PR #5's 24h soak (2026-08-20T22:00Z→2026-08-21T22:00Z) closed PASS**, reverified
+   read-only from the production record: `dpl_GH6UWFojKPEgPrhBiT7utPBPnQBJ` / `7336b9c`
+   READY + aliased, `/health` 200 + DB OK; 199/199 `cron_runs` ok with zero failed,
+   unfinished or errored; 24/24 map runs on one baseline dispatch identity; digest and
+   validation identities baseline (read from `digests.structured.stats.llmDispatch` and
+   `validation_runs.details.dispatch` — `cron_runs.counts.dispatch` is map/entity-audit
+   only); zero routing-gate failures; zero 5xx; 86 Vercel env rows / 48 distinct names with
+   every routing variable absent. No environment row was changed by this session.
+2. **Four pre-existing production defects found while closing it**, registered as
+   OPEN-TASKS #86–#89 and NOT fixed here: ≈50% of map micro-batches rejected
+   `400 Invalid body` since 2026-07-16 (root-caused to surrogate-splitting truncation at
+   `map-prompts.ts:164`); the same 400 swallowed into `digest:finalize`'s in-run counter;
+   consequently zero mapreduce digests since 2026-08-17 (all legacy, `map_health` =
+   `stale_ir,stale_ru,stale_ua`); and a dead reference-side exact-md5 dedup index. AGENTS.md
+   and CURRENT-STATE.md claimed mapreduce was the live engine — corrected in place.
+3. **B isolated and rebased with zero conflicts.** Branch
+   `codex/qf-b-map-lease-remap-20260821` from `c40060e`, then
+   `git rebase --onto origin/main 05fdd2c` → `405f783`. Fidelity: `git range-diff` shows
+   all seven commits `=`; path inventory identical (14 paths); the non-doc patch and the
+   full patch are both BYTE-IDENTICAL to the audited original (124,060 bytes). Conflict
+   ledger empty — `main` touches none of B's paths, and B never touched `AGENTS.md`, so no
+   append-only document needed merging.
+4. **Audit repairs committed (`3c1c10c`).** REMAP-1 and L4-1 are now pinned by 15
+   always-run unit tests over an in-memory Pool (`map-worker-lease-writes.test.ts`), each
+   protected write exercised BOTH ways and each guard mutation-proven; REMAP-3 sweeps every
+   numeric CLI flag fail-closed in both drivers; REMAP-5 (+ SAF-m4) binds the remap
+   checkpoint to a credential-free route target and treats a missing binding as a mismatch;
+   L4-2's "never a second writer" absolute is withdrawn from code and report alike, with
+   the renew-to-COMMIT residual and the deferred fence column (#85) stated exactly. Also
+   fixed a genuine pre-existing clock-dependent flake in `map-remap.test.ts` that fails
+   within ~62 minutes of UTC midnight (reproduced at 23:54Z on the audited tip).
+5. Governing QF prompt now tracked verbatim from the audit's preserved blob (`2919970`),
+   SHA-256 re-verified `7a556210…6fcc` — closing audit finding G1 for this lineage.
+6. **Not done, deliberately:** the remap operator is not executed (not even a probe), no
+   model is activated, no environment variable is touched, no migration exists, and neither
+   OPEN-TASKS #77 (lease) nor #33 (remap) is closed — both are marked
+   implemented/awaiting-production-soak instead.

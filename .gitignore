@@ -11,6 +11,8 @@ data/cache/
 data/raw/
 # operator artifacts (x-gap-rescore snapshots, rendered emails) — never committed
 data/outbox/
+# map-remap driver checkpoints (scan cursors; doc_map_state is the real record)
+data/remap-state/
 coverage/
 .DS_Store
 

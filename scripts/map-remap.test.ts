@@ -1,0 +1,890 @@
+import { describe, expect, it } from "vitest";
+import { msToNextUtcDay, type MapCallResult } from "./map-backfill";
+import { parseCountFlag, parseUsdFlag } from "./map-backfill";
+import {
+  MAX_CONSECUTIVE_SKIPS,
+  MAX_SWEEPS,
+  REMAP_THEATERS,
+  driveMapRemap,
+  memoryCheckpointStore,
+  remapTargetId,
+  type RemapDriveOpts,
+} from "./map-remap";
+
+// The remap driver's contract (OPEN-TASKS #33), simulated through the
+// injectable call/sleep/store seams — zero network, zero DB:
+//   - read-only default (--execute absent): dry estimate calls only;
+//   - estimate over budget aborts BEFORE any live call;
+//   - a day completes ONLY via a full zero-pair sweep (cap exhaustion or
+//     batch errors can never mark unfinished work complete);
+//   - the cursor advances only on clean calls; budget-stopped calls resume
+//     at the same cursor so the anti-join re-selects unfinished docs;
+//   - typed stop categories: run_cap benign, daily_cap wait/abort,
+//     total_cap/cap_unset abort, lease-busy waits without advancing;
+//   - checkpoint resume skips completed days and continues mid-sweep.
+
+const dry = (counts: Record<string, number | string | undefined> = {}): MapCallResult => ({
+  ok: true,
+  category: null,
+  counts: {
+    selected: 0,
+    docTrackPairs: 0,
+    batches: 0,
+    estUsd: 0,
+    estModel: "gpt-4o-mini",
+    estEffort: "",
+    maxSelectedId: 0, // remap-capable routes always echo the cursor
+    ...counts,
+  },
+});
+
+const live = (counts: Record<string, number | string | undefined> = {}): MapCallResult => ({
+  ok: true,
+  category: null,
+  counts: { selected: 0, docTrackPairs: 0, claims: 0, estUsd: 0, batchErrors: 0, ...counts },
+});
+
+const stopped = (
+  category: string,
+  counts: Record<string, number | string | undefined> = {},
+): MapCallResult => ({
+  ok: category === "run_cap",
+  category,
+  counts: {
+    selected: 10,
+    docTrackPairs: 10,
+    claims: 0,
+    estUsd: 0.01,
+    budgetStop: `stop:${category}`,
+    budgetStopCategory: category,
+    maxSelectedId: 999,
+    ...counts,
+  },
+});
+
+function drive(script: Array<MapCallResult | Error>, over: Partial<RemapDriveOpts> = {}) {
+  const calls: string[] = [];
+  const slept: number[] = [];
+  const store = over.store ?? memoryCheckpointStore();
+  let i = 0;
+  const call = async (_b: string, _s: string, params: string): Promise<MapCallResult> => {
+    calls.push(params);
+    const step = script[Math.min(i++, script.length - 1)];
+    if (step instanceof Error) throw step;
+    return step;
+  };
+  return driveMapRemap({
+    base: "https://example.test",
+    secret: "s",
+    theater: "ir",
+    from: "2026-07-30",
+    to: "2026-07-30",
+    budgetUsd: 5,
+    execute: true,
+    log: () => {},
+    call,
+    sleep: async (ms) => {
+      slept.push(ms);
+    },
+    store,
+    ...over,
+  }).then((result) => ({ result, calls, slept, store }));
+}
+
+describe("read-only default and estimate gate", () => {
+  it("without --execute only dry remap calls are made", async () => {
+    const { result, calls } = await drive([dry({ selected: 40, docTrackPairs: 55, estUsd: 0.02 })], {
+      execute: false,
+    });
+    expect(result.aborted).toBeUndefined();
+    expect(result.eligibleDocs).toBe(40);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain("dry=1");
+    expect(calls[0]).toContain("remap=1");
+    expect(calls[0]).toContain("theater=ir");
+  });
+
+  it("estimate over budget aborts before any live call", async () => {
+    const { result, calls } = await drive([dry({ estUsd: 9.5, selected: 5000 })], { budgetUsd: 5 });
+    expect(result.aborted).toContain("exceeds budget");
+    expect(calls.every((p) => p.includes("dry=1"))).toBe(true);
+  });
+
+  it("the track selector rides every call", async () => {
+    const { calls } = await drive([dry()], { execute: false, track: "military" });
+    expect(calls[0]).toContain("&track=military");
+  });
+});
+
+describe("sweep-based completion proof", () => {
+  it("a day completes only via a full zero-pair sweep (work sweep, then verify sweep)", async () => {
+    const { result, calls } = await drive([
+      dry({ selected: 30, docTrackPairs: 30, estUsd: 0.01 }),
+      // sweep 1: one call maps everything it selected, then the sweep ends
+      live({ selected: 30, docTrackPairs: 30, claims: 12, maxSelectedId: 130, estUsd: 0.01 }),
+      live({ selected: 0 }),
+      // sweep 2 (verification): nothing needs work anywhere -> complete
+      live({ selected: 30, docTrackPairs: 0, maxSelectedId: 130 }),
+      live({ selected: 0 }),
+    ]);
+    expect(result.aborted).toBeUndefined();
+    expect(result.incompleteDays).toEqual([]);
+    expect(result.claims).toBe(12);
+    // live calls: after=0, after=130, after=0 (verify), after=130
+    const lives = calls.filter((p) => !p.includes("dry=1"));
+    expect(lives.map((p) => /after=(\d+)/.exec(p)![1])).toEqual(["0", "130", "0", "130"]);
+  });
+
+  it("cap exhaustion (total_cap) aborts without marking the day complete and without advancing the cursor", async () => {
+    const store = memoryCheckpointStore();
+    const { result } = await drive(
+      [dry({ selected: 20, docTrackPairs: 20, estUsd: 0.01 }), stopped("total_cap")],
+      { store },
+    );
+    expect(result.aborted).toContain("total_cap");
+    const cp = [...store.state.values()][0];
+    expect(cp.days["2026-07-30"].complete).toBe(false);
+    expect(cp.days["2026-07-30"].afterId).toBe(0); // budget-stopped call never advances the scan
+  });
+
+  it("run_cap is benign but still does not advance the cursor past unfinished docs", async () => {
+    const { result, calls } = await drive([
+      dry({ selected: 20, docTrackPairs: 20, estUsd: 0.01 }),
+      stopped("run_cap", { maxSelectedId: 500, claims: 5 }),
+      live({ selected: 20, docTrackPairs: 8, claims: 8, maxSelectedId: 500, estUsd: 0.01 }),
+      live({ selected: 0 }),
+      live({ selected: 20, docTrackPairs: 0, maxSelectedId: 500 }),
+      live({ selected: 0 }),
+    ]);
+    expect(result.aborted).toBeUndefined();
+    const lives = calls.filter((p) => !p.includes("dry=1"));
+    // the run_cap call resumed at after=0, not after=500
+    expect(/after=(\d+)/.exec(lives[1])![1]).toBe("0");
+    expect(result.claims).toBe(13);
+  });
+
+  it("persistent batch errors stall out loudly instead of spinning", async () => {
+    const erroring = live({
+      selected: 10,
+      docTrackPairs: 10,
+      batchErrors: 2,
+      maxSelectedId: 60,
+      estUsd: 0.001,
+    });
+    const { result } = await drive([
+      dry({ selected: 10, docTrackPairs: 10, estUsd: 0.001 }),
+      erroring,
+      erroring,
+      erroring,
+      erroring,
+    ]);
+    expect(result.incompleteDays).toEqual(["2026-07-30"]);
+  });
+
+  it("MAX_SWEEPS bounds a day that keeps finding pairs", async () => {
+    // every sweep maps something new forever (pathological); the driver stops
+    // after MAX_SWEEPS and leaves the day incomplete
+    const script: MapCallResult[] = [dry({ selected: 5, docTrackPairs: 5, estUsd: 0.001 })];
+    for (let s = 0; s < MAX_SWEEPS + 2; s++) {
+      script.push(live({ selected: 5, docTrackPairs: 5, claims: 1, maxSelectedId: 50, estUsd: 0.001 }));
+      script.push(live({ selected: 0 }));
+    }
+    const { result } = await drive(script);
+    expect(result.incompleteDays).toEqual(["2026-07-30"]);
+  });
+});
+
+describe("remediation guards (review 1)", () => {
+  it("a non-finite --budget fails CLOSED under --execute instead of disabling both gates", async () => {
+    await expect(drive([dry()], { budgetUsd: NaN })).rejects.toThrow(/finite positive/);
+    await expect(drive([dry()], { budgetUsd: 0 })).rejects.toThrow(/finite positive/);
+    // estimate-only mode is unaffected (no spend possible)
+    const { result } = await drive([dry()], { budgetUsd: NaN, execute: false });
+    expect(result.aborted).toBeUndefined();
+  });
+
+  it("aborts in phase 1 when the route does not speak remap mode (old deployed route)", async () => {
+    const backfillShaped: MapCallResult = {
+      ok: true,
+      category: null,
+      counts: { selected: 500, estUsd: 0.2 }, // no maxSelectedId/remapVersions
+    };
+    await expect(drive([backfillShaped])).rejects.toThrow(/does not support remap mode/);
+  });
+
+  it("a version bump invalidates the checkpoint's complete flags", async () => {
+    const store = memoryCheckpointStore();
+    // invocation 1 under version v1: the day completes
+    const v1 = { "military:ir": "gpt-4o-mini/v1" };
+    await drive(
+      [
+        dry({ selected: 2, docTrackPairs: 2, estUsd: 0.001, remapVersions: v1 as never }),
+        live({ selected: 2, docTrackPairs: 2, claims: 2, maxSelectedId: 9, estUsd: 0.001 }),
+        live({ selected: 0 }),
+        live({ selected: 2, docTrackPairs: 0, maxSelectedId: 9 }),
+        live({ selected: 0 }),
+      ],
+      { store },
+    );
+    // invocation 2 under version v2: the day must be RE-DRAINED, not skipped
+    const v2 = { "military:ir": "gpt-4o-mini/v2" };
+    const second = await drive(
+      [
+        dry({ selected: 2, docTrackPairs: 2, estUsd: 0.001, remapVersions: v2 as never }),
+        live({ selected: 2, docTrackPairs: 2, claims: 2, maxSelectedId: 9, estUsd: 0.001 }),
+        live({ selected: 0 }),
+        live({ selected: 2, docTrackPairs: 0, maxSelectedId: 9 }),
+        live({ selected: 0 }),
+      ],
+      { store },
+    );
+    expect(second.result.claims).toBe(2); // live calls actually ran again
+    expect(second.calls.filter((p) => !p.includes("dry=1"))).toHaveLength(4);
+  });
+
+  it("MAX_SWEEPS bounds one invocation; the next invocation gets a fresh allowance", async () => {
+    const store = memoryCheckpointStore();
+    const churn: Array<MapCallResult> = [dry({ selected: 5, docTrackPairs: 5, estUsd: 0.001 })];
+    for (let s = 0; s < MAX_SWEEPS + 1; s++) {
+      churn.push(live({ selected: 5, docTrackPairs: 5, claims: 1, maxSelectedId: 50, estUsd: 0.001 }));
+      churn.push(live({ selected: 0 }));
+    }
+    const first = await drive(churn, { store });
+    expect(first.result.incompleteDays).toEqual(["2026-07-30"]);
+    // second invocation: the day is retried (sweeps reset) and now completes
+    const second = await drive(
+      [
+        dry({ selected: 5, docTrackPairs: 0, estUsd: 0 }),
+        live({ selected: 5, docTrackPairs: 0, maxSelectedId: 50 }),
+        live({ selected: 0 }),
+      ],
+      { store },
+    );
+    expect(second.result.incompleteDays).toEqual([]);
+    expect(second.calls.filter((p) => !p.includes("dry=1")).length).toBeGreaterThan(0);
+  });
+
+  it("a checkpoint already over budget aborts BEFORE any live call", async () => {
+    const store = memoryCheckpointStore();
+    const first = await drive([
+      dry({ estUsd: 0.5, selected: 100, docTrackPairs: 100 }),
+      live({ selected: 100, docTrackPairs: 100, claims: 3, maxSelectedId: 300, estUsd: 6 }),
+    ], { store });
+    expect(first.result.aborted).toContain("exceeded budget");
+    const second = await drive([dry({ estUsd: 0.1, selected: 10, docTrackPairs: 10 })], { store });
+    expect(second.result.aborted).toContain("already exceeds budget");
+    expect(second.calls.filter((p) => !p.includes("dry=1"))).toHaveLength(0);
+  });
+
+  it("benign run_cap stops never count as stalls — the day still drains", async () => {
+    const { result } = await drive([
+      dry({ selected: 30, docTrackPairs: 30, estUsd: 0.01 }),
+      stopped("run_cap", { maxSelectedId: 100, claims: 3 }),
+      stopped("run_cap", { maxSelectedId: 100, claims: 3 }),
+      stopped("run_cap", { maxSelectedId: 100, claims: 3 }),
+      stopped("run_cap", { maxSelectedId: 100, claims: 3 }),
+      live({ selected: 30, docTrackPairs: 0, maxSelectedId: 100 }),
+      live({ selected: 0 }),
+      live({ selected: 30, docTrackPairs: 0, maxSelectedId: 100 }),
+      live({ selected: 0 }),
+    ]);
+    expect(result.aborted).toBeUndefined();
+    expect(result.incompleteDays).toEqual([]);
+    expect(result.claims).toBe(12);
+  });
+});
+
+describe("stops, waits, and resume", () => {
+  it("daily_cap without --wait-daily aborts resumable; with it, sleeps to the next UTC day", async () => {
+    const noWait = await drive([dry({ estUsd: 0.01, selected: 5, docTrackPairs: 5 }), stopped("daily_cap")]);
+    expect(noWait.result.aborted).toContain("daily_cap");
+
+    // The wait length is "until the next UTC day" computed at call time, so it
+    // is only >1h for most of the day: the previous `> 3_600_000` assertion
+    // FAILED whenever the suite ran inside the last hour before UTC midnight
+    // (reproduced at 23:54Z on the audited tip — a real clock-dependent flake
+    // in the enforced pre-push gate, not a behaviour change). Pin it against
+    // the same helper the driver uses instead, accepting either side of a
+    // midnight rollover that lands mid-test.
+    const beforeMs = msToNextUtcDay(new Date());
+    const withWait = await drive(
+      [
+        dry({ estUsd: 0.01, selected: 5, docTrackPairs: 5 }),
+        stopped("daily_cap"),
+        live({ selected: 5, docTrackPairs: 5, claims: 5, maxSelectedId: 40, estUsd: 0.001 }),
+        live({ selected: 0 }),
+        live({ selected: 5, docTrackPairs: 0, maxSelectedId: 40 }),
+        live({ selected: 0 }),
+      ],
+      { waitDaily: true },
+    );
+    const afterMs = msToNextUtcDay(new Date());
+    expect(withWait.result.aborted).toBeUndefined();
+    // waited out the UTC day: a sleep matching msToNextUtcDay, never the 60s
+    // lease-busy sleep or the 30s transport backoff
+    expect(
+      withWait.slept.some(
+        (ms) => Math.abs(ms - beforeMs) <= 5_000 || Math.abs(ms - afterMs) <= 5_000,
+      ),
+    ).toBe(true);
+    expect(withWait.slept).not.toContain(60_000);
+  });
+
+  it("a lease-busy skip waits 60s and retries the SAME cursor", async () => {
+    const { result, slept, calls } = await drive([
+      dry({ estUsd: 0.001, selected: 2, docTrackPairs: 2 }),
+      live({ selected: 0, skipped: "another map cycle holds the lease" }),
+      live({ selected: 2, docTrackPairs: 2, claims: 2, maxSelectedId: 20, estUsd: 0.001 }),
+      live({ selected: 0 }),
+      live({ selected: 2, docTrackPairs: 0, maxSelectedId: 20 }),
+      live({ selected: 0 }),
+    ]);
+    expect(result.aborted).toBeUndefined();
+    expect(slept).toContain(60_000);
+    const lives = calls.filter((p) => !p.includes("dry=1"));
+    expect(/after=(\d+)/.exec(lives[1])![1]).toBe("0"); // not advanced by the skip
+  });
+
+  it("actual spend beyond the budget aborts resumable", async () => {
+    const { result } = await drive([
+      dry({ estUsd: 0.5, selected: 100, docTrackPairs: 100 }),
+      live({ selected: 100, docTrackPairs: 100, claims: 3, maxSelectedId: 300, estUsd: 6 }),
+    ]);
+    expect(result.aborted).toContain("exceeded budget");
+    expect(result.aborted).toContain("resumable");
+  });
+
+  it("--limit bounds attempted pairs and aborts resumable", async () => {
+    const { result } = await drive(
+      [
+        dry({ estUsd: 0.01, selected: 50, docTrackPairs: 50 }),
+        live({ selected: 50, docTrackPairs: 50, claims: 10, maxSelectedId: 100, estUsd: 0.01 }),
+      ],
+      { limit: 40 },
+    );
+    expect(result.aborted).toContain("--limit");
+  });
+
+  it("resume skips completed days and continues an unfinished one mid-sweep", async () => {
+    const store = memoryCheckpointStore();
+    // first invocation: day 1 completes, day 2 aborts on total_cap
+    const first = await drive(
+      [
+        dry({ estUsd: 0.01, selected: 5, docTrackPairs: 5 }),
+        dry({ estUsd: 0.01, selected: 5, docTrackPairs: 5 }),
+        live({ selected: 5, docTrackPairs: 5, claims: 5, maxSelectedId: 15, estUsd: 0.001 }),
+        live({ selected: 0 }),
+        live({ selected: 5, docTrackPairs: 0, maxSelectedId: 15 }),
+        live({ selected: 0 }),
+        stopped("total_cap"),
+      ],
+      { store, from: "2026-07-30", to: "2026-07-31" },
+    );
+    expect(first.result.aborted).toContain("total_cap");
+
+    // second invocation resumes: day 1 gets NO live calls, day 2 drains
+    const second = await drive(
+      [
+        dry({ estUsd: 0.001, selected: 0, docTrackPairs: 0 }),
+        dry({ estUsd: 0.001, selected: 5, docTrackPairs: 5 }),
+        live({ selected: 5, docTrackPairs: 5, claims: 5, maxSelectedId: 25, estUsd: 0.001 }),
+        live({ selected: 0 }),
+        live({ selected: 5, docTrackPairs: 0, maxSelectedId: 25 }),
+        live({ selected: 0 }),
+      ],
+      { store, from: "2026-07-30", to: "2026-07-31" },
+    );
+    expect(second.result.aborted).toBeUndefined();
+    const lives = second.calls.filter((p) => !p.includes("dry=1"));
+    expect(lives.every((p) => p.includes("date=2026-07-31"))).toBe(true);
+  });
+
+  it("transport failures retry bounded, then abort with the checkpoint saved", async () => {
+    const store = memoryCheckpointStore();
+    const { MapTransportError } = await import("./map-backfill");
+    const { result, slept } = await drive(
+      [
+        dry({ estUsd: 0.001, selected: 1, docTrackPairs: 1 }),
+        new MapTransportError("fetch failed"),
+        new MapTransportError("fetch failed"),
+        new MapTransportError("fetch failed"),
+      ],
+      { store },
+    );
+    expect(result.aborted).toContain("transport");
+    expect(slept.filter((ms) => ms === 30_000)).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Repairs for the 2026-08-18 independent audit (REMAP-3 numeric fail-close,
+// REMAP-5 checkpoint target identity). Both classes have the same shape: a
+// value that should bound the run instead silently stops bounding it.
+// ---------------------------------------------------------------------------
+
+/** Like drive(), but usable for REJECTIONS: exposes the call log even when
+ *  driveMapRemap throws, so "refused BEFORE any call" is provable. */
+function driveCapturing(script: Array<MapCallResult> = [dry()], over: Partial<RemapDriveOpts> = {}) {
+  const calls: string[] = [];
+  let i = 0;
+  const promise = driveMapRemap({
+    base: "https://example.test",
+    secret: "s",
+    theater: "ir",
+    from: "2026-07-30",
+    to: "2026-07-30",
+    budgetUsd: 5,
+    execute: true,
+    log: () => {},
+    call: async (_b: string, _s: string, params: string) => {
+      calls.push(params);
+      return script[Math.min(i++, script.length - 1)];
+    },
+    sleep: async () => {},
+    store: memoryCheckpointStore(),
+    ...over,
+  });
+  return { promise, calls };
+}
+
+describe("fail-closed numeric flags (audit REMAP-3)", () => {
+  // NaN compares false against every threshold, so a malformed count does not
+  // "use the default" — it REMOVES the bound. `--budget` was fixed in review 1;
+  // its siblings were not swept until now.
+  const badCounts: Array<[string, unknown]> = [
+    ["NaN", NaN],
+    ["Infinity", Infinity],
+    ["-Infinity", -Infinity],
+    ["zero", 0],
+    ["negative", -5],
+    ["fractional", 2.5],
+  ];
+
+  for (const [label, value] of badCounts) {
+    it(`--limit rejects ${label} BEFORE any route call`, async () => {
+      const { promise, calls } = driveCapturing(undefined, { limit: value as number });
+      await expect(promise).rejects.toThrow(/--limit must be a positive whole number/);
+      expect(calls).toHaveLength(0);
+    });
+
+    it(`--cap rejects ${label} BEFORE any route call`, async () => {
+      const { promise, calls } = driveCapturing(undefined, { cap: value as number });
+      await expect(promise).rejects.toThrow(/--cap must be a positive whole number/);
+      expect(calls).toHaveLength(0);
+    });
+  }
+
+  it("a cap of 0 can no longer masquerade as a drained day", async () => {
+    // cap=0 rides into the route as ?cap=0 -> LIMIT 0 -> selected=0, which the
+    // sweep logic reads as "zero pairs across a whole sweep" and would mark the
+    // day COMPLETE without doing any work. The bound now refuses instead.
+    const { promise, calls } = driveCapturing([live({ selected: 0 })], { cap: 0 });
+    await expect(promise).rejects.toThrow(/--cap must be a positive whole number/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("valid bounds still pass through untouched", async () => {
+    const { promise } = driveCapturing(
+      [
+        dry({ selected: 5, docTrackPairs: 5, estUsd: 0.001 }),
+        live({ selected: 5, docTrackPairs: 5, claims: 1, maxSelectedId: 9, estUsd: 0.001 }),
+      ],
+      { cap: 250, limit: 3 },
+    );
+    const result = await promise;
+    expect(result.aborted).toContain("--limit 3");
+  });
+
+  it("the existing finite-positive --budget behaviour is retained", async () => {
+    await expect(driveCapturing(undefined, { budgetUsd: NaN }).promise).rejects.toThrow(/finite positive/);
+    await expect(driveCapturing(undefined, { budgetUsd: 0 }).promise).rejects.toThrow(/finite positive/);
+    await expect(driveCapturing(undefined, { budgetUsd: -1 }).promise).rejects.toThrow(/finite positive/);
+    // fractional dollars are legitimate and must NOT be rejected
+    const { promise } = driveCapturing([dry()], { budgetUsd: 0.25 });
+    await expect(promise).resolves.toBeDefined();
+  });
+});
+
+describe("CLI numeric parsers (fail-closed at the flag boundary)", () => {
+  it("parseCountFlag rejects every malformed count and passes whole positives", () => {
+    for (const bad of ["", "  ", "abc", "NaN", "Infinity", "-Infinity", "0", "-1", "2.5", "1,000"]) {
+      expect(() => parseCountFlag("--limit", bad)).toThrow(/positive whole number/);
+    }
+    expect(parseCountFlag("--limit", "400")).toBe(400);
+    expect(parseCountFlag("--limit", " 12 ")).toBe(12);
+    expect(parseCountFlag("--limit", "1e3")).toBe(1000);
+    expect(parseCountFlag("--limit", undefined)).toBeUndefined();
+  });
+
+  it("parseUsdFlag rejects malformed money but keeps fractions", () => {
+    for (const bad of ["", "abc", "NaN", "Infinity", "0", "-2"]) {
+      expect(() => parseUsdFlag("--budget", bad)).toThrow(/finite positive USD/);
+    }
+    expect(parseUsdFlag("--budget", "0.25")).toBe(0.25);
+    expect(parseUsdFlag("--budget", "4")).toBe(4);
+    expect(parseUsdFlag("--budget", undefined)).toBeUndefined();
+  });
+});
+
+describe("checkpoint target identity (audit REMAP-5)", () => {
+  it("normalizes to a stable identifier and never carries a credential", () => {
+    expect(remapTargetId("https://BNOW-net.vercel.app/")).toBe("https://bnow-net.vercel.app");
+    expect(remapTargetId("https://bnow-net.vercel.app")).toBe("https://bnow-net.vercel.app");
+    // userinfo, query and fragment are stripped: nothing secret reaches disk
+    const withSecret = remapTargetId("https://user:sup3rsecret@example.test/api?token=abcd#frag");
+    expect(withSecret).toBe("https://example.test/api");
+    expect(withSecret).not.toContain("sup3rsecret");
+    expect(withSecret).not.toContain("abcd");
+    // different deployments are different identities
+    expect(remapTargetId("https://preview.example.test")).not.toBe(remapTargetId("https://example.test"));
+  });
+
+  const v1 = { "military:ir": "gpt-4o-mini/v1" } as never;
+  const drainScript = () => [
+    dry({ selected: 2, docTrackPairs: 2, estUsd: 0.001, remapVersions: v1 }),
+    live({ selected: 2, docTrackPairs: 2, claims: 2, maxSelectedId: 9, estUsd: 0.001 }),
+    live({ selected: 0 }),
+    live({ selected: 2, docTrackPairs: 0, maxSelectedId: 9 }),
+    live({ selected: 0 }),
+  ];
+
+  it("a checkpoint earned against ANOTHER target does not suppress the sweep", async () => {
+    const store = memoryCheckpointStore();
+    const first = await drive(drainScript(), { store, base: "https://prod.example.test" });
+    expect(first.result.incompleteDays).toEqual([]);
+
+    // same theater/track/day-range/versions, DIFFERENT deployment: the day
+    // states are scan-only state and must be re-proven here
+    const second = await drive(drainScript(), { store, base: "https://preview.example.test" });
+    expect(second.calls.filter((p) => !p.includes("dry=1")).length).toBeGreaterThan(0);
+    expect(second.result.claims).toBe(2);
+  });
+
+  it("same target + same versions still resumes: completed days are skipped", async () => {
+    const store = memoryCheckpointStore();
+    await drive(drainScript(), { store, base: "https://prod.example.test" });
+    const second = await drive(
+      [dry({ selected: 2, docTrackPairs: 0, estUsd: 0, remapVersions: v1 })],
+      { store, base: "https://prod.example.test" },
+    );
+    // day already complete under the same identity -> zero live calls
+    expect(second.calls.filter((p) => !p.includes("dry=1"))).toHaveLength(0);
+  });
+
+  it("a trailing slash / case difference is the SAME target (no spurious re-drain)", async () => {
+    const store = memoryCheckpointStore();
+    await drive(drainScript(), { store, base: "https://Prod.Example.test" });
+    const second = await drive(
+      [dry({ selected: 2, docTrackPairs: 0, estUsd: 0, remapVersions: v1 })],
+      { store, base: "https://prod.example.test/" },
+    );
+    expect(second.calls.filter((p) => !p.includes("dry=1"))).toHaveLength(0);
+  });
+
+  it("a legacy checkpoint with no target binding is NOT trusted", async () => {
+    const store = memoryCheckpointStore();
+    // hand-written state file from before the binding existed: complete=true
+    // with no target and no versionsDigest
+    store.state.set("remap_ir_all_2026-07-30_2026-07-30", {
+      key: "remap_ir_all_2026-07-30_2026-07-30",
+      days: { "2026-07-30": { afterId: 0, sweepPairs: 0, sweeps: 1, complete: true, usd: 0, claims: 0 } },
+      totalUsd: 0,
+    });
+    const run = await drive(drainScript(), { store, base: "https://prod.example.test" });
+    // the unbound "complete" flag was discarded and the day was re-proven
+    expect(run.calls.filter((p) => !p.includes("dry=1")).length).toBeGreaterThan(0);
+    expect(run.result.claims).toBe(2);
+  });
+
+  it("the checkpoint never outranks doc_map_state: a reset only re-SCANS", async () => {
+    const store = memoryCheckpointStore();
+    const first = await drive(drainScript(), { store, base: "https://prod.example.test" });
+    // after a reset the server answers "nothing left" (doc_map_state already
+    // holds every current-version pair) — the re-scan finds zero pairs and
+    // bills NOTHING NEW, which is exactly why resetting is the safe direction
+    const second = await drive(
+      [
+        dry({ selected: 2, docTrackPairs: 0, estUsd: 0, remapVersions: v1 }),
+        live({ selected: 2, docTrackPairs: 0, maxSelectedId: 9, estUsd: 0 }),
+        live({ selected: 0 }),
+      ],
+      { store, base: "https://preview.example.test" },
+    );
+    expect(second.result.claims).toBe(0);
+    // zero INCREMENTAL spend; the carried cumulative total is deliberately not
+    // reset (it can only make the budget gate stricter, never looser)
+    expect(second.result.actualTotal).toBe(first.result.actualTotal);
+    expect(second.result.incompleteDays).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Remediations from the independent spend/remap-safety review (2026-08-21).
+// ---------------------------------------------------------------------------
+
+describe("checkpoint target binding — discriminating pins (review MINOR-1)", () => {
+  // The original "legacy checkpoint" case passed because the VERSIONS digest
+  // mismatched, so it never exercised the target binding at all: mutating the
+  // guard to `cp.target === undefined || cp.target === target` kept the suite
+  // green. These cases hold versions CONSTANT so only the target can decide.
+  const v1 = { "military:ir": "gpt-4o-mini/v1" } as never;
+  const versionsDigest = JSON.stringify([["military:ir", "gpt-4o-mini/v1"]]);
+  const KEY = "remap_ir_all_2026-07-30_2026-07-30";
+  const completeDay = () => ({
+    "2026-07-30": { afterId: 0, sweepPairs: 0, sweeps: 1, complete: true, usd: 0, claims: 0 },
+  });
+  const drainScript = () => [
+    dry({ selected: 2, docTrackPairs: 2, estUsd: 0.001, remapVersions: v1 }),
+    live({ selected: 2, docTrackPairs: 2, claims: 2, maxSelectedId: 9, estUsd: 0.001 }),
+    live({ selected: 0 }),
+    live({ selected: 2, docTrackPairs: 0, maxSelectedId: 9 }),
+    live({ selected: 0 }),
+  ];
+
+  it("MATCHING versions but an ABSENT target is not consent — the day is re-proven", async () => {
+    const store = memoryCheckpointStore();
+    store.state.set(KEY, { key: KEY, days: completeDay(), totalUsd: 0, versionsDigest });
+    const run = await drive(drainScript(), { store, base: "https://prod.example.test" });
+    expect(run.calls.filter((p) => !p.includes("dry=1")).length).toBeGreaterThan(0);
+    expect(run.result.claims).toBe(2);
+  });
+
+  it("MATCHING versions but a DIFFERENT target is not consent either", async () => {
+    const store = memoryCheckpointStore();
+    store.state.set(KEY, {
+      key: KEY,
+      days: completeDay(),
+      totalUsd: 0,
+      versionsDigest,
+      target: "https://preview.example.test",
+    });
+    const run = await drive(drainScript(), { store, base: "https://prod.example.test" });
+    expect(run.calls.filter((p) => !p.includes("dry=1")).length).toBeGreaterThan(0);
+    expect(run.result.claims).toBe(2);
+  });
+
+  it("CONTROL: matching versions AND matching target IS consent — zero live calls", async () => {
+    const store = memoryCheckpointStore();
+    store.state.set(KEY, {
+      key: KEY,
+      days: completeDay(),
+      totalUsd: 0,
+      versionsDigest,
+      target: "https://prod.example.test",
+    });
+    const run = await drive(
+      [dry({ selected: 2, docTrackPairs: 0, estUsd: 0, remapVersions: v1 })],
+      { store, base: "https://prod.example.test" },
+    );
+    expect(run.calls.filter((p) => !p.includes("dry=1"))).toHaveLength(0);
+  });
+});
+
+describe("theater allowlist (review MINOR-3)", () => {
+  it("refuses an unknown theater BEFORE any call, instead of reporting a false COMPLETE", async () => {
+    for (const bad of ["ru,ua", "zz", "", "russia", "ru ua"]) {
+      const { promise, calls } = driveCapturing(undefined, { theater: bad });
+      await expect(promise).rejects.toThrow(/--theater must be one of/);
+      expect(calls).toHaveLength(0);
+    }
+  });
+
+  it("accepts an operator's case/whitespace habit and NORMALIZES it", async () => {
+    // `--theater IR` worked before the allowlist (the route lowercases), so the
+    // guard must not newly break it — and the normalized value is what reaches
+    // both the route param and the checkpoint key, so the key is unambiguous
+    for (const ok of ["IR", " ir ", "Ir"]) {
+      const { promise, calls } = driveCapturing([dry()], { theater: ok, execute: false });
+      await expect(promise).resolves.toBeDefined();
+      expect(calls[0]).toContain("theater=ir");
+      expect(calls[0]).not.toContain("theater=IR");
+    }
+  });
+
+  it("the checkpoint key is case-independent, so IR and ir resume each other", async () => {
+    const store = memoryCheckpointStore();
+    await drive([dry({ selected: 0, docTrackPairs: 0, estUsd: 0 })], { store, theater: "IR" });
+    await drive([dry({ selected: 0, docTrackPairs: 0, estUsd: 0 })], { store, theater: "ir" });
+    expect([...store.state.keys()]).toEqual(["remap_ir_all_2026-07-30_2026-07-30"]);
+  });
+
+  it("the allowlist is derived from TRACKS, so it cannot drift from applicableTracks()", () => {
+    expect(REMAP_THEATERS).toContain("ru");
+    expect(REMAP_THEATERS).toContain("ua");
+    expect(REMAP_THEATERS).toContain("ir");
+    expect(REMAP_THEATERS).not.toContain("zz");
+    // sorted + de-duplicated
+    expect(REMAP_THEATERS).toEqual([...new Set(REMAP_THEATERS)].sort());
+  });
+
+  it("every allowed theater still drives normally", async () => {
+    const { promise } = driveCapturing([dry()], { theater: "ua", execute: false });
+    await expect(promise).resolves.toBeDefined();
+  });
+});
+
+describe("bounded lease-busy wait (review MINOR-4)", () => {
+  it("aborts resumably after MAX_CONSECUTIVE_SKIPS instead of spinning forever", async () => {
+    // A tripwire, not a timeout: an unbounded loop makes the (bounded) script
+    // run out and throw, which surfaces as a DIFFERENT abort message. Without
+    // it, removing the bound would hang the suite rather than fail it.
+    const calls: string[] = [];
+    const slept: number[] = [];
+    const LIMIT = MAX_CONSECUTIVE_SKIPS + 2;
+    const result = await driveMapRemap({
+      base: "https://example.test",
+      secret: "s",
+      theater: "ir",
+      from: "2026-07-30",
+      to: "2026-07-30",
+      budgetUsd: 5,
+      execute: true,
+      log: () => {},
+      call: async (_b: string, _s: string, params: string) => {
+        calls.push(params);
+        if (calls.length === 1) return dry({ selected: 5, docTrackPairs: 5, estUsd: 0.001 });
+        if (calls.length > LIMIT) throw new Error("UNBOUNDED: the busy-wait never gave up");
+        return live({ selected: 5, skipped: "another map cycle holds the lease" });
+      },
+      sleep: async (ms) => {
+        slept.push(ms);
+      },
+      store: memoryCheckpointStore(),
+    });
+    expect(result.aborted).toMatch(/map lease unavailable for 30 consecutive calls/);
+    expect(result.aborted).toMatch(/resumable/);
+    expect(result.aborted).not.toMatch(/UNBOUNDED/);
+    // exactly the bound, not one more, and no unbounded sleeping
+    expect(slept.filter((ms) => ms === 60_000)).toHaveLength(MAX_CONSECUTIVE_SKIPS - 1);
+    expect(calls.filter((p) => !p.includes("dry=1"))).toHaveLength(MAX_CONSECUTIVE_SKIPS);
+  });
+
+  it("a transient skip does NOT count against the bound once a real call succeeds", async () => {
+    const { result } = await drive([
+      dry({ selected: 5, docTrackPairs: 5, estUsd: 0.001 }),
+      live({ selected: 5, skipped: "busy" }),
+      live({ selected: 5, docTrackPairs: 5, claims: 5, maxSelectedId: 50, estUsd: 0.001 }),
+      live({ selected: 0 }),
+      live({ selected: 5, docTrackPairs: 0, maxSelectedId: 50 }),
+      live({ selected: 0 }),
+    ]);
+    expect(result.aborted).toBeUndefined();
+    expect(result.incompleteDays).toEqual([]);
+    expect(result.claims).toBe(5);
+  });
+
+  it("the counter RESETS: far more than 30 non-consecutive skips never abort", async () => {
+    // One skip cannot distinguish "reset" from "no reset" — deleting `skips = 0`
+    // passed the whole suite until this case (spend re-review 2026-08-21,
+    // MINOR-A). Alternating skip/progress crosses the bound many times over
+    // while never being CONSECUTIVE, which is exactly what the bound means.
+    const calls: string[] = [];
+    const ROUNDS = MAX_CONSECUTIVE_SKIPS * 2;
+    let cursor = 0;
+    let round = 0;
+    const result = await driveMapRemap({
+      base: "https://example.test",
+      secret: "s",
+      theater: "ir",
+      from: "2026-07-30",
+      to: "2026-07-30",
+      budgetUsd: 50,
+      execute: true,
+      log: () => {},
+      call: async (_b: string, _s: string, params: string) => {
+        calls.push(params);
+        if (calls.length === 1) return dry({ selected: 5, docTrackPairs: 5, estUsd: 0.001 });
+        // …skip, progress, skip, progress… never two skips in a row
+        if (calls.length % 2 === 0) return live({ selected: 5, skipped: "busy" });
+        round += 1;
+        if (round > ROUNDS) return live({ selected: 0 }); // drain out
+        cursor += 10;
+        return live({ selected: 5, docTrackPairs: 0, maxSelectedId: cursor });
+      },
+      sleep: async () => {},
+      store: memoryCheckpointStore(),
+    });
+    expect(result.aborted).toBeUndefined();
+    expect(calls.filter((p) => !p.includes("dry=1")).length).toBeGreaterThan(MAX_CONSECUTIVE_SKIPS);
+  });
+});
+
+describe("a refused target configuration is surfaced, not discovered mid-run (review NOTE-6)", () => {
+  it("prints the refusal and aborts before phase 2", async () => {
+    const lines: string[] = [];
+    const { promise } = driveCapturing(
+      [dry({ selected: 5, docTrackPairs: 5, estUsd: 0.01, estModel: "gpt-5", estDispatchBlocked: "MAP ACTIVATION BLOCKED: map may dispatch only the baseline" })],
+      { log: (l: string) => lines.push(l) },
+    );
+    const result = await promise;
+    expect(lines.join("\n")).toMatch(/WOULD BE REFUSED AT EXECUTION/);
+    expect(result.aborted).toMatch(/refused server-side/);
+  });
+
+  it("an unblocked target is unaffected", async () => {
+    const lines: string[] = [];
+    const { promise } = driveCapturing([dry()], { log: (l: string) => lines.push(l), execute: false });
+    await promise;
+    expect(lines.join("\n")).not.toMatch(/WOULD BE REFUSED/);
+  });
+});
+
+describe("an impossible scope is a typo, not a drained corpus (re-review MINOR-D)", () => {
+  it("refuses a track that is not configured for the theater", async () => {
+    const { promise, calls } = driveCapturing(undefined, { theater: "ru", track: "nuclear" });
+    await expect(promise).rejects.toThrow(/--track nuclear is not configured for theater ru/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("allows every genuinely configured pair", async () => {
+    for (const [theater, track] of [
+      ["ru", "military"],
+      ["ru", "elite_politics"],
+      ["ir", "nuclear"],
+      ["ua", "military"],
+    ] as const) {
+      const { promise } = driveCapturing([dry()], { theater, track, execute: false });
+      await expect(promise).resolves.toBeDefined();
+    }
+  });
+
+  it("a zero-eligible range is reported as ambiguous, never as proven coverage", async () => {
+    const lines: string[] = [];
+    const { promise } = driveCapturing([dry({ selected: 0, docTrackPairs: 0, estUsd: 0 })], {
+      theater: "il", // allowlisted, but outside the map worker's ru,ua,ir lens
+      execute: false,
+      log: (l: string) => lines.push(l),
+    });
+    await promise;
+    const out = lines.join("\n");
+    expect(out).toMatch(/ALREADY CURRENT under these versions, or it was never in scope/);
+  });
+
+  it("the final summary carries the caveat too, so COMPLETE cannot be read alone", async () => {
+    const lines: string[] = [];
+    const { promise } = driveCapturing(
+      [dry({ selected: 0, docTrackPairs: 0, estUsd: 0 }), live({ selected: 0 })],
+      { theater: "il", log: (l: string) => lines.push(l) },
+    );
+    await promise;
+    expect(lines.join("\n")).toMatch(/COMPLETE \(nothing was eligible — see the NOTE above\)/);
+  });
+
+  it("a range that DID work reports a plain COMPLETE (pin is not vacuous)", async () => {
+    const lines: string[] = [];
+    const { promise } = driveCapturing(
+      [
+        dry({ selected: 2, docTrackPairs: 2, estUsd: 0.001 }),
+        live({ selected: 2, docTrackPairs: 2, claims: 2, maxSelectedId: 9, estUsd: 0.001 }),
+        live({ selected: 0 }),
+        live({ selected: 2, docTrackPairs: 0, maxSelectedId: 9 }),
+        live({ selected: 0 }),
+      ],
+      { log: (l: string) => lines.push(l) },
+    );
+    await promise;
+    const out = lines.join("\n");
+    expect(out).toMatch(/REMAP COMPLETE — pairs attempted 2/);
+    expect(out).not.toMatch(/nothing was eligible/);
+  });
+});

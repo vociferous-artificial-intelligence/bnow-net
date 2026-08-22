@@ -107,8 +107,18 @@ place whenever reality changes. Historical narrative: `docs/PROGRESS.md` + `docs
 debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
 
 - **Live/repository:** https://bnow.net · Vercel `bnow-net` / team `vociferous`; production
-  `dpl_CDnECGnXvoZFKnA9QQziz59pmpu2` is the **2026-08-17 Candidate B cron-clustering
-  release**, deployed via CLI from `main` merge commit `9c5e9cb` (PR #4; the only
+  `dpl_GH6UWFojKPEgPrhBiT7utPBPnQBJ` is the **2026-08-20 workload-scoped model-routing
+  release** (PR #5), built from `main` merge commit `7336b9c`, READY and aliased to
+  `bnow.net` + `bnow-net.vercel.app`, `/health` stamping `7336b9c` with `DB OK`; created
+  2026-08-20T21:00:27Z. Infrastructure only: no candidate model is approved or activated,
+  and NO routing variable exists in any Vercel environment (86 env rows / 48 distinct
+  names, reverified 2026-08-21). Its formal 24h soak
+  2026-08-20T22:00:00Z→2026-08-21T22:00:00Z is **CLOSED — PASS** (199/199 scheduled runs
+  ok, zero failed/unfinished/errored `cron_runs`, 24/24 map runs, one baseline dispatch
+  identity each for map/digest/validation, zero routing-gate failures, zero 5xx). Code
+  rollback target = the prior Candidate B release `dpl_CDnECGnXvoZFKnA9QQziz59pmpu2` /
+  `9c5e9cb`. Prior lineage: the 2026-08-17 Candidate B cron-clustering release
+  (`dpl_CDnECGnXvoZFKnA9QQziz59pmpu2`, `main` merge `9c5e9cb`, PR #4; the only
   production-file change is `vercel.json` — the telegram/x/mtproto hourly starts moved
   `:10/:20/:35` → `:01/:02/:03`; its 48h observation window
   2026-08-17T07:00Z→2026-08-19T07:00Z is **CLOSED — PASS**: measured **13.6%** Neon
@@ -141,9 +151,17 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   catch-up inserted 10,393 documents on 2026-08-13, recorded recovery state, and returned to
   healthy hourly polls (#66 closed; #38 now tracks only independent alert-email delivery proof).
   MTProto is live/top-120 ROCA-only; non-fatal GramJS peer-type `CastError` noise remains #69.
-- **Analysis:** versioned map stage feeds the production `mapreduce` digest engine; K=5 voting,
-  majority-gid fill, publication-safety guard, and thin-regeneration guard are binding. Gulf
-  theaters fall back to legacy where map claims are absent. Validation uses k=5 LLM matching
+- **Analysis:** `DIGEST_ENGINE=mapreduce` is set in Production and the versioned map stage
+  feeds it; K=5 voting, majority-gid fill, publication-safety guard, and thin-regeneration
+  guard are binding. **Corrected 2026-08-21 — mapreduce is currently producing NOTHING:**
+  a theater falls back to legacy whenever the digest window finds no CURRENT-version
+  `doc_claims`, and since **2026-08-17 every digest (11/day) has been legacy**, with
+  `provider_state.map_health` reading `stale_ir,stale_ru,stale_ua`. The map worker itself
+  is healthy (~4–6K claims/day) but is draining the ru/ua BACKLOG — old documents — so
+  current-day windows are empty. Two compounding pre-existing defects are tracked as
+  OPEN-TASKS #86 (≈50% of map micro-batches rejected by the provider with
+  `400 Invalid body`, root-caused to surrogate-splitting truncation in
+  `map-prompts.ts:164`) and #88 (the fallback itself). Validation uses k=5 LLM matching
   with keyword fallback and exposes coverage/divergence/timeliness/thin-source metrics.
   **2026-07-29→08-15 map outage (Iran recovered; ru/ua backlog still draining):**
   `openai_map` crossed the shared $10 all-time
@@ -799,12 +817,17 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
 1. **Operator:** `docs/SETUP-NEXT-WEEK.md` top-to-bottom — VERCEL_TOKEN regen and Stripe.
    bnow.net attach, Postmark sender cutover + DMARC, and MTProto are done.
    (OpenAI credits: done 2026-07-05; keep the billing alert.)
-2. **DIGEST_ENGINE=mapreduce is LIVE in prod (flipped 2026-07-09).** Watch the
-   scoreboard for a week — especially ua (−3.6 pts in the A/B, noise-scale) — plus
-   `provider_usage.openai_reduce` (expect ≈ $0.10–0.30/day against
-   `REDUCE_USD_CAP_DAILY=2`) and `cron_runs` jobs `digest:finalize`/`digest:intraday`.
-   Rollback = remove the Vercel prod env var (or set `legacy`) + redeploy. Then: gulf
-   theaters onto the map worker, the #33 remap path, per-country mix policy.
+2. **`DIGEST_ENGINE=mapreduce` is SET in prod (flipped 2026-07-09) but no digest has
+   actually used it since 2026-08-17** — every one falls back to legacy for want of
+   current-version `doc_claims` (see the Analysis bullet; OPEN-TASKS #86/#88). The
+   corpus-freshness work, not the engine flag, is the blocker: close #86 (the ~50%
+   provider-rejected map batches) first, then re-check `provider_usage.openai_reduce`
+   (expected ≈ $0.10–0.30/day against `REDUCE_USD_CAP_DAILY=2`) and the scoreboard.
+   Rollback of the engine itself = remove the Vercel prod env var (or set `legacy`) +
+   redeploy. Then: gulf theaters onto the map worker, the #33 remap path (the operator
+   now EXISTS in the tree — see the map-lease release — but has never been RUN; its
+   production deployment is recorded in the closeout decision-log entry, not here),
+   per-country mix policy.
 3. Debt & risks: `docs/OPEN-TASKS.md` (prioritized); key-blocked items: `docs/BLOCKERS.md`;
    Russia depth build order: `docs/RUSSIA-DATA-ROADMAP.md` §5.
 
@@ -823,3 +846,42 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
    additivity). Every deviation → decision log.
 7. End of each stage/sprint: write `docs/reviews/<NAME>.md` (built, test results,
    exit-criteria pass/fail with numbers, decisions, debt, risks, replan).
+
+- **2026-08-21 (PR #5 routing-seams 24-hour soak — CLOSED, PASS; independently reverified)**
+  The formal soak window 2026-08-20T22:00:00Z→2026-08-21T22:00:00Z closed and was
+  reverified from the production record rather than from the prior session's notes.
+  Evidence: production is `dpl_GH6UWFojKPEgPrhBiT7utPBPnQBJ` (created 2026-08-20T21:00:27Z,
+  READY, aliased `bnow.net` + `bnow-net.vercel.app`), `/health` HTTP 200 stamping `7336b9c`
+  with DB OK; `origin/main` is `7336b9c4fe74211dd5d2c49c36449b9159953db4`, PR #5's merge
+  commit. In-window `cron_runs`: **199 total, 199 ok, 0 ok=false, 0 with
+  `finished_at IS NULL`, 0 errored** (96 ingest:fast, 24 each mtproto/telegram/x/map, 3
+  digest:intraday, 1 each digest:finalize/validate/enrich/datadark). All **24/24 map runs**
+  ok and carrying exactly ONE distinct dispatch identity —
+  `gpt-4o-mini / reasoningEffort null / analysis-reg-v1 / baseline / workload map`. Digest
+  and validation identities are baseline too, read from their durable homes (21 digests'
+  `structured.stats.llmDispatch`; 3 `validation_runs.details.dispatch`, matcher
+  `llm-majority`) — note that `cron_runs.counts.dispatch` is written by the map and
+  entity-audit routes only, so digest/validation identity must be read from those tables,
+  not from `cron_runs`. Zero routing-gate failures, zero 5xx in sampled runtime logs. NO
+  routing variable exists in any Vercel environment: 86 env rows / 48 distinct names, none
+  of `{MAP,REDUCE,DIGEST,VALIDATION,ENTITY_AUDIT}_{MODEL,REASONING_EFFORT}`, `OPENAI_MODEL`,
+  or `ANALYSIS_ROUTING_*`. **PR5_SOAK_VERDICT=PASS.** This session changed no environment
+  row. Standing text corrected in place: the Live/repository bullet named the superseded
+  Candidate B deployment, and `docs/CURRENT-STATE.md` still described routing as
+  "repository code, NOT deployed".
+  **Three PRE-EXISTING production defects were found while closing the soak — none caused
+  by PR #5, none fixed here, all newly tracked.** (a) ~50% of map micro-batches are rejected
+  by the provider with `400 Invalid body: failed to parse JSON value`; the rate is 0%
+  through 2026-07-15, 7.1% on 07-16, and a 45–54% plateau since, FLAT across every deploy
+  boundary. Root cause identified: `mapDocLine` truncates with
+  `body.slice(0, mapContentChars())` (`src/lib/analysis/map-prompts.ts:164`), a UTF-16 slice
+  that can split a surrogate pair, and the surviving lone surrogate makes the whole request
+  body unparseable — one bad doc kills its entire 20-doc batch (OPEN-TASKS #86, Tier 1).
+  (b) `digest:finalize` records the same 400 in an in-run `errors` counter while
+  `cron_runs.ok` stays true (#87). (c) Consequently **no digest has used the mapreduce
+  engine since 2026-08-17** — all 11/day fall back to legacy for want of current-version
+  `doc_claims`, with `map_health` reading `stale_ir,stale_ru,stale_ua` (#88); AGENTS.md and
+  CURRENT-STATE.md both claimed mapreduce was the live engine and are corrected in place.
+  A fourth, latent: the dedup gate's reference-side exact-md5 index is keyed on `undefined`
+  because reference rows are cast `as DedupDoc[]` while the SQL aliases `content_md5` (#89,
+  byte-identical on `main`, not introduced by any recent change).
