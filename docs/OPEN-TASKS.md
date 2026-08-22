@@ -174,7 +174,7 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     baseline with no env override — `MAP_MODEL` or a validated `MAP_REASONING_EFFORT` is
     refused `MAP ACTIVATION BLOCKED` — until this remap path exists and activation is
     explicitly authorized. Pricing or `analysis-reg-v1` approval alone does not unlock it.
-    **STATUS 2026-08-21 — TOOL IMPLEMENTED, NEVER EXECUTED (not closed).**
+    **STATUS 2026-08-22 — TOOL DEPLOYED, NEVER EXECUTED (not closed).**
     `scripts/map-remap.ts` plus remap mode in `runMapCycle` shipped 2026-08-21
     (`docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md`): dry-run-first, resumable,
     lease-safe, route-capability-gated, fail-closed on every numeric flag, checkpoint bound
@@ -730,10 +730,13 @@ docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md)
     durable fix is the `provider_state` `map_lease` row
     (`src/lib/analysis/map-lease.ts`): single-statement CAS acquire under proven expiry
     against the DB clock, per-acquisition tokens, token-checked renew/release, monotonic
-    diagnostic fence — no session state for a pooler to strand. Merged 2026-08-21
-    (`docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md`); the production
-    deployment identity and the formal soak window are recorded in the closeout
-    decision-log entry appended AFTER the deploy, not here. This item stays
+    diagnostic fence — no session state for a pooler to strand. Merged as PR #7
+    (`23a1280`) and deployed 2026-08-22 as `dpl_HjaHYtfZDhoFR2SqfH66XFT6RhJe`
+    (`docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md`). Live-verified on the
+    first natural cycle: outcome `acquired`, fence 1, 57 renewals, lost 0, released 1,
+    lease left at `{"fence": 1}` with no token, and ZERO advisory locks remaining in
+    `pg_locks`. **Formal 24h lease soak OPEN 2026-08-22T02:00:00Z →
+    2026-08-23T02:00:00Z**; closeout checklist in §8 of that report. This item stays
     OPEN until the formal 24-hour lease soak closes PASS: 24 natural hourly cycles,
     monotonic fences, clean release, zero lost leases, no unexplained busy/takeover, zero
     failed or unfinished cycles, baseline routing, stable metering and yield, no
