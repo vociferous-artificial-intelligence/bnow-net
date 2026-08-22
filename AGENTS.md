@@ -107,17 +107,26 @@ place whenever reality changes. Historical narrative: `docs/PROGRESS.md` + `docs
 debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
 
 - **Live/repository:** https://bnow.net · Vercel `bnow-net` / team `vociferous`; production
-  `dpl_GH6UWFojKPEgPrhBiT7utPBPnQBJ` is the **2026-08-20 workload-scoped model-routing
-  release** (PR #5), built from `main` merge commit `7336b9c`, READY and aliased to
-  `bnow.net` + `bnow-net.vercel.app`, `/health` stamping `7336b9c` with `DB OK`; created
-  2026-08-20T21:00:27Z. Infrastructure only: no candidate model is approved or activated,
-  and NO routing variable exists in any Vercel environment (86 env rows / 48 distinct
-  names, reverified 2026-08-21). Its formal 24h soak
-  2026-08-20T22:00:00Z→2026-08-21T22:00:00Z is **CLOSED — PASS** (199/199 scheduled runs
-  ok, zero failed/unfinished/errored `cron_runs`, 24/24 map runs, one baseline dispatch
-  identity each for map/digest/validation, zero routing-gate failures, zero 5xx). Code
-  rollback target = the prior Candidate B release `dpl_CDnECGnXvoZFKnA9QQziz59pmpu2` /
-  `9c5e9cb`. Prior lineage: the 2026-08-17 Candidate B cron-clustering release
+  `dpl_HjaHYtfZDhoFR2SqfH66XFT6RhJe` is the **2026-08-22 QF Worktree B release** (PR #7),
+  built from `main` merge commit `23a1280`, READY 2026-08-22T01:02:29Z and aliased to
+  `bnow.net` + `bnow-net.vercel.app` + `bnow-net-vociferous.vercel.app`; `/health` stamps
+  **`23a1280`** with `DB OK` (deployed from a fresh CLONE, not a worktree, so the #78
+  blank-stamp trap did not apply). It replaces the map worker's session advisory lock with
+  the durable `provider_state.map_lease` row (#77) and ships the version-aware remap
+  operator (#33) — **which has never been executed**. No migration, no env change, no
+  schedule change, no model activated; the MAP activation lock is untouched. Its formal
+  24h LEASE SOAK is **OPEN: 2026-08-22T02:00:00Z → 2026-08-23T02:00:00Z** — see
+  `docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md` §8 for the closeout checklist.
+  Code rollback target = `dpl_GH6UWFojKPEgPrhBiT7utPBPnQBJ` / `7336b9c` (a pure code
+  rollback: the `map_lease` row is inert to that build, which never reads the key).
+  Previous release: the **2026-08-20 workload-scoped model-routing release** (PR #5,
+  `dpl_GH6UWFojKPEgPrhBiT7utPBPnQBJ` / `7336b9c`, created 2026-08-20T21:00:27Z),
+  infrastructure only — no candidate model approved or activated, and NO routing variable
+  in any Vercel environment (86 env rows / 48 distinct names, reverified 2026-08-22). Its
+  formal 24h soak 2026-08-20T22:00:00Z→2026-08-21T22:00:00Z is **CLOSED — PASS** (199/199
+  scheduled runs ok, zero failed/unfinished/errored `cron_runs`, 24/24 map runs, one
+  baseline dispatch identity each for map/digest/validation, zero routing-gate failures,
+  zero 5xx). Prior lineage: the 2026-08-17 Candidate B cron-clustering release
   (`dpl_CDnECGnXvoZFKnA9QQziz59pmpu2`, `main` merge `9c5e9cb`, PR #4; the only
   production-file change is `vercel.json` — the telegram/x/mtproto hourly starts moved
   `:10/:20/:35` → `:01/:02/:03`; its 48h observation window
@@ -209,10 +218,10 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   Postmark `BNOW.NET <no-reply@bnow.net>` is live; magic-link guidance is single-use/24h and
   copy-before-opening. PostHog is production-only, explicit opt-in, allowlist-sanitized, UUID
   identity, no Ask/Search/source text; GeoIP is retained per disclosed operator ruling.
-- **Quality/ops:** 2,187 unit tests / 171 files + 107 real-Postgres integration tests /
-  17 files, all green (measured 2026-08-20 on the PR #5 reconciliation tree; the previous
-  `2,049 / 161` + `72 / 14` figures were stale). Production DB migrated through 0027
-  (2026-07-21, verified + idempotent).
+- **Quality/ops:** **2,309 unit tests / 176 files + 118 real-Postgres integration tests /
+  19 files**, all green (measured 2026-08-22 on the PR #7 merged head `85f364d`; the
+  PR #5 figures were 2,187/171 + 107/17). Production DB migrated through 0027
+  (2026-07-21, verified + idempotent); PR #7 adds no migration.
   Enforced pre-push gate = typecheck+lint+test. Crons: fast */15; telegram :01; X :02;
   MTProto :03 (clustered since the 2026-08-17 Candidate B release; :10/:20/:35 before);
   map :40; digest 4×/day; validate/enrich/datadark daily; trade/materials monthly.
@@ -885,3 +894,67 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   A fourth, latent: the dedup gate's reference-side exact-md5 index is keyed on `undefined`
   because reference rows are cast `as DedupDoc[]` while the SQL aliases `content_md5` (#89,
   byte-identical on `main`, not introduced by any recent change).
+
+- **2026-08-22 (QF Worktree B — durable map lease + version-aware remap: merged, deployed,
+  24h lease soak OPENED)** The audited QF Worktree B (`c40060e`) was isolated onto its own
+  branch, rebased `--onto origin/main 05fdd2c` with an **EMPTY conflict ledger** — `git
+  range-diff` shows all seven B commits `=`, the path inventory is identical (14 paths),
+  and both the non-doc patch (124,060 bytes) and the full patch are **byte-identical** to
+  the audited original. B never touched AGENTS.md, so no append-only document needed
+  merging. Repairs on top closed the audit findings the release required: REMAP-1 and L4-1
+  are now pinned by always-run unit tests over an in-memory Pool (remap never writes
+  `processed`, including a partially-dispositioned `processed=false` doc whose other track
+  remains hourly-worker work; both previously-unpinned lease-gated write gates), REMAP-3
+  swept every numeric CLI input fail-closed in both drivers AND at the route, REMAP-5 +
+  SAF-m4 bound the remap checkpoint to a credential-free route target with a missing
+  binding treated as a mismatch, and L4-2's "never a second writer" absolute was WITHDRAWN
+  from code and report alike in favour of the exact residual (diagnostic-only fence,
+  check-then-act ownership re-check, renew-to-COMMIT window, mixed-generation
+  first-writer-wins bound, fence column deferred as #85). The governing QF prompt is now
+  tracked verbatim from the audit's preserved blob `2919970` (SHA-256 `7a5562…6fcc`,
+  closing G1). A genuine pre-existing clock-dependent test flake — failing within ~62
+  minutes of UTC midnight, reproduced at 23:54Z on the audited tip — was also fixed.
+  **Three adversarial review rounds ran against exact SHAs** (`028a123`, `11e0754`,
+  `85f364d`). The governing prompt specifies Fable 5 reviewers; both Fable 5 reviewers
+  terminated with a model-side safeguard error, so under the operator's explicit override
+  both ran as Opus 5 (`claude-opus-5[1m]`, self-reported; effort configured-by-spawner, not
+  self-verifiable). Verdicts: round 1 PASS-WITH-MINORS ×2, round 2 PASS-WITH-MINORS ×2,
+  round 3 PASS-WITH-MINORS (lease, "merge-ready tree") + PASS (spend). No BLOCKER, HIGH or
+  MAJOR in any round. The reviewers constructed 21 mutations; the survivors were the
+  valuable part and all are now closed — most importantly **the `persistBatch` ownership
+  gate, the only one of four lease-gated write paths whose writes come from a BILLED call,
+  had no always-run cover and its deletion passed the entire pre-push gate** (found
+  independently by both reviewers; the 2026-08-18 audit had recorded it as covered, so the
+  release prompt named only two unpinned paths). Also closed: the three lease SQL
+  predicates were itest-only; two of the release's own new pins were non-discriminating;
+  `?cap=0` at the route manufactured a false "day drained"; `--theater` was unvalidated so
+  a typo printed a confident REMAP COMPLETE over zero work; the lease-busy wait was
+  unbounded and indistinguishable from a DB failure; and a dry run promised a dispatch the
+  activation lock would refuse. Gates on the merged head `85f364d`: typecheck clean · lint
+  0/0 · unit **2,309/2,309 (176 files)** · production build PASS · disposable-Neon
+  integration **118/118 (19 files)** · pre-push green · every guard mutation-proven · 12
+  malformed remap invocations all refused before any route call against an unroutable base.
+  CI's `integration` job CLEAN-SKIPS (this repo has no Actions secrets, `NEON_API_KEY` is
+  empty) — that green check is NOT evidence and the local disposable-Neon run is. Merged as
+  PR #7 `23a1280` (merge commit, history NOT squashed; tree byte-identical to the reviewed
+  head) and deployed EXACTLY ONCE from a fresh clone as
+  `dpl_HjaHYtfZDhoFR2SqfH66XFT6RhJe`, `/health` stamping the full merge SHA `23a1280` with
+  DB OK. Ruling 21 re-proven live on the new build: for all ten gated routes the anonymous
+  bare-GET body adds zero words beyond the public signin/landing content, and the `RSC: 1`
+  payload carries `NEXT_REDIRECT;replace;/signin;307` or `NEXT_HTTP_ERROR_FALLBACK;404` —
+  a gate directive, not a serialized page. **First natural lease cycle (01:40:16Z →
+  01:43:01Z, no cron manually invoked): ok=true, outcome `acquired`, fence 1, 57 renewals,
+  lost 0, released 1, leaseLostDiscards 0, baseline dispatch, the same four extractor
+  versions as before the deploy, 138 claims / $0.0168 in the normal band; afterwards
+  `provider_state.map_lease` = `{"fence": 1}` (fence kept, token absent) and `pg_locks`
+  holds ZERO advisory locks — the #77 mechanism is gone from production.** Binding until
+  superseded: the **24-hour formal LEASE SOAK is OPEN, 2026-08-22T02:00:00Z →
+  2026-08-23T02:00:00Z**, and during it no remap execution, runtime deployment,
+  environment/cap change, model activation, manual cron invocation or paid evaluation is
+  permitted; the closeout checklist is §8 of the release report. **#77 and #33 are NOT
+  closed** — the lease is implemented and awaiting its soak, and the remap operator is
+  deployed but has NEVER been executed, so remap is not production-proven and no yield,
+  cost or completion figure for it exists. Unlocking the MAP activation lock still
+  additionally requires an executed, costed corpus remap under explicit spend authorization
+  plus a paid representative scorecard (#81). Report:
+  `docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md`.

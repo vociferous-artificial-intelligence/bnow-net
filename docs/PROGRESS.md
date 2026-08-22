@@ -2945,3 +2945,33 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
    model is activated, no environment variable is touched, no migration exists, and neither
    OPEN-TASKS #77 (lease) nor #33 (remap) is closed — both are marked
    implemented/awaiting-production-soak instead.
+
+## 2026-08-22 — QF Worktree B merged, deployed, lease soak OPENED
+
+1. **Merged as PR #7** (`23a1280`, merge commit — reviewed repair history NOT squashed;
+   tree byte-identical to the reviewed head `85f364d`). Three adversarial review rounds
+   ran against exact SHAs; final verdicts PASS-WITH-MINORS (lease, "merge-ready tree") and
+   PASS (spend), with no BLOCKER/HIGH/MAJOR in any round. The reviewers' 21 mutations found
+   three real coverage gaps, all closed — chief among them the `persistBatch` ownership
+   gate, the only lease-gated write path fed by a BILLED call, whose deletion had passed
+   the entire pre-push gate.
+2. **Deployed exactly once** from a fresh CLONE (not a worktree) as
+   `dpl_HjaHYtfZDhoFR2SqfH66XFT6RhJe`; `/health` stamps the full merge SHA `23a1280` with
+   DB OK — the OPEN-TASKS #78 blank-stamp trap avoided. No migration, no env change, no
+   schedule change, no model activated. Rollback target
+   `dpl_GH6UWFojKPEgPrhBiT7utPBPnQBJ` / `7336b9c`.
+3. **Ruling 21 re-proven live**: across all ten gated routes the anonymous bare-GET body
+   adds zero words beyond the public signin/landing content, and the `RSC: 1` payload
+   carries a gate directive (`NEXT_REDIRECT;replace;/signin;307` or
+   `NEXT_HTTP_ERROR_FALLBACK;404`), never a serialized page.
+4. **First natural lease cycle clean** (01:40:16Z → 01:43:01Z, nothing manually invoked):
+   `acquired`, fence 1, 57 renewals, lost 0, released 1, discards 0, baseline dispatch,
+   no extractor-version drift, 138 claims / $0.0168. Afterwards `map_lease` = `{"fence":1}`
+   (token absent) and `pg_locks` holds ZERO advisory locks — #77's mechanism is gone from
+   production.
+5. **Formal 24h lease soak OPENED: 2026-08-22T02:00:00Z → 2026-08-23T02:00:00Z.** NOT
+   closed by this session. Closeout checklist in §8 of the release report.
+6. **Not done, deliberately:** remap has never been executed (no `map:remap` row exists);
+   no model activated; no environment variable touched; #77 and #33 both remain OPEN;
+   OPEN-TASKS #85/#86/#87/#88/#89/#90/#91 are filed but unfixed, and #86 (the ~50%
+   surrogate-splitting batch rejection) is the highest-value known lever on map yield.

@@ -24,9 +24,10 @@ untouched and remains binding.
 | Independent audit tip | `858bb9a7507ddafc1ba1062c2df353aee0e91d9e` |
 | Rebased B tip, before repairs | `405f78380cb26c96ebb0bbd191eb265d10c3832c` |
 | Repair commit | `3c1c10c789213ddb6dc4061e5a59e933d6314b45` |
-| Reviewed / PR-head SHA | *(§6)* |
-| Merge commit | *(§7)* |
-| Production deployment | *(§8)* |
+| Repair commit (round 1 review remediation) | `11e0754f9b91a0e6c8ea16cc10fb359bb9abd6f9` |
+| **Reviewed / PR-head SHA** | `85f364dfb31c7b5108a2fa67caba4e6445f54b3c` |
+| **Merge commit** | `23a1280eceeb0bd41eb9302fe8fc7e80f971580b` (PR #7; parents `7336b9c` + `85f364d`; tree `45eee67…` byte-identical to the reviewed head) |
+| **Production deployment** | `dpl_HjaHYtfZDhoFR2SqfH66XFT6RhJe`, READY 2026-08-22T01:02:29Z |
 | Rollback target | `dpl_GH6UWFojKPEgPrhBiT7utPBPnQBJ` / `7336b9c` |
 
 Branch `codex/qf-b-map-lease-remap-20260821`, worktree
@@ -178,9 +179,18 @@ this branch's copy.
 
 ## 6. Exact-SHA gates
 
-Run on a clean tree at the remediated SHA `11e0754f9b91a0e6c8ea16cc10fb359bb9abd6f9`
-(Node v24.14.0 / npm 11.9.0, macOS). The first review round ran the same
-battery at `028a1236`; both sets of numbers are given where they differ.
+Run on a clean tree at each reviewed SHA (Node v24.14.0 / npm 11.9.0, macOS).
+The table's headline column is the **merged head `85f364d`**; `11e0754` and
+`028a123` are the two earlier reviewed SHAs, given where the numbers differ.
+
+**Merged-head totals:** typecheck clean · lint 0 errors / 0 warnings · unit
+**2,309 / 2,309 over 176 files** · production build PASS · disposable-Neon
+integration **118 / 118 over 19 files** (branch `br-lucky-band-at3vcofl`,
+created and deleted) · pre-push hook all green · migration / schedule /
+lockfile deltas all **0 files** · secrets, generated files, conflict markers
+and NUL bytes all clean. Baseline on `origin/main` `7336b9c`, measured in a
+disposable worktree: **2,187 / 171** — so this release adds **+122 tests and
++5 test files** and removes `main`'s two NUL bytes from `map-worker.ts`.
 
 | Gate | Command | Result at `11e0754` | at `028a123` |
 |---|---|---|---|
@@ -369,9 +379,160 @@ merged tree further from the tree that was adversarially reviewed — the exact
 provenance failure (`QF-PROV-3` / `G3`) the independent audit criticised in the
 program this work comes from.
 
-## 8. Deploy, rollback, and the lease soak
+## 8. Deploy, first lease cycle, and the open soak
 
-*(completed after deployment)*
+### The single production deployment
+
+Deployed **exactly once**, from a FRESH ISOLATED CLONE at
+`/Users/go/code/bnow-net-deploy-20260822` — a real clone with a `.git`
+DIRECTORY, not a git worktree, so the Vercel CLI's git-metadata detection
+works and the build stamp carries the commit. This is the OPEN-TASKS #78
+workaround, and it held: `/health` renders `23a1280`, the full merge SHA,
+where the 2026-08-15 worktree deploy rendered an empty stamp.
+
+```
+npx vercel@59.1.4 deploy --prod --yes --scope vociferous
+```
+
+Pinned CLI `59.1.4`, explicit `--scope vociferous`, no `--force`, no preview,
+one command, one deployment.
+
+| Pre-deploy condition | Verified at 2026-08-22T01:01Z |
+|---|---|
+| Production still the PR #5 deployment | `data-dpl-id=dpl_GH6UWFojKPEgPrhBiT7utPBPnQBJ`, HTTP 200 |
+| No map `cron_runs` row active | `finished_at IS NULL` count for `map%` = **0** |
+| Deployed after a natural `:40` run finished | last map run started 00:40:21Z, **finished 00:43:48Z**, ok — deploy began 01:01:47Z, ~18 min later and ~38 min before the next `:40` |
+| No `map_lease` row yet | 0 rows |
+| Routing variables absent | 86 env rows / 48 distinct names, **name set byte-identical** to the pre-release listing; no `*_MODEL`, no `*_REASONING_EFFORT`, no `OPENAI_MODEL`, no `MAP_LEASE_TTL_SEC` |
+| No migration required | `7336b9c..23a1280 -- drizzle/ src/db/` = 0 files |
+
+| Post-deploy verification | Result |
+|---|---|
+| Deployment state | `dpl_HjaHYtfZDhoFR2SqfH66XFT6RhJe` ● Ready, target production |
+| Aliases | `bnow.net`, `bnow-net.vercel.app`, `bnow-net-vociferous.vercel.app` |
+| `/health` | HTTP 200, **DB OK** |
+| Build stamp | **`23a1280`** = the merge SHA |
+| `data-dpl-id` | `dpl_HjaHYtfZDhoFR2SqfH66XFT6RhJe` = the new deployment |
+| Public routes | 11/11 return 200 (`/`, `/countries`, `/countries/ru`, `/scoreboard`, `/privacy`, `/terms`, `/access`, `/signin`, `/health`, `/robots.txt`, `/sitemap.xml`) |
+| Runtime logs | 0 5xx; no routing, config, cap, or model-activation error |
+| Environment | unchanged — no row added, removed, or rescoped by this session |
+
+### Ruling 21 re-proven on the new build
+
+Ten gated routes, each probed anonymously in BOTH modes, asserting on the
+response **body** rather than the status code:
+
+- **bare GET** — every gated route returns a body whose visible word set adds
+  **ZERO words** beyond what the public `/signin` and `/` pages already
+  render. The 307's body is the signin page, as designed.
+- **`RSC: 1` GET** — returns HTTP 200 `text/x-component` carrying a gate
+  DIRECTIVE, not a serialized page: `NEXT_REDIRECT;replace;/signin;307` for
+  the seven `requireAcceptedUser`/`requireAdmin` routes and
+  `NEXT_HTTP_ERROR_FALLBACK;404` for the three `requireAdminOr404` routes.
+
+A first pass at this check flagged 16 false positives by grepping for words
+like "coverage" and "reliability" — both of which live in the site nav and
+footer on every page including the 404. The set-difference method against the
+public pages is the one that actually discriminates, and it is clean.
+
+### First natural lease cycle — the one that matters
+
+No cron was invoked manually. The first scheduled `:40` after deployment:
+
+| Signal | Required | Observed |
+|---|---|---|
+| `cron_runs.ok` | true | **true**, `error` null, 01:40:16Z → 01:43:01Z |
+| `counts.lease.outcome` | `acquired` or honestly classified | **`acquired`** — a fresh acquire, correct: no `map_lease` row existed before this deploy |
+| fence | positive, monotonic | **1** — the first acquisition in the row's life; every later holder must exceed it |
+| renewals | expected | **57** across 15 provider attempts and every pre-write gate |
+| `lost` | 0 | **0** |
+| `released` | 1 | **1** — an actual clean handover, not a refused stale release (the code records 0 for a refused one) |
+| paid call before acquisition | none | none — acquisition precedes `guard.init`, client construction and every dispatch |
+| dispatch identity | baseline | **`gpt-4o-mini` / effort `null` / `analysis-reg-v1` / `baseline` / workload `map`** |
+| extractor versions | unchanged | the same four as before the deploy: `d73cc83ed8df`, `75e0ff6403db`, `15a6078371bd`, `19c06260f149` — no drift |
+| claims / spend | normal range | 138 claims, $0.0168 (prior runs: 125–216 claims, $0.0174–$0.0282) |
+| `leaseLostDiscards` | 0 | **0** |
+| lease state after completion | released, no live token | `provider_state.map_lease` = **`{"fence": 1}`** — fence preserved, token absent, i.e. FREE |
+| advisory locks | none | **0** rows in `pg_locks` where `locktype='advisory'` — the OPEN-TASKS #77 mechanism is gone from production |
+| contention | none unexplained | none |
+
+`batchErrors` was 25 of 40 batches — the pre-existing OPEN-TASKS #86 rate,
+unchanged by this release and unrelated to the lease.
+
+### Formal lease soak — OPEN
+
+- **Start:** `2026-08-22T02:00:00Z` — the next clean UTC hour boundary after smoke completed (01:44Z)
+- **End:** `2026-08-23T02:00:00Z`
+- **`LEASE_SOAK_STATUS=OPEN`.** It is NOT closed by this session and must not be declared PASS here.
+
+Forbidden for the duration: remap execution (including any `--execute`
+probe), any runtime deployment, any environment or cap change, any model
+activation, any manual cron invocation, and any paid evaluation. Natural
+scheduled provider activity is expected and permitted.
+
+### Closeout checklist for the next session
+
+Close the soak only if ALL of the following hold over
+2026-08-22T02:00:00Z → 2026-08-23T02:00:00Z:
+
+1. **24 natural hourly map cycles**, none manually invoked.
+2. `cron_runs.ok = true` for every one; **zero** `ok=false`, zero
+   `finished_at IS NULL` among them. (Note: 5 unfinished rows from
+   2026-07-28 … 2026-08-15 pre-date this release and are `ingest:*`, never
+   `map` — exclude them by `started_at`, do not count them as failures.)
+3. **Monotonic fences.** Every cycle's `counts.lease.fence` strictly exceeds
+   the previous cycle's. The first cycle was fence 1, so a clean soak ends
+   around fence 25. A REPEATED fence means two holders believed they
+   acquired; a fence that jumps far means takeovers happened.
+4. `counts.lease.outcome` is `acquired` on every cycle. An
+   `expired_takeover` means the previous holder did not release — investigate
+   before closing. `busy` or `error` on a scheduled run is unexplained
+   contention and blocks the PASS.
+5. `lost = 0` and `released = 1` on every cycle; `leaseLostDiscards = 0`.
+6. `provider_state.map_lease` sits at `{"fence": N}` with **no token** between
+   cycles.
+7. **Baseline routing throughout:** every cycle's `counts.dispatch` is exactly
+   `gpt-4o-mini` / `null` / `analysis-reg-v1` / `baseline`. No routing variable
+   in any Vercel environment; env row count still 86 / 48 distinct names.
+8. **No extractor-version drift:** `doc_claims` written during the soak carry
+   only the four current versions.
+9. **Stable metering and yield:** `openai_map` daily spend and claims/day in
+   the historical band; no budget stop of any non-`run_cap` category.
+10. Zero advisory locks in `pg_locks`.
+11. `REMAP_EXECUTED` still NO — no `map:remap` row in `cron_runs`, ever.
+
+Useful query:
+
+```sql
+SELECT started_at, ok,
+       counts->'lease'->>'outcome'   AS outcome,
+       (counts->'lease'->>'fence')::int  AS fence,
+       (counts->'lease'->>'lost')::int   AS lost,
+       (counts->'lease'->>'released')::int AS released,
+       counts->>'leaseLostDiscards'  AS discards,
+       counts->'dispatch'->>'model'  AS model,
+       counts->>'claims' AS claims, counts->>'estUsd' AS usd
+FROM cron_runs
+WHERE job LIKE 'map%'
+  AND started_at >= '2026-08-22T02:00:00Z'
+  AND started_at <  '2026-08-23T02:00:00Z'
+ORDER BY started_at;
+```
+
+On PASS: close OPEN-TASKS #77, append a dated decision-log entry, and correct
+the standing sections. On FAIL: roll back to
+`dpl_GH6UWFojKPEgPrhBiT7utPBPnQBJ` / `7336b9c` — a pure code rollback, since
+this release carries no migration and no environment change, and the
+`map_lease` row is inert to the old code.
+
+### Remap remains unexecuted; the activation lock remains locked
+
+`scripts/map-remap.ts` has NEVER been run against production or any deployed
+route — not in this session, not in any prior one, and not as a probe. There
+is no `map:remap` row in `cron_runs`. Deploying it changed nothing by itself.
+The MAP activation hard lock is byte-unchanged and still refuses any
+non-baseline configuration before any reservation, including on the remap
+path. No model was activated; no environment variable was touched.
 
 ### Rollback strategy
 

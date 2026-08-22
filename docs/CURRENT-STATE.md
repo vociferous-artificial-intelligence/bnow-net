@@ -134,11 +134,36 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   `MAP_STALE_DAYS` 2), and `scripts/map-backfill.ts` supports `--theater` + typed stop
   classification (run/daily/total/transport). The temporary recovery daily elevation
   (`MAP_USD_CAP_DAILY_OVERRIDE_USD=20` until `2026-08-17T13:00:00Z`) auto-expires in
-  code; base `MAP_USD_CAP_DAILY=4` was never changed. **Known trap (OPEN-TASKS #77):**
-  the worker's session advisory lock can strand on an idle pgbouncer server connection
-  (the pooled DSN routes unlock to a different backend), leaving later cycles `skipped`;
-  a stranded holder is identifiable as idle + lock held + NO open map cron_runs row and
-  is safe to pg_terminate; the durable fix is a transaction-scoped lock.
+  code; base `MAP_USD_CAP_DAILY=4` was never changed. **Concurrency — corrected
+  2026-08-22: the session advisory lock is GONE from production.** The pgbouncer
+  stranding trap (#77 — the pooled DSN could route `pg_advisory_unlock` to a different
+  backend, leaving every later cycle `skipped`) was replaced by the durable
+  `provider_state` row lease (`src/lib/analysis/map-lease.ts`, key `map_lease`) in the
+  2026-08-22 PR #7 release: a single-statement CAS acquire under proven expiry against
+  the DB clock, per-acquisition tokens as the sole authorization, token-checked
+  renew/release, and a monotonic diagnostic fence — no session state for a pooler to
+  strand, verified live (`pg_locks` holds ZERO advisory locks). The lease serializes the
+  hourly cron, the backfill driver and the remap operator on ONE key. **Accepted
+  residual (#85):** the fence is diagnostic-only and writes are protected by a
+  check-then-act token re-check, not a statement fence, so the unprotected window is the
+  whole renew-to-COMMIT span; a full-TTL stall of that span can admit a mixed-generation
+  first-writer-wins claim set for one (doc, track, version). Removing it needs a fence
+  column — a migration, deliberately deferred. **#77 stays OPEN until the 24h lease soak
+  (2026-08-22T02:00Z → 2026-08-23T02:00Z) closes PASS.** TTL is `MAP_LEASE_TTL_SEC`,
+  default 120s clamped to [30,600], and is NOT set in any Vercel environment.
+- **Map remap operator (OPEN-TASKS #33) — DEPLOYED, NEVER EXECUTED.**
+  `scripts/map-remap.ts` plus remap mode in `runMapCycle` shipped in the same release:
+  dry-run-first, resumable, lease-safe, route-capability-gated, fail-closed on every
+  numeric flag, checkpoint bound to extractor versions AND route target, structurally
+  incapable of writing `raw_documents.processed` or of deleting/rewriting historical
+  `doc_claims`. It has NEVER been run against production or any deployed route, so remap
+  is NOT production-proven and no yield, cost or completion figure for it exists. The MAP
+  activation hard lock is untouched: only the baseline `gpt-4o-mini`/no-effort
+  configuration can dispatch, which makes this a prompt-revision tool until an operator
+  authorizes an activation — which additionally needs an executed, costed corpus remap
+  and a paid representative scorecard (#81). NOTE: while #86 stands (~45–54% of map
+  micro-batches rejected `400 Invalid body`), the driver's stall bound trips after 3
+  calls, so it cannot drain a day at all today.
 - **Model routing (PR #5 — LIVE in production since 2026-08-20, `dpl_GH6UWFojKPEgPrhBiT7utPBPnQBJ` / `7336b9c`; 24h formal soak CLOSED PASS 2026-08-21):** `src/lib/llm/model-config.ts`
   is the ONE authority for which model each analysis workload dispatches and at what
   reasoning effort — map, reduce, digest, validation, entity_audit — resolved at CALL time,
@@ -389,12 +414,12 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   Signals proof; optional analytics was left off and persisted `denied`. It remains the standing
   verification identity and was signed back out after the proof. Evidence:
   `docs/reviews/POSTHOG-ANALYTICS-IMPLEMENTATION-NOTE-2026-07-14.md`.
-- **Tests:** 2,187 unit tests / 171 files green (`npm test`, ~5s) + 107/107 Neon-branch
-  integration tests / 17 files (incl. `map-budget-stop.itest.ts` and
-  `isw-citation-refresh.itest.ts`, both against disposable production forks with zero paid
-  calls) — measured 2026-08-20 on the PR #5 routing-seams reconciliation tree with
-  `LLM_DISABLE=1` and every provider key blanked; the fork is deleted after each run.
-  PR #5 adds the five new routing test files (166 → 171) and +64 tests.
+- **Tests:** **2,309 unit tests / 176 files** green (`npm test`, ~4s) + **118/118**
+  Neon-branch integration tests / **19 files** (incl. `map-lease.itest.ts`,
+  `map-remap.itest.ts`, `map-budget-stop.itest.ts` and `isw-citation-refresh.itest.ts`,
+  all against disposable production forks with zero paid calls) — measured 2026-08-22 on
+  the PR #7 merged head with `LLM_DISABLE=1` and every provider key blanked; the fork is
+  deleted after each run. PR #7 adds +122 tests and +5 files over PR #5's 2,187/171.
   The saved `NEON_API_KEY` works (disposable branches created and deleted cleanly). CI
   mirror: `.github/workflows/ci.yml`; the enforced pre-push gate is `.githooks/pre-push`
   (typecheck+lint+test), which does not include the integration suite.
