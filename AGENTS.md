@@ -825,7 +825,8 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
    (expected ≈ $0.10–0.30/day against `REDUCE_USD_CAP_DAILY=2`) and the scoreboard.
    Rollback of the engine itself = remove the Vercel prod env var (or set `legacy`) +
    redeploy. Then: gulf theaters onto the map worker, the #33 remap path (the operator
-   now EXISTS and is deployed — see the map-lease release — but has never been run),
+   now EXISTS in the tree — see the map-lease release — but has never been RUN; its
+   production deployment is recorded in the closeout decision-log entry, not here),
    per-country mix policy.
 3. Debt & risks: `docs/OPEN-TASKS.md` (prioritized); key-blocked items: `docs/BLOCKERS.md`;
    Russia depth build order: `docs/RUSSIA-DATA-ROADMAP.md` §5.

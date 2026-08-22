@@ -158,7 +158,7 @@ lease-busy sleep is not what satisfied it. No behaviour change.
 | Busy lease means zero paid calls and zero writes | `lease.handle === null` returns `counts.skipped` before `cycle()` | new test: zero pool queries, zero client queries, zero reservations, zero client constructions |
 | Driver error treated exactly like busy | `acquireMapLease` catch → `outcome: "error"`, handle null | new test |
 | Renewal before every physical provider attempt | `extractBatch` keepalive | existing `map-worker-spend.test.ts` (keepalive before initial call, 429 retry, each split level) |
-| Renewal immediately before every protected write | `stillOwner()` at the mirror txn, each `persistBatch`, the final flag | existing persist coverage plus the two NEW gate pins |
+| Renewal immediately before every protected write | `stillOwner()` at the mirror txn, each `persistBatch`, the final flag | ALL THREE now have always-run pins, each mutation-proven. The `persistBatch` gate was pinned only by the Neon-gated itest until the independent review demonstrated it (MEDIUM-1); its pin also asserts the billed response was metered BEFORE the discard (ruling 8) |
 | Stale release is a no-op | token-CAS `release` | `map-lease.test.ts` plus `counts.lease.released === 0` in both new lost-lease tests |
 | Remap never deletes or rewrites historical claims | remap only INSERTs at current versions; superseded rows stay append-only history | new test asserting zero `DELETE`/`UPDATE` against `doc_claims` / `doc_map_state`, and zero `doc_dedup` writes in remap mode |
 | Route capability handshake mandatory | phase-1 `maxSelectedId` check plus live re-check | existing driver tests |
@@ -182,7 +182,79 @@ this branch's copy.
 
 ## 7. Independent adversarial reviews
 
-*(two fresh reviewers bound to the exact committed SHA)*
+Two fresh, isolated reviewers, each in its own detached-HEAD worktree at the
+exact committed SHA `028a1236`, each required to write its attack plan BEFORE
+reading any of this change's reports, and each forbidden from contacting
+production or making a paid call. Both left their worktrees clean.
+
+**Model note, recorded honestly.** The governing prompt specifies Fable 5
+reviewers. Both Fable 5 reviewers were launched and both terminated
+immediately with a model-side safeguard error, so — under the operator's
+explicit override for exactly this case — both were relaunched on Opus 5.
+Each reviewer self-reported its identity: *"Opus 5 (1M context)", exact model
+ID `claude-opus-5[1m]`*. Neither could observe its own sampling effort; both
+correctly reported it as configured-by-spawner, not self-verified, rather than
+guessing.
+
+| Reviewer | Verdict | Findings |
+|---|---|---|
+| Concurrency / Postgres / lease | **PASS-WITH-MINORS** | 0 BLOCKER · 0 HIGH · 1 MEDIUM · 2 MINOR · 3 NOTE · 18 categories clean |
+| Spend / versioning / remap-safety | **PASS-WITH-MINORS** | 0 BLOCKER · 0 HIGH · 1 MEDIUM · 6 MINOR · 7 NOTE · 13 categories clean |
+
+Both independently reproduced typecheck clean, lint clean, unit 2,270/2,270
+(175 files) and a production build PASS at the reviewed SHA, and both ran
+their own source mutations. Between them they constructed 13 mutations; 10
+were caught by the always-run suite and **3 survived** — those three are the
+substance of the round.
+
+### Convergent MEDIUM — both reviewers found it independently
+
+**The `persistBatch` pre-write ownership gate had no always-run coverage.**
+`map-worker.ts`'s `if (!(await stillOwner())) { stats.leaseLostDiscards += …;
+return; }` is the third of four lease-gated write paths and the only one whose
+writes come from a BILLED call — and deleting it left `npm test` fully green
+(2,272/2,272), so the enforced pre-push gate could not see it. Its only cover
+was the Neon-gated `map-remap.itest.ts`. This is exactly the defect class this
+change's own REMAP-1 and L4-1 remediations were built to close for the other
+two gates; the third was missed because the audit had recorded it as covered.
+
+**FIXED.** Three new always-run cases pin it, including one asserting the
+billed response was metered BEFORE the discard (ruling 8) via the event
+ledger, plus a CONTROL proving the persist happens on the identical fixture
+with a healthy lease. Mutation-proven: deleting the gate now fails exactly
+that case. The release report's §5 row, which had implied the gate was
+always-run, is corrected above.
+
+### Other findings and their disposition
+
+| ID | Reviewer | Sev | Finding | Disposition |
+|---|---|---|---|---|
+| MINOR (lease) | lease | MINOR | The three lease SQL predicates — the acquire CAS conflict `WHERE`, the token-bound `renew`, the token-bound `release` — had no always-run cover either; deleting any of them (mutations M5/M6/M7) passed `npm test`. Removing the release predicate lets a stale holder free the CURRENT holder's lease; removing the acquire predicate is split brain by construction. | **FIXED** — new `src/lib/analysis/map-lease-sql.test.ts` runs the REAL `pgMapLeaseDriver` against a fake `rawSql` and asserts on the SQL it actually issues: single-statement upsert on the PK, conflict-side free-or-expired guard, DB-clock expiry on both sides with no timestamp crossing from Node, fence increment, token-bound renew and release, fence-preserving release, and no advisory lock / transaction / session `SET` anywhere. All three of the reviewer's mutations now fail. |
+| MINOR-1 | spend | MINOR | The "legacy checkpoint is NOT trusted" test was **non-discriminating**: it passed because the VERSIONS digest mismatched, so the target binding was never exercised. Mutating `targetMatch` to treat an absent target as consent kept the suite green. | **FIXED** — three new cases hold versions CONSTANT so only the target can decide: absent target is not consent, different target is not consent, matching target IS consent (zero live calls). The reviewer's exact mutation now fails. |
+| MINOR-2 | spend | MINOR | `?cap=` was the one numeric route input with no validation. `cap=0` yields `LIMIT 0` → `selected=0`, which the sweep logic reads as **"day drained"**. Unreachable from the shipped drivers, reachable for any other `CRON_SECRET`-bearing caller. | **FIXED** — the route now validates `?cap=` exactly like `?after=` (`/^\d+$/` and non-zero) and 400s otherwise. This closes B3's "any touched sibling path": the route IS a touched sibling. Nine malformed inputs test-pinned, plus a positive control that a valid cap still reaches the worker. |
+| MINOR-3 | spend | MINOR | `--theater` was unvalidated while its sibling `--track` was allowlisted. A plausible typo (`--theater ru,ua`) selects nothing, every day's first sweep returns zero pairs, every day is marked complete, and the run prints a confident **REMAP COMPLETE over zero work** — on a tool whose entire purpose is proving corpus coverage. | **FIXED** — `REMAP_THEATERS` is derived from the same `TRACKS` config `applicableTracks()` uses, so it cannot drift, and an unknown theater is refused before any call. |
+| MINOR-4 | spend | MINOR | The lease-busy wait loop was unbounded (measured: 501 calls / ~8.3h with no exit), **and** `counts.skipped` is set on a lease-driver ERROR too, so an unreachable database was indistinguishable from a busy hourly worker. | **FIXED** — bounded by `MAX_CONSECUTIVE_SKIPS = 30` (~30 minutes) with a resumable abort naming both causes; the counter resets on any successful call. Pinned with a tripwire so an unbounded loop FAILS the test rather than hanging the suite. |
+| MINOR-5 | spend | MINOR | Standing documentation asserted a production state that was false at the reviewed SHA — `AGENTS.md` and two `OPEN-TASKS` entries said the lease and remap operator were "deployed" before any deployment existed. AGENTS.md's own maintenance rule forbids wrong standing text. | **FIXED** — all three corrected to the state true at merge; the deployment identity is recorded only in the closeout entry appended after the deploy. |
+| MINOR-6 | spend | MINOR | A `complete` day flag is invalidated by a version change and a target change but NOT by that day's document population changing, so a late-arriving document with a historical `published_at` (the X long-park catch-up does exactly this) is silently skipped by a re-run. | **DOCUMENTED** — explicit operator caveat in the driver header with the workaround (delete the checkpoint file); `doc_map_state` still prevents any rebilling. Not code-fixed: invalidating on population change needs a per-day count the checkpoint does not carry. |
+| NOTE-6 | spend | NOTE | A dry run under a non-baseline `MAP_MODEL` printed `TARGET model=gpt-5` while the real run would refuse — fail-safe, but the pre-execution printout is the operator's decision surface. | **FIXED** — dry runs now surface `estDispatchBlocked`, the driver prints `!! THIS CONFIGURATION WOULD BE REFUSED AT EXECUTION`, and `--execute` aborts before phase 2 instead of discovering it as a wall of batch errors. |
+| MINOR-1 (lease) | lease | MINOR | A `map_lease` row with a token but a broken `expiresAt` wedges the map stage **permanently while reporting `ok=true`** — the same shape as the 2026-07-29 outage. | **DEFERRED, tracked as OPEN-TASKS #90** with the exact fix. Both reviewers confirm no code path in this repository can produce such a row. Changing the core CAS predicate immediately before a 24-hour lease soak would trade a proven-unreachable failure mode for unproven SQL. |
+| NOTE-2 (lease) | lease | NOTE | route numeric posture differed from the CLI's | superseded by MINOR-2's fix; residual recorded as OPEN-TASKS #91 |
+| NOTE-1 | spend | NOTE | A live remap competes with the hourly worker for the same `MAP_USD_CAP_DAILY`, and can push the next scheduled run into a `daily_cap` stop (which by contract records `ok=false` and alerts). | **DOCUMENTED** — operator caveat in the driver header. |
+| NOTE-2 | spend | NOTE | With OPEN-TASKS #86 standing (~45–54% per-batch provider rejection), P(a 20-batch call is clean) ≈ 1e-6, so the stall bound trips after 3 calls and **the operator as shipped cannot drain a day** until #86 lands. | **DOCUMENTED** — stated in the driver header and cross-referenced from #86. This is a strong argument for fixing #86 before any authorized remap. |
+| NOTE-3/4/5/7 (spend), NOTE-1/3 (lease) | both | NOTE | run-cap counts billed not physical attempts (pre-existing, $0); ruling-8 letter vs substance (map meters in `extractBatch`, not `analyze()` — pre-existing architecture, substance upheld and now pinned); remap dry runs are heavy reads; `digest-persist.ts` still carries 1 NUL byte so the tree is not yet NUL-free; `leaseLostDiscards` undercounts on the split path; the pre-existing `DedupDoc` cast defect (already #89). | **Recorded**, no change. |
+
+**Zero findings with non-zero dollar exposure.** Both reviewers state this
+explicitly: no path on this delta lets a malformed input, a lost lease, a
+retry, a truncation split, or a checkpoint cause a single unmetered or
+duplicated billed call.
+
+### Focused re-review
+
+Every fix above is test-and-documentation plus three small guards
+(route `?cap=` validation, the `--theater` allowlist, the bounded busy-wait,
+and the dry-run refusal surface). Both reviewers were re-commissioned against
+the exact new SHA to verify the remediations and to attack the new guards.
+Their verdicts are in §7.1.
 
 ## 8. Deploy, rollback, and the lease soak
 

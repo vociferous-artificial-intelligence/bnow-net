@@ -589,6 +589,13 @@ async function cycle(
     // (dry responses are route-body only — never persisted to cron_runs)
     counts.estModel = resolved.model;
     counts.estEffort = resolved.reasoningEffort ?? "";
+    // ...and, when that configuration would be REFUSED at execution (unpriced,
+    // unapproved, or map-activation-locked), say so here rather than letting
+    // the pre-execution printout promise a dispatch that cannot happen
+    // (independent spend review 2026-08-21, NOTE-6). Fail-safe either way — the
+    // live run refuses with zero spend — but the dry run is the operator's
+    // decision surface.
+    if (resolved.dispatchBlocked !== null) counts.estDispatchBlocked = resolved.dispatchBlocked;
     if (opts.remap) counts.remapVersions = Object.fromEntries(versionOf);
     return counts;
   }

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { msToNextUtcDay, type MapCallResult } from "./map-backfill";
 import { parseCountFlag, parseUsdFlag } from "./map-backfill";
 import {
+  MAX_CONSECUTIVE_SKIPS,
   MAX_SWEEPS,
+  REMAP_THEATERS,
   driveMapRemap,
   memoryCheckpointStore,
   remapTargetId,
@@ -613,5 +615,162 @@ describe("checkpoint target identity (audit REMAP-5)", () => {
     // reset (it can only make the budget gate stricter, never looser)
     expect(second.result.actualTotal).toBe(first.result.actualTotal);
     expect(second.result.incompleteDays).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Remediations from the independent spend/remap-safety review (2026-08-21).
+// ---------------------------------------------------------------------------
+
+describe("checkpoint target binding — discriminating pins (review MINOR-1)", () => {
+  // The original "legacy checkpoint" case passed because the VERSIONS digest
+  // mismatched, so it never exercised the target binding at all: mutating the
+  // guard to `cp.target === undefined || cp.target === target` kept the suite
+  // green. These cases hold versions CONSTANT so only the target can decide.
+  const v1 = { "military:ir": "gpt-4o-mini/v1" } as never;
+  const versionsDigest = JSON.stringify([["military:ir", "gpt-4o-mini/v1"]]);
+  const KEY = "remap_ir_all_2026-07-30_2026-07-30";
+  const completeDay = () => ({
+    "2026-07-30": { afterId: 0, sweepPairs: 0, sweeps: 1, complete: true, usd: 0, claims: 0 },
+  });
+  const drainScript = () => [
+    dry({ selected: 2, docTrackPairs: 2, estUsd: 0.001, remapVersions: v1 }),
+    live({ selected: 2, docTrackPairs: 2, claims: 2, maxSelectedId: 9, estUsd: 0.001 }),
+    live({ selected: 0 }),
+    live({ selected: 2, docTrackPairs: 0, maxSelectedId: 9 }),
+    live({ selected: 0 }),
+  ];
+
+  it("MATCHING versions but an ABSENT target is not consent — the day is re-proven", async () => {
+    const store = memoryCheckpointStore();
+    store.state.set(KEY, { key: KEY, days: completeDay(), totalUsd: 0, versionsDigest });
+    const run = await drive(drainScript(), { store, base: "https://prod.example.test" });
+    expect(run.calls.filter((p) => !p.includes("dry=1")).length).toBeGreaterThan(0);
+    expect(run.result.claims).toBe(2);
+  });
+
+  it("MATCHING versions but a DIFFERENT target is not consent either", async () => {
+    const store = memoryCheckpointStore();
+    store.state.set(KEY, {
+      key: KEY,
+      days: completeDay(),
+      totalUsd: 0,
+      versionsDigest,
+      target: "https://preview.example.test",
+    });
+    const run = await drive(drainScript(), { store, base: "https://prod.example.test" });
+    expect(run.calls.filter((p) => !p.includes("dry=1")).length).toBeGreaterThan(0);
+    expect(run.result.claims).toBe(2);
+  });
+
+  it("CONTROL: matching versions AND matching target IS consent — zero live calls", async () => {
+    const store = memoryCheckpointStore();
+    store.state.set(KEY, {
+      key: KEY,
+      days: completeDay(),
+      totalUsd: 0,
+      versionsDigest,
+      target: "https://prod.example.test",
+    });
+    const run = await drive(
+      [dry({ selected: 2, docTrackPairs: 0, estUsd: 0, remapVersions: v1 })],
+      { store, base: "https://prod.example.test" },
+    );
+    expect(run.calls.filter((p) => !p.includes("dry=1"))).toHaveLength(0);
+  });
+});
+
+describe("theater allowlist (review MINOR-3)", () => {
+  it("refuses an unknown theater BEFORE any call, instead of reporting a false COMPLETE", async () => {
+    for (const bad of ["ru,ua", "RU ", "zz", "", "russia"]) {
+      const { promise, calls } = driveCapturing(undefined, { theater: bad });
+      await expect(promise).rejects.toThrow(/--theater must be one of/);
+      expect(calls).toHaveLength(0);
+    }
+  });
+
+  it("the allowlist is derived from TRACKS, so it cannot drift from applicableTracks()", () => {
+    expect(REMAP_THEATERS).toContain("ru");
+    expect(REMAP_THEATERS).toContain("ua");
+    expect(REMAP_THEATERS).toContain("ir");
+    expect(REMAP_THEATERS).not.toContain("zz");
+    // sorted + de-duplicated
+    expect(REMAP_THEATERS).toEqual([...new Set(REMAP_THEATERS)].sort());
+  });
+
+  it("every allowed theater still drives normally", async () => {
+    const { promise } = driveCapturing([dry()], { theater: "ua", execute: false });
+    await expect(promise).resolves.toBeDefined();
+  });
+});
+
+describe("bounded lease-busy wait (review MINOR-4)", () => {
+  it("aborts resumably after MAX_CONSECUTIVE_SKIPS instead of spinning forever", async () => {
+    // A tripwire, not a timeout: an unbounded loop makes the (bounded) script
+    // run out and throw, which surfaces as a DIFFERENT abort message. Without
+    // it, removing the bound would hang the suite rather than fail it.
+    const calls: string[] = [];
+    const slept: number[] = [];
+    const LIMIT = MAX_CONSECUTIVE_SKIPS + 2;
+    const result = await driveMapRemap({
+      base: "https://example.test",
+      secret: "s",
+      theater: "ir",
+      from: "2026-07-30",
+      to: "2026-07-30",
+      budgetUsd: 5,
+      execute: true,
+      log: () => {},
+      call: async (_b: string, _s: string, params: string) => {
+        calls.push(params);
+        if (calls.length === 1) return dry({ selected: 5, docTrackPairs: 5, estUsd: 0.001 });
+        if (calls.length > LIMIT) throw new Error("UNBOUNDED: the busy-wait never gave up");
+        return live({ selected: 5, skipped: "another map cycle holds the lease" });
+      },
+      sleep: async (ms) => {
+        slept.push(ms);
+      },
+      store: memoryCheckpointStore(),
+    });
+    expect(result.aborted).toMatch(/map lease unavailable for 30 consecutive calls/);
+    expect(result.aborted).toMatch(/resumable/);
+    expect(result.aborted).not.toMatch(/UNBOUNDED/);
+    // exactly the bound, not one more, and no unbounded sleeping
+    expect(slept.filter((ms) => ms === 60_000)).toHaveLength(MAX_CONSECUTIVE_SKIPS - 1);
+    expect(calls.filter((p) => !p.includes("dry=1"))).toHaveLength(MAX_CONSECUTIVE_SKIPS);
+  });
+
+  it("a transient skip does NOT count against the bound once a real call succeeds", async () => {
+    const { result } = await drive([
+      dry({ selected: 5, docTrackPairs: 5, estUsd: 0.001 }),
+      live({ selected: 5, skipped: "busy" }),
+      live({ selected: 5, docTrackPairs: 5, claims: 5, maxSelectedId: 50, estUsd: 0.001 }),
+      live({ selected: 0 }),
+      live({ selected: 5, docTrackPairs: 0, maxSelectedId: 50 }),
+      live({ selected: 0 }),
+    ]);
+    expect(result.aborted).toBeUndefined();
+    expect(result.incompleteDays).toEqual([]);
+    expect(result.claims).toBe(5);
+  });
+});
+
+describe("a refused target configuration is surfaced, not discovered mid-run (review NOTE-6)", () => {
+  it("prints the refusal and aborts before phase 2", async () => {
+    const lines: string[] = [];
+    const { promise } = driveCapturing(
+      [dry({ selected: 5, docTrackPairs: 5, estUsd: 0.01, estModel: "gpt-5", estDispatchBlocked: "MAP ACTIVATION BLOCKED: map may dispatch only the baseline" })],
+      { log: (l: string) => lines.push(l) },
+    );
+    const result = await promise;
+    expect(lines.join("\n")).toMatch(/WOULD BE REFUSED AT EXECUTION/);
+    expect(result.aborted).toMatch(/refused server-side/);
+  });
+
+  it("an unblocked target is unaffected", async () => {
+    const lines: string[] = [];
+    const { promise } = driveCapturing([dry()], { log: (l: string) => lines.push(l), execute: false });
+    await promise;
+    expect(lines.join("\n")).not.toMatch(/WOULD BE REFUSED/);
   });
 });

@@ -174,7 +174,7 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     baseline with no env override — `MAP_MODEL` or a validated `MAP_REASONING_EFFORT` is
     refused `MAP ACTIVATION BLOCKED` — until this remap path exists and activation is
     explicitly authorized. Pricing or `analysis-reg-v1` approval alone does not unlock it.
-    **STATUS 2026-08-21 — TOOL IMPLEMENTED AND DEPLOYED, NEVER EXECUTED (not closed).**
+    **STATUS 2026-08-21 — TOOL IMPLEMENTED, NEVER EXECUTED (not closed).**
     `scripts/map-remap.ts` plus remap mode in `runMapCycle` shipped 2026-08-21
     (`docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md`): dry-run-first, resumable,
     lease-safe, route-capability-gated, fail-closed on every numeric flag, checkpoint bound
@@ -727,11 +727,13 @@ docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md)
     provider_state lease like x-lease). Interim recovery tooling used a janitor with the
     exact predicate above.
     **STATUS 2026-08-21 — IMPLEMENTED, AWAITING PRODUCTION SOAK (not closed).** The
-    durable fix shipped as the `provider_state` `map_lease` row
+    durable fix is the `provider_state` `map_lease` row
     (`src/lib/analysis/map-lease.ts`): single-statement CAS acquire under proven expiry
     against the DB clock, per-acquisition tokens, token-checked renew/release, monotonic
-    diagnostic fence — no session state for a pooler to strand. Merged and deployed
-    2026-08-21 (`docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md`). This item stays
+    diagnostic fence — no session state for a pooler to strand. Merged 2026-08-21
+    (`docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md`); the production
+    deployment identity and the formal soak window are recorded in the closeout
+    decision-log entry appended AFTER the deploy, not here. This item stays
     OPEN until the formal 24-hour lease soak closes PASS: 24 natural hourly cycles,
     monotonic fences, clean release, zero lost leases, no unexplained busy/takeover, zero
     failed or unfinished cycles, baseline routing, stable metering and yield, no
@@ -853,3 +855,32 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     PRE-EXISTING and byte-identical on `origin/main` — the 2026-08-21 map-lease release
     neither introduced nor changed it. Fix is one line, but it will change mirror rates, so
     it wants its own before/after measurement rather than a ride-along.
+90. **[Tier 3 — latent, fail-silent] A `map_lease` row carrying a token but a broken
+    `expiresAt` wedges the map stage permanently while reporting `ok=true`.** The acquire
+    CAS takes over only when `state->>'token' IS NULL OR (state->>'expiresAt')::timestamptz
+    <= now()`. If `expiresAt` is absent or JSON-null the cast yields SQL NULL, the predicate
+    evaluates to NULL rather than TRUE, and `DO UPDATE` never fires — the lease is
+    unclaimable forever. If `expiresAt` is a non-parseable string the cast RAISES,
+    `acquireMapLease` catches it and returns `outcome: "error"`. Both terminal states
+    surface as `counts.skipped` with `cron_runs.ok = true` — indistinguishable from the
+    2026-07-29 outage shape (418 green runs while `doc_claims` starved). **Not currently
+    reachable:** no code path in this repository writes either shape (`tryAcquire` writes
+    all four keys, `renew` uses `jsonb_set`, `release` writes `{fence}` with the token
+    absent, which is the intended FREE state); it needs an external writer or a partial
+    restore. Detection exists indirectly — `runScheduledMapHealth` still runs on skipped
+    cycles and would raise `stale_*`. Fix, when taken: add `OR (state->>'expiresAt') IS
+    NULL` to the conflict `WHERE` and use a non-raising cast for the garbage case, with an
+    integration test that seeds each malformed shape. Deliberately NOT changed in the
+    2026-08-21 release: altering the core CAS predicate immediately before a 24-hour lease
+    soak would trade a proven-unreachable failure mode for unproven SQL. Found by the
+    independent lease review (MINOR-1).
+91. **[Tier 3 — consistency] Route numeric params are not fail-closed the way the CLI flags
+    now are.** `src/app/api/cron/map/route.ts` does `docCap: cap ? Number(cap) : undefined`,
+    so `?cap=abc` yields NaN, which survives `opts.docCap ?? mapRunDocCap()` (NaN is not
+    nullish) and reaches `LIMIT $4` as a Postgres type error — fail-loud, so not a spend
+    risk. `?cap=0` yields `LIMIT 0`, i.e. zero rows selected, which a naive sweep could read
+    as "day drained"; the only route to that is a hand-written authenticated request, since
+    `parseCountFlag` now rejects 0 at both drivers. `?after=` and `?track=` ARE strictly
+    validated. Recorded because the 2026-08-21 REMAP-3 fix landed at the CLI boundary and
+    inside the drivers but not at the route, so the two boundaries now have different
+    postures. Found by the independent lease review (NOTE-2).

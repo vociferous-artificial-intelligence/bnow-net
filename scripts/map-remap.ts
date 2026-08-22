@@ -39,7 +39,27 @@ import "./env";
 //     mid-day.
 //   - LEASE-SAFE: the route's remap cycle takes the same map lease as the
 //     hourly worker and the backfill driver — a manual remap cannot silently
-//     race scheduled mapping; a busy lease is waited out.
+//     race scheduled mapping; a busy lease is waited out, bounded by
+//     MAX_CONSECUTIVE_SKIPS.
+//
+// OPERATOR CAVEATS (independent spend review, 2026-08-21):
+//   - SHARED DAILY ENVELOPE: remap meters to the SAME openai_map provider row
+//     and the SAME MAP_USD_CAP_DAILY as the hourly :40 cron. A large remap can
+//     consume the day's envelope and push the next scheduled run into a
+//     daily_cap stop, which by the 2026-08-15 contract records
+//     cron_runs.ok=false and fires an operator alert. --wait-daily extends that
+//     into the following day. Size the remap against the hourly worker's needs.
+//   - A `complete` day flag is invalidated by an extractor-version change and
+//     by a route-target change, but NOT by that day's document population
+//     changing. A late-arriving document with a historical published_at (the X
+//     long-park catch-up does this) lands on an already-complete day and is
+//     silently skipped by a re-run. Delete data/remap-state/<key>.json to force
+//     a full re-scan; doc_map_state still prevents any rebilling.
+//   - While OPEN-TASKS #86 stands (~45-54% of map micro-batches rejected by the
+//     provider with 400 Invalid body), essentially every route call carries
+//     batchErrors > 0, so the stall bound trips after 3 calls and days are left
+//     incomplete. Expect the operator to be unable to drain a day until #86 is
+//     fixed.
 //
 // Day drain model: a day is swept with an id cursor (?after=) so documents
 // that yield no work (lexicon mismatch, already current) are passed once per
@@ -69,6 +89,7 @@ import "./env";
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { TRACKS } from "../src/lib/analysis/tracks";
 import { utcDayRange } from "../src/lib/time/day-boundary";
 import {
   MapTransportError,
@@ -215,6 +236,24 @@ export interface RemapDriveResult {
 
 const TRANSPORT_RETRIES = 3;
 
+/** Consecutive lease-busy skips before the driver gives up. `counts.skipped` is
+ *  set BOTH when the hourly worker holds the lease and when the lease driver
+ *  itself failed (`outcome: "error"`), so an unreachable database is otherwise
+ *  indistinguishable from a busy lease and spins forever at 60s a turn
+ *  (independent spend review 2026-08-21, MINOR-4). 30 turns is ~30 minutes —
+ *  far longer than any real map cycle, and the abort is resumable. */
+export const MAX_CONSECUTIVE_SKIPS = 30;
+
+/** Theaters any configured track can actually map. A typo (or a plausible
+ *  "--theater ru,ua") otherwise selects nothing, every day's first sweep
+ *  returns zero pairs, every day is marked complete, and the run prints a
+ *  confident REMAP COMPLETE over zero work (independent spend review
+ *  2026-08-21, MINOR-3). Derived from the same TRACKS config the worker's
+ *  applicableTracks() uses, so it cannot drift. */
+export const REMAP_THEATERS: string[] = [
+  ...new Set(Object.values(TRACKS).flatMap((t) => t.countries)),
+].sort();
+
 export async function driveMapRemap(opts: RemapDriveOpts): Promise<RemapDriveResult> {
   const log = opts.log ?? console.log;
   const call = opts.call ?? callMap;
@@ -235,6 +274,14 @@ export async function driveMapRemap(opts: RemapDriveOpts): Promise<RemapDriveRes
   }
   if (opts.cap !== undefined && (!Number.isInteger(opts.cap) || opts.cap <= 0)) {
     throw new Error(`--cap must be a positive whole number of docs (got ${opts.cap})`);
+  }
+  // An unknown theater selects nothing, and "selects nothing" is exactly how a
+  // day proves itself drained — so a typo would print REMAP COMPLETE over zero
+  // work. Refuse instead (spend review 2026-08-21, MINOR-3).
+  if (!REMAP_THEATERS.includes(opts.theater)) {
+    throw new Error(
+      `--theater must be one of ${REMAP_THEATERS.join("|")} (got ${JSON.stringify(opts.theater)}) — an unknown theater selects nothing and would report a false COMPLETE`,
+    );
   }
   const days = utcDayRange(opts.from, opts.to ?? new Date().toISOString().slice(0, 10));
   if (days.length === 0) throw new Error(`empty day range ${opts.from}..${opts.to}`);
@@ -265,6 +312,7 @@ export async function driveMapRemap(opts: RemapDriveOpts): Promise<RemapDriveRes
   let eligiblePairs = 0;
   let model = "";
   let effort = "";
+  let dispatchBlocked = "";
   const versions = new Map<string, string>();
   for (const day of days) {
     const { counts: c } = await callWithRetry(`date=${day}&dry=1&cap=20000&${baseParams}`);
@@ -284,6 +332,7 @@ export async function driveMapRemap(opts: RemapDriveOpts): Promise<RemapDriveRes
     eligiblePairs += n(c, "docTrackPairs");
     model = String(c.estModel ?? model);
     effort = String(c.estEffort ?? effort);
+    if (c.estDispatchBlocked) dispatchBlocked = String(c.estDispatchBlocked);
     for (const [k, v] of Object.entries((c.remapVersions as unknown as Record<string, string>) ?? {})) {
       versions.set(k, v);
     }
@@ -292,6 +341,9 @@ export async function driveMapRemap(opts: RemapDriveOpts): Promise<RemapDriveRes
     );
   }
   log(`\nTARGET model=${model || "?"}${effort ? ` effort=${effort}` : " (no reasoning effort)"}`);
+  if (dispatchBlocked) {
+    log(`  !! THIS CONFIGURATION WOULD BE REFUSED AT EXECUTION: ${dispatchBlocked}`);
+  }
   for (const [k, v] of [...versions.entries()].sort()) log(`  version ${k} -> ${v}`);
   log(
     `ELIGIBLE: ${eligibleDocs} docs / ${eligiblePairs} doc-track pairs · ` +
@@ -310,6 +362,11 @@ export async function driveMapRemap(opts: RemapDriveOpts): Promise<RemapDriveRes
   if (!opts.execute) {
     log("estimate only — rerun with --execute to remap (dispatch stays fail-closed server-side)");
     return none;
+  }
+  if (dispatchBlocked) {
+    // the server would refuse every batch anyway; abort before phase 2 so the
+    // operator sees the reason once instead of a wall of batch errors
+    return { ...none, aborted: `target configuration is refused server-side: ${dispatchBlocked}` };
   }
   if (estTotal > opts.budgetUsd) {
     return { ...none, aborted: `estimate $${estTotal.toFixed(4)} exceeds budget $${opts.budgetUsd}` };
@@ -374,6 +431,7 @@ export async function driveMapRemap(opts: RemapDriveOpts): Promise<RemapDriveRes
     st.sweeps = 0;
 
     let stalls = 0; // consecutive calls that could not advance the cursor
+    let skips = 0; // consecutive lease-busy / lease-error skips
     daySweeps: while (!st.complete && st.sweeps < MAX_SWEEPS) {
       let r: MapCallResult;
       try {
@@ -406,10 +464,24 @@ export async function driveMapRemap(opts: RemapDriveOpts): Promise<RemapDriveRes
 
       if (c.skipped) {
         // the hourly worker (or another driver) holds the map lease; wait it
-        // out WITHOUT advancing the cursor — nothing was scanned
+        // out WITHOUT advancing the cursor — nothing was scanned. Bounded:
+        // `skipped` also covers a lease-driver ERROR, so an unreachable DB must
+        // not spin silently forever (spend review 2026-08-21, MINOR-4).
+        if (++skips >= MAX_CONSECUTIVE_SKIPS) {
+          await opts.store.save(cp);
+          return {
+            ...none,
+            actualTotal,
+            pairsAttempted,
+            claims,
+            incompleteDays,
+            aborted: `map lease unavailable for ${skips} consecutive calls at ${day} (busy hourly worker, or a lease-driver error) — resumable`,
+          };
+        }
         await sleep(60_000);
         continue;
       }
+      skips = 0;
       if (actualTotal > opts.budgetUsd) {
         await opts.store.save(cp);
         return {

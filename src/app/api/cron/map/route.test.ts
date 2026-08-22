@@ -74,6 +74,27 @@ describe("auth and validation", () => {
     expect(runMapCycle).not.toHaveBeenCalled();
   });
 
+  it("400 on a malformed or zero cap — a bound must never be silently removed", async () => {
+    // cap=0 yields LIMIT 0 -> selected=0, which the remap driver's sweep logic
+    // reads as "day drained" (independent spend review 2026-08-21, MINOR-2)
+    for (const bad of ["0", "00", "abc", "-1", "2.5", "1,000", " ", "NaN", "Infinity"]) {
+      const res = await GET(req(`?cap=${encodeURIComponent(bad)}`));
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: "bad cap" });
+    }
+    expect(runMapCycle).not.toHaveBeenCalled();
+  });
+
+  it("a valid cap still rides through to the worker", async () => {
+    runMapCycle.mockResolvedValueOnce({});
+    const res = await GET(req("?cap=250&dry=1"));
+    expect(res.status).toBe(200);
+    expect(runMapCycle).toHaveBeenCalledWith(
+      expect.objectContaining({ docCap: 250 }),
+      expect.anything(),
+    );
+  });
+
   it("400 when after/track are passed without remap=1", async () => {
     expect((await GET(req("?after=10"))).status).toBe(400);
     expect((await GET(req("?track=military"))).status).toBe(400);

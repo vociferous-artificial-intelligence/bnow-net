@@ -390,6 +390,82 @@ describe("lost lease at the final processed=true update (audit L4-1)", () => {
   });
 });
 
+describe("lost lease at the persistBatch write (review MEDIUM-1)", () => {
+  // The THIRD lease-gated write path, and the only one whose writes come from a
+  // BILLED call. The independent review proved this gate had no always-run
+  // cover: deleting it left `npm test` fully green, so the enforced pre-push
+  // gate could not see it — the same shape as L4-1 and REMAP-1.
+  const oneBatch = () => {
+    h.rowsFor = (sql) => (/canonical_url AS source_key/.test(sql) ? [docRow()] : []);
+    h.completionContent = JSON.stringify({
+      results: [
+        {
+          docId: 1,
+          claims: [
+            {
+              text_en: "Shelling was reported near the front line.",
+              quote_orig: null,
+              claim_type: "factual",
+              hedging: "claimed",
+              entities: [],
+              event_hint: null,
+            },
+          ],
+        },
+      ],
+    });
+  };
+
+  // renew #1 is the extractBatch keepalive (before the physical attempt);
+  // renew #2 is the post-response ownership re-check guarding persistBatch.
+  it("discards the parsed batch, writes nothing, and meters the billed call FIRST", async () => {
+    oneBatch();
+    const counts = await runMapCycle({
+      theaters: ["ru"],
+      leaseDriver: leaseDriver({ failRenewFrom: 2 }),
+    });
+
+    // the call really happened and really cost money
+    expect(h.reservations).toBe(1);
+    expect(h.openaiCalls).toBe(1);
+    // ruling 8: the billed response was METERED BEFORE the lease check discarded it
+    expect(h.meterings).toBe(1);
+    expect(h.order.indexOf("guard.record")).toBeLessThan(h.order.indexOf("lease.renew-LOST"));
+
+    // …and not one row was written
+    expect(matching(/INSERT INTO doc_claims/)).toHaveLength(0);
+    expect(matching(/INSERT INTO doc_map_state/)).toHaveLength(0);
+    expect(matching(/UPDATE raw_documents SET processed/)).toHaveLength(0);
+    expect(writes()).toHaveLength(0);
+    expect(h.connects).toBe(0); // the persist transaction never opened
+
+    expect(counts.claims).toBe(0);
+    expect(counts.leaseLostDiscards).toBe(1);
+    expect((counts.lease as Record<string, unknown>).lost).toBe(1);
+    expect((counts.lease as Record<string, unknown>).released).toBe(0);
+  });
+
+  it("CONTROL: with the lease held the batch IS persisted (pin is not vacuous)", async () => {
+    oneBatch();
+    const counts = await runMapCycle({ theaters: ["ru"], leaseDriver: leaseDriver() });
+    expect(counts.claims).toBe(1);
+    expect(matching(/INSERT INTO doc_claims/)).toHaveLength(1);
+    expect(matching(/INSERT INTO doc_map_state/)).toHaveLength(1);
+    expect(counts.leaseLostDiscards).toBe(0);
+  });
+
+  it("the discarded docs stay eligible: a healthy rerun maps and persists them", async () => {
+    oneBatch();
+    await runMapCycle({ theaters: ["ru"], leaseDriver: leaseDriver({ failRenewFrom: 2 }) });
+    h.poolQueries.length = 0;
+    h.clientQueries.length = 0;
+    h.connects = 0;
+    const counts = await runMapCycle({ theaters: ["ru"], leaseDriver: leaseDriver() });
+    expect(counts.claims).toBe(1);
+    expect(matching(/INSERT INTO doc_claims/)).toHaveLength(1);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Hard boundaries (B6) — ordering, busy/error safety, version stability
 // ---------------------------------------------------------------------------

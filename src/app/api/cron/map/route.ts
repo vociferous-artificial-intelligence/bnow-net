@@ -67,6 +67,13 @@ export async function GET(req: NextRequest) {
   }
   const theater = q.get("theater");
   const cap = q.get("cap");
+  // ?cap= is a document ceiling, and a malformed one must never silently remove
+  // or invert it. cap=0 in particular yields LIMIT 0 -> selected=0, which the
+  // remap driver's sweep logic reads as "this day is drained" (independent
+  // spend review 2026-08-21, MINOR-2). Validated exactly like ?after=.
+  if (cap !== null && (!/^\d+$/.test(cap) || Number(cap) === 0)) {
+    return NextResponse.json({ error: "bad cap" }, { status: 400 });
+  }
   const dryRun = q.get("dry") === "1";
   const remap = q.get("remap") === "1";
   const after = q.get("after");
