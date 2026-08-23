@@ -893,6 +893,31 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     NOT fixed in the 2026-08-21 map-lease release — `map-prompts.ts` is outside that PR's
     delta and changing extraction behaviour would confound the lease soak. This is the
     largest single lever on map yield currently known.
+    **STATUS 2026-08-23 — REPAIR IMPLEMENTED AND MERGED; NOT CLOSED.** Root cause confirmed
+    three ways: (a) `JSON.stringify` emits an unpaired surrogate as the literal escape
+    `\udXXX`, whose UTF-8 bytes are pure ASCII, so a strict server-side parser rejects the
+    whole body — measured on the runtime in use; (b) reproduced on the unpatched base tree
+    with synthetic data, where a 20-document micro-batch carrying ONE boundary-split emoji
+    is rejected at `$.messages[1].content`; (c) replaying the worker's exact selection
+    predicate over the **1,000 oldest eligible `processed=false` documents** finds **20**
+    whose 1,500-code-unit slice ends on a lone high surrogate (all at index 1499, all
+    `0xD83C`/`0xD83D` emoji halves, across ir/ru/ua and `telegram_mtproto` /
+    `telegram_web` / `x_api`, dated 2026-07-16→2026-08-18), and all 20 are still
+    `processed=false` with ZERO `doc_map_state`, `doc_claims` and `doc_dedup` rows —
+    re-selected every cycle forever, with no competing persisted claims. (425 of the same
+    1,000 carry COMPLETE astral pairs, which are unaffected.) Repair: `wellFormedSlice` +
+    `dropIsolatedSurrogates` in `src/lib/analysis/map-prompts.ts` — slice to the SAME
+    `MAP_CONTENT_CHARS` **code-unit** ceiling first, then drop any isolated surrogate; the
+    identity on every well-formed input, so previously successful requests stay
+    byte-identical. **Same extractor versions** (the version basis is model + system prompt
+    + frame rev + content budget, none of which moves; the four live versions are now
+    pinned literally by test) — no remap is required or authorized. This item stays OPEN
+    until the post-deployment 24-hour recovery window closes: expected hourly cycles all
+    present, zero surrogate `400 Invalid body` map errors, the formerly poisoned document
+    ids not re-selected, normal lease invariants, stable metering, no model/routing/version
+    drift, materially improved batch success and processed yield, and truthful error
+    accounting. Report: `docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md`. Sibling
+    sites NOT fixed: #97.
 87. **[Tier 2 — observability] `digest:*` — and `validate` — swallow per-item failures into
     an in-run counter while `cron_runs.ok` stays true.** Days 2026-08-01, 08-03 (×2), 08-04,
     08-15 and 08-21 each recorded `counts.errors >= 1` with the same
@@ -1001,3 +1026,34 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md §9)
     succeeded. Fix, when taken: increment the discard counter on the split path too, or
     replace it with a per-batch outcome tally. No production impact observed — `lost` has
     been 0 on every lease-era cycle.
+
+### New (from the #86 map Unicode batch repair — 2026-08-23,
+docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md)
+
+97. **[Tier 2 — correctness/spend] The same UTF-16 slice pattern that caused #86 is still
+    present at other provider-bound truncation sites.** #86's repair covers the MAP path
+    only (`mapDocLine`). A sweep of every module that builds an LLM request found the same
+    `String.prototype.slice` over UTF-16 code units, with no surrogate repair, at:
+    - `src/lib/analysis/openai-provider.ts:153` — the LEGACY digest doc line,
+      `.slice(0, 400)`. **This is the mechanical root of #87**: the swallowed
+      `400 Invalid body: failed to parse JSON value` on `digest:finalize` /
+      `digest:intraday` is the identical defect on the identical construction. LIVE today —
+      every digest has used the legacy engine since 2026-08-17.
+    - `src/lib/analysis/synthesize.ts:138-139` — the REDUCE group line, `.slice(0, 250)`,
+      and the event hint, `.slice(0, 120)`. Dormant only because mapreduce has produced
+      nothing since 2026-08-16 (#88) — and therefore liable to become live again precisely
+      as a consequence of #86's repair. Worth fixing BEFORE #88 recovers.
+    - `src/lib/validation/llm-match.ts:83,85` — takeaway `.slice(0, 400)` and claim
+      `.slice(0, 300)` on the validation matcher. A `400` here degrades to the keyword
+      matcher by ruling 9, so it would fail quietly rather than loudly.
+    - `src/lib/analysis/anthropic-provider.ts:70` — same shape; inert, since no Anthropic
+      key exists in any environment (#83).
+    Response/DB-bound slices (`map-worker.ts:182,184,185,202` — `text_en` 250, `quote_orig`
+    300, entity name 200, `event_hint` 160) are a DIFFERENT and much milder failure mode:
+    the pg wire protocol encodes a lone surrogate as U+FFFD rather than erroring, so the
+    worst case is one corrupted character that fails `verifyQuote`. Measured 2026-08-23:
+    **zero** U+FFFD in `quote_orig` or `text_en` across all 138,485 `doc_claims` rows, so
+    this has never actually fired. Fix, when taken: route each provider-bound site through
+    the shared `wellFormedSlice` helper #86 added, and give each its own before/after
+    measurement — the digest one IS #87's fix and must not be bundled with the reduce one.
+    Deliberately NOT fixed in the #86 release, which was required to stay isolated.

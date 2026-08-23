@@ -3038,3 +3038,56 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
    promotion or rollback; no cron invoked; no remap executed or dry-run; no paid provider
    call; every database statement a `SELECT`. The AGENTS.md decision-log archive move was
    NOT performed (filed as #92).
+
+## 2026-08-23 — OPEN-TASKS #86: map Unicode batch repair (isolated)
+
+1. **Root cause CONFIRMED three ways.** (a) `JSON.stringify` has emitted well-formed JSON
+   since ES2019, so an unpaired surrogate leaves the process as the literal escape
+   `\udXXX` — measured: `JSON.stringify("abc\uD83C")` → `"abc\ud83c"`, UTF-8 bytes
+   `226162635c756438336322`, pure ASCII — and a strict server-side parser rejects it, which
+   is exactly the observed `400 Invalid body: failed to parse JSON value`. (b) Reproduced on
+   the unpatched base tree with SYNTHETIC data: a 20-document micro-batch carrying one
+   boundary-split emoji is rejected whole at `$.messages[1].content`. (c) Replaying the
+   worker's exact selection predicate over the 1,000 oldest eligible `processed=false`
+   documents finds **20** whose 1,500-code-unit slice ends on a lone high surrogate — all at
+   index 1499, all `0xD83C`/`0xD83D`, across ir/ru/ua and three adapters, 2026-07-16→08-18 —
+   and all 20 still carry ZERO `doc_map_state`, `doc_claims` and `doc_dedup` rows, i.e. they
+   are re-selected every cycle forever and have no competing persisted claims. 425 of the
+   same 1,000 carry COMPLETE astral pairs and are unaffected.
+2. **Smallest scalar-safe repair.** `src/lib/analysis/map-prompts.ts` only: two new pure
+   exported helpers (`dropIsolatedSurrogates`, `wellFormedSlice`) and one changed line in
+   `mapDocLine`. Slice to the SAME `MAP_CONTENT_CHARS` **code-unit** ceiling first, then drop
+   isolated surrogates; the whole composed line is repaired, not just the body, so a
+   malformed `sourceKey` cannot poison the request either. Isolated halves are DROPPED, not
+   replaced — the output stays a subsequence of the input's scalars, so the model is never
+   shown a character the source lacked. No normalization, no grapheme repair, no segmentation
+   dependency, no change to model / schema / batch size / prompt text / routing / retries /
+   spend / schedule / response validation, and `digest.ts` untouched.
+3. **SAME extractor version, justified.** The version basis is model + system prompt + frame
+   rev + content budget — the truncation algorithm is not in it, and none of the four inputs
+   moves. All six same-version conditions are proven, including a byte-identity test on the
+   full 20-document provider request that passes under BOTH the old and the new
+   implementation, and the production check that every affected document has no persisted
+   claims under any version. The four live extractor versions are now pinned as literal
+   strings by test, so a future accidental bump fails the gate instead of stranding the
+   corpus. No remap is required and none is authorized.
+4. **Gates:** `git diff --check` clean · typecheck clean · lint 0/0 · unit **2,337/2,337
+   (177 files)**, up from 2,309/176 · production build PASS · complete disposable-Neon
+   integration **118/118 (19 files)** · targeted map itests **13/13 (3 files)** · enforced
+   pre-push gate green · zero paid provider calls · zero production writes. Mutation proof:
+   reverting only `mapDocLine` fails exactly 7 tests and nothing else.
+5. **Baseline recorded BEFORE the change** so the effect is measurable: 1,041 batches, 591
+   batch errors (**56.8%**), 3,995 claims, 13,038 processed, 452 LLM calls in the
+   2026-08-22 formal window; last mapreduce digest 2026-08-16T19:32:38Z; eligible backlog
+   ir 12,971 / ru 9,550 / ua 4,119.
+6. **New debt filed as #97:** the same UTF-16 slice pattern survives at
+   `openai-provider.ts:153` (the mechanical root of #87), `synthesize.ts:138-139` (the reduce
+   path — dormant only because of #88, and liable to become live BECAUSE of this repair),
+   `llm-match.ts:83,85` and `anthropic-provider.ts:70`. Response/DB-bound slices in
+   `map-worker.ts` are a milder class and have never fired (zero U+FFFD in 138,485
+   `doc_claims` rows).
+7. **Not done, deliberately:** #87, #88, #89, #90, #91 and #97 are untouched; no migration,
+   environment, cap, model, routing or schedule change; no remap, not even a dry run; no
+   manual cron invocation; no paid evaluation call. #86 and #88 both stay OPEN — #86 through
+   its post-deployment 24-hour recovery window, #88 until a naturally eligible digest uses
+   mapreduce and meets its own criteria.

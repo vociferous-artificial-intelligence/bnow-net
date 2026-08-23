@@ -185,7 +185,12 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   OPEN-TASKS #86 (**~57% of map micro-batches rejected** by the provider with
   `400 Invalid body` — 591 of 1,041 in the 2026-08-22 soak window, 57.0% on 08-22; the
   older "≈50%" figure is superseded — root-caused to surrogate-splitting truncation in
-  `map-prompts.ts:164`) and #88 (the fallback itself). Validation uses k=5 LLM matching
+  `map-prompts.ts`) and #88 (the fallback itself). **#86's repair is MERGED to `main`
+  (2026-08-23) but is NOT closed:** `wellFormedSlice` + `dropIsolatedSurrogates` keep the
+  same `MAP_CONTENT_CHARS` code-unit ceiling and the same four extractor versions, so no
+  remap is needed; it stays open through its post-deployment 24-hour recovery window.
+  Sibling truncation sites on the digest, reduce and validation paths are NOT fixed (#97),
+  and #87/#88 are untouched by it. Validation uses k=5 LLM matching
   with keyword fallback and exposes coverage/divergence/timeliness/thin-source metrics.
   **2026-07-29→08-15 map outage (Iran recovered; ru/ua backlog still draining):**
   `openai_map` crossed the shared $10 all-time
