@@ -2975,3 +2975,66 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
    no model activated; no environment variable touched; #77 and #33 both remain OPEN;
    OPEN-TASKS #85/#86/#87/#88/#89/#90/#91 are filed but unfixed, and #86 (the ~50%
    surrogate-splitting batch rejection) is the highest-value known lever on map yield.
+
+## 2026-08-23 — QF-B lease soak CLOSED (PASS); #77 and #38 closed; documentation only
+
+1. **Formal 24h lease soak CLOSED — PASS**, window 2026-08-22T02:00:00Z →
+   2026-08-23T02:00:00Z. Every figure re-derived independently from the production record
+   rather than taken from the closing session's dossier: **24/24** natural `:40` cycles
+   across 24 distinct UTC hours, 0 off-schedule / missing / duplicate / `ok=false` /
+   unfinished / errored; one distinct outcome `acquired`; fences **2–25** with every delta
+   +1 (lease era gapless **1..35**, 35 distinct, zero non-acquired); `lost=0`,
+   `released=1`, `leaseLostDiscards=0` on all 24; **1,541/1,541** renewals with the
+   identity `renewals = batches + llmCalls + 2` holding on every row; claims reported
+   **3,995** == `doc_claims` persisted in-window **3,995**; residue `{"fence": 35}` with no
+   token; zero advisory locks; one baseline dispatch identity; the same four extractor
+   versions; 86 env rows / 48 names with no routing variable; no migration; and no
+   `map:remap` row in `cron_runs`, ever. Independent review PASS. Post-window continuity
+   10/10 (fences 26–35). `ROLLBACK_RECOMMENDED=NO`.
+2. **OPEN-TASKS #77 CLOSED** on that evidence — `provider_state.map_lease` is now the live
+   map-concurrency mechanism in production and the pgbouncer-strandable session advisory
+   lock is gone from the map path.
+3. **OPEN-TASKS #38 CLOSED — but not on the basis the dossier recommended.** Its criterion
+   was independent confirmation that an **X-health** incident/recovery email reached the
+   configured recipient; the four in-window map-health emails come from a different
+   evaluator and do not satisfy it. What does: the operator mailbox holds
+   `[BNOW] X ingestion unhealthy: incomplete, request_failures` (2026-08-22T18:05:46.635Z)
+   and `[BNOW] X ingestion recovered: resumed` (2026-08-22T19:04:17.601Z), each matching its
+   `ingest:x` run's `counts.x_api` field-for-field, plus an earlier independent pair on
+   2026-08-21.
+4. **Limits recorded with the PASS, not hidden by it:** no production contention was
+   exercised (takeover / busy / loss-latch / discard never fired — #95); there is no
+   retained in-window runtime log (#93); `pg_locks` is point-in-time evidence only and §8
+   item 10 of the release report was corrected in place to say so; `counts.lease.lost`, not
+   `leaseLostDiscards`, is the authoritative loss signal (#96); claims equality proves no
+   rollback, not "nothing discarded"; and two in-window `digest:*` runs plus two
+   post-window runs (`validate` 08-23T07:00:49Z — a NON-digest job — and `digest:intraday`
+   08-23T10:03:16Z) carried nested `counts.errors=1` while `ok=true` — pre-existing #87,
+   now recorded as wider than its original `digest:finalize` scoping, so "zero errors
+   across every job" is NOT claimed for this window.
+5. **New debt filed:** #92 (AGENTS.md size / archive move / misplaced trailing log entries),
+   #93 (no Vercel log drain), #94 (expired `MAP_USD_CAP_DAILY_OVERRIDE_*` pair), #95 (lease
+   contention not production-proven), #96 (`leaseLostDiscards` can undercount).
+6. **Still open:** #85, #90 (accepted lease residuals), #86 (surrogate-splitting map
+   truncation, ~57% of micro-batches rejected — the next repair, isolated), #87, #88, #33
+   (remap deployed, still never executed).
+7. **Independent review (fresh Opus 5, read-only, production re-queried):**
+   PASS-WITH-MINORS — 0 BLOCKER / 0 HIGH / 1 MEDIUM / 6 MINOR / 5 NOTE, every finding
+   applied before merge. It re-derived all ~45 asserted figures independently and found no
+   numerical error and no overclaim. The MEDIUM was PRE-EXISTING standing text this
+   closeout had not fixed: AGENTS.md still described PR #5's routing seam as "repository
+   code — NOT deployed" and claimed production ran `9c5e9cb`, both false since the
+   2026-08-20 release — corrected in place. The MINORs corrected the post-window
+   nested-error sweep (two rows, one of them the NON-digest `validate` job, not one), the
+   count of corroborating X alert pairs (two, not one), five stale "~50%" #86 figures, two
+   stranded Candidate-B-era sentences, a stale #38 status in `docs/SETUP-NEXT-WEEK.md`, and
+   two 2026-08-14 snapshot-header dates. New positive evidence it produced: a
+   repository-wide grep proving ZERO `pg_try_advisory_lock` call sites remain (the
+   structural, time-independent form of the #77 claim), a source-level derivation of the
+   `renewals = batches + llmCalls + 2` identity showing it genuinely rules out 429 retries,
+   and direct mailbox confirmation of the #38 emails to the millisecond.
+8. **Not done, deliberately:** this release is DOCUMENTATION ONLY — no source file,
+   migration, environment variable, cap, model, schedule or cron changed; no deployment,
+   promotion or rollback; no cron invoked; no remap executed or dry-run; no paid provider
+   call; every database statement a `SELECT`. The AGENTS.md decision-log archive move was
+   NOT performed (filed as #92).

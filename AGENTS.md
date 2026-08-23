@@ -100,7 +100,7 @@ drizzle/            migrations 0000–00NN + 9999_claim_source_trigger.sql (appl
 data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails)
 ```
 
-## Current state — compact snapshot (verified 2026-08-14; correct in place)
+## Current state — compact snapshot (verified 2026-08-23; correct in place)
 
 Detailed operational/product state lives in `docs/CURRENT-STATE.md` and is corrected in
 place whenever reality changes. Historical narrative: `docs/PROGRESS.md` + `docs/reviews/`;
@@ -115,8 +115,18 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   the durable `provider_state.map_lease` row (#77) and ships the version-aware remap
   operator (#33) — **which has never been executed**. No migration, no env change, no
   schedule change, no model activated; the MAP activation lock is untouched. Its formal
-  24h LEASE SOAK is **OPEN: 2026-08-22T02:00:00Z → 2026-08-23T02:00:00Z** — see
-  `docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md` §8 for the closeout checklist.
+  24h LEASE SOAK is **CLOSED — PASS** (`LEASE_SOAK_STATUS=CLOSED — PASS`), window
+  **2026-08-22T02:00:00Z → 2026-08-23T02:00:00Z**: 24/24 natural `:40` cycles, all
+  `acquired`, fences 2–25 contiguous, `lost=0`, `released=1` and `leaseLostDiscards=0` on
+  every cycle, 1,541/1,541 renewals, claims reported 3,995 = `doc_claims` persisted 3,995,
+  residue `{"fence": N}` with no token, zero advisory locks, one baseline dispatch identity,
+  four extractor versions, no env/migration/remap — independent review PASS, post-window
+  continuity 10/10 (fences 26–35). **#77 is CLOSED**; #33 (remap) is NOT — the operator is
+  deployed but has still never been executed. The soak proves the steady single-holder path
+  ONLY: contention, takeover, busy, loss-latch and discard never fired in production (#95),
+  there is no retained in-window runtime log (#93), and `pg_locks` readings are
+  point-in-time, not window coverage. See
+  `docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md` §8 (checklist) and §9 (closeout).
   Code rollback target = `dpl_GH6UWFojKPEgPrhBiT7utPBPnQBJ` / `7336b9c` (a pure code
   rollback: the `map_lease` row is inert to that build, which never reads the key).
   Previous release: the **2026-08-20 workload-scoped model-routing release** (PR #5,
@@ -136,9 +146,11 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   deployed, no 72h extension, no rollback). Lineage: the 2026-08-15
   Iran-validation-recovery branch (`70b2aa9`, incl. the ruling-21 authorization repair)
   was merged to `main` as PR #2 (`26989f7`) and redeployed 2026-08-16 as
-  `dpl_Dg713ne5Vu6aiGGsbfs6uxgPKZNC` — the current code rollback target. `/health`
-  stamps `9c5e9cb` on the live deployment (root-clone CLI deploy; the OPEN-TASKS #78
-  blank-stamp caveat applies only to worktree CLI deploys). No migration; no env change;
+  `dpl_Dg713ne5Vu6aiGGsbfs6uxgPKZNC`, which WAS the rollback target at that time (the
+  current one is named in the Live/repository bullet above). `/health` stamped `9c5e9cb`
+  on the Candidate B deployment (root-clone CLI deploy; the OPEN-TASKS #78 blank-stamp
+  caveat applies only to worktree CLI deploys); the LIVE deployment today stamps
+  `23a1280`. No migration; no env change;
   all Ask flags preserved (`ASK_RUNS_SHADOW=1` soak, retention 30/7/7). Ask shadow-soak
   window still dates from 2026-07-22T01:10:37Z. Production DB backup branches:
   `backup-pre-ask-release-2026-07-21` (`br-small-poetry-atf9x253`) and
@@ -158,7 +170,9 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   long-park catch-up + health alerts deployed. A natural 2026-08-10 provider-request-failure
   episode (zero budget stops) production-proved checkpoint resume and completion: scheduled
   catch-up inserted 10,393 documents on 2026-08-13, recorded recovery state, and returned to
-  healthy hourly polls (#66 closed; #38 now tracks only independent alert-email delivery proof).
+  healthy hourly polls (#66 closed 2026-08-14; **#38 CLOSED 2026-08-23** — the X-health
+  incident and RECOVERED emails of 2026-08-22 were read in the operator mailbox and match
+  `cron_runs.counts.x_api` field-for-field, which `cron_runs` alone could not prove).
   MTProto is live/top-120 ROCA-only; non-fatal GramJS peer-type `CastError` noise remains #69.
 - **Analysis:** `DIGEST_ENGINE=mapreduce` is set in Production and the versioned map stage
   feeds it; K=5 voting, majority-gid fill, publication-safety guard, and thin-regeneration
@@ -168,8 +182,9 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   `provider_state.map_health` reading `stale_ir,stale_ru,stale_ua`. The map worker itself
   is healthy (~4–6K claims/day) but is draining the ru/ua BACKLOG — old documents — so
   current-day windows are empty. Two compounding pre-existing defects are tracked as
-  OPEN-TASKS #86 (≈50% of map micro-batches rejected by the provider with
-  `400 Invalid body`, root-caused to surrogate-splitting truncation in
+  OPEN-TASKS #86 (**~57% of map micro-batches rejected** by the provider with
+  `400 Invalid body` — 591 of 1,041 in the 2026-08-22 soak window, 57.0% on 08-22; the
+  older "≈50%" figure is superseded — root-caused to surrogate-splitting truncation in
   `map-prompts.ts:164`) and #88 (the fallback itself). Validation uses k=5 LLM matching
   with keyword fallback and exposes coverage/divergence/timeliness/thin-source metrics.
   **2026-07-29→08-15 map outage (Iran recovered; ru/ua backlog still draining):**
@@ -182,8 +197,10 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   operator alerts (`map-health.ts`, state in provider_state `map_health`), and the map cap
   is now `MAP_SPRINT_USD_CAP=40` (map-only; `LLM_SPRINT_USD_CAP=10` unchanged for every
   other path). Recovery details: the 2026-08-15 decision-log entry.
-- **Analysis model routing (repository code — NOT deployed):** PR #5's workload-scoped
-  routing seam is in the repository: `src/lib/llm/model-config.ts` resolves (model, effort)
+- **Analysis model routing (PR #5 — LIVE in production since 2026-08-20,
+  `dpl_GH6UWFojKPEgPrhBiT7utPBPnQBJ` / `7336b9c`, 24h formal soak CLOSED PASS
+  2026-08-21; carried forward by the 2026-08-22 QF-B release):** the workload-scoped
+  routing seam is deployed: `src/lib/llm/model-config.ts` resolves (model, effort)
   per workload at call time (`<WORKLOAD>_MODEL` → `OPENAI_MODEL` → gpt-4o-mini) and FAILS
   CLOSED — before any SpendGuard reservation or provider-client construction — on an
   invalid effort, an unpriced model, or a (workload, model, effort) with no
@@ -195,9 +212,14 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   Development (verified read-only 2026-08-20), so every workload resolves to the historical
   baseline and `mapExtractorVersion()` stays byte-identical to the deployed corpus's — all
   six live production (theater, track) pairs re-verified against `doc_claims` on
-  2026-08-20. **Merging this is not deploying it:** production keeps running `9c5e9cb` /
-  `dpl_CDnECGnXvoZFKnA9QQziz59pmpu2` until a separately authorized deployment, so
-  repository code is AHEAD of production.
+  2026-08-20. **Deployed, but nothing is activated:** the seam only makes the gate
+  enforceable — no candidate model is approved (`analysis-reg-v1` holds baseline-only
+  entries, zero `evaluated_candidate`), no routing variable exists in any Vercel
+  environment, and activating any candidate still requires its own paid representative
+  evaluation, a registry entry and explicit operator authorization — plus, for map, the
+  #33 remap path first (#81). Corrected in place 2026-08-23: this bullet had continued to
+  say the seam was un-deployed repository code and that production ran `9c5e9cb`, both of
+  which stopped being true at the 2026-08-20 release.
 - **Product/access:** invite-only private beta; public access request flow; pricing redirects to
   `/access`. Registry/admin surfaces remain admin-only. Signals are anonymous teaser-only and
   accepted-user detailed, with source-attributed named people + non-endorsement notice. Ask v2,
@@ -813,7 +835,7 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
 | Sign-in policy | `SIGNIN_MODE` | **Production invite-only since 2026-07-15** (existing user OR admin allowlist OR approved access request) | Vercel environment |
 | Cron auth | `CRON_SECRET` | **live** | (already set) |
 | Auth.js | `AUTH_SECRET` | **live** (hashes magic-link tokens: rotating it invalidates every unclicked link) | (already set) |
-| X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live, gap-recovered; self-heal production-proven 2026-08-13** (`$75` sprint / `$2.50` daily; #66 closed, #38 retains external alert-email delivery proof only) | api.twitterapi.io |
+| X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live, gap-recovered; self-heal production-proven 2026-08-13** (`$75` sprint / `$2.50` daily; #66 closed 2026-08-14, #38 closed 2026-08-23 on mailbox-confirmed incident + recovery alert emails) | api.twitterapi.io |
 | OpenSanctions | `OPENSANCTIONS_API_KEY` + caps | **live gap-fill; monthly accounting + fixed-cutoff rescore + claim-linked spend eligibility deployed** (rescore `f9aaa9e`; #17 spend subset `be0ebf1` / `dpl_2p13bnGVNv2VfVVNQkVe4nW3CEaj` 2026-07-16, zero paid calls; fresh 2026-07-16: 1,012 eligible / 475 claim-linked / 232 missing-or-stub of which only 46 are billable; July ledger 780 calls / $85.8000; #17 match-score/caption, kind-safe cleanup #61 + paid #41 remain gated) | opensanctions.org |
 | Telegram MTProto | `TELEGRAM_API_ID/HASH` + `TELEGRAM_SESSION` (all in prod env) | **live** (session added 2026-07-11; first fetch + repeated hourly runs verified; registry top-120 ROCA roster) | my.telegram.org |
 | PostHog (product analytics) | `NEXT_PUBLIC_POSTHOG_KEY` + `_HOST` (Production only) + `POSTHOG_PERSONAL_API_KEY`/`POSTHOG_PROJECT_ID` (.env.local, ops) | **LIVE opt-in-only** (US project 512327 "BNOW.NET"; rollback = remove key + redeploy; billing limit configured 2026-07-15; project-membership review remains) | us.posthog.com |
@@ -829,7 +851,7 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
 2. **`DIGEST_ENGINE=mapreduce` is SET in prod (flipped 2026-07-09) but no digest has
    actually used it since 2026-08-17** — every one falls back to legacy for want of
    current-version `doc_claims` (see the Analysis bullet; OPEN-TASKS #86/#88). The
-   corpus-freshness work, not the engine flag, is the blocker: close #86 (the ~50%
+   corpus-freshness work, not the engine flag, is the blocker: close #86 (the ~57%
    provider-rejected map batches) first, then re-check `provider_usage.openai_reduce`
    (expected ≈ $0.10–0.30/day against `REDUCE_USD_CAP_DAILY=2`) and the scoreboard.
    Rollback of the engine itself = remove the Vercel prod env var (or set `legacy`) +
@@ -958,3 +980,92 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   additionally requires an executed, costed corpus remap under explicit spend authorization
   plus a paid representative scorecard (#81). Report:
   `docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md`.
+
+- **2026-08-23 (QF-B map-lease 24-hour production soak — CLOSED, PASS; #77 and #38 closed;
+  documentation-only release)** The formal lease soak opened by the 2026-08-22 entry closed
+  on its stated window **2026-08-22T02:00:00Z → 2026-08-23T02:00:00Z** and every figure was
+  re-derived independently from the production record for this closeout rather than taken
+  from the prior session's dossier. **`QF_B_SOAK_VERDICT=PASS`, `LEASE_SOAK_STATUS=CLOSED —
+  PASS`.** Production is unchanged and still serves `dpl_HjaHYtfZDhoFR2SqfH66XFT6RhJe`
+  (`/health` HTTP 200, `data-dpl-id` matches, build stamp `23a1280`, DB OK; `vercel ls`
+  newest production deployment is that one, 1 d old); `origin/main` `7976ecb` differs from
+  the deployed merge `23a1280` in exactly five DOCUMENTATION files and no runtime path.
+  In-window evidence: **24** map `cron_runs` rows over 24 distinct UTC hours, 0 off-schedule
+  minutes, 24 `ok=true`, 0 `ok=false`, 0 `finished_at IS NULL`, 0 non-null `error`; ONE
+  distinct `counts.lease.outcome` = `acquired`; fences **2–25**, 24 distinct, every delta
+  +1, pre-soak first fence 1, and the entire lease era is a gapless 1..35 (35 rows, 35
+  distinct fences, 0 non-acquired, 0 skipped, 0 budget stops) — which is itself the proof
+  that no unlogged script, backfill, remap or takeover ever held the lease; `lost=0` and
+  `released=1` on all 24; `leaseLostDiscards=0`; **1,541** renewal attempts, **1,541**
+  successes; reported claims **3,995** exactly equal to `doc_claims` rows created in-window;
+  batches 1,041 with 591 batch errors (**56.8%** — the pre-existing #86 rate, see below);
+  `llmCalls` 452 == `llmRequests` 452 (ruling 8: one metering per physical dispatch);
+  `processedMarked` 13,038; residue `provider_state.map_lease` = `{"fence": 25}` at
+  window close and `{"fence": 35}` when re-read for this closeout (2026-08-23T~12:2xZ), a
+  single key with no token either time; **0** advisory locks; one baseline dispatch identity (`gpt-4o-mini` /
+  effort `null` / `analysis-reg-v1` / `baseline` / workload `map`); only the four current
+  extractor versions (`d73cc83ed8df`, `75e0ff6403db`, `15a6078371bd`, `19c06260f149`); 86
+  Vercel env rows / 48 distinct names with zero routing variables and no
+  `MAP_LEASE_TTL_SEC`; no migration; and **zero `map:remap` rows in `cron_runs`, ever**.
+  Spend, read 2026-08-23T~12:2xZ (an as-of reading on a live series, not a window total):
+  `openai_map` $0.5043 on 08-22 against `MAP_USD_CAP_DAILY=4`, $17.0377 all-time against
+  `MAP_SPRINT_USD_CAP=40`.
+  Independent review PASS (0 BLOCKER / 0 HIGH / 0 MEDIUM / 2 MINOR / 5 NOTE, both MINORs
+  being evidence-quality criticisms of the dossier, both corrected). Post-window continuity
+  10/10 cycles, fences 26–35, clean. `ROLLBACK_RECOMMENDED=NO`.
+  **The PASS is bounded and the bounds are part of the ruling.** (1) Production exercised
+  the steady single-holder path ONLY — contention, `expired_takeover`, `busy`, the loss
+  latch and the discard path never fired, so contention handling stays test-proven, not
+  production-proven (filed as #95). (2) There is NO retained runtime-log coverage of the
+  formal window (Vercel CLI caps at 100 records; no log drain — filed as #93); the durable
+  `cron_runs` record plus four stores the counts payload does not write (`doc_claims`,
+  `doc_map_state`, `provider_state`, `provider_usage`) plus out-of-band operator email are
+  the evidence. (3) `pg_locks` readings are point-in-time and carry no window coverage — the
+  Neon compute restarts (again at 2026-08-23T12:25Z); what is load-bearing is that the map
+  path no longer calls `pg_try_advisory_lock` at all. (4) **`counts.lease.lost` — not
+  `leaseLostDiscards` — is the authoritative lease-loss counter** (the discard counter can
+  undercount on the truncation-split recursion path; filed as #96). (5) Claims-reported ==
+  claims-persisted proves no rollback and no `ON CONFLICT` suppression; it does NOT prove
+  that nothing could ever have been discarded before either counter incremented.
+  (6) Nested `counts.*` sub-objects must be swept on EVERY job, not just `ingest:x`: two
+  in-window `digest:*` runs (`digest:finalize` 08-22T02:00:40Z, `digest:intraday`
+  08-22T10:03:16Z) and TWO after the window (`validate` 08-23T07:00:49Z — a NON-digest job —
+  and `digest:intraday` 08-23T10:03:16Z) carried `counts.errors=1` while `ok=true` and
+  `error` was null. Pre-existing **#87**, on paths QF-B never touched, and wider than #87's
+  original `digest:finalize` scoping. Do not claim "zero errors across every job" for this
+  window.
+  **#77 (the stranded map advisory lock) is CLOSED** on the evidence above. **#38 is also
+  CLOSED, but NOT on the basis the soak dossier recommended:** its remaining criterion was
+  independent confirmation that an X-health incident/recovery email actually reached the
+  configured recipient, and the four in-window map-health emails come from a different
+  evaluator (`map-health.ts`), so they do not satisfy it. What does: the operator mailbox
+  (`go@vociferous.nyc`) holds `[BNOW] X ingestion unhealthy: incomplete, request_failures`
+  delivered 2026-08-22T18:05:46.635Z and `[BNOW] X ingestion recovered: resumed` delivered
+  2026-08-22T19:04:17.601Z, matching the `ingest:x` runs 18:02:36Z→18:05:47Z
+  (`alertKind=1, alertReasons=2, alertDelivery=1, requestFailures=2, incomplete=1`) and
+  19:02:36Z→19:04:18Z (`alertKind=2, alertDelivery=1, requests=55`) field-for-field, with
+  TWO further independent incident/recovery pairs on 2026-08-21. Mail held by Postmark and Gmail cannot be produced
+  by a doctored database row.
+  **Still open:** #85 and #90 (the two accepted lease residuals), #86 (the surrogate-splitting
+  map truncation, ~57% of micro-batches rejected — the next repair), #87 (digest swallows
+  nested errors), #88 (the last mapreduce digest was 2026-08-16T19:32:38Z; every digest created on or
+  after 2026-08-17 is legacy), plus the newly filed #92–#96.
+  **Independent review of this closeout (fresh Opus 5, read-only):** PASS-WITH-MINORS —
+  0 BLOCKER / 0 HIGH / 1 MEDIUM / 6 MINOR / 5 NOTE, all applied before merge. It
+  independently re-derived every asserted figure from production and found no numerical
+  error and no overclaim. The MEDIUM was PRE-EXISTING standing text this closeout had left
+  alone: the "Analysis model routing (repository code — NOT deployed)" bullet still claimed
+  production ran `9c5e9cb`, false since the 2026-08-20 PR #5 release — corrected in place
+  above. MINORs corrected the post-window nested-error sweep (two rows, one of them the
+  NON-digest `validate` job), the number of corroborating X alert pairs, five stale "~50%"
+  #86 figures, two stranded Candidate-B-era sentences, a stale #38 line in
+  `docs/SETUP-NEXT-WEEK.md`, and two 2026-08-14 snapshot-header dates. It also produced the
+  structural, time-independent form of the #77 claim: a repository-wide grep finds ZERO
+  `pg_try_advisory_lock` / `pg_advisory_lock` / `pg_advisory_unlock` CALL SITES in `src/`
+  or `scripts/` — only two comment lines in `map-lease.ts`.
+  **This release is DOCUMENTATION ONLY:** no source file, migration, environment variable,
+  cap, model, schedule or cron was touched; no deployment, promotion or rollback was made;
+  no cron was invoked; no remap was executed or dry-run; no paid provider call was made; and
+  every database statement in the closeout was a `SELECT`. The AGENTS.md decision-log archive
+  move to `docs/DECISIONS.md` was deliberately NOT performed here and is filed as #92.
+  Report: `docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md` §9.
