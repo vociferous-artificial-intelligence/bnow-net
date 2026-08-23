@@ -5,7 +5,7 @@ this file is **not append-only**: correct it in place whenever live product, ope
 deployment, test, credential, or repository state changes. Historical narrative belongs in
 `PROGRESS.md`, review notes, and `DECISIONS.md`.
 
-## Current state — snapshot (verified through 2026-08-14; correct in place when it changes)
+## Current state — snapshot (verified through 2026-08-23; correct in place when it changes)
 
 Live at **https://bnow.net** (Vercel project `bnow-net`, team `vociferous`;
 deployment URLs are SSO-walled — always use the project domain). History/narrative:
@@ -82,8 +82,12 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   scheduled X runs encountered provider request failures (`budgetStops=0`, no billable usage on
   Aug 11–12), entered bounded catch-up, then inserted 560 + 9,069 + 764 = **10,393** documents on
   Aug 13 and returned to healthy hourly polls. The two large completions recorded recovery state;
-  #66 is closed. #38 now retains only independent verification that the external alert email was
-  delivered. This was not provider-credit or app-cap exhaustion: cumulative X spend was $43.8075
+  #66 is closed. **#38 is CLOSED as of 2026-08-23:** the operator mailbox
+  (`go@vociferous.nyc`) holds the X-health INCIDENT email `[BNOW] X ingestion unhealthy:
+  incomplete, request_failures` delivered 2026-08-22T18:05:46.635Z and the RECOVERY email
+  `[BNOW] X ingestion recovered: resumed` delivered 2026-08-22T19:04:17.601Z, each matching
+  its `ingest:x` run's `counts.x_api` field-for-field — the external delivery proof
+  `cron_runs` could never supply. This was not provider-credit or app-cap exhaustion: cumulative X spend was $43.8075
   of $75; Aug 10 was $0.7386 of $2.50/day; Aug 13 was $1.6575. On Aug 14 the live admin dashboard
   showed 175,842 X documents total, 3,603 in the last 24h, and last fetch 19:21:24 UTC), GDELT
   (wired, upstream-flaky), zakupki
@@ -148,9 +152,26 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   check-then-act token re-check, not a statement fence, so the unprotected window is the
   whole renew-to-COMMIT span; a full-TTL stall of that span can admit a mixed-generation
   first-writer-wins claim set for one (doc, track, version). Removing it needs a fence
-  column — a migration, deliberately deferred. **#77 stays OPEN until the 24h lease soak
-  (2026-08-22T02:00Z → 2026-08-23T02:00Z) closes PASS.** TTL is `MAP_LEASE_TTL_SEC`,
-  default 120s clamped to [30,600], and is NOT set in any Vercel environment.
+  column — a migration, deliberately deferred. **#77 is CLOSED (2026-08-23): the 24h
+  formal lease soak 2026-08-22T02:00:00Z → 2026-08-23T02:00:00Z closed PASS**, so
+  `provider_state.map_lease` is now the LIVE map-concurrency mechanism in production and
+  the session advisory lock is gone from the map path entirely — 24/24 natural `:40`
+  cycles all `acquired`, fences 2–25 contiguous (lease era gapless 1..35), `lost=0`,
+  `released=1`, `leaseLostDiscards=0` on every cycle, 1,541/1,541 successful renewals,
+  3,995 claims reported == 3,995 `doc_claims` rows persisted in-window, residue
+  `{"fence": N}` with no token, ZERO advisory locks, one baseline dispatch identity, four
+  extractor versions, no env/migration/remap, independent review PASS, post-window
+  continuity 10/10 (fences 26–35). **Bounds of that PASS, which stand as live caveats:**
+  it covers the steady single-holder path only — contention, `expired_takeover`, `busy`,
+  the loss latch and the discard path have never executed in production (#95); there is no
+  retained runtime-log coverage of the window (#93), so the durable `cron_runs` record plus
+  `doc_claims`/`doc_map_state`/`provider_state`/`provider_usage` plus out-of-band alert
+  email are the evidence; `pg_locks` reads are point-in-time only (the Neon compute
+  restarts) and the load-bearing fact is the absence of any `pg_try_advisory_lock` call;
+  and `counts.lease.lost` — not `leaseLostDiscards`, which can undercount on the
+  truncation-split path (#96) — is the authoritative loss signal. TTL is
+  `MAP_LEASE_TTL_SEC`, default 120s clamped to [30,600], and is NOT set in any Vercel
+  environment.
 - **Map remap operator (OPEN-TASKS #33) — DEPLOYED, NEVER EXECUTED.**
   `scripts/map-remap.ts` plus remap mode in `runMapCycle` shipped in the same release:
   dry-run-first, resumable, lease-safe, route-capability-gated, fail-closed on every
@@ -161,8 +182,9 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   activation hard lock is untouched: only the baseline `gpt-4o-mini`/no-effort
   configuration can dispatch, which makes this a prompt-revision tool until an operator
   authorizes an activation — which additionally needs an executed, costed corpus remap
-  and a paid representative scorecard (#81). NOTE: while #86 stands (~45–54% of map
-  micro-batches rejected `400 Invalid body`), the driver's stall bound trips after 3
+  and a paid representative scorecard (#81). NOTE: while #86 stands (**~57%** of map
+  micro-batches rejected `400 Invalid body` — 591 of 1,041 in the 2026-08-22 soak window;
+  the older "~45–54%" band is superseded), the driver's stall bound trips after 3
   calls, so it cannot drain a day at all today.
 - **Model routing (PR #5 — LIVE in production since 2026-08-20, `dpl_GH6UWFojKPEgPrhBiT7utPBPnQBJ` / `7336b9c`; 24h formal soak CLOSED PASS 2026-08-21):** `src/lib/llm/model-config.ts`
   is the ONE authority for which model each analysis workload dispatches and at what
@@ -206,9 +228,11 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   (11/day, all theaters) has been produced by the LEGACY engine**, and
   `provider_state.map_health` reads `stale_ir,stale_ru,stale_ua`. Before that only ir got
   mapreduce (1–3/day). The map worker is healthy but is draining the ru/ua backlog, so
-  current-day windows hold no current-version claims. Compounding cause: OPEN-TASKS #86
-  (≈50% of map micro-batches rejected `400 Invalid body` since 2026-07-16, root-caused to
-  surrogate-splitting truncation at `map-prompts.ts:164`). Tracked as #88. Both engines persist
+  current-day windows hold no current-version claims. The last mapreduce digest was
+  **2026-08-16T19:32:38Z**; every digest created on or after 2026-08-17 is legacy.
+  Compounding cause: OPEN-TASKS #86 (**~57%** of map micro-batches rejected
+  `400 Invalid body` since 2026-07-16 — 591 of 1,041 in the 2026-08-22 soak window —
+  root-caused to surrogate-splitting truncation at `map-prompts.ts:164`). Tracked as #88. Both engines persist
   through ONE shared path (`digest-persist.ts`) whose overwrite guard refuses empty
   AND thin (<50% prior claims) regenerations (#32 closed; FORCE_REGEN=1 override),
   and which now runs the deterministic **publication-safety guard**

@@ -289,9 +289,27 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     **Natural incident evidence 2026-08-10–14:** provider request failures (not budget stops)
     parked the poller; scheduled catch-up resumed, inserted 10,393 documents, completed, recorded
     recovery state, and was followed by healthy hourly polls. This closes the evaluator/recovery
-    behavior and #66. Keep #38 open only until the recovery/incident email is independently
-    confirmed as delivered to the configured recipient; `cron_runs` proves the transition was
-    evaluated but not mailbox receipt.
+    behavior and #66. ✅ **CLOSED 2026-08-23 — external delivery independently confirmed.** The
+    one remaining criterion was mailbox receipt of an X-health INCIDENT email and a RECOVERY
+    email at the configured recipient, which `cron_runs` cannot prove. Both were read directly
+    in the operator mailbox (`go@vociferous.nyc`) on 2026-08-23 and match `cron_runs`
+    field-for-field: `[BNOW] X ingestion unhealthy: incomplete, request_failures`, delivered
+    **2026-08-22T18:05:46.635Z**, body carrying reasons `incomplete, request_failures`,
+    `requestFailures=2`, `incomplete=1`, `budgetStops=0`, `pageTruncations=0`, `lockSkips=0`,
+    against the `ingest:x` run 18:02:36Z→18:05:47Z whose `counts.x_api` holds exactly those
+    counters plus `alertKind=1, alertReasons=2, alertDelivery=1`; and
+    `[BNOW] X ingestion recovered: resumed`, delivered **2026-08-22T19:04:17.601Z** with
+    `requests=55`, against the run 19:02:36Z→19:04:18Z holding
+    `alertKind=2, alertDelivery=1, requests=55`. TWO further independent incident/recovery
+    pairs sit in the same mailbox on 2026-08-21 (07:03:47.156Z unhealthy / 08:03:34.077Z
+    recovered; 17:03:28.097Z / 21:05:19.126Z).
+    Mail held by Postmark and Gmail cannot be produced by a doctored database row, so this is
+    genuinely external evidence. **What did NOT close this item:** the four in-window
+    map-health emails cited by the QF-B soak closeout come from a DIFFERENT evaluator
+    (`src/lib/analysis/map-health.ts`, job `map`), not from `src/lib/adapters/x-health.ts`.
+    They prove the shared Postmark operator-alert transport, but #38's stated criterion is the
+    X incident/recovery email specifically — so the closure rests on the X emails above, not on
+    that recommendation.
 39. **[Tier 1] No git→Vercel deploy integration.** `git push` does not deploy — after the 07-09
     auth fix, prod served the stale build ~20 min (`AUTH-EMAIL-2026-07-09.md`). Wire the Vercel Git
     integration, or codify "push then `npx vercel@latest deploy --prod`" in a release checklist so a
@@ -714,8 +732,9 @@ docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md)
     `User-agent: *` — the roster review rejected it on the robots gate rather than
     ingesting against operator intent. Worth direct outreach for feed permission; do not
     ingest via the section-feed loophole.
-77. **[Tier 1 — reliability] The map worker's session advisory lock strands on the Neon
-    pooler.** Observed twice on 2026-08-15 (a local dry run, then production's own route
+77. ~~**[Tier 1 — reliability] The map worker's session advisory lock strands on the Neon
+    pooler.**~~ ✅ **CLOSED 2026-08-23** — evidence in the STATUS paragraph at the end of
+    this item. Observed twice on 2026-08-15 (a local dry run, then production's own route
     during the recovery drive): with the pooled DSN, `pg_advisory_unlock` can route to a
     DIFFERENT pgbouncer server connection than the lock's, leaving the lock held by an
     idle backend and every later cycle recording `skipped`. The hourly cron has survived
@@ -726,21 +745,60 @@ docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md)
     `pg_try_advisory_xact_lock` on a connection that stays pinned for the cycle (or a
     provider_state lease like x-lease). Interim recovery tooling used a janitor with the
     exact predicate above.
-    **STATUS 2026-08-21 — IMPLEMENTED, AWAITING PRODUCTION SOAK (not closed).** The
+    **STATUS 2026-08-23 — CLOSED; the formal 24-hour production lease soak PASSED.** The
     durable fix is the `provider_state` `map_lease` row
     (`src/lib/analysis/map-lease.ts`): single-statement CAS acquire under proven expiry
     against the DB clock, per-acquisition tokens, token-checked renew/release, monotonic
     diagnostic fence — no session state for a pooler to strand. Merged as PR #7
     (`23a1280`) and deployed 2026-08-22 as `dpl_HjaHYtfZDhoFR2SqfH66XFT6RhJe`
-    (`docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md`). Live-verified on the
-    first natural cycle: outcome `acquired`, fence 1, 57 renewals, lost 0, released 1,
-    lease left at `{"fence": 1}` with no token, and ZERO advisory locks remaining in
-    `pg_locks`. **Formal 24h lease soak OPEN 2026-08-22T02:00:00Z →
-    2026-08-23T02:00:00Z**; closeout checklist in §8 of that report. This item stays
-    OPEN until the formal 24-hour lease soak closes PASS: 24 natural hourly cycles,
-    monotonic fences, clean release, zero lost leases, no unexplained busy/takeover, zero
-    failed or unfinished cycles, baseline routing, stable metering and yield, no
-    extractor-version drift. The accepted residual the lease does NOT close is #85.
+    (`docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md`; closeout §9). Live-verified
+    on the first natural cycle: outcome `acquired`, fence 1, 57 renewals, lost 0,
+    released 1, lease left at `{"fence": 1}` with no token, and ZERO advisory locks
+    remaining in `pg_locks`.
+    **Formal window 2026-08-22T02:00:00Z → 2026-08-23T02:00:00Z — all 11 checklist
+    conditions satisfied**, re-derived independently from `cron_runs` on 2026-08-23:
+    **24/24** expected natural `:40` cycles over 24 distinct UTC hours; **0** missing,
+    **0** duplicate, **0** off-schedule, **0** `ok=false`, **0** `finished_at IS NULL`,
+    **0** rows with a non-null `error`; ONE distinct `counts.lease.outcome` = `acquired`;
+    fences **2 → 25**, 24 distinct, every delta exactly +1 (pre-soak first fence **1**;
+    the whole lease era is a gapless 1..35 with zero repeats and zero non-acquired
+    outcomes); `lost = 0` and `released = 1` on all 24; `leaseLostDiscards = 0`;
+    **1,541** renewal attempts and **1,541** successes (the identity
+    `renewals = batches + llmCalls + 2` holds on every row, so no renew failed and no 429
+    retry occurred); reported claims **3,995** exactly equal to `doc_claims` rows created
+    in-window (**3,995**); residue `provider_state.map_lease = {"fence": N}` with the
+    token absent; **zero** advisory locks; one baseline dispatch identity throughout
+    (`gpt-4o-mini` / effort `null` / `analysis-reg-v1` / `baseline` / workload `map`);
+    only the four current extractor versions written; 86 Vercel env rows / 48 distinct
+    names with no routing variable and no `MAP_LEASE_TTL_SEC`; no migration; and **no
+    `map:remap` row in `cron_runs`, ever**. Independent review PASS (0 BLOCKER, 0 HIGH,
+    0 MEDIUM). Post-window continuity 10/10 cycles, fences 26–35, clean.
+    **Scope limits recorded WITH the PASS, not hidden by it.** (a) Production exercised
+    only the steady single-holder path: contention, `expired_takeover`, `busy`, the
+    loss latch and the discard path never fired, so contention handling remains
+    test-proven (`map-lease.itest.ts` + unit) and is NOT production-proven (#95).
+    (b) There is no retained runtime-log coverage of the formal window at all — the
+    Vercel CLI caps at 100 records and no log drain exists (#93) — so the durable
+    `cron_runs` record plus four stores the counts payload does not write
+    (`doc_claims`, `doc_map_state`, `provider_state`, `provider_usage`) plus out-of-band
+    alert email carry the evidence. (c) `pg_locks` readings are PARTLY point-in-time: the only
+    IN-WINDOW reading is the interim pass at 2026-08-22T21:33Z (advisory = 0 twice ~10 min
+    apart, `map_lease = {"fence": 20}`), while every later reading — this closeout's
+    included — post-dates a Neon compute restart (`pg_postmaster_start_time()` has moved at
+    least three times since the window closed, most recently 2026-08-23T12:25:24Z) and so
+    carries no window coverage. The load-bearing evidence is structural and not
+    time-sensitive: a repository-wide grep for `pg_try_advisory_lock` / `pg_advisory_lock`
+    / `pg_advisory_unlock` over `src/` and `scripts/` returns only two COMMENT lines in
+    `map-lease.ts` and ZERO call sites, so no advisory lock remains anywhere in the map
+    path to strand.
+    (d) `counts.lease.lost` — NOT `leaseLostDiscards` — is the authoritative lease-loss
+    signal (#96). (e) Reported-claims == persisted-claims proves no transaction rollback
+    and no `ON CONFLICT` suppression; it does not prove that no work could ever have been
+    discarded before either counter incremented.
+    **Still open, deliberately:** #85 (fence column / mixed-generation interleave — needs
+    a migration) and #90 (a malformed `map_lease` row would wedge the stage while
+    reporting `ok=true`) are the accepted residuals the lease does NOT close; #86, #87
+    and #88 are untouched by this closeout and remain open.
 78. **[Tier 2 — release hygiene] A CLI deploy from a git WORKTREE ships no commit stamp.**
     A worktree's `.git` is a FILE (gitdir pointer), which defeats the Vercel CLI's git
     metadata detection: `/health` on `dpl_9xyqCLfZn6n8WTifQ6BpgpV9wJja` renders an empty
@@ -818,11 +876,13 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     Complete fix: add a fence column to `doc_claims`/`doc_map_state` and have each write
     refuse a lower fence in the same statement — a MIGRATION, deliberately out of the
     2026-08-21 release's scope. Audit refs: G4, L4-2, safety-review n1.
-86. **[Tier 1 — quality/spend] ~50% of map micro-batches are rejected by the provider with
+86. **[Tier 1 — quality/spend] ~57% of map micro-batches are rejected by the provider with
     `400 Invalid body: failed to parse JSON value`.** Measured from `cron_runs`: 0% through
-    2026-07-15, first appearing 2026-07-16 (7.1%), climbing to a ~45–54% plateau and flat
-    across every deploy boundary since (08-19 46.6% · 08-20 45.4% · 08-21 52.7%) — so it is
-    not a routing or lease regression, it is standing corpus damage. **Root cause
+    2026-07-15, first appearing 2026-07-16 (7.1%), then a continuously RISING plateau, flat
+    across every deploy boundary (08-19 46.6% · 08-20 45.4% · 08-21 52.7% · **08-22 57.0%**;
+    591 of 1,041 batches inside the 2026-08-22 lease-soak window = **56.8%**) — so it is
+    not a routing or lease regression, it is standing corpus damage. The earlier "~50% /
+    ~45–54%" framing is superseded by these measurements. **Root cause
     identified 2026-08-21:** `mapDocLine` truncates with `body.slice(0, mapContentChars())`
     (`src/lib/analysis/map-prompts.ts:164`), a UTF-16 slice that can cut a surrogate PAIR in
     half; the resulting lone surrogate survives `JSON.stringify` as an unpaired escape and
@@ -833,13 +893,20 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     NOT fixed in the 2026-08-21 map-lease release — `map-prompts.ts` is outside that PR's
     delta and changing extraction behaviour would confound the lease soak. This is the
     largest single lever on map yield currently known.
-87. **[Tier 2 — observability] `digest:finalize` swallows per-digest failures into an
-    in-run counter while `cron_runs.ok` stays true.** Days 2026-08-01, 08-03 (×2), 08-04,
+87. **[Tier 2 — observability] `digest:*` — and `validate` — swallow per-item failures into
+    an in-run counter while `cron_runs.ok` stays true.** Days 2026-08-01, 08-03 (×2), 08-04,
     08-15 and 08-21 each recorded `counts.errors >= 1` with the same
     `400 Invalid body: failed to parse JSON value` signature as #86, yet the run is green
     and no alert fires. Either classify a non-zero digest `errors` count as unhealthy (the
     map worker's 2026-08-15 precedent) or surface it through `map-health`-style alerting.
-    Same root-cause family as #86.
+    Same root-cause family as #86 — mechanically, the legacy digest provider truncates its
+    doc line with the same UTF-16 slice at `src/lib/analysis/openai-provider.ts:153`
+    (`.slice(0, 400)`), which is why the signature is identical. **Not limited to
+    `digest:*`:** `validate` 2026-08-23T07:00:49Z recorded
+    `{"date":"2026-08-22","errors":1,"validated":2}` with `ok=true` and `error IS NULL`
+    (found by the 2026-08-23 closeout review), so the swallow-nested-errors pattern spans at
+    least three jobs. Whatever fix is taken must sweep nested `counts.*` on EVERY job, not
+    just `digest:finalize`.
 88. **[Tier 1 — pipeline] No digest has used the mapreduce engine since 2026-08-17.** All
     11 digests/day fall back to legacy because their windows find no current-version
     `doc_claims`; `provider_state.map_health` reads `stale_ir,stale_ru,stale_ua`. The map
@@ -890,3 +957,47 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     independent lease review (NOTE-2) and sharpened by the spend re-review (MINOR-E), which
     caught the first draft of this entry describing the `?cap=` hole that the same commit
     had already closed.
+
+### New (from the QF-B lease-soak closeout — 2026-08-23,
+docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md §9)
+
+92. **[Tier 3 — documentation maintenance] AGENTS.md is ~1,040 lines against its ~300-line
+    guideline, and the newest decision-log entries sit BELOW `## Operating protocol`.** The
+    maintenance rule's sanctioned remedy is to move the log's OLDEST entries **verbatim** to
+    `docs/DECISIONS.md` (moving preserves history; editing or summarising it is forbidden).
+    That is a bulk edit and must not ride along with a release closeout, so it is filed here
+    instead of performed. Separately: the 2026-08-21, 2026-08-22 and 2026-08-23 entries were
+    appended at the END OF FILE rather than at the end of the `## Decision log` section,
+    which leaves Conventions / Credentials / Next steps / Operating protocol wedged
+    mid-log. New entries deliberately keep following the file-end convention so the log
+    stays chronological until both are repaired in one deliberate pass.
+93. **[Tier 2 — observability] No Vercel log drain, so no runtime-log coverage of any soak
+    window.** `vercel logs` caps at 100 records and retention is short: the QF-B formal
+    window 2026-08-22T02:00Z→2026-08-23T02:00Z had ZERO runtime-log coverage by the time it
+    was closed, and the verdict had to rest entirely on `cron_runs` plus four independent
+    durable stores plus out-of-band alert email. Configure a drain (or extend retention)
+    before the next formal observation window so a self-reported counts payload is not the
+    only in-window narrative.
+94. **[Tier 3 — hygiene] The expired `MAP_USD_CAP_DAILY_OVERRIDE_USD` / `_UNTIL` pair is
+    still installed in Production.** It expired 2026-08-17T13:00:00Z and the guard reverts
+    BY CODE at that instant (boundary test-pinned), so this is housekeeping, not
+    correctness. Removing it is an environment change and therefore needs its own
+    authorization; until then the base `MAP_USD_CAP_DAILY=4` governs.
+95. **[Tier 3 — assurance] The map lease's contention paths are test-proven, not
+    production-proven.** Across all 35 lease-era cycles the outcome was `acquired` every
+    time with `lost=0`, `leaseLostDiscards=0` and zero `skipped`, so `expired_takeover`,
+    `busy`, the loss latch and the discard path have never executed in production. The 2026-08-22
+    soak PASS therefore covers the steady single-holder path only. A deliberate exercise —
+    e.g. an authorized bounded backfill overlapping an hourly cycle, ideally on a
+    non-production branch — would close the gap. Coverage today: `map-lease.itest.ts` plus
+    the always-run unit pins on the four lease-gated write paths.
+96. **[Tier 3 — observability, latent] `leaseLostDiscards` can undercount a lease loss.** A
+    `MapLeaseLostError` thrown at a truncation-split recursion level inside `extractBatch`
+    unwinds through `runWorker`'s catch without incrementing `stats.leaseLostDiscards`, so
+    the counter is a lower bound on discarded work, not an exact one. It is NOT the
+    authoritative lease-loss signal: `counts.lease.lost` is, because `stillOwner()` sets it
+    on any failed renew including a DB exception, and the renewal identity
+    (`renewals = batches + llmCalls + 2`) independently proves every renew attempt
+    succeeded. Fix, when taken: increment the discard counter on the split path too, or
+    replace it with a per-batch outcome tally. No production impact observed — `lost` has
+    been 0 on every lease-era cycle.
