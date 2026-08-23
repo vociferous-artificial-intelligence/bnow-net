@@ -504,15 +504,109 @@ release does not claim it.
 
 ## 10. Deployment identity
 
-*(appended by the post-deployment pass)*
+Merged as **PR #10**, merge commit
+`0aa3d7d096d864120e0fb61c76d3de40d04521c8` (2026-08-23T14:07:59Z). `main` was an
+ancestor of the reviewed head, so the merged `src` tree is byte-identical to the
+reviewed tree — `src` = `1763ae55643e3e97911a38f1e2f6a17210436ed0` at the round-3
+reviewed SHA `f27c674`, at the final head `665a814` and at the merge commit alike.
+The `665a814` → `f27c674` delta is two documentation number corrections the
+reviewer itself requested.
 
-## 11. First natural production cycle
+Deployed **exactly once**, from `/Users/go/code/bnow-net-deploy-20260823` — a
+fresh clone from GitHub with a real `.git` DIRECTORY, not a git worktree, so the
+CLI's git-metadata detection works and the build stamp carries the commit
+(OPEN-TASKS #78):
 
-*(appended by the post-deployment pass)*
+```
+npx vercel@59.1.4 deploy --prod --yes --scope vociferous
+```
 
-## 12. Recovery window
+| Pre-deploy condition | Verified 2026-08-23T14:08Z |
+|---|---|
+| Production still the QF-B release | `data-dpl-id = dpl_HjaHYtfZDhoFR2SqfH66XFT6RhJe` |
+| No map cycle running | `cron_runs` with `job LIKE 'map%' AND finished_at IS NULL` = **0** (all jobs today: 0) |
+| Deployed after a natural `:40` finished | last map cycle 13:40:16Z → **13:43:46Z**; deploy began 14:08:49Z, ~25 min later and ~31 min before the next `:40` |
+| No migration | `23a1280..0aa3d7d` touches **0** files under `drizzle/` or `src/db/` |
+| Runtime delta | exactly three files: `map-prompts.ts` + its two test files |
+| `main` fast-forwardable | `merge-base(origin/main, HEAD) == origin/main` |
 
-*(appended by the post-deployment pass)*
+| Post-deploy verification | Result |
+|---|---|
+| Deployment | **`dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`** ● Ready, target **production**, created 2026-08-23T14:08:53Z |
+| Aliases | `bnow.net`, `bnow-net.vercel.app`, `bnow-net-vociferous.vercel.app` |
+| `/health` | HTTP 200, **DB OK** |
+| Build stamp | **`0aa3d7d`** — the merge SHA; NOT blank (#78 avoided) |
+| `data-dpl-id` | `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2` |
+| Public routes | 17/17 as expected (14× 200, `/pricing` 308, `/ask` + `/search` 307) |
+| Ruling 21 | all ten gated routes: anonymous bare GET adds **zero** words over the public `/`, `/signin` and 404 pages; `RSC: 1` returns a gate directive; **zero** privileged tokens in any of the 20 bodies |
+| Runtime logs | zero 5xx, zero error-level, zero `Invalid body` |
+| Environment | unchanged — **86 rows / 48 distinct names**, name set byte-identical to the pre-deploy listing, zero routing variables |
+| Deployment count | exactly ONE new production deployment; the next-newest is the rollback target, 2 d old |
+| Remap | **0** `map:remap` rows in `cron_runs`, ever |
+
+## 11. First natural production cycle — the repair works
+
+No cron was invoked. The first scheduled `:40` after deployment,
+**2026-08-23T14:40:20Z → 14:44:34Z** (253.8 s), against the last cycle on the old
+build three hours earlier:
+
+| Signal | 13:40 (old build) | Predicted | **14:40 (repaired)** |
+|---|---|---|---|
+| `ok` / `error` | true / null | true / null | **true / null** |
+| `counts.lease.outcome` | `acquired` | `acquired` | **`acquired`** |
+| fence | 37 | 38 | **38** |
+| `lost` / `released` / `leaseLostDiscards` | 0 / 1 / 0 | 0 / 1 / 0 | **0 / 1 / 0** |
+| `leaseRenewals` | 65 | ~`2 × batches + 2` | **92** — and 45 + 45 + 2 = 92 exactly |
+| `selected` | 1,000 | 1,000 | **1,000** |
+| `batches` | 44 | ~43–46 | **45** |
+| **`batchErrors`** | **25** (56.8% window rate) | **exactly 0** | **0 — 0.0%** |
+| `llmRequests` vs `llmCalls` | 19 / 19 | equal to `batches` | **45 / 45 — equal to batches** |
+| `claims` | 201 | materially higher | **498** (2.5×) |
+| `processedMarked` | **537**, frozen for 21+ cycles | ~1,000 | **1,000** |
+| `estUsd` | $0.0223 | ~$0.05 | **$0.0660** |
+| duration | 210 s | ~6–7 min | 253.8 s (faster than predicted) |
+| dispatch identity | baseline | baseline | **`gpt-4o-mini` / null / `analysis-reg-v1` / `baseline` / map** |
+| extractor versions | the four current | unchanged | **the same four, no fifth** |
+
+The twenty named documents, which had been re-selected every hour for weeks:
+**20/20 now `processed = true`, 0 still unprocessed, 31 `doc_map_state` rows across
+20 documents** — exactly the 31 doc-track pairs predicted from the eleven
+dual-track documents — **21 claims** extracted, and **zero** rows under any
+non-current extractor version.
+
+Residue and safety: `provider_state.map_lease` = `{"fence": 38}`, one key, no
+token · **0** advisory locks · **0** `map:remap` rows · runtime log for
+`/api/cron/map` shows HTTP 200 and **zero** `400 Invalid body` occurrences, where
+every prior cycle carried ~26 (the `map <theater>/<track> batch of 20: 400 Invalid
+body…` warn line is simply absent) · zero 5xx · the only warn-level records are
+pre-existing upstream ingest noise (`rss RBC` timeout, `rss Times of Israel` 403,
+`rss Kommersant` 406, `rss Ukrainska Pravda` 403, `gdelt ua` 429, procurement
+fetch) on `/api/cron/ingest`, unrelated to this release.
+
+Spend after the cycle: `openai_map` **$0.3581** on 08-23 (310 requests) and
+**$17.1484** all-time against `MAP_SPRINT_USD_CAP = 40`. Backlog **25,857**
+eligible documents (ir 12,838 / ru 8,989 / ua 4,030), down 1,000 in one cycle.
+
+**One prediction did not land, recorded rather than glossed:** `alreadyMapped`
+stayed at **139**, the same frozen value as before. The operations reviewer
+expected it to move. It is not one of #86's acceptance criteria and no other
+signal is ambiguous, but it is unexplained and is carried into the recovery
+window as something to watch.
+
+## 12. Recovery window — OPEN
+
+- **Start:** `2026-08-23T15:00:00Z` — the next clean UTC hour after the first
+  repaired cycle completed at 14:44:34Z
+- **End:** `2026-08-24T15:00:00Z` (**2026-08-24 11:00:00 EDT**)
+- **Expected cycles:** 24 natural `:40` runs, 15:40Z on 08-23 through 14:40Z on 08-24
+- **`UNICODE_RECOVERY_STATUS = OPEN`.** #86 is `DEPLOYED_RECOVERY_OPEN` and is NOT
+  closed by this session.
+
+Acceptance criteria are §9b's, with `batchErrors = 0` on every steady cycle as the
+primary one. Forbidden for the duration, exactly as for the QF-B soak: any further
+deployment, any environment or cap change, any model activation, any manual cron
+invocation, any remap (including a dry run), and any paid evaluation. Natural
+scheduled provider activity is expected and permitted.
 
 ## 13. Rollback, open risks and non-goals
 

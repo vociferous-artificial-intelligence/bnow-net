@@ -893,7 +893,7 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     NOT fixed in the 2026-08-21 map-lease release — `map-prompts.ts` is outside that PR's
     delta and changing extraction behaviour would confound the lease soak. This is the
     largest single lever on map yield currently known.
-    **STATUS 2026-08-23 — REPAIR IMPLEMENTED (PR #10); NOT CLOSED.** Root cause confirmed
+    **STATUS 2026-08-23 — DEPLOYED; RECOVERY WINDOW OPEN; NOT CLOSED.** Root cause confirmed
     three ways: (a) `JSON.stringify` emits an unpaired surrogate as the literal escape
     `\udXXX`, whose UTF-8 bytes are pure ASCII, so a strict server-side parser rejects the
     whole body — measured on the runtime in use; (b) reproduced on the unpatched base tree
@@ -935,8 +935,23 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     drift); stable metering and spend inside both caps (escalate above $25 of the $40
     all-time map ceiling, or on any `budgetStopCategory` other than `run_cap`); no
     model/routing/extractor-version drift; the frozen constants `processedMarked = 537` and
-    `alreadyMapped = 139` moving; and truthful error accounting. Report: `docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md`. Sibling
-    sites NOT fixed: #97.
+    `alreadyMapped = 139` moving; and truthful error accounting. **DEPLOYED 2026-08-23 as
+    `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`** (PR #10, merge `0aa3d7d`; `/health` stamps
+    `0aa3d7d`, DB OK; one deployment, from a fresh clone, no migration, no env change).
+    **First natural cycle 14:40:20Z → 14:44:34Z did exactly what was predicted:**
+    `batchErrors` **25 → 0**, `llmRequests` == `batches` == **45**, `processedMarked`
+    **537 → 1,000**, claims **201 → 498**, `estUsd` $0.0223 → $0.0660, lease `acquired`
+    fence 38 with lost 0 / released 1 / discards 0 and renewals **92 = 45 + 45 + 2**, the
+    same four extractor versions and no fifth, `map_lease` = `{"fence": 38}` with no token,
+    zero advisory locks, zero `map:remap` rows, and **zero `400 Invalid body` lines in the
+    `/api/cron/map` runtime log** where every prior cycle carried ~26. All 20 named
+    poisoned documents are now `processed=true` with **31 `doc_map_state` rows** — exactly
+    the 31 doc-track pairs predicted — and 21 claims. One prediction did NOT land and is
+    carried forward: `alreadyMapped` stayed frozen at 139. **RECOVERY WINDOW OPEN
+    2026-08-23T15:00:00Z → 2026-08-24T15:00:00Z** (2026-08-24 11:00 EDT), 24 expected
+    cycles; this item is `DEPLOYED_RECOVERY_OPEN` until it closes on the criteria above.
+    Report: `docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md` §10–§12. Sibling sites
+    NOT fixed: #97.
 87. **[Tier 2 — observability] `digest:*` — and `validate` — swallow per-item failures into
     an in-run counter while `cron_runs.ok` stays true.** Days 2026-08-01, 08-03 (×2), 08-04,
     08-15 and 08-21 each recorded `counts.errors >= 1` with the same

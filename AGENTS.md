@@ -107,7 +107,26 @@ place whenever reality changes. Historical narrative: `docs/PROGRESS.md` + `docs
 debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
 
 - **Live/repository:** https://bnow.net · Vercel `bnow-net` / team `vociferous`; production
-  `dpl_HjaHYtfZDhoFR2SqfH66XFT6RhJe` is the **2026-08-22 QF Worktree B release** (PR #7),
+  is **`dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`, the 2026-08-23 #86 map Unicode batch repair**
+  (PR #10, merge `0aa3d7d`), created 2026-08-23T14:08:53Z, READY, aliased `bnow.net` +
+  `bnow-net.vercel.app` + `bnow-net-vociferous.vercel.app`; `/health` stamps **`0aa3d7d`**
+  with DB OK (fresh CLONE, so the #78 blank-stamp trap did not apply). Its entire runtime
+  delta over the previous release is `src/lib/analysis/map-prompts.ts` plus two test files —
+  no migration, no env change, no schedule change, no model activated, same four extractor
+  versions. **First natural cycle (14:40:20Z → 14:44:34Z, nothing invoked): `batchErrors`
+  25 → 0, `llmRequests` == `batches` == 45, `processedMarked` 537 → 1,000, claims 201 → 498,
+  fence 38, lost 0, released 1, discards 0, renewals 92 = 45+45+2, and all 20 known
+  surrogate-poisoned documents reached a final disposition (31 doc_map_state rows, 21
+  claims).** Its **24h RECOVERY WINDOW is OPEN: 2026-08-23T15:00:00Z →
+  2026-08-24T15:00:00Z** (2026-08-24 11:00 EDT); #86 stays OPEN as
+  `DEPLOYED_RECOVERY_OPEN` until it closes, and during it no further deployment,
+  environment/cap change, model activation, manual cron invocation, remap or paid
+  evaluation is permitted. Code rollback target = `dpl_HjaHYtfZDhoFR2SqfH66XFT6RhJe` /
+  `23a1280` (pure code rollback: no migration, no env change, and the repaired build writes
+  rows under the SAME four extractor versions, which the old build anti-joins as
+  already-mapped). Report: `docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md`.
+  Previous release: `dpl_HjaHYtfZDhoFR2SqfH66XFT6RhJe`, the **2026-08-22 QF Worktree B
+  release** (PR #7),
   built from `main` merge commit `23a1280`, READY 2026-08-22T01:02:29Z and aliased to
   `bnow.net` + `bnow-net.vercel.app` + `bnow-net-vociferous.vercel.app`; `/health` stamps
   **`23a1280`** with `DB OK` (deployed from a fresh CLONE, not a worktree, so the #78
@@ -185,8 +204,9 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   OPEN-TASKS #86 (**~57% of map micro-batches rejected** by the provider with
   `400 Invalid body` — 591 of 1,041 in the 2026-08-22 soak window, 57.0% on 08-22; the
   older "≈50%" figure is superseded — root-caused to surrogate-splitting truncation in
-  `map-prompts.ts`) and #88 (the fallback itself). **#86's repair is IN THE REPOSITORY as of
-  2026-08-23 (PR #10) and is NOT closed:** `wellFormedSlice` + `dropIsolatedSurrogates` keep the
+  `map-prompts.ts`) and #88 (the fallback itself). **#86's repair is LIVE as of 2026-08-23
+  (PR #10, `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`) — first repaired cycle took `batchErrors`
+  from 25 to 0 and `processedMarked` from 537 to 1,000 — but it is NOT closed:** `wellFormedSlice` + `dropIsolatedSurrogates` keep the
   same `MAP_CONTENT_CHARS` code-unit ceiling and the same four extractor versions, so no
   remap is needed; it stays open through its post-deployment 24-hour recovery window.
   Sibling truncation sites on the digest, reduce and validation paths are NOT fixed (#97),
@@ -1158,3 +1178,50 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   straight into the answer request. The deployment identity, the first natural cycle and the
   recovery-window timestamps are recorded in the follow-up closeout entry, not here. Report:
   `docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md`.
+
+- **2026-08-23 (OPEN-TASKS #86 — merged, deployed once, first natural cycle clean, 24h
+  recovery window OPENED)** The repair described in the preceding entry was merged as PR #10,
+  merge commit `0aa3d7d096d864120e0fb61c76d3de40d04521c8` (14:07:59Z). `main` was an ancestor
+  of the reviewed head, so the merged `src` tree is byte-identical to the reviewed one
+  (`1763ae55…` at `f27c674`, at `665a814` and at the merge alike). **Three review rounds**
+  ran against exact SHAs — `8a4d283` (PASS-WITH-MINORS / PASS-WITH-MINORS), `d47d73f`
+  (**FAIL** / PASS-WITH-MINORS), `f27c674` (PASS-WITH-MINORS, merge bar cleared / **PASS**,
+  zero open findings) — and every finding was applied before merge. The round-2 FAIL is the
+  one worth remembering: the round-1 correction to the same-version argument was itself
+  wrong in the same class as the original error, and only a second round caught it.
+  Deployed **exactly once**, from a fresh CLONE with a real `.git` directory, as
+  `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2` (14:08:53Z, READY, production, aliased to bnow.net);
+  `/health` HTTP 200 stamping `0aa3d7d` with DB OK — no blank stamp, so the #78 worktree
+  trap did not apply. No migration (`23a1280..0aa3d7d` touches zero files under `drizzle/`
+  or `src/db/`), no environment change (86 rows / 48 names, name set byte-identical, zero
+  routing variables), no cap, model, routing or schedule change, no manual cron invocation,
+  no remap (still zero `map:remap` rows ever), no paid evaluation. Ruling 21 re-proven live
+  on the new build across all ten gated routes; zero 5xx and zero error-level runtime
+  records.
+  **The first natural `:40` cycle (14:40:20Z → 14:44:34Z, nothing invoked) confirmed the
+  repair against an exact, pre-registered prediction rather than a directional hope:**
+  `batchErrors` **25 → 0** (the criterion was `= 0`, not "improved", because all 31 poisoned
+  doc-track pairs are repaired), `llmRequests` == `llmCalls` == `batches` == **45**,
+  `processedMarked` **537 → 1,000** after 21 consecutive frozen cycles, claims **201 → 498**,
+  `estUsd` $0.0223 → $0.0660, lease `acquired` at fence 38 with lost 0 / released 1 /
+  discards 0, renewals **92 = 45 + 45 + 2** exactly as the re-baselined identity predicts,
+  the same four extractor versions and no fifth, residue `{"fence": 38}` with no token, zero
+  advisory locks, and **zero `400 Invalid body` lines in the `/api/cron/map` runtime log**
+  where every prior cycle carried about twenty-six. All twenty named surrogate-poisoned
+  documents — re-selected every hour for weeks — are now `processed = true` with **31
+  `doc_map_state` rows**, exactly the count predicted from the eleven dual-track documents,
+  and 21 claims. Recorded honestly against the prediction: `alreadyMapped` stayed frozen at
+  139, which the operations reviewer expected to move; it is not an acceptance criterion and
+  nothing else is ambiguous, but it is unexplained and is carried into the window.
+  **Binding until superseded: the 24-hour RECOVERY WINDOW is OPEN, 2026-08-23T15:00:00Z →
+  2026-08-24T15:00:00Z** (2026-08-24 11:00 EDT), 24 expected natural cycles. During it no
+  further deployment, environment or cap change, model activation, manual cron invocation,
+  remap or paid evaluation is permitted. **#86 is `DEPLOYED_RECOVERY_OPEN`, not closed.**
+  #87 and #88 remain open and are not touched; #88 in particular is NOT claimed — whether
+  mapreduce resumes depends on whether recovered throughput reaches the current-day window,
+  which is a backlog-versus-recency question this repair does not answer, and the backlog
+  stood at 25,857 eligible documents after the first cycle. Watch `openai_map` spend: it is
+  $17.1484 all-time of the $40 `MAP_SPRINT_USD_CAP` and the recovered rate is roughly
+  $1.2–1.3/day while the backlog drains; escalate above $25 of $40 or on any
+  `budgetStopCategory` other than `run_cap`. Report:
+  `docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md` §10–§12.
