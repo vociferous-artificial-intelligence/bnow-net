@@ -3120,3 +3120,32 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
    manual cron invocation; no paid evaluation call. #86 and #88 both stay OPEN — #86 through
    its post-deployment 24-hour recovery window, #88 until a naturally eligible digest uses
    mapreduce and meets its own criteria.
+
+## 2026-08-23 — #86 merged, deployed once, first cycle clean, recovery window OPEN
+
+1. **Merged as PR #10** (`0aa3d7d`), merged tree byte-identical to the reviewed one. Three
+   review rounds: `8a4d283` PASS-WITH-MINORS ×2 · `d47d73f` **FAIL** (Unicode reviewer) +
+   PASS-WITH-MINORS · `f27c674` PASS-WITH-MINORS (bar cleared) + **PASS**. Every finding
+   applied before merge. The round-2 FAIL matters: my round-1 correction to the same-version
+   argument was itself wrong, in the same class as the original error.
+2. **Deployed exactly once** from a fresh clone as `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`;
+   `/health` 200, DB OK, stamp `0aa3d7d`. No migration, no env change (86/48 unchanged), no
+   cap/model/routing/schedule change, no manual cron, no remap, no paid evaluation. Ruling 21
+   re-proven across all ten gated routes; zero 5xx.
+3. **First natural cycle 14:40:20Z → 14:44:34Z hit the pre-registered prediction exactly:**
+   `batchErrors` **25 → 0**, `llmRequests` == `batches` == **45**, `processedMarked`
+   **537 → 1,000** (frozen for 21 cycles before), claims **201 → 498**, renewals
+   **92 = 45+45+2**, fence 38, lost 0 / released 1 / discards 0, four extractor versions
+   unchanged, `{"fence": 38}` residue with no token, zero advisory locks, and **zero
+   `400 Invalid body` in the map runtime log** where every prior cycle carried ~26. All 20
+   named poisoned documents drained: `processed=true`, **31 `doc_map_state` rows** — exactly
+   the predicted count — and 21 claims.
+4. **Recorded against the prediction, not glossed:** `alreadyMapped` stayed frozen at 139,
+   which the operations reviewer expected to move. Not an acceptance criterion, unexplained,
+   carried into the window.
+5. **24h RECOVERY WINDOW OPEN 2026-08-23T15:00:00Z → 2026-08-24T15:00:00Z** (2026-08-24
+   11:00 EDT), 24 expected cycles. #86 is `DEPLOYED_RECOVERY_OPEN`, not closed.
+6. **Not done, deliberately:** #87, #88, #89, #90, #91, #97 untouched; #88 explicitly NOT
+   claimed — the backlog stood at 25,857 after the first cycle and whether mapreduce resumes
+   is a separate backlog-versus-recency question. No second deployment, no environment or cap
+   change, no model activation, no remap, no paid evaluation call.

@@ -232,8 +232,12 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   **2026-08-16T19:32:38Z**; every digest created on or after 2026-08-17 is legacy.
   Compounding cause: OPEN-TASKS #86 (**~57%** of map micro-batches rejected
   `400 Invalid body` since 2026-07-16 — 591 of 1,041 in the 2026-08-22 soak window —
-  root-caused to surrogate-splitting truncation in `map-prompts.ts`). **#86's repair is in the repository as
-  of 2026-08-23 (PR #10)** — `wellFormedSlice` + `dropIsolatedSurrogates`, same
+  root-caused to surrogate-splitting truncation in `map-prompts.ts`). **#86's repair is LIVE as of 2026-08-23
+  (PR #10, merge `0aa3d7d`, `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`) — the first natural cycle
+  after deployment took `batchErrors` from 25 to 0, `llmRequests` to equal `batches` (45),
+  `processedMarked` from 537 to 1,000 and claims from 201 to 498, and drained all 20 known
+  surrogate-poisoned documents — and its 24h recovery window runs
+  2026-08-23T15:00:00Z → 2026-08-24T15:00:00Z** — `wellFormedSlice` + `dropIsolatedSurrogates`, same
   code-unit ceiling, same four extractor versions, no remap — and stays OPEN through its
   post-deployment 24-hour recovery window; whether mapreduce actually resumes is a separate
   backlog-versus-recency question this repair does not answer. Tracked as #88. Both engines persist
