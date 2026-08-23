@@ -893,6 +893,50 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     NOT fixed in the 2026-08-21 map-lease release — `map-prompts.ts` is outside that PR's
     delta and changing extraction behaviour would confound the lease soak. This is the
     largest single lever on map yield currently known.
+    **STATUS 2026-08-23 — REPAIR IMPLEMENTED (PR #10); NOT CLOSED.** Root cause confirmed
+    three ways: (a) `JSON.stringify` emits an unpaired surrogate as the literal escape
+    `\udXXX`, whose UTF-8 bytes are pure ASCII, so a strict server-side parser rejects the
+    whole body — measured on the runtime in use; (b) reproduced on the unpatched base tree
+    with synthetic data, where a 20-document micro-batch carrying ONE boundary-split emoji
+    is rejected at `$.messages[1].content`; (c) replaying the worker's exact selection
+    predicate over the **1,000 oldest eligible `processed=false` documents** finds **20**
+    whose 1,500-code-unit slice ends on a lone high surrogate (all at index 1499, all
+    `0xD83C`/`0xD83D` emoji halves, across ir/ru/ua and `telegram_mtproto` /
+    `telegram_web` / `x_api`, dated 2026-07-16→2026-08-18), and all 20 are still
+    `processed=false` with ZERO `doc_map_state`, `doc_claims` and `doc_dedup` rows —
+    re-selected every cycle forever, with no competing persisted claims. Those 20 yield
+    **31 doc-track pairs** (11 are applicable to both `military` and `elite_politics`),
+    which collide into the 25 failing batches observed every cycle. **Correction forced by
+    review:** the provider only began REJECTING lone-surrogate escapes around 2026-07-16 —
+    before that it accepted them, and five documents (2263, 622042, 715046, 1163005,
+    1425485) that orphan under the old truncation hold `doc_map_state` rows under the
+    CURRENT version, mapped 2026-07-09→07-13. Nothing re-extracts them: `processed=true`
+    keeps them out of the HOURLY worker's `processed=false` selection, and each already
+    holds a current-version `doc_map_state` row for `military` — `applicableTracks` returns
+    `["military"]` and nothing else for all five — so remap's step-3 anti-join empties
+    `pending` and never builds a batch. (`processed=true` is remap's INCLUSION disjunct,
+    not an exclusion; a first correction wrongly said otherwise and round 2 caught it.) The
+    original claim that such requests "never produced an extraction under any contract" was
+    false and is withdrawn. (425 of the same
+    1,000 carry COMPLETE astral pairs, which are unaffected.) Repair: `wellFormedSlice` +
+    `dropIsolatedSurrogates` in `src/lib/analysis/map-prompts.ts` — slice to the SAME
+    `MAP_CONTENT_CHARS` **code-unit** ceiling first, then drop any isolated surrogate; the
+    identity on every well-formed input, so previously successful requests stay
+    byte-identical. **Same extractor versions** (the version basis is model + system prompt
+    + frame rev + content budget, none of which moves; the four live versions are now
+    pinned literally by test) — no remap is required or authorized. This item stays OPEN
+    until the post-deployment 24-hour recovery window closes on these criteria: every
+    expected hourly cycle present; **`batchErrors = 0` on every steady cycle — not merely
+    "improved"** (all 31 poisoned doc-track pairs are repaired, so a non-zero value is a
+    DIFFERENT defect and must be classified from the runtime log before the window can
+    close); `llmRequests === batches` per cycle; the 20 formerly poisoned ids reaching a
+    final disposition and never re-selected; normal lease invariants, with `renewals`
+    re-baselined to ~`2 × batches + 2` (up from ~64 — a consequence of the repair, not
+    drift); stable metering and spend inside both caps (escalate above $25 of the $40
+    all-time map ceiling, or on any `budgetStopCategory` other than `run_cap`); no
+    model/routing/extractor-version drift; the frozen constants `processedMarked = 537` and
+    `alreadyMapped = 139` moving; and truthful error accounting. Report: `docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md`. Sibling
+    sites NOT fixed: #97.
 87. **[Tier 2 — observability] `digest:*` — and `validate` — swallow per-item failures into
     an in-run counter while `cron_runs.ok` stays true.** Days 2026-08-01, 08-03 (×2), 08-04,
     08-15 and 08-21 each recorded `counts.errors >= 1` with the same
@@ -906,7 +950,14 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     `{"date":"2026-08-22","errors":1,"validated":2}` with `ok=true` and `error IS NULL`
     (found by the 2026-08-23 closeout review), so the swallow-nested-errors pattern spans at
     least three jobs. Whatever fix is taken must sweep nested `counts.*` on EVERY job, not
-    just `digest:finalize`.
+    just `digest:finalize`. **And `map` is the same pattern in its most EXTREME form**
+    (found by the 2026-08-23 #86 review): `stats.batchErrors` is a bare counter, `ok` stays
+    true, no category is recorded, and the discriminating message goes only to
+    `console.warn` — so 21 consecutive cycles recorded `batchErrors=25, ok=true,
+    error IS NULL` and nothing alerted. The cheapest improvement that would make a recovery
+    window self-evidencing is to record the first N distinct batch-error messages into
+    `counts.batchErrorSamples`; until then, classifying a residual map 400 needs the Vercel
+    runtime log.
 88. **[Tier 1 — pipeline] No digest has used the mapreduce engine since 2026-08-17.** All
     11 digests/day fall back to legacy because their windows find no current-version
     `doc_claims`; `provider_state.map_health` reads `stale_ir,stale_ru,stale_ua`. The map
@@ -1001,3 +1052,62 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md §9)
     succeeded. Fix, when taken: increment the discard counter on the split path too, or
     replace it with a per-batch outcome tally. No production impact observed — `lost` has
     been 0 on every lease-era cycle.
+
+### New (from the #86 map Unicode batch repair — 2026-08-23,
+docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md)
+
+97. **[Tier 2 — correctness/spend] The same UTF-16 slice pattern that caused #86 is still
+    present at other provider-bound truncation sites.** #86's repair covers the MAP path
+    only (`mapDocLine`). The modules swept for the same `String.prototype.slice` over
+    UTF-16 code units, with no surrogate repair, were the analysis, validation and Ask
+    request builders. (An earlier draft claimed the sweep covered "every module" and then
+    listed only four sites; both independent reviewers showed that claim was false and that
+    it had missed the live paid Ask path — the HIGHEST-exposure instance, because there the
+    sliced string is user-controlled. Corrected 2026-08-23; read the list below as the
+    sites actually found, not as exhaustive.) Sites found:
+    - `src/lib/analysis/openai-provider.ts:153` — the LEGACY digest doc line,
+      `.slice(0, 400)`. **This is the mechanical root of #87**: the swallowed
+      `400 Invalid body: failed to parse JSON value` on `digest:finalize` /
+      `digest:intraday` is the identical defect on the identical construction. LIVE today —
+      every digest has used the legacy engine since 2026-08-17.
+    - `src/lib/analysis/synthesize.ts:138-139` — the REDUCE group line, `.slice(0, 250)`,
+      and the event hint, `.slice(0, 120)`. Dormant only because mapreduce has produced
+      nothing since 2026-08-16 (#88) — and therefore liable to become live again precisely
+      as a consequence of #86's repair. Worth fixing BEFORE #88 recovers.
+    - `src/lib/validation/llm-match.ts:83,85` — takeaway `.slice(0, 400)` and claim
+      `.slice(0, 300)` on the validation matcher. A `400` here degrades to the keyword
+      matcher by ruling 9, so it would fail quietly rather than loudly.
+    - `src/lib/analysis/anthropic-provider.ts:70` — same shape; inert, since no Anthropic
+      key exists in any environment (#83).
+    - **`src/app/ask/actions.ts:28` — the highest-exposure instance.**
+      `String(formData.get("question")).trim().slice(0, 400)` truncates USER-SUPPLIED text
+      at 400 UTF-16 code units and flows verbatim into the paid answer request
+      (`src/lib/ask/answer.ts:210,596,699`). A user pasting a question longer than 400 code
+      units with an emoji straddling the boundary reproduces #86 on `/ask` — a live money
+      path an end user can trigger directly. (The code is
+      `String(formData.get("question") ?? "").trim().slice(0, 400)`.)
+    - `src/app/api/ask/route.ts:19` — `(body.question ?? "").trim().slice(0, 400)`, the
+      same 400-code-unit boundary on the JSON API route, gated only by
+      `requireAcceptedUser()` with NO feature flag, feeding the same `askWithLimits` paid
+      pipeline. Found in round 2 of the #86 review; an earlier draft wrongly called
+      `actions.ts` the only user-triggerable site.
+    - `src/app/api/ask/runs/route.ts:45` (progressive-flag-gated) and
+      `src/app/ask/ask-form.tsx:432` (client-side) carry the same 400 boundary.
+    - `src/lib/embeddings/client.ts:58` — `truncateInput` clips each text to
+      `EMBED_MAX_INPUT_CHARS` before a paid `openai_embed` call. Lowest exposure of the
+      set (claims are already <=500 chars), but the same pattern.
+    - `src/lib/ask/rerank.ts:41` — `serializeCandidate` clips the claim snippet to
+      `RERANK_SNIPPET_CHARS` and feeds `rerankUserMessage` -> the paid rerank dispatch
+      (`rerank.ts:221`).
+    - `src/lib/ask/sessions.ts:105,111` — `compactHistory` clips the prior question to 200
+      code units and the prior answer to its char budget, both appended to the Ask user
+      message through `answer.ts historyContextBlock`.
+    Response/DB-bound slices (`map-worker.ts:182,184,185,202` — `text_en` 250, `quote_orig`
+    300, entity name 200, `event_hint` 160) are a DIFFERENT and much milder failure mode:
+    the pg wire protocol encodes a lone surrogate as U+FFFD rather than erroring, so the
+    worst case is one corrupted character that fails `verifyQuote`. Measured 2026-08-23:
+    **zero** U+FFFD in `quote_orig` or `text_en` across all 138,485 `doc_claims` rows, so
+    this has never actually fired. Fix, when taken: route each provider-bound site through
+    the shared `wellFormedSlice` helper #86 added, and give each its own before/after
+    measurement — the digest one IS #87's fix and must not be bundled with the reduce one.
+    Deliberately NOT fixed in the #86 release, which was required to stay isolated.

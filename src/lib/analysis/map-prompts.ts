@@ -25,6 +25,71 @@ export function mapContentChars(): number {
   return Number.isFinite(v) && v >= 200 ? Math.floor(v) : 1500;
 }
 
+/** Any UTF-16 code unit in the surrogate range D800–DFFF. In a WELL-FORMED JS
+ *  string these occur only as a HIGH half (D800–DBFF) immediately followed by a
+ *  LOW half (DC00–DFFF), the pair encoding one astral scalar (emoji, most
+ *  historic scripts). A half on its own is not a Unicode scalar value and has no
+ *  UTF-8 encoding at all. */
+const ANY_SURROGATE_UNIT = /[\uD800-\uDFFF]/;
+
+/** Remove every ISOLATED surrogate code unit; keep valid pairs byte-for-byte.
+ *
+ *  Why this exists (OPEN-TASKS #86): an unpaired surrogate survives
+ *  `JSON.stringify` as the literal six-character escape `\udXXX` — syntactically
+ *  legal JSON, but a string the receiving strict parser cannot decode — so the
+ *  provider rejects the ENTIRE request with
+ *  `400 Invalid body: failed to parse JSON value`, and one poisoned document
+ *  kills its whole micro-batch. The documents then stay `processed = false` and
+ *  are re-selected every cycle, forever.
+ *
+ *  Contract, exactly:
+ *  - a string containing no surrogate code unit at all is returned UNCHANGED —
+ *    the identity, and the overwhelmingly common case (all Cyrillic, Ukrainian,
+ *    Persian and Arabic text is BMP);
+ *  - a string whose surrogates are all correctly paired is likewise unchanged;
+ *  - an isolated high or low surrogate is REMOVED, never replaced: the result
+ *    stays a subsequence of the input's scalar values, so the model is never
+ *    shown a character (U+FFFD, say) the source did not contain;
+ *  - the result is never longer than the input, and is always well-formed.
+ *
+ *  Deliberately NOT done here: normalization of any kind (no NFC/NFKC), and no
+ *  grapheme-cluster repair — a dangling ZWJ or variation selector left by
+ *  truncation is valid Unicode and is preserved as-is. Scalar validity is the
+ *  invariant; grapheme integrity is not. */
+export function dropIsolatedSurrogates(s: string): string {
+  if (!ANY_SURROGATE_UNIT.test(s)) return s;
+  let out = "";
+  let keepFrom = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 0xd800 || c > 0xdfff) continue;
+    if (c <= 0xdbff && i + 1 < s.length) {
+      const next = s.charCodeAt(i + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        i++; // valid pair — keep both halves, skip past the low one
+        continue;
+      }
+    }
+    out += s.slice(keepFrom, i); // everything up to, but not including, the orphan
+    keepFrom = i + 1;
+  }
+  return keepFrom === 0 ? s : out + s.slice(keepFrom);
+}
+
+/** Truncate to at most `limit` UTF-16 CODE UNITS and return a WELL-FORMED
+ *  string. `limit` keeps its historical code-unit meaning — it is NOT
+ *  reinterpreted as code points — so the per-doc content budget, and therefore
+ *  `mapExtractorVersion`'s `content=` basis component, are unchanged.
+ *
+ *  Order matters: slice FIRST, repair SECOND. Repairing first could let a pair
+ *  shift across the ceiling and be split again. This way a pair that fits
+ *  entirely inside the ceiling is preserved intact, and a pair straddling the
+ *  boundary loses only its orphaned high half, yielding `limit - 1` code units. */
+export function wellFormedSlice(s: string, limit: number): string {
+  if (!(limit > 0)) return ""; // defensive: NaN/0/negative must never reverse-slice
+  return dropIsolatedSurrogates(s.length > limit ? s.slice(0, limit) : s);
+}
+
 // Strict-mode response schema, keyed by docId. One entry per input doc; a doc
 // with nothing track-relevant returns an empty claims array (normal + cheap).
 // Base shape only — callers use mapResponseSchema(docCount), which pins the
@@ -161,7 +226,31 @@ export function mapDocLine(d: {
   content: string;
 }): string {
   const body = ((d.title ? d.title + ". " : "") + d.content).replace(/\s+/g, " ");
-  return `[${d.id}] (${d.sourceKey ?? "unknown"}, rel=${d.reliability?.toFixed(2) ?? "?"}, ${d.day}) ${body.slice(0, mapContentChars())}`;
+  // The doc line is the ONLY part of the provider-bound user message that
+  // carries arbitrary source text, so the well-formedness invariant is enforced
+  // here — and over the WHOLE composed line, not just the truncated body, so a
+  // malformed sourceKey cannot poison the request either. Both calls are the
+  // IDENTITY on well-formed input, so every WELL-FORMED request is byte-identical
+  // before and after this repair (OPEN-TASKS #86). Note that "well-formed" is the
+  // right qualifier and "successful" is not: the provider ACCEPTED lone-surrogate
+  // escapes until ~2026-07-16 and has rejected them since, so a handful of
+  // pre-07-16 documents were extracted from a line this code would now shorten by
+  // one code unit. Nothing re-extracts them: `processed = true` keeps them out of
+  // the HOURLY worker's `processed = false` selection, and each already holds a
+  // CURRENT-version doc_map_state row for `military` — their only applicable track
+  // — so remap's step-3 anti-join empties `pending` and never builds a batch. Note
+  // `processed = true` is remap's INCLUSION disjunct, not an exclusion; the
+  // anti-join is what protects them there.
+  // Layering, stated honestly: the outer `dropIsolatedSurrogates` alone would
+  // suffice today — every template slot is separated by literal ASCII, so the
+  // repair distributes over the concatenation — which makes the inner
+  // `wellFormedSlice` an equivalent-mutant layer no test can distinguish. It is
+  // kept deliberately: it binds the code-unit ceiling and well-formedness together
+  // AT the point of truncation, so neither call silently becomes load-bearing
+  // alone if the other is ever refactored away.
+  return dropIsolatedSurrogates(
+    `[${d.id}] (${d.sourceKey ?? "unknown"}, rel=${d.reliability?.toFixed(2) ?? "?"}, ${d.day}) ${wellFormedSlice(body, mapContentChars())}`,
+  );
 }
 
 /** Per-batch response schema: the results array must hold exactly one entry
