@@ -284,6 +284,16 @@ const COMBINING_ACUTE = "\u0301";
 const MAN = "\uD83D\uDC68"; // U+1F468
 const WOMAN = "\uD83D\uDC69"; // U+1F469
 const GIRL = "\uD83D\uDC67"; // U+1F467
+// The four EXTREMES of the surrogate ranges. Without these, a mutation narrowing
+// the high-half bound (`c <= 0xdbff` -> `c < 0xdbff`) silently strips the lead
+// half of every Plane-16 scalar and the suite stays green — both independent
+// reviewers landed that exact mutant on the first draft of this file.
+const LOW_PLANE_PAIR = "\uD800\uDC00"; //  U+10000, the FIRST astral scalar
+const HIGH_PLANE_PAIR = "\uDBFF\uDFFF"; // U+10FFFF, the LAST astral scalar
+const HI_MIN = "\uD800";
+const HI_MAX = "\uDBFF";
+const LO_MIN = "\uDC00";
+const LO_MAX = "\uDFFF";
 
 describe("dropIsolatedSurrogates", () => {
   it("is the identity on surrogate-free text, including Cyrillic, Persian and Arabic", () => {
@@ -328,6 +338,25 @@ describe("dropIsolatedSurrogates", () => {
       expect(dropIsolatedSurrogates(s).length).toBeLessThanOrEqual(s.length);
       expect(ISOLATED_SURROGATE.test(dropIsolatedSurrogates(s))).toBe(false);
     }
+  });
+
+  it("preserves the FIRST and LAST astral scalars, whose halves sit at the range extremes", () => {
+    for (const s of [LOW_PLANE_PAIR, HIGH_PLANE_PAIR, `x${LOW_PLANE_PAIR}y${HIGH_PLANE_PAIR}z`]) {
+      expect(dropIsolatedSurrogates(s)).toBe(s);
+      expect(ISOLATED_SURROGATE.test(dropIsolatedSurrogates(s))).toBe(false);
+    }
+    expect(dropIsolatedSurrogates(HIGH_PLANE_PAIR).codePointAt(0)).toBe(0x10ffff);
+    expect(dropIsolatedSurrogates(LOW_PLANE_PAIR).codePointAt(0)).toBe(0x10000);
+  });
+
+  it("drops a lone half at either extreme of either surrogate range", () => {
+    for (const half of [HI_MIN, HI_MAX, LO_MIN, LO_MAX]) {
+      expect(dropIsolatedSurrogates(`a${half}b`)).toBe("ab");
+      expect(dropIsolatedSurrogates(half)).toBe("");
+    }
+    // and a range-extreme half must not be mistaken for the other half's partner
+    expect(dropIsolatedSurrogates(`${LO_MAX}${HI_MIN}`)).toBe("");
+    expect(dropIsolatedSurrogates(`${HI_MAX}${LO_MIN}`)).toBe(HI_MAX + LO_MIN); // valid pair
   });
 
   it("is idempotent", () => {
@@ -395,7 +424,11 @@ describe("wellFormedSlice", () => {
     // deterministic LCG — no Math.random, so any failure reproduces exactly
     let seed = 20260823 >>> 0;
     const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32;
-    const alphabet = ["a", "б", "ی", "ع", COMBINING_ACUTE, ZWJ, VS16, PAIR, PAIR2, HI, LO];
+    const alphabet = [
+      "a", "б", "ی", "ع", COMBINING_ACUTE, ZWJ, VS16,
+      PAIR, PAIR2, LOW_PLANE_PAIR, HIGH_PLANE_PAIR,
+      HI, LO, HI_MIN, HI_MAX, LO_MIN, LO_MAX,
+    ];
     for (let limit = 6; limit <= 24; limit++) {
       for (let trial = 0; trial < 40; trial++) {
         let s = "";
@@ -490,6 +523,33 @@ describe("mapDocLine — Unicode safety (#86)", () => {
       const body = ((d.title ? d.title + ". " : "") + d.content).replace(/\s+/g, " ");
       expect(mapDocLine(d)).toBe(`[${d.id}] (s, rel=0.50, 2026-07-16) ${body.slice(0, limit)}`);
     }
+  });
+
+  it("a LONG body (over the ceiling) full of complete astral pairs is byte-identical to the pre-repair output", () => {
+    // Closes the byte-identity hole an independent review found: every other
+    // identity case was either short (the `s.length > limit` short-circuit) or
+    // surrogate-free, so `dropIsolatedSurrogates`'s reconstruction path was never
+    // asserted byte-identical on a >1500-unit string.
+    delete process.env.MAP_CONTENT_CHARS;
+    const limit = mapContentChars();
+    // 4 code units per repetition, so the ceiling lands cleanly BETWEEN pairs
+    const unit = PAIR + PAIR2;
+    const d = {
+      id: 300, sourceKey: "t.me/long", reliability: 0.33, day: "2026-07-16",
+      title: "Сводка", content: unit.repeat(Math.ceil((limit + 200) / unit.length)),
+    };
+    const body = ((d.title ? d.title + ". " : "") + d.content).replace(/\s+/g, " ");
+    expect(body.length).toBeGreaterThan(limit);
+    const legacy = `[300] (t.me/long, rel=0.33, 2026-07-16) ${body.slice(0, limit)}`;
+    expect(ISOLATED_SURROGATE.test(legacy)).toBe(false); // the ceiling does NOT split a pair here
+    expect(mapDocLine(d)).toBe(legacy);
+    // and the same body offset by one, so the ceiling DOES split a pair
+    const d2 = { ...d, id: 301, title: null, content: "x" + d.content };
+    const body2 = d2.content.replace(/\s+/g, " ");
+    const legacy2 = `[301] (t.me/long, rel=0.33, 2026-07-16) ${body2.slice(0, limit)}`;
+    expect(ISOLATED_SURROGATE.test(legacy2)).toBe(true);
+    expect(mapDocLine(d2)).toBe(legacy2.slice(0, legacy2.length - 1));
+    expect(ISOLATED_SURROGATE.test(mapDocLine(d2))).toBe(false);
   });
 
   it("documents whose astral characters all fit are byte-identical to the pre-repair output", () => {

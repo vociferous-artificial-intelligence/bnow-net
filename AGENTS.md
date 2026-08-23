@@ -185,8 +185,8 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   OPEN-TASKS #86 (**~57% of map micro-batches rejected** by the provider with
   `400 Invalid body` — 591 of 1,041 in the 2026-08-22 soak window, 57.0% on 08-22; the
   older "≈50%" figure is superseded — root-caused to surrogate-splitting truncation in
-  `map-prompts.ts`) and #88 (the fallback itself). **#86's repair is MERGED to `main`
-  (2026-08-23) but is NOT closed:** `wellFormedSlice` + `dropIsolatedSurrogates` keep the
+  `map-prompts.ts`) and #88 (the fallback itself). **#86's repair is IN THE REPOSITORY as of
+  2026-08-23 (PR #10) and is NOT closed:** `wellFormedSlice` + `dropIsolatedSurrogates` keep the
   same `MAP_CONTENT_CHARS` code-unit ceiling and the same four extractor versions, so no
   remap is needed; it stays open through its post-deployment 24-hour recovery window.
   Sibling truncation sites on the digest, reduce and validation paths are NOT fixed (#97),
@@ -1074,3 +1074,80 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   every database statement in the closeout was a `SELECT`. The AGENTS.md decision-log archive
   move to `docs/DECISIONS.md` was deliberately NOT performed here and is filed as #92.
   Report: `docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md` §9.
+
+- **2026-08-23 (OPEN-TASKS #86 — map Unicode batch repair: isolated, same-version, merged;
+  deployment recorded separately)** `mapDocLine` truncated the composed document body with a
+  UTF-16 CODE-UNIT slice, so a ceiling landing between an astral character's two halves left
+  an UNPAIRED surrogate in the provider-bound user message. Since ES2019 `JSON.stringify`
+  emits that half as the literal escape `\udXXX` rather than a raw byte (measured:
+  `JSON.stringify("abc\uD83C")` → `"abc\ud83c"`, UTF-8 `226162635c756438336322`, pure
+  ASCII), the body reaches the provider carrying a lone-surrogate escape, the strict
+  server-side parser refuses it, and the ENTIRE 20-document micro-batch dies with
+  `400 Invalid body: failed to parse JSON value`. Confirmed three ways — that serialization
+  measurement; a synthetic reproduction on the unpatched tree rejecting a 20-doc batch at
+  `$.messages[1].content`; and a read-only replay of the worker's own selection predicate
+  over the 10,000 oldest eligible documents finding **20** boundary splits, every one at
+  index 1499, every one an emoji high half, each still `processed=false` with zero
+  `doc_map_state`/`doc_claims`/`doc_dedup` rows. Those 20 yield **31 doc-track pairs** (11
+  are both military and elite_politics), which is exactly the 25 failing batches the cycle
+  has recorded, unchanged, for 21 consecutive hours alongside frozen `selected=1000`,
+  `alreadyMapped=139` and `processedMarked=537`. **The 2026-07-16 onset was PROVIDER-side,
+  not runtime-side** — well-formed `JSON.stringify` predates the corpus, and five orphaning
+  documents were successfully extracted 2026-07-09→07-13. Repair, in
+  `src/lib/analysis/map-prompts.ts` only: `wellFormedSlice` slices to the SAME
+  `MAP_CONTENT_CHARS` code-unit ceiling FIRST and repairs SECOND (repairing first could let
+  a pair shift across the ceiling and be split again), and `dropIsolatedSurrogates` DROPS
+  isolated halves rather than replacing them, so the output stays a subsequence of the
+  input's scalars and the model is never shown a character the source lacked — which matters
+  because map hard rule 4 asks it to quote character-for-character. The whole composed line
+  is repaired, not just the body. **Binding invariant:** everything `mapDocLine` returns is
+  well-formed UTF-16, never longer than the code-unit ceiling, and a code-unit subsequence
+  of its input; grapheme integrity is explicitly NOT promised (a truncated ZWJ sequence or
+  stranded variation selector is valid Unicode and cannot produce a 400).
+  **SAME EXTRACTOR VERSION, and this is the ruling:** the version basis is model + system
+  prompt + frame rev + content budget, the truncation algorithm was never in it, and none of
+  the four moves. Byte-identity is MEASURED, not argued — over 10,000 real production
+  documents, 9,980 lines are byte-identical and the 20 that change were all already carrying
+  an isolated surrogate, each exactly one code unit shorter. The four live versions
+  (`gpt-4o-mini:d73cc83ed8df` military ru/ua, `:75e0ff6403db` military ir,
+  `:15a6078371bd` elite_politics, `:19c06260f149` nuclear ir) are now PINNED as literal
+  strings by test, so an accidental future bump fails the gate instead of silently stranding
+  138,485 rows. No remap is required and none is authorized. One originally-stated condition
+  was WITHDRAWN under review: because the provider accepted lone-surrogate escapes before
+  ~2026-07-16, documents 2263/622042/715046/1163005/1425485 DO hold current-version
+  dispositions from an orphan-carrying request; the repair is safe because they are
+  `processed = true` and therefore outside both the hourly selection and remap's anti-join —
+  not because "no such document was ever extracted", which was false.
+  **Two independent adversarial reviews against the exact candidate SHA, both
+  PASS-WITH-MINORS, every finding applied before merge** (reviewer 1: Unicode /
+  serialization / versioning — 1 MEDIUM, 5 MINOR; reviewer 2: map pipeline / spend /
+  operations — 0 MEDIUM+, 6 MINOR, and an explicit READY TO DEPLOY). Both landed the same
+  surviving mutant, `c <= 0xdbff` → `c < 0xdbff`, which strips the lead half of every
+  Plane-16 scalar; it is now killed by range-extreme cases. One mutant STILL survives and is
+  disclosed rather than papered over: removing the inner `wellFormedSlice` is a genuine
+  equivalent mutant, since every doc-line slot is separated by literal ASCII and the outer
+  repair distributes over the concatenation. Gates on the merged tree: `git diff --check`
+  clean · typecheck clean · lint 0/0 · unit **2,340/2,340 (177 files)**, from 2,309/176 ·
+  production build PASS · disposable-Neon integration **118/118 (19 files)** · targeted map
+  itests **13/13 (3 files)** · enforced pre-push gate green · reverting only `mapDocLine`
+  fails exactly 8 tests and nothing else. Zero paid provider calls, zero production writes,
+  no migration, no environment/cap/model/routing/schedule change, no remap (not even a dry
+  run), no manual cron invocation.
+  **Binding until superseded:** #86 stays OPEN through a post-deployment 24-hour recovery
+  window whose primary criterion is **`batchErrors = 0` on every steady cycle** — all 31
+  poisoned doc-track pairs are repaired, so a non-zero value is a DIFFERENT defect and must
+  be classified from the runtime log, because `cron_runs` cannot tell one 400 from another.
+  Expect `lease.renewals` to re-baseline from ~64 to ~`2 × batches + 2`; that is a
+  consequence of the repair, not drift. Expect map spend to roughly double to ~$1.2–1.3/day
+  for ~1.5–2 days while the ~27,000-document backlog drains — comfortable against
+  `MAP_USD_CAP_DAILY=4`, but escalate above **$25 of the $40 all-time `MAP_SPRINT_USD_CAP`**
+  or on any `budgetStopCategory` other than `run_cap`. **#87 and #88 are NOT fixed by this
+  release and are not claimed to be.** New debt #97 records that the identical UTF-16 slice
+  survives at `openai-provider.ts:153` (the mechanical root of #87), `synthesize.ts:138-139`
+  (reduce — dormant only because of #88, and liable to wake BECAUSE of this repair),
+  `llm-match.ts:83,85`, `anthropic-provider.ts:70`, and — the highest-exposure instance,
+  missed by the first draft and caught by both reviewers — the live paid Ask path at
+  `src/app/ask/actions.ts:28`, where a USER-SUPPLIED question is truncated at 400 code units
+  straight into the answer request. The deployment identity, the first natural cycle and the
+  recovery-window timestamps are recorded in the follow-up closeout entry, not here. Report:
+  `docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md`.

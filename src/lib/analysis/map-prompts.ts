@@ -230,8 +230,21 @@ export function mapDocLine(d: {
   // carries arbitrary source text, so the well-formedness invariant is enforced
   // here — and over the WHOLE composed line, not just the truncated body, so a
   // malformed sourceKey cannot poison the request either. Both calls are the
-  // IDENTITY on well-formed input, so every request that succeeded before this
-  // repair is byte-identical after it (OPEN-TASKS #86).
+  // IDENTITY on well-formed input, so every WELL-FORMED request is byte-identical
+  // before and after this repair (OPEN-TASKS #86). Note that "well-formed" is the
+  // right qualifier and "successful" is not: the provider ACCEPTED lone-surrogate
+  // escapes until ~2026-07-16 and has rejected them since, so a handful of
+  // pre-07-16 documents were extracted from a line this code would now shorten by
+  // one code unit. They are `processed = true` and therefore outside both the
+  // hourly worker's `processed = false` selection and remap's current-version
+  // anti-join, so nothing re-extracts them.
+  // Layering, stated honestly: the outer `dropIsolatedSurrogates` alone would
+  // suffice today — every template slot is separated by literal ASCII, so the
+  // repair distributes over the concatenation — which makes the inner
+  // `wellFormedSlice` an equivalent-mutant layer no test can distinguish. It is
+  // kept deliberately: it binds the code-unit ceiling and well-formedness together
+  // AT the point of truncation, so neither call silently becomes load-bearing
+  // alone if the other is ever refactored away.
   return dropIsolatedSurrogates(
     `[${d.id}] (${d.sourceKey ?? "unknown"}, rel=${d.reliability?.toFixed(2) ?? "?"}, ${d.day}) ${wellFormedSlice(body, mapContentChars())}`,
   );

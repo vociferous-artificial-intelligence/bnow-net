@@ -193,7 +193,11 @@ describe("#86 provider-request well-formedness", () => {
     expect(params.response_format.json_schema.schema.properties.results.maxItems).toBe(20);
     // no isolated surrogate anywhere in the FULL provider-bound request
     for (const m of params.messages) expect(ISOLATED_SURROGATE.test(m.content)).toBe(false);
-    expect(ISOLATED_SURROGATE.test(JSON.stringify(params))).toBe(false);
+    // NOT `ISOLATED_SURROGATE.test(JSON.stringify(params))` — that is vacuous:
+    // JSON.stringify escapes a lone surrogate to ASCII `\udXXX`, so the serialized
+    // TEXT can never contain an isolated surrogate code unit. The round trip is
+    // what restores it, and that is exactly what the provider's parser does.
+    expect(ISOLATED_SURROGATE.test(JSON.stringify(JSON.parse(JSON.stringify(params))))).toBe(false);
   });
 
   it("unaffected batches: the provider request is byte-identical to the old implementation", async () => {
@@ -228,7 +232,10 @@ describe("#86 provider-request well-formedness", () => {
     }
   });
 
-  it("makes no network or paid provider request", async () => {
+  // Weak by construction and labelled as such: the client is injected, so the spy
+  // can only ever be uncalled. It pins that the dispatch path reaches for nothing
+  // but its injected client; it is NOT evidence about a real provider.
+  it("dispatches only through the injected stub client — no fetch, no paid request", async () => {
     const docs = [poisonedDoc(1), cleanDoc(2)];
     const { guard, record } = fakeGuard();
     const { client, create } = boundaryClient([1, 2]);

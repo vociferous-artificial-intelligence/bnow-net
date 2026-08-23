@@ -3045,7 +3045,10 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
    since ES2019, so an unpaired surrogate leaves the process as the literal escape
    `\udXXX` — measured: `JSON.stringify("abc\uD83C")` → `"abc\ud83c"`, UTF-8 bytes
    `226162635c756438336322`, pure ASCII — and a strict server-side parser rejects it, which
-   is exactly the observed `400 Invalid body: failed to parse JSON value`. (b) Reproduced on
+   is exactly the observed `400 Invalid body: failed to parse JSON value`. The 2026-07-16
+   ONSET was provider-side, not runtime-side: well-formed `JSON.stringify` predates the
+   whole corpus, and five orphaning documents were successfully extracted 07-09→07-13, so
+   the provider's parser tightened rather than the client changing. (b) Reproduced on
    the unpatched base tree with SYNTHETIC data: a 20-document micro-batch carrying one
    boundary-split emoji is rejected whole at `$.messages[1].content`. (c) Replaying the
    worker's exact selection predicate over the 1,000 oldest eligible `processed=false`
@@ -3063,19 +3066,39 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
    shown a character the source lacked. No normalization, no grapheme repair, no segmentation
    dependency, no change to model / schema / batch size / prompt text / routing / retries /
    spend / schedule / response validation, and `digest.ts` untouched.
-3. **SAME extractor version, justified.** The version basis is model + system prompt + frame
-   rev + content budget — the truncation algorithm is not in it, and none of the four inputs
-   moves. All six same-version conditions are proven, including a byte-identity test on the
-   full 20-document provider request that passes under BOTH the old and the new
-   implementation, and the production check that every affected document has no persisted
-   claims under any version. The four live extractor versions are now pinned as literal
+3. **SAME extractor version, justified — on a corrected argument.** The version basis is
+   model + system prompt + frame rev + content budget; the truncation algorithm is not in
+   it and none of the four inputs moves. Byte-identity is measured, not argued: over the
+   10,000 oldest eligible production documents, 9,980 lines are byte-identical and the 20
+   that change were ALL already carrying an isolated surrogate, each exactly one code unit
+   shorter. An independent review disproved the original fourth condition — because the
+   provider accepted lone-surrogate escapes before ~2026-07-16, five orphaning documents
+   (2263, 622042, 715046, 1163005, 1425485) DO hold current-version `doc_map_state` rows,
+   mapped 07-09→07-13. The repair is still safe for the correct reason: they are
+   `processed = true`, so they sit outside both the hourly `processed = false` selection and
+   remap's current-version anti-join — nothing re-extracts them and nothing is re-billed. The four live extractor versions are now pinned as literal
    strings by test, so a future accidental bump fails the gate instead of stranding the
    corpus. No remap is required and none is authorized.
-4. **Gates:** `git diff --check` clean · typecheck clean · lint 0/0 · unit **2,337/2,337
+4. **Gates:** `git diff --check` clean · typecheck clean · lint 0/0 · unit **2,340/2,340
    (177 files)**, up from 2,309/176 · production build PASS · complete disposable-Neon
    integration **118/118 (19 files)** · targeted map itests **13/13 (3 files)** · enforced
    pre-push gate green · zero paid provider calls · zero production writes. Mutation proof:
-   reverting only `mapDocLine` fails exactly 7 tests and nothing else.
+   reverting only `mapDocLine` fails exactly 8 tests and nothing else (2,332 pass).
+4b. **Two independent adversarial reviews, both PASS-WITH-MINORS, every finding applied
+   before merge.** Reviewer 1 (Unicode/serialization/versioning) raised the MEDIUM above and
+   four MINORs; reviewer 2 (map pipeline/spend/operations) raised no MEDIUM+ and returned
+   READY TO DEPLOY. Both landed the SAME surviving mutant — narrowing the high-half bound
+   `c <= 0xdbff`, which silently strips the lead half of every Plane-16 scalar — now killed
+   by new range-extreme cases. One mutant still survives and is DISCLOSED rather than
+   papered over: removing the inner `wellFormedSlice` is a genuine equivalent mutant,
+   because every doc-line slot is separated by literal ASCII, so the outer repair
+   distributes over the concatenation. Also applied: a vacuous
+   `ISOLATED_SURROGATE.test(JSON.stringify(params))` assertion replaced with the
+   round-tripped form; the #86 closure criterion sharpened from "materially improved" to
+   **`batchErrors = 0`** (all 31 poisoned doc-track pairs are repaired); and OPEN-TASKS #97
+   corrected — its "every module" claim was false and it had missed the live paid Ask path
+   (`src/app/ask/actions.ts:28` truncates the USER-SUPPLIED question at 400 code units
+   straight into the answer request).
 5. **Baseline recorded BEFORE the change** so the effect is measurable: 1,041 batches, 591
    batch errors (**56.8%**), 3,995 claims, 13,038 processed, 452 LLM calls in the
    2026-08-22 formal window; last mapreduce digest 2026-08-16T19:32:38Z; eligible backlog

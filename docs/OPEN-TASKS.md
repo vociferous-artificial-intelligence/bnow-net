@@ -893,7 +893,7 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     NOT fixed in the 2026-08-21 map-lease release — `map-prompts.ts` is outside that PR's
     delta and changing extraction behaviour would confound the lease soak. This is the
     largest single lever on map yield currently known.
-    **STATUS 2026-08-23 — REPAIR IMPLEMENTED AND MERGED; NOT CLOSED.** Root cause confirmed
+    **STATUS 2026-08-23 — REPAIR IMPLEMENTED (PR #10); NOT CLOSED.** Root cause confirmed
     three ways: (a) `JSON.stringify` emits an unpaired surrogate as the literal escape
     `\udXXX`, whose UTF-8 bytes are pure ASCII, so a strict server-side parser rejects the
     whole body — measured on the runtime in use; (b) reproduced on the unpatched base tree
@@ -904,7 +904,16 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     `0xD83C`/`0xD83D` emoji halves, across ir/ru/ua and `telegram_mtproto` /
     `telegram_web` / `x_api`, dated 2026-07-16→2026-08-18), and all 20 are still
     `processed=false` with ZERO `doc_map_state`, `doc_claims` and `doc_dedup` rows —
-    re-selected every cycle forever, with no competing persisted claims. (425 of the same
+    re-selected every cycle forever, with no competing persisted claims. Those 20 yield
+    **31 doc-track pairs** (11 are applicable to both `military` and `elite_politics`),
+    which collide into the 25 failing batches observed every cycle. **Correction forced by
+    review:** the provider only began REJECTING lone-surrogate escapes around 2026-07-16 —
+    before that it accepted them, and five documents (2263, 622042, 715046, 1163005,
+    1425485) that orphan under the old truncation hold `doc_map_state` rows under the
+    CURRENT version, mapped 2026-07-09→07-13. They are `processed=true`, hence outside both
+    the hourly `processed=false` selection and remap's current-version anti-join, so the
+    repair re-extracts nothing and re-bills nothing — but the claim that such requests
+    "never produced an extraction under any contract" was false and is withdrawn. (425 of the same
     1,000 carry COMPLETE astral pairs, which are unaffected.) Repair: `wellFormedSlice` +
     `dropIsolatedSurrogates` in `src/lib/analysis/map-prompts.ts` — slice to the SAME
     `MAP_CONTENT_CHARS` **code-unit** ceiling first, then drop any isolated surrogate; the
@@ -912,11 +921,17 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     byte-identical. **Same extractor versions** (the version basis is model + system prompt
     + frame rev + content budget, none of which moves; the four live versions are now
     pinned literally by test) — no remap is required or authorized. This item stays OPEN
-    until the post-deployment 24-hour recovery window closes: expected hourly cycles all
-    present, zero surrogate `400 Invalid body` map errors, the formerly poisoned document
-    ids not re-selected, normal lease invariants, stable metering, no model/routing/version
-    drift, materially improved batch success and processed yield, and truthful error
-    accounting. Report: `docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md`. Sibling
+    until the post-deployment 24-hour recovery window closes on these criteria: every
+    expected hourly cycle present; **`batchErrors = 0` on every steady cycle — not merely
+    "improved"** (all 31 poisoned doc-track pairs are repaired, so a non-zero value is a
+    DIFFERENT defect and must be classified from the runtime log before the window can
+    close); `llmRequests === batches` per cycle; the 20 formerly poisoned ids reaching a
+    final disposition and never re-selected; normal lease invariants, with `renewals`
+    re-baselined to ~`2 × batches + 2` (up from ~64 — a consequence of the repair, not
+    drift); stable metering and spend inside both caps (escalate above $25 of the $40
+    all-time map ceiling, or on any `budgetStopCategory` other than `run_cap`); no
+    model/routing/extractor-version drift; the frozen constants `processedMarked = 537` and
+    `alreadyMapped = 139` moving; and truthful error accounting. Report: `docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md`. Sibling
     sites NOT fixed: #97.
 87. **[Tier 2 — observability] `digest:*` — and `validate` — swallow per-item failures into
     an in-run counter while `cron_runs.ok` stays true.** Days 2026-08-01, 08-03 (×2), 08-04,
@@ -931,7 +946,14 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     `{"date":"2026-08-22","errors":1,"validated":2}` with `ok=true` and `error IS NULL`
     (found by the 2026-08-23 closeout review), so the swallow-nested-errors pattern spans at
     least three jobs. Whatever fix is taken must sweep nested `counts.*` on EVERY job, not
-    just `digest:finalize`.
+    just `digest:finalize`. **And `map` is the same pattern in its most EXTREME form**
+    (found by the 2026-08-23 #86 review): `stats.batchErrors` is a bare counter, `ok` stays
+    true, no category is recorded, and the discriminating message goes only to
+    `console.warn` — so 21 consecutive cycles recorded `batchErrors=25, ok=true,
+    error IS NULL` and nothing alerted. The cheapest improvement that would make a recovery
+    window self-evidencing is to record the first N distinct batch-error messages into
+    `counts.batchErrorSamples`; until then, classifying a residual map 400 needs the Vercel
+    runtime log.
 88. **[Tier 1 — pipeline] No digest has used the mapreduce engine since 2026-08-17.** All
     11 digests/day fall back to legacy because their windows find no current-version
     `doc_claims`; `provider_state.map_health` reads `stale_ir,stale_ru,stale_ua`. The map
@@ -1032,8 +1054,13 @@ docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md)
 
 97. **[Tier 2 — correctness/spend] The same UTF-16 slice pattern that caused #86 is still
     present at other provider-bound truncation sites.** #86's repair covers the MAP path
-    only (`mapDocLine`). A sweep of every module that builds an LLM request found the same
-    `String.prototype.slice` over UTF-16 code units, with no surrogate repair, at:
+    only (`mapDocLine`). The modules swept for the same `String.prototype.slice` over
+    UTF-16 code units, with no surrogate repair, were the analysis, validation and Ask
+    request builders. (An earlier draft claimed the sweep covered "every module" and then
+    listed only four sites; both independent reviewers showed that claim was false and that
+    it had missed the live paid Ask path — the HIGHEST-exposure instance, because there the
+    sliced string is user-controlled. Corrected 2026-08-23; read the list below as the
+    sites actually found, not as exhaustive.) Sites found:
     - `src/lib/analysis/openai-provider.ts:153` — the LEGACY digest doc line,
       `.slice(0, 400)`. **This is the mechanical root of #87**: the swallowed
       `400 Invalid body: failed to parse JSON value` on `digest:finalize` /
@@ -1048,6 +1075,18 @@ docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md)
       matcher by ruling 9, so it would fail quietly rather than loudly.
     - `src/lib/analysis/anthropic-provider.ts:70` — same shape; inert, since no Anthropic
       key exists in any environment (#83).
+    - **`src/app/ask/actions.ts:28` — the highest-exposure instance.**
+      `String(formData.get("question")).trim().slice(0, 400)` truncates USER-SUPPLIED text
+      at 400 UTF-16 code units and flows verbatim into the paid answer request
+      (`src/lib/ask/answer.ts:210,596,699`). A user pasting a question longer than 400 code
+      units with an emoji straddling the boundary reproduces #86 on `/ask` — a live money
+      path, and the only site here an end user can trigger directly.
+    - `src/lib/ask/rerank.ts:41` — `serializeCandidate` clips the claim snippet to
+      `RERANK_SNIPPET_CHARS` and feeds `rerankUserMessage` -> the paid rerank dispatch
+      (`rerank.ts:221`).
+    - `src/lib/ask/sessions.ts:105,111` — `compactHistory` clips the prior question to 200
+      code units and the prior answer to its char budget, both appended to the Ask user
+      message through `answer.ts historyContextBlock`.
     Response/DB-bound slices (`map-worker.ts:182,184,185,202` — `text_en` 250, `quote_orig`
     300, entity name 200, `event_hint` 160) are a DIFFERENT and much milder failure mode:
     the pg wire protocol encodes a lone surrogate as U+FFFD rather than erroring, so the
