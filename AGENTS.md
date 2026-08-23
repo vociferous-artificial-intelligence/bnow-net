@@ -1127,10 +1127,12 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   serialization / versioning — 1 MEDIUM, 5 MINOR; reviewer 2: map pipeline / spend /
   operations — 0 MEDIUM+, 6 MINOR, and an explicit READY TO DEPLOY). Both landed the same
   surviving mutant, `c <= 0xdbff` → `c < 0xdbff`, which strips the lead half of every
-  Plane-16 scalar; it is now killed by range-extreme cases. One mutant STILL survives and is
-  disclosed rather than papered over: removing the inner `wellFormedSlice` is a genuine
-  equivalent mutant, since every doc-line slot is separated by literal ASCII and the outer
-  repair distributes over the concatenation. Gates on the reviewed tree, which fast-forwards so the merged tree
+  Plane-16 scalar; it is now killed by range-extreme cases. FOUR mutants survive, every one provably
+  EQUIVALENT and every one disclosed rather than papered over — chiefly that removing the
+  inner `wellFormedSlice` cannot be distinguished by any test, since every doc-line slot is
+  separated by literal ASCII and the outer repair distributes over the concatenation; the
+  others are the `ANY_SURROGATE_UNIT` fast path, the `keepFrom === 0` shortcut, and
+  `s.length > limit` → `>=`. Gates on the reviewed tree, which fast-forwards so the merged tree
   is byte-identical to it: `git diff --check`
   clean · typecheck clean · lint 0/0 · unit **2,340/2,340 (177 files)**, from 2,309/176 ·
   production build PASS · disposable-Neon integration **118/118 (19 files)** · targeted map

@@ -314,7 +314,7 @@ delta between the two rounds is a COMMENT, verifiable with
 | Complete disposable-Neon integration suite | **118 passed / 118 · 19 files**, run TWICE — once on the round-1 candidate (`br-dawn-boat-ateu24ga`) and again on the round-2 tree (`br-muddy-glade-atnmd7vb`); each branch created and deleted by the runner |
 | Targeted map real-Postgres integration tests | **13 passed / 13 · 3 files** — `map-lease.itest.ts` 3, `map-remap.itest.ts` 8, `map-budget-stop.itest.ts` 2 (branch `br-dawn-salad-atrsguyl`, created and deleted) |
 | Enforced pre-push gate (`.githooks/pre-push`) | green — typecheck + lint + `npm test` |
-| Mutation proof | reverting only `mapDocLine` fails **exactly 8** tests and nothing else, 2,332 pass; restored 2,340/2,340. Nineteen mutants total — see §8 for the two equivalent survivors, disclosed |
+| Mutation proof | reverting only `mapDocLine` fails **exactly 8** tests and nothing else, 2,332 pass; restored 2,340/2,340. Nineteen mutants total — see §8 for the four equivalent survivors, all disclosed |
 | Paid provider calls | **zero** — every test injects a stub client; the itest runner blanks provider keys and runs a disposable fork |
 | Production writes | **zero** — every production statement in this release was a `SELECT` |
 
