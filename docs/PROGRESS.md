@@ -3074,9 +3074,13 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
    shorter. An independent review disproved the original fourth condition — because the
    provider accepted lone-surrogate escapes before ~2026-07-16, five orphaning documents
    (2263, 622042, 715046, 1163005, 1425485) DO hold current-version `doc_map_state` rows,
-   mapped 07-09→07-13. The repair is still safe for the correct reason: they are
-   `processed = true`, so they sit outside both the hourly `processed = false` selection and
-   remap's current-version anti-join — nothing re-extracts them and nothing is re-billed. The four live extractor versions are now pinned as literal
+   mapped 07-09→07-13. The repair is still safe, and the reason took two
+   goes to state correctly: `processed = true` keeps them out of the HOURLY worker's
+   `processed = false` selection, but it is remap's INCLUSION disjunct, so what protects
+   them there is step 3's current-version anti-join — each holds a current-version
+   `doc_map_state` row for `military`, and `applicableTracks` returns `["military"]` and
+   nothing else for all five, so `pending` empties and no batch is built. Nothing
+   re-extracts them and nothing is re-billed. The four live extractor versions are now pinned as literal
    strings by test, so a future accidental bump fails the gate instead of stranding the
    corpus. No remap is required and none is authorized.
 4. **Gates:** `git diff --check` clean · typecheck clean · lint 0/0 · unit **2,340/2,340
@@ -3093,8 +3097,10 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
    papered over: removing the inner `wellFormedSlice` is a genuine equivalent mutant,
    because every doc-line slot is separated by literal ASCII, so the outer repair
    distributes over the concatenation. Also applied: a vacuous
-   `ISOLATED_SURROGATE.test(JSON.stringify(params))` assertion replaced with the
-   round-tripped form; the #86 closure criterion sharpened from "materially improved" to
+   `ISOLATED_SURROGATE.test(JSON.stringify(params))` assertion fixed — its first
+   replacement was vacuous too (a second `JSON.stringify` re-escapes the surrogate back to
+   ASCII, caught in round 2), so the whole-request check now runs the strict boundary
+   itself, which walks the parsed object's string fields; the #86 closure criterion sharpened from "materially improved" to
    **`batchErrors = 0`** (all 31 poisoned doc-track pairs are repaired); and OPEN-TASKS #97
    corrected — its "every module" claim was false and it had missed the live paid Ask path
    (`src/app/ask/actions.ts:28` truncates the USER-SUPPLIED question at 400 code units

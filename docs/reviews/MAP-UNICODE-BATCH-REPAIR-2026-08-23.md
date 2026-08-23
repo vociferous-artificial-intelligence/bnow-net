@@ -177,7 +177,7 @@ therefore only acceptable if all six conditions below hold. They do:
 | Every previously successful **well-formed** request stays byte-identical | **PROVEN.** `dropIsolatedSurrogates` returns the input unchanged when no surrogate code unit is present, and reconstructs it identically when all surrogates are paired. Pinned by a test that compares the full 20-document provider request against a frozen copy of the OLD implementation — and that test passes under BOTH implementations, so it is a genuine identity check, not an artifact. |
 | The content ceiling is unchanged | **YES.** Still `mapContentChars()` UTF-16 code units, same env, same default 1500. The cap was NOT reinterpreted as code points. |
 | Prompt and schema semantics unchanged | **YES.** No prompt constant, no `MAP_USER_FRAME_REV`, no schema field, no `minItems`/`maxItems` change. |
-| Changed cases cannot produce a second or competing extraction | **YES — but NOT for the reason an earlier draft gave.** That draft claimed such documents "never produced an extraction under any contract". **That is false**, and an independent review disproved it: because the provider only began rejecting lone-surrogate escapes around 2026-07-16, orphan-carrying requests were ACCEPTED before then. A non-circular scan over all 18,974 ru/ua/ir documents whose `title‖content` exceeds 1,400 characters finds 30 that orphan under the old truncation, and **five of them are mapped** — ids 2263, 622042, 715046, 1163005, 1425485, each orphaning at index 1499, each holding a `doc_map_state` row under the CURRENT version `gpt-4o-mini:d73cc83ed8df`, `mapped_at` 2026-07-09 → 07-13, `claim_count` 1/1/0/0/1 (independently re-verified for this report). The repair is still safe, for the correct reason: all five are `processed = true`, so they sit outside the hourly worker's `processed = false` selection AND outside remap's current-version `doc_map_state` anti-join. Nothing re-extracts them, nothing is re-billed, no second claim set is created. The corpus under `d73cc83ed8df` was ALREADY heterogeneous in truncation behaviour before this change; the repair stops adding to that heterogeneity rather than widening it. |
+| Changed cases cannot produce a second or competing extraction | **YES — but NOT for the reason an earlier draft gave.** That draft claimed such documents "never produced an extraction under any contract". **That is false**, and an independent review disproved it: because the provider only began rejecting lone-surrogate escapes around 2026-07-16, orphan-carrying requests were ACCEPTED before then. A non-circular scan over all 18,974 ru/ua/ir documents whose `title‖content` exceeds 1,400 characters finds 30 that orphan under the old truncation, and **five of them are mapped** — ids 2263, 622042, 715046, 1163005, 1425485, each orphaning at index 1499, each holding a `doc_map_state` row under the CURRENT version `gpt-4o-mini:d73cc83ed8df`, `mapped_at` 2026-07-09 → 07-13, `claim_count` 1/1/0/0/1 (independently re-verified for this report). The repair is still safe, and the SECOND draft of this reason was also wrong — round 2 caught it. `processed = true` keeps them out of the HOURLY worker's `processed = false` selection, but it is remap's **inclusion** disjunct (`rd.processed = true OR EXISTS (…doc_map_state…)`, `map-worker.ts`; the module says so twice in its own comments), so it cannot exclude anything there. What actually protects them from remap is step 3's current-version anti-join: each of the five holds a current-version `doc_map_state` row for `military`, and `applicableTracks` returns `["military"]` and nothing else for all five (verified by running the repository's own function against the live rows), so `pending` empties and no batch is ever built. Nothing re-extracts them, nothing is re-billed, no second claim set is created — and remap has in any case never been executed and is not authorized by this release. The corpus under `d73cc83ed8df` was ALREADY heterogeneous in truncation behaviour before this change; the repair stops adding to that heterogeneity rather than widening it. |
 | Affected documents have no competing persisted claims under the current version | **PROVEN against production** — all 20 identified documents have zero `doc_map_state`, zero `doc_claims`, zero `doc_dedup` rows (§3c). The repair produces their FIRST extraction, not a second one. |
 | The fix merely makes the existing contract transport-valid | **YES.** Identical model, identical prompt, identical budget, identical schema — only the bytes that could not be transported are removed. |
 
@@ -242,13 +242,17 @@ New coverage, all deterministic and network-free:
 Added in review round 2, after both reviewers landed surviving mutants on round 1:
 the four surrogate-range EXTREMES (`U+D800`, `U+DBFF`, `U+DC00`, `U+DFFF`) as lone
 halves, the first and last astral scalars (`U+10000`, `U+10FFFF`) as pairs, those
-six added to the property-sweep alphabet, and a **long-body byte-identity case** —
-a >1,500-code-unit body built entirely from complete astral pairs, asserted
-byte-identical to the legacy output when the ceiling falls between pairs and
-exactly one code unit shorter when it falls inside one. That last case closes a
-real hole: every other identity case was either short (taking `wellFormedSlice`'s
-short-circuit branch) or surrogate-free, so the reconstruction path had never been
-asserted byte-identical on a long string.
+six added to the property-sweep alphabet, and a **long-body case** — a >1,500-code-unit body
+built entirely from complete astral pairs, asserted byte-identical to the legacy
+output when the ceiling falls between pairs and exactly one code unit shorter when
+it falls inside one. It closes a real hole: every other identity case was either
+short (taking `wellFormedSlice`'s short-circuit branch) or surrogate-free, so a
+long, surrogate-dense body had never been exercised at the `mapDocLine` level at
+all. (Precisely stated, per round 2: its byte-identical arm returns through the
+`keepFrom === 0` shortcut rather than the reconstruction branch — byte-identity
+*through* reconstruction is impossible by construction, since reconstruction only
+runs when an orphan exists and the output must therefore differ. The case is
+load-bearing regardless: it is one of the eight mutation failures.)
 
 **Mutation proof.** Nineteen mutants were constructed across the two reviews and
 this pass. The headline: reverting only `mapDocLine` to the raw UTF-16 slice
@@ -262,6 +266,11 @@ fail; restored, 2,340 pass. Two mutants SURVIVED round 1 and are dispositioned:
 | remove `wellFormedSlice` from `mapDocLine`, keeping the outer repair | **SURVIVED** | **STILL SURVIVES — and it is a genuine EQUIVALENT MUTANT, disclosed rather than papered over.** Every template slot in the doc line is separated by literal ASCII, so `dropIsolatedSurrogates` distributes over the concatenation and the two layers produce identical output for every input. No test can distinguish them, and inventing one would be theatre. The inner call is kept deliberately, and the code comment now says exactly this: it binds the code-unit ceiling and well-formedness together AT the point of truncation, so neither call silently becomes load-bearing alone if the other is refactored away. |
 | remove the `ANY_SURROGATE_UNIT` fast path | SURVIVED | equivalent by design — the fast path is a pure optimisation |
 | remove the `keepFrom === 0` shortcut | SURVIVED | equivalent by design |
+| `s.length > limit` → `s.length >= limit` | SURVIVED (found in round 2) | equivalent — `s.slice(0, s.length) === s` |
+
+**Four** mutants survive in total, every one of them provably equivalent and every
+one listed here. No non-equivalent survivor was found by either reviewer across two
+rounds and roughly forty mutants.
 
 Every other mutant was caught: U+FFFD replacement instead of dropping (12), code-point
 reinterpretation of the limit (9), dropping only HIGH halves (3), removing the outer
@@ -283,6 +292,11 @@ Exact counts on the candidate tree are recorded in §9.
 
 ### Gates on the candidate tree
 
+Figures are for the round-2 tree, which is what merges. The round-1 candidate
+differed only in test count (2,337 / 177) and mutation count (7); the production
+delta between the two rounds is a COMMENT, verifiable with
+`git diff 8a4d283 d47d73f -- src/lib/analysis/map-prompts.ts`.
+
 | Gate | Result |
 |---|---|
 | `git diff --check` | clean |
@@ -297,7 +311,7 @@ Exact counts on the candidate tree are recorded in §9.
 | (all eleven map-related files together) | **212 passed / 11 files** |
 | Complete unit suite | **2,340 passed / 2,340 · 177 files** (`origin/main` baseline: 2,309 / 176 — **+31 tests, +1 file**) |
 | Production build (`npm run build`) | **PASS** |
-| Complete disposable-Neon integration suite | **118 passed / 118 · 19 files** (branch `br-dawn-boat-ateu24ga`, created and deleted by the runner) |
+| Complete disposable-Neon integration suite | **118 passed / 118 · 19 files**, run TWICE — once on the round-1 candidate (`br-dawn-boat-ateu24ga`) and again on the round-2 tree (`br-muddy-glade-atnmd7vb`); each branch created and deleted by the runner |
 | Targeted map real-Postgres integration tests | **13 passed / 13 · 3 files** — `map-lease.itest.ts` 3, `map-remap.itest.ts` 8, `map-budget-stop.itest.ts` 2 (branch `br-dawn-salad-atrsguyl`, created and deleted) |
 | Enforced pre-push gate (`.githooks/pre-push`) | green — typecheck + lint + `npm test` |
 | Mutation proof | reverting only `mapDocLine` fails **exactly 8** tests and nothing else, 2,332 pass; restored 2,340/2,340. Nineteen mutants total — see §8 for the two equivalent survivors, disclosed |
@@ -338,8 +352,13 @@ rewritten (well-formed, not merely successful; plus an honest statement that the
 inner `wellFormedSlice` is an equivalent-mutant defence-in-depth layer); the four
 surrogate-range extremes, both plane-boundary pairs and a long-body astral
 identity case added, killing the one mutant both reviewers landed; a vacuous
-`ISOLATED_SURROGATE.test(JSON.stringify(params))` assertion replaced with the
-round-tripped form that can actually fail; the network-spy test renamed to say
+`ISOLATED_SURROGATE.test(JSON.stringify(params))` assertion fixed — and the FIRST
+fix was vacuous too, wrapping the round trip in a second `JSON.stringify` that
+re-escapes the surrogate straight back to ASCII, which round 2 caught; the
+whole-request check now runs the strict boundary itself, which walks the parsed
+object's string fields and is the only form that can actually fail (demonstrated:
+`test(JSON.stringify(p))` false, `test(JSON.stringify(JSON.parse(JSON.stringify(p))))`
+false, walking the parsed object true); the network-spy test renamed to say
 what it really pins. Documentation: the 2026-07-16 onset re-attributed to a
 provider parser change rather than the runtime; §8's test and mutation counts
 corrected (18 base, not 19; 8 mutation failures and 2,340 restored, not 7 and
@@ -411,6 +430,13 @@ exact, not directional.**
 A **non-zero** `batchErrors` is not "less improvement" — it is a DIFFERENT defect,
 and it must be classified from the runtime log before any conclusion is drawn.
 
+**Immediately-pre-deployment cycle, for a clean before/after pair.** The last
+cycle on the old build, `2026-08-23T13:40:16Z → 13:43:46Z`: `ok = true`, fence 37,
+`selected` 1,000, batches 44, **`batchErrors` 25**, claims 201,
+`processedMarked` **537**, `llmCalls` 19, `estUsd` $0.0223, `leaseRenewals` 65 —
+and 44 + 19 + 2 = 65, so the QF-B renewal identity holds on the very last
+pre-repair cycle too. Every frozen constant is in place.
+
 ### Spend consequence, stated before it happens
 
 Cost per successful map request is stable at **$0.0011–0.0012**. Daily
@@ -453,6 +479,25 @@ swallowed errors per cycle with `ok = true`, for weeks); map freshness and backl
 trend recorded; and the digest engine selection **observed, not forced** — no
 regeneration, no `FORCE_REGEN`. If `openai_reduce` requests reappear, the reduce
 site in #97 becomes live and moves up the queue.
+
+Three operational expectations, so a healthy cycle is not misread:
+
+1. **The first repaired cycle will take roughly twice as long.** Cycles run ~200 s at
+   ~19 dispatches; at ~44 dispatches with `MAP_CONCURRENCY` unchanged that becomes
+   **~6–7 minutes**. That is well inside `maxDuration = 800 s` and
+   `MAP_RUN_REQUEST_CAP = 80`, but an operator expecting the habitual `:43:40`
+   completion could read a healthy longer cycle as a hang (ruling 10's
+   `finished_at IS NULL` signal). Do not conclude a stall before ~`:48`.
+2. **`MAP_DAILY_REQUEST_CAP` is the last cap worth naming.** It is SET in Production
+   (value encrypted, not read); the code default is **1,500/day**. The projection takes
+   daily map requests from ~450 to **~1,056**, just above the historical maximum of
+   1,014 on 2026-08-16 and still under the default. A `daily_requests` stop would
+   classify as `daily_cap`, not `run_cap`, so it records `ok = false` with a category
+   and alerts — loud, and already covered by the escalation rule. Worth a read-only
+   check before deployment.
+3. **Runtime-log retention bounds the residual-400 plan.** Vercel's log retention is
+   short and the CLI caps at 100 records, so a non-zero `batchErrors` on an early cycle
+   must be classified PROMPTLY, not retrospectively when the window closes.
 
 **Explicitly not a success criterion:** #88. A single cycle cannot show it and this
 release does not claim it.

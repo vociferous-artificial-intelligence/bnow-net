@@ -910,10 +910,14 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     review:** the provider only began REJECTING lone-surrogate escapes around 2026-07-16 —
     before that it accepted them, and five documents (2263, 622042, 715046, 1163005,
     1425485) that orphan under the old truncation hold `doc_map_state` rows under the
-    CURRENT version, mapped 2026-07-09→07-13. They are `processed=true`, hence outside both
-    the hourly `processed=false` selection and remap's current-version anti-join, so the
-    repair re-extracts nothing and re-bills nothing — but the claim that such requests
-    "never produced an extraction under any contract" was false and is withdrawn. (425 of the same
+    CURRENT version, mapped 2026-07-09→07-13. Nothing re-extracts them: `processed=true`
+    keeps them out of the HOURLY worker's `processed=false` selection, and each already
+    holds a current-version `doc_map_state` row for `military` — `applicableTracks` returns
+    `["military"]` and nothing else for all five — so remap's step-3 anti-join empties
+    `pending` and never builds a batch. (`processed=true` is remap's INCLUSION disjunct,
+    not an exclusion; a first correction wrongly said otherwise and round 2 caught it.) The
+    original claim that such requests "never produced an extraction under any contract" was
+    false and is withdrawn. (425 of the same
     1,000 carry COMPLETE astral pairs, which are unaffected.) Repair: `wellFormedSlice` +
     `dropIsolatedSurrogates` in `src/lib/analysis/map-prompts.ts` — slice to the SAME
     `MAP_CONTENT_CHARS` **code-unit** ceiling first, then drop any isolated surrogate; the
@@ -1080,7 +1084,18 @@ docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md)
       at 400 UTF-16 code units and flows verbatim into the paid answer request
       (`src/lib/ask/answer.ts:210,596,699`). A user pasting a question longer than 400 code
       units with an emoji straddling the boundary reproduces #86 on `/ask` — a live money
-      path, and the only site here an end user can trigger directly.
+      path an end user can trigger directly. (The code is
+      `String(formData.get("question") ?? "").trim().slice(0, 400)`.)
+    - `src/app/api/ask/route.ts:19` — `(body.question ?? "").trim().slice(0, 400)`, the
+      same 400-code-unit boundary on the JSON API route, gated only by
+      `requireAcceptedUser()` with NO feature flag, feeding the same `askWithLimits` paid
+      pipeline. Found in round 2 of the #86 review; an earlier draft wrongly called
+      `actions.ts` the only user-triggerable site.
+    - `src/app/api/ask/runs/route.ts:45` (progressive-flag-gated) and
+      `src/app/ask/ask-form.tsx:432` (client-side) carry the same 400 boundary.
+    - `src/lib/embeddings/client.ts:58` — `truncateInput` clips each text to
+      `EMBED_MAX_INPUT_CHARS` before a paid `openai_embed` call. Lowest exposure of the
+      set (claims are already <=500 chars), but the same pattern.
     - `src/lib/ask/rerank.ts:41` — `serializeCandidate` clips the claim snippet to
       `RERANK_SNIPPET_CHARS` and feeds `rerankUserMessage` -> the paid rerank dispatch
       (`rerank.ts:221`).

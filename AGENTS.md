@@ -1075,7 +1075,7 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   move to `docs/DECISIONS.md` was deliberately NOT performed here and is filed as #92.
   Report: `docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md` §9.
 
-- **2026-08-23 (OPEN-TASKS #86 — map Unicode batch repair: isolated, same-version, merged;
+- **2026-08-23 (OPEN-TASKS #86 — map Unicode batch repair: isolated, same-version;
   deployment recorded separately)** `mapDocLine` truncated the composed document body with a
   UTF-16 CODE-UNIT slice, so a ceiling landing between an astral character's two halves left
   an UNPAIRED surrogate in the provider-bound user message. Since ES2019 `JSON.stringify`
@@ -1115,9 +1115,13 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   138,485 rows. No remap is required and none is authorized. One originally-stated condition
   was WITHDRAWN under review: because the provider accepted lone-surrogate escapes before
   ~2026-07-16, documents 2263/622042/715046/1163005/1425485 DO hold current-version
-  dispositions from an orphan-carrying request; the repair is safe because they are
-  `processed = true` and therefore outside both the hourly selection and remap's anti-join —
-  not because "no such document was ever extracted", which was false.
+  dispositions from an orphan-carrying request; the repair is safe because
+  `processed = true` keeps them out of the HOURLY selection AND each already holds a
+  current-version `doc_map_state` row for `military`, their only applicable track, so
+  remap's step-3 anti-join empties `pending` and never builds a batch. Note that
+  `processed = true` is remap's INCLUSION disjunct, not an exclusion — a first correction
+  said otherwise and the second review round caught it. Neither the original claim ("no
+  such document was ever extracted") nor that first correction was true.
   **Two independent adversarial reviews against the exact candidate SHA, both
   PASS-WITH-MINORS, every finding applied before merge** (reviewer 1: Unicode /
   serialization / versioning — 1 MEDIUM, 5 MINOR; reviewer 2: map pipeline / spend /
@@ -1126,7 +1130,8 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   Plane-16 scalar; it is now killed by range-extreme cases. One mutant STILL survives and is
   disclosed rather than papered over: removing the inner `wellFormedSlice` is a genuine
   equivalent mutant, since every doc-line slot is separated by literal ASCII and the outer
-  repair distributes over the concatenation. Gates on the merged tree: `git diff --check`
+  repair distributes over the concatenation. Gates on the reviewed tree, which fast-forwards so the merged tree
+  is byte-identical to it: `git diff --check`
   clean · typecheck clean · lint 0/0 · unit **2,340/2,340 (177 files)**, from 2,309/176 ·
   production build PASS · disposable-Neon integration **118/118 (19 files)** · targeted map
   itests **13/13 (3 files)** · enforced pre-push gate green · reverting only `mapDocLine`

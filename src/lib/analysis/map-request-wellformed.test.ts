@@ -193,11 +193,14 @@ describe("#86 provider-request well-formedness", () => {
     expect(params.response_format.json_schema.schema.properties.results.maxItems).toBe(20);
     // no isolated surrogate anywhere in the FULL provider-bound request
     for (const m of params.messages) expect(ISOLATED_SURROGATE.test(m.content)).toBe(false);
-    // NOT `ISOLATED_SURROGATE.test(JSON.stringify(params))` — that is vacuous:
-    // JSON.stringify escapes a lone surrogate to ASCII `\udXXX`, so the serialized
-    // TEXT can never contain an isolated surrogate code unit. The round trip is
-    // what restores it, and that is exactly what the provider's parser does.
-    expect(ISOLATED_SURROGATE.test(JSON.stringify(JSON.parse(JSON.stringify(params))))).toBe(false);
+    // Neither `ISOLATED_SURROGATE.test(JSON.stringify(params))` NOR
+    // `...test(JSON.stringify(JSON.parse(JSON.stringify(params))))` works here: both
+    // end in a JSON.stringify, which re-escapes a lone surrogate back to ASCII
+    // `\udXXX`, so neither can ever fail. (Round 1 flagged the first; round 2 caught
+    // that its replacement had the same hole.) The whole-request check has to walk
+    // the round-tripped OBJECT's string fields — which is exactly what the strict
+    // boundary does, so assert with the boundary itself.
+    expect(() => assertRequestParsable(params)).not.toThrow();
   });
 
   it("unaffected batches: the provider request is byte-identical to the old implementation", async () => {

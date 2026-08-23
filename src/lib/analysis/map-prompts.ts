@@ -235,9 +235,12 @@ export function mapDocLine(d: {
   // right qualifier and "successful" is not: the provider ACCEPTED lone-surrogate
   // escapes until ~2026-07-16 and has rejected them since, so a handful of
   // pre-07-16 documents were extracted from a line this code would now shorten by
-  // one code unit. They are `processed = true` and therefore outside both the
-  // hourly worker's `processed = false` selection and remap's current-version
-  // anti-join, so nothing re-extracts them.
+  // one code unit. Nothing re-extracts them: `processed = true` keeps them out of
+  // the HOURLY worker's `processed = false` selection, and each already holds a
+  // CURRENT-version doc_map_state row for `military` — their only applicable track
+  // — so remap's step-3 anti-join empties `pending` and never builds a batch. Note
+  // `processed = true` is remap's INCLUSION disjunct, not an exclusion; the
+  // anti-join is what protects them there.
   // Layering, stated honestly: the outer `dropIsolatedSurrogates` alone would
   // suffice today — every template slot is separated by literal ASCII, so the
   // repair distributes over the concatenation — which makes the inner
