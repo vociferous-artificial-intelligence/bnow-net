@@ -259,6 +259,7 @@ describe("aggregateDigest (mapreduce)", () => {
     expect(d.engine).toBe("mapreduce");
     expect(d.reduce).toEqual(REDUCE_STATS);
     expect(d.dispatch).toEqual(REDUCE_STATS.dispatch);
+    expect(d.docsInFedGroups).toBe(18); // the fed-group DOCUMENT stage (stats.docsAnalyzed)
     expect(d.legacyStages).toBeNull();
     expect(d.publicationGuard).toEqual({ attributedClaims: 1, droppedClaims: 0 });
     expect(d.evidenceRecency).toEqual({ version: 1, claimCount: 9 });
@@ -272,6 +273,13 @@ describe("aggregateDigest (mapreduce)", () => {
     delete (row.structured.stats.reduce as Record<string, unknown>).dispatch;
     const d = aggregateDigest(row, { events: 4, claims: 9 }, LINKS, [], []);
     expect(d.dispatch).toBe(PRE_HARDENING_DISPATCH);
+  });
+
+  it("a mapreduce row persisted before the docsAnalyzed stat reports null, never 0", () => {
+    const row = mapreduceRow();
+    delete (row.structured.stats as Record<string, unknown>).docsAnalyzed;
+    const d = aggregateDigest(row, { events: 4, claims: 9 }, LINKS, [], []);
+    expect(d.docsInFedGroups).toBeNull();
   });
 
   it("warns on every violated stage invariant", () => {
@@ -346,6 +354,8 @@ describe("aggregateDigest (legacy)", () => {
     );
     expect(d.engine).toBe("legacy");
     expect(d.reduce).toBeNull();
+    // legacy docsAnalyzed (docs sent to the LLM) is NOT the fed-group stage
+    expect(d.docsInFedGroups).toBeNull();
     expect(d.legacyStages).toEqual({ docsRaw: 400, trackRows: 350, docsAnalyzed: 100, droppedClaims: 2 });
     expect(d.dispatch).toEqual({ workload: "digest", model: "gpt-4o-mini" });
     expect(d.persisted.claims).toBe(20);
@@ -519,6 +529,7 @@ describe("loadQualityFunnel", () => {
     expect(report.corpus.notApplicableDocs).toBe(0);
     expect(report.adapters.x_api.pendingDocs).toBe(1);
     expect(report.digest?.digestId).toBe(77);
+    expect(report.digest?.docsInFedGroups).toBe(18); // fed-group stage present in the report shape
     expect(report.digest?.persisted).toEqual({ events: 4, claims: 9, citationLinks: 2, citedDocs: 2 });
     expect(report.adapters.rss.mapClaims).toBe(2);
     expect(report.adapters.x_api.mapClaims).toBe(0); // mirror inflates nothing

@@ -227,6 +227,12 @@ export interface DigestStages {
    *  groupsTotal/groupsFed = GROUPS, votes, survivingEvents = EVENTS,
    *  droppedGidRefs, gidsCitedAnyVote/gidsMajority = GROUPS when present) */
   reduce: Record<string, unknown> | null;
+  /** mapreduce only: distinct DOCUMENTS represented in the fed groups
+   *  (stats.docsAnalyzed, persisted by the reduce engine) — the global
+   *  fed-group document stage between map claims and vote survival. null when
+   *  the row predates the stat (older digests) or the engine is legacy (its
+   *  own docsAnalyzed has different semantics and lives in legacyStages) */
+  docsInFedGroups: number | null;
   /** legacy only: its own honest stages — never coerced into map stages */
   legacyStages: {
     docsRaw: number | null;
@@ -445,6 +451,9 @@ export function aggregateDigest(
   const stats = rec(rec(row.structured)?.stats) ?? {};
   const engine: DigestStages["engine"] = stats.engine === "mapreduce" ? "mapreduce" : "legacy";
   const reduce = engine === "mapreduce" ? rec(stats.reduce) : null;
+  // the fed-group document stage: mapreduce persists stats.docsAnalyzed as the
+  // distinct docIds across fed groups; absent on pre-stat rows -> honest null
+  const docsInFedGroups = engine === "mapreduce" ? numOrNull(stats.docsAnalyzed) : null;
   const publicationGuard = rec(stats.publicationGuard);
   const evidenceRecency = rec(stats.evidenceRecency);
 
@@ -529,6 +538,7 @@ export function aggregateDigest(
     provider: row.provider,
     dispatch,
     reduce,
+    docsInFedGroups,
     legacyStages,
     publicationGuard,
     evidenceRecency,

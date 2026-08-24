@@ -93,7 +93,8 @@ function printHuman(r: QualityFunnelReport): void {
           `surviving ${red.survivingEvents} events · droppedGidRefs ${red.droppedGidRefs}`,
       );
       console.log(
-        `  vote stage (groups): gidsCitedAnyVote ${red.gidsCitedAnyVote ?? "n/a"} -> gidsMajority ${red.gidsMajority ?? "n/a"} · docsAnalyzed via fed groups: see stats`,
+        `  vote stage (groups): gidsCitedAnyVote ${red.gidsCitedAnyVote ?? "n/a"} -> gidsMajority ${red.gidsMajority ?? "n/a"} · ` +
+          `docs in fed groups ${d.docsInFedGroups ?? "n/a (not persisted — pre-stat digest)"}`,
       );
     }
     if (d.legacyStages) {
