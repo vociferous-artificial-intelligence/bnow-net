@@ -33,8 +33,9 @@ const HOW_TO_READ = `how to read this
   genuine unmapped backlog (processed=false; the hourly cron drains it ONLY
   for theaters on the map roster (MAP_THEATERS) — off-roster pending is not
   scheduled to drain and is labeled OFF-ROSTER below);
-  notApplicable = the track's lexicon never matched (processed=true) — those
-  docs will NEVER map under this track and are NOT extraction loss.
+  notApplicable = the track's lexicon did not match (processed=true) — the
+  cron will not revisit those docs under this track (only a lexicon change
+  plus a remap pass could map them) and they are NOT extraction loss.
   Per adapter, read the fall-out left to right: eligible -> map claims
   (extraction yield) -> cited in the digest (final attachment). The reduce
   stage between them (groupsFed, vote survival) is global-only — fed-group
@@ -75,7 +76,7 @@ function printHuman(r: QualityFunnelReport): void {
     ? "backlog — hourly cron drains"
     : "OFF-ROSTER — not scheduled to drain";
   console.log(
-    `  undispositioned: pending ${c.pendingDocs} (${pendingLabel}) · notApplicable ${c.notApplicableDocs} (lexicon skip — never maps under this track)`,
+    `  undispositioned: pending ${c.pendingDocs} (${pendingLabel}) · notApplicable ${c.notApplicableDocs} (lexicon skip — cron will not revisit; only a lexicon change + remap could map them)`,
   );
   console.log(
     `  superseded (EXCLUDED): ${c.supersededDispositions} dispositions / ${c.supersededClaims} claims` +

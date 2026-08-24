@@ -186,9 +186,11 @@ export interface CorpusStages {
    *  scheduled to drain and the report warns when it is non-zero */
   pendingDocs: number;
   /** DOCUMENTS: canonical, processed=true, NO doc_map_state row at ANY
-   *  version for this track — the track never applied (the worker's lexicon
-   *  gate runs AFTER the eligibility predicate, so these will NEVER map under
-   *  this track; without this split they would read as extraction loss) */
+   *  version for this track — the track's lexicon did not match at processing
+   *  time (the gate runs AFTER the eligibility predicate) and processed=true
+   *  means the cron will not revisit them; only a lexicon change plus a remap
+   *  pass (OPEN-TASKS #33) could map them under this track. Without this
+   *  split they would read as extraction loss. */
   notApplicableDocs: number;
   /** CLAIMS: doc_claims rows at the current (track, version) */
   mapClaims: number;
@@ -358,8 +360,8 @@ export function aggregateCorpus(
   // AFTER the eligibility predicate (map-worker.ts applicableTracks), so a
   // lexicon-failing doc ends processed=true with NO doc_map_state row. Without
   // this split, an ir/military per-adapter "eligible -> withClaims" gap reads
-  // as extraction loss when much of it is Iran-lexicon non-matches that will
-  // never map.
+  // as extraction loss when much of it is Iran-lexicon non-matches the cron
+  // will not revisit.
   let pendingDocs = 0;
   let notApplicableDocs = 0;
   for (const [id, processed] of processedOf) {
