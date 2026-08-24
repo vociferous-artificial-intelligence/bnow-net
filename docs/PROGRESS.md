@@ -3199,3 +3199,21 @@ cap change; the only writes are to `docs/`.
    `400 Invalid body` string twice with `ok=true`; `validate` 08-24T07:00:57Z one error.
    **New #98** — `ingest:telegram` left two `finished_at IS NULL` rows inside the window,
    found only because the sweep covered every job, not just `map`.
+
+## 2026-08-24 — QF-A landed: evidence recency + quality funnel (release-train stage 3b)
+
+Per the operator's pending-merge adjudication plan, executed in a fresh session with the
+plan's A1–A10 execution addendum (per-strand adversarial review, scripted H1 gate,
+post-merge main verification, branding/secret scans).
+
+- Extraction: `git rebase --onto main(30088bf) 05fdd2c` of the 6-commit A strand in a
+  fresh worktree; conflict ledger EMPTY; `range-diff` 6/6 `=` against the audited tree.
+- Landing repairs: all outstanding A register findings closed (FUNNEL-A12-1/2/3, A-REC-1,
+  SCI-N4 — one commit each) plus the A1 review's roster-provenance note; FUNNEL-A12-4/5
+  recorded as OPEN-TASKS #99 instead.
+- Independent adversarial landing review (5 lenses, adversarial verification): ZERO
+  confirmed defects, 7 notes dispositioned in the release record.
+- Gates on the landed tree: typecheck/lint clean · unit 2,412/2,412 (180 files) ·
+  integration 119/119 (19 files, disposable Neon fork) · H1 49/49 · pre-push green.
+- Deploy deliberately NOT performed (2026-08-03 separation); prepared request names
+  rollback `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2` and a ≥1-day digest-cycle observation.

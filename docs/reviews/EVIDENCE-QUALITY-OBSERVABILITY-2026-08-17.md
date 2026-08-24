@@ -415,3 +415,14 @@ synthesize 26, engine 7 — 105/105) · typecheck clean · lint clean ·
 full `npm test` **2,251 passed / 2,251 (174 files)**. The integration gate was
 not re-run: `reduce.itest.ts` covers `persistDigest`, which this remediation
 does not touch (funnel/report/docs only).
+
+---
+
+**Landing correction (2026-08-24).** The "will NEVER map under this track" /
+"never maps under this track" phrasing above describes the pre-landing wording.
+FUNNEL-A12-3 (final-audit register) corrected every code/label site at landing:
+`processed=true` under a lexicon skip means the hourly cron will not revisit the
+document; a lexicon change plus a remap pass (OPEN-TASKS #33) could still map
+it. The funnel report also now prints the map roster it consulted with an env
+provenance caveat (A1 landing review note). See
+`docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-RELEASE-2026-08-24.md`.

@@ -1216,3 +1216,18 @@ docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md §14)
     `map-health`-style check covers `ingest:*`. A cheap first step is a startup sweep that
     marks any `cron_runs` row older than its job's plausible ceiling as failed with a
     timeout category, which would also give #87's nested-error sweep a natural home.
+
+### New (from the 2026-08-24 QF-A landing,
+docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-RELEASE-2026-08-24.md)
+
+99. **[Tier 3 — observability depth] Quality-funnel follow-ups deliberately not taken at
+    the QF-A landing.** (a) FUNNEL-A12-4: citation share/conversion rates exist only for
+    the adapter dimension; platform has no rates and language is absent citation-side —
+    corpus-roadmap scale, not a landing repair (the adapter dimension already answers the
+    audit's IR X-dependency question). (b) FUNNEL-A12-5 (audit register, recorded-no-action):
+    `aggregateCorpus` warns when a dedup MIRROR holds `doc_map_state` rows but silently
+    skips mirror `doc_claims` rows — both are equally anomalous; symmetric warning wanted
+    if the funnel's warn-on-broken-reconciliation contract is to be complete. Neither
+    affects any published digest; both are read-only report depth. The A follow-ups that
+    WERE taken (FUNNEL-A12-1/2/3, A-REC-1, SCI-N4, roster provenance) are closed by the
+    landing commits recorded in the release record.
