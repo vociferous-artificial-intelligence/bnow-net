@@ -107,7 +107,13 @@ place whenever reality changes. Historical narrative: `docs/PROGRESS.md` + `docs
 debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
 
 - **Live/repository:** https://bnow.net · Vercel `bnow-net` / team `vociferous`; production
-  is **`dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`, the 2026-08-23 #86 map Unicode batch repair**
+  is **`dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`, the 2026-08-23 #86 map Unicode batch repair**.
+  **`main` is ten merged PRs AHEAD of production (undeployed): the 2026-08-24 release
+  train** — QF-A (PR #14, evidence recency + funnel), QF-C (PR #15, analysis-eval control
+  plane), and the seven-PR conflict evaluator (PRs #16–#22, default-off, `CONFLICTS_UI`
+  absent) plus docs PRs #12/#13; the combined deploy is a pending operator action
+  (rollback target = current production; register:
+  `docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md`). Production deployment detail:
   (PR #10, merge `0aa3d7d`), created 2026-08-23T14:08:53Z, READY, aliased `bnow.net` +
   `bnow-net.vercel.app` + `bnow-net-vociferous.vercel.app`; `/health` stamps **`0aa3d7d`**
   with DB OK (fresh CLONE, so the #78 blank-stamp trap did not apply). Its entire runtime
@@ -277,9 +283,10 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   Postmark `BNOW.NET <no-reply@bnow.net>` is live; magic-link guidance is single-use/24h and
   copy-before-opening. PostHog is production-only, explicit opt-in, allowlist-sanitized, UUID
   identity, no Ask/Search/source text; GeoIP is retained per disclosed operator ruling.
-- **Quality/ops:** **2,518 unit tests / 188 files + 119 real-Postgres integration tests /
-  19 files**, all green (measured 2026-08-24 on the QF-C landing tree; QF-A's figures were
-  2,412/180 + 119/19, PR #7's 2,309/176 + 118/19). Production DB migrated through 0027
+- **Quality/ops:** **3,329 unit tests / 231 files + 151 real-Postgres integration tests /
+  21 files**, all green (measured 2026-08-24 on the full release-train tree `e359c61`;
+  QF-C's figures were 2,518/188 + 119/19, QF-A's 2,412/180 + 119/19, PR #7's
+  2,309/176 + 118/19). Production DB migrated through 0027
   (2026-07-21, verified + idempotent); no strand in the 2026-08-24 release train adds a migration.
   Enforced pre-push gate = typecheck+lint+test. Crons: fast */15; telegram :01; X :02;
   MTProto :03 (clustered since the 2026-08-17 Candidate B release; :10/:20/:35 before);
@@ -1427,3 +1434,45 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   `main`, push, PR, deploy, env change, paid call, production write, or soak occurred. Full
   record: `docs/reviews/CONFLICT-EVALUATION-FABLE-FINAL-AUDIT-2026-08-18.md` + ledger +
   finding register + three review reports.
+
+- **2026-08-24 (conflict evaluator landed — seven reviewed PRs, default-off; release-train
+  stage 4)** The audited conflict/region evaluation program (runtime `a2ddca8`, audit
+  `da44272`, base `7150b49`) landed as the audited seven-PR decomposition (P7 report
+  §5.1): PRs #16–#22, merges `dd310c7`/`bc2e6b2`/`4cf0a75`/`b687b63`/`77369ad`/`3e37b52`/
+  `e359c61`, each PR's files checked out from the audited FINAL trees with per-blob hash
+  verification, PR 5 landed after QF-C against the byte-identical
+  `scripts/analysis-eval.ts` (+281/−4 additive). **End-state fidelity: all 125 files of
+  the conflict delta on merged `main` are blob-identical to `a2ddca8` (or `da44272` for
+  the three audit-updated docs).** Recorded deviations: `eval-profile`(+test) PR 1→4 and
+  `snapshot-ref`(+test) PR 5→4 (final-state dependency order, import-graph-proven); the
+  gated evidence route deliberately has NO `authz-page-gate` ROUTES row — its body-leak
+  assertions run flag-on in `conflict-feature-off.itest.ts` (binding migration obligation
+  if that harness retires). Ruling 21 verified on every page (gate first, before any data
+  access; the evidence page awaits `requireAcceptedUser()` first). The audit's own
+  decision-log entry was carried verbatim above (chronological carry, original date).
+  Full combined gates on `e359c61`: typecheck/lint clean · unit 3,329/3,329 (231 files) ·
+  integration 151/151 (21 files, incl. both conflict itests' flag-on/flag-off body-leak
+  assertions on a real production build). Landed DORMANT: `CONFLICTS_UI` absent in every
+  Vercel environment (verified); enablement requires the final-audit checklist (incl.
+  F-NEW-6 `FEATURE_AUTH_GATE` coupling) + a decision-log entry; the shadow soak stays
+  blocked on the five recorded blockers; paid conflict evals share the QF §6 gate; the
+  MAP activation hard lock is untouched. Deploy NOT performed. Landing record:
+  `docs/reviews/CONFLICT-EVALUATOR-LANDING-2026-08-24.md`.
+
+- **2026-08-24 (pending-merge adjudication closeout — the release train is landed;
+  deploys await the operator)** The operator's 2026-08-25 adjudication plan executed end
+  to end in one session under its A1–A10 execution addendum: PR #12 merged after
+  adversarial repair (its +4h self-clock error corrected — the Neon serverless driver
+  serializes timezone-naive timestamps as local ET with a bogus `Z`; never ask the DB the
+  time through that path, compare epochs); the five §5.1 disposals executed with
+  lossless-deletion proofs (PR #13 salvage merged; PR #3 closed superseded); QF-A and
+  QF-C landed by audited-strand extraction (PRs #14/#15); the conflict evaluator landed
+  default-off (PRs #16–#22); `claude/local-model-ask-eval-20260817` and
+  `claude/business-planning-20260817` stay parked per plan §5.5. Zero paid calls, zero
+  production writes, zero env/cap/cron/migration changes, zero deploys by this session.
+  §6 paid-evaluation gate: conditions 1–2 met, 3–5 open — **paid evals remain BLOCKED**.
+  Four plan corrections recorded in the register (`ba35082` provenance; the no-ROUTES-row
+  design; `a2ddca8` = p7 tip + 11 remediation commits; the `.env.example` carry).
+  Full register + operator action list (deploy authorization requests with rollback
+  targets, §7 uncommitted-docs recommendation, package-manager question, hygiene list):
+  `docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md`.
