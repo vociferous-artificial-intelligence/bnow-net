@@ -108,6 +108,13 @@ describe("evidence-time selection and fallback accounting", () => {
     expect(s.evidenceWithin24hPct).toBe(100);
   });
 
+  it("published_at EXACTLY at asOf + skew is accepted (boundary pin: <= cutoff)", () => {
+    const s = compute([doc(1, iso(AS_OF_MS + EVIDENCE_CLOCK_SKEW_MS), null)], [{ docIds: [1] }]);
+    expect(s.publishedTimestampUsed).toBe(1);
+    expect(s.futurePublishedTimestampCount).toBe(0);
+    expect(s.medianEvidenceAgeHours).toBe(0); // future value clamps to age 0
+  });
+
   it("a beyond-skew future published_at is counted and falls back to fetched_at", () => {
     const s = compute(
       [doc(1, iso(AS_OF_MS + EVIDENCE_CLOCK_SKEW_MS + 60_000), iso(AS_OF_MS - HOUR_MS))],
@@ -227,6 +234,13 @@ describe("ingestion lag (asOf-independent)", () => {
     expect(s.invalidIngestionLagCount).toBe(1);
     expect(s.medianIngestionLagHours).toBe(1); // over [2, 0]
     expect(s.p90IngestionLagHours).toBeCloseTo(1.8, 10);
+  });
+
+  it("a lag of EXACTLY -skew clamps to 0 and counts (boundary pin: invalid is < -skew strictly)", () => {
+    const t0 = AS_OF_MS - 10 * HOUR_MS;
+    const s = compute([doc(1, iso(t0), iso(t0 - EVIDENCE_CLOCK_SKEW_MS))], [{ docIds: [1] }]);
+    expect(s.invalidIngestionLagCount).toBe(0);
+    expect(s.medianIngestionLagHours).toBe(0);
   });
 
   it("does not depend on asOf: the same docs under a different asOf keep the same lag stats", () => {
