@@ -30,7 +30,9 @@ const HOW_TO_READ = `how to read this
   monotone counts of one unit). Superseded extractor versions and dedup
   mirrors are shown but EXCLUDED from every current stage.
   Docs without a map disposition for THIS track split two ways: pending =
-  genuine unmapped backlog (processed=false, the cron still drains it);
+  genuine unmapped backlog (processed=false; the hourly cron drains it ONLY
+  for theaters on the map roster (MAP_THEATERS) — off-roster pending is not
+  scheduled to drain and is labeled OFF-ROSTER below);
   notApplicable = the track's lexicon never matched (processed=true) — those
   docs will NEVER map under this track and are NOT extraction loss.
   Per adapter, read the fall-out left to right: eligible -> map claims
@@ -69,8 +71,11 @@ function printHuman(r: QualityFunnelReport): void {
   console.log(
     `  map dispositions ${c.mapDispositions} (withClaims ${c.docsWithClaims}, noClaims ${c.docsNoClaims}) -> mapClaims ${c.mapClaims}`,
   );
+  const pendingLabel = r.theaterOnMapRoster
+    ? "backlog — hourly cron drains"
+    : "OFF-ROSTER — not scheduled to drain";
   console.log(
-    `  undispositioned: pending ${c.pendingDocs} (backlog) · notApplicable ${c.notApplicableDocs} (lexicon skip — never maps under this track)`,
+    `  undispositioned: pending ${c.pendingDocs} (${pendingLabel}) · notApplicable ${c.notApplicableDocs} (lexicon skip — never maps under this track)`,
   );
   console.log(
     `  superseded (EXCLUDED): ${c.supersededDispositions} dispositions / ${c.supersededClaims} claims` +

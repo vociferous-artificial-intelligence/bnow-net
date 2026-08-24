@@ -22,7 +22,7 @@
 
 import { STUB_CONTENT_PREFIX } from "../adapters/stubs";
 import { currentVersion } from "./map-versions";
-import { MAP_EPOCH } from "./map-worker";
+import { MAP_EPOCH, mapTheaters } from "./map-worker";
 import type { Track } from "./tracks";
 
 export const FUNNEL_VERSION = 1;
@@ -180,8 +180,10 @@ export interface CorpusStages {
   docsWithClaims: number; // DOCUMENTS (claim_count > 0)
   docsNoClaims: number; // DOCUMENTS (claim_count = 0)
   /** DOCUMENTS: canonical, processed=false, NO doc_map_state row at any
-   *  version for this track — genuinely-unmapped backlog the hourly cron will
-   *  still drain */
+   *  version for this track — genuinely-unmapped backlog. The hourly cron
+   *  drains it ONLY when the theater is on the map roster
+   *  (QualityFunnelReport.theaterOnMapRoster); off-roster pending is NOT
+   *  scheduled to drain and the report warns when it is non-zero */
   pendingDocs: number;
   /** DOCUMENTS: canonical, processed=true, NO doc_map_state row at ANY
    *  version for this track — the track never applied (the worker's lexicon
@@ -261,6 +263,12 @@ export interface QualityFunnelReport {
   /** exact current extractor version filtered to; null = track not configured
    *  for this theater (no map coverage possible) */
   currentExtractorVersion: string | null;
+  /** theater ∈ mapTheaters() (env MAP_THEATERS, default ru,ua,ir). The hourly
+   *  map cron only visits roster theaters, so an off-roster theater's
+   *  pendingDocs is NOT scheduled to drain. currentExtractorVersion cannot
+   *  signal this — the track stays configured (non-null version) while the
+   *  worker simply never runs the theater. */
+  theaterOnMapRoster: boolean;
   corpus: CorpusStages;
   /** null = no digest row exists for this (theater, track, date) */
   digest: DigestStages | null;
@@ -633,6 +641,7 @@ export async function loadQualityFunnel(
   const warnings: string[] = [];
   const unknownReasons: string[] = [];
   const version = currentVersion(key.track, key.theater);
+  const theaterOnMapRoster = mapTheaters().includes(key.theater);
 
   const docsQ = eligibleDocsSql(key.theater, key.date);
   const docs: EligibleDocRow[] = (await query(docsQ.sql, docsQ.params)).map((r) => ({
@@ -664,6 +673,14 @@ export async function loadQualityFunnel(
   }
 
   const corpus = aggregateCorpus(docs, states, claimCounts, version, warnings, unknownReasons);
+  // the pending bucket's "cron drains it" reading is roster-conditional: the
+  // map worker iterates mapTheaters() only, a SUBSET of the track's countries
+  if (!theaterOnMapRoster && corpus.pendingDocs > 0) {
+    warnings.push(
+      `theater ${key.theater} is OFF the map roster (MAP_THEATERS): its ${corpus.pendingDocs} ` +
+        `pending doc(s) are NOT scheduled to drain — the hourly map cron never visits it`,
+    );
+  }
 
   const digestQ = digestRowSql(key.theater, key.track, key.date);
   const digestRows = await query(digestQ.sql, digestQ.params);
@@ -700,6 +717,7 @@ export async function loadQualityFunnel(
     track: key.track,
     date: key.date,
     currentExtractorVersion: version,
+    theaterOnMapRoster,
     corpus,
     digest,
     adapters: buildAdapterConversions(docs, states, claimCounts, links, version),

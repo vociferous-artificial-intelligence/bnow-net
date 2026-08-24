@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { currentVersion } from "./map-versions";
 import { MAP_EPOCH } from "./map-worker";
 import {
@@ -519,6 +519,7 @@ describe("loadQualityFunnel", () => {
     const report = await loadQualityFunnel(query, { theater: THEATER, track: TRACK, date: DATE });
     expect(report.funnelVersion).toBe(FUNNEL_VERSION);
     expect(report.currentExtractorVersion).toBe(CURRENT);
+    expect(report.theaterOnMapRoster).toBe(true); // ir is on the default roster
     expect(report.corpus.rawEligibleDocs).toBe(3);
     expect(report.corpus.mirrorDocs).toBe(1);
     expect(report.corpus.mapDispositions).toBe(1); // doc 1 only
@@ -542,6 +543,70 @@ describe("loadQualityFunnel", () => {
     expect(report.digest).toBeNull();
     expect(calls.some((s) => /FROM doc_map_state/.test(s))).toBe(false);
     expect(calls.some((s) => /FROM doc_claims/.test(s))).toBe(false);
+  });
+
+  describe("map-roster awareness (FUNNEL-A12-2)", () => {
+    // one processed=false canonical doc -> exactly one pending doc
+    const PENDING_DOCS = [
+      { id: "1", adapter: "rss", lang: "ar", platform: "web", processed: false, canonical_doc_id: null, mirror_method: null },
+    ];
+    const SAVED_MAP_THEATERS = process.env.MAP_THEATERS;
+    afterEach(() => {
+      if (SAVED_MAP_THEATERS === undefined) delete process.env.MAP_THEATERS;
+      else process.env.MAP_THEATERS = SAVED_MAP_THEATERS;
+    });
+
+    it("off-roster pending docs are flagged NOT scheduled to drain — the version cannot signal it", async () => {
+      delete process.env.MAP_THEATERS; // default roster ru,ua,ir
+      const { query } = fakeQuery({ docs: PENDING_DOCS, digest: null });
+      // sa runs the military track but is NOT on the map roster
+      const report = await loadQualityFunnel(query, { theater: "sa", track: TRACK, date: DATE });
+      // the track IS configured, so the not-configured warning never fires here
+      expect(report.currentExtractorVersion).not.toBeNull();
+      expect(report.theaterOnMapRoster).toBe(false);
+      expect(report.corpus.pendingDocs).toBe(1);
+      expect(
+        report.warnings.some((w) => w.includes("OFF the map roster") && w.includes("NOT scheduled to drain")),
+      ).toBe(true);
+    });
+
+    it("an on-roster theater keeps the flag true and emits no off-roster warning", async () => {
+      delete process.env.MAP_THEATERS;
+      const { query } = fakeQuery({ docs: PENDING_DOCS, digest: null });
+      const report = await loadQualityFunnel(query, { theater: THEATER, track: TRACK, date: DATE });
+      expect(report.theaterOnMapRoster).toBe(true);
+      expect(report.corpus.pendingDocs).toBe(1);
+      expect(report.warnings.some((w) => w.includes("map roster"))).toBe(false);
+    });
+
+    it("the roster is read from MAP_THEATERS, not a hardcoded list (mutation direction)", async () => {
+      process.env.MAP_THEATERS = "ru,ua"; // drops ir from the roster
+      const dropped = await loadQualityFunnel(fakeQuery({ docs: PENDING_DOCS, digest: null }).query, {
+        theater: THEATER,
+        track: TRACK,
+        date: DATE,
+      });
+      expect(dropped.theaterOnMapRoster).toBe(false);
+      expect(dropped.warnings.some((w) => w.includes("OFF the map roster"))).toBe(true);
+
+      process.env.MAP_THEATERS = "ru,ua,ir,sa"; // adds sa to the roster
+      const added = await loadQualityFunnel(fakeQuery({ docs: PENDING_DOCS, digest: null }).query, {
+        theater: "sa",
+        track: TRACK,
+        date: DATE,
+      });
+      expect(added.theaterOnMapRoster).toBe(true);
+      expect(added.warnings.some((w) => w.includes("map roster"))).toBe(false);
+    });
+
+    it("off-roster with ZERO pending docs: honest flag, no warning noise", async () => {
+      delete process.env.MAP_THEATERS;
+      const { query } = fakeQuery({ docs: [], digest: null });
+      const report = await loadQualityFunnel(query, { theater: "sa", track: TRACK, date: DATE });
+      expect(report.theaterOnMapRoster).toBe(false);
+      expect(report.corpus.pendingDocs).toBe(0);
+      expect(report.warnings.some((w) => w.includes("map roster"))).toBe(false);
+    });
   });
 
   it("issues only SELECT statements (read-only by construction)", async () => {
