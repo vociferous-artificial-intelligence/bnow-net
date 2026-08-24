@@ -3217,3 +3217,18 @@ post-merge main verification, branding/secret scans).
   integration 119/119 (19 files, disposable Neon fork) · H1 49/49 · pre-push green.
 - Deploy deliberately NOT performed (2026-08-03 separation); prepared request names
   rollback `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2` and a ≥1-day digest-cycle observation.
+
+## 2026-08-24 — QF-C landed: analysis-eval control plane (release-train stage 3c)
+
+- Extraction: 17-commit strand rebased onto post-QF-A main (`d4557c4`); conflict ledger
+  EMPTY; `range-diff` 17/17 `=`. Carries: byte-identical `ba35082` (recency probe onto the
+  canonical calculator) + the QF tip's `.env.example` eval-cap block.
+- H4 resolved no-behavior-change (pure accessor + pure sanitizer extractions, byte-verified);
+  no standalone soak needed per plan.
+- A1 adversarial landing review: ONE confirmed doc-only finding — the carried
+  `.env.example` block overstated fail-closed semantics — fixed at landing (`9b2d029`);
+  one refuted; everything else affirmatively clean (all four $0 modes proven
+  provider/DB-free; `openai_eval` cannot write to production).
+- Gates: typecheck/lint clean · unit 2,518/2,518 (188 files) · integration 119/119 ·
+  H1 + lease/spend pins 69/69 · pre-push green. Live/paid evals stay impossible: no
+  `EVAL_*` env exists in any Vercel environment; hardening list is stage-5 (§6-gated).

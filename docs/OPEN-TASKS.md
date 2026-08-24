@@ -1231,3 +1231,17 @@ docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-RELEASE-2026-08-24.md)
     affects any published digest; both are read-only report depth. The A follow-ups that
     WERE taken (FUNNEL-A12-1/2/3, A-REC-1, SCI-N4, roster provenance) are closed by the
     landing commits recorded in the release record.
+
+### New (from the 2026-08-24 QF-C landing,
+docs/reviews/QF-C-ANALYSIS-EVAL-RELEASE-2026-08-24.md)
+
+100. **[Tier 3 — eval-plane provenance] The `scripts/ask-eval-harvest.ts` isolation
+    exemption is untracked (QF audit G6/A10-1).** `src/lib/evals/isolation.test.ts`
+    exempts that filename from the bare-`new OpenAI()` scan by hard-coded name, citing no
+    authorizing document; the file itself lives on the parked
+    `claude/local-model-ask-eval-20260817` branch (not on `main`), so today the exemption
+    is a dormant allowlist entry. The audit classed it an owned prerequisite: when the Ask
+    eval CLI's reconciliation with the repository-owned control plane is adjudicated
+    (adjudication plan §5.5 — explicitly outside the 2026-08-24 release train), either the
+    exemption gains an authorizing record or it is removed. Do not modify Ask behavior in
+    QF scope.
