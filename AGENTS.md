@@ -277,10 +277,10 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   Postmark `BNOW.NET <no-reply@bnow.net>` is live; magic-link guidance is single-use/24h and
   copy-before-opening. PostHog is production-only, explicit opt-in, allowlist-sanitized, UUID
   identity, no Ask/Search/source text; GeoIP is retained per disclosed operator ruling.
-- **Quality/ops:** **2,309 unit tests / 176 files + 118 real-Postgres integration tests /
-  19 files**, all green (measured 2026-08-22 on the PR #7 merged head `85f364d`; the
-  PR #5 figures were 2,187/171 + 107/17). Production DB migrated through 0027
-  (2026-07-21, verified + idempotent); PR #7 adds no migration.
+- **Quality/ops:** **2,412 unit tests / 180 files + 119 real-Postgres integration tests /
+  19 files**, all green (measured 2026-08-24 on the QF-A landing tree; PR #7's figures
+  were 2,309/176 + 118/19, PR #5's 2,187/171 + 107/17). Production DB migrated through 0027
+  (2026-07-21, verified + idempotent); no strand in the 2026-08-24 release train adds a migration.
   Enforced pre-push gate = typecheck+lint+test. Crons: fast */15; telegram :01; X :02;
   MTProto :03 (clustered since the 2026-08-17 Candidate B release; :10/:20/:35 before);
   map :40; digest 4×/day; validate/enrich/datadark daily; trade/materials monthly.
@@ -1336,3 +1336,32 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   (#87's counter cannot discriminate). No rollback is contemplated; the §13 target
   `dpl_HjaHYtfZDhoFR2SqfH66XFT6RhJe` / `23a1280` stays valid but reinstates the defect.
   Report: `docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md` §14.
+
+- **2026-08-24 (QF-A landed — evidence recency + quality funnel; release-train stage 3b;
+  H6 supersession recorded)** Per the operator's pending-merge adjudication plan, Worktree A
+  of the quality-foundation program landed as its own PR: the 6-commit strand
+  (`codex/evidence-quality-observability-20260817`, own delta from QF base `05fdd2c`) was
+  rebased onto `main` `30088bf` in a fresh worktree — conflict ledger EMPTY, `range-diff`
+  6/6 commits byte-identical to the independently audited tree (audit verdict for A:
+  "CORRECT and merge-reviewable", `858bb9a`) — plus five landing commits closing every
+  outstanding A register finding (FUNNEL-A12-1 docsInFedGroups surfaced; FUNNEL-A12-2
+  roster-aware pending labels via `mapTheaters()`; FUNNEL-A12-3 lexicon-skip wording;
+  A-REC-1 skew-boundary pins; SCI-N4 documentCount reconciliation) and one closing the A1
+  landing-review note (map-roster env provenance in the funnel report). FUNNEL-A12-4
+  (platform/language citation dimensions) deliberately not taken — OPEN-TASKS #99.
+  Independent adversarial landing review (5 lenses, findings adversarially verified):
+  ZERO confirmed defects; 7 notes, all dispositioned in the release record. Invariants:
+  H1 assertion PASS (`dropIsolatedSurrogates` present; map-prompts + map-request-wellformed
+  49/49); rulings 17/18/19 verified untouched (recency computed on the exact post-guard
+  shape after the overwrite verdict, fail-open, stub-excluded); zero new paid call sites; no
+  migration. Gates on the exact landed tree: typecheck/lint clean · unit 2,412/2,412 (180
+  files) · integration 119/119 (19 files, disposable Neon fork) · pre-push green. Deploy is
+  NOT part of this landing (standing 2026-08-03 separation): production still runs
+  `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`; the prepared deploy request names rollback target
+  `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2` and a ≥1-full-day/digest-cycle observation window.
+  **H6 supersession:** the 2026-08-21 entry's staging posture — `7150b49` immutable, A/C/D
+  and the conflict program unmerged — is SUPERSEDED by the operator's release-train plan for
+  Worktrees A and C: each lands as its own main-based PR by strand extraction (this entry is
+  A; C follows separately). Worktree D remains design-only; the conflict program remains
+  governed by its own audited seven-PR decomposition. Release record:
+  `docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-RELEASE-2026-08-24.md`.

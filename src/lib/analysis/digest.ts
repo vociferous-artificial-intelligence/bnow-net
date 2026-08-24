@@ -224,6 +224,10 @@ export async function generateDigest(
       countryIso2,
       date,
       track,
+      // effective analysis cutoff = the exclusive end of the fixed UTC-day
+      // gather window (stage 1's `< $2::date + interval '1 day'`) — evidence
+      // ages are measured against the window, never a regeneration wall clock
+      asOf: new Date(Date.parse(`${date}T00:00:00Z`) + 86_400_000).toISOString(),
       provider: analysis.provider,
       structured,
       events,
