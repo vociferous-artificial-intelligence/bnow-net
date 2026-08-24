@@ -117,11 +117,15 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   25 → 0, `llmRequests` == `batches` == 45, `processedMarked` 537 → 1,000, claims 201 → 498,
   fence 38, lost 0, released 1, discards 0, renewals 92 = 45+45+2, and all 20 known
   surrogate-poisoned documents reached a final disposition (31 doc_map_state rows, 21
-  claims).** Its **24h RECOVERY WINDOW is OPEN: 2026-08-23T15:00:00Z →
-  2026-08-24T15:00:00Z** (2026-08-24 11:00 EDT); #86 stays OPEN as
-  `DEPLOYED_RECOVERY_OPEN` until it closes, and during it no further deployment,
-  environment/cap change, model activation, manual cron invocation, remap or paid
-  evaluation is permitted. Code rollback target = `dpl_HjaHYtfZDhoFR2SqfH66XFT6RhJe` /
+  claims).** Its **24h recovery window is CLOSED — `UNICODE_RECOVERY_STATUS = PASS`
+  (2026-08-23T15:00:00Z → 2026-08-24T15:00:00Z, closed 2026-08-25): 24 natural `:40`
+  cycles, none invoked, `batchErrors` 0 on all 24 (0 of 767 batches, against a 56.8%
+  baseline), lease fences 39 → 62 strictly +1 with lost 0 / released 1 / discards 0, one
+  baseline dispatch identity, the same four extractor versions, no budget stop of any
+  category, and no deployment, environment or cap change.** #86 is CLOSED. The window
+  also carried the map corpus back to freshness: `map-health` sent a **recovery notice at
+  2026-08-24T13:40Z** and `provider_state.map_health` now has `episodeKey: null`, with the
+  eligible backlog down **25,857 → 7,292**. Code rollback target = `dpl_HjaHYtfZDhoFR2SqfH66XFT6RhJe` /
   `23a1280` (pure code rollback: no migration, no env change, and the repaired build writes
   rows under the SAME four extractor versions, which the old build anti-joins as
   already-mapped). Report: `docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md`.
@@ -195,20 +199,28 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   MTProto is live/top-120 ROCA-only; non-fatal GramJS peer-type `CastError` noise remains #69.
 - **Analysis:** `DIGEST_ENGINE=mapreduce` is set in Production and the versioned map stage
   feeds it; K=5 voting, majority-gid fill, publication-safety guard, and thin-regeneration
-  guard are binding. **Corrected 2026-08-21 — mapreduce is currently producing NOTHING:**
-  a theater falls back to legacy whenever the digest window finds no CURRENT-version
-  `doc_claims`, and since **2026-08-17 every digest (11/day) has been legacy**, with
-  `provider_state.map_health` reading `stale_ir,stale_ru,stale_ua`. The map worker itself
-  is healthy (~4–6K claims/day) but is draining the ru/ua BACKLOG — old documents — so
-  current-day windows are empty. Two compounding pre-existing defects are tracked as
-  OPEN-TASKS #86 (**~57% of map micro-batches rejected** by the provider with
-  `400 Invalid body` — 591 of 1,041 in the 2026-08-22 soak window, 57.0% on 08-22; the
-  older "≈50%" figure is superseded — root-caused to surrogate-splitting truncation in
-  `map-prompts.ts`) and #88 (the fallback itself). **#86's repair is LIVE as of 2026-08-23
-  (PR #10, `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`) — first repaired cycle took `batchErrors`
-  from 25 to 0 and `processedMarked` from 537 to 1,000 — but it is NOT closed:** `wellFormedSlice` + `dropIsolatedSurrogates` keep the
-  same `MAP_CONTENT_CHARS` code-unit ceiling and the same four extractor versions, so no
-  remap is needed; it stays open through its post-deployment 24-hour recovery window.
+  guard are binding. **Corrected 2026-08-21, still true 2026-08-25 — mapreduce is producing
+  NOTHING:** a theater falls back to legacy whenever the digest window finds no
+  CURRENT-version `doc_claims`, and since **2026-08-17 every digest (11/day) has been
+  legacy**. **#86 is CLOSED (repair deployed 2026-08-23 as PR #10 /
+  `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`; 24-hour recovery window PASS, closed 2026-08-25):**
+  `wellFormedSlice` + `dropIsolatedSurrogates` keep the same `MAP_CONTENT_CHARS` code-unit
+  ceiling and the same four extractor versions, so no remap was needed; map micro-batch
+  rejection went **56.8% → 0.0%** and has stayed there for 767 consecutive batches, and a
+  corpus-wide replay finds **zero** of the 7,292 still-unprocessed eligible documents
+  capable of reproducing it. Map freshness RECOVERED during that window
+  (`map-health` recovery notice 2026-08-24T13:40Z; `episodeKey` null; backlog 25,857 →
+  7,292; the worker is now mapping documents dated 08-22/23/24). **#88 survives #86 and is
+  re-scoped:** the `digest:intraday` run at 2026-08-24T19:30Z still produced 10 legacy
+  digests. `digest:intraday` uses a ROLLING 24-hour window (`inRollingWindow` keys on the
+  document's `published_at`), and at 19:30:13Z the newest document holding ANY claims was
+  published 2026-08-23T18:55:40Z — about **35 minutes short** of that run's window floor —
+  so the window was empty for every theater/track. The map is closing on the publication
+  front but still trails it (at 2026-08-25T01:00Z: newest claimed document published
+  2026-08-24T04:41:29Z, pending queue 2026-08-24T04:43:20Z → 21:04:40Z). What remains is
+  only the backlog-versus-recency ordering decision. **#87 is now the largest live instance of the
+  `400 Invalid body` family** (legacy digest path, `openai-provider.ts:153` — #97), still
+  swallowed into a counter with `ok=true`.
   Sibling truncation sites on the digest, reduce and validation paths are NOT fixed (#97),
   and #87/#88 are untouched by it. Validation uses k=5 LLM matching
   with keyword fallback and exposes coverage/divergence/timeliness/thin-source metrics.
@@ -875,10 +887,16 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
    (OpenAI credits: done 2026-07-05; keep the billing alert.)
 2. **`DIGEST_ENGINE=mapreduce` is SET in prod (flipped 2026-07-09) but no digest has
    actually used it since 2026-08-17** — every one falls back to legacy for want of
-   current-version `doc_claims` (see the Analysis bullet; OPEN-TASKS #86/#88). The
-   corpus-freshness work, not the engine flag, is the blocker: close #86 (the ~57%
-   provider-rejected map batches) first, then re-check `provider_usage.openai_reduce`
-   (expected ≈ $0.10–0.30/day against `REDUCE_USD_CAP_DAILY=2`) and the scoreboard.
+   current-version `doc_claims` (see the Analysis bullet; OPEN-TASKS #88). **#86 is closed
+   and did NOT resolve this** — map throughput and freshness are recovered, yet the
+   2026-08-24T19:30Z intraday run still went legacy: its ROLLING 24-hour window was empty
+   because the newest document holding claims was published 2026-08-23T18:55:40Z, about 35
+   minutes short of the window floor. The remaining blocker is therefore the
+   backlog-versus-recency ORDERING decision, not the engine flag and no longer corpus
+   damage: either prioritise same-day documents ahead of strict oldest-first order, or move
+   the digest schedule after the map cycle covering its window. Then re-check
+   `provider_usage.openai_reduce` (expected ≈ $0.10–0.30/day against
+   `REDUCE_USD_CAP_DAILY=2`; it has recorded NOTHING since 2026-08-16) and the scoreboard.
    Rollback of the engine itself = remove the Vercel prod env var (or set `legacy`) +
    redeploy. Then: gulf theaters onto the map worker, the #33 remap path (the operator
    now EXISTS in the tree — see the map-lease release — but has never been RUN; its
@@ -1225,3 +1243,96 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   $1.2–1.3/day while the backlog drains; escalate above $25 of $40 or on any
   `budgetStopCategory` other than `run_cap`. Report:
   `docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md` §10–§12.
+
+- **2026-08-25 (OPEN-TASKS #86 — 24-hour recovery window CLOSED, PASS; #86 closed, #88
+  re-scoped, #98 filed)** The recovery window opened by the 2026-08-23 map Unicode batch
+  repair ran **2026-08-23T15:00:00Z → 2026-08-24T15:00:00Z** and is closed from the
+  production record, read-only. **`UNICODE_RECOVERY_STATUS = PASS`; #86 is CLOSED.** This
+  session deployed nothing, invoked no cron, ran no remap (still **zero** `map:remap` rows
+  ever), regenerated no digest, set no `FORCE_REGEN`, made no paid provider call, and
+  changed no environment variable or cap — `vercel env ls` still reads **86 rows / 48
+  distinct names**, and production is still `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2` (created
+  2026-08-23T14:08:53Z, before the window opened; `/health` 200, stamp `0aa3d7d`, DB OK).
+  The only writes were to `docs/`.
+  **Result:** 24 natural `:40` cycles, none invoked, all `ok=true` with `finished_at` set
+  and `error` NULL; **`batchErrors` 0 on every one — 0 of 767 batches**, against the
+  591-of-1,041 (**56.8%**) baseline, satisfying the criterion as written (`= 0`, not
+  "improved"); lease `acquired` 24/24 with fences **39 → 62 strictly +1**, lost 0 /
+  released 1 / discards 0, residue `{"fence": 68}` with no token, zero advisory locks; one
+  distinct baseline dispatch identity; the same four extractor versions and no fifth; no
+  `budgetStop*` key of any category; `processedMarked` 23,999 of 24,000 selected against a
+  frozen 537/cycle baseline; 7,164 claims; the 20 poisoned ids never re-selected.
+  **Two criteria required honest handling rather than a pass-by-restatement.** (i)
+  `llmRequests === batches` held on 22 of 24 cycles. The two exceptions are entirely the
+  untouched truncation-split path: on `finish_reason === "length"` `extractBatch`
+  increments `truncationSplits` and recurses TWICE, each recursion metering its own request
+  while the top-level `batches` counter does not move. The correct identity is
+  **`llmRequests === batches + 2 × truncationSplits`**, exact on both cycles (35+4=39,
+  27+2=29) and window-wide (767+6=773); `batchErrors` stayed 0 on the split cycles, so this
+  is a response-length behaviour, not a request-validity one, and not a #86 residual. A
+  future window should use the corrected form. (ii) The §11 signal carried forward as
+  unexplained — `alreadyMapped` frozen at 139 — is **RESOLVED**: it moved to **0 on the very
+  next cycle** (15:40Z) and stayed 0 for all 23 after it. The 139 were already-mapped
+  documents pinned in the selection window by the 463 stragglers; the first repaired cycle
+  drained them (hence `processedMarked` moving in that same cycle) while still counting the
+  old window, and the next selection advanced past that region. One cycle late, not wrong.
+  **Corpus-wide confirmation, closing the report's own "the 20 are a lower bound" risk:**
+  replaying the OLD truncation over the entire eligible pool — not a bounded sample — finds
+  **0 of 7,292** still-unprocessed documents that would orphan a surrogate, though 2,536 of
+  them carry complete astral pairs; over the 414,659 processed epoch-eligible ru/ua/ir
+  documents it finds 25, all accounted for: the 20 repaired on 2026-08-23 (31
+  `doc_map_state` rows, 21 claims, first mapped 14:42:49Z–14:44:18Z), four of the five
+  pre-existing documents accepted before the provider tightened around 2026-07-16, and one
+  (2311267) dispositioned as a dedup mirror with a `doc_dedup` row and no `doc_map_state` —
+  which is what ruling 13's definition of `processed` allows. The fifth pre-existing id,
+  2263, is dated 2026-07-01 and so falls outside `MAP_EPOCH`; queried directly it holds its
+  one row as recorded. **The live selection pool can no longer reproduce #86.**
+  **Spend:** $0.9127 across the window; daily `openai_map` $0.7002 (08-23) and $0.7885
+  (08-24) against `MAP_USD_CAP_DAILY=4`; all-time **$18.2790 of the $40
+  `MAP_SPRINT_USD_CAP`**, below the $25 escalation threshold; 669 daily requests at most
+  against the 1,500 default `MAP_DAILY_REQUEST_CAP`. Below the ~$1.2–1.3/day projection,
+  because the repair also STOPPED work: the stragglers are no longer re-dispatched every
+  hour, so cycles settled at ~31 batches rather than the transition's ~44. `openai_reduce`
+  recorded no usage at all (latest day still 2026-08-16), so #97's reduce-path site has not
+  become live and the trigger for promoting it has not fired.
+  **What the recovery bought:** map freshness returned. `map-health` sent three
+  episode-deduped `unhealthy` notices (18:40Z, 00:40Z, 07:40Z — three stale theaters each)
+  and then a **`recovery` notice at 2026-08-24T13:40Z**; `provider_state.map_health` now
+  reads `episodeKey: null`; the eligible backlog fell **25,857 → 7,292** (ir 3,939 · ru
+  2,393 · ua 960); and the worker is now mapping documents dated 08-22/23/24.
+  **Carried out of the window, none blocking the PASS.** **#88 survives #86 and is
+  RE-SCOPED — it is no longer blocked on it.** Every digest since 2026-08-17 is still
+  legacy, including the 10 from `digest:intraday` at 2026-08-24T19:30Z. The mechanism was
+  MEASURED, not assumed, and a first draft of this entry got it wrong by assuming a
+  day window: `digest:intraday` selects a **ROLLING 24-hour** window
+  (`src/app/api/cron/digest/route.ts:50`), and `inRollingWindow` admits a claim only when
+  its document's `published_at` lies inside the last 24 h. At the 19:30:13Z run the newest
+  document holding ANY claims was published **2026-08-23T18:55:40Z — about 35 minutes
+  short** of that run's window floor of 2026-08-23T19:30:13Z, so the window was empty for
+  every theater and track and all ten fell back. The map is closing on the publication
+  front but still trails it: at 2026-08-25T01:00Z the newest claimed document is published
+  2026-08-24T04:41:29Z while the pending queue spans 2026-08-24T04:43:20Z → 21:04:40Z. What
+  remains is purely the backlog-versus-recency ordering decision, and the margin is now
+  small enough that closing the remaining lag would let mapreduce resume unaided.
+  Observed, not forced: nothing regenerated. **#87 is confirmed still live and is now the
+  largest instance of the family** — `digest:intraday` 2026-08-23T19:30:13Z recorded
+  `errors: 2` with `ok=true` and `counts.errorMessages` carrying the identical
+  `400 Invalid body: failed to parse JSON value` string twice, and `validate`
+  2026-08-24T07:00:57Z recorded `errors: 1` with `ok=true` and no message; daily nested
+  digest errors run 0–3/day across 08-15 → 08-24, the same band before and after the
+  repair, so it is untouched pre-existing debt rather than a regression. **New: #98** —
+  `ingest:telegram` left two `finished_at IS NULL` rows INSIDE the window (2026-08-23
+  18:01:31Z and 19:01:31Z, `ok` NULL, empty `counts`), ruling 10's timeout signature with
+  nothing alerting on it; the class is pre-existing but growing (07-28 ×1, 08-15 ×1, 08-23
+  ×2, plus `ingest:x` ×3 on 08-13) and these two post-date the exclusion note the QF-B
+  closeout left, so they are genuinely new. They were found only because this closeout swept
+  nested `counts.*` on EVERY job rather than just `map`, which is the discipline #87 asks
+  for. The expired `MAP_USD_CAP_DAILY_OVERRIDE_USD`/`_UNTIL` pair remains installed and
+  remains hygiene-only (#94), untouched here.
+  **Binding until superseded:** #86 is closed and needs no remap — the repair kept the same
+  four extractor versions deliberately, and re-opening it would require new evidence of a
+  surrogate-class rejection, not a generic `400`. A residual non-zero map `batchErrors` must
+  still be classified by signature from the runtime log before being attributed to anything
+  (#87's counter cannot discriminate). No rollback is contemplated; the §13 target
+  `dpl_HjaHYtfZDhoFR2SqfH66XFT6RhJe` / `23a1280` stays valid but reinstates the defect.
+  Report: `docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md` §14.

@@ -182,10 +182,11 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   activation hard lock is untouched: only the baseline `gpt-4o-mini`/no-effort
   configuration can dispatch, which makes this a prompt-revision tool until an operator
   authorizes an activation — which additionally needs an executed, costed corpus remap
-  and a paid representative scorecard (#81). NOTE: while #86 stands (**~57%** of map
-  micro-batches rejected `400 Invalid body` — 591 of 1,041 in the 2026-08-22 soak window;
-  the older "~45–54%" band is superseded), the driver's stall bound trips after 3
-  calls, so it cannot drain a day at all today.
+  and a paid representative scorecard (#81). NOTE (corrected 2026-08-25): the stall-bound
+  objection is GONE — #86 is CLOSED (map micro-batch rejection **56.8% → 0.0%**, held for
+  767 consecutive batches across the 24-cycle recovery window), so the driver's 3-call
+  stall bound no longer trips on batch rejections. Remap remains unexecuted and
+  unauthorized for every other reason.
 - **Model routing (PR #5 — LIVE in production since 2026-08-20, `dpl_GH6UWFojKPEgPrhBiT7utPBPnQBJ` / `7336b9c`; 24h formal soak CLOSED PASS 2026-08-21):** `src/lib/llm/model-config.ts`
   is the ONE authority for which model each analysis workload dispatches and at what
   reasoning effort — map, reduce, digest, validation, entity_audit — resolved at CALL time,
@@ -230,17 +231,27 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   mapreduce (1–3/day). The map worker is healthy but is draining the ru/ua backlog, so
   current-day windows hold no current-version claims. The last mapreduce digest was
   **2026-08-16T19:32:38Z**; every digest created on or after 2026-08-17 is legacy.
-  Compounding cause: OPEN-TASKS #86 (**~57%** of map micro-batches rejected
-  `400 Invalid body` since 2026-07-16 — 591 of 1,041 in the 2026-08-22 soak window —
-  root-caused to surrogate-splitting truncation in `map-prompts.ts`). **#86's repair is LIVE as of 2026-08-23
-  (PR #10, merge `0aa3d7d`, `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`) — the first natural cycle
-  after deployment took `batchErrors` from 25 to 0, `llmRequests` to equal `batches` (45),
-  `processedMarked` from 537 to 1,000 and claims from 201 to 498, and drained all 20 known
-  surrogate-poisoned documents — and its 24h recovery window runs
-  2026-08-23T15:00:00Z → 2026-08-24T15:00:00Z** — `wellFormedSlice` + `dropIsolatedSurrogates`, same
-  code-unit ceiling, same four extractor versions, no remap — and stays OPEN through its
-  post-deployment 24-hour recovery window; whether mapreduce actually resumes is a separate
-  backlog-versus-recency question this repair does not answer. Tracked as #88. Both engines persist
+  The compounding cause, OPEN-TASKS #86 (map micro-batches rejected `400 Invalid body`
+  since 2026-07-16, peaking at 591 of 1,041 = **56.8%** in the 2026-08-22 soak window,
+  root-caused to surrogate-splitting truncation in `map-prompts.ts`), is **CLOSED as of
+  2026-08-25**: the repair went live 2026-08-23 (PR #10, merge `0aa3d7d`,
+  `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`) — `wellFormedSlice` + `dropIsolatedSurrogates`, same
+  code-unit ceiling, same four extractor versions, no remap — and its 24-hour recovery
+  window (2026-08-23T15:00:00Z → 2026-08-24T15:00:00Z) closed **PASS** with `batchErrors`
+  **0 on all 24 cycles / 767 batches**, and a corpus-wide replay finding **zero** of the
+  7,292 still-unprocessed eligible documents able to reproduce it. **Map freshness has since
+  RECOVERED** — `map-health` recovery notice 2026-08-24T13:40Z, `episodeKey` now null,
+  backlog **25,857 → 7,292**, worker mapping documents dated 08-22/23/24 — so
+  `stale_ir,stale_ru,stale_ua` above is historical, not current.
+  **#88 nonetheless survives and is re-scoped:** the `digest:intraday` run at
+  2026-08-24T19:30Z still produced 10 LEGACY digests. `digest:intraday` uses a ROLLING
+  24-hour window keyed on the document's `published_at`, and at 19:30:13Z the newest
+  document holding ANY claims was published 2026-08-23T18:55:40Z — about **35 minutes
+  short** of the window floor — so the window was empty for every theater/track. The map is
+  closing on the publication front but still trails it (2026-08-25T01:00Z: newest claimed
+  document published 2026-08-24T04:41:29Z; pending queue 2026-08-24T04:43:20Z →
+  21:04:40Z). What remains is only the backlog-versus-recency ordering decision. Tracked as
+  #88. Both engines persist
   through ONE shared path (`digest-persist.ts`) whose overwrite guard refuses empty
   AND thin (<50% prior claims) regenerations (#32 closed; FORCE_REGEN=1 override),
   and which now runs the deterministic **publication-safety guard**

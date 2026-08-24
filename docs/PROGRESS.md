@@ -3149,3 +3149,53 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
    claimed — the backlog stood at 25,857 after the first cycle and whether mapreduce resumes
    is a separate backlog-versus-recency question. No second deployment, no environment or cap
    change, no model activation, no remap, no paid evaluation call.
+
+## 2026-08-25 — OPEN-TASKS #86 recovery window CLOSED (PASS); #86 closed, #88 re-scoped, #98 filed
+
+Read-only closeout of the window opened by the 2026-08-23 map Unicode batch repair. No
+deployment, no cron invocation, no remap, no regeneration, no paid call, no environment or
+cap change; the only writes are to `docs/`.
+
+1. **`UNICODE_RECOVERY_STATUS = PASS`.** 24 natural `:40` cycles over
+   2026-08-23T15:00:00Z → 2026-08-24T15:00:00Z, none invoked, all `ok=true` with
+   `finished_at` set. **`batchErrors` 0 on every cycle — 0 of 767 batches**, against the
+   591-of-1,041 (**56.8%**) baseline. Lease `acquired` 24/24, fences **39 → 62 strictly
+   +1**, lost 0 / released 1 / discards 0, residue `{"fence": 68}` no token, zero advisory
+   locks. One baseline dispatch identity; the same four extractor versions, no fifth; no
+   `budgetStop*` key. `processedMarked` 23,999 / 24,000 selected; 7,164 claims. The 20
+   poisoned ids never re-selected. Zero `map:remap` rows ever. Environment unchanged at
+   86 rows / 48 names; production still `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`.
+2. **Criterion restated honestly:** `llmRequests === batches` held on 22 of 24 cycles. The
+   two exceptions are the untouched truncation-split path — `finish_reason === "length"`
+   increments `truncationSplits` and recurses twice, each recursion metering a request
+   while `batches` does not move. Correct identity:
+   **`llmRequests === batches + 2 × truncationSplits`** (35+4=39, 27+2=29, window
+   767+6=773). `batchErrors` stayed 0 on the split cycles; not a #86 residual.
+3. **The carried-forward unexplained signal is RESOLVED.** `alreadyMapped` moved 139 → **0
+   on the very next cycle** (15:40Z) and stayed 0. The 139 were already-mapped documents
+   pinned in the selection window by the 463 stragglers; the first repaired cycle drained
+   them while still counting the old window, and the next selection advanced past it.
+4. **Corpus-wide replay closes the report's "20 is a lower bound" risk.** Over the ENTIRE
+   eligible pool: **0 of 7,292** still-unprocessed documents would orphan a surrogate under
+   the old truncation (2,536 carry complete astral pairs). Over 414,659 processed
+   epoch-eligible ru/ua/ir documents: 25, all accounted for — the 20 repaired 2026-08-23,
+   four of the five pre-existing pre-tightening documents, and one (2311267) dispositioned
+   as a dedup mirror. (The fifth, 2263, is dated 2026-07-01, outside `MAP_EPOCH`.)
+5. **Spend inside every bound and below projection:** $0.9127 in the window; daily $0.7002
+   / $0.7885 against `MAP_USD_CAP_DAILY=4`; all-time **$18.2790 of $40**, under the $25
+   escalation threshold; 669 daily requests at most against the 1,500 default. Cheaper than
+   the ~$1.2–1.3/day projection because the repair stopped the stragglers being
+   re-dispatched hourly. `openai_reduce` still records nothing since 2026-08-16.
+6. **Freshness recovered.** Three episode-deduped `unhealthy` notices (18:40Z, 00:40Z,
+   07:40Z) then a **`recovery` notice at 2026-08-24T13:40Z**; `map_health.episodeKey` now
+   null; backlog **25,857 → 7,292**; worker mapping documents dated 08-22/23/24.
+7. **Carried out, none blocking:** **#88 survives #86 and is re-scoped** — the 19:30Z
+   intraday run on 08-24 still produced 10 legacy digests. It uses a ROLLING 24-hour window
+   keyed on `published_at`, and the newest document holding claims was published
+   2026-08-23T18:55:40Z, ~35 minutes short of the window floor, so the window was empty for
+   every theater/track. The map is closing on the front but still trails it; only the
+   backlog-versus-recency ordering decision remains. **#87 confirmed live and now the
+   largest instance** — `digest:intraday` 08-23T19:30:13Z carried the identical
+   `400 Invalid body` string twice with `ok=true`; `validate` 08-24T07:00:57Z one error.
+   **New #98** — `ingest:telegram` left two `finished_at IS NULL` rows inside the window,
+   found only because the sweep covered every job, not just `map`.
