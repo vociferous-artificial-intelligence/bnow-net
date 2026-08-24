@@ -277,9 +277,9 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   Postmark `BNOW.NET <no-reply@bnow.net>` is live; magic-link guidance is single-use/24h and
   copy-before-opening. PostHog is production-only, explicit opt-in, allowlist-sanitized, UUID
   identity, no Ask/Search/source text; GeoIP is retained per disclosed operator ruling.
-- **Quality/ops:** **2,412 unit tests / 180 files + 119 real-Postgres integration tests /
-  19 files**, all green (measured 2026-08-24 on the QF-A landing tree; PR #7's figures
-  were 2,309/176 + 118/19, PR #5's 2,187/171 + 107/17). Production DB migrated through 0027
+- **Quality/ops:** **2,518 unit tests / 188 files + 119 real-Postgres integration tests /
+  19 files**, all green (measured 2026-08-24 on the QF-C landing tree; QF-A's figures were
+  2,412/180 + 119/19, PR #7's 2,309/176 + 118/19). Production DB migrated through 0027
   (2026-07-21, verified + idempotent); no strand in the 2026-08-24 release train adds a migration.
   Enforced pre-push gate = typecheck+lint+test. Crons: fast */15; telegram :01; X :02;
   MTProto :03 (clustered since the 2026-08-17 Candidate B release; :10/:20/:35 before);
@@ -1365,3 +1365,31 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   A; C follows separately). Worktree D remains design-only; the conflict program remains
   governed by its own audited seven-PR decomposition. Release record:
   `docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-RELEASE-2026-08-24.md`.
+
+- **2026-08-24 (QF-C landed — analysis-eval control plane; release-train stage 3c)** Worktree C
+  landed as its own PR after QF-A: the 17-commit strand
+  (`codex/analysis-eval-control-plane-20260817`, own delta from `05fdd2c`) rebased onto
+  post-QF-A `main` `d4557c4` — conflict ledger EMPTY, `range-diff` 17/17 byte-identical to
+  the audited tree (audit verdict for C: "READY as offline machinery", `858bb9a`) — plus
+  two declared carries from the QF integration line (H5): a byte-identical patch of
+  `ba35082` (recency probe onto QF-A's canonical calculator; fixtures re-pinned to
+  linear-interpolation percentiles) and the QF tip's `.env.example` eval-cap block,
+  corrected at landing after the A1 review caught its fail-closed overstatement (only
+  `EVAL_USD_CAP_DAILY` + the shared `LLM_SPRINT_USD_CAP` backstop fail closed; the request
+  caps are bounded in-code defaults 300/200). **H4 resolved: no runtime behavior change** —
+  the `map-worker.ts` touch is the pure `mapOutTokensPerDoc()` accessor extraction and the
+  `llm-match.ts` touch the pure export + `sanitizeMatches()` extraction, both byte-verified
+  against `main`'s lease/#86-era code with suites green; the plan's no-standalone-soak line
+  therefore stands. Ruling 4 verified directly: `eval-guard.ts` refuses everywhere while
+  `EVAL_USD_CAP_DAILY` is unset, and **no `EVAL_*` env exists in any Vercel environment**,
+  so live/paid evaluation remains impossible after any deploy until the operator sets caps
+  (adjudication plan §6; the audit's 11-item pre-paid-eval hardening list is stage-5 work
+  bound by A14-F1 to cover both the QF and conflict report paths after the conflict
+  eval-profile PR). Independent adversarial landing review (5 lenses, adversarial
+  verification): ONE confirmed doc-only finding (the `.env.example` overstatement), fixed
+  at landing; one refuted; all other verifications affirmatively clean. Gates on the exact
+  landed tree: typecheck/lint clean · unit 2,518/2,518 (188 files) · integration 119/119
+  (19 files, disposable Neon fork) · H1 + lease/spend pins 69/69 · pre-push green. No
+  migration. Deploy: not performed; QF-C can ride the next authorized deploy (rollback
+  target `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`). Release record:
+  `docs/reviews/QF-C-ANALYSIS-EVAL-RELEASE-2026-08-24.md`.

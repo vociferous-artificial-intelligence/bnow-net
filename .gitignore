@@ -23,3 +23,8 @@ coverage/
 # Isolated workstream checkouts (git worktrees for sandboxed agent work)
 .workstream/
 data/*.json
+
+# Analysis-eval LIVE results are operator artifacts and are never committed;
+# offline fixture results (no live- prefix) ARE committed as the sample
+# baseline report inputs.
+docs/evals/analysis/results/live-*

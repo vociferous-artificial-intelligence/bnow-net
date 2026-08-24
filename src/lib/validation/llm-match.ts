@@ -47,7 +47,10 @@ export interface MatchOutcome {
   dispatch?: AnalysisDispatchIdentity;
 }
 
-const SCHEMA = {
+/** Exported for the analysis-eval control plane (src/lib/evals), which must
+ *  hash and dispatch the EXACT production match schema/prompt rather than fork
+ *  a copy. Production dispatch in this module is unchanged. */
+export const MATCH_RESPONSE_SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {
@@ -68,7 +71,7 @@ const SCHEMA = {
   required: ["matches"],
 } as const;
 
-const SYSTEM = `You compare an expert analyst's daily takeaways against automated digest claims covering the same day and theater.
+export const MATCH_SYSTEM_PROMPT = `You compare an expert analyst's daily takeaways against automated digest claims covering the same day and theater.
 For EACH takeaway, decide whether any claim reports substantially the same event or development.
 Rules:
 - A match requires the same underlying event/development, not just the same topic.
@@ -77,7 +80,7 @@ Rules:
 - claimId must come from the provided claim list. If nothing matches, claimId = null.
 - confidence: 0.9+ same event, 0.7 same development described differently, below 0.6 do not match (return null).`;
 
-function buildUserPrompt(takeawayTexts: string[], claims: ClaimForValidation[]): string {
+export function buildMatchUserPrompt(takeawayTexts: string[], claims: ClaimForValidation[]): string {
   return (
     "TAKEAWAYS:\n" +
     takeawayTexts.map((t, i) => `[${i}] ${t.replace(/\s+/g, " ").slice(0, 400)}`).join("\n") +
@@ -97,12 +100,12 @@ async function llmMatchOnce(
   const completion = await client.chat.completions.create({
     model: dispatch.model,
     messages: [
-      { role: "system", content: SYSTEM },
-      { role: "user", content: buildUserPrompt(takeawayTexts, claims) },
+      { role: "system", content: MATCH_SYSTEM_PROMPT },
+      { role: "user", content: buildMatchUserPrompt(takeawayTexts, claims) },
     ],
     response_format: {
       type: "json_schema",
-      json_schema: { name: "matches", schema: SCHEMA as never, strict: true },
+      json_schema: { name: "matches", schema: MATCH_RESPONSE_SCHEMA as never, strict: true },
     },
     // default (non-reasoning) payload keeps exactly the historical
     // `temperature: 0` and, deliberately, still NO output-token ceiling; a
@@ -121,17 +124,29 @@ async function llmMatchOnce(
   await guard.record(1, 1, usd);
   const raw = completion.choices[0]?.message?.content ?? '{"matches":[]}';
   const parsed = (JSON.parse(raw) as { matches: LlmMatch[] }).matches ?? [];
-  const validClaims = new Set(claims.map((c) => c.claimId));
-  const matches = parsed
-    .filter((m) => m.takeawayIndex >= 0 && m.takeawayIndex < takeawayTexts.length)
+  const matches = sanitizeMatches(parsed, takeawayTexts.length, new Set(claims.map((c) => c.claimId)));
+  return { matches, usd };
+}
+
+/** Sanitize parsed matches against the takeaway/claim sets actually sent:
+ *  out-of-range takeaway indices are dropped; unknown claimIds and sub-0.6
+ *  confidence fail closed to null (no-match). Extracted pure so the
+ *  analysis-eval control plane (src/lib/evals) applies EXACTLY the production
+ *  sanitization to candidate match outputs — behavior unchanged here. */
+export function sanitizeMatches(
+  parsed: LlmMatch[],
+  nTakeaways: number,
+  validClaimIds: Set<number>,
+): LlmMatch[] {
+  return parsed
+    .filter((m) => m.takeawayIndex >= 0 && m.takeawayIndex < nTakeaways)
     .map((m) => ({
       ...m,
       claimId:
-        m.claimId !== null && validClaims.has(m.claimId) && m.confidence >= 0.6
+        m.claimId !== null && validClaimIds.has(m.claimId) && m.confidence >= 0.6
           ? m.claimId
           : null,
     }));
-  return { matches, usd };
 }
 
 /** Majority aggregation over k vote rounds (pure, unit-tested). A takeaway

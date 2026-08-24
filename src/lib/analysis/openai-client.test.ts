@@ -29,12 +29,15 @@ describe("analysisOpenAiClient", () => {
 
 describe("analysis dispatch modules construct clients only via the factory", () => {
   const REPO_SRC = join(__dirname, "..", "..");
-  /** Every module that dispatches a paid analysis-workload call. */
+  /** Every module that dispatches a paid analysis-workload call. The eval
+   *  control plane's live-runner is included: it is the only eval module that
+   *  can touch a provider, and it must construct through the same factory. */
   const ANALYSIS_DISPATCH_MODULES = [
     "lib/analysis/map-worker.ts",
     "lib/analysis/synthesize.ts",
     "lib/analysis/openai-provider.ts",
     "lib/validation/llm-match.ts",
+    "lib/evals/live-runner.ts",
     "app/api/cron/entity-audit/route.ts",
   ];
 
