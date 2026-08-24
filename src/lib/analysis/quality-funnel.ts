@@ -271,6 +271,10 @@ export interface QualityFunnelReport {
    *  signal this — the track stays configured (non-null version) while the
    *  worker simply never runs the theater. */
   theaterOnMapRoster: boolean;
+  /** the roster actually consulted for theaterOnMapRoster, as read from THIS
+   *  process's env (MAP_THEATERS, default ru,ua,ir). A local report describes
+   *  production scheduling only if the local value mirrors production's. */
+  mapRoster: string[];
   corpus: CorpusStages;
   /** null = no digest row exists for this (theater, track, date) */
   digest: DigestStages | null;
@@ -652,7 +656,8 @@ export async function loadQualityFunnel(
   const warnings: string[] = [];
   const unknownReasons: string[] = [];
   const version = currentVersion(key.track, key.theater);
-  const theaterOnMapRoster = mapTheaters().includes(key.theater);
+  const mapRoster = mapTheaters();
+  const theaterOnMapRoster = mapRoster.includes(key.theater);
 
   const docsQ = eligibleDocsSql(key.theater, key.date);
   const docs: EligibleDocRow[] = (await query(docsQ.sql, docsQ.params)).map((r) => ({
@@ -729,6 +734,7 @@ export async function loadQualityFunnel(
     date: key.date,
     currentExtractorVersion: version,
     theaterOnMapRoster,
+    mapRoster,
     corpus,
     digest,
     adapters: buildAdapterConversions(docs, states, claimCounts, links, version),

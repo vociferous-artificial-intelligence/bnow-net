@@ -32,7 +32,9 @@ const HOW_TO_READ = `how to read this
   Docs without a map disposition for THIS track split two ways: pending =
   genuine unmapped backlog (processed=false; the hourly cron drains it ONLY
   for theaters on the map roster (MAP_THEATERS) — off-roster pending is not
-  scheduled to drain and is labeled OFF-ROSTER below);
+  scheduled to drain and is labeled OFF-ROSTER below; the roster shown is the
+  one THIS process read from its env, so a local run describes production
+  scheduling only if .env.local mirrors production's MAP_THEATERS);
   notApplicable = the track's lexicon did not match (processed=true) — the
   cron will not revisit those docs under this track (only a lexicon change
   plus a remap pass could map them) and they are NOT extraction loss.
@@ -75,6 +77,9 @@ function printHuman(r: QualityFunnelReport): void {
   const pendingLabel = r.theaterOnMapRoster
     ? "backlog — hourly cron drains"
     : "OFF-ROSTER — not scheduled to drain";
+  console.log(
+    `  map roster consulted: ${r.mapRoster.join(",")} (read from this process's MAP_THEATERS — mirrors production only if the local env does)`,
+  );
   console.log(
     `  undispositioned: pending ${c.pendingDocs} (${pendingLabel}) · notApplicable ${c.notApplicableDocs} (lexicon skip — cron will not revisit; only a lexicon change + remap could map them)`,
   );

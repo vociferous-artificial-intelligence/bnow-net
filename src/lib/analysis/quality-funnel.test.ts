@@ -593,6 +593,7 @@ describe("loadQualityFunnel", () => {
       const { query } = fakeQuery({ docs: PENDING_DOCS, digest: null });
       const report = await loadQualityFunnel(query, { theater: THEATER, track: TRACK, date: DATE });
       expect(report.theaterOnMapRoster).toBe(true);
+      expect(report.mapRoster).toEqual(["ru", "ua", "ir"]); // provenance: the roster consulted is reported
       expect(report.corpus.pendingDocs).toBe(1);
       expect(report.warnings.some((w) => w.includes("map roster"))).toBe(false);
     });
@@ -614,6 +615,7 @@ describe("loadQualityFunnel", () => {
         date: DATE,
       });
       expect(added.theaterOnMapRoster).toBe(true);
+      expect(added.mapRoster).toEqual(["ru", "ua", "ir", "sa"]); // provenance follows the env, not a constant
       expect(added.warnings.some((w) => w.includes("map roster"))).toBe(false);
     });
 
