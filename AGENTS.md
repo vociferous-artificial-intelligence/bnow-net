@@ -100,7 +100,7 @@ drizzle/            migrations 0000–00NN + 9999_claim_source_trigger.sql (appl
 data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails)
 ```
 
-## Current state — compact snapshot (verified 2026-08-23; correct in place)
+## Current state — compact snapshot (verified 2026-08-24; correct in place)
 
 Detailed operational/product state lives in `docs/CURRENT-STATE.md` and is corrected in
 place whenever reality changes. Historical narrative: `docs/PROGRESS.md` + `docs/reviews/`;
@@ -118,7 +118,7 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   fence 38, lost 0, released 1, discards 0, renewals 92 = 45+45+2, and all 20 known
   surrogate-poisoned documents reached a final disposition (31 doc_map_state rows, 21
   claims).** Its **24h recovery window is CLOSED — `UNICODE_RECOVERY_STATUS = PASS`
-  (2026-08-23T15:00:00Z → 2026-08-24T15:00:00Z, closed 2026-08-25): 24 natural `:40`
+  (2026-08-23T15:00:00Z → 2026-08-24T15:00:00Z, closed 2026-08-24): 24 natural `:40`
   cycles, none invoked, `batchErrors` 0 on all 24 (0 of 767 batches, against a 56.8%
   baseline), lease fences 39 → 62 strictly +1 with lost 0 / released 1 / discards 0, one
   baseline dispatch identity, the same four extractor versions, no budget stop of any
@@ -199,11 +199,11 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   MTProto is live/top-120 ROCA-only; non-fatal GramJS peer-type `CastError` noise remains #69.
 - **Analysis:** `DIGEST_ENGINE=mapreduce` is set in Production and the versioned map stage
   feeds it; K=5 voting, majority-gid fill, publication-safety guard, and thin-regeneration
-  guard are binding. **Corrected 2026-08-21, still true 2026-08-25 — mapreduce is producing
+  guard are binding. **Corrected 2026-08-21, still true 2026-08-24 — mapreduce is producing
   NOTHING:** a theater falls back to legacy whenever the digest window finds no
   CURRENT-version `doc_claims`, and since **2026-08-17 every digest (11/day) has been
   legacy**. **#86 is CLOSED (repair deployed 2026-08-23 as PR #10 /
-  `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`; 24-hour recovery window PASS, closed 2026-08-25):**
+  `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`; 24-hour recovery window PASS, closed 2026-08-24):**
   `wellFormedSlice` + `dropIsolatedSurrogates` keep the same `MAP_CONTENT_CHARS` code-unit
   ceiling and the same four extractor versions, so no remap was needed; map micro-batch
   rejection went **56.8% → 0.0%** and has stayed there for 767 consecutive batches, and a
@@ -216,7 +216,7 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   document's `published_at`), and at 19:30:13Z the newest document holding ANY claims was
   published 2026-08-23T18:55:40Z — about **35 minutes short** of that run's window floor —
   so the window was empty for every theater/track. The map is closing on the publication
-  front but still trails it (at 2026-08-25T01:00Z: newest claimed document published
+  front but still trails it (at 2026-08-24T21:05Z: newest claimed document published
   2026-08-24T04:41:29Z, pending queue 2026-08-24T04:43:20Z → 21:04:40Z). What remains is
   only the backlog-versus-recency ordering decision. **#87 is now the largest live instance of the
   `400 Invalid body` family** (legacy digest path, `openai-provider.ts:153` — #97), still
@@ -224,7 +224,7 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   Sibling truncation sites on the digest, reduce and validation paths are NOT fixed (#97),
   and #87/#88 are untouched by it. Validation uses k=5 LLM matching
   with keyword fallback and exposes coverage/divergence/timeliness/thin-source metrics.
-  **2026-07-29→08-15 map outage (Iran recovered; ru/ua backlog still draining):**
+  **2026-07-29→08-15 map outage (recovered; residual backlog drained to ~7K docs by 2026-08-24, #86 track):**
   `openai_map` crossed the shared $10 all-time
   backstop at 2026-07-29 08:40Z and 418 hourly runs then recorded `ok=true` with zero claims
   while ru/ua/ir doc_claims starved and ru/ua/ir digests silently fell back to the legacy
@@ -1244,7 +1244,7 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   `budgetStopCategory` other than `run_cap`. Report:
   `docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md` §10–§12.
 
-- **2026-08-25 (OPEN-TASKS #86 — 24-hour recovery window CLOSED, PASS; #86 closed, #88
+- **2026-08-24 (OPEN-TASKS #86 — 24-hour recovery window CLOSED, PASS; #86 closed, #88
   re-scoped, #98 filed)** The recovery window opened by the 2026-08-23 map Unicode batch
   repair ran **2026-08-23T15:00:00Z → 2026-08-24T15:00:00Z** and is closed from the
   production record, read-only. **`UNICODE_RECOVERY_STATUS = PASS`; #86 is CLOSED.** This
@@ -1289,7 +1289,7 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   one row as recorded. **The live selection pool can no longer reproduce #86.**
   **Spend:** $0.9127 across the window; daily `openai_map` $0.7002 (08-23) and $0.7885
   (08-24) against `MAP_USD_CAP_DAILY=4`; all-time **$18.2790 of the $40
-  `MAP_SPRINT_USD_CAP`**, below the $25 escalation threshold; 669 daily requests at most
+  `MAP_SPRINT_USD_CAP`**, below the $25 escalation threshold; 669 daily requests through the closeout read
   against the 1,500 default `MAP_DAILY_REQUEST_CAP`. Below the ~$1.2–1.3/day projection,
   because the repair also STOPPED work: the stragglers are no longer re-dispatched every
   hour, so cycles settled at ~31 batches rather than the transition's ~44. `openai_reduce`
@@ -1310,7 +1310,7 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   document holding ANY claims was published **2026-08-23T18:55:40Z — about 35 minutes
   short** of that run's window floor of 2026-08-23T19:30:13Z, so the window was empty for
   every theater and track and all ten fell back. The map is closing on the publication
-  front but still trails it: at 2026-08-25T01:00Z the newest claimed document is published
+  front but still trails it: at 2026-08-24T21:05Z the newest claimed document is published
   2026-08-24T04:41:29Z while the pending queue spans 2026-08-24T04:43:20Z → 21:04:40Z. What
   remains is purely the backlog-versus-recency ordering decision, and the margin is now
   small enough that closing the remaining lag would let mapreduce resume unaided.

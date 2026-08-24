@@ -3150,7 +3150,7 @@ full evidence: `docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md`.
    is a separate backlog-versus-recency question. No second deployment, no environment or cap
    change, no model activation, no remap, no paid evaluation call.
 
-## 2026-08-25 — OPEN-TASKS #86 recovery window CLOSED (PASS); #86 closed, #88 re-scoped, #98 filed
+## 2026-08-24 — OPEN-TASKS #86 recovery window CLOSED (PASS); #86 closed, #88 re-scoped, #98 filed
 
 Read-only closeout of the window opened by the 2026-08-23 map Unicode batch repair. No
 deployment, no cron invocation, no remap, no regeneration, no paid call, no environment or
@@ -3183,7 +3183,7 @@ cap change; the only writes are to `docs/`.
    as a dedup mirror. (The fifth, 2263, is dated 2026-07-01, outside `MAP_EPOCH`.)
 5. **Spend inside every bound and below projection:** $0.9127 in the window; daily $0.7002
    / $0.7885 against `MAP_USD_CAP_DAILY=4`; all-time **$18.2790 of $40**, under the $25
-   escalation threshold; 669 daily requests at most against the 1,500 default. Cheaper than
+   escalation threshold; 669 daily requests through the closeout read, against the 1,500 default. Cheaper than
    the ~$1.2–1.3/day projection because the repair stopped the stragglers being
    re-dispatched hourly. `openai_reduce` still records nothing since 2026-08-16.
 6. **Freshness recovered.** Three episode-deduped `unhealthy` notices (18:40Z, 00:40Z,

@@ -677,13 +677,30 @@ and is not touched here.
 
 ## 14. Recovery window — CLOSED, `UNICODE_RECOVERY_STATUS = PASS`
 
-Closed from the production record on 2026-08-25T00:50Z–01:20Z, read-only. The
+Closed from the production record on 2026-08-24, reads ≈20:40Z–21:09Z, read-only. The
 window's earliest permitted closeout was 2026-08-24T15:05:00Z; this session ran
 later, which is harmless — nothing in the closeout is time-sensitive and every
 check reads durable rows. Nothing was deployed, invoked, remapped, regenerated or
 changed: no deployment, no environment or cap change, no model activation, no
 manual cron invocation, no remap (not even a dry run), no paid evaluation, no
 `FORCE_REGEN`. The only writes this session made are to files in `docs/`.
+
+> **Timestamp erratum (found and corrected in the pre-merge adjudication review,
+> 2026-08-24).** This closeout originally recorded its own read times four hours
+> fast — the read window as `2026-08-25T00:50Z–01:20Z` and the as-of stamps below
+> as `2026-08-25T01:00Z` — and, following that clock, dated itself 2026-08-25
+> across all five updated documents (true date: 2026-08-24). The cause: the Neon serverless driver serializes
+> timezone-NAIVE timestamps (`AT TIME ZONE 'UTC'` results, `date` columns) as if
+> they were local ET wall time and appends a `Z`, shifting them +4 h; asking the
+> database "what time is it" through that path returns a wrong answer.
+> `timestamptz` values — every cycle stamp, spend row and observation in this
+> section — serialize correctly and are unaffected. The true read span is pinned
+> by durable records: the observed lease residue `{"fence": 68}` was current only
+> 2026-08-24T20:40:21Z–21:40:21Z, the closeout commit is authored
+> 2026-08-24T21:09:09Z, and the PR opened 21:10:42Z. The as-of stamps are set to
+> 21:05Z, bounded below by the pending-queue tail they observed (21:04:40Z) and
+> above by the commit. Verify epoch arithmetic (`extract(epoch from now())`), not
+> driver-rendered clock strings.
 
 ### 14a. The window, cycle by cycle
 
@@ -751,11 +768,17 @@ very next cycle and stayed moved:
 | 2026-08-23T13:40Z (old build) | 139 | 537 |
 | 2026-08-23T14:40Z (**first repaired**) | **139** | **1,000** |
 | 2026-08-23T15:40Z | **0** | 1,000 |
-| … every cycle through 14:40Z | **0** | 1,000 |
+| … every cycle through 14:40Z | **0** | 999–1,000 |
 
-The mechanism is the one §9b described. The 139 were already-mapped documents
-pinned inside the selection window by the 463 permanently-stuck stragglers
-sharing it. The first repaired cycle drained the stragglers — which is why
+The mechanism is a refinement of §9b's picture (corrected in the pre-merge
+adjudication review — §9b's 463 + 537 decomposition of the frozen 1,000-document
+window leaves no room for 139 further *documents*): per `map-worker.ts`,
+`counts.alreadyMapped` counts current-version **doc-track pairs** removed from
+the pending set, not documents — a selected document contributes once per
+applicable track that already holds a current-version `doc_map_state` row. The
+frozen window's documents carried exactly 139 such pairs, and the count sat
+constant because the throttled worker re-selected the same frozen window every
+cycle. The first repaired cycle drained the stragglers — which is why
 `processedMarked` moved in the same cycle — but it was still *selecting* the old
 window when it counted them. The next selection advanced past that region
 entirely, and `alreadyMapped` has read 0 ever since. The signal was one cycle
@@ -800,11 +823,11 @@ with its 1 `doc_map_state` row, exactly as §6 recorded. No discrepancy.
 
 | Quantity | Projection in §9b | Measured |
 |---|---|---|
-| `openai_map` daily spend | ~$1.2–1.3/day while draining | **$0.7002** (08-23, 600 requests) · **$0.7885** (08-24, 669 requests) |
+| `openai_map` daily spend | ~$1.2–1.3/day while draining | **$0.7002** (08-23, 600 requests) · **$0.7885** (08-24, 669 requests through the ~21:05Z read; day incomplete) |
 | Window spend | — | **$0.9127** across the 24 cycles |
 | Daily cap | `MAP_USD_CAP_DAILY = 4` | never approached |
 | All-time | $17.1484 of `MAP_SPRINT_USD_CAP = 40`; escalate above $25 | **$18.2790 of $40** — escalation threshold not reached |
-| Daily requests | ~1,056 projected, cap default 1,500 | **669 maximum** — the projection assumed ~44 batches/cycle; actual settled at ~31 |
+| Daily requests | ~1,056 projected, cap default 1,500 | **669 through the closeout read** (08-24 still running; full-day ≈770 at cycle pace) — the projection assumed ~44 batches/cycle; actual settled at ~31 |
 | Budget stops | any non-`run_cap` escalates | **none of any category** |
 
 Spend came in below projection because the repair reduced work as well as
@@ -853,7 +876,7 @@ None of these blocks the PASS; all are recorded rather than glossed.
    published **2026-08-23T18:55:40Z** — about **35 minutes short** of that run's
    window floor of 2026-08-23T19:30:13Z — so the window was empty for every
    theater and track, and every one of the ten fell back. The map is closing on
-   the publication front but still trails it: at 2026-08-25T01:00Z the newest
+   the publication front but still trails it: at 2026-08-24T21:05Z the newest
    claimed document is published 2026-08-24T04:41:29Z while the pending queue
    runs 2026-08-24T04:43:20Z → 21:04:40Z. **#88 is no longer blocked on #86** —
    what remains is the backlog-versus-recency ordering decision, and the margin

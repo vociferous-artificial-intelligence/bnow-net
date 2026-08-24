@@ -876,7 +876,7 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     Complete fix: add a fence column to `doc_claims`/`doc_map_state` and have each write
     refuse a lower fence in the same statement — a MIGRATION, deliberately out of the
     2026-08-21 release's scope. Audit refs: G4, L4-2, safety-review n1.
-86. **[CLOSED 2026-08-25 — repair deployed 2026-08-23, 24-hour recovery window PASS; batch
+86. **[CLOSED 2026-08-24 — repair deployed 2026-08-23, 24-hour recovery window PASS; batch
     rejection 56.8% → 0.0%]** ~57% of map micro-batches WERE rejected by the provider with
     `400 Invalid body: failed to parse JSON value`. Measured from `cron_runs`: 0% through
     2026-07-15, first appearing 2026-07-16 (7.1%), then a continuously RISING plateau, flat
@@ -949,7 +949,7 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     poisoned documents are now `processed=true` with **31 `doc_map_state` rows** — exactly
     the 31 doc-track pairs predicted — and 21 claims. One prediction did NOT land and is
     carried forward: `alreadyMapped` stayed frozen at 139.
-    **CLOSED 2026-08-25 — `UNICODE_RECOVERY_STATUS = PASS`.** The 24-hour recovery window
+    **CLOSED 2026-08-24 — `UNICODE_RECOVERY_STATUS = PASS`.** The 24-hour recovery window
     2026-08-23T15:00:00Z → 2026-08-24T15:00:00Z ran 24 natural `:40` cycles, none invoked,
     and met every criterion: `batchErrors` **0 on all 24 — 0 of 767 batches** against the
     591-of-1,041 (56.8%) baseline; `ok=true` and `finished_at` set on all 24 with no
@@ -979,7 +979,7 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     before `MAP_EPOCH`, hence outside the epoch-scoped scan; verified directly as
     `processed=true` with its one row.) **Spend:** $0.9127 in the window; daily $0.7002 /
     $0.7885 against `MAP_USD_CAP_DAILY=4`; all-time **$18.2790 of the $40
-    `MAP_SPRINT_USD_CAP`** — under the $25 escalation threshold; max 669 daily requests
+    `MAP_SPRINT_USD_CAP`** — under the $25 escalation threshold; 669 daily requests through the closeout read
     against the 1,500 default. Cheaper than the ~$1.2–1.3/day projection because the repair
     also stopped the stragglers being re-dispatched hourly. **Freshness recovered:**
     `map-health` sent three episode-deduped unhealthy notices (18:40Z, 00:40Z, 07:40Z, three
@@ -1010,7 +1010,7 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     error IS NULL` and nothing alerted. The cheapest improvement that would make a recovery
     window self-evidencing is to record the first N distinct batch-error messages into
     `counts.batchErrorSamples`; until then, classifying a residual map 400 needs the Vercel
-    runtime log. **STATUS 2026-08-25 (from the #86 recovery-window closeout): `map` is now
+    runtime log. **STATUS 2026-08-24 (from the #86 recovery-window closeout): `map` is now
     CLEAN and the legacy digest path is the LARGEST REMAINING instance of this family.**
     `digest:intraday` 2026-08-23T19:30:13Z recorded `errors: 2` with `ok=true` and
     `counts.errorMessages` holding the identical
@@ -1022,25 +1022,28 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     extreme instance is gone; the mechanical fix for the digest instance is #97's
     `openai-provider.ts:153` site.
 88. **[Tier 1 — pipeline] No digest has used the mapreduce engine since 2026-08-17.** All
-    11 digests/day fall back to legacy because their windows find no current-version
-    `doc_claims`; `provider_state.map_health` reads `stale_ir,stale_ru,stale_ua`. The map
-    worker is healthy (~4–6K claims/day) but is draining the ru/ua BACKLOG — old documents
-    — so nothing lands in the current-day window. Consequence: the A/B-validated mapreduce
+    11 digests/day fall back to legacy because their ROLLING windows find no
+    current-version `doc_claims`: the healthy post-#86 worker still trails the
+    publication front by hours while it finishes the drain, so nothing lands inside the
+    last-24-hours window at digest time. (Through 2026-08-24 the cause was the throttled
+    worker pinned to the ru/ua backlog with `map_health` reading
+    `stale_ir,stale_ru,stale_ua`; freshness has since recovered — see the RE-SCOPE
+    below.) Consequence: the A/B-validated mapreduce
     quality gains (and ruling 18's whole configuration) are not reaching production output,
     while `DIGEST_ENGINE=mapreduce` and the standing documentation both said otherwise
-    (corrected in place 2026-08-21). **RE-SCOPED 2026-08-25 — no longer blocked on #86,
+    (corrected in place 2026-08-21). **RE-SCOPED 2026-08-24 — no longer blocked on #86,
     which is CLOSED.** The #86 recovery restored map throughput and freshness (backlog
     25,857 → 7,292; `map_health` recovery notice 2026-08-24T13:40Z, `episodeKey` now null;
     the worker is mapping documents dated 08-22/23/24), and mapreduce still did NOT resume:
     the `digest:intraday` run at 2026-08-24T19:30Z produced 10 legacy digests. **Mechanism,
-    measured 2026-08-25:** `digest:intraday` uses a ROLLING 24-hour window, not the digest
+    measured 2026-08-24:** `digest:intraday` uses a ROLLING 24-hour window, not the digest
     day (`src/app/api/cron/digest/route.ts:50`; `inRollingWindow` admits a claim only if its
     document's `published_at` is inside the last 24 h), and `engine.ts` falls back whenever
     `generateMapReduceDigest` returns null for an empty window. At the 19:30:13Z run the
     newest document holding ANY claims was published **2026-08-23T18:55:40Z — about 35
     minutes short** of that run's window floor (2026-08-23T19:30:13Z), so the window was
     empty for every theater and track and all ten fell back. The map is closing on the
-    publication front but still trails it: at 2026-08-25T01:00Z the newest claimed document
+    publication front but still trails it: at 2026-08-24T21:05Z the newest claimed document
     is published 2026-08-24T04:41:29Z while the pending queue spans 2026-08-24T04:43:20Z →
     21:04:40Z. What remains is purely the backlog-versus-recency ordering decision:
     prioritise recent documents ahead of strict oldest-first order, or move the digest
@@ -1193,7 +1196,7 @@ docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md)
     measurement — the digest one IS #87's fix and must not be bundled with the reduce one.
     Deliberately NOT fixed in the #86 release, which was required to stay isolated.
 
-### New (from the #86 recovery-window closeout — 2026-08-25,
+### New (from the #86 recovery-window closeout — 2026-08-24,
 docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md §14)
 
 98. **[Tier 2 — reliability/observability] `ingest:telegram` is leaving `finished_at IS NULL`

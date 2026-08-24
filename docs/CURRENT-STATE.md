@@ -5,7 +5,7 @@ this file is **not append-only**: correct it in place whenever live product, ope
 deployment, test, credential, or repository state changes. Historical narrative belongs in
 `PROGRESS.md`, review notes, and `DECISIONS.md`.
 
-## Current state — snapshot (verified through 2026-08-23; correct in place when it changes)
+## Current state — snapshot (verified through 2026-08-24; correct in place when it changes)
 
 Live at **https://bnow.net** (Vercel project `bnow-net`, team `vociferous`;
 deployment URLs are SSO-walled — always use the project domain). History/narrative:
@@ -182,7 +182,7 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   activation hard lock is untouched: only the baseline `gpt-4o-mini`/no-effort
   configuration can dispatch, which makes this a prompt-revision tool until an operator
   authorizes an activation — which additionally needs an executed, costed corpus remap
-  and a paid representative scorecard (#81). NOTE (corrected 2026-08-25): the stall-bound
+  and a paid representative scorecard (#81). NOTE (corrected 2026-08-24): the stall-bound
   objection is GONE — #86 is CLOSED (map micro-batch rejection **56.8% → 0.0%**, held for
   767 consecutive batches across the 24-cycle recovery window), so the driver's 3-call
   stall bound no longer trips on batch rejections. Remap remains unexecuted and
@@ -225,16 +225,22 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   server-side. A/B gate PASSED (coverage 25.0 vs 21.1, unsupported 0.30 vs 0.41,
   variance 6.9 vs 8.0; `docs/reviews/MR3-REDUCE-RESULTS.md`). A theater falls back to
   legacy automatically whenever its digest window finds no CURRENT-version doc_claims.
-  **Corrected 2026-08-21: that fallback is now UNIVERSAL — since 2026-08-17 every digest
-  (11/day, all theaters) has been produced by the LEGACY engine**, and
-  `provider_state.map_health` reads `stale_ir,stale_ru,stale_ua`. Before that only ir got
-  mapreduce (1–3/day). The map worker is healthy but is draining the ru/ua backlog, so
-  current-day windows hold no current-version claims. The last mapreduce digest was
-  **2026-08-16T19:32:38Z**; every digest created on or after 2026-08-17 is legacy.
+  **That fallback is currently UNIVERSAL — since 2026-08-17 every digest (11/day, all
+  theaters) has been produced by the LEGACY engine** (before that only ir got mapreduce,
+  1–3/day; last mapreduce digest **2026-08-16T19:32:38Z**). The reason has CHANGED with
+  the #86 repair: through 2026-08-24 the throttled worker was pinned to the backlog and
+  `provider_state.map_health` read `stale_ir,stale_ru,stale_ua`; freshness has since
+  recovered (see below), but the healthy worker still trails the publication front by
+  hours while it finishes the drain, and the last measured `digest:intraday` run
+  (2026-08-24T19:30Z) found its ROLLING 24-hour window (keyed on `published_at`) empty of
+  current-version claims and fell back on all ten digests — that residual gap is
+  OPEN-TASKS #88's backlog-versus-recency ordering decision; by the closeout read the
+  newest claimed document sat inside a fresh rolling window, so mapreduce resumes on its
+  own as soon as a run's window is non-empty.
   The compounding cause, OPEN-TASKS #86 (map micro-batches rejected `400 Invalid body`
   since 2026-07-16, peaking at 591 of 1,041 = **56.8%** in the 2026-08-22 soak window,
   root-caused to surrogate-splitting truncation in `map-prompts.ts`), is **CLOSED as of
-  2026-08-25**: the repair went live 2026-08-23 (PR #10, merge `0aa3d7d`,
+  2026-08-24**: the repair went live 2026-08-23 (PR #10, merge `0aa3d7d`,
   `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`) — `wellFormedSlice` + `dropIsolatedSurrogates`, same
   code-unit ceiling, same four extractor versions, no remap — and its 24-hour recovery
   window (2026-08-23T15:00:00Z → 2026-08-24T15:00:00Z) closed **PASS** with `batchErrors`
@@ -248,7 +254,7 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   24-hour window keyed on the document's `published_at`, and at 19:30:13Z the newest
   document holding ANY claims was published 2026-08-23T18:55:40Z — about **35 minutes
   short** of the window floor — so the window was empty for every theater/track. The map is
-  closing on the publication front but still trails it (2026-08-25T01:00Z: newest claimed
+  closing on the publication front but still trails it (2026-08-24T21:05Z: newest claimed
   document published 2026-08-24T04:41:29Z; pending queue 2026-08-24T04:43:20Z →
   21:04:40Z). What remains is only the backlog-versus-recency ordering decision. Tracked as
   #88. Both engines persist
