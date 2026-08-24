@@ -1,0 +1,796 @@
+{
+  "synthetic": true,
+  "provenance": "authored-2026-08-17",
+  "disclaimer": "SYNTHETIC TEST FIXTURE. Every reference unit and claim in this file is an invented, hand-authored scenario written in the STYLE of expert-benchmark takeaways and BNOW claims. No sentence reproduces or paraphrases any real ISW/CTP publication; no report with these contents exists; all specific events, quantities, persons, and codenames are fictional. Series ids and dates identify the fixture SHAPE only and must never be read as statements about real reports or real events.",
+  "fixtureVersion": 1,
+  "conflictId": "russia_ukraine",
+  "scenarios": [
+    {
+      "id": "roca-ua-only-001b",
+      "title": "UA-corpus claim alone satisfies a war-level development",
+      "acceptanceRef": "ROCA: a development supported only by a UA-tagged claim",
+      "conflictId": "russia_ukraine",
+      "report": {
+        "series": "roca",
+        "editionKey": "roca:2026-08-10:final",
+        "reportDate": "2026-08-10",
+        "cutoffAt": "2026-08-10T19:45:00Z",
+        "publishedAt": "2026-08-10T23:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "Ukrainian forces repelled a series of Russian mechanized assaults northwest of Kupiansk on August 10 and retained their positions along the Oskil riverbank.",
+            "lane": "frontline_maneuver",
+            "compound": false,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9001,
+          "theater": "ua",
+          "track": "military",
+          "text": "Ukrainian units reportedly repelled Russian mechanized assaults northwest of Kupiansk on August 10, holding positions near the Oskil river.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-10",
+          "docs": [
+            {
+              "docId": 70001,
+              "adapter": "rss",
+              "platform": null,
+              "sourceDomain": "frontline-wire.example",
+              "publishedAt": "2026-08-10T06:00:00Z",
+              "fetchedAt": "2026-08-10T07:00:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": true,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "eligibility": {
+          "9001": {
+            "included": true,
+            "lane": "frontline_maneuver",
+            "reasons": [
+              "lane:frontline_maneuver",
+              "geo:ua-frontline",
+              "window:in"
+            ]
+          }
+        },
+        "corpusRecall": {
+          "u0": "matched"
+        },
+        "publishedRetention": {
+          "u0": "matched"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ua"
+            ],
+            "tracks": [
+              "military"
+            ]
+          }
+        },
+        "headline": {
+          "corpusRecall": {
+            "matched": 1,
+            "denominator": 1
+          },
+          "publishedRetention": {
+            "matched": 1,
+            "denominator": 1
+          }
+        },
+        "notes": "Proves the combined denominator accepts evidence regardless of which country corpus retained it. Under the legacy per-country model the RU row would have scored this development a miss; the combined russia_ukraine evaluation counts it once, attributed to the ua theater bucket (contract section 2, section 7). Headline pin (Gate-0 M4, register #8): corpusRecall 1/1 and publishedRetention 1/1 - the clean-match anchor; full-report golden arithmetic remains P4's deliverable."
+      }
+    },
+    {
+      "id": "roca-ru-source-002",
+      "title": "RU-corpus source supports an event inside Ukraine",
+      "acceptanceRef": "ROCA: a development supported only by a RU-tagged source about an event inside Ukraine",
+      "conflictId": "russia_ukraine",
+      "report": {
+        "series": "roca",
+        "editionKey": "roca:2026-08-10:final",
+        "reportDate": "2026-08-10",
+        "cutoffAt": "2026-08-10T19:45:00Z",
+        "publishedAt": "2026-08-10T23:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "Russian forces made a marginal advance southeast of Siversk on August 10, pressing toward the rail line west of the town.",
+            "lane": "frontline_maneuver",
+            "compound": false,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9002,
+          "theater": "ru",
+          "track": "military",
+          "text": "Russian military channels claimed Russian troops advanced southeast of Siversk toward the rail line on August 10.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-10",
+          "docs": [
+            {
+              "docId": 70002,
+              "adapter": "telegram-web",
+              "platform": "telegram",
+              "sourceDomain": "milchannel-mirror.example",
+              "publishedAt": "2026-08-10T09:30:00Z",
+              "fetchedAt": "2026-08-10T10:05:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": true,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "eligibility": {
+          "9002": {
+            "included": true,
+            "lane": "frontline_maneuver",
+            "reasons": [
+              "lane:frontline_maneuver",
+              "geo:ua-frontline",
+              "window:in"
+            ]
+          }
+        },
+        "corpusRecall": {
+          "u0": "matched"
+        },
+        "publishedRetention": {
+          "u0": "matched"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ru"
+            ],
+            "tracks": [
+              "military"
+            ]
+          }
+        },
+        "notes": "Relevance, not source geography (contract section 5): the claim was routed to the ru corpus but describes an event inside Ukraine and is eligible for the combined evaluation. The legacy UA country row could never see this evidence."
+      }
+    },
+    {
+      "id": "roca-crimea-003",
+      "title": "Occupied Crimea event is in-scope 'both' geography",
+      "acceptanceRef": "ROCA: occupied Crimea (or another `both` geography)",
+      "conflictId": "russia_ukraine",
+      "report": {
+        "series": "roca",
+        "editionKey": "roca:2026-08-10:final",
+        "reportDate": "2026-08-10",
+        "cutoffAt": "2026-08-10T19:45:00Z",
+        "publishedAt": "2026-08-10T23:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "Ukrainian drones struck a Russian air-defense radar site near Yevpatoriia in occupied Crimea overnight on August 9 to 10, causing a fire at the position.",
+            "lane": "occupied_crossborder",
+            "compound": false,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9003,
+          "theater": "ua",
+          "track": "military",
+          "text": "A drone strike reportedly disabled a radar unit near Yevpatoriia in occupied Crimea overnight on August 9 to 10.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-10",
+          "docs": [
+            {
+              "docId": 70003,
+              "adapter": "rss",
+              "platform": null,
+              "sourceDomain": "black-sea-monitor.example",
+              "publishedAt": "2026-08-10T05:20:00Z",
+              "fetchedAt": "2026-08-10T06:10:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": true,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "eligibility": {
+          "9003": {
+            "included": true,
+            "lane": "occupied_crossborder",
+            "reasons": [
+              "lane:occupied_crossborder",
+              "geo:occupied-crimea",
+              "window:in"
+            ]
+          }
+        },
+        "corpusRecall": {
+          "u0": "matched"
+        },
+        "publishedRetention": {
+          "u0": "matched"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ua"
+            ],
+            "tracks": [
+              "military"
+            ]
+          }
+        },
+        "notes": "Occupied territories including Crimea are explicitly in-scope for russia_ukraine (contract section 5 predicate 5). The classic 'both'-geography case produces ONE combined observation, not two overlapping country rows."
+      }
+    },
+    {
+      "id": "roca-dprk-004",
+      "title": "North Korean military support for Russia",
+      "acceptanceRef": "ROCA: North Korean military support",
+      "conflictId": "russia_ukraine",
+      "report": {
+        "series": "roca",
+        "editionKey": "roca:2026-08-10:final",
+        "reportDate": "2026-08-10",
+        "cutoffAt": "2026-08-10T19:45:00Z",
+        "publishedAt": "2026-08-10T23:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "North Korea delivered an additional shipment of artillery ammunition and short-range rockets to Russia through the port of Vostochny in early August, sustaining Russian fires along the eastern front.",
+            "lane": "russia_partners",
+            "compound": false,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9004,
+          "theater": "ru",
+          "track": "military",
+          "text": "Imagery analysts assessed that a new DPRK ammunition shipment arrived at Vostochny port in early August for onward transfer to Russian forces.",
+          "hedging": "assessed",
+          "claimDate": "2026-08-09",
+          "docs": [
+            {
+              "docId": 70004,
+              "adapter": "x-api",
+              "platform": "x",
+              "sourceDomain": "osint-imagery.example",
+              "publishedAt": "2026-08-09T18:40:00Z",
+              "fetchedAt": "2026-08-09T19:02:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": true,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "eligibility": {
+          "9004": {
+            "included": true,
+            "lane": "russia_partners",
+            "reasons": [
+              "actor:dprk-military-support",
+              "lane:russia_partners",
+              "window:in"
+            ]
+          }
+        },
+        "corpusRecall": {
+          "u0": "matched"
+        },
+        "publishedRetention": {
+          "u0": "matched"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ru"
+            ],
+            "tracks": [
+              "military"
+            ]
+          }
+        },
+        "notes": "DPRK military support is on the russia_ukraine actor roster (contract section 5 predicate 4; test-mandated inclusion). The event is outside both ua and ru borders yet in-scope by actor involvement."
+      }
+    },
+    {
+      "id": "roca-coalition-005",
+      "title": "NATO member-state decision directly shaping the war",
+      "acceptanceRef": "ROCA: an EU/NATO/member-state decision directly shaping the war",
+      "conflictId": "russia_ukraine",
+      "report": {
+        "series": "roca",
+        "editionKey": "roca:2026-08-10:final",
+        "reportDate": "2026-08-10",
+        "cutoffAt": "2026-08-10T19:45:00Z",
+        "publishedAt": "2026-08-10T23:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "A NATO member state approved a new air-defense package for Ukraine on August 10, including two additional interceptor batteries slated for delivery within a month.",
+            "lane": "foreign_support",
+            "compound": false,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9005,
+          "theater": "ua",
+          "track": "military",
+          "text": "A NATO member government announced approval of two additional air-defense interceptor batteries for Ukraine on August 10.",
+          "hedging": "confirmed",
+          "claimDate": "2026-08-10",
+          "docs": [
+            {
+              "docId": 70005,
+              "adapter": "rss",
+              "platform": null,
+              "sourceDomain": "europe-wire.example",
+              "publishedAt": "2026-08-10T11:00:00Z",
+              "fetchedAt": "2026-08-10T11:45:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": true,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "eligibility": {
+          "9005": {
+            "included": true,
+            "lane": "foreign_support",
+            "reasons": [
+              "actor:nato-eu-decision",
+              "lane:foreign_support",
+              "window:in"
+            ]
+          }
+        },
+        "corpusRecall": {
+          "u0": "matched"
+        },
+        "publishedRetention": {
+          "u0": "matched"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ua"
+            ],
+            "tracks": [
+              "military"
+            ]
+          }
+        },
+        "notes": "Coalition decisions materially shaping the war are in-scope (contract section 5 test-mandated inclusions; foreign_support lane covers coalition decisions for Ukraine)."
+      }
+    },
+    {
+      "id": "roca-eu-domestic-006",
+      "title": "Unrelated European domestic news is excluded despite the EU actor",
+      "acceptanceRef": "ROCA: unrelated European domestic news that must be excluded",
+      "conflictId": "russia_ukraine",
+      "report": {
+        "series": "roca",
+        "editionKey": "roca:2026-08-10:final",
+        "reportDate": "2026-08-10",
+        "cutoffAt": "2026-08-10T19:45:00Z",
+        "publishedAt": "2026-08-10T23:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "European Union defense ministers agreed on August 10 to accelerate joint procurement of artillery shells destined for Ukraine.",
+            "lane": "foreign_support",
+            "compound": false,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9006,
+          "theater": "ua",
+          "track": "military",
+          "text": "EU agriculture ministers reportedly failed to agree on a dairy subsidy compromise at an August 10 meeting.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-10",
+          "docs": [
+            {
+              "docId": 70006,
+              "adapter": "rss",
+              "platform": null,
+              "sourceDomain": "brussels-daily.example",
+              "publishedAt": "2026-08-10T13:15:00Z",
+              "fetchedAt": "2026-08-10T14:00:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": false,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "eligibility": {
+          "9006": {
+            "included": false,
+            "reason": "off_scope"
+          }
+        },
+        "corpusRecall": {
+          "u0": "miss"
+        },
+        "publishedRetention": {
+          "u0": "miss"
+        },
+        "contribution": {},
+        "notes": "EU-actor membership alone never satisfies eligibility (contract section 5: unrelated EU news excluded despite region/actor membership). The in-scope procurement unit stays a genuine miss because the only candidate is off_scope; the unit is never dropped from the denominator."
+      }
+    },
+    {
+      "id": "roca-recurring-template-007",
+      "title": "Same town and action class on different dates must not match",
+      "acceptanceRef": "ROCA: same town and action class on different dates (must NOT match \u2014 ruling-12 spirit)",
+      "conflictId": "russia_ukraine",
+      "report": {
+        "series": "roca",
+        "editionKey": "roca:2026-08-10:final",
+        "reportDate": "2026-08-10",
+        "cutoffAt": "2026-08-10T19:45:00Z",
+        "publishedAt": "2026-08-10T23:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "Russian forces shelled residential areas of Kostiantynivka on the morning of August 10, damaging a market building.",
+            "lane": "strikes_air_defense",
+            "compound": false,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9007,
+          "theater": "ua",
+          "track": "military",
+          "text": "Russian shelling reportedly damaged a market building in Kostiantynivka on August 3.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-03",
+          "docs": [
+            {
+              "docId": 70007,
+              "adapter": "rss",
+              "platform": null,
+              "sourceDomain": "donbas-local.example",
+              "publishedAt": "2026-08-03T10:00:00Z",
+              "fetchedAt": "2026-08-03T11:00:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": true,
+          "stub": false
+        },
+        {
+          "claimId": 9008,
+          "theater": "ua",
+          "track": "military",
+          "text": "Russian shelling reportedly struck residential blocks in Kostiantynivka on August 8.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-08",
+          "docs": [
+            {
+              "docId": 70008,
+              "adapter": "rss",
+              "platform": null,
+              "sourceDomain": "donbas-local.example",
+              "publishedAt": "2026-08-08T09:30:00Z",
+              "fetchedAt": "2026-08-08T10:15:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": true,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "eligibility": {
+          "9007": {
+            "included": false,
+            "reason": "off_window"
+          },
+          "9008": {
+            "included": true,
+            "lane": "strikes_air_defense",
+            "reasons": [
+              "lane:strikes_air_defense",
+              "geo:ua",
+              "window:in-edge"
+            ]
+          }
+        },
+        "corpusRecall": {
+          "u0": "miss"
+        },
+        "publishedRetention": {
+          "u0": "miss"
+        },
+        "contribution": {},
+        "notes": "Ruling-12 spirit: identical town + action class on distant days is a recurring template, not the same event. Claim 9007 (August 3) is outside the FROZEN evaluation window (contract section 5, register #6: reportDate minus 2 days through the END ladder cutoff|published|report-day, inclusive END). Claim 9008 (August 8) sits exactly on the window start (hence window:in-edge) and is eligible, but its date is incompatible with the unit's August 10 event, and section 6.3 forbids matching on shared place/action alone."
+      }
+    },
+    {
+      "id": "roca-retention-gap-008b",
+      "title": "Mapped-corpus match omitted from every published output",
+      "acceptanceRef": "ROCA: one mapped-corpus match omitted from published output (corpusRecall matched, publishedRetention miss)",
+      "conflictId": "russia_ukraine",
+      "report": {
+        "series": "roca",
+        "editionKey": "roca:2026-08-10:final",
+        "reportDate": "2026-08-10",
+        "cutoffAt": "2026-08-10T19:45:00Z",
+        "publishedAt": "2026-08-10T23:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "Russian forces conducted a battalion-sized mechanized assault toward Novopavlivka on August 10 and were repelled with significant vehicle losses.",
+            "lane": "frontline_maneuver",
+            "compound": false,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9009,
+          "theater": "ua",
+          "track": "military",
+          "text": "Ukrainian officers reported repelling a battalion-sized Russian mechanized assault toward Novopavlivka on August 10 with heavy vehicle losses.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-10",
+          "docs": [
+            {
+              "docId": 70009,
+              "adapter": "telegram-mtproto",
+              "platform": "telegram",
+              "sourceDomain": "brigade-channel.example",
+              "publishedAt": "2026-08-10T12:20:00Z",
+              "fetchedAt": "2026-08-10T13:03:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": false,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "eligibility": {
+          "9009": {
+            "included": true,
+            "lane": "frontline_maneuver",
+            "reasons": [
+              "lane:frontline_maneuver",
+              "geo:ua-frontline",
+              "window:in"
+            ]
+          }
+        },
+        "corpusRecall": {
+          "u0": "matched"
+        },
+        "publishedRetention": {
+          "u0": "miss"
+        },
+        "contribution": {
+          "u0": {
+            "theaters": [
+              "ua"
+            ],
+            "tracks": [
+              "military"
+            ]
+          }
+        },
+        "headline": {
+          "corpusRecall": {
+            "matched": 1,
+            "denominator": 1
+          },
+          "publishedRetention": {
+            "matched": 0,
+            "denominator": 1
+          }
+        },
+        "notes": "Separates the two pipeline questions (contract section 6.1): the mapped corpus contained the development (published=false doc_claims row) but no designated user-facing digest retained a matching claim. Evidence existence never implies published retention. Contribution follows the corpus-recall matched unit per the FROZEN section 7 population rule (register #6). Headline pin (Gate-0 M4, register #8): corpusRecall 1/1 vs publishedRetention 0/1 - the retention-gap anchor."
+      }
+    },
+    {
+      "id": "roca-compound-partial-009b",
+      "title": "Compound unit with evidence for only one proposition",
+      "acceptanceRef": "ROCA: a compound reference unit with partial evidence (expected `partial`, counted as miss in headline)",
+      "conflictId": "russia_ukraine",
+      "report": {
+        "series": "roca",
+        "editionKey": "roca:2026-08-10:final",
+        "reportDate": "2026-08-10",
+        "cutoffAt": "2026-08-10T19:45:00Z",
+        "publishedAt": "2026-08-10T23:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "Russian forces intensified glide-bomb strikes on Kharkiv City on August 10, and Russian engineering units completed a new pontoon crossing over the Vovcha River to support the Pokrovsk axis.",
+            "lane": "strikes_air_defense",
+            "compound": true,
+            "negative": false
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9010,
+          "theater": "ua",
+          "track": "military",
+          "text": "Russian aircraft reportedly struck Kharkiv City with glide bombs on August 10, damaging industrial buildings.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-10",
+          "docs": [
+            {
+              "docId": 70010,
+              "adapter": "rss",
+              "platform": null,
+              "sourceDomain": "kharkiv-news.example",
+              "publishedAt": "2026-08-10T08:10:00Z",
+              "fetchedAt": "2026-08-10T09:00:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": true,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "eligibility": {
+          "9010": {
+            "included": true,
+            "lane": "strikes_air_defense",
+            "reasons": [
+              "lane:strikes_air_defense",
+              "geo:ua",
+              "window:in"
+            ]
+          }
+        },
+        "corpusRecall": {
+          "u0": "partial"
+        },
+        "publishedRetention": {
+          "u0": "partial"
+        },
+        "contribution": {},
+        "headline": {
+          "corpusRecall": {
+            "matched": 0,
+            "denominator": 1
+          },
+          "publishedRetention": {
+            "matched": 0,
+            "denominator": 1
+          },
+          "partialDiagnostic": 1
+        },
+        "notes": "The unit is compound (glide-bomb strikes AND a pontoon crossing); evidence covers only the strikes. Expected verdict `partial` is DIAGNOSTIC and counts as a MISS in the headline numerator (contract section 3) for both pipeline questions \u2014 never a fraction, never a match. No contribution entry: contribution applies only to matched units. One claim never satisfies multiple distinct propositions on topic overlap alone. Headline pin (Gate-0 M4, register #8): 0/1 in BOTH populations with partialDiagnostic 1 - the partial is visible as a diagnostic beside the headline, never as headline credit."
+      }
+    },
+    {
+      "id": "roca-quiet-day-010b",
+      "title": "Quiet/no-advance unit opposed by a positive advance claim",
+      "acceptanceRef": "ROCA: a quiet/no-advance unit opposed by a positive advance claim (must NOT match)",
+      "conflictId": "russia_ukraine",
+      "report": {
+        "series": "roca",
+        "editionKey": "roca:2026-08-10:final",
+        "reportDate": "2026-08-10",
+        "cutoffAt": "2026-08-10T19:45:00Z",
+        "publishedAt": "2026-08-10T23:30:00Z",
+        "units": [
+          {
+            "unitId": "u0",
+            "text": "Fighting along the Zaporizhia axis stayed static on August 10, with assessed activity limited to positional skirmishes and no verified change of control at any settlement.",
+            "lane": "frontline_maneuver",
+            "compound": false,
+            "negative": true
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "claimId": 9011,
+          "theater": "ua",
+          "track": "military",
+          "text": "Russian troops reportedly advanced up to one kilometer near Robotyne in the Zaporizhia direction on August 10.",
+          "hedging": "claimed",
+          "claimDate": "2026-08-10",
+          "docs": [
+            {
+              "docId": 70011,
+              "adapter": "rss",
+              "platform": null,
+              "sourceDomain": "southern-front.example",
+              "publishedAt": "2026-08-10T15:00:00Z",
+              "fetchedAt": "2026-08-10T15:40:00Z",
+              "mirrorOfDocId": null
+            }
+          ],
+          "engine": "mapreduce",
+          "currentExtractorVersion": true,
+          "published": true,
+          "stub": false
+        }
+      ],
+      "expected": {
+        "eligibility": {
+          "9011": {
+            "included": true,
+            "lane": "frontline_maneuver",
+            "reasons": [
+              "lane:frontline_maneuver",
+              "geo:ua-frontline",
+              "window:in"
+            ]
+          }
+        },
+        "corpusRecall": {
+          "u0": "miss"
+        },
+        "publishedRetention": {
+          "u0": "miss"
+        },
+        "contribution": {},
+        "notes": "Negative/quiet-day units match ONLY explicit absence or stalling claims (contract section 6.3). A positive advance claim in the same direction is opposition, not support \u2014 a scorer that matches on shared place/direction would be caught by this scenario. An explicit 'no assaults recorded in the direction' claim would have matched. (Unit text reworded + id bumped at Gate-0 remediation to widen the gap from the reference series' recurring boilerplate; semantics unchanged: negative/quiet unit vs a positive advance claim must NOT match.)"
+      }
+    }
+  ]
+}
