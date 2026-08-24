@@ -3245,3 +3245,12 @@ post-merge main verification, branding/secret scans).
 - Release train complete: eleven PRs (#12–#22) merged this session, `main`
   `33f405b` → `e359c61` (+ closeout docs); NOTHING deployed — operator action list in
   `docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md` §9.
+
+## 2026-08-24 ~23:45Z — release train DEPLOYED (operator-authorized) + prompts tracked
+
+- PR #24: the three governing prompts tracked (secret-scanned; G1 precedent).
+- Production: `dpl_FPYase3HqbCF3d2uW3AnwPHibyt4` from plain-clone `main` `143964a`;
+  `/health` stamps the commit (no #78 blank-stamp), DB OK; zero env changes.
+- Smoke PASS: conflict routes token-clean bare+RSC (dormant, `CONFLICTS_UI` absent);
+  ruling-21 anonymous spots clean; home 200.
+- Rollback: `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`. QF-A ≥1-day digest observation OPEN.

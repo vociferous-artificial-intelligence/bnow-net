@@ -205,3 +205,16 @@ Shadow soak: compound-unit calibration; assessment diagnostics; the Iran keyword
 (pre-soak code change); source-independence relabel (F-NEW-1); sample-power sizing
 (R-M-6). Enablement: the final-audit checklist incl. F-NEW-6 (`FEATURE_AUTH_GATE=true`
 everywhere `CONFLICTS_UI` is set) and a decision-log entry.
+
+---
+
+## 10. Post-register authorization update (2026-08-24, same day)
+
+The operator authorized §9.1 (deploy) and the governing-prompts recommendation from §6.
+Executed: PR #24 (the three governing prompts, merged `143964a`); production deploy
+`dpl_FPYase3HqbCF3d2uW3AnwPHibyt4` of `main` `143964a` from the plain release clone —
+READY, aliased, `/health` stamps `143964a`, DB OK, smoke PASS (details in the AGENTS.md
+2026-08-24 deploy entry). Rollback target `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`. QF-A
+observation window opened. Still open for the operator: §9.2 (env hygiene), §9.3 (paid
+evals — unchanged, BLOCKED), §9.4 (hygiene), the §6 business-docs and package-manager
+decisions, and the conflict enablement/soak gates.
