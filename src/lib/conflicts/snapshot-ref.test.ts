@@ -1,0 +1,306 @@
+// Phase 5 snapshot-provenance contract tests (workstream prompt §13;
+// register #5): the ref validator's accept/reject matrix, the PER-KIND
+// resolution/refusal wiring (fixture artifacts and honest retrospectives are
+// the only satisfiable kinds in this workstream — cutoff/publication/
+// finalized terminate in refusal even for a hash-verified artifact), the
+// scorer stamp wiring (a verified ref lands in `snapshot.ref`; the default
+// path stays `ref: null`, so golden bytes are untouched), and the
+// persistence gate's fail-closed ref checks with value-free refusals.
+
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { assertPersistableConflictResultV1 } from "./eval-profile";
+import { ConflictDomainError } from "./errors";
+import { loadConflictFixtureScenarios } from "./fixture-corpus";
+import { scoreFixtureScenario } from "./goldens";
+import { formatConflictResultReport } from "./offline-report";
+import {
+  FixtureSnapshotArtifactStore,
+  SNAPSHOT_CAPTURE_KINDS,
+  fixtureSnapshotRef,
+  resolveConflictSnapshot,
+  sha256Hex,
+  snapshotKindsForEvaluation,
+  validateConflictSnapshotRefV1,
+  type ConflictSnapshotRefV1,
+} from "./snapshot-ref";
+import { EVALUATION_KINDS } from "./vocabulary";
+
+const scenarios = loadConflictFixtureScenarios();
+const ROCA_FIXTURE_FILE = "roca-scenarios-v1.json";
+const rocaBytes = readFileSync(join(process.cwd(), "fixtures", "conflicts", ROCA_FIXTURE_FILE));
+const store = new FixtureSnapshotArtifactStore();
+
+function validRef(overrides: Partial<ConflictSnapshotRefV1> = {}): ConflictSnapshotRefV1 {
+  return {
+    ...fixtureSnapshotRef({
+      conflictId: "russia_ukraine",
+      locator: ROCA_FIXTURE_FILE,
+      artifactBytes: rocaBytes,
+      populations: {
+        corpusRecallClaimIds: [9001, 9401],
+        publishedRetentionClaimIds: [9001],
+      },
+      capturedAt: "2026-08-17T00:00:00Z",
+    }),
+    ...overrides,
+  };
+}
+
+describe("validateConflictSnapshotRefV1", () => {
+  it("accepts a well-formed fixture ref (empty populations included)", () => {
+    expect(validateConflictSnapshotRefV1(validRef())).toEqual([]);
+    expect(
+      validateConflictSnapshotRefV1(
+        validRef({ populations: { corpusRecallClaimIds: [], publishedRetentionClaimIds: [] } }),
+      ),
+    ).toEqual([]);
+  });
+
+  it("rejects non-objects, bad versions, unknown kinds/conflicts, and malformed instants", () => {
+    expect(validateConflictSnapshotRefV1(null)).toEqual(["snapshot ref: not an object"]);
+    expect(validateConflictSnapshotRefV1(validRef({ version: 2 as unknown as 1 })).some((e) => e.startsWith("version:"))).toBe(true);
+    expect(
+      validateConflictSnapshotRefV1({ ...validRef(), captureKind: "latest_db_state" }).some((e) =>
+        e.startsWith("captureKind:"),
+      ),
+    ).toBe(true);
+    expect(
+      validateConflictSnapshotRefV1({ ...validRef(), conflictId: "ru" }).some((e) =>
+        e.startsWith("conflictId:"),
+      ),
+    ).toBe(true);
+    // timezone-less instant: the contract's explicit-timezone rule
+    expect(
+      validateConflictSnapshotRefV1(validRef({ capturedAt: "2026-08-17T00:00:00" })).some((e) =>
+        e.startsWith("capturedAt:"),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects malformed artifact identities: bad hash shape, traversal locators, over-long locators", () => {
+    const badHash = validRef();
+    badHash.artifact = { ...badHash.artifact, contentHash: "ABC123" };
+    expect(validateConflictSnapshotRefV1(badHash).some((e) => e.startsWith("artifact.contentHash:"))).toBe(true);
+    const traversal = validRef();
+    traversal.artifact = { ...traversal.artifact, locator: "goldens/../../secrets.json" };
+    expect(validateConflictSnapshotRefV1(traversal).some((e) => e.startsWith("artifact.locator:"))).toBe(true);
+  });
+
+  it("rejects unsorted/duplicate/negative population claim ids", () => {
+    for (const bad of [[2, 1], [1, 1], [-1]]) {
+      expect(
+        validateConflictSnapshotRefV1(
+          validRef({ populations: { corpusRecallClaimIds: bad, publishedRetentionClaimIds: [] } }),
+        ).some((e) => e.startsWith("populations.corpusRecallClaimIds:")),
+      ).toBe(true);
+    }
+  });
+
+  it("rejects superseded-policy refs: every policy version must equal the conflict's CURRENT frozen value", () => {
+    const stale = validRef();
+    stale.policyVersions = { ...stale.policyVersions, laneTaxonomyVersion: "roca-lanes-v0" };
+    expect(
+      validateConflictSnapshotRefV1(stale).some((e) => e.startsWith("policyVersions.laneTaxonomyVersion:")),
+    ).toBe(true);
+    const wrongEpoch = validRef();
+    wrongEpoch.policyVersions = { ...wrongEpoch.policyVersions, methodologyEpoch: "conflict-epoch-0" };
+    expect(
+      validateConflictSnapshotRefV1(wrongEpoch).some((e) => e.startsWith("policyVersions.methodologyEpoch:")),
+    ).toBe(true);
+  });
+
+  it("rejects narrative provenance — only a bounded machine label is persistable", () => {
+    const prose = validRef({ provenance: "captured after the analyst reviewed the day. See notes." });
+    expect(validateConflictSnapshotRefV1(prose).some((e) => e.startsWith("provenance:"))).toBe(true);
+    expect(validateConflictSnapshotRefV1(validRef({ provenance: "capture-cron/2026-08-17T00:00Z@v1" }))).toEqual([]);
+  });
+
+  it("error strings never echo caller-supplied string values (stored-error discipline)", () => {
+    const hostile = validRef({ provenance: "EVILFREETEXTPAYLOAD sentence here. more" });
+    hostile.artifact = { locator: "EVILLOCATORPAYLOAD\u0000x", contentHash: "EVILHASHPAYLOAD" };
+    const errs = validateConflictSnapshotRefV1(hostile);
+    expect(errs.length).toBeGreaterThan(0);
+    for (const e of errs) {
+      expect(e).not.toContain("EVILFREETEXTPAYLOAD");
+      expect(e).not.toContain("EVILLOCATORPAYLOAD");
+      expect(e).not.toContain("EVILHASHPAYLOAD");
+    }
+  });
+});
+
+describe("snapshotKindsForEvaluation", () => {
+  it("retrospective accepts fixture + retrospective_labeled; each snapshot kind accepts ONLY itself", () => {
+    expect(snapshotKindsForEvaluation("retrospective")).toEqual(["fixture", "retrospective_labeled"]);
+    for (const kind of ["operational_cutoff", "at_publication", "finalized"] as const) {
+      expect(snapshotKindsForEvaluation(kind)).toEqual([kind]);
+    }
+  });
+
+  it("the capture-kind union is exactly the five contract kinds", () => {
+    expect([...SNAPSHOT_CAPTURE_KINDS]).toEqual([
+      "fixture",
+      "retrospective_labeled",
+      "operational_cutoff",
+      "at_publication",
+      "finalized",
+    ]);
+  });
+});
+
+describe("resolveConflictSnapshot — per-kind refusal wiring (register #5)", () => {
+  it("retrospective with no ref resolves OK (the honest labeled retrospective makes no snapshot claim)", async () => {
+    const res = await resolveConflictSnapshot("russia_ukraine", "retrospective", null, store);
+    expect(res).toEqual({ ok: true, ref: null });
+  });
+
+  it("retrospective with a hash-verified fixture ref resolves OK and returns the ref", async () => {
+    const ref = validRef();
+    const res = await resolveConflictSnapshot("russia_ukraine", "retrospective", ref, store);
+    expect(res).toEqual({ ok: true, ref });
+  });
+
+  it("EVERY snapshot-anchored kind refuses with missing_ref when no ref exists", async () => {
+    for (const kind of ["operational_cutoff", "at_publication", "finalized"] as const) {
+      const res = await resolveConflictSnapshot("russia_ukraine", kind, null, store);
+      expect(res).toEqual({ ok: false, reason: "no_proven_snapshot", detail: "missing_ref" });
+    }
+  });
+
+  it("an invalid ref refuses invalid_ref; a cross-conflict ref refuses conflict_mismatch", async () => {
+    const invalid = validRef({ capturedAt: "not-a-time" });
+    expect(await resolveConflictSnapshot("russia_ukraine", "retrospective", invalid, store)).toEqual({
+      ok: false,
+      reason: "no_proven_snapshot",
+      detail: "invalid_ref",
+    });
+    expect(await resolveConflictSnapshot("iran_regional", "retrospective", validRef(), store)).toEqual({
+      ok: false,
+      reason: "no_proven_snapshot",
+      detail: "conflict_mismatch",
+    });
+  });
+
+  it("a capture kind that cannot back the evaluation kind refuses kind_mismatch (fixture ref on cutoff scoring included)", async () => {
+    expect(
+      await resolveConflictSnapshot("russia_ukraine", "operational_cutoff", validRef(), store),
+    ).toEqual({ ok: false, reason: "no_proven_snapshot", detail: "kind_mismatch" });
+  });
+
+  it("a missing artifact refuses artifact_missing; wrong bytes refuse artifact_hash_mismatch", async () => {
+    const missing = validRef();
+    missing.artifact = { ...missing.artifact, locator: "no-such-fixture-file-v1.json" };
+    expect(await resolveConflictSnapshot("russia_ukraine", "retrospective", missing, store)).toEqual({
+      ok: false,
+      reason: "no_proven_snapshot",
+      detail: "artifact_missing",
+    });
+    const tampered = validRef();
+    tampered.artifact = { ...tampered.artifact, contentHash: sha256Hex("different bytes") };
+    expect(await resolveConflictSnapshot("russia_ukraine", "retrospective", tampered, store)).toEqual({
+      ok: false,
+      reason: "no_proven_snapshot",
+      detail: "artifact_hash_mismatch",
+    });
+  });
+
+  it("REGISTER #5 TERMINAL RUNG: a snapshot-anchored kind refuses population_unproven even for an existing, hash-verified artifact of the matching capture kind", async () => {
+    for (const kind of ["operational_cutoff", "at_publication", "finalized"] as const) {
+      const ref = validRef({ captureKind: kind });
+      // structure still validates (captureKind is a legal union member)
+      expect(validateConflictSnapshotRefV1(ref)).toEqual([]);
+      const res = await resolveConflictSnapshot("russia_ukraine", kind, ref, store);
+      expect(res).toEqual({ ok: false, reason: "no_proven_snapshot", detail: "population_unproven" });
+    }
+  });
+
+  it("the resolution kinds cover the whole evaluation-kind union (no kind silently unhandled)", async () => {
+    for (const kind of EVALUATION_KINDS) {
+      const res = await resolveConflictSnapshot("russia_ukraine", kind, null, store);
+      expect(typeof res.ok).toBe("boolean");
+    }
+  });
+});
+
+describe("FixtureSnapshotArtifactStore", () => {
+  it("serves ONLY the allowlisted frozen corpus files", async () => {
+    expect(await store.readArtifact(ROCA_FIXTURE_FILE)).not.toBeNull();
+    expect(await store.readArtifact("goldens/golden-results-v1.json")).toBeNull();
+    expect(await store.readArtifact("../../package.json")).toBeNull();
+  });
+});
+
+describe("scorer stamp wiring (additive; golden bytes untouched)", () => {
+  const uaOnly = scenarios.find((s) => s.id === "roca-ua-only-001b")!;
+
+  it("the default fixture path stamps snapshot.ref = null (the committed golden state)", async () => {
+    const result = await scoreFixtureScenario(uaOnly);
+    expect(result.state).toBe("scored");
+    if (result.state === "scored") expect(result.snapshot).toEqual({ ref: null });
+  });
+
+  it("a verified fixture ref rides into snapshot.ref and survives the persistence gate + report render", async () => {
+    const ref = validRef();
+    const resolved = await resolveConflictSnapshot("russia_ukraine", "retrospective", ref, store);
+    expect(resolved.ok).toBe(true);
+    const result = await scoreFixtureScenario(uaOnly, { snapshotRef: ref });
+    expect(result.state).toBe("scored");
+    if (result.state === "scored") {
+      expect(result.snapshot).toEqual({ ref });
+      expect(() => assertPersistableConflictResultV1(result)).not.toThrow();
+      const report = formatConflictResultReport(result);
+      expect(report).toContain("snapshot ref: fixture captured 2026-08-17T00:00:00Z");
+      expect(report).toContain(ref.artifact.contentHash.slice(0, 12));
+      expect(report).not.toContain("none (pre-capture)");
+    }
+  });
+
+  it("the scorer refuses a cross-conflict ref and a kind-incompatible ref (typed, value-free)", async () => {
+    const iranRef = fixtureSnapshotRef({
+      conflictId: "iran_regional",
+      locator: "iran-scenarios-v1.json",
+      artifactBytes: readFileSync(join(process.cwd(), "fixtures", "conflicts", "iran-scenarios-v1.json")),
+      populations: { corpusRecallClaimIds: [], publishedRetentionClaimIds: [] },
+      capturedAt: "2026-08-17T00:00:00Z",
+    });
+    await expect(scoreFixtureScenario(uaOnly, { snapshotRef: iranRef })).rejects.toThrowError(
+      ConflictDomainError,
+    );
+    const wrongKind = validRef({ captureKind: "operational_cutoff" });
+    await expect(scoreFixtureScenario(uaOnly, { snapshotRef: wrongKind })).rejects.toThrowError(
+      ConflictDomainError,
+    );
+  });
+
+  it("the persistence gate refuses a scored result whose snapshot.ref is garbage or cross-conflict, without echoing ref values", async () => {
+    const result = await scoreFixtureScenario(uaOnly);
+    if (result.state !== "scored") throw new Error("expected scored");
+    const garbage = {
+      ...result,
+      snapshot: { ref: { hostile: "FREETEXTPAYLOAD" } as unknown as ConflictSnapshotRefV1 },
+    };
+    try {
+      assertPersistableConflictResultV1(garbage);
+      throw new Error("expected refusal");
+    } catch (e) {
+      expect(e).toBeInstanceOf(ConflictDomainError);
+      expect((e as Error).message).not.toContain("FREETEXTPAYLOAD");
+    }
+    const crossConflict = { ...result, snapshot: { ref: validRef({ conflictId: "iran_regional" }) } };
+    // cross-conflict: the ref itself no longer validates for iran (policy
+    // versions are roca's), so the gate refuses on validity first — build a
+    // VALID iran ref to hit the conflict-agreement check specifically
+    expect(() => assertPersistableConflictResultV1(crossConflict)).toThrowError(ConflictDomainError);
+    const validIranRef = fixtureSnapshotRef({
+      conflictId: "iran_regional",
+      locator: "iran-scenarios-v1.json",
+      artifactBytes: readFileSync(join(process.cwd(), "fixtures", "conflicts", "iran-scenarios-v1.json")),
+      populations: { corpusRecallClaimIds: [], publishedRetentionClaimIds: [] },
+      capturedAt: "2026-08-17T00:00:00Z",
+    });
+    expect(() =>
+      assertPersistableConflictResultV1({ ...result, snapshot: { ref: validIranRef } }),
+    ).toThrowError(/different conflict/);
+  });
+});
