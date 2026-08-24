@@ -876,8 +876,9 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     Complete fix: add a fence column to `doc_claims`/`doc_map_state` and have each write
     refuse a lower fence in the same statement — a MIGRATION, deliberately out of the
     2026-08-21 release's scope. Audit refs: G4, L4-2, safety-review n1.
-86. **[Tier 1 — quality/spend] ~57% of map micro-batches are rejected by the provider with
-    `400 Invalid body: failed to parse JSON value`.** Measured from `cron_runs`: 0% through
+86. **[CLOSED 2026-08-24 — repair deployed 2026-08-23, 24-hour recovery window PASS; batch
+    rejection 56.8% → 0.0%]** ~57% of map micro-batches WERE rejected by the provider with
+    `400 Invalid body: failed to parse JSON value`. Measured from `cron_runs`: 0% through
     2026-07-15, first appearing 2026-07-16 (7.1%), then a continuously RISING plateau, flat
     across every deploy boundary (08-19 46.6% · 08-20 45.4% · 08-21 52.7% · **08-22 57.0%**;
     591 of 1,041 batches inside the 2026-08-22 lease-soak window = **56.8%**) — so it is
@@ -947,11 +948,48 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     `/api/cron/map` runtime log** where every prior cycle carried ~26. All 20 named
     poisoned documents are now `processed=true` with **31 `doc_map_state` rows** — exactly
     the 31 doc-track pairs predicted — and 21 claims. One prediction did NOT land and is
-    carried forward: `alreadyMapped` stayed frozen at 139. **RECOVERY WINDOW OPEN
-    2026-08-23T15:00:00Z → 2026-08-24T15:00:00Z** (2026-08-24 11:00 EDT), 24 expected
-    cycles; this item is `DEPLOYED_RECOVERY_OPEN` until it closes on the criteria above.
-    Report: `docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md` §10–§12. Sibling sites
-    NOT fixed: #97.
+    carried forward: `alreadyMapped` stayed frozen at 139.
+    **CLOSED 2026-08-24 — `UNICODE_RECOVERY_STATUS = PASS`.** The 24-hour recovery window
+    2026-08-23T15:00:00Z → 2026-08-24T15:00:00Z ran 24 natural `:40` cycles, none invoked,
+    and met every criterion: `batchErrors` **0 on all 24 — 0 of 767 batches** against the
+    591-of-1,041 (56.8%) baseline; `ok=true` and `finished_at` set on all 24 with no
+    `budgetStop*` key of any category; lease `acquired` 24/24 with fences **39 → 62,
+    strictly +1**, lost 0 / released 1 / discards 0, residue `{"fence": 68}` with no token,
+    and zero advisory locks; one distinct baseline dispatch identity; the same four
+    extractor versions and no fifth; `processedMarked` 23,999 of 24,000 selected (baseline
+    537/cycle, frozen); 7,164 claims; the 20 poisoned ids never re-selected; zero
+    `map:remap` rows ever; no deployment, environment (86 rows / 48 names, unchanged) or
+    cap change. **Two criteria needed honest handling.** (i) `llmRequests === batches` held
+    on 22 of 24 cycles; the two exceptions are exactly the untouched truncation-split path,
+    where `finish_reason === "length"` increments `truncationSplits` and recurses twice
+    while `batches` does not move — the correct identity is
+    `llmRequests === batches + 2 × truncationSplits`, which holds exactly on both cycles
+    (35+4=39, 27+2=29) and window-wide (767+6=773); `batchErrors` stayed 0 on the split
+    cycles too, so it is a response-length behaviour, not a request-validity one. (ii) The
+    carried-forward `alreadyMapped` = 139 **RESOLVED**: it moved to **0 on the very next
+    cycle** (15:40Z) and on all 23 after it — the 139 were already-mapped documents pinned
+    in the selection window by the 463 stragglers; once those drained the next selection
+    advanced past that region. **Corpus-wide confirmation, closing the report's "20 is a
+    lower bound" risk:** replaying the OLD truncation over the whole eligible pool finds
+    **0 of 7,292** still-unprocessed documents that would orphan a surrogate (2,536 of them
+    carry complete astral pairs), and over the 414,659 processed epoch-eligible ru/ua/ir
+    documents finds 25 — the 20 repaired on 2026-08-23, four of §6's five pre-existing
+    accepted-before-2026-07-16 documents, and one (2311267) dispositioned as a dedup mirror
+    with a `doc_dedup` row and no `doc_map_state`. (§6's fifth, 2263, is dated 2026-07-01,
+    before `MAP_EPOCH`, hence outside the epoch-scoped scan; verified directly as
+    `processed=true` with its one row.) **Spend:** $0.9127 in the window; daily $0.7002 /
+    $0.7885 against `MAP_USD_CAP_DAILY=4`; all-time **$18.2790 of the $40
+    `MAP_SPRINT_USD_CAP`** — under the $25 escalation threshold; 669 daily requests through the closeout read
+    against the 1,500 default. Cheaper than the ~$1.2–1.3/day projection because the repair
+    also stopped the stragglers being re-dispatched hourly. **Freshness recovered:**
+    `map-health` sent three episode-deduped unhealthy notices (18:40Z, 00:40Z, 07:40Z, three
+    stale theaters each) then a **recovery notice at 2026-08-24T13:40Z**; `map_health` now
+    has `episodeKey: null`, the backlog fell **25,857 → 7,292**, and the worker is mapping
+    documents dated 08-22/23/24. Report:
+    `docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md` §10–§14. Sibling sites still NOT
+    fixed: **#97** (including the live paid Ask path). Carried out of the window: **#88**
+    (unblocked from #86, re-scoped — see there), **#87** (now the largest remaining instance
+    of the family), and new **#98**.
 87. **[Tier 2 — observability] `digest:*` — and `validate` — swallow per-item failures into
     an in-run counter while `cron_runs.ok` stays true.** Days 2026-08-01, 08-03 (×2), 08-04,
     08-15 and 08-21 each recorded `counts.errors >= 1` with the same
@@ -972,16 +1010,47 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     error IS NULL` and nothing alerted. The cheapest improvement that would make a recovery
     window self-evidencing is to record the first N distinct batch-error messages into
     `counts.batchErrorSamples`; until then, classifying a residual map 400 needs the Vercel
-    runtime log.
+    runtime log. **STATUS 2026-08-24 (from the #86 recovery-window closeout): `map` is now
+    CLEAN and the legacy digest path is the LARGEST REMAINING instance of this family.**
+    `digest:intraday` 2026-08-23T19:30:13Z recorded `errors: 2` with `ok=true` and
+    `counts.errorMessages` holding the identical
+    `400 Invalid body: failed to parse JSON value` string twice; `validate`
+    2026-08-24T07:00:57Z recorded `errors: 1` with `ok=true` and no message captured.
+    Daily nested digest errors run 0–3/day across 2026-08-15 → 08-24 — the same band before
+    and after the #86 repair, confirming this is untouched pre-existing debt and not a
+    regression. The map job's 24 recovery-window cycles carried `batchErrors = 0`, so the
+    extreme instance is gone; the mechanical fix for the digest instance is #97's
+    `openai-provider.ts:153` site.
 88. **[Tier 1 — pipeline] No digest has used the mapreduce engine since 2026-08-17.** All
-    11 digests/day fall back to legacy because their windows find no current-version
-    `doc_claims`; `provider_state.map_health` reads `stale_ir,stale_ru,stale_ua`. The map
-    worker is healthy (~4–6K claims/day) but is draining the ru/ua BACKLOG — old documents
-    — so nothing lands in the current-day window. Consequence: the A/B-validated mapreduce
+    11 digests/day fall back to legacy because their ROLLING windows find no
+    current-version `doc_claims`: the healthy post-#86 worker still trails the
+    publication front by hours while it finishes the drain, so nothing lands inside the
+    last-24-hours window at digest time. (Through 2026-08-24 the cause was the throttled
+    worker pinned to the ru/ua backlog with `map_health` reading
+    `stale_ir,stale_ru,stale_ua`; freshness has since recovered — see the RE-SCOPE
+    below.) Consequence: the A/B-validated mapreduce
     quality gains (and ruling 18's whole configuration) are not reaching production output,
     while `DIGEST_ENGINE=mapreduce` and the standing documentation both said otherwise
-    (corrected in place 2026-08-21). Blocked-on: #86 (recover ~50% of lost map throughput),
-    then a decision on whether to prioritise recent documents over strict backlog order.
+    (corrected in place 2026-08-21). **RE-SCOPED 2026-08-24 — no longer blocked on #86,
+    which is CLOSED.** The #86 recovery restored map throughput and freshness (backlog
+    25,857 → 7,292; `map_health` recovery notice 2026-08-24T13:40Z, `episodeKey` now null;
+    the worker is mapping documents dated 08-22/23/24), and mapreduce still did NOT resume:
+    the `digest:intraday` run at 2026-08-24T19:30Z produced 10 legacy digests. **Mechanism,
+    measured 2026-08-24:** `digest:intraday` uses a ROLLING 24-hour window, not the digest
+    day (`src/app/api/cron/digest/route.ts:50`; `inRollingWindow` admits a claim only if its
+    document's `published_at` is inside the last 24 h), and `engine.ts` falls back whenever
+    `generateMapReduceDigest` returns null for an empty window. At the 19:30:13Z run the
+    newest document holding ANY claims was published **2026-08-23T18:55:40Z — about 35
+    minutes short** of that run's window floor (2026-08-23T19:30:13Z), so the window was
+    empty for every theater and track and all ten fell back. The map is closing on the
+    publication front but still trails it: at 2026-08-24T21:05Z the newest claimed document
+    is published 2026-08-24T04:41:29Z while the pending queue spans 2026-08-24T04:43:20Z →
+    21:04:40Z. What remains is purely the backlog-versus-recency ordering decision:
+    prioritise recent documents ahead of strict oldest-first order, or move the digest
+    schedule after the map cycle covering its window — and the margin is now small enough
+    that simply closing the remaining lag would let mapreduce resume unaided. That is the
+    whole of #88; nothing else gates it. Acceptance is unchanged — a naturally eligible digest using
+    mapreduce, observed not forced, with no `FORCE_REGEN`.
 89. **[Tier 3 — correctness, latent] The map dedup gate's reference-side exact-md5 index is
     dead.** `map-worker.ts` casts the reference rows `as DedupDoc[]` while the SQL aliases
     the column `content_md5`, so `ref.contentMd5` is `undefined` and every reference doc is
@@ -1126,3 +1195,24 @@ docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md)
     the shared `wellFormedSlice` helper #86 added, and give each its own before/after
     measurement — the digest one IS #87's fix and must not be bundled with the reduce one.
     Deliberately NOT fixed in the #86 release, which was required to stay isolated.
+
+### New (from the #86 recovery-window closeout — 2026-08-24,
+docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md §14)
+
+98. **[Tier 2 — reliability/observability] `ingest:telegram` is leaving `finished_at IS NULL`
+    rows, and nothing alerts on them.** Two rows started inside the #86 recovery window —
+    2026-08-23T18:01:31Z and 19:01:31Z — each with `ok` NULL, `error` NULL and an EMPTY
+    `counts` object: ruling 10's timeout signature exactly (rows are written at START, so
+    `finished_at IS NULL` means the run never returned). The class is pre-existing but the
+    count is growing: `ingest:telegram` ×1 on 2026-07-28, ×1 on 2026-08-15, **×2 on
+    2026-08-23**; `ingest:x` ×3 on 2026-08-13. The QF-B lease-soak closeout explicitly told
+    the next session to exclude the 2026-07-28 … 08-15 rows as pre-dating that release, so
+    these two are genuinely new and were found only because the #86 closeout swept EVERY
+    job rather than just `map` (the #87 discipline). Unrelated to #86 and to the map stage —
+    the map job's 24 window cycles all finished cleanly. Two things are worth separating:
+    (a) why the Telegram ingest run hangs at all — MTProto/web fetch without an effective
+    timeout is the obvious suspect, and #69's GramJS `CastError` noise lives on the same
+    path; and (b) that a hung run is invisible, since `ok` never becomes false and no
+    `map-health`-style check covers `ingest:*`. A cheap first step is a startup sweep that
+    marks any `cron_runs` row older than its job's plausible ceiling as failed with a
+    timeout category, which would also give #87's nested-error sweep a natural home.
