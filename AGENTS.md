@@ -107,13 +107,17 @@ place whenever reality changes. Historical narrative: `docs/PROGRESS.md` + `docs
 debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
 
 - **Live/repository:** https://bnow.net · Vercel `bnow-net` / team `vociferous`; production
-  is **`dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`, the 2026-08-23 #86 map Unicode batch repair**.
-  **`main` is ten merged PRs AHEAD of production (undeployed): the 2026-08-24 release
-  train** — QF-A (PR #14, evidence recency + funnel), QF-C (PR #15, analysis-eval control
-  plane), and the seven-PR conflict evaluator (PRs #16–#22, default-off, `CONFLICTS_UI`
-  absent) plus docs PRs #12/#13; the combined deploy is a pending operator action
-  (rollback target = current production; register:
-  `docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md`). Production deployment detail:
+  is **`dpl_FPYase3HqbCF3d2uW3AnwPHibyt4`, the 2026-08-24 release train** (deployed
+  ~2026-08-24T23:45Z from the plain release clone at `main` `143964a`, operator-authorized):
+  QF-A (PR #14, evidence recency + funnel), QF-C (PR #15, analysis-eval control plane),
+  the seven-PR conflict evaluator (PRs #16–#22, DORMANT — `CONFLICTS_UI` absent in every
+  environment), plus docs PRs #12/#13/#23/#24. `/health` 200 stamping **`143964a`**
+  (plain clone, #78 trap avoided), DB OK; post-deploy smoke PASS (conflict flag-off
+  body-leak clean bare+RSC on all routes; ruling-21 spots clean; the gated evidence route
+  307s on `requireAcceptedUser()` FIRST). **Rollback target =
+  `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`**. QF-A's ≥1-day digest-cycle observation window
+  OPENED at deploy. Register: `docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md`.
+  Previous production deployment detail:
   (PR #10, merge `0aa3d7d`), created 2026-08-23T14:08:53Z, READY, aliased `bnow.net` +
   `bnow-net.vercel.app` + `bnow-net-vociferous.vercel.app`; `/health` stamps **`0aa3d7d`**
   with DB OK (fresh CLONE, so the #78 blank-stamp trap did not apply). Its entire runtime
@@ -1476,3 +1480,26 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   Full register + operator action list (deploy authorization requests with rollback
   targets, §7 uncommitted-docs recommendation, package-manager question, hygiene list):
   `docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md`.
+
+- **2026-08-24 (release-train deploy + governing prompts — operator-authorized)** The
+  operator authorized the register §9.1 deploy and the §6 governing-prompts
+  recommendation. Executed: (1) PR #24 tracks the three governing prompts (both
+  2026-08-18 final-audit prompts + the 2026-08-25 adjudication plan with its A1–A10
+  addendum; secret scan clean; audit-G1 precedent). (2) Production deploy of `main`
+  `143964a` from the plain release clone (`vercel deploy --prod --scope vociferous`;
+  the clone was link-initialized first — the CLI appended only a `VERCEL_OIDC_TOKEN`
+  line to its `.env.local`, nothing overwritten): **`dpl_FPYase3HqbCF3d2uW3AnwPHibyt4`**,
+  target production, READY, aliased to bnow.net; `/health` 200, commit stamp `143964a`,
+  DB OK. **No env change of any kind** — `CONFLICTS_UI` stays absent everywhere,
+  `FEATURE_AUTH_GATE=true` in Production, no `EVAL_*` vars, all caps untouched.
+  Smoke (read-only GETs, PASS): all five conflict paths bare+`RSC: 1` carry zero
+  conflict tokens in any body (bare 404s; the gated evidence route 307s because
+  `requireAcceptedUser()` is the page's first statement); `/search`, `/entities`,
+  `/digests/ru` anonymous bare+RSC bodies carry no privileged tokens; `/` 200.
+  **Rollback target: `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`** (the pre-train #86-repair
+  release). QF-A's observation window OPENED ~2026-08-24T23:45Z: watch ≥1 complete
+  day/digest cycle (02:00 finalize + 04:00/10:00/19:30 intraday) for additive
+  `structured.stats.evidenceRecency` keys on newly persisted digests with zero change
+  to published events/claims; the funnel report stays a read-only operator tool. The
+  conflict surfaces remain dormant; enablement, shadow soak, and paid evals stay
+  separately gated (register §9.3/§9.5).
