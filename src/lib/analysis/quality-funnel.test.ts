@@ -287,7 +287,7 @@ describe("aggregateDigest (mapreduce)", () => {
     aggregateDigest(
       mapreduceRow({
         reduce: { groupsFed: 40, groupsTotal: 30, gidsCitedAnyVote: 50, gidsMajority: 60, survivingEvents: 2 },
-        evidenceRecency: { version: 1, claimCount: 5 },
+        evidenceRecency: { version: 1, claimCount: 5, documentCount: 7 },
       }),
       { events: 4, claims: 9 },
       [],
@@ -299,6 +299,24 @@ describe("aggregateDigest (mapreduce)", () => {
     expect(warnings.some((w) => w.includes("gidsCitedAnyVote 50 > groupsFed 40"))).toBe(true);
     expect(warnings.some((w) => w.includes("4 persisted events exceed 2 surviving"))).toBe(true);
     expect(warnings.some((w) => w.includes("claimCount 5 != relational claims 9"))).toBe(true);
+    expect(warnings.some((w) => w.includes("documentCount 7 != relational cited docs 0"))).toBe(true);
+  });
+
+  it("a matching (or absent) documentCount does not warn — pre-stat rows stay silent", () => {
+    // LINKS cite 2 distinct docs; a documentCount of 2 reconciles cleanly
+    const clean: string[] = [];
+    aggregateDigest(
+      mapreduceRow({ evidenceRecency: { version: 1, claimCount: 9, documentCount: 2 } }),
+      { events: 4, claims: 9 },
+      LINKS,
+      clean,
+      [],
+    );
+    expect(clean.some((w) => w.includes("documentCount"))).toBe(false);
+    // the base fixture has no documentCount at all (older digest) — no warning
+    const absent: string[] = [];
+    aggregateDigest(mapreduceRow(), { events: 4, claims: 9 }, LINKS, absent, []);
+    expect(absent.some((w) => w.includes("documentCount"))).toBe(false);
   });
 
   it("reconciles cited docs against the reduce window, not the single report day", () => {

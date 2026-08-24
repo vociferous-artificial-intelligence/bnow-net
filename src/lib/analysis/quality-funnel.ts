@@ -501,6 +501,15 @@ export function aggregateDigest(
       `reconciliation: evidenceRecency.claimCount ${erClaims} != relational claims ${counts.claims}`,
     );
   }
+  // same invariant on the document side: persist-time documentCount and the
+  // relational cited docs are both distinct non-stub docs over the persisted
+  // post-guard claims — a mismatch means the links drifted after persist
+  const erDocs = numOrNull(evidenceRecency?.documentCount);
+  if (erDocs !== null && erDocs !== citedDocs.size) {
+    warnings.push(
+      `reconciliation: evidenceRecency.documentCount ${erDocs} != relational cited docs ${citedDocs.size}`,
+    );
+  }
   if (reduce) {
     const windowRec = rec(reduce.window);
     const mode = windowRec?.mode;
