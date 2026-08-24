@@ -1,0 +1,366 @@
+{
+  "generatedAt": "2026-08-18T02:58:12.629Z",
+  "headerNote": "CONFLICT PROFILE (validation workload, register #3): offline-fixtures results score the FROZEN conflict fixture corpus through the real conflict pipeline and byte-compare against the committed goldens — a machinery/drift proof, NOT a model evaluation; no paid calls are involved. Verdicts use the inherited preset gates; with no live baseline they read insufficient_data by construction.",
+  "scorecards": [
+    {
+      "workload": "validation",
+      "datasetVersion": "conflict-roca-v1",
+      "judged": {
+        "workload": "validation",
+        "configKey": "offline-fixtures",
+        "cases": {
+          "total": 8,
+          "scored": 8,
+          "schemaInvalid": 0,
+          "providerError": 0,
+          "skipped": 0
+        },
+        "checks": {
+          "passed": 8,
+          "total": 8
+        },
+        "machinery": {
+          "matched": 8,
+          "total": 8
+        },
+        "completeness": {
+          "scope": "full",
+          "requestedRepetitions": 1,
+          "expectedResults": 8,
+          "presentResults": 8,
+          "missingResults": 0,
+          "missingHeldout": 0,
+          "datasetContentHash": "bb53aa70f176901b158fad10f89c47061dad163bc85b3ea05e38ff0d98960079",
+          "heldoutPresent": {
+            "typical": 1,
+            "edge": 1,
+            "adversarial": 1
+          },
+          "complete": true
+        },
+        "bySplit": {
+          "development": {
+            "results": 5,
+            "checksPassed": 5,
+            "quality": {
+              "matchSetPrecision": null,
+              "matchSetRecall": null,
+              "matchSetPrecisionVacuousCount": 0,
+              "matchSetRecallVacuousCount": 0,
+              "keywordPrecision": null,
+              "keywordRecall": null,
+              "keywordPrecisionVacuousCount": 0,
+              "keywordRecallVacuousCount": 0,
+              "checksPassRate": 1
+            }
+          },
+          "heldout": {
+            "results": 3,
+            "checksPassed": 3,
+            "quality": {
+              "matchSetPrecision": null,
+              "matchSetRecall": null,
+              "matchSetPrecisionVacuousCount": 0,
+              "matchSetRecallVacuousCount": 0,
+              "keywordPrecision": null,
+              "keywordRecall": null,
+              "keywordPrecisionVacuousCount": 0,
+              "keywordRecallVacuousCount": 0,
+              "checksPassRate": 1
+            }
+          }
+        },
+        "byPartition": {
+          "typical": {
+            "results": 2,
+            "checksPassed": 2,
+            "quality": {
+              "matchSetPrecision": null,
+              "matchSetRecall": null,
+              "matchSetPrecisionVacuousCount": 0,
+              "matchSetRecallVacuousCount": 0,
+              "keywordPrecision": null,
+              "keywordRecall": null,
+              "keywordPrecisionVacuousCount": 0,
+              "keywordRecallVacuousCount": 0,
+              "checksPassRate": 1
+            }
+          },
+          "edge": {
+            "results": 3,
+            "checksPassed": 3,
+            "quality": {
+              "matchSetPrecision": null,
+              "matchSetRecall": null,
+              "matchSetPrecisionVacuousCount": 0,
+              "matchSetRecallVacuousCount": 0,
+              "keywordPrecision": null,
+              "keywordRecall": null,
+              "keywordPrecisionVacuousCount": 0,
+              "keywordRecallVacuousCount": 0,
+              "checksPassRate": 1
+            }
+          },
+          "adversarial": {
+            "results": 3,
+            "checksPassed": 3,
+            "quality": {
+              "matchSetPrecision": null,
+              "matchSetRecall": null,
+              "matchSetPrecisionVacuousCount": 0,
+              "matchSetRecallVacuousCount": 0,
+              "keywordPrecision": null,
+              "keywordRecall": null,
+              "keywordPrecisionVacuousCount": 0,
+              "keywordRecallVacuousCount": 0,
+              "checksPassRate": 1
+            }
+          }
+        },
+        "gate": {
+          "wrongDocIdsTotal": 0,
+          "heldoutUnderfillCases": 0,
+          "strengthenedHedgesTotal": 0,
+          "guardCasesFailed": 0,
+          "fidelityFailures": 0,
+          "injectionFollowedCases": 0,
+          "reproducibilityFailures": 0
+        },
+        "quality": {
+          "matchSetPrecision": null,
+          "matchSetRecall": null,
+          "matchSetPrecisionVacuousCount": 0,
+          "matchSetRecallVacuousCount": 0,
+          "keywordPrecision": null,
+          "keywordRecall": null,
+          "keywordPrecisionVacuousCount": 0,
+          "keywordRecallVacuousCount": 0,
+          "checksPassRate": 1
+        },
+        "resources": {
+          "latencyMsMean": null,
+          "promptTokensTotal": 0,
+          "completionTokensTotal": 0,
+          "estUsdTotal": 0
+        },
+        "meter": {
+          "attempts": 0,
+          "reservations": 0,
+          "meterings": 0,
+          "erroredAttempts": 0
+        },
+        "runs": {
+          "distinctRunIds": [
+            "offline-conflict-roca-v1"
+          ],
+          "mixedRun": false,
+          "keysByRunId": {
+            "offline-conflict-roca-v1": 8
+          }
+        },
+        "live": false,
+        "repetitions": 1,
+        "repetitionSpread": {}
+      },
+      "judgedIdentity": {
+        "provider": "stub",
+        "model": "offline-fixtures",
+        "reasoningEffort": null,
+        "registryVersion": "analysis-reg-v1",
+        "approval": "baseline",
+        "promptHash": "680af57d0cfb73037b81c131ec619d786258922ae75c3a85dce92302637f9c79",
+        "schemaVersion": "89672017b52a25f168bc4c926a4bcb5aa43c7c763a87e165260c00916b8b553a"
+      },
+      "baseline": null,
+      "aligned": null,
+      "verdictResult": {
+        "verdict": "insufficient_data",
+        "reasons": [
+          "no baseline aggregate supplied — pairwise quality gate not run (candidate-only numbers are never a pass)"
+        ],
+        "deltas": null
+      },
+      "proposedRegistryEntry": null
+    },
+    {
+      "workload": "validation",
+      "datasetVersion": "conflict-iran-v1",
+      "judged": {
+        "workload": "validation",
+        "configKey": "offline-fixtures",
+        "cases": {
+          "total": 6,
+          "scored": 6,
+          "schemaInvalid": 0,
+          "providerError": 0,
+          "skipped": 0
+        },
+        "checks": {
+          "passed": 6,
+          "total": 6
+        },
+        "machinery": {
+          "matched": 6,
+          "total": 6
+        },
+        "completeness": {
+          "scope": "full",
+          "requestedRepetitions": 1,
+          "expectedResults": 6,
+          "presentResults": 6,
+          "missingResults": 0,
+          "missingHeldout": 0,
+          "datasetContentHash": "83c39aaf3c5fa6298c0bea429ce593bde110cf20b4125c8f10912ec46b20230f",
+          "heldoutPresent": {
+            "typical": 1,
+            "edge": 1,
+            "adversarial": 1
+          },
+          "complete": true
+        },
+        "bySplit": {
+          "development": {
+            "results": 3,
+            "checksPassed": 3,
+            "quality": {
+              "matchSetPrecision": null,
+              "matchSetRecall": null,
+              "matchSetPrecisionVacuousCount": 0,
+              "matchSetRecallVacuousCount": 0,
+              "keywordPrecision": null,
+              "keywordRecall": null,
+              "keywordPrecisionVacuousCount": 0,
+              "keywordRecallVacuousCount": 0,
+              "checksPassRate": 1
+            }
+          },
+          "heldout": {
+            "results": 3,
+            "checksPassed": 3,
+            "quality": {
+              "matchSetPrecision": null,
+              "matchSetRecall": null,
+              "matchSetPrecisionVacuousCount": 0,
+              "matchSetRecallVacuousCount": 0,
+              "keywordPrecision": null,
+              "keywordRecall": null,
+              "keywordPrecisionVacuousCount": 0,
+              "keywordRecallVacuousCount": 0,
+              "checksPassRate": 1
+            }
+          }
+        },
+        "byPartition": {
+          "typical": {
+            "results": 2,
+            "checksPassed": 2,
+            "quality": {
+              "matchSetPrecision": null,
+              "matchSetRecall": null,
+              "matchSetPrecisionVacuousCount": 0,
+              "matchSetRecallVacuousCount": 0,
+              "keywordPrecision": null,
+              "keywordRecall": null,
+              "keywordPrecisionVacuousCount": 0,
+              "keywordRecallVacuousCount": 0,
+              "checksPassRate": 1
+            }
+          },
+          "edge": {
+            "results": 3,
+            "checksPassed": 3,
+            "quality": {
+              "matchSetPrecision": null,
+              "matchSetRecall": null,
+              "matchSetPrecisionVacuousCount": 0,
+              "matchSetRecallVacuousCount": 0,
+              "keywordPrecision": null,
+              "keywordRecall": null,
+              "keywordPrecisionVacuousCount": 0,
+              "keywordRecallVacuousCount": 0,
+              "checksPassRate": 1
+            }
+          },
+          "adversarial": {
+            "results": 1,
+            "checksPassed": 1,
+            "quality": {
+              "matchSetPrecision": null,
+              "matchSetRecall": null,
+              "matchSetPrecisionVacuousCount": 0,
+              "matchSetRecallVacuousCount": 0,
+              "keywordPrecision": null,
+              "keywordRecall": null,
+              "keywordPrecisionVacuousCount": 0,
+              "keywordRecallVacuousCount": 0,
+              "checksPassRate": 1
+            }
+          }
+        },
+        "gate": {
+          "wrongDocIdsTotal": 0,
+          "heldoutUnderfillCases": 0,
+          "strengthenedHedgesTotal": 0,
+          "guardCasesFailed": 0,
+          "fidelityFailures": 0,
+          "injectionFollowedCases": 0,
+          "reproducibilityFailures": 0
+        },
+        "quality": {
+          "matchSetPrecision": null,
+          "matchSetRecall": null,
+          "matchSetPrecisionVacuousCount": 0,
+          "matchSetRecallVacuousCount": 0,
+          "keywordPrecision": null,
+          "keywordRecall": null,
+          "keywordPrecisionVacuousCount": 0,
+          "keywordRecallVacuousCount": 0,
+          "checksPassRate": 1
+        },
+        "resources": {
+          "latencyMsMean": null,
+          "promptTokensTotal": 0,
+          "completionTokensTotal": 0,
+          "estUsdTotal": 0
+        },
+        "meter": {
+          "attempts": 0,
+          "reservations": 0,
+          "meterings": 0,
+          "erroredAttempts": 0
+        },
+        "runs": {
+          "distinctRunIds": [
+            "offline-conflict-iran-v1"
+          ],
+          "mixedRun": false,
+          "keysByRunId": {
+            "offline-conflict-iran-v1": 6
+          }
+        },
+        "live": false,
+        "repetitions": 1,
+        "repetitionSpread": {}
+      },
+      "judgedIdentity": {
+        "provider": "stub",
+        "model": "offline-fixtures",
+        "reasoningEffort": null,
+        "registryVersion": "analysis-reg-v1",
+        "approval": "baseline",
+        "promptHash": "26ef185ece61c183257981ca8e6728c23f6f3e4c8e0e38aaa29d36ff5cdfffdd",
+        "schemaVersion": "89672017b52a25f168bc4c926a4bcb5aa43c7c763a87e165260c00916b8b553a"
+      },
+      "baseline": null,
+      "aligned": null,
+      "verdictResult": {
+        "verdict": "insufficient_data",
+        "reasons": [
+          "no baseline aggregate supplied — pairwise quality gate not run (candidate-only numbers are never a pass)"
+        ],
+        "deltas": null
+      },
+      "proposedRegistryEntry": null
+    }
+  ]
+}
