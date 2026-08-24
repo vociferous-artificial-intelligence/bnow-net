@@ -3232,3 +3232,16 @@ post-merge main verification, branding/secret scans).
 - Gates: typecheck/lint clean · unit 2,518/2,518 (188 files) · integration 119/119 ·
   H1 + lease/spend pins 69/69 · pre-push green. Live/paid evals stay impossible: no
   `EVAL_*` env exists in any Vercel environment; hardening list is stage-5 (§6-gated).
+
+## 2026-08-24 — conflict evaluator landed (7 PRs, default-off) + adjudication closeout
+
+- PRs #16–#22 land the audited program by file-level carve of the FINAL audited states;
+  per-blob hash verification per PR; end-state proof 125/125 blob-identical to
+  `a2ddca8`/`da44272`. PR 5 after QF-C (hard ordering); ruling 21 verified per page.
+- Full combined gates on `e359c61`: typecheck/lint clean · unit 3,329/3,329 (231 files) ·
+  integration 151/151 (21 files) on a disposable Neon fork, incl. both conflict itests.
+- Combined adversarial review of the merged result: see
+  `docs/reviews/CONFLICT-EVALUATOR-LANDING-2026-08-24.md` §4.
+- Release train complete: eleven PRs (#12–#22) merged this session, `main`
+  `33f405b` → `e359c61` (+ closeout docs); NOTHING deployed — operator action list in
+  `docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md` §9.

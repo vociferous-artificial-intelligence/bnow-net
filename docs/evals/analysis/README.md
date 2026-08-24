@@ -24,6 +24,14 @@ repo-owned files + deterministic code.
 - `results/live-*` — live candidate results. GITIGNORED; never committed.
 - `BASELINE-OFFLINE-2026-08-17.md` (+ `.json`) — the committed sample report
   built by `--report` from the offline results.
+- **Conflict-plane artifacts (2026-08-24 landing; NOT strays — do not delete or
+  regenerate under the QF naming contract):** `CONFLICT-EVAL-SCORECARD.md`
+  (+ `.json`) and `results/conflict-{roca,iran}-v1-offline-fixtures.json` belong
+  to the conflict evaluation profile (`--profile conflict`,
+  `src/lib/evals/conflict-validation-profile.ts`; datasets under
+  `fixtures/conflicts/`). The two planes' file names, scorecard paths and
+  regeneration paths are disjoint — the QF `<workload>-offline-fixtures.json`
+  contract above describes only the four QF workloads.
 
 ## Case counts (v1, authored 2026-08-17)
 
