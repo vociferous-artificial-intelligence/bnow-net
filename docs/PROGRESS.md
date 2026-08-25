@@ -2138,3 +2138,34 @@ branches/worktrees, a dedicated integration branch, independent critical-gate re
 per-phase plus cumulative reports. The 2026-07-17 live decision was moved verbatim to
 `docs/DECISIONS.md` to keep `AGENTS.md` compact. No application code, paid call, production write,
 external mutation, Paddle work, deployment, push, or merge to `main` was performed.
+
+## 2026-07-21 — Paddle verification pricing & refunds page (branch `codex/paddle-onboarding-page`)
+
+Isolated implementation branch (base `6c21b17`). Goal: replace the `/pricing` → `/access`
+308-redirect with a public, anonymous, DB-free "Pricing & Refunds" page fit to submit to Paddle
+during website verification, at the direct URL `https://bnow.net/pricing`. The page stays out of
+the header, footer, nav model, and sitemap (direct-link only), exactly as `/access` remains the
+in-product commercial anchor. No Paddle SDK, checkout, credentials, env vars, DB writes, or
+subscription logic — verification copy only.
+
+Planned ≤2h block:
+1. `src/app/pricing/page.tsx` — replace `permanentRedirect("/access")` with a static server
+   component: `main#main`, H1 "Pricing & Refunds", descriptive metadata; conservative product
+   description (source-linked digests, Search + evidence-linked Ask, Signals + validation, live
+   ru/ua/ir theaters, reliability/uncertainty labels); two USD plan cards (Standby $400/mo; Full
+   analyst $3,000/mo or $19,800/yr = $1,650/mo) with taxes-at-checkout note; a substantial local
+   "Refund and cancellation policy" section aligned to Paddle-as-merchant-of-record language; a
+   concise `/access` request link stating checkout is not enabled and a request creates no paid
+   subscription. Reuse `OPERATOR` + legal-document typographic primitives; no new deps; no form,
+   no checkout button, no registry-access promise. Static render = DB-independent.
+2. `src/app/pricing/page.test.tsx` — jsdom render test covering the requirements above (heading,
+   no `permanentRedirect`, both plan names + exact prices, annual equivalent, deliverables, refund
+   section, the six required links, descriptive metadata, no "source registry" promise, no form).
+3. Truthfulness sweep: correct now-stale "/pricing redirects to /access" text in `site-nav.ts`
+   comments, `access/page.tsx` comment, `site-nav.test.ts`, `seo.test.ts`; add explicit absence
+   assertions (sitemap, footer). Nav/footer/sitemap keep omitting `/pricing`.
+4. Standing docs: AGENTS.md architecture ASCII + Product/access snapshot, `docs/CURRENT-STATE.md`,
+   `docs/OPEN-TASKS.md#57` corrected in place; append a dated decision-log entry; write
+   `docs/reviews/PADDLE-ONBOARDING-PAGE-REVIEW.md`.
+5. Verify: `npm run typecheck && npm run lint && npm test` (+ build/390px inspection if practical);
+   adversarial self-review; commit on-branch only (no merge/push/deploy).

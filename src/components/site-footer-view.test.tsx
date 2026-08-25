@@ -37,6 +37,8 @@ describe("SiteFooterView (global footer)", () => {
     expect(container.querySelector('a[href="/terms"]')).toBeTruthy();
     expect(container.querySelector('a[href="/health"]')).toBeTruthy();
     expect(container.querySelector('a[href="mailto:go@vociferous.nyc"]')).toBeTruthy();
+    // The global footer never carries a pricing link — the Paddle /pricing page is direct-link only.
+    expect(container.querySelector('a[href="/pricing"]')).toBeNull();
   });
 
   it("renders a SINGLE footer landmark (no duplicate) on the home route", () => {

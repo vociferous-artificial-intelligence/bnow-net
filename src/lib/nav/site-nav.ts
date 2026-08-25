@@ -18,9 +18,11 @@
 // second path to /signals pure redundancy).
 //
 // Private-beta repositioning (2026-07-13): the public Pricing entry became
-// "Request access" → /access (the beta request page; /pricing redirects there).
-// Signed-in navigation carries NO commercial entry at all — desktop, mobile
-// sheet, or CTA strip.
+// "Request access" → /access (the beta request page). Signed-in navigation
+// carries NO commercial entry at all — desktop, mobile sheet, or CTA strip.
+// Paddle verification (2026-07-21): /pricing is again a standalone public page
+// (a direct-link-only "Pricing & Refunds" document), but it stays OUT of this
+// nav model and the footer — /access remains the only in-product commercial entry.
 
 export type Translate = (key: string, vars?: Record<string, string | number>) => string;
 
@@ -101,8 +103,9 @@ const SECTION_ROUTES: ReadonlyArray<readonly [string, SectionId]> = [
   ["/trade", "solutions"],
   ["/critical-materials", "solutions"],
   ["/datadark", "solutions"],
-  // /access is the beta request page (private-beta repositioning 2026-07-13);
-  // /pricing now only redirects there, so it owns no trigger.
+  // /access is the beta request page (private-beta repositioning 2026-07-13).
+  // /pricing is a direct-link-only Paddle verification page (2026-07-21): it
+  // renders standalone but is intentionally not in nav, so it owns no trigger.
   ["/access", "access"],
   // /entities is gated and not in nav (Product retired) — it owns no trigger (returns null).
 ];

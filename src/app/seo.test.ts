@@ -23,7 +23,9 @@ afterEach(() => {
 });
 
 // The public marketing/teaser surface that must stay crawlable + in the sitemap.
-// /pricing is deliberately absent: it only 308-redirects to /access now.
+// /pricing is deliberately absent from the sitemap: it renders as a standalone public
+// "Pricing & Refunds" page (Paddle verification, 2026-07-21) supplied by direct link only,
+// so it is intentionally not advertised in the sitemap or nav.
 const PUBLIC = ["/", "/countries", "/scoreboard", "/access", "/signals", "/trade", "/critical-materials", "/datadark", "/privacy", "/terms"];
 // Routes that must be disallowed AND never appear in the sitemap.
 const GATED = ["/api/", "/admin/", "/account", "/signin", "/welcome/", "/digests/", "/ask", "/search", "/entities/", "/registry", "/middle-east", "/health"];
@@ -94,6 +96,8 @@ describe("sitemap.xml", () => {
     }
     // No gated route leaks into the sitemap.
     for (const g of GATED) expect(urls.some((u) => u.includes(g))).toBe(false);
+    // /pricing renders as a public page but is intentionally direct-link-only — never listed.
+    expect(urls.some((u) => u.endsWith("/pricing"))).toBe(false);
   });
 
   it("degrades to the static public set when the DB is unreachable", async () => {

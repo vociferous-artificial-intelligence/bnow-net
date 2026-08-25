@@ -187,7 +187,9 @@ describe("request access is the only commercial entry, signed-out only", () => {
     expect(link(signedOut, "access").href).toBe("/access");
     expect(link(signedOut, "access").labelKey).toBe("nav.group.access");
   });
-  it("never renders any price copy path — /pricing only redirects and owns no entry", () => {
+  it("keeps /pricing out of nav entirely — a direct-link-only page, never a nav entry", () => {
+    // /pricing renders a standalone public "Pricing & Refunds" page (Paddle verification,
+    // 2026-07-21), but it is supplied by direct link only and must never appear in the nav.
     expect(navHrefs(signedOut)).not.toContain("/pricing");
     expect(navHrefs(signedIn)).not.toContain("/pricing");
   });
@@ -264,9 +266,10 @@ describe("current-section resolution", () => {
     expect(canonicalSection(path)).toBe(section);
   });
 
-  it("claims no section for the home, auth, health, redirecting and (unlisted) entities pages", () => {
+  it("claims no section for the home, auth, health, direct-link and (unlisted) entities pages", () => {
     // /entities is gated and no longer under any nav group (Product retired);
-    // /pricing only 308-redirects to /access, so it owns no trigger.
+    // /pricing is a direct-link-only Paddle verification page deliberately kept out of
+    // nav, so it owns no trigger.
     for (const p of ["/", "/signin", "/account", "/health", "/entities/5", "/pricing"]) {
       expect(canonicalSection(p)).toBeNull();
     }

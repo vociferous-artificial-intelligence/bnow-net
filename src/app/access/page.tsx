@@ -12,9 +12,10 @@ import {
   type AccessAttribution,
 } from "@/lib/access/attribution";
 
-// Public, indexable beta access-request page — the commercial anchor of the private
-// analyst beta (replaces the retired public pricing page; /pricing redirects here).
-// DB-free render; the form's server action owns all persistence.
+// Public, indexable beta access-request page — the in-product commercial anchor of the
+// private analyst beta. /pricing is a separate direct-link-only Paddle verification page
+// ("Pricing & Refunds") and no longer redirects here. DB-free render; the form's server
+// action owns all persistence.
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = makeT(await getLocale());

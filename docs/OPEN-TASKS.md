@@ -389,11 +389,14 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     `docs/reviews/OPEN-TASKS-RESEARCH-2026-07-16.md`,
     `docs/prompts/2026-07-16-facebook-source-segmentation.md`.
 57. ~~**/pricing promises registry access the product no longer grants.**~~ ✅ CLOSED
-    (private-beta sprint, 2026-07-13): the public pricing page is retired — /pricing
-    308-redirects to /access (beta request), all price cards and the registry-promise
-    copy are deleted, and no signed-in surface advertises registry access. The
+    (private-beta sprint, 2026-07-13): the public pricing page was retired — /pricing
+    308-redirected to /access (beta request), all price cards and the registry-promise
+    copy were deleted, and no signed-in surface advertises registry access. The
     underlying entitlement question (should role=analyst ever regain /registry) remains
     an operator decision but no public copy over-promises anymore.
+    Update (2026-07-21): /pricing no longer redirects — it now renders a public,
+    direct-link-only "Pricing & Refunds" page for Paddle website verification. It still
+    makes NO registry-access promise, adds no checkout, and stays out of nav/footer/sitemap.
 
 ### New (from the IA-refinement sprint — 2026-07-12, docs/reviews/IA-REFINEMENT-REVIEW.md)
 

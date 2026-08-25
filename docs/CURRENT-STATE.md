@@ -92,8 +92,11 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   `countries.status='active'`**) / **access (private analyst beta, 2026-07-13)**:
   public `/access` beta-request page (email + optional LinkedIn URL stored-never-fetched +
   use-case; honeypot, 1h dedupe, operator email via after()+FEEDBACK_EMAIL, review list at
-  `/admin/access`); `/pricing` 308-redirects there — price cards, dollar amounts and
-  `src/lib/pricing/` are deleted; nav shows "Request access" signed-out ONLY (signed-in nav
+  `/admin/access`); the retired dynamic pricing implementation stays gone — the old DB-driven
+  price cards, dollar amounts, and `src/lib/pricing/` remain deleted. `/pricing` no longer
+  redirects: it now renders a public, DB-free, direct-link-only "Pricing & Refunds" page (Paddle
+  website verification, 2026-07-21) kept out of header/footer/nav/sitemap and carrying no checkout;
+  nav shows "Request access" signed-out ONLY (signed-in nav
   carries no commercial entry); hero has a restrained beta badge; sign-in is **invite-only in
   Production as of 2026-07-15** via `SIGNIN_MODE=invite` (eligibility = existing users row OR
   ADMIN_EMAILS OR approved subscribe_intents; the pre-flip read-only audit found 5 existing users,

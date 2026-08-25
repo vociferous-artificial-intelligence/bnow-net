@@ -52,8 +52,8 @@ primitives (e.g. `src/components/nav-dropdown.tsx`) are hand-rolled to WAI-ARIA 
                                                         unsupported-claim rate)
  Product surface: landing / countries / digests+archive+scoreboard / registry / entities /
                   signals / trade / datadark / critical-materials / ask / search / access (beta
-                  request; /pricing 308-redirects here) / auth / privacy + terms (public legal
-                  docs) / welcome/legal (first-login acceptance)
+                  request) / pricing (direct-link-only Paddle verification page) / auth /
+                  privacy + terms (public legal docs) / welcome/legal (first-login acceptance)
 ```
 
 Directory map (correct in place as it changes):
@@ -114,8 +114,10 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   majority-gid fill, publication-safety guard, and thin-regeneration guard are binding. Gulf
   theaters fall back to legacy where map claims are absent. Validation uses k=5 LLM matching
   with keyword fallback and exposes coverage/divergence/timeliness/thin-source metrics.
-- **Product/access:** invite-only private beta; public access request flow; pricing redirects to
-  `/access`. Registry/admin surfaces remain admin-only. Signals are anonymous teaser-only and
+- **Product/access:** invite-only private beta; public access request flow (`/access`); the public
+  `/pricing` page is a direct-link-only "Pricing & Refunds" document supplied to Paddle for website
+  verification (not in header/footer/nav/sitemap; no checkout enabled). Registry/admin surfaces
+  remain admin-only. Signals are anonymous teaser-only and
   accepted-user detailed, with source-attributed named people + non-endorsement notice. Ask v2,
   free Search, digests/archive/scoreboard, entities, trade/datadark/materials are live behind
   their documented gates. The 2026-07-16 analyst quick wins are live: source-first evidence,
@@ -243,6 +245,20 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   integration, never `main`. Missing external approval becomes `implementation-pass /
   enablement-blocked` with defaults unchanged. No paid calls, production writes, deploys, pushes,
   external/account/provider/cap/analytics changes, or Paddle work; those need later approval.
+
+- **2026-07-21 (/pricing restored as a direct-only Paddle verification page)** The public
+  `/pricing` route no longer 308-redirects to `/access`; it renders a static, anonymous, DB-free
+  "Pricing & Refunds" page that combines subscription pricing (Standby $400/mo; Full analyst
+  $3,000/mo or $19,800/yr = $1,650/mo, USD, taxes at checkout) with a substantial refund and
+  cancellation policy aligned to Paddle acting as merchant of record. It is supplied to Paddle by
+  direct link only: no header, footer, nav, or sitemap entry (nav/footer/sitemap still omit it;
+  `/access` stays the in-product commercial anchor). No Paddle SDK, checkout, payment form,
+  credentials, env vars, DB writes, subscription logic, deploy, push, or Paddle-account change was
+  added; the retired dynamic pricing implementation (`src/lib/pricing/`) stays deleted, and Terms
+  1.1 / Privacy 1.2 copy, versions, and acceptance behavior are unchanged. Isolated branch
+  `codex/paddle-onboarding-page`; not merged. Caveat: if Paddle's domain-review rules require the
+  legal/refund links to be reachable through site navigation, the operator must separately
+  authorize adding a footer/nav link and/or a sitemap entry.
 
 ## Conventions
 
