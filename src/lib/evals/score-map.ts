@@ -125,7 +125,7 @@ export function numericValues(text: string): number[] {
   // "twenty-one") are deliberately unsupported: checkNumerals gists must use
   // bare digits or simple single number-words (validator-pinned when the v2
   // corpus adopts the flag).
-  const normalized = text.replace(/(\d),(?=\d{3}\b)/g, "$1");
+  const normalized = text.replace(/(\d),(?=\d{3}(?!\d))/g, "$1"); // "1,000km" included
   for (const m of normalized.matchAll(/\d+(?:\.\d+)?/g)) {
     out.push(Number(m[0]));
   }

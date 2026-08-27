@@ -420,6 +420,7 @@ export interface EvalResultsFile {
    *  this configKey's results, so re-roll-until-pass can never look
    *  first-try. Appended, never rewritten. */
   discardedRuns?: Array<{
+    /** the qualified ack token (<workload-or-dataset>/<configKey>) naming the exact discarded file */
     configKey: string;
     runIds: string[];
     resultsDigest: string;

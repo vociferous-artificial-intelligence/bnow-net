@@ -157,6 +157,11 @@ describe("assertLivePreflight (all guards BEFORE any client construction)", () =
     expect(() => assertLivePreflight({ ...GOOD_ARGS, dbAck: "other.host" }, GOOD_ENV)).toThrow(/not acknowledged/);
   });
 
+  it("SAF-m3: fails CLOSED when the production DATABASE_URL is unparseable", () => {
+    const env = { ...GOOD_ENV, DATABASE_URL: "not a url at all" };
+    expect(() => assertLivePreflight(GOOD_ARGS, env)).toThrow(/not URL-parseable/);
+  });
+
   it("SAF-m3: refuses when EVAL_DATABASE_URL host EQUALS the production DATABASE_URL host", () => {
     const env = { ...GOOD_ENV, DATABASE_URL: "postgres://user:pw@eval-branch.example.neon.tech/prod" };
     expect(() => assertLivePreflight(GOOD_ARGS, env)).toThrow(/EQUALS the production DATABASE_URL host/);
