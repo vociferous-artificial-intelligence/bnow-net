@@ -34,6 +34,7 @@ import { isPersonAllegation } from "./publication-guard";
 import { summarizeLlmCalls, type DigestResult } from "./digest";
 import { loadReduceClaims } from "./reduce-io";
 import { clusterClaims, isMetaClaim, rankGroups, type ClaimGroup, type Hedging } from "./reduce";
+import { dropIsolatedSurrogates, wellFormedSlice } from "../text/well-formed-slice";
 import { TRACKS, type Track } from "./tracks";
 import type { LlmUsage } from "./provider";
 
@@ -134,9 +135,24 @@ export function synthesisResponseSchema(track: Track) {
   } as const;
 }
 
+/** One provider-bound group line of the synthesis user message. The 250/120
+ *  ceilings keep their historical UTF-16 CODE-UNIT meaning, and whitespace
+ *  normalization still runs BEFORE the truncation — only the bare `.slice`,
+ *  which could cut a surrogate pair in half and poison the whole reduce request
+ *  (#97, the same `400 Invalid body` mechanism as map's #86), is replaced by
+ *  `wellFormedSlice`. Layering, stated honestly (mapDocLine's rationale, kept
+ *  in sync): the outer `dropIsolatedSurrogates` alone would suffice — the two
+ *  string slots are separated by literal ASCII, so the repair distributes over
+ *  the concatenation — which makes the inner `wellFormedSlice` an
+ *  equivalent-mutant layer no test can distinguish. It is kept deliberately: it
+ *  binds the code-unit ceiling and well-formedness together AT the point of
+ *  truncation, so neither call silently becomes load-bearing alone if the other
+ *  is ever refactored away. */
 export function serializeGroup(g: ClaimGroup): string {
-  const hint = g.eventHint ? ` -- ${g.eventHint.replace(/\s+/g, " ").slice(0, 120)}` : "";
-  return `[${g.key}] (${g.hedging}, conf=${g.confidence.toFixed(2)}, sources=${g.independentSources}, claims=${g.size}) ${g.text.replace(/\s+/g, " ").slice(0, 250)}${hint}`;
+  const hint = g.eventHint ? ` -- ${wellFormedSlice(g.eventHint.replace(/\s+/g, " "), 120)}` : "";
+  return dropIsolatedSurrogates(
+    `[${g.key}] (${g.hedging}, conf=${g.confidence.toFixed(2)}, sources=${g.independentSources}, claims=${g.size}) ${wellFormedSlice(g.text.replace(/\s+/g, " "), 250)}${hint}`,
+  );
 }
 
 export function synthesisUserMessage(

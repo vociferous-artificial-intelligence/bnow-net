@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { overwriteVerdict } from "./digest-persist";
 import type { ClaimGroup } from "./reduce";
+import { dropIsolatedSurrogates } from "../text/well-formed-slice";
 import {
   finalizeEvents,
   mapreduceProviderTag,
@@ -11,6 +12,7 @@ import {
   serializeGroup,
   synthesisResponseSchema,
   synthesisSystemPrompt,
+  synthesisUserMessage,
   voteGidCounters,
   type VoteEvent,
 } from "./synthesize";
@@ -211,6 +213,90 @@ describe("prompt + schema", () => {
     expect(p).toContain("IRAN-THEATER");
     expect(p).toContain("Never invent gids");
     expect(p).not.toContain("HARD RULES:\n1. Every claim MUST cite docIds");
+  });
+});
+
+describe("serializeGroup UTF-16 safety (#97 reduce path)", () => {
+  const wellFormed = (s: string) => dropIsolatedSurrogates(s) === s;
+
+  it("is byte-identical to the historical format for normal well-formed input", () => {
+    const s = serializeGroup(
+      group({
+        key: 7,
+        hedging: "confirmed",
+        confidence: 0.72,
+        independentSources: 3,
+        size: 5,
+        text: "Ukrainian forces struck eight tankers of the Russian shadow fleet",
+        eventHint: "tanker strikes",
+      }),
+    );
+    expect(s).toBe(
+      "[7] (confirmed, conf=0.72, sources=3, claims=5) Ukrainian forces struck eight tankers of the Russian shadow fleet -- tanker strikes",
+    );
+  });
+
+  it("keeps multilingual BMP text and in-budget emoji pairs byte-for-byte", () => {
+    const text = "Сили оборони 😀 قوات الحرس 🇺🇦 日本語";
+    const s = serializeGroup(group({ text, eventHint: "мирний 😀 план" }));
+    expect(s).toContain(text);
+    expect(s).toContain("-- мирний 😀 план");
+    expect(wellFormed(s)).toBe(true);
+  });
+
+  it("drops only the orphaned half when a pair straddles the 250-unit text ceiling", () => {
+    const text = "a".repeat(249) + "😀"; // pair occupies units 249-250 after normalization
+    const s = serializeGroup(group({ text, eventHint: null }));
+    expect(s.endsWith(" " + "a".repeat(249))).toBe(true);
+    expect(s).not.toMatch(/[\uD800-\uDFFF]$/);
+    expect(wellFormed(s)).toBe(true);
+  });
+
+  it("drops only the orphaned half when a pair straddles the 120-unit hint ceiling", () => {
+    const hint = "h".repeat(119) + "😀";
+    const s = serializeGroup(group({ text: "t", eventHint: hint }));
+    expect(s.endsWith("-- " + "h".repeat(119))).toBe(true);
+    expect(wellFormed(s)).toBe(true);
+  });
+
+  it("preserves a pair that fits entirely inside each ceiling", () => {
+    const text = "a".repeat(248) + "😀"; // units 248-249: inside 250
+    const hint = "h".repeat(118) + "😀"; // units 118-119: inside 120
+    const s = serializeGroup(group({ text, eventHint: hint }));
+    expect(s).toContain("a".repeat(248) + "😀");
+    expect(s).toContain("-- " + "h".repeat(118) + "😀");
+  });
+
+  it("removes pre-existing isolated surrogates from text and hint (defensive)", () => {
+    const s = serializeGroup(group({ text: "ab\uD83Dcd", eventHint: "\uDC00hint" }));
+    expect(s).toContain(") abcd -- hint");
+    expect(wellFormed(s)).toBe(true);
+  });
+
+  it("normalizes whitespace BEFORE truncating (historical order preserved)", () => {
+    // Raw length 300 collapses to exactly 250 after normalization, so nothing
+    // is truncated; slicing before normalization would have cut at raw unit 250.
+    const raw = "word  wor  ".repeat(27).slice(0, 297) + "end"; // 300 raw units
+    const normalized = raw.replace(/\s+/g, " ");
+    expect(normalized.length).toBeLessThanOrEqual(250);
+    const s = serializeGroup(group({ text: raw, eventHint: null }));
+    expect(s).toContain(`) ${normalized}`);
+  });
+
+  it("whole synthesis user message stays well-formed under adversarial groups", () => {
+    const groups = [
+      group({ key: 1, text: "a".repeat(249) + "😀", eventHint: "h".repeat(119) + "😀" }),
+      group({ key: 2, text: "ab\uD83Dcd", eventHint: "\uDC00hint" }),
+      group({ key: 3, text: "Сили оборони 😀 قوات الحرس", eventHint: null }),
+    ];
+    const msg = synthesisUserMessage("ru", "2026-08-27", groups, {
+      claims: 3,
+      groupsTotal: 3,
+    });
+    expect(wellFormed(msg)).toBe(true);
+    // The serialized JSON body must not carry a lone-surrogate escape, which is
+    // exactly what the provider's strict parser rejects (#86/#97 signature).
+    expect(JSON.stringify(msg)).not.toMatch(/\\u[dD][89a-bA-B][0-9a-fA-F]{2}(?!\\u[dD][c-fC-F])/);
   });
 });
 
