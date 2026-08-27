@@ -8,6 +8,16 @@
 // Everything here is deterministic under an EXPLICIT seed string — the soak
 // plan commits the seed, so the sample is reproducible and cannot be curated
 // after the fact (soak §5). Ids only: no unit text, no claim text, no prose.
+//
+// PARTIAL-VERDICT POLICY (deliberately NOT adjudicated here): soak §5's
+// match/miss dichotomy predates register #12's compound/`partial` semantics,
+// and register #12.3 is the pending adjudication. This module therefore
+// treats "matcher-match" STRICTLY (verdict === "match"); `partial` units are
+// excluded from both deliberate strata (they remain eligible for the random
+// stratum), every sampled pair records its verdict, and grading reports
+// partial pairs as a separate denominator-neutral diagnostic block — so the
+// grade can be decomposed under EITHER future adjudication of #12.3, and no
+// policy is decided invisibly.
 
 /** One unit's matcher outcome, reduced to what sampling needs. Adapters from
  *  the eval-profile/live-matcher shapes are the soak wiring's job. */
@@ -24,6 +34,9 @@ export interface LabelPair {
   unitId: string;
   claimId: number | null;
   stratum: "matcher-match" | "matcher-miss" | "random-declared";
+  /** the matcher's verdict at sampling time — preserved so the #12.3
+   *  adjudication can re-slice the grade without redrawing the sample */
+  verdict: SampleableUnitOutcome["verdict"];
 }
 
 export interface StratifiedSample {
@@ -73,13 +86,27 @@ export function seededShuffle<T>(items: readonly T[], seed: string): T[] {
 // 40 matcher-match, 40 matcher-miss, 40 random from the remaining declared
 // units. Outcomes are sorted by unitId BEFORE shuffling so input order can
 // never influence the sample.
+function assertUniqueUnitIds(outcomes: readonly SampleableUnitOutcome[], fn: string): void {
+  const seen = new Set<string>();
+  for (const o of outcomes) {
+    if (seen.has(o.unitId)) {
+      throw new Error(
+        `${fn}: duplicate unitId "${o.unitId}" — resolve the two soak populations into one outcome per unit BEFORE sampling (the union is the caller's explicit responsibility)`,
+      );
+    }
+    seen.add(o.unitId);
+  }
+}
+
 export function stratifiedLabelSample(
   outcomes: readonly SampleableUnitOutcome[],
   seed: string,
   quota = 40,
 ): StratifiedSample {
-  const sorted = [...outcomes].sort((a, b) => (a.unitId < b.unitId ? -1 : 1));
-  const matches = sorted.filter((o) => o.verdict === "match" || o.verdict === "partial");
+  assertUniqueUnitIds(outcomes, "stratifiedLabelSample");
+  const sorted = [...outcomes].sort((a, b) => (a.unitId < b.unitId ? -1 : a.unitId > b.unitId ? 1 : 0));
+  // STRICT match stratum — see the partial-verdict policy in the header
+  const matches = sorted.filter((o) => o.verdict === "match");
   const misses = sorted.filter((o) => o.verdict === "miss");
   const take = (
     pool: SampleableUnitOutcome[],
@@ -89,7 +116,12 @@ export function stratifiedLabelSample(
   ): { pairs: LabelPair[]; got: number } => {
     const picked = seededShuffle(pool, `${seed}:${subSeed}`).slice(0, n);
     return {
-      pairs: picked.map((o) => ({ unitId: o.unitId, claimId: o.topCandidateClaimId, stratum })),
+      pairs: picked.map((o) => ({
+        unitId: o.unitId,
+        claimId: o.topCandidateClaimId,
+        stratum,
+        verdict: o.verdict,
+      })),
       got: picked.length,
     };
   };
@@ -120,14 +152,17 @@ export const MISS_DROP_STAGES = [
 ] as const;
 export type MissDropStage = (typeof MISS_DROP_STAGES)[number];
 
+export const UPSTREAM_FALSE_EXCLUSION_MAX = 0.1;
+
 export function missSearchSample(
   outcomes: readonly SampleableUnitOutcome[],
   seed: string,
   n = 30,
 ): { seed: string; unitIds: string[]; shortfall: number } {
+  assertUniqueUnitIds(outcomes, "missSearchSample");
   const misses = [...outcomes]
     .filter((o) => o.verdict === "miss")
-    .sort((a, b) => (a.unitId < b.unitId ? -1 : 1));
+    .sort((a, b) => (a.unitId < b.unitId ? -1 : a.unitId > b.unitId ? 1 : 0));
   const picked = seededShuffle(misses, `${seed}:miss-search`).slice(0, n);
   return {
     seed,
@@ -154,7 +189,10 @@ export const PRECISION_THRESHOLD = 0.9;
 export const RECALL_THRESHOLD = 0.75;
 export const FALSE_AGREEMENT_MAX = 0.02;
 
-export function cohensKappa(a: readonly boolean[], b: readonly boolean[]): number {
+/** Returns null on degenerate marginals (both labellers constant): such an
+ *  overlap carries ZERO evidence of labeller reliability, and a fail-closed
+ *  instrument must not let it pass the floor. */
+export function cohensKappa(a: readonly boolean[], b: readonly boolean[]): number | null {
   if (a.length !== b.length || a.length === 0) {
     throw new Error("kappa needs two equal-length non-empty label vectors");
   }
@@ -169,19 +207,30 @@ export function cohensKappa(a: readonly boolean[], b: readonly boolean[]): numbe
   }
   const po = agree / n;
   const pe = (aYes / n) * (bYes / n) + ((n - aYes) / n) * ((n - bYes) / n);
-  if (pe === 1) return po === 1 ? 1 : 0; // degenerate: all labels identical on both sides
+  if (pe === 1) return null; // degenerate: no discriminative evidence
   return (po - pe) / (1 - pe);
 }
 
 export interface MatcherGrade {
-  verdict: "graded" | "label_quality_failed";
+  /** grading REQUIRES a usable two-labeller overlap: absent/empty overlap is
+   *  its own verdict, never a silent pass (fail-closed) */
+  verdict: "graded" | "label_quality_failed" | "ungraded_no_overlap";
   kappa: number | null;
-  /** of matcher-declared matches, share the human confirmed */
+  /** overlap pairs κ was actually computed over (shrinkage is visible) */
+  kappaPairs: number;
+  /** of matcher-declared strict matches, share the human confirmed */
   precision: number | null;
   /** of human-labelled true matches in the sample, share the matcher found */
   recall: number | null;
   falseAgreementRate: number | null;
   confusion: { tp: number; fp: number; fn: number; tn: number };
+  /** register #12.3 pending: partial-verdict pairs graded as a SEPARATE
+   *  denominator-neutral diagnostic, never folded into the confusion matrix */
+  partialDiagnostic: { pairs: number; humanConfirmed: number };
+  /** labels excluded because their claimId disagreed with the sampled pair */
+  labelClaimMismatches: number;
+  labelledPairs: number;
+  totalPairs: number;
   thresholds: { precisionOk: boolean | null; recallOk: boolean | null; falseAgreementOk: boolean | null };
 }
 
@@ -191,30 +240,39 @@ export function gradeMatcher(
   primary: readonly HumanLabel[],
   overlapSecondary: readonly HumanLabel[] | null,
 ): MatcherGrade {
+  assertUniqueUnitIds(outcomes, "gradeMatcher");
   const byUnit = new Map(outcomes.map((o) => [o.unitId, o]));
   const labelOf = new Map(primary.map((l) => [l.unitId, l]));
-  // κ over the overlap FIRST — labels below the floor grade nothing
-  let kappa: number | null = null;
-  if (overlapSecondary !== null && overlapSecondary.length > 0) {
-    const paired = overlapSecondary
-      .map((s) => [labelOf.get(s.unitId), s] as const)
-      .filter(([p]) => p !== undefined) as Array<[HumanLabel, HumanLabel]>;
-    if (paired.length === 0) throw new Error("overlap labels share no unitId with the primary set");
-    kappa = cohensKappa(
-      paired.map(([p]) => p.isMatch),
-      paired.map(([, s]) => s.isMatch),
-    );
-    if (kappa < KAPPA_FLOOR) {
-      return {
-        verdict: "label_quality_failed",
-        kappa,
-        precision: null,
-        recall: null,
-        falseAgreementRate: null,
-        confusion: { tp: 0, fp: 0, fn: 0, tn: 0 },
-        thresholds: { precisionOk: null, recallOk: null, falseAgreementOk: null },
-      };
-    }
+  const emptyGrade = (verdict: MatcherGrade["verdict"], kappa: number | null, kappaPairs: number): MatcherGrade => ({
+    verdict,
+    kappa,
+    kappaPairs,
+    precision: null,
+    recall: null,
+    falseAgreementRate: null,
+    confusion: { tp: 0, fp: 0, fn: 0, tn: 0 },
+    partialDiagnostic: { pairs: 0, humanConfirmed: 0 },
+    labelClaimMismatches: 0,
+    labelledPairs: 0,
+    totalPairs: sample.pairs.length,
+    thresholds: { precisionOk: null, recallOk: null, falseAgreementOk: null },
+  });
+  // κ over the overlap FIRST — no usable overlap grades NOTHING (fail-closed)
+  if (overlapSecondary === null || overlapSecondary.length === 0) {
+    return emptyGrade("ungraded_no_overlap", null, 0);
+  }
+  const paired = overlapSecondary
+    .map((s) => [labelOf.get(s.unitId), s] as const)
+    .filter(([p]) => p !== undefined) as Array<[HumanLabel, HumanLabel]>;
+  if (paired.length === 0) throw new Error("overlap labels share no unitId with the primary set");
+  const kappa = cohensKappa(
+    paired.map(([p]) => p.isMatch),
+    paired.map(([, s]) => s.isMatch),
+  );
+  // degenerate κ (both labellers constant) carries no reliability evidence —
+  // treated as a label-quality failure, never a pass
+  if (kappa === null || kappa < KAPPA_FLOOR) {
+    return emptyGrade("label_quality_failed", kappa, paired.length);
   }
   let tp = 0;
   let fp = 0;
@@ -222,11 +280,28 @@ export function gradeMatcher(
   let tn = 0;
   let negativeUnits = 0;
   let negativeFalseAgreements = 0;
+  let partialPairs = 0;
+  let partialConfirmed = 0;
+  let labelClaimMismatches = 0;
+  let labelledPairs = 0;
   for (const pair of sample.pairs) {
     const label = labelOf.get(pair.unitId);
     const outcome = byUnit.get(pair.unitId);
-    if (!label || !outcome) continue; // unlabelled pairs simply do not grade
-    const matcherSaysMatch = outcome.verdict === "match" || outcome.verdict === "partial";
+    if (!label || !outcome) continue; // unlabelled pairs do not grade (coverage reported)
+    // the sample is (unit, claim) PAIRS — a label judged against a different
+    // claim, or an outcomes drift from the sampled claim, must not grade
+    if (label.claimId !== pair.claimId || outcome.topCandidateClaimId !== pair.claimId) {
+      labelClaimMismatches++;
+      continue;
+    }
+    labelledPairs++;
+    if (pair.verdict === "partial") {
+      // register #12.3 pending: diagnostic only, denominator-neutral
+      partialPairs++;
+      if (label.isMatch) partialConfirmed++;
+      continue;
+    }
+    const matcherSaysMatch = outcome.verdict === "match";
     if (matcherSaysMatch && label.isMatch) tp++;
     else if (matcherSaysMatch && !label.isMatch) fp++;
     else if (!matcherSaysMatch && label.isMatch) fn++;
@@ -242,10 +317,15 @@ export function gradeMatcher(
   return {
     verdict: "graded",
     kappa,
+    kappaPairs: paired.length,
     precision,
     recall,
     falseAgreementRate,
     confusion: { tp, fp, fn, tn },
+    partialDiagnostic: { pairs: partialPairs, humanConfirmed: partialConfirmed },
+    labelClaimMismatches,
+    labelledPairs,
+    totalPairs: sample.pairs.length,
     thresholds: {
       precisionOk: precision === null ? null : precision >= PRECISION_THRESHOLD,
       recallOk: recall === null ? null : recall >= RECALL_THRESHOLD,

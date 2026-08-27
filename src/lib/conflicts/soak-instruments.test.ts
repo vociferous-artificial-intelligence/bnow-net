@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   FALSE_AGREEMENT_MAX,
+  UPSTREAM_FALSE_EXCLUSION_MAX,
   KAPPA_FLOOR,
   MISS_DROP_STAGES,
   ciHalfWidth,
@@ -86,8 +87,9 @@ describe("Cohen's κ + matcher grading (soak §5)", () => {
     expect(cohensKappa(a, b)).toBeCloseTo((0.8 - 0.5) / 0.5, 10);
   });
 
-  it("perfect degenerate agreement is 1, disagreement under identical marginals is not", () => {
-    expect(cohensKappa([true, true], [true, true])).toBe(1);
+  it("degenerate marginals (both labellers constant) yield null — no reliability evidence", () => {
+    expect(cohensKappa([true, true], [true, true])).toBeNull();
+    expect(cohensKappa([false, false, false], [false, false, false])).toBeNull();
   });
 
   it("below the κ floor the ONLY verdict is label_quality_failed — nothing graded", () => {
@@ -125,7 +127,10 @@ describe("Cohen's κ + matcher grading (soak §5)", () => {
       claimId: o.topCandidateClaimId,
       isMatch: o.unitId.startsWith("tp-") || o.unitId === "fn-0",
     }));
-    const secondary = primary.slice(0, 5); // identical overlap -> κ = 1
+    // overlap with MIXED marginals (identical labels -> κ = 1, non-degenerate)
+    const secondary = primary.filter((l) =>
+      ["tp-0", "tp-1", "tn-0", "tn-1", "fn-0"].includes(l.unitId),
+    );
     const grade = gradeMatcher(sample, pool, primary, secondary);
     expect(grade.verdict).toBe("graded");
     expect(grade.confusion).toEqual({ tp: 7, fp: 2, fn: 1, tn: 4 });
@@ -135,7 +140,76 @@ describe("Cohen's κ + matcher grading (soak §5)", () => {
     expect(grade.thresholds.precisionOk).toBe(false); // 0.78 < 0.90
     expect(grade.thresholds.recallOk).toBe(true); // 0.875 >= 0.75
     expect(grade.thresholds.falseAgreementOk).toBe(false); // 0.5 > 0.02
+    expect(grade.kappa).toBe(1);
+    expect(grade.kappaPairs).toBe(5);
+    expect(grade.labelledPairs).toBe(14); // 7 tp + fp-0 + fn-0 + 3 tn + 2 neg
+    expect(grade.labelClaimMismatches).toBe(0);
     expect(FALSE_AGREEMENT_MAX).toBe(0.02);
+    expect(UPSTREAM_FALSE_EXCLUSION_MAX).toBe(0.1);
+  });
+
+  it("no overlap at all is its own verdict — never a silent pass", () => {
+    const pool = outcomes(10, 10, 5);
+    const sample = stratifiedLabelSample(pool, "s", 10);
+    const primary: HumanLabel[] = sample.pairs.map((p) => ({ unitId: p.unitId, claimId: p.claimId, isMatch: true }));
+    expect(gradeMatcher(sample, pool, primary, null).verdict).toBe("ungraded_no_overlap");
+    expect(gradeMatcher(sample, pool, primary, []).verdict).toBe("ungraded_no_overlap");
+  });
+
+  it("a label judged against a DIFFERENT claim than sampled is excluded and counted", () => {
+    const pool: SampleableUnitOutcome[] = [
+      { unitId: "a", verdict: "match", topCandidateClaimId: 1 },
+      { unitId: "b", verdict: "match", topCandidateClaimId: 2 },
+      { unitId: "c", verdict: "miss", topCandidateClaimId: null },
+    ];
+    const sample = stratifiedLabelSample(pool, "s", 5);
+    const primary: HumanLabel[] = [
+      { unitId: "a", claimId: 999, isMatch: true }, // wrong claim -> excluded
+      { unitId: "b", claimId: 2, isMatch: true },
+      { unitId: "c", claimId: null, isMatch: false },
+    ];
+    const overlap = [
+      { unitId: "b", claimId: 2, isMatch: true },
+      { unitId: "c", claimId: null, isMatch: false },
+    ];
+    const grade = gradeMatcher(sample, pool, primary, overlap);
+    expect(grade.verdict).toBe("graded");
+    expect(grade.labelClaimMismatches).toBe(1);
+    expect(grade.confusion.tp).toBe(1);
+    expect(grade.labelledPairs).toBe(2);
+  });
+
+  it("partial verdicts grade as a separate denominator-neutral diagnostic (register #12.3 pending)", () => {
+    const pool: SampleableUnitOutcome[] = [
+      { unitId: "p-0", verdict: "partial", topCandidateClaimId: 7 },
+      { unitId: "m-0", verdict: "match", topCandidateClaimId: 8 },
+      { unitId: "x-0", verdict: "miss", topCandidateClaimId: null },
+    ];
+    const sample = stratifiedLabelSample(pool, "s", 5);
+    // partial excluded from both deliberate strata; eligible via random
+    const strata = new Map(sample.pairs.map((p) => [p.unitId, p.stratum]));
+    expect(strata.get("p-0")).toBe("random-declared");
+    const primary: HumanLabel[] = [
+      { unitId: "p-0", claimId: 7, isMatch: false },
+      { unitId: "m-0", claimId: 8, isMatch: true },
+      { unitId: "x-0", claimId: null, isMatch: false },
+    ];
+    const overlap = primary.slice(1); // mixed marginals, identical -> κ=1
+    const grade = gradeMatcher(sample, pool, primary, overlap);
+    expect(grade.verdict).toBe("graded");
+    expect(grade.partialDiagnostic).toEqual({ pairs: 1, humanConfirmed: 0 });
+    expect(grade.confusion).toEqual({ tp: 1, fp: 0, fn: 0, tn: 1 }); // partial NOT folded
+  });
+
+  it("duplicate unitIds throw everywhere (two-population unions must be resolved by the caller)", () => {
+    const dup: SampleableUnitOutcome[] = [
+      { unitId: "d", verdict: "match", topCandidateClaimId: 1 },
+      { unitId: "d", verdict: "miss", topCandidateClaimId: null },
+    ];
+    expect(() => stratifiedLabelSample(dup, "s")).toThrow(/duplicate unitId/);
+    expect(() => missSearchSample(dup, "s")).toThrow(/duplicate unitId/);
+    const sample = stratifiedLabelSample([dup[0]], "s", 1);
+    expect(() => gradeMatcher(sample, dup, [], null)).toThrow(/duplicate unitId/);
   });
 });
 
