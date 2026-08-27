@@ -397,14 +397,18 @@ function modeReport(workloads: AnalysisEvalWorkload[], outPath: string, showHeld
       console.warn(`[${w}] no results found under ${RESULTS_DIR} — run --offline (or a live sweep) first`);
       continue;
     }
-    // baseline for pairwise candidate gates: the production default model's
-    // LIVE results on the same dataset, when present
-    const baselineLive = loadResults(w, ANALYSIS_DEFAULT_MODEL);
     for (const configKey of configs) {
       const rf = loadResults(w, configKey);
       if (!rf) continue;
       const live = !configKey.startsWith(OFFLINE_CONFIG_KEY);
-      const baseline = live && configKey !== ANALYSIS_DEFAULT_MODEL ? baselineLive : null;
+      // baseline for pairwise candidate gates: the production default model's
+      // LIVE results on the same dataset UNDER THE SAME capacity profile —
+      // a profiled candidate must never be compared against an unprofiled
+      // baseline (the knob-drift degrade would otherwise fire on every cell)
+      const plusAt = configKey.lastIndexOf("+");
+      const profileSuffix = plusAt === -1 ? "" : configKey.slice(plusAt);
+      const baselineKey = `${ANALYSIS_DEFAULT_MODEL}${profileSuffix}`;
+      const baseline = live && configKey !== baselineKey ? loadResults(w, baselineKey) : null;
       // re-review minor 1: compare against the dataset file AS IT EXISTS NOW —
       // an id-preserving reference edit after a run degrades the verdict
       scorecards.push(buildWorkloadScorecard(ds, rf, baseline, live, contentHash));

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-27T21:42:20.783Z",
+  "generatedAt": "2026-08-27T21:46:28.177Z",
   "headerNote": "Verdicts use the PRESET gates in src/lib/evals/gates.ts (completeness + aligned-heldout pairwise rules pre-registered before any candidate result existed). The offline-fixtures config scores COMMITTED fixture outputs (compliant AND deliberately violating ones) through the real pipeline functions — it is a machinery proof, NOT a model evaluation; no paid calls are involved in producing it.",
   "scorecards": [
     {
