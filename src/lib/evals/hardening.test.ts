@@ -83,6 +83,13 @@ describe("SCI-3b: numeral-preservation instrument", () => {
     expect(numericValues("no numbers here")).toEqual([]);
   });
 
+  it("thousands separators parse as magnitudes, never decimals", () => {
+    expect(numericValues("1,000 troops")).toEqual([1000]);
+    expect(numericValues("1,000,000 rounds")).toEqual([1000000]);
+    expect(numeralsPreserved("1,000 troops moved", "about 1000 troops moved")).toBe(true);
+    expect(numeralsPreserved("1,000 troops moved", "1 truck moved")).toBe(false);
+  });
+
   it("numeralsPreserved requires every reference value in the candidate", () => {
     expect(numeralsPreserved("four drones struck", "4 drones reportedly struck")).toBe(true);
     expect(numeralsPreserved("four drones struck", "five drones reportedly struck")).toBe(false);
@@ -148,5 +155,26 @@ describe("SCI-3b: numeral-preservation instrument", () => {
     expect(flagged.pass).toBe(false);
     const unflagged = scoreMapCase(mk(false), raw);
     expect(unflagged.numeralMisses).toBe(0);
+  });
+});
+
+describe("A8-F1: scored-pair alignment excludes degraded pairs (direct pin)", () => {
+  it("a schema-invalid row on one side removes the pair from the quality population, visibly", async () => {
+    const { alignedComparison } = await import("./runner");
+    const { ds, rf } = loadCommitted("map");
+    const anyKey = Object.keys(rf.results)[0];
+    const degradedBaseline: EvalResultsFile = {
+      ...rf,
+      results: {
+        ...rf.results,
+        [anyKey]: { ...rf.results[anyKey], status: "schema_invalid" },
+      },
+    };
+    // v1 map results already contain deliberate fail-fixtures with degraded
+    // statuses, so assert RELATIVE to the self-comparison baseline
+    const before = alignedComparison(ds, rf, rf);
+    const cmp = alignedComparison(ds, rf, degradedBaseline);
+    expect(cmp.excludedDegradedPairs).toBe(before.excludedDegradedPairs + 1);
+    expect(cmp.scoredAlignedKeys).toBe(before.scoredAlignedKeys - 1);
   });
 });

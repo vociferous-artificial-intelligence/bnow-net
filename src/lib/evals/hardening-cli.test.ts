@@ -55,7 +55,7 @@ describe("C-A7-2: --fresh requires an explicit discard acknowledgement", () => {
     const before = readFileSync(path, "utf8");
     const r = runCli(["--offline", "--workload", "validation", "--fresh"]);
     expect(r.status).toBe(2);
-    expect(r.stderr).toMatch(/acknowledge explicitly with: --fresh-ack offline-fixtures/);
+    expect(r.stderr).toMatch(/acknowledge explicitly with: --fresh-ack validation\/offline-fixtures/);
     expect(readFileSync(path, "utf8")).toBe(before); // untouched
   }, 120_000);
 });

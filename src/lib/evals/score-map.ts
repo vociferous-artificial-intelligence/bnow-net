@@ -120,8 +120,14 @@ const NUMBER_WORDS: Record<string, number> = {
 };
 export function numericValues(text: string): number[] {
   const out: number[] = [];
-  for (const m of text.matchAll(/\d+(?:[.,]\d+)?/g)) {
-    out.push(Number(m[0].replace(",", ".")));
+  // thousands separators stripped FIRST ("1,000" is one thousand, never 1.0);
+  // decimals are dot-only. Compound number-words ("two hundred",
+  // "twenty-one") are deliberately unsupported: checkNumerals gists must use
+  // bare digits or simple single number-words (validator-pinned when the v2
+  // corpus adopts the flag).
+  const normalized = text.replace(/(\d),(?=\d{3}\b)/g, "$1");
+  for (const m of normalized.matchAll(/\d+(?:\.\d+)?/g)) {
+    out.push(Number(m[0]));
   }
   for (const m of text.toLowerCase().matchAll(/[a-z]+/g)) {
     if (m[0] in NUMBER_WORDS) out.push(NUMBER_WORDS[m[0]]);

@@ -99,6 +99,7 @@ import {
   liveConfigKey,
   BASELINE_PROFILE,
   CAPACITY_PROFILES,
+  MIN_LIVE_REPETITIONS,
   UNIMPLEMENTED_MATRIX_CELLS,
   applyCapacityProfile,
   capacityProfileNames,
@@ -223,17 +224,19 @@ let freshAckValue: string | null = null;
 function acknowledgeFreshDiscard(
   existing: EvalResultsFile | null,
   fresh: boolean,
-  configKey: string,
+  ackToken: string,
 ): { configKey: string; runIds: string[]; resultsDigest: string; discardedResults: number } | null {
   if (!fresh || existing === null || Object.keys(existing.results).length === 0) return null;
-  if (freshAckValue !== configKey) {
+  // the token names the exact FILE being discarded (workload-or-dataset
+  // qualified), so one acknowledgement can never authorize a multi-file sweep
+  if (freshAckValue !== ackToken) {
     console.error(
-      `--fresh would DISCARD ${Object.keys(existing.results).length} recorded result(s) for ${configKey} — acknowledge explicitly with: --fresh-ack ${configKey}`,
+      `--fresh would DISCARD ${Object.keys(existing.results).length} recorded result(s) for ${ackToken} — acknowledge explicitly with: --fresh-ack ${ackToken}`,
     );
     process.exit(2);
   }
   return {
-    configKey,
+    configKey: ackToken,
     runIds: [...new Set(Object.values(existing.results).map((r) => r.runId))].sort(),
     resultsDigest: sha256(JSON.stringify(existing.results)),
     discardedResults: Object.keys(existing.results).length,
@@ -357,7 +360,7 @@ function modeOffline(
       envKnobs: currentEnvKnobs(),
     };
     const existing = loadResults(w, profiledKey(OFFLINE_CONFIG_KEY));
-    const discarded = acknowledgeFreshDiscard(existing, opts.fresh, profiledKey(OFFLINE_CONFIG_KEY));
+    const discarded = acknowledgeFreshDiscard(existing, opts.fresh, `${w}/${profiledKey(OFFLINE_CONFIG_KEY)}`);
     if (discarded) header.discardedRuns = [...(existing?.discardedRuns ?? []), discarded];
     refuseOnIdentityDrift(existing, header, opts.fresh);
     const { work, unknownIds, excludedHeldout } = pendingWork(ds, existing, {
@@ -581,7 +584,7 @@ async function conflictModeOffline(
     };
     const p = conflictResultsPath(run.dataset.datasetVersion, OFFLINE_CONFIG_KEY);
     const existing = loadResultsAtPath(p);
-    const discardedConflict = acknowledgeFreshDiscard(existing, opts.fresh, header.configKey);
+    const discardedConflict = acknowledgeFreshDiscard(existing, opts.fresh, `${run.dataset.datasetVersion}/${header.configKey}`);
     if (discardedConflict) header.discardedRuns = [...(existing?.discardedRuns ?? []), discardedConflict];
     refuseOnIdentityDrift(existing, header, opts.fresh);
     const { work, unknownIds, excludedHeldout } = pendingWork(run.dataset, existing, {
@@ -742,8 +745,14 @@ async function modeLive(opts: {
     scope: runScopeFor(opts.onlyIds, opts.devOnly),
     envKnobs: currentEnvKnobs(),
   };
+  if (!opts.devOnly && opts.repetitions < MIN_LIVE_REPETITIONS) {
+    console.error(
+      `--repetitions ${opts.repetitions} < MIN_LIVE_REPETITIONS ${MIN_LIVE_REPETITIONS}: the file could never verdict — spend refused (use --dev for an exploratory partial run)`,
+    );
+    process.exit(2);
+  }
   const existing = loadResults(opts.workload, configKey);
-  const discardedLive = acknowledgeFreshDiscard(existing, opts.fresh, configKey);
+  const discardedLive = acknowledgeFreshDiscard(existing, opts.fresh, `${opts.workload}/${configKey}`);
   if (discardedLive) header.discardedRuns = [...(existing?.discardedRuns ?? []), discardedLive];
   refuseOnIdentityDrift(existing, header, opts.fresh);
   try {

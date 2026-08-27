@@ -234,6 +234,13 @@ describe("C-A7-1 + A8-F1 hardening gates", () => {
     expect(v.reasons.join(" ")).not.toMatch(/MIN_LIVE_REPETITIONS/);
   });
 
+  it("a 1-repetition live baseline blocks the pairwise verdict (single-roll deltas)", () => {
+    const baseline = agg({ live: true, completeness: completeness({ requestedRepetitions: 1 }) });
+    const v = computeScorecardVerdict(agg({ live: true }), baseline, aligned());
+    expect(v.verdict).toBe("insufficient_data");
+    expect(v.reasons.join(" ")).toMatch(/baseline live repetitions 1/);
+  });
+
   it("a baseline carrying degraded rows blocks the pairwise verdict", () => {
     const baseline = agg({ live: true, cases: { total: 10, scored: 9, schemaInvalid: 1, providerError: 0, skipped: 0 } });
     const v = computeScorecardVerdict(agg({ live: true }), baseline, aligned());

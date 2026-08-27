@@ -232,9 +232,19 @@ export function computeScorecardVerdict(
   // A8-F1: the baseline must meet the same degraded-row standard as the
   // judged file — its schema-invalid/provider-error rows would otherwise
   // silently shrink the pairwise denominators
-  if (baseline !== null && (baseline.cases.schemaInvalid > 0 || baseline.cases.providerError > 0)) {
+  if (judged.live && baseline !== null && (baseline.cases.schemaInvalid > 0 || baseline.cases.providerError > 0)) {
     reasons.push(
       `baseline results carry degraded rows (${baseline.cases.schemaInvalid} schema-invalid, ${baseline.cases.providerError} provider-error) — rerun the baseline before verdicting against it`,
+    );
+  }
+  // the baseline side of the pairwise deltas needs the same repetition
+  // evidence — a 1-rep baseline collapses the aligned set to single-roll pairs
+  // scoped to the LIVE pairwise gate: buildWorkloadScorecard aggregates every
+  // baseline with live=true, so judged.live is the discriminator that keeps
+  // offline unit fixtures out of this paid-evidence rule
+  if (judged.live && baseline !== null && baseline.completeness.requestedRepetitions < MIN_LIVE_REPETITIONS) {
+    reasons.push(
+      `baseline live repetitions ${baseline.completeness.requestedRepetitions} < MIN_LIVE_REPETITIONS ${MIN_LIVE_REPETITIONS}`,
     );
   }
   if (reasons.length > 0) return { verdict: "insufficient_data", reasons, deltas: null };

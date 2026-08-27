@@ -186,13 +186,18 @@ export function assertLivePreflight(
   // to production. Refuse host equality outright (ab-mapreduce precedent).
   const prodUrl = env.DATABASE_URL;
   if (prodUrl) {
-    let prodHost: string | null = null;
+    const normalizeHost = (h: string) => h.toLowerCase().replace(/:5432$/, "");
+    let prodHost: string;
     try {
-      prodHost = new URL(prodUrl).host;
+      prodHost = normalizeHost(new URL(prodUrl).host);
     } catch {
-      prodHost = null;
+      // fail CLOSED: an unparseable production URL means the equality check
+      // cannot run, and a paid run must not proceed on an unverifiable guard
+      throw new EvalDispatchError(
+        "DATABASE_URL is set but not URL-parseable — cannot verify it differs from EVAL_DATABASE_URL; fix or unset it before a live run",
+      );
     }
-    if (prodHost !== null && prodHost === host) {
+    if (prodHost === normalizeHost(host)) {
       throw new EvalDispatchError(
         `EVAL_DATABASE_URL host ${host} EQUALS the production DATABASE_URL host — live evals must run against a disposable eval branch, never production`,
       );

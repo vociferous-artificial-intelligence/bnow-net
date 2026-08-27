@@ -15,6 +15,7 @@ import { createHash } from "node:crypto";
 // Capacity-profile API re-exported so the eval CLI's audited static-import
 // surface stays exactly contracts+runner (isolation.test.ts pin). The module
 // is pure (imports nothing), so the CLI's eager closure character is unchanged.
+export { MIN_LIVE_REPETITIONS } from "./gates";
 export {
   BASELINE_PROFILE,
   CAPACITY_PROFILES,
@@ -902,10 +903,39 @@ export function reportIdentityMismatch(
   ds: AnalysisEvalDataset,
   rf: EvalResultsFile,
 ): string | null {
+  // The recompute must run under the KNOB ENVIRONMENT the file recorded —
+  // mapContentChars sits in mapExtractorVersion's basis and reduceGroupsFed
+  // in the digest promptHash, so recomputing a capacity-profiled cell under
+  // the report invocation's own profile would false-degrade deterministically
+  // (review finding: the matrix's whole population). Model envs are NOT
+  // restored here (they are not part of envKnobs); that residual sensitivity
+  // is documented in the hardening record.
+  const KNOB_ENVS: Array<[string, number | undefined]> = [
+    ["REDUCE_VOTES", rf.envKnobs.reduceVotes],
+    ["REDUCE_MAX_OUTPUT_TOKENS", rf.envKnobs.reduceMaxOutputTokens],
+    ["MAP_OUT_TOKENS_PER_DOC", rf.envKnobs.mapOutTokensPerDoc],
+    ["MAP_CONTENT_CHARS", rf.envKnobs.mapContentChars],
+    ["REDUCE_GROUPS_FED", rf.envKnobs.reduceGroupsFed ?? 200],
+  ];
+  const saved = KNOB_ENVS.map(([k]) => [k, process.env[k]] as const);
+  for (const [k, v] of KNOB_ENVS) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = String(v);
+  }
+  let nowPrompt: string;
+  let nowSchema: string;
+  let nowExtractor: string | null;
+  try {
+    nowPrompt = datasetPromptHash(ds);
+    nowSchema = workloadSchemaVersion(ds);
+    nowExtractor = datasetExtractorVersions(ds) ?? null;
+  } finally {
+    for (const [k, v] of saved) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
   const diffs: string[] = [];
-  const nowPrompt = datasetPromptHash(ds);
-  const nowSchema = workloadSchemaVersion(ds);
-  const nowExtractor = datasetExtractorVersions(ds) ?? null;
   if (rf.identity.promptHash !== nowPrompt) {
     diffs.push(`promptHash recorded ${rf.identity.promptHash.slice(0, 12)} vs current ${nowPrompt.slice(0, 12)}`);
   }
@@ -944,6 +974,9 @@ export interface WorkloadScorecard {
   judgedEnvKnobs: EvalEnvKnobs;
   baselineEnvKnobs: EvalEnvKnobs | null;
   baselineIdentity: CandidateDispatchIdentity | null;
+  /** C-A7-2: prior generations discarded with --fresh (from the header) —
+   *  rendered so a re-rolled artifact can never look first-try. */
+  discardedGenerations: number;
 }
 
 export function buildWorkloadScorecard(
@@ -1056,6 +1089,7 @@ export function buildWorkloadScorecard(
     judgedEnvKnobs: judgedFile.envKnobs,
     baselineEnvKnobs: baselineFile ? baselineFile.envKnobs : null,
     baselineIdentity: baselineFile ? baselineFile.identity : null,
+    discardedGenerations: (judgedFile.discardedRuns ?? []).length,
   };
 }
 
@@ -1117,6 +1151,11 @@ export function renderAnalysisScorecardMarkdown(input: {
         (sc.judgedIdentity.extractorVersion ? ` extractor=${sc.judgedIdentity.extractorVersion}` : ""),
     );
     lines.push(`Env knobs: ${knobsLine(sc.judgedEnvKnobs)}`);
+    if (sc.discardedGenerations > 0) {
+      lines.push(
+        `Discarded generations (--fresh provenance): ${sc.discardedGenerations} — this file's results are not first-try`,
+      );
+    }
     if (sc.baseline && sc.baselineIdentity) {
       lines.push(
         `Baseline identity: model=${sc.baselineIdentity.model} effort=${sc.baselineIdentity.reasoningEffort ?? "absent"} ` +
@@ -1178,7 +1217,8 @@ export function renderAnalysisScorecardMarkdown(input: {
       );
       if (sc.aligned) {
         lines.push(
-          `Aligned population: ${sc.aligned.alignedKeys} key(s), ${sc.aligned.alignedHeldoutKeys} heldout (the gated set). ` +
+          `Aligned population: ${sc.aligned.alignedKeys} present pair(s), ${sc.aligned.scoredAlignedKeys} scored-on-both-sides ` +
+          `(${sc.aligned.excludedDegradedPairs} excluded degraded), ${sc.aligned.alignedHeldoutKeys} heldout (the gated set). ` +
             `Aligned-heldout quality — judged: ${Object.entries(sc.aligned.judgedQuality)
               .filter(([k]) => !k.endsWith("VacuousCount"))
               .map(([k, v]) => `${k}=${pct(v)}`)
