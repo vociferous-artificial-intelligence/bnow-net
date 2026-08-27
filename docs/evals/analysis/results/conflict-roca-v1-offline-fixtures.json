@@ -18,9 +18,10 @@
     "reduceVotes": 5,
     "reduceMaxOutputTokens": 6000,
     "mapOutTokensPerDoc": 200,
-    "mapContentChars": 1500
+    "mapContentChars": 1500,
+    "reduceGroupsFed": 200
   },
-  "updatedAt": "2026-08-18T02:58:12.279Z",
+  "updatedAt": "2026-08-27T21:42:20.454Z",
   "meter": {
     "attempts": 0,
     "reservations": 0,

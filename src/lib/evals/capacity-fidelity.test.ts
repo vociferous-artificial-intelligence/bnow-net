@@ -70,6 +70,50 @@ describe("SCI-N6 closed: buildDigestVotePrompt applies the production fed cutoff
   });
 });
 
+describe("SCI-N6 scorer side: votes citing unfed (past-cutoff) gids are stripped like production", () => {
+  it("a >cutoff case drops the tail gid ref and keeps the fed one (review finding 1 pin)", async () => {
+    const { clusterClaims, rankGroups } = await import("../analysis/reduce");
+    const { reduceGroupsFed } = await import("../analysis/synthesize");
+    const { scoreDigestCase } = await import("./score-reduce");
+    const input = digestInput(230);
+    // compute the fed set exactly as the pipeline does, then pick one gid
+    // inside the cutoff and one past it
+    const groups = clusterClaims(input.claims as never, {});
+    const nowMs = Date.parse(`${input.date}T00:00:00Z`) + 86_400_000;
+    const ranked = rankGroups(groups, nowMs);
+    expect(ranked.length).toBeGreaterThan(210);
+    const cutoff = reduceGroupsFed();
+    const fedGid = ranked[10].key;
+    const tailGid = ranked[cutoff + 5].key;
+    const vote = JSON.stringify({
+      events: [
+        {
+          title: "capacity pin event",
+          type: "strike",
+          summary: "one fed and one unfed reference",
+          claims: [
+            { text: "fed-backed claim", gids: [fedGid] },
+            { text: "tail-backed claim", gids: [tailGid] },
+          ],
+        },
+      ],
+    });
+    const evalCase = {
+      id: "dig-c2-cutoff-pin",
+      workload: "digest",
+      partition: "typical",
+      split: "development",
+      provenance: "hand-authored test fixture",
+      input,
+      reference: { expectDroppedGidRefs: 5 }, // one stripped tail ref per vote x5
+      offline: { fixtureId: "cutoff-pin", votes: [vote, vote, vote, vote, vote], expectation: "pass" },
+    } as never;
+    const scored = scoreDigestCase(evalCase, [vote, vote, vote, vote, vote]);
+    expect(scored.checks.failures).toEqual([]); // droppedGidRefs === 5 → tail refs stripped
+    expect(scored.checks.pass).toBe(true);
+  });
+});
+
 describe("committed results identity stability (the SCI-N6 fix must not drift v1 promptHash)", () => {
   it("offlineIdentity over each committed dataset matches its committed results header", () => {
     const dir = "docs/evals/analysis";

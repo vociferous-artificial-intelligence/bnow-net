@@ -350,7 +350,7 @@ function modeOffline(
     let rf = (opts.fresh ? null : existing) ?? emptyEvalResultsFile(header);
     const runId = `offline-${ds.datasetVersion}`;
     for (const item of work) {
-      const result = scoreOfflineCase(item.evalCase, ds.datasetVersion, runId);
+      const result = scoreOfflineCase(item.evalCase, ds.datasetVersion, runId, profiledKey(OFFLINE_CONFIG_KEY));
       rf = mergeEvalResults(rf, header, [result], ZERO_METER, new Date());
       saveResults(rf); // durable after EVERY case (resumable-by-key)
       const expectation = "offline" in item.evalCase ? item.evalCase.offline.expectation : "pass";
@@ -365,7 +365,7 @@ function modeOffline(
         );
       }
     }
-    console.log(`[${w}] done -> ${resultsPath(w, OFFLINE_CONFIG_KEY)}`);
+    console.log(`[${w}] done -> ${resultsPath(w, profiledKey(OFFLINE_CONFIG_KEY))}`);
   }
   console.log("\noffline scoring complete. Run with --report to build the scorecard. Zero provider contact.");
 }
@@ -904,12 +904,19 @@ async function main(): Promise<void> {
       console.error("--capacity is not applicable to --profile conflict (the conflict pipeline reads none of the capacity knobs)");
       process.exit(2);
     }
-    applyCapacityProfile(capacity);
     activeCapacityProfile = capacity;
     console.log(`capacity profile: ${capacity} — ${CAPACITY_PROFILES[capacity].description}`);
   }
+  // ALWAYS apply the active profile (baseline scrubs the four knob envs), so a
+  // stray shell export or .env.local line can never write a knob-drifted file
+  // under a baseline configKey (review finding 4).
+  applyCapacityProfile(activeCapacityProfile);
 
   if (hasFlag("capacity-matrix")) {
+    if (profile === "conflict") {
+      console.error("--capacity-matrix is not applicable to --profile conflict");
+      process.exit(2);
+    }
     return modeCapacityMatrix(flagValue("model") ?? ANALYSIS_DEFAULT_MODEL, parseRepetitions());
   }
   if (profile === "conflict") {

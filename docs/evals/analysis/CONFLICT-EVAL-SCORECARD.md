@@ -1,10 +1,11 @@
-# Analysis eval scorecard — 2026-08-18T02:58:12.629Z
+# Analysis eval scorecard — 2026-08-27T21:42:21.147Z
 
 > CONFLICT PROFILE (validation workload, register #3): offline-fixtures results score the FROZEN conflict fixture corpus through the real conflict pipeline and byte-compare against the committed goldens — a machinery/drift proof, NOT a model evaluation; no paid calls are involved. Verdicts use the inherited preset gates; with no live baseline they read insufficient_data by construction.
 
 ## validation — config `offline-fixtures` (dataset conflict-roca-v1)
 
 Identity: provider=stub model=offline-fixtures effort=absent approval=baseline registry=analysis-reg-v1 promptHash=680af57d0cfb schema=89672017b52a
+Env knobs: reduceVotes=5 reduceMaxOutputTokens=6000 mapOutTokensPerDoc=200 mapContentChars=1500 reduceGroupsFed=200
 
 | metric | value |
 |---|---|
@@ -42,6 +43,7 @@ VERDICT: **INSUFFICIENT_DATA**
 ## validation — config `offline-fixtures` (dataset conflict-iran-v1)
 
 Identity: provider=stub model=offline-fixtures effort=absent approval=baseline registry=analysis-reg-v1 promptHash=26ef185ece61 schema=89672017b52a
+Env knobs: reduceVotes=5 reduceMaxOutputTokens=6000 mapOutTokensPerDoc=200 mapContentChars=1500 reduceGroupsFed=200
 
 | metric | value |
 |---|---|

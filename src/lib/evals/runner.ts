@@ -96,6 +96,7 @@ export function currentEnvKnobs(): EvalEnvKnobs {
     reduceMaxOutputTokens: reduceMaxOutputTokens(),
     mapOutTokensPerDoc: mapOutTokensPerDoc(),
     mapContentChars: mapContentChars(),
+    reduceGroupsFed: reduceGroupsFed(),
   };
 }
 
@@ -261,7 +262,7 @@ export const EST_TOKENS_PER_CHAR = 0.32;
 export const EST_CALL_OVERHEAD_TOKENS = 120;
 /** map output: the worker's own per-doc assumption with headroom (audit §11
  *  measures ~135; the worker budgets 200 — the estimate uses the budget) */
-export const EST_MAP_OUT_TOKENS_PER_DOC = 200;
+export const EST_MAP_OUT_TOKENS_PER_DOC = 200; // baseline floor; live value below
 /** digest output per vote: <=12 events of title+summary+claims; fixtures feed
  *  far fewer groups than production, 2000 is deliberate headroom */
 export const EST_DIGEST_OUT_TOKENS_PER_VOTE = 2000;
@@ -311,13 +312,13 @@ export function buildAnalysisEstimatePlan(
         const docs = (c as MapEvalCase).input.docs.length;
         calls = 1;
         inTok = promptTok;
-        outTok = docs * EST_MAP_OUT_TOKENS_PER_DOC;
+        outTok = docs * Math.max(EST_MAP_OUT_TOKENS_PER_DOC, mapOutTokensPerDoc());
         break;
       }
       case "digest": {
         calls = reduceVotes(); // ruling 18: K=5 votes is the shipped configuration
         inTok = promptTok * calls;
-        outTok = EST_DIGEST_OUT_TOKENS_PER_VOTE * calls;
+        outTok = Math.max(EST_DIGEST_OUT_TOKENS_PER_VOTE, reduceMaxOutputTokens()) * calls;
         break;
       }
       case "validation": {
@@ -400,7 +401,10 @@ export function resumeIdentityMismatch(
   cmp("promptHash", existing.identity.promptHash, current.identity.promptHash);
   cmp("schemaVersion", existing.identity.schemaVersion, current.identity.schemaVersion);
   cmp("extractorVersion", existing.identity.extractorVersion ?? null, current.identity.extractorVersion ?? null);
-  cmp("envKnobs", existing.envKnobs, current.envKnobs);
+  // pre-2026-08-27 results files lack reduceGroupsFed; default it to the
+  // historical 200 on BOTH sides so old baselines stay resumable
+  const knobsWithDefault = (k: Record<string, unknown>) => ({ reduceGroupsFed: 200, ...k });
+  cmp("envKnobs", knobsWithDefault(existing.envKnobs as never), knobsWithDefault(current.envKnobs as never));
   return diffs.length === 0 ? null : diffs.join("; ");
 }
 
@@ -532,6 +536,7 @@ export function scoreOfflineCase(
   evalCase: AnalysisEvalCase,
   datasetVersion: string,
   runId: string,
+  configKey: string = OFFLINE_CONFIG_KEY,
 ): EvalCaseResult {
   let checks: EvalCaseResult["checks"];
   let status: EvalCaseResult["status"] = "scored";
@@ -574,7 +579,7 @@ export function scoreOfflineCase(
     caseId: evalCase.id,
     datasetVersion,
     runId,
-    configKey: OFFLINE_CONFIG_KEY,
+    configKey,
     repetition: 0,
     attempt: 0,
     status,
@@ -916,6 +921,22 @@ export function buildWorkloadScorecard(
   const aligned = baselineFile ? alignedComparison(dataset, judgedFile, baselineFile) : null;
   let verdictResult = computeScorecardVerdict(judged, baseline, aligned);
   if (
+    baselineFile !== null &&
+    JSON.stringify({ reduceGroupsFed: 200, ...(judgedFile.envKnobs as unknown as Record<string, unknown>) }) !==
+      JSON.stringify({ reduceGroupsFed: 200, ...(baselineFile.envKnobs as unknown as Record<string, unknown>) })
+  ) {
+    // capacity-knob drift between judged and baseline: the pairwise deltas
+    // compare different pipeline configurations — never a formal verdict
+    verdictResult = {
+      verdict: "insufficient_data",
+      reasons: [
+        "env-knob drift between judged and baseline results — quality deltas compare different capacity configurations; rerun the baseline under the same --capacity profile",
+        ...verdictResult.reasons,
+      ],
+      deltas: null,
+    };
+  }
+  if (
     currentDatasetContentHash !== undefined &&
     judgedFile.datasetContentHash !== currentDatasetContentHash
   ) {
@@ -938,7 +959,7 @@ export function buildWorkloadScorecard(
           `  model: ${judgedFile.identity.model}`,
           `  allowedEfforts: [${judgedFile.identity.reasoningEffort ?? "null"}]`,
           `  status: evaluated_candidate`,
-          `  evidence: this scorecard (dataset ${dataset.datasetVersion}, promptHash ${judgedFile.identity.promptHash.slice(0, 12)})`,
+          `  evidence: this scorecard (dataset ${dataset.datasetVersion}, promptHash ${judgedFile.identity.promptHash.slice(0, 12)}, configKey ${judgedFile.configKey}, knobs ${JSON.stringify(judgedFile.envKnobs)})`,
         ].join("\n")
       : null;
   return {
@@ -958,7 +979,8 @@ export function buildWorkloadScorecard(
 function knobsLine(k: EvalEnvKnobs): string {
   return (
     `reduceVotes=${k.reduceVotes} reduceMaxOutputTokens=${k.reduceMaxOutputTokens} ` +
-    `mapOutTokensPerDoc=${k.mapOutTokensPerDoc} mapContentChars=${k.mapContentChars}`
+    `mapOutTokensPerDoc=${k.mapOutTokensPerDoc} mapContentChars=${k.mapContentChars} ` +
+    `reduceGroupsFed=${k.reduceGroupsFed ?? 200}` // pre-2026-08-27 files lack the field
   );
 }
 

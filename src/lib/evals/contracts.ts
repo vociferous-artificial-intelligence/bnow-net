@@ -391,6 +391,9 @@ export interface EvalEnvKnobs {
   reduceMaxOutputTokens: number;
   mapOutTokensPerDoc: number;
   mapContentChars: number;
+  /** The reduce fed cutoff — the capacity matrix's defining knob (results
+   *  files written before 2026-08-27 lack it; comparisons default it to 200). */
+  reduceGroupsFed: number;
 }
 
 export interface EvalResultsFile {

@@ -1,10 +1,11 @@
-# Analysis eval scorecard — 2026-08-17T13:03:26.010Z
+# Analysis eval scorecard — 2026-08-27T21:42:20.783Z
 
 > Verdicts use the PRESET gates in src/lib/evals/gates.ts (completeness + aligned-heldout pairwise rules pre-registered before any candidate result existed). The offline-fixtures config scores COMMITTED fixture outputs (compliant AND deliberately violating ones) through the real pipeline functions — it is a machinery proof, NOT a model evaluation; no paid calls are involved in producing it.
 
 ## map — config `offline-fixtures` (dataset map-v1)
 
 Identity: provider=stub model=offline-fixtures effort=absent approval=baseline registry=analysis-reg-v1 promptHash=2c833c6a19b3 schema=8185ce15a5e1 extractor=elite_politics/ru=gpt-4o-mini:15a6078371bd,military/ir=gpt-4o-mini:75e0ff6403db,military/ru=gpt-4o-mini:d73cc83ed8df,military/ua=gpt-4o-mini:d73cc83ed8df
+Env knobs: reduceVotes=5 reduceMaxOutputTokens=6000 mapOutTokensPerDoc=200 mapContentChars=1500 reduceGroupsFed=200
 
 | metric | value |
 |---|---|
@@ -42,6 +43,7 @@ VERDICT: **FAIL**
 ## reduce — config `offline-fixtures` (dataset reduce-v1)
 
 Identity: provider=stub model=offline-fixtures effort=absent approval=baseline registry=analysis-reg-v1 promptHash=2a022ecad8e0 schema=b1821aeff411
+Env knobs: reduceVotes=5 reduceMaxOutputTokens=6000 mapOutTokensPerDoc=200 mapContentChars=1500 reduceGroupsFed=200
 
 | metric | value |
 |---|---|
@@ -71,6 +73,7 @@ VERDICT: **INSUFFICIENT_DATA**
 ## digest — config `offline-fixtures` (dataset digest-v1)
 
 Identity: provider=stub model=offline-fixtures effort=absent approval=baseline registry=analysis-reg-v1 promptHash=860bbbdd7274 schema=361f13aaa609
+Env knobs: reduceVotes=5 reduceMaxOutputTokens=6000 mapOutTokensPerDoc=200 mapContentChars=1500 reduceGroupsFed=200
 
 | metric | value |
 |---|---|
@@ -100,6 +103,7 @@ VERDICT: **INSUFFICIENT_DATA**
 ## validation — config `offline-fixtures` (dataset validation-v1)
 
 Identity: provider=stub model=offline-fixtures effort=absent approval=baseline registry=analysis-reg-v1 promptHash=8a5d7b1b65c0 schema=89672017b52a
+Env knobs: reduceVotes=5 reduceMaxOutputTokens=6000 mapOutTokensPerDoc=200 mapContentChars=1500 reduceGroupsFed=200
 
 | metric | value |
 |---|---|
