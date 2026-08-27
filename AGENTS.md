@@ -100,23 +100,31 @@ drizzle/            migrations 0000–00NN + 9999_claim_source_trigger.sql (appl
 data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails)
 ```
 
-## Current state — compact snapshot (verified 2026-08-24; correct in place)
+## Current state — compact snapshot (verified 2026-08-27; correct in place)
 
 Detailed operational/product state lives in `docs/CURRENT-STATE.md` and is corrected in
 place whenever reality changes. Historical narrative: `docs/PROGRESS.md` + `docs/reviews/`;
 debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
 
 - **Live/repository:** https://bnow.net · Vercel `bnow-net` / team `vociferous`; production
-  is **`dpl_FPYase3HqbCF3d2uW3AnwPHibyt4`, the 2026-08-24 release train** (deployed
-  ~2026-08-24T23:45Z from the plain release clone at `main` `143964a`, operator-authorized):
+  is **`dpl_FPYase3HqbCF3d2uW3AnwPHibyt4`, the 2026-08-24 release train** (deployment
+  created 2026-08-24T23:56:34Z per `vercel inspect`, from the plain release clone at
+  `main` `143964a`, operator-authorized):
   QF-A (PR #14, evidence recency + funnel), QF-C (PR #15, analysis-eval control plane),
   the seven-PR conflict evaluator (PRs #16–#22, DORMANT — `CONFLICTS_UI` absent in every
   environment), plus docs PRs #12/#13/#23/#24. `/health` 200 stamping **`143964a`**
-  (plain clone, #78 trap avoided), DB OK; post-deploy smoke PASS (conflict flag-off
+  (plain clone, #78 trap avoided), DB OK — re-verified 2026-08-27T18:13Z; post-deploy
+  smoke PASS (conflict flag-off
   body-leak clean bare+RSC on all routes; ruling-21 spots clean; the gated evidence route
-  307s on `requireAcceptedUser()` FIRST). **Rollback target =
-  `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`**. QF-A's ≥1-day digest-cycle observation window
-  OPENED at deploy. Register: `docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md`.
+  307s on `requireAcceptedUser()` FIRST), and the same anonymous bare+`RSC: 1` probes
+  re-ran clean across 17 gated/conflict routes on 2026-08-27. **Rollback target =
+  `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`**. QF-A's ≥1-day digest-cycle observation window is
+  **CLOSED — PASS** (adjudicated 2026-08-27: 44/44 digests for digest dates 08-24→08-27
+  carry additive `structured.stats.evidenceRecency`, claim/document reconciliation exact
+  on all 44, no structural or relational drift attributable to QF-A —
+  `docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md`). `main` is
+  docs-only ahead of production (the deploy record, then this closeout); no redeploy is
+  needed. Register: `docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md`.
   Previous production deployment detail:
   (PR #10, merge `0aa3d7d`), created 2026-08-23T14:08:53Z, READY, aliased `bnow.net` +
   `bnow-net.vercel.app` + `bnow-net-vociferous.vercel.app`; `/health` stamps **`0aa3d7d`**
@@ -183,7 +191,8 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   current one is named in the Live/repository bullet above). `/health` stamped `9c5e9cb`
   on the Candidate B deployment (root-clone CLI deploy; the OPEN-TASKS #78 blank-stamp
   caveat applies only to worktree CLI deploys); the LIVE deployment today stamps
-  `23a1280`. No migration; no env change;
+  `143964a` (the 2026-08-24 release train — see the Live/repository bullet).
+  No migration; no env change;
   all Ask flags preserved (`ASK_RUNS_SHADOW=1` soak, retention 30/7/7). Ask shadow-soak
   window still dates from 2026-07-22T01:10:37Z. Production DB backup branches:
   `backup-pre-ask-release-2026-07-21` (`br-small-poetry-atf9x253`) and
@@ -209,10 +218,20 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   MTProto is live/top-120 ROCA-only; non-fatal GramJS peer-type `CastError` noise remains #69.
 - **Analysis:** `DIGEST_ENGINE=mapreduce` is set in Production and the versioned map stage
   feeds it; K=5 voting, majority-gid fill, publication-safety guard, and thin-regeneration
-  guard are binding. **Corrected 2026-08-21, still true 2026-08-24 — mapreduce is producing
-  NOTHING:** a theater falls back to legacy whenever the digest window finds no
-  CURRENT-version `doc_claims`, and since **2026-08-17 every digest (11/day) has been
-  legacy**. **#86 is CLOSED (repair deployed 2026-08-23 as PR #10 /
+  guard are binding. **Mapreduce RESUMED naturally (corrected 2026-08-27; #88 CLOSED —
+  PASS):** after digest dates 2026-08-17→08-23 shipped all-legacy (the #88 rolling-window
+  hole, zero `openai_reduce` spend 08-17→08-24), the map worker closed the
+  publication-front lag and the scheduled 02:00 finalize of 2026-08-25 (02:02:04Z, digest
+  date 08-24) produced the first natural mapreduce digests since 2026-08-16 — no forced
+  regeneration or `FORCE_REGEN` observed, no ordering or schedule change. Since then the daily
+  engine matrix is stable at **6 mapreduce** (ru military + elite_politics, ua military,
+  ir military + elite_politics + nuclear) **+ 5 legacy** (il/sa/ae/qa/om military) of the
+  11 digests/day, with `openai_reduce` back in its expected $0.10–0.30/day band. The
+  automatic legacy fallback remains by design, so a future sustained map lag would regress
+  the mix again — detection is `map_health` freshness staleness, not a digest-engine
+  alert. Closeout evidence:
+  `docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md`.
+  **#86 is CLOSED (repair deployed 2026-08-23 as PR #10 /
   `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`; 24-hour recovery window PASS, closed 2026-08-24):**
   `wellFormedSlice` + `dropIsolatedSurrogates` keep the same `MAP_CONTENT_CHARS` code-unit
   ceiling and the same four extractor versions, so no remap was needed; map micro-batch
@@ -220,19 +239,15 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   corpus-wide replay finds **zero** of the 7,292 still-unprocessed eligible documents
   capable of reproducing it. Map freshness RECOVERED during that window
   (`map-health` recovery notice 2026-08-24T13:40Z; `episodeKey` null; backlog 25,857 →
-  7,292; the worker is now mapping documents dated 08-22/23/24). **#88 survives #86 and is
-  re-scoped:** the `digest:intraday` run at 2026-08-24T19:30Z still produced 10 legacy
-  digests. `digest:intraday` uses a ROLLING 24-hour window (`inRollingWindow` keys on the
-  document's `published_at`), and at 19:30:13Z the newest document holding ANY claims was
-  published 2026-08-23T18:55:40Z — about **35 minutes short** of that run's window floor —
-  so the window was empty for every theater/track. The map is closing on the publication
-  front but still trails it (at 2026-08-24T21:05Z: newest claimed document published
-  2026-08-24T04:41:29Z, pending queue 2026-08-24T04:43:20Z → 21:04:40Z). What remains is
-  only the backlog-versus-recency ordering decision. **#87 is now the largest live instance of the
-  `400 Invalid body` family** (legacy digest path, `openai-provider.ts:153` — #97), still
-  swallowed into a counter with `ok=true`.
-  Sibling truncation sites on the digest, reduce and validation paths are NOT fixed (#97),
-  and #87/#88 are untouched by it. Validation uses k=5 LLM matching
+  7,292). **#87 remains OPEN** (per-item failures swallowed into a counter with `ok=true`;
+  mechanical root = the legacy digest truncation at `openai-provider.ts:153` — #97): the 5
+  daily gulf legacy digests still exercise that path, though every map and digest run since
+  2026-08-24T00:00Z has recorded zero nested `errors`/`batchErrors` (measured 2026-08-27 —
+  encouraging, not a repair). **#97 remains OPEN and is now the top code priority:** the
+  reduce-path truncation sites (`synthesize.ts:138-139`) went LIVE again with the mapreduce
+  resumption — the "fix before #88 recovers" intent was overtaken by the natural recovery;
+  no failure was observed in the 08-25→08-27 window, which proves nothing about the defect.
+  Validation uses k=5 LLM matching
   with keyword fallback and exposes coverage/divergence/timeliness/thin-source metrics.
   **2026-07-29→08-15 map outage (recovered; residual backlog drained to ~7K docs by 2026-08-24, #86 track):**
   `openai_map` crossed the shared $10 all-time
@@ -895,21 +910,21 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
 
 1. **Operator:** `docs/SETUP-NEXT-WEEK.md` top-to-bottom — VERCEL_TOKEN regen and Stripe.
    bnow.net attach, Postmark sender cutover + DMARC, and MTProto are done.
-   (OpenAI credits: done 2026-07-05; keep the billing alert.)
-2. **`DIGEST_ENGINE=mapreduce` is SET in prod (flipped 2026-07-09) but no digest has
-   actually used it since 2026-08-17** — every one falls back to legacy for want of
-   current-version `doc_claims` (see the Analysis bullet; OPEN-TASKS #88). **#86 is closed
-   and did NOT resolve this** — map throughput and freshness are recovered, yet the
-   2026-08-24T19:30Z intraday run still went legacy: its ROLLING 24-hour window was empty
-   because the newest document holding claims was published 2026-08-23T18:55:40Z, about 35
-   minutes short of the window floor. The remaining blocker is therefore the
-   backlog-versus-recency ORDERING decision, not the engine flag and no longer corpus
-   damage: either prioritise same-day documents ahead of strict oldest-first order, or move
-   the digest schedule after the map cycle covering its window. Then re-check
-   `provider_usage.openai_reduce` (expected ≈ $0.10–0.30/day against
-   `REDUCE_USD_CAP_DAILY=2`; it has recorded NOTHING since 2026-08-16) and the scoreboard.
-   Rollback of the engine itself = remove the Vercel prod env var (or set `legacy`) +
-   redeploy. Then: gulf theaters onto the map worker, the #33 remap path (the operator
+   (OpenAI credits: done 2026-07-05; keep the billing alert.) **NEW: the X all-time cap
+   needs a decision before fail-closed exhaustion** — `x_api` measured $57.6724 of the $75
+   `X_SPRINT_USD_CAP` on 2026-08-27, ~$1.04/day recent burn ⇒ roughly 17 days of runway as
+   a point-in-time projection (OPEN-TASKS #101).
+2. **`DIGEST_ENGINE=mapreduce` is SET in prod (flipped 2026-07-09) and is producing again
+   (#88 CLOSED — PASS 2026-08-27):** the 2026-08-25T02:02Z finalize resumed mapreduce
+   naturally and the 6-mapreduce/5-legacy daily matrix has held since (see the Analysis
+   bullet). `openai_reduce` is back in its expected ≈$0.10–0.30/day band against
+   `REDUCE_USD_CAP_DAILY=2` ($0.17/$0.18/$0.14 on 08-25/26/27). Watch the scoreboard now
+   that mapreduce output is reaching validation again. Rollback of the engine itself =
+   remove the Vercel prod env var (or set `legacy`) + redeploy. **Next code PR: #97**
+   (route the provider-bound truncation sites through `wellFormedSlice` — the reduce sites
+   are live again with the resumption, the Ask sites are user-controlled, and the digest
+   site is #87's mechanical fix), then the #87/#98 reliability work. Then: gulf theaters
+   onto the map worker, the #33 remap path (the operator
    now EXISTS in the tree — see the map-lease release — but has never been RUN; its
    production deployment is recorded in the closeout decision-log entry, not here),
    per-country mix policy.
@@ -1503,3 +1518,37 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   to published events/claims; the funnel report stays a read-only operator tool. The
   conflict surfaces remain dormant; enablement, shadow soak, and paid evals stay
   separately gated (register §9.3/§9.5).
+
+- **2026-08-27 (QF-A observation CLOSED — PASS; #88 CLOSED — PASS; standing-state
+  reconciliation; docs only)** A read-only production check-in (SELECT-only `sqlq.ts`,
+  the read-only funnel report, anonymous GETs, `vercel inspect`; DB instants derived from
+  epochs — the driver's +4h bogus-Z rendering was reproduced live and avoided) adjudicated
+  the window the 2026-08-24 deploy opened. **QF-A: PASS.** Digest dates 08-24→08-27:
+  44/44 digests present (11/day, all `generated`), **44/44 carry additive
+  `structured.stats.evidenceRecency`**, and reconciliation is exact on all 44
+  (`claimCount` = relational claims; `documentCount` = distinct non-stub cited docs);
+  ru/military + ir/military + ir/nuclear funnel reports ran warning-free (ru/mil 08-27:
+  1,270 reduce claims → 841 groups → 200 fed → 5/5 votes → 5 events → 11 claims / 60 cited
+  docs, 100% timestamp coverage, p90 evidence age 20.1h, 0 stale >48h). QF-A is additive
+  by implementation and tests; production showed no structural or relational drift
+  attributable to it (no claim of byte-identical prose). **#88: acceptance met** — the
+  scheduled 2026-08-25T02:02Z finalize produced the first natural mapreduce digests since
+  2026-08-16 (zero reduce spend 08-17→08-24 pins the resumption; no manual invocation or
+  `FORCE_REGEN` observed — the thin-regen guard actively refused two overwrites in-window),
+  and the 6-mapreduce/5-legacy matrix has held for four consecutive digest dates with
+  `openai_reduce` back in its ≈$0.10–0.30/day band. Operational window otherwise clean:
+  zero `ok=false`/`error`/`budgetStopCategory` on any job, and zero nested
+  `errors`/`batchErrors` on every map and digest run, since 08-24T00:00Z; `map_health`
+  `episodeKey` null; one hung `ingest:telegram`
+  row 08-27T18:01:42Z (timeout signature → #98 evidence); `openai_map` $19.5311 of $40;
+  **`x_api` $57.6724 of $75 → new #101** (operator cap decision; point-in-time ~17-day
+  projection). #87/#97/#98/#84 stay OPEN with corrected wording (#97's reduce sites are
+  live again — next code PR). Deployment creation instant corrected to
+  **2026-08-24T23:56:34Z** (`vercel inspect`; the "~23:45Z" above was an approximation).
+  Standing sections corrected in place: AGENTS.md (Live/repository, Candidate-B lineage
+  stamp, Analysis, Next steps), `docs/CURRENT-STATE.md` (full refresh),
+  `docs/OPEN-TASKS.md` (#84/#87/#88/#97/#98 + new #101), register §11 appended. **This
+  closeout performed no deployment, no environment/cap/model/cron/flag change, no
+  migration, no paid provider call, and no production write**; production remains
+  `dpl_FPYase3HqbCF3d2uW3AnwPHibyt4` / `143964a`, `main` docs-only ahead. Report:
+  `docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md`.

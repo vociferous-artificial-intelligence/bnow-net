@@ -5,16 +5,43 @@ this file is **not append-only**: correct it in place whenever live product, ope
 deployment, test, credential, or repository state changes. Historical narrative belongs in
 `PROGRESS.md`, review notes, and `DECISIONS.md`.
 
-## Current state — snapshot (verified through 2026-08-24; correct in place when it changes)
+## Current state — snapshot (verified through 2026-08-27; correct in place when it changes)
 
 Live at **https://bnow.net** (Vercel project `bnow-net`, team `vociferous`;
 deployment URLs are SSO-walled — always use the project domain). History/narrative:
 `docs/PROGRESS.md` + `docs/reviews/`; debt: `docs/OPEN-TASKS.md`.
 
-- **OpenSanctions match-safety release (2026-07-22):** release commit `441ee09` LIVE
-  (current env-only redeploy `dpl_GPNNsDBjuzsgJ7GKUfvdrbG3YMmC`, original deploy
-  `dpl_E5ysiLJSg1ynNmqJkgmpDjrzZD32`, aliased to bnow.net, `/health` stamps `441ee09`,
-  DB OK). Fail-closed OpenSanctions read model (`src/lib/enrich/os-read.ts`) + admin-only
+- **2026-08-24 release train (the CURRENT production release):** production is
+  **`dpl_FPYase3HqbCF3d2uW3AnwPHibyt4`** built from `main` **`143964a`** (deployment
+  created 2026-08-24T23:56:34Z from the plain release clone; `/health` stamps `143964a`,
+  DB OK — re-verified 2026-08-27T18:13Z; rollback target
+  `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`). Contents: **QF-A** (PR #14 — evidence-recency
+  stats + the read-only quality-funnel report; its post-deploy observation window is
+  **CLOSED — PASS 2026-08-27**: 44/44 digests for digest dates 08-24→08-27 carry additive
+  `structured.stats.evidenceRecency` with exact claim/document reconciliation on all 44 —
+  `docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md`); **QF-C** (PR #15 —
+  analysis-eval control plane; live/paid evaluation remains IMPOSSIBLE and BLOCKED: no
+  `EVAL_*` env exists in any Vercel environment, the fail-closed guard refuses dispatch,
+  and the register §9.3 gate is 2-of-5 met — the 11-item hardening list and operator
+  cap/candidate authorization are outstanding); the **seven-PR conflict evaluator**
+  (PRs #16–#22 — DORMANT: `CONFLICTS_UI` absent everywhere, all public conflict routes
+  404 anonymously, the gated evidence route gates on `requireAcceptedUser()` first;
+  shadow soak and enablement stay separately gated); plus docs PRs #12/#13/#23/#24.
+  `main` is docs-only ahead of production (the deploy record, then the 2026-08-27
+  closeout) — **no redeploy is needed**; there are zero remaining release-train merges.
+  **Operational watch (measured 2026-08-27):** #87 (nested per-item errors swallowed with
+  `ok=true` — zero occurrences since 08-24, defect unrepaired, the 5 daily gulf legacy
+  digests still exercise the path), #97 (provider-bound UTF-16 truncation sites — the
+  reduce sites are LIVE again since mapreduce resumed; next code PR), #98 (sporadic hung
+  `ingest:*` rows — recurred 08-27T18:01:42Z), and **#101: `x_api` at $57.6724 of the $75
+  all-time `X_SPRINT_USD_CAP` (76.9%; ~$1.04/day recent burn ⇒ roughly 17 days of runway
+  as a point-in-time projection) — operator cap decision needed before fail-closed
+  exhaustion**.
+
+- **OpenSanctions match-safety release (2026-07-22):** release commit `441ee09`
+  (original deploy `dpl_E5ysiLJSg1ynNmqJkgmpDjrzZD32`, then the 2026-08-14 env-only
+  redeploy `dpl_GPNNsDBjuzsgJ7GKUfvdrbG3YMmC`; its behavior is carried forward by every
+  later release and is live in the current production build `143964a`). Fail-closed OpenSanctions read model (`src/lib/enrich/os-read.ts`) + admin-only
   neutral candidate-review presentation on `/entities`; non-admin/public surfaces render ZERO
   OpenSanctions markup (verified live — the pre-release non-admin `opensanctions.org/entities/`
   profile-link leak is closed); Ask receives no OpenSanctions-derived categorical assertion,
@@ -28,8 +55,9 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   2,049/161 files; integration 72/14 files. Evidence:
   `docs/reviews/OPENSANCTIONS-MATCH-SAFETY-2026-07-21.md`.
 
-- **AI Search/Ask release (2026-07-21):** release commit `836b46e` LIVE
-  (`dpl_5scfsMfttrHZbLFWgdkAKdpBAHFT`); production DB migrated 0021–0027 (backup branch
+- **AI Search/Ask release (2026-07-21):** release commit `836b46e` (original deploy
+  `dpl_5scfsMfttrHZbLFWgdkAKdpBAHFT`; carried forward by every later release and live in
+  the current production build `143964a`); production DB migrated 0021–0027 (backup branch
   `backup-pre-ask-release-2026-07-21` retained); Privacy 1.3 live with forced
   reacknowledgement; retention envs 30/7/7 set; **`ASK_RUNS_SHADOW=1` soak running** —
   every other new flag (enforce/progressive/stream/cache/sessions/router/billing
@@ -187,7 +215,9 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   767 consecutive batches across the 24-cycle recovery window), so the driver's 3-call
   stall bound no longer trips on batch rejections. Remap remains unexecuted and
   unauthorized for every other reason.
-- **Model routing (PR #5 — LIVE in production since 2026-08-20, `dpl_GH6UWFojKPEgPrhBiT7utPBPnQBJ` / `7336b9c`; 24h formal soak CLOSED PASS 2026-08-21):** `src/lib/llm/model-config.ts`
+- **Model routing (PR #5 — LIVE in production since 2026-08-20, first carried by
+  `dpl_GH6UWFojKPEgPrhBiT7utPBPnQBJ` / `7336b9c`, 24h formal soak CLOSED PASS 2026-08-21;
+  carried forward through the current `143964a` release-train build):** `src/lib/llm/model-config.ts`
   is the ONE authority for which model each analysis workload dispatches and at what
   reasoning effort — map, reduce, digest, validation, entity_audit — resolved at CALL time,
   precedence `<WORKLOAD>_MODEL` → `OPENAI_MODEL` → `gpt-4o-mini` (values trimmed;
@@ -225,18 +255,23 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   server-side. A/B gate PASSED (coverage 25.0 vs 21.1, unsupported 0.30 vs 0.41,
   variance 6.9 vs 8.0; `docs/reviews/MR3-REDUCE-RESULTS.md`). A theater falls back to
   legacy automatically whenever its digest window finds no CURRENT-version doc_claims.
-  **That fallback is currently UNIVERSAL — since 2026-08-17 every digest (11/day, all
-  theaters) has been produced by the LEGACY engine** (before that only ir got mapreduce,
-  1–3/day; last mapreduce digest **2026-08-16T19:32:38Z**). The reason has CHANGED with
-  the #86 repair: through 2026-08-24 the throttled worker was pinned to the backlog and
-  `provider_state.map_health` read `stale_ir,stale_ru,stale_ua`; freshness has since
-  recovered (see below), but the healthy worker still trails the publication front by
-  hours while it finishes the drain, and the last measured `digest:intraday` run
-  (2026-08-24T19:30Z) found its ROLLING 24-hour window (keyed on `published_at`) empty of
-  current-version claims and fell back on all ten digests — that residual gap is
-  OPEN-TASKS #88's backlog-versus-recency ordering decision; by the closeout read the
-  newest claimed document sat inside a fresh rolling window, so mapreduce resumes on its
-  own as soon as a run's window is non-empty.
+  **That fallback was UNIVERSAL for digest dates 2026-08-17 → 2026-08-23** (every digest
+  legacy; before that only ir got mapreduce, 1–3/day; last prior mapreduce digest
+  2026-08-16T19:32:38Z) — first because the throttled worker was pinned to the backlog
+  (`map_health` read `stale_ir,stale_ru,stale_ua` through the #86 era), then, post-repair,
+  because the healthy worker still trailed the publication front and every ROLLING
+  24-hour window came up empty (OPEN-TASKS #88's measured mechanism). **Mapreduce RESUMED
+  naturally on 2026-08-25 (#88 CLOSED — PASS 2026-08-27):** the scheduled 02:00 finalize
+  (02:02:04Z, digest date 08-24) produced the first natural mapreduce digests with no
+  forced regeneration or `FORCE_REGEN` observed, and no ordering/schedule change — the worker
+  simply closed the lag, exactly as the 08-24 re-scope predicted. Since then the daily
+  matrix is stable: **6 mapreduce** (ru military + elite_politics, ua military, ir
+  military + elite_politics + nuclear) **+ 5 legacy** (il/sa/ae/qa/om military) of 11
+  digests/day, with `openai_reduce` back in its expected $0.10–0.30/day band
+  ($0.17/$0.18/$0.14 on 08-25/26/27). The automatic fallback remains by design, so a
+  future sustained map lag would silently regress the mix; detection coverage is
+  `map_health` freshness staleness (`MAP_STALE_DAYS=2`), not a digest-engine alert.
+  Closeout evidence: `docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md`.
   The compounding cause, OPEN-TASKS #86 (map micro-batches rejected `400 Invalid body`
   since 2026-07-16, peaking at 591 of 1,041 = **56.8%** in the 2026-08-22 soak window,
   root-caused to surrogate-splitting truncation in `map-prompts.ts`), is **CLOSED as of
@@ -246,18 +281,14 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   window (2026-08-23T15:00:00Z → 2026-08-24T15:00:00Z) closed **PASS** with `batchErrors`
   **0 on all 24 cycles / 767 batches**, and a corpus-wide replay finding **zero** of the
   7,292 still-unprocessed eligible documents able to reproduce it. **Map freshness has since
-  RECOVERED** — `map-health` recovery notice 2026-08-24T13:40Z, `episodeKey` now null,
-  backlog **25,857 → 7,292**, worker mapping documents dated 08-22/23/24 — so
-  `stale_ir,stale_ru,stale_ua` above is historical, not current.
-  **#88 nonetheless survives and is re-scoped:** the `digest:intraday` run at
-  2026-08-24T19:30Z still produced 10 LEGACY digests. `digest:intraday` uses a ROLLING
-  24-hour window keyed on the document's `published_at`, and at 19:30:13Z the newest
-  document holding ANY claims was published 2026-08-23T18:55:40Z — about **35 minutes
-  short** of the window floor — so the window was empty for every theater/track. The map is
-  closing on the publication front but still trails it (2026-08-24T21:05Z: newest claimed
-  document published 2026-08-24T04:41:29Z; pending queue 2026-08-24T04:43:20Z →
-  21:04:40Z). What remains is only the backlog-versus-recency ordering decision. Tracked as
-  #88. Both engines persist
+  RECOVERED** — `map-health` recovery notice 2026-08-24T13:40Z, `episodeKey` now null
+  (still null at the 2026-08-27 read; last alert remains that recovery notice), backlog
+  **25,857 → 7,292** — so `stale_ir,stale_ru,stale_ua` above is historical, not current.
+  **#88 is CLOSED — PASS (2026-08-27):** its acceptance (a naturally eligible mapreduce
+  digest, observed not forced, no `FORCE_REGEN`) was met by the 2026-08-25T02:02Z finalize
+  and the four consecutive mapreduce digest dates since (see the engine-matrix paragraph
+  above); the backlog-versus-recency ordering decision dissolved as a blocker — the lag
+  closed on its own before any ordering change was made. Both engines persist
   through ONE shared path (`digest-persist.ts`) whose overwrite guard refuses empty
   AND thin (<50% prior claims) regenerations (#32 closed; FORCE_REGEN=1 override),
   and which now runs the deterministic **publication-safety guard**
@@ -310,14 +341,16 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   100/user/day + $10/day global (`ASK_USER_DAILY_LIMIT`/`ASK_GLOBAL_DAILY_BUDGET_USD`)
   + guard caps `ASK_USD_CAP_DAILY=2`/`EMBED_USD_CAP_DAILY=1`, all four in Production
   AND Preview (`ASK_USD_CAP_DAILY` is Production+Preview only — absent in Development;
-  **metering correction pending deployment:** PR #5 fixes gpt-5-mini's price from
-  $0.125/$1 to the official $0.25/$2 per 1M tokens, so on deploy the rerank reservation and
-  recorded estimate DOUBLE — `rerankCeilingUsd()` $0.005125 → $0.01025, per-Ask worst case
+  **metering correction DEPLOYED 2026-08-20 with PR #5:** it fixed gpt-5-mini's price from
+  $0.125/$1 to the official $0.25/$2 per 1M tokens, doubling the rerank reservation and
+  recorded estimate — `rerankCeilingUsd()` $0.005125 → $0.01025, per-Ask worst case
   $0.067625 → $0.07275 — with no change in what OpenAI actually bills; the app had been
-  under-metering. Read-only 2026-08-20: `openai_ask` has spent $0 since 2026-07-21, its
-  largest day ever is $0.2748, all-time $0.4468, so the $2/day cap and the $10 per-provider
-  `LLM_SPRINT_USD_CAP` backstop both keep ample headroom — re-confirm at deploy,
-  OPEN-TASKS #84); rollback = `ASK_PIPELINE=legacy` plain env + redeploy. **Polished
+  under-metering. OPEN-TASKS #84 (record a headroom re-check against the day's real usage
+  at release time) remains OPEN: the intended re-check was not contemporaneously recorded
+  at either the 08-20 or the 08-24 deploy. In fact there was no exposure — `openai_ask`
+  has spent $0 since 2026-07-21 (re-measured 2026-08-27; largest day ever $0.2748,
+  all-time $0.4468 vs the $2/day cap and $10 backstop) — but the task's acceptance stands
+  for the next deploy; rollback = `ASK_PIPELINE=legacy` plain env + redeploy. **Polished
   2026-07-12 (ask-polish sprint):** paid pipeline runs ONLY from the form's server
   action — GET /ask?q= prefills, never executes (closes OPEN-TASKS #48
   double-billing); **one-click home handoff (2026-07-16):** the signed-in home Ask box
@@ -439,8 +472,8 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   "BNOW.NET"** (operator-created; region = operator decision; key ≠ Scenefiend's);
   `NEXT_PUBLIC_POSTHOG_KEY`+`_HOST` in Vercel **Production only** — key removal + redeploy is
   the verified rollback (the keyless build `dpl_DjVLg9RgQdFgAxfpLsRh9ELya5w6` was deployed and
-  proven zero-traffic first). Activation deploy `dpl_EmHs6NneKtPA5RC9i4T3ybYSjLEx` and current
-  prod deploy `dpl_ApFhadwyVNkAyyc9T8R4W7ghgPhu` include the `$identify` signup_at ISO fix
+  proven zero-traffic first). Activation deploy `dpl_EmHs6NneKtPA5RC9i4T3ybYSjLEx` and the
+  then-current (2026-07-16) prod deploy `dpl_ApFhadwyVNkAyyc9T8R4W7ghgPhu` include the `$identify` signup_at ISO fix
   (`9e371dc` — `created_at::text`'s space format made the
   sanitizer drop $identify; to_char now). Init requires ALL of: signed-in + current legal
   acceptance + `users.analytics_preference='granted'` (migration 0020: 3-value CHECK, default
@@ -463,12 +496,13 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   Signals proof; optional analytics was left off and persisted `denied`. It remains the standing
   verification identity and was signed back out after the proof. Evidence:
   `docs/reviews/POSTHOG-ANALYTICS-IMPLEMENTATION-NOTE-2026-07-14.md`.
-- **Tests:** **2,309 unit tests / 176 files** green (`npm test`, ~4s) + **118/118**
-  Neon-branch integration tests / **19 files** (incl. `map-lease.itest.ts`,
-  `map-remap.itest.ts`, `map-budget-stop.itest.ts` and `isw-citation-refresh.itest.ts`,
-  all against disposable production forks with zero paid calls) — measured 2026-08-22 on
-  the PR #7 merged head with `LLM_DISABLE=1` and every provider key blanked; the fork is
-  deleted after each run. PR #7 adds +122 tests and +5 files over PR #5's 2,187/171.
+- **Tests:** **3,329 unit tests / 231 files** green (`npm test`) + **151/151**
+  Neon-branch integration tests / **21 files** (against disposable production forks with
+  zero paid calls) — measured 2026-08-24 on the full release-train tree `e359c61` with
+  `LLM_DISABLE=1` and every provider key blanked; the fork is deleted after each run
+  (per-strand gates along the way: QF-C 2,518/188 + 119/19, QF-A 2,412/180 + 119/19,
+  PR #7 2,309/176 + 118/19). `main` has moved docs-only since `e359c61`, so those counts
+  remain the authoritative merged-tree gate.
   The saved `NEON_API_KEY` works (disposable branches created and deleted cleanly). CI
   mirror: `.github/workflows/ci.yml`; the enforced pre-push gate is `.githooks/pre-push`
   (typecheck+lint+test), which does not include the integration suite.
@@ -483,18 +517,17 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
 - **Stubbed / off:** ACLED (fixture stub, unwired); Stripe flagged off; Resend adapter
   superseded by Postmark. (MTProto left this list 2026-07-11 — real adapter wired,
   session-gated; see Ingestion above.)
-- **Deploy:** current production `dpl_CDnECGnXvoZFKnA9QQziz59pmpu2` (2026-08-17 Candidate B
-  cron-clustering release from `main` merge `9c5e9cb` / PR #4, READY, aliased bnow.net;
-  `/health` stamps `9c5e9cb` — root-clone CLI deploy, so git metadata shipped). Its 48h
-  observation window CLOSED PASS on 2026-08-19T07:00Z and Candidate B stays deployed; the
-  documentation closeout that records this is NOT itself a deployment, so production keeps
-  running `9c5e9cb`. **The repository is now AHEAD of production:** PR #5's model-routing
-  seams (see the Model-routing bullet above) are repository code only — merging them is not
-  deploying them, and production stays on `9c5e9cb` / `dpl_CDnECGnXvoZFKnA9QQziz59pmpu2`
-  (`/health` DB OK, re-verified 2026-08-20) until a separately authorized release with its
-  own 24h routing-equivalence soak. Lineage: the
-  Iran-recovery branch merged to `main` as PR #2 (`26989f7`) and was redeployed 2026-08-16 as
-  `dpl_Dg713ne5Vu6aiGGsbfs6uxgPKZNC`, now the rollback target. Command:
+- **Deploy:** current production **`dpl_FPYase3HqbCF3d2uW3AnwPHibyt4`** — the 2026-08-24
+  release train from `main` `143964a`, deployment created 2026-08-24T23:56:34Z from the
+  plain release clone, READY, aliased bnow.net; `/health` stamps `143964a` with DB OK
+  (re-verified 2026-08-27T18:13Z). **Rollback target =
+  `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`** (the 2026-08-23 #86-repair release, `0aa3d7d`).
+  `main` is docs-only ahead of production (PR #25's deploy record, then the 2026-08-27
+  QF-A/#88 closeout) — the runtime trees are identical and **no redeploy is needed or
+  warranted**. Deployment lineage (all carried forward inside `143964a`): `0aa3d7d`
+  #86 repair (2026-08-23) ← `23a1280` QF-B map lease (2026-08-22) ← `7336b9c` PR #5
+  routing seams (2026-08-20) ← `9c5e9cb` Candidate B cron clustering (2026-08-17, 48h
+  window CLOSED PASS 2026-08-19T07:00Z) ← `26989f7` Iran recovery (PR #2). Command:
   `npx vercel@latest deploy --prod --yes` via the machine CLI session
   (`VERCEL_TOKEN` is expired; regen is an operator task, SETUP-NEXT-WEEK #2). Note: a CLI
   deploy from a git WORKTREE ships no git metadata (`.git` is a file there) and renders an
@@ -506,7 +539,12 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   github.com resolves slowly/flakily: pushes work, but short-timeout git commands can
   fail — retry or wait ~30s+. api.gdeltproject.org DNS still fails locally (not
   pinned). TASS/RIA/Lenta RSS unreachable → covered via their Telegram channels.
-- **Git:** the last application-code release is #73 signed-out landing contrast, merged and deployed
-  2026-07-16. At the last reconciliation origin/main == local main; the only post-deploy delta is
-  the documentation closeout recording that live proof. `codex/73-signed-out-landing-contrast` is
-  merged, and the deploy is live and aliased bnow.net.
+- **Git:** the last application-code release is the **2026-08-24 release train**
+  (`main` `143964a` → `dpl_FPYase3HqbCF3d2uW3AnwPHibyt4`; eleven PRs #12–#22 plus docs
+  PRs #23/#24, landed per `docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md`). At the
+  2026-08-27 reconciliation: zero open PRs; `origin/main` (`eecbd63` at that read) is
+  docs-only ahead of production; the parked audit/integration branches
+  (`codex/quality-foundation-*`, `codex/conflict-evaluations-*`, the p0–p7 gate branches)
+  are retained provenance whose content is contained in `main`; the one unmerged remote
+  branch is `codex/paddle-onboarding-page` (a 2026-08-25 preservation commit of unfinished
+  Paddle pricing work, outside the release train).
