@@ -24,7 +24,10 @@ export type CronCounts = Record<string, unknown>;
  *  present — distinct from a thrown failure (`ok=false`, error text) and from
  *  a timeout (`finished_at IS NULL`, ruling 10). `error` deliberately stays
  *  NULL: readers keyed on `error IS NOT NULL` (ask-shadow-soak-check) keep
- *  their semantics.
+ *  their semantics. (#98's swept timeouts DO write an error string — the soak
+ *  check explicitly excludes `counts ? 'timeoutSweep'` rows from its errored
+ *  gate, so both readers' semantics are preserved deliberately, not by
+ *  accident.)
  *
  *  ONLY the route decides what is degraded — benign non-zero counters exist on
  *  several jobs (validate's ISW-not-published returns, trade/materials
@@ -86,7 +89,14 @@ function ceilingCaseSql(): string {
  *  every job start (any job sweeps for all jobs, so an hourly hang is marked
  *  within ~15 minutes by the next fast ingest); purely bookkeeping — it never
  *  re-runs work, touches no watermark/checkpoint, and never breaks the job
- *  that triggered it. Exported for the integration test. */
+ *  that triggered it. Two accepted edges, both self-healing: a COMPLETED run
+ *  whose finish UPDATE was swallowed (bookkeeping tolerance above) is
+ *  DB-indistinguishable from a hang and gets swept — the error text stays
+ *  literally true for it; and a run outliving its ceiling outside the
+ *  platform-kill model (local dev invocation, a deploy that lowered the
+ *  ceiling mid-flight) may be transiently mislabeled, but its eventual
+ *  finishRun overwrites the sweep verdict wholesale. Exported for the
+ *  integration test. */
 export async function sweepTimedOutRuns(): Promise<number> {
   try {
     const ceiling = ceilingCaseSql();

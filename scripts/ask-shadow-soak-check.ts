@@ -62,8 +62,11 @@ async function main() {
     console.log("ask/embed provider usage (recent):", JSON.stringify(spend.rows));
 
     const crons = await pool.query(`SELECT count(*) FILTER (WHERE finished_at IS NULL AND started_at < now() - interval '30 minutes')::int AS timed_out,
-      count(*) FILTER (WHERE error IS NOT NULL)::int AS errored
+      count(*) FILTER (WHERE error IS NOT NULL AND NOT (counts ? 'timeoutSweep'))::int AS errored
       FROM cron_runs WHERE started_at > now() - interval '24 hours'`);
+    // #98 swept timeouts carry an error string but belong to this script's
+    // timed_out taxonomy (already counted above) — excluding them keeps the
+    // errored gate's semantics unchanged and avoids double-counting hangs.
     console.log("cron_runs last 24h:", JSON.stringify(crons.rows[0]));
     if (crons.rows[0].errored > 0) problems.push(`${crons.rows[0].errored} cron error(s) in 24h — inspect cron_runs`);
 

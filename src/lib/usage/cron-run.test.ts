@@ -111,25 +111,32 @@ describe("#98 timeout sweep wiring", () => {
     expect(out).toBe("survived");
   });
 
-  it("the ceiling table stays in lockstep with every route's exported maxDuration", async () => {
+  it("the ceiling table stays in lockstep with every cron route that records runs", async () => {
+    // Enumerate the ACTUAL route files rather than a second hardcoded list, so
+    // a future cron route added with withCronRun but no table entry fails here
+    // (its runs would otherwise fall to the widest-ceiling fallback — safe
+    // today only because no route exceeds 800s, an invariant this test pins).
     const { JOB_MAX_DURATION_SEC } = await import("./cron-run");
-    const { readFileSync } = await import("node:fs");
-    const routeOf: Record<string, string> = {
-      ingest: "src/app/api/cron/ingest/route.ts",
-      digest: "src/app/api/cron/digest/route.ts",
-      map: "src/app/api/cron/map/route.ts",
-      validate: "src/app/api/cron/validate/route.ts",
-      enrich: "src/app/api/cron/enrich/route.ts",
-      datadark: "src/app/api/cron/datadark/route.ts",
-      trade: "src/app/api/cron/trade/route.ts",
-      materials: "src/app/api/cron/materials/route.ts",
-      "entity-audit": "src/app/api/cron/entity-audit/route.ts",
-    };
-    expect(Object.keys(routeOf).sort()).toEqual(Object.keys(JOB_MAX_DURATION_SEC).sort());
-    for (const [family, path] of Object.entries(routeOf)) {
-      const m = readFileSync(path, "utf8").match(/export const maxDuration = (\d+);/);
+    const { readFileSync, readdirSync } = await import("node:fs");
+    const families = new Map<string, number>(); // family -> maxDuration from source
+    for (const dir of readdirSync("src/app/api/cron", { withFileTypes: true })) {
+      if (!dir.isDirectory()) continue;
+      const path = `src/app/api/cron/${dir.name}/route.ts`;
+      let src: string;
+      try {
+        src = readFileSync(path, "utf8");
+      } catch {
+        continue; // nested-only dirs (probe/mtproto) have no top-level route
+      }
+      if (!src.includes("withCronRun")) continue; // probes never write cron_runs
+      const m = src.match(/export const maxDuration = (\d+);/);
       expect(m, `${path} must export maxDuration`).not.toBeNull();
-      expect(Number(m![1]), `ceiling for ${family}`).toBe(JOB_MAX_DURATION_SEC[family]);
+      families.set(dir.name, Number(m![1]));
+      expect(Number(m![1]), `${path} maxDuration must stay <= 800 (the fallback bound)`).toBeLessThanOrEqual(800);
+    }
+    expect([...families.keys()].sort()).toEqual(Object.keys(JOB_MAX_DURATION_SEC).sort());
+    for (const [family, secs] of families) {
+      expect(JOB_MAX_DURATION_SEC[family], `ceiling for ${family}`).toBe(secs);
     }
   });
 });
