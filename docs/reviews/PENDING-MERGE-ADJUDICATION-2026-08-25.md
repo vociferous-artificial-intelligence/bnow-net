@@ -218,3 +218,21 @@ READY, aliased, `/health` stamps `143964a`, DB OK, smoke PASS (details in the AG
 observation window opened. Still open for the operator: §9.2 (env hygiene), §9.3 (paid
 evals — unchanged, BLOCKED), §9.4 (hygiene), the §6 business-docs and package-manager
 decisions, and the conflict enablement/soak gates.
+
+---
+
+## 11. Post-deploy observation update (2026-08-27)
+
+The §9.1/§10 post-deploy observation is complete: **QF-A's window CLOSED — PASS on
+2026-08-27** (44/44 digests for digest dates 08-24→08-27 carry additive
+`structured.stats.evidenceRecency`, claim/document reconciliation exact on all 44, funnel
+reports warning-free; no structural or relational drift attributable to QF-A), and
+**OPEN-TASKS #88 CLOSED — PASS** (mapreduce resumed naturally at the 2026-08-25T02:02Z
+finalize; four consecutive mapreduce digest dates, not forced, no `FORCE_REGEN` observed).
+Evidence: `docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md`. The
+QF-A/#88 closeout is therefore NO LONGER a pending operator item. Nothing else in §9/§10
+changes: still open are §9.2 (env hygiene incl. #94), §9.3 (paid evals — BLOCKED,
+2-of-5), §9.4 (hygiene), the §6 business-docs and package-manager decisions, and the
+conflict enablement/soak gates. New since the register: **OPEN-TASKS #101** — the X
+all-time cap ($57.67 of $75 measured 2026-08-27) needs an operator decision before
+fail-closed exhaustion. This update deployed nothing and changed no environment.

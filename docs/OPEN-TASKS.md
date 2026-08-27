@@ -856,7 +856,13 @@ docs/reviews/CLOUD-MODEL-ROUTING-SEAMS-2026-08-17.md §12.11)
     time, and the `ask_usage`/allowance numbers will visibly shift afterwards.
     Cross-reference: **#33** is the other routing follow-up — it is now a hard prerequisite
     to unlocking the map activation lock, tracked under its own existing ID, not duplicated
-    here.
+    here. **STATUS 2026-08-27: still OPEN — the intended release-time re-check was not
+    contemporaneously recorded at either the 2026-08-20 (PR #5) or the 2026-08-24
+    (release-train) deploy.** In fact there was no exposure: `openai_ask` has spent $0
+    since 2026-07-21 (re-measured 2026-08-27; largest day ever $0.2748, all-time $0.4468),
+    so the missed record cost nothing — but that does not retire the acceptance, which
+    stands for the next deploy: record the headroom check against the day's real usage at
+    release time. Not moot; the cap posture is unchanged.
 
 ### New (from the QF Worktree B map-lease/remap release — 2026-08-21, PR #7,
 docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
@@ -1020,10 +1026,15 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     and after the #86 repair, confirming this is untouched pre-existing debt and not a
     regression. The map job's 24 recovery-window cycles carried `batchErrors = 0`, so the
     extreme instance is gone; the mechanical fix for the digest instance is #97's
-    `openai-provider.ts:153` site.
-88. **[Tier 1 — pipeline] No digest has used the mapreduce engine since 2026-08-17.** All
-    11 digests/day fall back to legacy because their ROLLING windows find no
-    current-version `doc_claims`: the healthy post-#86 worker still trails the
+    `openai-provider.ts:153` site. **STATUS 2026-08-27 (QF-A/#88 closeout read): zero
+    nested `errors`/`batchErrors` on every map and digest run since 2026-08-24T00:00:00Z**
+    — encouraging, but it repairs nothing: the swallow-into-counter mechanism is
+    unchanged, and the legacy path is still exercised daily by the 5 gulf legacy digests
+    (il/sa/ae/qa/om; ru/ua/ir moved back to mapreduce with the #88 closure). Remains OPEN.
+88. **[CLOSED 2026-08-27 — PASS: natural mapreduce resumption observed, acceptance met]**
+    No digest HAD used the mapreduce engine since 2026-08-17. All
+    11 digests/day fell back to legacy because their ROLLING windows found no
+    current-version `doc_claims`: the healthy post-#86 worker still trailed the
     publication front by hours while it finishes the drain, so nothing lands inside the
     last-24-hours window at digest time. (Through 2026-08-24 the cause was the throttled
     worker pinned to the ru/ua backlog with `map_health` reading
@@ -1051,6 +1062,25 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     that simply closing the remaining lag would let mapreduce resume unaided. That is the
     whole of #88; nothing else gates it. Acceptance is unchanged — a naturally eligible digest using
     mapreduce, observed not forced, with no `FORCE_REGEN`.
+    **CLOSED 2026-08-27 — the acceptance criterion was met exactly as the re-scope
+    predicted: the lag closed and mapreduce resumed unaided.** `openai_reduce` has zero
+    `provider_usage` rows for 2026-08-17→08-24, then rows on 08-25/26/27 ($0.1698 /
+    $0.1784 / $0.1377 — inside the expected $0.10–0.30/day band); the six 08-24-dated
+    mapreduce digests were created 2026-08-25T02:02:04Z→02:06:59Z by the scheduled 02:00
+    finalize (zero reduce spend on 08-24 itself rules out an earlier reduce that day), and
+    every digest date since (08-25/26/27) repeats the 6-mapreduce matrix (ru mil +
+    elite_politics, ua mil, ir mil + elite_politics + nuclear) — **24 naturally produced
+    mapreduce digests over four consecutive digest dates**. Not forced: only scheduled
+    cron runs at nominal cadence appear in `cron_runs` for the window, and no `FORCE_REGEN`
+    use was observed — the thin-regen guard actively REFUSED two overwrites in-window
+    (om 08-26T19:30Z, om 08-27T02:01Z), which `FORCE_REGEN=1` would have overridden. No
+    ordering or schedule change was made; the backlog-versus-recency decision dissolved
+    rather than being decided. Residual, by design and deliberately NOT re-opened as a
+    task: the automatic legacy fallback remains, so a future sustained map lag would
+    silently regress the engine mix at digest level — detection coverage is `map_health`
+    freshness staleness (`MAP_STALE_DAYS=2`), not a digest-engine alert. Consequence for
+    #97: the reduce-path truncation sites are LIVE again (see there). Evidence:
+    `docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md` §5.
 89. **[Tier 3 — correctness, latent] The map dedup gate's reference-side exact-md5 index is
     dead.** `map-worker.ts` casts the reference rows `as DedupDoc[]` while the SQL aliases
     the column `content_md5`, so `ref.contentMd5` is `undefined` and every reference doc is
@@ -1152,12 +1182,16 @@ docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md)
     - `src/lib/analysis/openai-provider.ts:153` — the LEGACY digest doc line,
       `.slice(0, 400)`. **This is the mechanical root of #87**: the swallowed
       `400 Invalid body: failed to parse JSON value` on `digest:finalize` /
-      `digest:intraday` is the identical defect on the identical construction. LIVE today —
-      every digest has used the legacy engine since 2026-08-17.
+      `digest:intraday` is the identical defect on the identical construction. LIVE —
+      exercised daily by the 5 gulf legacy digests (il/sa/ae/qa/om; every digest used the
+      legacy engine 2026-08-17→08-23, until the #88 closure restored the mapreduce mix).
     - `src/lib/analysis/synthesize.ts:138-139` — the REDUCE group line, `.slice(0, 250)`,
-      and the event hint, `.slice(0, 120)`. Dormant only because mapreduce has produced
-      nothing since 2026-08-16 (#88) — and therefore liable to become live again precisely
-      as a consequence of #86's repair. Worth fixing BEFORE #88 recovers.
+      and the event hint, `.slice(0, 120)`. **LIVE AGAIN since 2026-08-25 (corrected
+      2026-08-27):** these were dormant only while mapreduce produced nothing (#88), and
+      the "fix BEFORE #88 recovers" intent was overtaken by the natural resumption — the
+      reduce path now dispatches paid requests daily. Zero nested errors were observed
+      08-25→08-27, which proves nothing about the defect; it is unrepaired. This is the
+      top-priority site set and the reason #97 is the next code PR.
     - `src/lib/validation/llm-match.ts:83,85` — takeaway `.slice(0, 400)` and claim
       `.slice(0, 300)` on the validation matcher. A `400` here degrades to the keyword
       matcher by ruling 9, so it would fail quietly rather than loudly.
@@ -1216,6 +1250,14 @@ docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md §14)
     `map-health`-style check covers `ingest:*`. A cheap first step is a startup sweep that
     marks any `cron_runs` row older than its job's plausible ceiling as failed with a
     timeout category, which would also give #87's nested-error sweep a natural home.
+    **RECURRENCE 2026-08-27 (QF-A/#88 closeout read):** the `ingest:telegram` run started
+    2026-08-27T18:01:42Z showed the identical signature — `finished_at` NULL, `ok` NULL,
+    `error` NULL, empty `counts` at ~20 minutes of age against a ~124–155s 24h duration
+    baseline. Background rate over the prior 7 days: 4 such rows across
+    `ingest:telegram`/`ingest:x` out of ~336 hourly runs (~1.2%). Later runs self-heal
+    through the adapter's `last_message_id` watermark (the same hour's fast/x/mtproto runs
+    were green and the next telegram hour completed normally in prior instances), so this
+    is added as evidence of frequency, not of data loss. Remains OPEN.
 
 ### New (from the 2026-08-24 QF-A landing,
 docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-RELEASE-2026-08-24.md)
@@ -1245,3 +1287,21 @@ docs/reviews/QF-C-ANALYSIS-EVAL-RELEASE-2026-08-24.md)
     (adjudication plan §5.5 — explicitly outside the 2026-08-24 release train), either the
     exemption gains an authorizing record or it is removed. Do not modify Ask behavior in
     QF scope.
+
+### New (from the 2026-08-27 QF-A/#88 closeout,
+docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md)
+
+101. **[Tier 1 — operator/spend] The X all-time cap needs an operator decision before
+    fail-closed exhaustion.** Measured 2026-08-27: `x_api` cumulative spend is
+    **$57.6724 of the $75 `X_SPRINT_USD_CAP`** (76.9%), with the last three days at
+    $1.1603 / $1.0802 / $0.8730 (~$1.04/day average) against the $2.50 `X_DAILY_USD_CAP`.
+    At that rate the all-time headroom (~$17.33) lasts roughly **17 days — a
+    point-in-time projection, not a guarantee** (X volume varies with events). When the
+    cap is reached, `SpendGuard.tryReserve()` fails closed and X ingestion STOPS — by
+    design (ruling 4), but silently from a coverage standpoint apart from the X-health
+    alerting. Options are the operator's: raise `X_SPRINT_USD_CAP` (an env change in all
+    Vercel envs, needing its own authorization), accept the stop, or rebalance the X
+    roster/poll rate first. No cap was changed by the closeout that filed this task.
+    Cross-reference: the ruling-4 ordering (set the env BEFORE deploying anything that
+    reads it) does not apply here — the guard already reads this env; a plain env edit +
+    redeploy suffices when authorized.

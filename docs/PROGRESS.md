@@ -3254,3 +3254,29 @@ post-merge main verification, branding/secret scans).
 - Smoke PASS: conflict routes token-clean bare+RSC (dormant, `CONFLICTS_UI` absent);
   ruling-21 anonymous spots clean; home 200.
 - Rollback: `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`. QF-A ≥1-day digest observation OPEN.
+
+## 2026-08-27 — QF-A observation CLOSED PASS · #88 CLOSED PASS · standing state reconciled (docs only)
+
+- Read-only production check-in (SELECT-only `sqlq.ts` from the release clone, read-only
+  funnel report, anonymous bare+`RSC: 1` probes, `vercel inspect`; all DB instants
+  epoch-derived — the driver's +4h bogus-Z rendering was reproduced and avoided).
+- **QF-A PASS:** digest dates 08-24→08-27 = 44/44 digests, 44/44 with additive
+  `structured.stats.evidenceRecency`, claim/document reconciliation exact on all 44;
+  ru/mil + ir/mil + ir/nuclear funnel reports warning-free; no structural or relational
+  drift attributable to QF-A.
+- **#88 PASS:** mapreduce resumed naturally at the 2026-08-25T02:02Z finalize (digest
+  date 08-24) — zero reduce spend 08-17→08-24, then $0.17/$0.18/$0.14 on 08-25/26/27;
+  6-mapreduce/5-legacy daily matrix held for four consecutive digest dates; no manual
+  invocation or `FORCE_REGEN` observed (thin-regen guard refused two overwrites
+  in-window).
+- Window otherwise clean: zero `ok=false`/`error`/`budgetStopCategory` on any job, zero
+  nested errors on map+digest runs, since 08-24T00:00Z; `map_health` episodeKey null. New
+  evidence for #98 (hung
+  `ingest:telegram` 08-27T18:01:42Z); new **#101** (x_api $57.67 of $75 all-time cap —
+  operator decision). #87/#97/#84 remain open; **#97 (reduce sites live again) is the
+  next code PR.**
+- Deployment creation instant pinned: 2026-08-24T23:56:34Z. Production unchanged
+  (`dpl_FPYase3HqbCF3d2uW3AnwPHibyt4` / `143964a`); `main` docs-only ahead; **nothing
+  deployed, no env/cap/flag/cron/migration change, zero paid calls, zero production
+  writes.** Standing docs corrected: AGENTS.md, CURRENT-STATE, OPEN-TASKS, register §11.
+  Report: `docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md`.
