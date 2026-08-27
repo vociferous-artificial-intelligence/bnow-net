@@ -61,6 +61,10 @@ import "./env";
 //
 //   --profile conflict [--conflict russia_ukraine,iran_regional] + any of
 //   --validate-dataset / --estimate / --offline (default) / --report
+//   --capacity <profile>   capacity-quality matrix dimension (baseline default;
+//                          knob env overrides + configKey suffix, see
+//                          src/lib/evals/capacity-profiles.ts)
+//   --capacity-matrix      per-cell dry-run estimates -> CAPACITY-MATRIX-ESTIMATE.md
 //       The conflict dataset profile UNDER THE EXISTING validation workload:
 //       datasets conflict-roca-v1 / conflict-iran-v1 are BUILT
 //       deterministically from the frozen fixture corpus + committed golden
@@ -93,6 +97,12 @@ import {
   emptyEvalResultsFile,
   heldoutCoverage,
   liveConfigKey,
+  BASELINE_PROFILE,
+  CAPACITY_PROFILES,
+  UNIMPLEMENTED_MATRIX_CELLS,
+  applyCapacityProfile,
+  capacityProfileNames,
+  withCapacityProfileKey,
   mergeEvalResults,
   offlineIdentity,
   pendingWork,
@@ -190,8 +200,19 @@ function loadDataset(workload: AnalysisEvalWorkload): LoadedDataset {
 }
 
 function resultsPath(workload: AnalysisEvalWorkload, configKey: string): string {
-  const prefix = configKey === OFFLINE_CONFIG_KEY ? "" : "live-";
+  // offline keys (incl. capacity-profiled "offline-fixtures+<profile>") carry
+  // no prefix; everything else is a live run artifact
+  const prefix = configKey.startsWith(OFFLINE_CONFIG_KEY) ? "" : "live-";
   return path.join(RESULTS_DIR, `${prefix}${workload}-${configKey}.json`);
+}
+
+// The capacity profile active for this invocation (--capacity; default
+// baseline). Applied to process.env BEFORE any dataset/identity work in
+// main(), so every knob reader — prompts, identity, estimates, live dispatch
+// — sees the profile through the existing knob functions.
+let activeCapacityProfile = BASELINE_PROFILE;
+function profiledKey(base: string): string {
+  return withCapacityProfileKey(base, activeCapacityProfile);
 }
 
 function loadResultsAtPath(p: string): EvalResultsFile | null {
@@ -299,7 +320,7 @@ function modeOffline(
     const { ds, contentHash } = loadDataset(w);
     const header: ResultsFileHeader = {
       workload: w,
-      configKey: OFFLINE_CONFIG_KEY,
+      configKey: profiledKey(OFFLINE_CONFIG_KEY),
       datasetVersion: ds.datasetVersion,
       datasetContentHash: contentHash,
       identity: offlineIdentity(ds),
@@ -307,7 +328,7 @@ function modeOffline(
       scope: runScopeFor(opts.onlyIds, opts.devOnly),
       envKnobs: currentEnvKnobs(),
     };
-    const existing = loadResults(w, OFFLINE_CONFIG_KEY);
+    const existing = loadResults(w, profiledKey(OFFLINE_CONFIG_KEY));
     refuseOnIdentityDrift(existing, header, opts.fresh);
     const { work, unknownIds, excludedHeldout } = pendingWork(ds, existing, {
       repetitions: 1,
@@ -358,6 +379,8 @@ function discoverConfigs(workload: AnalysisEvalWorkload): string[] {
     for (const f of readdirSync(RESULTS_DIR)) {
       const m = f.match(new RegExp(`^live-${workload}-(.+)\\.json$`));
       if (m) configs.add(m[1]);
+      const off = f.match(new RegExp(`^${workload}-(${OFFLINE_CONFIG_KEY}\\+.+)\\.json$`));
+      if (off) configs.add(off[1]);
     }
   }
   return [...configs].sort();
@@ -380,7 +403,7 @@ function modeReport(workloads: AnalysisEvalWorkload[], outPath: string, showHeld
     for (const configKey of configs) {
       const rf = loadResults(w, configKey);
       if (!rf) continue;
-      const live = configKey !== OFFLINE_CONFIG_KEY;
+      const live = !configKey.startsWith(OFFLINE_CONFIG_KEY);
       const baseline = live && configKey !== ANALYSIS_DEFAULT_MODEL ? baselineLive : null;
       // re-review minor 1: compare against the dataset file AS IT EXISTS NOW —
       // an id-preserving reference edit after a run degrades the verdict
@@ -669,7 +692,7 @@ async function modeLive(opts: {
   console.log(`approval=evaluation_candidate — outputs can only ever PROPOSE a registry entry, never activate one.`);
 
   const { ds, contentHash } = loadDataset(opts.workload);
-  const configKey = liveConfigKey(cfg.model, cfg.reasoningEffort);
+  const configKey = profiledKey(liveConfigKey(cfg.model, cfg.reasoningEffort));
   const header: ResultsFileHeader = {
     workload: opts.workload,
     configKey,
@@ -761,6 +784,73 @@ async function modeLive(opts: {
 
 // ---- entry --------------------------------------------------------------------
 
+// ---- --capacity-matrix ---------------------------------------------------------
+// Per-cell cost/feasibility estimates for the capacity-quality matrix. Pure:
+// no DB connection, no client construction, no dispatch, nothing billed.
+function modeCapacityMatrix(model: string, repetitions: number): void {
+  const workloads = ["map", "reduce", "digest", "validation"] as AnalysisEvalWorkload[];
+  const lines: string[] = [];
+  lines.push(`# Capacity-quality matrix — dry-run estimates (${new Date().toISOString()})`);
+  lines.push("");
+  lines.push(
+    `Model \`${model}\`, ${repetitions} repetition(s) per case. Estimates use the same deliberate`,
+  );
+  lines.push(
+    `over-estimating heuristics as \`--estimate\`. NOTHING here dispatches: paid cells run only`,
+  );
+  lines.push(`under the QF-C §6 operator gate with EVAL_* caps set.`);
+  lines.push("");
+  lines.push(`| profile | knobs | workload | cases | est calls | est tokens (in/out) | est $ |`);
+  lines.push(`|---|---|---|---|---|---|---|`);
+  let grand = 0;
+  for (const name of capacityProfileNames()) {
+    const restore = applyCapacityProfile(name);
+    try {
+      const knobs = currentEnvKnobs();
+      const knobsText = `depth=${knobs.mapContentChars} fed=<=${process.env.REDUCE_GROUPS_FED ?? "200"} outTok=${knobs.mapOutTokensPerDoc}`;
+      for (const w of workloads) {
+        const { ds } = loadDataset(w);
+        const plan = buildAnalysisEstimatePlan(ds, model, repetitions);
+        grand += plan.totalUsd;
+        lines.push(
+          `| ${name} | ${knobsText} | ${w} | ${ds.cases.length} | ${plan.totalCalls} | ${plan.totalPromptTokens}/${plan.totalCompletionTokens} | $${plan.totalUsd.toFixed(4)} |`,
+        );
+      }
+    } finally {
+      restore();
+    }
+  }
+  lines.push("");
+  lines.push(
+    `> HONESTY NOTE: with the v1 datasets these estimates barely differentiate across`,
+  );
+  lines.push(
+    `> profiles — v1 fixture docs are short (validator cap 1,600 chars), so depth knobs`,
+  );
+  lines.push(
+    `> change nothing yet. The capacity corpus (v2 datasets with graded long synthetic`,
+  );
+  lines.push(
+    `> docs and >200-group reduce cases) is what makes the cells diverge; until it`,
+  );
+  lines.push(`> lands, this table is a harness proof, not a cost forecast.`);
+  lines.push("");
+  lines.push(`Estimated grand total (all cells, all workloads): $${grand.toFixed(4)}`);
+  lines.push("");
+  lines.push(`## Cells not expressible as env profiles (visible by design)`);
+  for (const c of UNIMPLEMENTED_MATRIX_CELLS) lines.push(`- **${c.cell}** — requires ${c.requires}`);
+  lines.push("");
+  lines.push(
+    `## Cap frame: EVAL_USD_CAP_DAILY (unset today — live dispatch refuses everywhere), ` +
+      `EVAL_DAILY_REQUEST_CAP default 300, EVAL_RUN_REQUEST_CAP default 200. A cell whose est ` +
+      `calls exceed 200 needs multiple runs; plan cells/day against the daily caps.`,
+  );
+  const out = path.join(EVALS_DIR, "CAPACITY-MATRIX-ESTIMATE.md");
+  writeFileSync(out, lines.join("\n") + "\n");
+  console.log(lines.join("\n"));
+  console.log(`\nwritten: ${out}`);
+}
+
 async function main(): Promise<void> {
   // REFUSE equals-form flags outright (Gate-5 ops MAJOR-1): flagValue matches
   // only the space-separated form, so "--profile=conflict" was SILENTLY
@@ -796,6 +886,31 @@ async function main(): Promise<void> {
   if (profile !== undefined && profile !== "conflict") {
     console.error(`--profile: unknown profile "${profile}" (valid: conflict)`);
     process.exit(2);
+  }
+
+  // --capacity <name>: the capacity-quality matrix dimension. Applied to
+  // process.env BEFORE any dataset/identity/estimate work so every knob
+  // reader sees it; the name also enters every configKey (baseline keeps the
+  // historical keys byte-exact). Refused for the conflict profile — its
+  // pipeline reads none of these knobs, so a suffixed configKey would imply
+  // a variation that does not exist.
+  const capacity = flagValue("capacity");
+  if (capacity !== undefined) {
+    if (!(capacity in CAPACITY_PROFILES)) {
+      console.error(`--capacity: unknown profile "${capacity}" (valid: ${capacityProfileNames().join(", ")})`);
+      process.exit(2);
+    }
+    if (profile === "conflict") {
+      console.error("--capacity is not applicable to --profile conflict (the conflict pipeline reads none of the capacity knobs)");
+      process.exit(2);
+    }
+    applyCapacityProfile(capacity);
+    activeCapacityProfile = capacity;
+    console.log(`capacity profile: ${capacity} — ${CAPACITY_PROFILES[capacity].description}`);
+  }
+
+  if (hasFlag("capacity-matrix")) {
+    return modeCapacityMatrix(flagValue("model") ?? ANALYSIS_DEFAULT_MODEL, parseRepetitions());
   }
   if (profile === "conflict") {
     if (hasFlag("execute-live")) {

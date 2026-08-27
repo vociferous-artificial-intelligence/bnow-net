@@ -11,6 +11,18 @@
 // iterate prompts against heldout results (docs/evals/analysis/README.md).
 
 import { createHash } from "node:crypto";
+
+// Capacity-profile API re-exported so the eval CLI's audited static-import
+// surface stays exactly contracts+runner (isolation.test.ts pin). The module
+// is pure (imports nothing), so the CLI's eager closure character is unchanged.
+export {
+  BASELINE_PROFILE,
+  CAPACITY_PROFILES,
+  UNIMPLEMENTED_MATRIX_CELLS,
+  applyCapacityProfile,
+  capacityProfileNames,
+  withCapacityProfileKey,
+} from "./capacity-profiles";
 import {
   mapContentChars,
   mapDocLine,
@@ -22,6 +34,7 @@ import {
 import { mapOutTokensPerDoc } from "../analysis/map-worker";
 import { clusterClaims, rankGroups, type ReduceClaim } from "../analysis/reduce";
 import {
+  reduceGroupsFed,
   reduceVotes,
   synthesisResponseSchema,
   synthesisUserMessage,
@@ -128,7 +141,12 @@ export function buildDigestVotePrompt(input: DigestEvalInput): CandidatePrompt {
     input.mirrorOf && input.mirrorOf.length > 0 ? new Map(input.mirrorOf) : undefined;
   const groups = clusterClaims(input.claims as ReduceClaim[], { mirrorOf });
   const nowMs = Date.parse(`${input.date}T00:00:00Z`) + 86_400_000;
-  const fed = rankGroups(groups, nowMs);
+  // SCI-N6 closed: apply production's fed cutoff (synthesize.ts feeds
+  // ranked.slice(0, reduceGroupsFed())) so capacity cases past the cutoff
+  // measure the REAL pipeline. Identity-neutral for every v1 dataset (all
+  // fixture group counts sit under the cutoff, pinned by test), so committed
+  // results' promptHash is unchanged.
+  const fed = rankGroups(groups, nowMs).slice(0, reduceGroupsFed());
   return {
     system: synthesisSystemPrompt(input.track as Track, input.theater),
     user: synthesisUserMessage(input.theater, input.date, fed, {
@@ -874,6 +892,11 @@ export interface WorkloadScorecard {
    *  requires results completeness (MAJOR-1), so a partial/--dev/--only file
    *  can never render this. */
   proposedRegistryEntry: string | null;
+  /** Hardening item 8 (C-A6-3) + the capacity matrix: the knob values the
+   *  results were produced under, straight from the results-file headers —
+   *  knob drift between judged and baseline must be VISIBLE at report time. */
+  judgedEnvKnobs: EvalEnvKnobs;
+  baselineEnvKnobs: EvalEnvKnobs | null;
 }
 
 export function buildWorkloadScorecard(
@@ -927,7 +950,16 @@ export function buildWorkloadScorecard(
     aligned,
     verdictResult,
     proposedRegistryEntry,
+    judgedEnvKnobs: judgedFile.envKnobs,
+    baselineEnvKnobs: baselineFile ? baselineFile.envKnobs : null,
   };
+}
+
+function knobsLine(k: EvalEnvKnobs): string {
+  return (
+    `reduceVotes=${k.reduceVotes} reduceMaxOutputTokens=${k.reduceMaxOutputTokens} ` +
+    `mapOutTokensPerDoc=${k.mapOutTokensPerDoc} mapContentChars=${k.mapContentChars}`
+  );
 }
 
 function pct(x: number): string {
@@ -979,6 +1011,15 @@ export function renderAnalysisScorecardMarkdown(input: {
         `schema=${sc.judgedIdentity.schemaVersion.slice(0, 12)}` +
         (sc.judgedIdentity.extractorVersion ? ` extractor=${sc.judgedIdentity.extractorVersion}` : ""),
     );
+    lines.push(`Env knobs: ${knobsLine(sc.judgedEnvKnobs)}`);
+    if (sc.baselineEnvKnobs) {
+      const drift = knobsLine(sc.baselineEnvKnobs) !== knobsLine(sc.judgedEnvKnobs);
+      lines.push(
+        drift
+          ? `Baseline knobs: ${knobsLine(sc.baselineEnvKnobs)} — **KNOB DRIFT vs judged: quality deltas compare different capacity configurations**`
+          : `Baseline knobs: identical`,
+      );
+    }
     lines.push("");
     lines.push("| metric | value |");
     lines.push("|---|---|");
