@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
         results.push({ country: c, ...(await validateDigest(c, date)) });
       } catch (e) {
         thrown++;
-        results.push({ country: c, error: e instanceof Error ? e.message : String(e) });
+        results.push({ country: c, error: e instanceof Error ? e.message : String(e), thrown: true });
       }
     }
     // #87 truthful accounting: `errors` previously lumped THROWN failures
@@ -37,12 +37,21 @@ export async function GET(req: NextRequest) {
     // with their operational reason strings sampled (no ISW prose — these are
     // status messages like "no reference report for ir <date> (probe 404)").
     const errored = results.filter((r) => "error" in r);
+    const thrownResults = errored.filter((r) => "thrown" in r && r.thrown);
+    const benign = errored.filter((r) => !("thrown" in r && r.thrown));
     counts.date = date;
     counts.validated = results.length - errored.length;
     counts.errors = thrown;
-    counts.unvalidated = errored.length - thrown;
-    if (errored.length) {
-      counts.unvalidatedReasons = errored
+    counts.unvalidated = benign.length;
+    // digest-consistent split: thrown messages under errorMessages, benign
+    // status reasons (operational strings only, no ISW prose) separately
+    if (thrownResults.length) {
+      counts.errorMessages = thrownResults
+        .slice(0, 5)
+        .map((r) => ("error" in r ? String(r.error).slice(0, 200) : ""));
+    }
+    if (benign.length) {
+      counts.unvalidatedReasons = benign
         .slice(0, 5)
         .map((r) => ("error" in r ? String(r.error).slice(0, 200) : ""));
     }

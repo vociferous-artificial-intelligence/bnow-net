@@ -42,11 +42,14 @@ async function main() {
     );
   if (!runs.length) console.log("NO CRON RUNS IN 24H — either nothing fired, or the deploy predates cron_runs");
   const failures = await sql`
-    SELECT job, started_at, error FROM cron_runs
+    SELECT job, started_at, error, counts->'degraded' AS degraded FROM cron_runs
     WHERE started_at > now() - interval '24 hours' AND ok IS FALSE
     ORDER BY started_at DESC LIMIT 5`;
-  for (const r of failures)
-    console.log(`  FAIL ${r.job} ${r.started_at.toISOString()}: ${String(r.error).slice(0, 160)}`);
+  for (const r of failures) {
+    // degraded runs (#87) carry error NULL by contract; render their category
+    const detail = r.error != null ? String(r.error) : `degraded ${JSON.stringify(r.degraded)}`;
+    console.log(`  FAIL ${r.job} ${r.started_at.toISOString()}: ${detail.slice(0, 160)}`);
+  }
 
   console.log("\n-- LLM spend by provider, last 3 days (digest path must appear) --");
   const llm = await sql`

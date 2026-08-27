@@ -39,7 +39,7 @@ export function markDegraded(
   category: string,
   fields: Record<string, number> = {},
 ): void {
-  counts.degraded = { category, ...fields };
+  counts.degraded = { ...fields, category }; // category always wins the spread
 }
 
 /** Job name for a cron route, qualified by the param that splits its schedule

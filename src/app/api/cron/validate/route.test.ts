@@ -77,11 +77,9 @@ describe("validate cron accounting (#87)", () => {
     expect(w.error).toBeNull(); // degraded signature — not the thrown-run shape
     expect(w.counts.errors).toBe(1); // thrown only
     expect(w.counts.unvalidated).toBe(1); // the benign return stays separate
-    expect(w.counts.degraded).toEqual({ category: "nested_errors", errors: 1 });
-    // the thrown message is sampled alongside benign reasons for triage
-    expect((w.counts.unvalidatedReasons as string[]).sort()).toEqual([
-      "db exploded",
-      "no digest for ir 2026-08-26",
-    ]);
+    expect(w.counts.degraded).toEqual({ errors: 1, category: "nested_errors" });
+    // digest-consistent split: thrown under errorMessages, benign reasons apart
+    expect(w.counts.errorMessages).toEqual(["db exploded"]);
+    expect(w.counts.unvalidatedReasons).toEqual(["no digest for ir 2026-08-26"]);
   });
 });
