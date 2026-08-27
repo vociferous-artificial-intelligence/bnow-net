@@ -48,7 +48,70 @@ export function cronJobName(route: string, qualifier?: string | null): string {
   return qualifier ? `${route}:${qualifier}` : route;
 }
 
+/** Route `maxDuration` per job FAMILY (the job-name prefix before ':'),
+ *  seconds. The platform kills a function at its route's maxDuration, so a
+ *  cron_runs row still unfinished past ceiling + grace is DEFINITIONALLY dead
+ *  — sweeping it can never mislabel a slow-but-alive run. Kept in lockstep
+ *  with each route's `export const maxDuration` by a test that reads the
+ *  route sources. Unknown families fall back to the widest ceiling. */
+export const JOB_MAX_DURATION_SEC: Record<string, number> = {
+  ingest: 300,
+  digest: 800,
+  map: 800,
+  validate: 300,
+  enrich: 300,
+  datadark: 300,
+  trade: 300,
+  materials: 800,
+  "entity-audit": 120,
+};
+export const SWEEP_GRACE_SEC = 120;
+const WIDEST_CEILING_SEC = Math.max(...Object.values(JOB_MAX_DURATION_SEC)) + SWEEP_GRACE_SEC;
+
+function ceilingCaseSql(): string {
+  // Values come from the compile-time table above (integers by construction),
+  // injected as literals so the sweep is a single statement.
+  const whens = Object.entries(JOB_MAX_DURATION_SEC)
+    .map(([family, secs]) => `WHEN '${family}' THEN ${Math.floor(secs) + SWEEP_GRACE_SEC}`)
+    .join(" ");
+  return `CASE split_part(job, ':', 1) ${whens} ELSE ${WIDEST_CEILING_SEC} END`;
+}
+
+/** #98: classify long-dead rows. Ruling 10's signal (`finished_at IS NULL` =
+ *  the run never returned) is PRESERVED — the sweep never fabricates a finish
+ *  instant; it adds `ok=false`, a timeout error string, and durable audit
+ *  metadata (`counts.timeoutSweep`) so a hung run stops reading as
+ *  still-possibly-running forever. Idempotent and episode-deduplicated by
+ *  construction: a swept row has `ok` set and can never match again. Runs at
+ *  every job start (any job sweeps for all jobs, so an hourly hang is marked
+ *  within ~15 minutes by the next fast ingest); purely bookkeeping — it never
+ *  re-runs work, touches no watermark/checkpoint, and never breaks the job
+ *  that triggered it. Exported for the integration test. */
+export async function sweepTimedOutRuns(): Promise<number> {
+  try {
+    const ceiling = ceilingCaseSql();
+    const rows = (await (await sql()).query(
+      `UPDATE cron_runs
+          SET ok = false,
+              error = 'timeout: no finish recorded within the route ceiling (swept at a later job start)',
+              counts = COALESCE(counts, '{}'::jsonb) || jsonb_build_object(
+                'timeoutSweep', jsonb_build_object(
+                  'ceilingSec', ${ceiling},
+                  'sweptAtEpoch', floor(extract(epoch from now()))))
+        WHERE finished_at IS NULL
+          AND ok IS NULL
+          AND started_at < now() - make_interval(secs => (${ceiling}))
+        RETURNING id`,
+    )) as Array<{ id: number }>;
+    return rows.length;
+  } catch (e) {
+    console.warn(`cron-run: timeout sweep failed (job unaffected): ${msg(e)}`);
+    return 0;
+  }
+}
+
 async function startRun(job: string): Promise<number | null> {
+  await sweepTimedOutRuns();
   try {
     const rows = (await (await sql()).query(
       `INSERT INTO cron_runs (job) VALUES ($1) RETURNING id`,

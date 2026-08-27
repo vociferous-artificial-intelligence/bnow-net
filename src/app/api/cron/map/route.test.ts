@@ -28,14 +28,20 @@ function req(query = "", auth: string | null = "Bearer test-secret") {
   });
 }
 
-/** the ok value the route wrote to cron_runs (UPDATE ... SET ok = $2 ...) */
+/** the ok value the route wrote to cron_runs (UPDATE ... SET ok = $2 ...).
+ *  The parameterless #98 timeout sweep is also an UPDATE cron_runs — the
+ *  finish UPDATE is the one carrying bind params. */
 function writtenOk(): boolean | null {
-  const update = dbQuery.mock.calls.find(([sql]) => String(sql).includes("UPDATE cron_runs"));
+  const update = dbQuery.mock.calls.find(
+    ([sql, params]) => String(sql).includes("UPDATE cron_runs") && Array.isArray(params),
+  );
   return update ? (update[1] as unknown[])[1] as boolean : null;
 }
 
 function writtenError(): string | null {
-  const update = dbQuery.mock.calls.find(([sql]) => String(sql).includes("UPDATE cron_runs"));
+  const update = dbQuery.mock.calls.find(
+    ([sql, params]) => String(sql).includes("UPDATE cron_runs") && Array.isArray(params),
+  );
   return update ? ((update[1] as unknown[])[2] as string | null) : null;
 }
 

@@ -21,7 +21,10 @@ function req(query = ""): NextRequest {
 }
 
 function written(): { ok: boolean; error: string | null; counts: Record<string, unknown> } {
-  const call = dbQuery.mock.calls.find(([sql]) => /UPDATE cron_runs/.test(String(sql)));
+  // skip the parameterless #98 sweep UPDATE; the finish UPDATE carries params
+  const call = dbQuery.mock.calls.find(
+    ([sql, params]) => /UPDATE cron_runs/.test(String(sql)) && Array.isArray(params),
+  );
   expect(call).toBeDefined();
   const args = call![1] as unknown[];
   return {
