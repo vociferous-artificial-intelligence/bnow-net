@@ -17,6 +17,31 @@ async function sql() {
 
 export type CronCounts = Record<string, unknown>;
 
+/** Reserved key: a route that completed but carried REAL per-item failures
+ *  marks itself degraded, and withCronRun records the run `ok=false` (#87 —
+ *  nested errors must not produce a misleadingly healthy row). The signature
+ *  of a degraded run is `ok=false AND error IS NULL AND counts.degraded`
+ *  present — distinct from a thrown failure (`ok=false`, error text) and from
+ *  a timeout (`finished_at IS NULL`, ruling 10). `error` deliberately stays
+ *  NULL: readers keyed on `error IS NOT NULL` (ask-shadow-soak-check) keep
+ *  their semantics.
+ *
+ *  ONLY the route decides what is degraded — benign non-zero counters exist on
+ *  several jobs (validate's ISW-not-published returns, trade/materials
+ *  `failures[]`, x/mtproto back-pressure counters) and a generic key-shape
+ *  sweep would wrongly flip them. Categories in use: "nested_errors"
+ *  (digest/validate thrown cells), "adapter_errors" (ingest adapter throws),
+ *  "batch_errors" (map micro-batch failures). Never surface a degraded
+ *  category through `budgetStopCategory` — the map:remap/backfill drivers
+ *  abort on unknown stop categories. */
+export function markDegraded(
+  counts: CronCounts,
+  category: string,
+  fields: Record<string, number> = {},
+): void {
+  counts.degraded = { category, ...fields };
+}
+
 /** Job name for a cron route, qualified by the param that splits its schedule
  *  (digest?group=core and digest?group=gulf are separate jobs on separate crons). */
 export function cronJobName(route: string, qualifier?: string | null): string {
@@ -59,13 +84,15 @@ function msg(e: unknown): string {
 
 /** Run `fn` as a recorded cron job. `fn` fills the `counts` object it is handed;
  *  whatever it holds when `fn` settles is persisted, so a job that throws halfway
- *  still records the work it had done. Errors propagate unchanged. */
+ *  still records the work it had done. Errors propagate unchanged. A run whose
+ *  route marked `counts.degraded` (see markDegraded) resolves normally but is
+ *  recorded `ok=false` with `error` NULL. */
 export async function withCronRun<T>(job: string, fn: (counts: CronCounts) => Promise<T>): Promise<T> {
   const counts: CronCounts = {};
   const id = await startRun(job);
   try {
     const out = await fn(counts);
-    await finishRun(id, true, null, counts);
+    await finishRun(id, counts.degraded == null, null, counts);
     return out;
   } catch (e) {
     await finishRun(id, false, msg(e), counts);
