@@ -100,7 +100,7 @@ drizzle/            migrations 0000–00NN + 9999_claim_source_trigger.sql (appl
 data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails)
 ```
 
-## Current state — compact snapshot (verified 2026-08-24; correct in place)
+## Current state — compact snapshot (verified 2026-08-27; correct in place)
 
 Detailed operational/product state lives in `docs/CURRENT-STATE.md` and is corrected in
 place whenever reality changes. Historical narrative: `docs/PROGRESS.md` + `docs/reviews/`;
@@ -119,7 +119,7 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   307s on `requireAcceptedUser()` FIRST), and the same anonymous bare+`RSC: 1` probes
   re-ran clean across 17 gated/conflict routes on 2026-08-27. **Rollback target =
   `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`**. QF-A's ≥1-day digest-cycle observation window is
-  **CLOSED — PASS (adjudicated 2026-08-27:** 44/44 digests for digest dates 08-24→08-27
+  **CLOSED — PASS** (adjudicated 2026-08-27: 44/44 digests for digest dates 08-24→08-27
   carry additive `structured.stats.evidenceRecency`, claim/document reconciliation exact
   on all 44, no structural or relational drift attributable to QF-A —
   `docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md`). `main` is
