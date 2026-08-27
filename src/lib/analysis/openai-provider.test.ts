@@ -190,10 +190,17 @@ describe("digestDocLine UTF-16 safety (#87 mechanical root, #97 family)", () => 
     expect(wellFormed(line)).toBe(true);
   });
 
+  it("repairs an orphan in a prefix slot too (pins the outer layer against mutants)", () => {
+    // sourceKey sits BEFORE the truncated body slot, so only the outer
+    // dropIsolatedSurrogates can repair it — this test keeps that layer
+    // mutant-detectable rather than equivalent.
+    expect(digestDocLine(doc({ sourceKey: "ex\uD800ample.com" }))).toContain("(example.com,");
+  });
+
   it("normalizes whitespace BEFORE truncating (historical order preserved)", () => {
     // Raw content is 443 units but collapses under 400, so the tail survives;
     // slicing before normalization would have cut "end" off.
-    const raw = "word  wor  ".repeat(40) + "end"; // 443 raw units, normalizes to 363+3
+    const raw = "word  wor  ".repeat(40) + "end"; // 443 raw units; normalized content 363, full line 366 with "t. "
     const normalized = ("t. " + raw).replace(/\s+/g, " ");
     expect(normalized.length).toBeLessThan(400);
     expect(digestDocLine(doc({ content: raw }))).toContain(`) ${normalized}`);
