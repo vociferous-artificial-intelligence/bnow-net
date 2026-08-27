@@ -1,8 +1,9 @@
-// Well-formed UTF-16 truncation primitives. Extracted verbatim from
+// Well-formed UTF-16 truncation primitives. Extracted from
 // src/lib/analysis/map-prompts.ts (the OPEN-TASKS #86 repair) so every
 // provider-bound truncation site (#97 family) shares ONE audited
-// implementation; map-prompts re-exports both names, keeping its API and
-// behavior byte-identical.
+// implementation; the function bodies and the surrogate regex are verbatim,
+// the doc comments were generalized for this neutral home, and map-prompts
+// re-exports both names, keeping its API and behavior byte-identical.
 
 /** Any UTF-16 code unit in the surrogate range D800–DFFF. In a WELL-FORMED JS
  *  string these occur only as a HIGH half (D800–DBFF) immediately followed by a

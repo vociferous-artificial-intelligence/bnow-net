@@ -274,13 +274,23 @@ describe("serializeGroup UTF-16 safety (#97 reduce path)", () => {
   });
 
   it("normalizes whitespace BEFORE truncating (historical order preserved)", () => {
-    // Raw length 300 collapses to exactly 250 after normalization, so nothing
-    // is truncated; slicing before normalization would have cut at raw unit 250.
+    // Raw length 300 collapses to 246 after normalization — under the ceiling —
+    // so nothing is truncated; slicing before normalization would have cut the
+    // trailing "end" at raw unit 250 and failed the toContain below.
     const raw = "word  wor  ".repeat(27).slice(0, 297) + "end"; // 300 raw units
     const normalized = raw.replace(/\s+/g, " ");
-    expect(normalized.length).toBeLessThanOrEqual(250);
+    expect(normalized.length).toBe(246);
     const s = serializeGroup(group({ text: raw, eventHint: null }));
     expect(s).toContain(`) ${normalized}`);
+  });
+
+  it("truncates the NORMALIZED string at 250 when it still exceeds the ceiling", () => {
+    const raw = "ab  ".repeat(100); // 400 raw units; normalizes to "ab " x100 = 300
+    const normalized = raw.replace(/\s+/g, " ");
+    expect(normalized.length).toBe(300);
+    const s = serializeGroup(group({ text: raw, eventHint: null }));
+    expect(s).toContain(`) ${normalized.slice(0, 250)}`);
+    expect(s).not.toContain(normalized.slice(0, 251));
   });
 
   it("whole synthesis user message stays well-formed under adversarial groups", () => {
@@ -296,7 +306,10 @@ describe("serializeGroup UTF-16 safety (#97 reduce path)", () => {
     expect(wellFormed(msg)).toBe(true);
     // The serialized JSON body must not carry a lone-surrogate escape, which is
     // exactly what the provider's strict parser rejects (#86/#97 signature).
-    expect(JSON.stringify(msg)).not.toMatch(/\\u[dD][89a-bA-B][0-9a-fA-F]{2}(?!\\u[dD][c-fC-F])/);
+    // ES2019 well-formed JSON.stringify never \u-escapes a VALID pair, so ANY
+    // surrogate-range escape in its output — high (\ud8xx-\udbxx) or low
+    // (\udcxx-\udfxx) — is a lone surrogate.
+    expect(JSON.stringify(msg)).not.toMatch(/\\u[dD][89a-fA-F]/);
   });
 });
 

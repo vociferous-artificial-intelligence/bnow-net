@@ -26,12 +26,18 @@ export function mapContentChars(): number {
 }
 
 // The well-formed-truncation primitives (`dropIsolatedSurrogates`,
-// `wellFormedSlice`) were born here as the #86 repair and moved VERBATIM to
+// `wellFormedSlice`) were born here as the #86 repair and moved to
 // src/lib/text/well-formed-slice.ts so the other provider-bound truncation
 // sites (#97 family — the reduce path first) share one audited implementation.
-// Re-exported so this module's API, its tests, and every existing import stay
-// byte-identical; behavior is unchanged (same function bodies, same code-unit
-// ceilings, so `mapExtractorVersion`'s `content=` basis is untouched).
+// The function BODIES and the surrogate regex moved verbatim; the doc comments
+// were generalized for the shared home. Map-specific failure-mode knowledge
+// preserved here: when a map request body carries a lone surrogate the provider
+// rejects the whole micro-batch, and the batch's documents then stay
+// `processed = false` and are re-selected every cycle, forever (the #86
+// standing-corpus damage). Re-exported so this module's API, its tests, and
+// every existing import stay byte-identical; behavior is unchanged (same
+// function bodies, same code-unit ceilings, so `mapExtractorVersion`'s
+// `content=` basis is untouched).
 export { dropIsolatedSurrogates, wellFormedSlice } from "../text/well-formed-slice";
 import { dropIsolatedSurrogates, wellFormedSlice } from "../text/well-formed-slice";
 
