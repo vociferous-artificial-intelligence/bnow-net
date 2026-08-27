@@ -42,7 +42,11 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 const srcFiles = walk(REPO_SRC).map((f) => f.slice(REPO_SRC.length + 1).replace(/\\/g, "/"));
-const scriptFiles = readdirSync(SCRIPTS_DIR).filter((f) => /\.ts$/.test(f) && !/\.test\.ts$/.test(f));
+// A13-F1: recurse like the src/ scan — a future nested script must not evade
+// the isolation gates
+const scriptFiles = walk(SCRIPTS_DIR)
+  .map((f) => f.slice(SCRIPTS_DIR.length + 1).replace(/\\/g, "/"))
+  .filter((f) => /\.ts$/.test(f) && !/\.test\.ts$/.test(f));
 
 describe("eval-library isolation", () => {
   it("no file anywhere under src/ outside src/lib/evals imports the eval library", () => {

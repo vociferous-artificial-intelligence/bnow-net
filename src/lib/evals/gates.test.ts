@@ -14,7 +14,7 @@ const DATASET_HASH = "hash-a";
 function completeness(overrides: Partial<CompletenessInfo> = {}): CompletenessInfo {
   return {
     scope: "full",
-    requestedRepetitions: 1,
+    requestedRepetitions: 3, // MIN_LIVE_REPETITIONS floor (C-A7-1); the dedicated test below pins the refusal
     expectedResults: 10,
     presentResults: 10,
     missingResults: 0,
@@ -61,6 +61,8 @@ function agg(overrides: Partial<WorkloadAggregate> = {}): WorkloadAggregate {
 function aligned(overrides: Partial<AlignedComparison> = {}): AlignedComparison {
   return {
     alignedKeys: 10,
+    scoredAlignedKeys: 10,
+    excludedDegradedPairs: 0,
     alignedHeldoutKeys: 4,
     judgedQuality: { recallMean: 0.9, precisionMean: 0.95 },
     baselineQuality: { recallMean: 0.85, precisionMean: 0.95 },
@@ -215,5 +217,27 @@ describe("computeScorecardVerdict", () => {
     for (const w of ["map", "reduce", "digest", "validation"] as const) {
       expect(QUALITY_GATE_METRICS[w].length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("C-A7-1 + A8-F1 hardening gates", () => {
+  it("a live candidate below MIN_LIVE_REPETITIONS can never be verdicted", () => {
+    const judged = agg({ live: true, completeness: completeness({ requestedRepetitions: 1 }) });
+    const v = computeScorecardVerdict(judged, agg({ live: true }), aligned());
+    expect(v.verdict).toBe("insufficient_data");
+    expect(v.reasons.join(" ")).toMatch(/MIN_LIVE_REPETITIONS/);
+  });
+
+  it("offline runs are exempt from the repetition floor (deterministic)", () => {
+    const judged = agg({ live: false, completeness: completeness({ requestedRepetitions: 1 }) });
+    const v = computeScorecardVerdict(judged, null, null);
+    expect(v.reasons.join(" ")).not.toMatch(/MIN_LIVE_REPETITIONS/);
+  });
+
+  it("a baseline carrying degraded rows blocks the pairwise verdict", () => {
+    const baseline = agg({ live: true, cases: { total: 10, scored: 9, schemaInvalid: 1, providerError: 0, skipped: 0 } });
+    const v = computeScorecardVerdict(agg({ live: true }), baseline, aligned());
+    expect(v.verdict).toBe("insufficient_data");
+    expect(v.reasons.join(" ")).toMatch(/baseline results carry degraded rows/);
   });
 });

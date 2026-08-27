@@ -157,6 +157,14 @@ describe("assertLivePreflight (all guards BEFORE any client construction)", () =
     expect(() => assertLivePreflight({ ...GOOD_ARGS, dbAck: "other.host" }, GOOD_ENV)).toThrow(/not acknowledged/);
   });
 
+  it("SAF-m3: refuses when EVAL_DATABASE_URL host EQUALS the production DATABASE_URL host", () => {
+    const env = { ...GOOD_ENV, DATABASE_URL: "postgres://user:pw@eval-branch.example.neon.tech/prod" };
+    expect(() => assertLivePreflight(GOOD_ARGS, env)).toThrow(/EQUALS the production DATABASE_URL host/);
+    // a distinct production host stays accepted
+    const okEnv = { ...GOOD_ENV, DATABASE_URL: "postgres://user:pw@prod-main.example.neon.tech/db" };
+    expect(assertLivePreflight(GOOD_ARGS, okEnv)).toBeTruthy();
+  });
+
   it("refuses without the API key or either cap (fail-closed)", () => {
     for (const missing of ["OPENAI_API_KEY", "LLM_SPRINT_USD_CAP", "EVAL_USD_CAP_DAILY"] as const) {
       const env = { ...GOOD_ENV };

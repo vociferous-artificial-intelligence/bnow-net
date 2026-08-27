@@ -211,6 +211,34 @@ function resultsPath(workload: AnalysisEvalWorkload, configKey: string): string 
 // main(), so every knob reader — prompts, identity, estimates, live dispatch
 // — sees the profile through the existing knob functions.
 let activeCapacityProfile = BASELINE_PROFILE;
+let freshAckValue: string | null = null;
+
+/** C-A7-2: --fresh silently discarded recorded results and erased run
+ *  provenance. Now a --fresh that would discard a non-empty results file
+ *  requires an explicit `--fresh-ack <configKey>` acknowledgement, and the
+ *  discarded runs' digests are carried into the NEW file's header
+ *  (`discardedRuns`) so a re-roll-until-pass artifact can never look
+ *  first-try. Returns the provenance entry to stamp, or null when there was
+ *  nothing to discard. */
+function acknowledgeFreshDiscard(
+  existing: EvalResultsFile | null,
+  fresh: boolean,
+  configKey: string,
+): { configKey: string; runIds: string[]; resultsDigest: string; discardedResults: number } | null {
+  if (!fresh || existing === null || Object.keys(existing.results).length === 0) return null;
+  if (freshAckValue !== configKey) {
+    console.error(
+      `--fresh would DISCARD ${Object.keys(existing.results).length} recorded result(s) for ${configKey} — acknowledge explicitly with: --fresh-ack ${configKey}`,
+    );
+    process.exit(2);
+  }
+  return {
+    configKey,
+    runIds: [...new Set(Object.values(existing.results).map((r) => r.runId))].sort(),
+    resultsDigest: sha256(JSON.stringify(existing.results)),
+    discardedResults: Object.keys(existing.results).length,
+  };
+}
 function profiledKey(base: string): string {
   return withCapacityProfileKey(base, activeCapacityProfile);
 }
@@ -329,6 +357,8 @@ function modeOffline(
       envKnobs: currentEnvKnobs(),
     };
     const existing = loadResults(w, profiledKey(OFFLINE_CONFIG_KEY));
+    const discarded = acknowledgeFreshDiscard(existing, opts.fresh, profiledKey(OFFLINE_CONFIG_KEY));
+    if (discarded) header.discardedRuns = [...(existing?.discardedRuns ?? []), discarded];
     refuseOnIdentityDrift(existing, header, opts.fresh);
     const { work, unknownIds, excludedHeldout } = pendingWork(ds, existing, {
       repetitions: 1,
@@ -409,9 +439,12 @@ function modeReport(workloads: AnalysisEvalWorkload[], outPath: string, showHeld
       const profileSuffix = plusAt === -1 ? "" : configKey.slice(plusAt);
       const baselineKey = `${ANALYSIS_DEFAULT_MODEL}${profileSuffix}`;
       const baseline = live && configKey !== baselineKey ? loadResults(w, baselineKey) : null;
+      const baselineExpectation = baseline
+        ? { configKey: baselineKey, model: ANALYSIS_DEFAULT_MODEL }
+        : null;
       // re-review minor 1: compare against the dataset file AS IT EXISTS NOW —
       // an id-preserving reference edit after a run degrades the verdict
-      scorecards.push(buildWorkloadScorecard(ds, rf, baseline, live, contentHash));
+      scorecards.push(buildWorkloadScorecard(ds, rf, baseline, live, contentHash, baselineExpectation));
       detail.push({ workload: w, configKey, results: Object.values(rf.results), splitOf });
       if (rf.datasetContentHash !== contentHash) {
         console.error(
@@ -548,6 +581,8 @@ async function conflictModeOffline(
     };
     const p = conflictResultsPath(run.dataset.datasetVersion, OFFLINE_CONFIG_KEY);
     const existing = loadResultsAtPath(p);
+    const discardedConflict = acknowledgeFreshDiscard(existing, opts.fresh, header.configKey);
+    if (discardedConflict) header.discardedRuns = [...(existing?.discardedRuns ?? []), discardedConflict];
     refuseOnIdentityDrift(existing, header, opts.fresh);
     const { work, unknownIds, excludedHeldout } = pendingWork(run.dataset, existing, {
       repetitions: 1,
@@ -708,6 +743,8 @@ async function modeLive(opts: {
     envKnobs: currentEnvKnobs(),
   };
   const existing = loadResults(opts.workload, configKey);
+  const discardedLive = acknowledgeFreshDiscard(existing, opts.fresh, configKey);
+  if (discardedLive) header.discardedRuns = [...(existing?.discardedRuns ?? []), discardedLive];
   refuseOnIdentityDrift(existing, header, opts.fresh);
   try {
     // re-review minor 2a: a targeted heldout rerun can re-roll a stochastic
@@ -880,6 +917,7 @@ async function main(): Promise<void> {
 
   const fresh = hasFlag("fresh");
   const onlyIds = parseOnly();
+  freshAckValue = flagValue("fresh-ack") ?? null;
   if (fresh && onlyIds !== null) {
     console.error("--fresh and --only are mutually exclusive (--only is already a forced rerun of its ids)");
     process.exit(2);
