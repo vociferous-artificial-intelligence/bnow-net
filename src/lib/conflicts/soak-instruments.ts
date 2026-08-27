@@ -22,6 +22,11 @@
 /** One unit's matcher outcome, reduced to what sampling needs. Adapters from
  *  the eval-profile/live-matcher shapes are the soak wiring's job. */
 export interface SampleableUnitOutcome {
+  /** MUST be unique across the whole pool passed to any function here: raw
+   *  pipeline unit ids are REPORT-scoped (the committed corpus reuses "u0"
+   *  across scenarios), so the soak wiring adapter must report-qualify them
+   *  (e.g. `${reportRef}:${unitId}`) and resolve any two-population union to
+   *  one outcome per unit BEFORE sampling. Duplicates throw. */
   unitId: string;
   verdict: "match" | "partial" | "miss" | "unmatchable";
   /** the matcher's top candidate claim for the unit, when one exists */
@@ -91,7 +96,7 @@ function assertUniqueUnitIds(outcomes: readonly SampleableUnitOutcome[], fn: str
   for (const o of outcomes) {
     if (seen.has(o.unitId)) {
       throw new Error(
-        `${fn}: duplicate unitId "${o.unitId}" — resolve the two soak populations into one outcome per unit BEFORE sampling (the union is the caller's explicit responsibility)`,
+        `${fn}: duplicate unitId "${o.unitId}" — either an unresolved two-population union, or un-namespaced REPORT-scoped ids (qualify as \`\${reportRef}:\${unitId}\`); both are the caller's responsibility to resolve BEFORE sampling`,
       );
     }
     seen.add(o.unitId);
@@ -226,9 +231,20 @@ export interface MatcherGrade {
   confusion: { tp: number; fp: number; fn: number; tn: number };
   /** register #12.3 pending: partial-verdict pairs graded as a SEPARATE
    *  denominator-neutral diagnostic, never folded into the confusion matrix */
-  partialDiagnostic: { pairs: number; humanConfirmed: number };
+  partialDiagnostic: {
+    pairs: number;
+    humanConfirmed: number;
+    /** negative/quiet-day breakout so a future partial-as-match adjudication
+     *  can re-slice the §5 false-agreement rate from the grade alone */
+    negativePairs: number;
+    negativeHumanConfirmed: number;
+  };
   /** labels excluded because their claimId disagreed with the sampled pair */
   labelClaimMismatches: number;
+  /** pairs excluded because the outcome's verdict drifted from the sampled
+   *  verdict (e.g. a compound re-derivation flipped match→partial after the
+   *  sample was drawn) — same fail-closed treatment as a claim mismatch */
+  verdictDriftMismatches: number;
   labelledPairs: number;
   totalPairs: number;
   thresholds: { precisionOk: boolean | null; recallOk: boolean | null; falseAgreementOk: boolean | null };
@@ -251,8 +267,9 @@ export function gradeMatcher(
     recall: null,
     falseAgreementRate: null,
     confusion: { tp: 0, fp: 0, fn: 0, tn: 0 },
-    partialDiagnostic: { pairs: 0, humanConfirmed: 0 },
+    partialDiagnostic: { pairs: 0, humanConfirmed: 0, negativePairs: 0, negativeHumanConfirmed: 0 },
     labelClaimMismatches: 0,
+    verdictDriftMismatches: 0,
     labelledPairs: 0,
     totalPairs: sample.pairs.length,
     thresholds: { precisionOk: null, recallOk: null, falseAgreementOk: null },
@@ -282,7 +299,10 @@ export function gradeMatcher(
   let negativeFalseAgreements = 0;
   let partialPairs = 0;
   let partialConfirmed = 0;
+  let partialNegative = 0;
+  let partialNegativeConfirmed = 0;
   let labelClaimMismatches = 0;
+  let verdictDriftMismatches = 0;
   let labelledPairs = 0;
   for (const pair of sample.pairs) {
     const label = labelOf.get(pair.unitId);
@@ -294,14 +314,24 @@ export function gradeMatcher(
       labelClaimMismatches++;
       continue;
     }
+    // a verdict that drifted between sampling and grading is the same class
+    // of inconsistency — excluded, counted, never silently regraded
+    if (outcome.verdict !== pair.verdict) {
+      verdictDriftMismatches++;
+      continue;
+    }
     labelledPairs++;
     if (pair.verdict === "partial") {
       // register #12.3 pending: diagnostic only, denominator-neutral
       partialPairs++;
       if (label.isMatch) partialConfirmed++;
+      if (outcome.negativeOrQuietDay === true) {
+        partialNegative++;
+        if (label.isMatch) partialNegativeConfirmed++;
+      }
       continue;
     }
-    const matcherSaysMatch = outcome.verdict === "match";
+    const matcherSaysMatch = pair.verdict === "match";
     if (matcherSaysMatch && label.isMatch) tp++;
     else if (matcherSaysMatch && !label.isMatch) fp++;
     else if (!matcherSaysMatch && label.isMatch) fn++;
@@ -322,8 +352,14 @@ export function gradeMatcher(
     recall,
     falseAgreementRate,
     confusion: { tp, fp, fn, tn },
-    partialDiagnostic: { pairs: partialPairs, humanConfirmed: partialConfirmed },
+    partialDiagnostic: {
+      pairs: partialPairs,
+      humanConfirmed: partialConfirmed,
+      negativePairs: partialNegative,
+      negativeHumanConfirmed: partialNegativeConfirmed,
+    },
     labelClaimMismatches,
+    verdictDriftMismatches,
     labelledPairs,
     totalPairs: sample.pairs.length,
     thresholds: {

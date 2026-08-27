@@ -197,8 +197,33 @@ describe("Cohen's κ + matcher grading (soak §5)", () => {
     const overlap = primary.slice(1); // mixed marginals, identical -> κ=1
     const grade = gradeMatcher(sample, pool, primary, overlap);
     expect(grade.verdict).toBe("graded");
-    expect(grade.partialDiagnostic).toEqual({ pairs: 1, humanConfirmed: 0 });
+    expect(grade.partialDiagnostic).toEqual({ pairs: 1, humanConfirmed: 0, negativePairs: 0, negativeHumanConfirmed: 0 });
     expect(grade.confusion).toEqual({ tp: 1, fp: 0, fn: 0, tn: 1 }); // partial NOT folded
+  });
+
+  it("a verdict that drifted between sampling and grading is excluded and counted", () => {
+    const atSample: SampleableUnitOutcome[] = [
+      { unitId: "a", verdict: "match", topCandidateClaimId: 1 },
+      { unitId: "b", verdict: "match", topCandidateClaimId: 2 },
+      { unitId: "c", verdict: "miss", topCandidateClaimId: null },
+    ];
+    const sample = stratifiedLabelSample(atSample, "s", 5);
+    // by grading time, a compound re-derivation flipped "a" match -> partial
+    const atGrade: SampleableUnitOutcome[] = [
+      { unitId: "a", verdict: "partial", topCandidateClaimId: 1 },
+      atSample[1],
+      atSample[2],
+    ];
+    const primary: HumanLabel[] = [
+      { unitId: "a", claimId: 1, isMatch: true },
+      { unitId: "b", claimId: 2, isMatch: true },
+      { unitId: "c", claimId: null, isMatch: false },
+    ];
+    const overlap = primary.slice(1); // mixed marginals, identical -> kappa 1
+    const grade = gradeMatcher(sample, atGrade, primary, overlap);
+    expect(grade.verdictDriftMismatches).toBe(1);
+    expect(grade.confusion).toEqual({ tp: 1, fp: 0, fn: 0, tn: 1 }); // "a" never regraded
+    expect(grade.partialDiagnostic.pairs).toBe(0);
   });
 
   it("duplicate unitIds throw everywhere (two-population unions must be resolved by the caller)", () => {
