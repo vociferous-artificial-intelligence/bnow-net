@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Pool } from "@neondatabase/serverless";
 import { generateDigestWithEngine } from "@/lib/analysis/engine";
-import { cronJobName, withCronRun } from "@/lib/usage/cron-run";
+import { cronJobName, markDegraded, withCronRun } from "@/lib/usage/cron-run";
 
 export const maxDuration = 800;
 export const dynamic = "force-dynamic";
@@ -100,6 +100,9 @@ async function run(
   counts.digests = results.length - errors.length - refused.length;
   counts.errors = errors.length;
   if (errors.length) counts.errorMessages = errors.slice(0, 5).map((r) => r.error);
+  // #87: a digest cell that threw is never benign (real failure or a cap
+  // stop), so the run must not read healthy. Overwrite refusals stay benign.
+  if (errors.length) markDegraded(counts, "nested_errors", { errors: errors.length });
   // empty-/thin-regen overwrite refusals (OPEN-TASKS #32): the run kept the
   // existing digest instead of letting a thin roll overwrite it
   counts.overwriteRefusals = refused.length;

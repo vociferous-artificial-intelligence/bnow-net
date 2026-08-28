@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runIngest, type IngestWhich } from "@/lib/ingest/run";
-import { cronJobName, withCronRun } from "@/lib/usage/cron-run";
+import { cronJobName, markDegraded, withCronRun } from "@/lib/usage/cron-run";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
@@ -19,6 +19,12 @@ export async function GET(req: NextRequest) {
     counts.inserted = stats.reduce((s, a) => s + a.inserted, 0);
     counts.errors = stats.reduce((s, a) => s + a.errors, 0);
     counts.ms = Date.now() - started;
+    // #87: `errors` counts adapters whose fetch/insert/commit THREW — the
+    // fail-closed and back-pressure paths (budget stops, lease skips, flood
+    // aborts) record in per-adapter detail keys instead and stay benign.
+    if ((counts.errors as number) > 0) {
+      markDegraded(counts, "adapter_errors", { errors: counts.errors as number });
+    }
     // per-adapter tallies (mtproto flood waits/aborts etc.) — TASK 1.6 metering
     for (const a of stats) if (a.detail && Object.keys(a.detail).length) counts[a.adapter] = a.detail;
     return NextResponse.json({

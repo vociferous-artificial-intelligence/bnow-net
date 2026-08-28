@@ -18,6 +18,7 @@ import {
 } from "../llm/model-config";
 import { estimateCostUsd } from "../llm/pricing";
 import { LlmBudgetError, assertLlmEnabled, mapGuardFromEnv } from "../usage/llm-guard";
+import { markDegraded } from "../usage/cron-run";
 import { stopCategoryOfCode, type SpendGuard } from "../usage/spend-guard";
 import { dedupGate, type DedupDoc } from "./map-dedup";
 import { verifyQuote } from "./quote-verify";
@@ -340,6 +341,13 @@ async function cycle(
     leaseLostDiscards: 0,
     leaseRenewals: 0,
   };
+  // Per-class tally of batch failures (#87): kept OUTSIDE MapRunStats (that
+  // interface is all-number and is flattened wholesale into counts) and
+  // recorded as a fixed content-safe vocabulary, never raw provider messages —
+  // a provider 400 can echo the rejected payload, and counts render into
+  // operator artifacts (x-gap-rescore result.md; map-health email bodies stay
+  // numeric-only by contract).
+  const batchErrorClasses = new Map<string, number>();
   // Lost-lease latch: set the moment a renew fails. Checked before every write
   // and every new dispatch; parsed-but-unpersisted results are discarded (their
   // billed usage is already in provider_usage — metering precedes discarding).
@@ -665,6 +673,8 @@ async function cycle(
         }
         if (e instanceof MapLeaseLostError) return; // latch is set; stop quietly
         stats.batchErrors++;
+        const cls = classifyBatchError(e instanceof Error ? e.message : String(e));
+        batchErrorClasses.set(cls, (batchErrorClasses.get(cls) ?? 0) + 1);
         console.warn(
           `map ${b.theater}/${b.track} batch of ${b.docs.length}: ${e instanceof Error ? e.message : e}`,
         );
@@ -696,6 +706,7 @@ async function cycle(
   // point means that write committed, or there were none)
   counts.processedMarked = markedHere + mirrors.length;
   Object.assign(counts, stats, guardCounts(guard));
+  finalizeBatchErrors(counts, stats.batchErrors, batchErrorClasses);
   const stop = budgetStop.current;
   if (stop) {
     // message + machine-readable classification: "run_cap" is the benign
@@ -713,6 +724,50 @@ async function cycle(
 function guardCounts(guard: SpendGuard) {
   const s = guard.runStats;
   return { estUsd: Number(s.usd.toFixed(4)), llmRequests: s.requests };
+}
+
+/** Fixed vocabulary for batch-failure classes (#87). Deliberately NEVER the
+ *  raw message: a provider 400 can echo the rejected request payload (source
+ *  text), and cron counts must stay content-safe. "invalid_body" is the
+ *  #86/#97 rejection signature; the rest split transport-vs-server-vs-persist
+ *  well enough to triage a run from the durable row alone. */
+export function classifyBatchError(message: string): string {
+  const m = message.toLowerCase();
+  if (m.includes("invalid body")) return "invalid_body";
+  if (m.includes("rate limit") || m.includes("429")) return "rate_limit";
+  if (/\b50[0-9]\b/.test(m) || m.includes("server error") || m.includes("bad gateway")) {
+    return "server_error";
+  }
+  if (
+    m.includes("timeout") ||
+    m.includes("timed out") ||
+    m.includes("econn") ||
+    m.includes("fetch failed") ||
+    m.includes("socket") ||
+    m.includes("network")
+  ) {
+    return "transport";
+  }
+  if (m.includes("duplicate key") || m.includes("constraint") || m.includes("deadlock")) {
+    return "persist";
+  }
+  return "other";
+}
+
+/** Records the per-class tally and marks the run degraded when any micro-batch
+ *  failed (#87: `batchErrors` was a bare counter on an ok=true row and the
+ *  discriminating message lived only in the runtime log). Exported pure for
+ *  unit tests. NOTE: the degraded category must never be surfaced through
+ *  `budgetStopCategory` — the map:remap/backfill drivers abort on unknown stop
+ *  categories; `counts.degraded` is a separate key they ignore. */
+export function finalizeBatchErrors(
+  counts: Record<string, unknown>,
+  batchErrors: number,
+  classes: Map<string, number>,
+): void {
+  if (batchErrors <= 0) return;
+  counts.batchErrorClasses = Object.fromEntries([...classes.entries()].sort());
+  markDegraded(counts, "batch_errors", { batchErrors });
 }
 
 /** One micro-batch -> validated per-doc claims. Truncation splits the batch in

@@ -183,6 +183,21 @@ describe("budget-stop health classification (cron_runs.ok)", () => {
     expect(((await res.json()) as Record<string, unknown>).ok).toBe(true);
     expect(writtenOk()).toBe(true);
   });
+
+  it("a run the worker marked degraded (batch errors) records ok=false with error NULL (#87)", async () => {
+    cycleResult({
+      claims: 42,
+      llmCalls: 5,
+      batchErrors: 2,
+      batchErrorClasses: { invalid_body: 1, server_error: 1 },
+      degraded: { category: "batch_errors", batchErrors: 2 },
+    });
+    const res = await GET(req());
+    // the HTTP body still reports the cycle result; only the durable row flips
+    expect(res.status).toBe(200);
+    expect(writtenOk()).toBe(false);
+    expect(writtenError()).toBeNull();
+  });
 });
 
 describe("health-check wiring", () => {
