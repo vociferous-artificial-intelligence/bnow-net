@@ -1249,15 +1249,23 @@ docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md)
     `src/lib/text/well-formed-slice.ts`, observed through 30 clean live reduce requests)
     and the legacy digest site (PR #28, `afbf06e` — `digestDocLine`, = #87's mechanical
     fix, observed at the 04:00Z intraday).
-    **STATUS 2026-08-28 (second update) — the ASK FAMILY is REPAIRED (PR #35), the
+    **STATUS 2026-08-28 (second update) — the ASK FAMILY is REPAIRED (branch
+    `claude/97-ask-wellformed-20260828`; PR number recorded at merge), the
     highest-exposure user-controlled site set.** One shared pure normalization
-    (`normalizeAskQuestion` in `src/lib/ask/intent.ts` = trim, then `wellFormedSlice`
-    at the historical 400-code-unit cap) is now called by ALL SIX question boundaries:
-    `ask/actions.ts` (server action), `api/ask/route.ts` (JSON), `api/ask/runs/route.ts`
-    (progressive), `ask-form.tsx` (client progressive submit), `page.tsx` (?q= prefill,
-    which previously did not trim — the one deliberate alignment change; required for
-    the one-click intent exact-match), and the home box (which already used the shared
-    function). The question's persistence/identity clips (`runs.ts` createRun,
+    (`normalizeAskQuestion` in `src/lib/ask/intent.ts` = trim, `wellFormedSlice` at
+    the historical 400-code-unit cap, then a final trim) is now called by ALL SIX
+    question boundaries: `ask/actions.ts` (server action), `api/ask/route.ts` (JSON),
+    `api/ask/runs/route.ts` (progressive), `ask-form.tsx` (client progressive
+    submit), `page.tsx` (?q= prefill), and the home box (which already used the
+    shared function). Two deliberate alignment changes, both review-driven: the
+    prefill now trims (it previously slice-only'd; required for the one-click intent
+    exact-match) and the final trim makes the function IDEMPOTENT (truncation can
+    expose trailing whitespace and a dropped orphan can shield it — without the
+    fixed point, the page's re-normalization of the home box's stored question
+    broke the exact-match for those shapes and silently swallowed the handoff);
+    the page also gained a `typeof q === "string"` guard (a duplicated `?q=a&q=b`
+    arrives as `string[]`, which the new `.trim()` would have thrown on — old code
+    was accidentally array-tolerant). The question's persistence/identity clips (`runs.ts` createRun,
     `cache.ts` cacheStore, `limits.ts` ask_usage insert + idempotency replay
     comparison) route through `wellFormedSlice` at the same cap (limit-only, no trim —
     byte-identical for every already-normalized caller), and the remaining
@@ -1269,18 +1277,42 @@ docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md)
     ordinary-input old-vs-new byte identity 9/9 scripts, boundary sweep 41 offsets
     (old malforms at exactly the straddle offset, new never). Aggregate-only
     production measurement: 42 ask_usage / 1 ask_runs rows, max question length 96,
-    zero U+FFFD — the defect never fired in production persistence. 26 new tests;
-    five mutations (question-normalize, rerank-snippet, session-history, run-persist,
-    usage-log) each fail 1–13 tests when the repair is reverted. Deliberately NOT
-    included, documented safe: `sessions.ts` title clips (DB/display-bound — the
-    milder U+FFFD class this item already adjudicates out of the provider-bound
-    family), array slices (entities/claims/ids), ASCII/protocol slices (hex key,
-    dates, SSE framing), and the offline eval harness (`eval-run.ts`/`eval-set.ts`,
-    fixture-fed, rides the eval follow-up). REMAINING under this umbrella:
-    `embeddings/client.ts` (`truncateInput`), `validation/llm-match.ts:83,85`
-    (degrades to keyword on failure, ruling 9 — quiet), and `anthropic-provider.ts:70`
-    (inert, no key — #83; candidate for a documented-safe disposition). Umbrella stays
-    OPEN until each is repaired or documented safe with evidence.
+    zero U+FFFD — the defect never fired in production persistence. 30 new tests
+    (28 well-formedness/consistency + 2 gate-before-money order pins); seven
+    reverse mutations each killed (full normalize revert 15 tests / 8 files;
+    final-trim-only 1; array-guard-only 1; rerank-snippet 1; session-history 2;
+    run-persist 1; usage-log 1). Five fresh-context reviews (Unicode/boundary,
+    money-path/idempotency/cache, authorization/free-GET, test/mutation
+    sufficiency, scope/docs) found NO money-path or authorization defect; both
+    confirmed findings (array-`?q=` throw, non-idempotent normalize) are fixed
+    above and mutation-pinned. Deliberately NOT included, documented safe:
+    `sessions.ts` title clips (DB/display-bound — the milder U+FFFD class this
+    item already adjudicates out of the provider-bound family), array slices
+    (entities/claims/ids), ASCII/protocol slices (hex key, dates, SSE framing),
+    and the offline eval harness (`eval-run.ts`/`eval-set.ts`, fixture-fed, rides
+    the eval follow-up; its provider-bound harvest text is untruncated DB text).
+    A client-side sanitize-to-short refusal is untestable because it is
+    UNREACHABLE: DOM FormData extraction USVString-converts an orphan to U+FFFD
+    before any handler runs — raw JSON on the API routes is the only genuine
+    orphan carrier, and both are pinned. **Review-logged residuals (flag-off
+    sessions scaffolding; close before ASK_SESSIONS ships):** (a)
+    `sessions.ts` `runReuseFollowupTurn` passes `opts.question` to askWithLimits
+    with no boundary normalization — a future session route must call
+    `normalizeAskQuestion` at entry or it reopens the provider-poisoning path;
+    (b) §7.7 content deletion joins `ask_answer_cache.question` to
+    `ask_runs.question` by exact text — an old-era U+FFFD-mutated run row paired
+    with a new-era well-formed cache row for the same raw question would leave
+    the cache row to its ≤7-day TTL instead of the immediate delete; (c) a
+    pre-fix ask_runs row whose stored question carries a wire-mutated U+FFFD
+    false-MISMATCHES an idempotent replay of the same raw question under the new
+    comparison — fails safe (honest refusal, $0), tiny population, self-clears.
+    Pre-existing, out of family: `/search` shares the array-`?q=` hazard shape
+    (`search/page.tsx:113`, free deterministic path, no provider). REMAINING
+    under this umbrella: `embeddings/client.ts` (`truncateInput`),
+    `validation/llm-match.ts:83,85` (degrades to keyword on failure, ruling 9 —
+    quiet), and `anthropic-provider.ts:70` (inert, no key — #83; candidate for a
+    documented-safe disposition). Umbrella stays OPEN until each is repaired or
+    documented safe with evidence.
 
 ### New (from the #86 recovery-window closeout — 2026-08-24,
 docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md §14)

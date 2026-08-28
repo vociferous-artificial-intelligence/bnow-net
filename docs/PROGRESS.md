@@ -3310,7 +3310,9 @@ post-merge main verification, branding/secret scans).
    measurement.
 3. Repair: one shared `normalizeAskQuestion` (trim + `wellFormedSlice` 400) at all six
    question boundaries; `wellFormedSlice` on runs/cache/limits question clips and on
-   sessions-history + rerank-snippet budgets. No behavior change for well-formed input.
+   sessions-history + rerank-snippet budgets. Byte-identical for well-formed in-limit
+   input, with two disclosed review-driven alignments (prefill gains trim; a final
+   trim makes the normalizer idempotent — see the OPEN-TASKS #97 status).
 4. Tests incl. deterministic boundary sweep + five mutation kills; full gates
    (typecheck/lint/unit/integration/build); fresh-context adversarial review; PR;
    merge on green.
@@ -3325,9 +3327,16 @@ Execution (same block):
   x_api $58.298/$75). Old-code repro: pair straddling unit 400 → lone `0xD83D`,
   strict-JSON-poisoning, `encodeURIComponent` throws; ordinary inputs 9/9
   byte-identical; production aggregate: zero U+FFFD in any stored question.
-- Repair + 26 new tests landed across 12 source / 12 test files; unit 3,447/239
+- Repair + 30 new tests landed across 11 source / 13 test files; unit 3,451/239
   green, typecheck clean, lint 0 errors (3 pre-existing warnings untouched),
-  build PASS; mutations A–E each killed (13/1/2/1/1 failing tests). Deliberate
-  exclusions documented in OPEN-TASKS #97 (titles = DB-bound class; eval harness;
-  array/ASCII slices). Corrections landed: CURRENT-STATE now distinguishes
-  production `b62da02` / dormant runtime tree `bf0061b` / docs-only main `ff9a7f1`.
+  build PASS, integration 155/155 on a disposable Neon fork; seven reverse
+  mutations each killed (full-normalize 15, final-trim 1, array-guard 1,
+  rerank 1, sessions 2, run-persist 1, usage-log 1). Five fresh-context reviews
+  (Unicode, money-path, auth/free-GET, test sufficiency, scope/docs): zero
+  money/auth defects; the two confirmed findings — array-form `?q=` throw and a
+  non-idempotent normalizer breaking the one-click exact-match on
+  whitespace-at-the-cut shapes — were fixed and mutation-pinned; the flag-off
+  sessions residuals are logged in #97. Deliberate exclusions documented in
+  OPEN-TASKS #97 (titles = DB-bound class; eval harness; array/ASCII slices).
+  Corrections landed: CURRENT-STATE now distinguishes production `b62da02` /
+  dormant runtime tree `bf0061b` / docs-only main `ff9a7f1`.

@@ -44,7 +44,9 @@ export default async function AskPage({
   // Same normalization as every submit boundary (#97): the prefill must equal
   // the intent's stored question byte-for-byte for the one-click exact-match,
   // and a truncated ?q= must never seed the form with an isolated surrogate.
-  const initialQuestion = q == null ? "" : normalizeAskQuestion(q);
+  // typeof guard: a duplicated ?q=a&q=b arrives as string[] (the declared
+  // searchParams type undersells it) — render the bare form, never throw.
+  const initialQuestion = typeof q === "string" ? normalizeAskQuestion(q) : "";
   // Untrusted: anything that isn't a well-formed UUID becomes null and the form
   // renders exactly as it does on a bare GET.
   const askIntent = isAskIntentId(intent) ? intent : null;

@@ -175,6 +175,7 @@ describe("normalizeAskQuestion — well-formed UTF-16 (#97 Ask family)", () => {
       const out = normalizeAskQuestion(q);
       expect(wellFormed(out), `pad=${pad}`).toBe(true);
       expect(out.length).toBeLessThanOrEqual(ASK_QUESTION_MAX);
+      expect(normalizeAskQuestion(out), `pad=${pad} idempotent`).toBe(out);
       const old = oldNormalize(q);
       if (dropIsolatedSurrogates(old) !== old) {
         oldMalformed++; // the old code DID malform here…
@@ -183,5 +184,24 @@ describe("normalizeAskQuestion — well-formed UTF-16 (#97 Ask family)", () => {
       }
     }
     expect(oldMalformed).toBe(1); // exactly the straddle offset (pad 399): non-vacuous sweep
+  });
+
+  it("is IDEMPOTENT — the home box stores its output and /ask re-applies it to ?q=, so a second pass must be the identity", () => {
+    // Both shapes defeat a single leading trim: truncation exposing trailing
+    // whitespace, and a dropped orphan shielding whitespace from the trim.
+    for (const raw of [
+      "x".repeat(399) + " yz", // the 400-unit cut lands ON the space
+      "hello \uD800", // the orphan shields the trailing space, then is dropped
+      "  plain  ",
+      "y".repeat(398) + "😀",
+      "x".repeat(399) + "💥 tail",
+    ]) {
+      const once = normalizeAskQuestion(raw);
+      expect(normalizeAskQuestion(once), JSON.stringify(raw.slice(0, 24))).toBe(once);
+      expect(wellFormed(once)).toBe(true);
+    }
+    // The two motivating cases resolve to fully-trimmed output.
+    expect(normalizeAskQuestion("x".repeat(399) + " yz")).toBe("x".repeat(399));
+    expect(normalizeAskQuestion("hello \uD800")).toBe("hello");
   });
 });

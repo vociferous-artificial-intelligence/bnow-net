@@ -128,6 +128,23 @@ describe("POST /api/ask/runs — the progressive paid submission", () => {
     expect(h.askWithLimitsMock).not.toHaveBeenCalled();
   });
 
+  it("authorizes BEFORE any money-path work — the gate precedes askWithLimits", async () => {
+    h.askWithLimitsMock.mockResolvedValue({
+      answer: "A.", state: "answered", provider: "openai:gpt-5", citedClaimIds: [], evidenceCount: 0,
+      terms: [], relatedClaimIds: [], window: null, totalMatching: 0, sampled: false, retrievalMode: "v2",
+    });
+    const { requireAcceptedUser } = await import("@/lib/gate");
+    const gateMock = vi.mocked(requireAcceptedUser);
+    gateMock.mockClear();
+    await postRun(
+      req("/api/ask/runs", { method: "POST", body: JSON.stringify({ question: "what happened in kherson" }), headers: { "content-type": "application/json" } }),
+    );
+    expect(gateMock).toHaveBeenCalledTimes(1);
+    expect(gateMock.mock.invocationCallOrder[0]).toBeLessThan(
+      h.askWithLimitsMock.mock.invocationCallOrder[0],
+    );
+  });
+
   it("an unexpected askWithLimits throw still terminates the stream with run.failed (no message text)", async () => {
     h.askWithLimitsMock.mockRejectedValue(new Error("secret internals"));
     const res = await postRun(

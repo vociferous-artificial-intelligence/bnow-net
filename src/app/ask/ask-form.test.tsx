@@ -464,8 +464,8 @@ describe("AskForm: progressive transport (ASK_PROGRESSIVE client path)", () => {
       const user = userEvent.setup();
       render(<AskForm {...formProps} progressive />);
       const input = screen.getByPlaceholderText(strings["ask.placeholder"]) as HTMLInputElement;
-      // Set the raw value directly (a paste can exceed maxLength handling in
-      // real browsers; jsdom lets us model the overlong raw value exactly).
+      // The /ask input carries no maxLength, so an overlong paste reaches the
+      // submit handler raw — set the value directly to model it exactly.
       fireEvent.change(input, { target: { value: "x".repeat(399) + "💥 tail past the cap" } });
       await user.click(screen.getByRole("button", { name: strings["ask.submit"] }));
 
@@ -482,6 +482,13 @@ describe("AskForm: progressive transport (ASK_PROGRESSIVE client path)", () => {
       vi.unstubAllGlobals();
     }
   });
+
+  // NOT tested here: a client submit whose surrogate repair lands under the
+  // 3-unit minimum. The DOM makes it unreachable — FormData extraction
+  // USVString-converts an orphan to U+FFFD before onFormSubmit runs (verified:
+  // "ab\uD800" arrives as "ab�", length 3), and repair on an overlong
+  // value can never drop below 399 units. The reachable carriers (raw JSON on
+  // both API routes) are pinned in route.test.ts and this route's twin.
 
   it("a stored non-terminal run resumes READ-ONLY on mount (refresh mid-run bills nothing)", async () => {
     const tail = [

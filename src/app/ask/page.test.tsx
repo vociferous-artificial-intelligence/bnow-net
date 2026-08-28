@@ -105,6 +105,17 @@ describe("GET /ask?q=... never executes the paid pipeline", () => {
     expect(askWithLimitsMock).not.toHaveBeenCalled();
   });
 
+  it("a duplicated ?q= (string[] searchParam) renders the bare form — never a throw, never a call", async () => {
+    const element = await AskPage({
+      searchParams: Promise.resolve({ q: ["first", "second"] as unknown as string }),
+    });
+    render(element);
+
+    expect(askWithLimitsMock).not.toHaveBeenCalled();
+    const input = screen.getByPlaceholderText(PLACEHOLDER) as HTMLInputElement;
+    expect(input.value).toBe("");
+  });
+
   it("normalizes a boundary-straddling ?q= prefill exactly like every submit boundary (#97) — still free", async () => {
     // A forged/overlong ?q= whose astral pair straddles unit 400 must not seed
     // the form (or the HTML) with an isolated surrogate, and must equal what a

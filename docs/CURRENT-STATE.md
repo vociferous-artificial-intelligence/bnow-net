@@ -506,7 +506,8 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   verification identity and was signed back out after the proof. Evidence:
   `docs/reviews/POSTHOG-ANALYTICS-IMPLEMENTATION-NOTE-2026-07-14.md`.
 - **Tests:** **3,421 unit tests / 239 files** green (`npm test`, typecheck + lint
-  clean — measured 2026-08-28 on the final merged `main` `bf0061b`) + **155/155**
+  clean — measured 2026-08-28 on `bf0061b`, then main's tip, now the dormant-eval
+  tree below the docs merges) + **155/155**
   Neon-branch integration tests / **23 files** (as of the PR #30 branch gate; every
   2026-08-27/28 reliability branch ran the full suite on a disposable production fork
   with zero paid calls; the fork is deleted after each run). Historical authoritative
