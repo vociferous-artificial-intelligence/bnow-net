@@ -29,7 +29,8 @@ const querySpy = vi.fn(async (sql: string, params?: unknown[]) => {
 });
 vi.mock("@/db", () => ({ rawSql: { query: querySpy } }));
 
-import { OpenAiProvider } from "./openai-provider";
+import { OpenAiProvider, digestDocLine } from "./openai-provider";
+import { dropIsolatedSurrogates } from "../text/well-formed-slice";
 import type { AnalysisInputDoc } from "./provider";
 
 const DOCS: AnalysisInputDoc[] = [
@@ -143,5 +144,93 @@ describe("OpenAiProvider dispatch (baseline)", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("digestDocLine UTF-16 safety (#87 mechanical root, #97 family)", () => {
+  const wellFormed = (s: string) => dropIsolatedSurrogates(s) === s;
+  const doc = (over: Partial<AnalysisInputDoc> = {}): AnalysisInputDoc => ({
+    id: 7,
+    title: "t",
+    content: "Ukrainian forces struck the depot near the river crossing",
+    lang: "en",
+    sourceKey: "example.com",
+    reliability: 0.6,
+    url: null,
+    publishedAt: null,
+    ...over,
+  });
+
+  it("is byte-identical to the historical format for normal well-formed input", () => {
+    expect(digestDocLine(doc())).toBe(
+      "[7] (example.com, rel=0.60) t. Ukrainian forces struck the depot near the river crossing",
+    );
+  });
+
+  it("keeps the historical null-field formatting", () => {
+    expect(digestDocLine(doc({ title: null, sourceKey: null, reliability: null }))).toBe(
+      "[7] (unknown, rel=?) Ukrainian forces struck the depot near the river crossing",
+    );
+  });
+
+  it("drops only the orphaned half when a pair straddles the 400-unit ceiling", () => {
+    const line = digestDocLine(doc({ title: null, content: "a".repeat(399) + "😀" }));
+    expect(line.endsWith(") " + "a".repeat(399))).toBe(true);
+    expect(wellFormed(line)).toBe(true);
+  });
+
+  it("preserves a pair that fits entirely inside the ceiling", () => {
+    const content = "a".repeat(398) + "😀"; // units 398-399: inside 400
+    expect(digestDocLine(doc({ title: null, content }))).toContain("a".repeat(398) + "😀");
+  });
+
+  it("removes pre-existing isolated surrogates from title and content (defensive)", () => {
+    const line = digestDocLine(doc({ title: "ti\uD83Dtle", content: "\uDC00body" }));
+    expect(line).toContain(") title. body");
+    expect(wellFormed(line)).toBe(true);
+  });
+
+  it("repairs an orphan in a prefix slot too (pins the outer layer against mutants)", () => {
+    // sourceKey sits BEFORE the truncated body slot, so only the outer
+    // dropIsolatedSurrogates can repair it — this test keeps that layer
+    // mutant-detectable rather than equivalent.
+    expect(digestDocLine(doc({ sourceKey: "ex\uD800ample.com" }))).toContain("(example.com,");
+  });
+
+  it("normalizes whitespace BEFORE truncating (historical order preserved)", () => {
+    // Raw content is 443 units but collapses under 400, so the tail survives;
+    // slicing before normalization would have cut "end" off.
+    const raw = "word  wor  ".repeat(40) + "end"; // 443 raw units; normalized content 363, full line 366 with "t. "
+    const normalized = ("t. " + raw).replace(/\s+/g, " ");
+    expect(normalized.length).toBeLessThan(400);
+    expect(digestDocLine(doc({ content: raw }))).toContain(`) ${normalized}`);
+  });
+
+  it("truncates the NORMALIZED string at 400 when it still exceeds the ceiling", () => {
+    const raw = "ab  ".repeat(150); // 600 raw units; normalizes to "ab " x150 = 450
+    const normalized = ("t. " + raw).replace(/\s+/g, " ");
+    expect(normalized.length).toBeGreaterThan(400);
+    const line = digestDocLine(doc({ content: raw }));
+    expect(line).toContain(`) ${normalized.slice(0, 400)}`);
+    expect(line).not.toContain(normalized.slice(0, 401));
+  });
+
+  it("whole digest request stays well-formed when a batch carries a poison doc", async () => {
+    createSpy.mockResolvedValue(okCompletion());
+    const p = new OpenAiProvider();
+    await p.analyze("ua", "2026-08-17", [
+      doc(),
+      // pair straddles the 400 boundary (high half at unit 399)
+      doc({ id: 8, title: null, sourceKey: null, reliability: null, content: "б".repeat(399) + "😀 tail" }),
+      doc({ id: 9, title: null, sourceKey: null, reliability: null, content: "x\uD83Dy" }),
+    ]);
+    const req = createSpy.mock.calls[0][0];
+    const user = req.messages.find((m: { role: string }) => m.role === "user").content as string;
+    expect(wellFormed(user)).toBe(true);
+    expect(user).toContain("[8] (unknown, rel=?) " + "б".repeat(399) + "\n");
+    expect(user).toContain("[9] (unknown, rel=?) xy");
+    // No surrogate-range escape may survive into the JSON body (the #86/#97
+    // rejection signature); well-formed stringify never escapes a valid pair.
+    expect(JSON.stringify(user)).not.toMatch(/\\u[dD][89a-fA-F]/);
   });
 });

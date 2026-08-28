@@ -20,7 +20,27 @@ import type {
   DigestAnalysis,
   ExtractedEvent,
 } from "./provider";
+import { dropIsolatedSurrogates, wellFormedSlice } from "../text/well-formed-slice";
 import { ENTITY_RULES, MILITARY_EVENT_TYPES, TRACKS, type Track } from "./tracks";
+
+/** One provider-bound document line of the legacy digest request. The 400
+ *  ceiling keeps its historical UTF-16 CODE-UNIT meaning and whitespace
+ *  normalization still runs BEFORE truncation — only the bare `.slice`, which
+ *  could cut a surrogate pair in half and poison the whole batch request
+ *  (#87's mechanical root: the identical `400 Invalid body` mechanism as map's
+ *  #86 and the reduce site fixed under #97), is replaced by `wellFormedSlice`.
+ *  Layering as in mapDocLine/serializeGroup: the outer `dropIsolatedSurrogates`
+ *  alone would suffice (ASCII separators between slots), and the inner
+ *  `wellFormedSlice` is kept deliberately so the code-unit ceiling and
+ *  well-formedness stay bound together AT the truncation point. */
+export function digestDocLine(d: AnalysisInputDoc): string {
+  return dropIsolatedSurrogates(
+    `[${d.id}] (${d.sourceKey ?? "unknown"}, rel=${d.reliability?.toFixed(2) ?? "?"}) ${wellFormedSlice(
+      ((d.title ? d.title + ". " : "") + d.content).replace(/\s+/g, " "),
+      400,
+    )}`,
+  );
+}
 
 // OpenAI structured-output extraction. Hard rules enforced downstream too:
 // claims may only cite docIds present in the input batch; uncited claims are dropped.
@@ -143,16 +163,7 @@ export class OpenAiProvider implements AnalysisProvider {
     // burning smaller rungs.
     const dispatch = workloadDispatchConfig("digest");
     const client = (this.client ??= analysisOpenAiClient());
-    const docLines = docs
-      .map(
-        (d) =>
-          `[${d.id}] (${d.sourceKey ?? "unknown"}, rel=${d.reliability?.toFixed(2) ?? "?"}) ${(
-            (d.title ? d.title + ". " : "") + d.content
-          )
-            .replace(/\s+/g, " ")
-            .slice(0, 400)}`,
-      )
-      .join("\n");
+    const docLines = docs.map(digestDocLine).join("\n");
 
     const request = () =>
       client.chat.completions.create({
