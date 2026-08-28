@@ -3280,3 +3280,22 @@ post-merge main verification, branding/secret scans).
   deployed, no env/cap/flag/cron/migration change, zero paid calls, zero production
   writes.** Standing docs corrected: AGENTS.md, CURRENT-STATE, OPEN-TASKS, register §11.
   Report: `docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md`.
+
+## 2026-08-27/28 — reliability queue DEPLOYED (4 releases, all observed PASS) + dormant eval/conflict landings
+
+- PRs #27–#30 released SERIALLY from the plain clone, each observed: `ed9bc35` (#97
+  reduce; 02:00Z finalize = 30 clean reduce requests through the new code) → `afbf06e`
+  (#87 mechanical; 04:00Z intraday clean) → `ad6e078` (#87 classification; 0 spurious
+  flips) → **`b62da02` = current production `dpl_Gf8AiKCpmuwRYdoAr1JvjfTaGLi6`**
+  (#98 sweep; NATURAL proof — 9 dead rows swept incl. the real 08-27 telegram hang,
+  zero false sweeps). Rollback chain recorded per release.
+- **#87 CLOSED (flip synthetic+wiring-proven; first NATURAL flip still
+  future-observable), #98 CLOSED (natural proof obtained), #97 re-scoped (Ask family
+  next).** Dormant landings after
+  the queue: PR #31 capacity harness, PR #32 QF-C hardening (10/11), PR #33 conflict
+  soak instruments — `main` `bf0061b` dormant-eval ahead; paid evals + conflict soak
+  remain operator-blocked. Final gates: unit 3,421/239 clean.
+- Docs: `RELIABILITY-RELEASES-2026-08-28.md`, `OPERATOR-DECISION-PACKET-2026-08-28.md`
+  (X cap #101 ~15d runway = nearest deadline), `MODEL-PROMOTION-READINESS-2026-08-27.md`,
+  `HUMAN-ADJUDICATION.md` carried onto main. Zero manual paid calls; zero env changes;
+  primary dirty checkout untouched.

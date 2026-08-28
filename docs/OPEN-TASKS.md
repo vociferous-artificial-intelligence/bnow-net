@@ -996,8 +996,10 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     fixed: **#97** (including the live paid Ask path). Carried out of the window: **#88**
     (unblocked from #86, re-scoped — see there), **#87** (now the largest remaining instance
     of the family), and new **#98**.
-87. **[Tier 2 — observability] `digest:*` — and `validate` — swallow per-item failures into
-    an in-run counter while `cron_runs.ok` stays true.** Days 2026-08-01, 08-03 (×2), 08-04,
+87. **[CLOSED 2026-08-28 — both halves deployed and observed (PRs #28+#29); flip
+    synthetic+wiring-proven, first natural flip future-observable]**
+    `digest:*` — and `validate` — SWALLOWED per-item failures into
+    an in-run counter while `cron_runs.ok` stayed true. Days 2026-08-01, 08-03 (×2), 08-04,
     08-15 and 08-21 each recorded `counts.errors >= 1` with the same
     `400 Invalid body: failed to parse JSON value` signature as #86, yet the run is green
     and no alert fires. Either classify a non-zero digest `errors` count as unhealthy (the
@@ -1030,7 +1032,20 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     nested `errors`/`batchErrors` on every map and digest run since 2026-08-24T00:00:00Z**
     — encouraging, but it repairs nothing: the swallow-into-counter mechanism is
     unchanged, and the legacy path is still exercised daily by the 5 gulf legacy digests
-    (il/sa/ae/qa/om; ru/ua/ir moved back to mapreduce with the #88 closure). Remains OPEN.
+    (il/sa/ae/qa/om; ru/ua/ir moved back to mapreduce with the #88 closure).
+    **CLOSED 2026-08-28.** Both halves shipped in the reliability queue: (a) PR #28
+    (`afbf06e`) extracted + repaired `digestDocLine` with `wellFormedSlice` — the
+    request construction cannot emit malformed UTF-16 (baseline: 61 malformed doc
+    lines/14d under the old code; the 04:00Z intraday exercised the new line on all 5
+    gulf cells clean); (b) PR #29 (`ad6e078`) made nested failures flip the run to
+    `ok=false` + `counts.degraded` (error NULL — the degraded signature), with map
+    `batchErrorClasses` (content-safe fixed vocabulary), digest/ingest markings, and
+    validate's benign/thrown split (`unvalidated` — the ISW-not-published false alarm
+    is gone). Honest boundary: the flip is proven by synthetic tests AND a real-cycle
+    transport-failure itest; a NATURAL degraded event has not yet occurred since deploy
+    — when it does, audit-cron's FAIL list renders the category. entity-audit's
+    502-return swallow (unscheduled route) remains documented debt outside this task.
+    Record: `docs/reviews/RELIABILITY-RELEASES-2026-08-28.md`.
 88. **[CLOSED 2026-08-27 — PASS: natural mapreduce resumption observed, acceptance met]**
     No digest HAD used the mapreduce engine since 2026-08-17. All
     11 digests/day fell back to legacy because their ROLLING windows found no
@@ -1229,12 +1244,23 @@ docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md)
     the shared `wellFormedSlice` helper #86 added, and give each its own before/after
     measurement — the digest one IS #87's fix and must not be bundled with the reduce one.
     Deliberately NOT fixed in the #86 release, which was required to stay isolated.
+    **STATUS 2026-08-28 — re-scoped; the two LIVE-PAID analysis sites are FIXED AND
+    DEPLOYED:** the reduce site (PR #27, `ed9bc35` — shared `wellFormedSlice` moved to
+    `src/lib/text/well-formed-slice.ts`, observed through 30 clean live reduce requests)
+    and the legacy digest site (PR #28, `afbf06e` — `digestDocLine`, = #87's mechanical
+    fix, observed at the 04:00Z intraday). REMAINING under this umbrella, in priority
+    order: the Ask family (`ask/actions.ts` + `api/ask/route.ts` + runs route +
+    ask-form + sessions + rerank — user-controlled input, highest exposure; NEXT code
+    PR), `embeddings/client.ts`, `validation/llm-match.ts:83,85` (degrades to keyword
+    on failure, ruling 9 — quiet), and `anthropic-provider.ts:70` (inert, no key —
+    #83). Umbrella stays OPEN until each is repaired or documented safe with evidence.
 
 ### New (from the #86 recovery-window closeout — 2026-08-24,
 docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md §14)
 
-98. **[Tier 2 — reliability/observability] `ingest:telegram` is leaving `finished_at IS NULL`
-    rows, and nothing alerts on them.** Two rows started inside the #86 recovery window —
+98. **[CLOSED 2026-08-28 — sweep deployed (PR #30) with NATURAL real-data proof]**
+    `ingest:telegram` WAS leaving `finished_at IS NULL`
+    rows, and nothing alerted on them. Two rows started inside the #86 recovery window —
     2026-08-23T18:01:31Z and 19:01:31Z — each with `ok` NULL, `error` NULL and an EMPTY
     `counts` object: ruling 10's timeout signature exactly (rows are written at START, so
     `finished_at IS NULL` means the run never returned). The class is pre-existing but the
@@ -1250,6 +1276,18 @@ docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md §14)
     `map-health`-style check covers `ingest:*`. A cheap first step is a startup sweep that
     marks any `cron_runs` row older than its job's plausible ceiling as failed with a
     timeout category, which would also give #87's nested-error sweep a natural home.
+    **CLOSED 2026-08-28 (PR #30, `b62da02`):** exactly that sweep, at every job start —
+    ceiling = route `maxDuration` + 120s (false-kill impossible in production; DB-clock
+    comparisons; ruling 10's NULL-finish signal preserved, never fabricated), idempotent
+    by construction, ceilings pinned to route sources by an enumerating lockstep test,
+    real-Postgres itest for every state. **Natural proof on first post-deploy job
+    starts: 9 genuinely-dead historical rows swept — including the REAL
+    2026-08-27T18:01:42Z telegram hang — with correct per-family ceilings and ZERO
+    false sweeps of recent/alive rows.** Scope decision, recorded: no new email/alert
+    channel — visibility is cron_runs + audit-cron (degraded categories rendered) + the
+    soak-check's `timed_out` taxonomy (its `errored` gate deliberately excludes swept
+    rows). The underlying MTProto/web hang cause (a) remains #69-adjacent behavior to
+    watch, but hung rows are no longer invisible. Prior evidence retained below.
     **RECURRENCE 2026-08-27 (QF-A/#88 closeout read):** the `ingest:telegram` run started
     2026-08-27T18:01:42Z showed the identical signature — `finished_at` NULL, `ok` NULL,
     `error` NULL, empty `counts` at ~20 minutes of age against a ~124–155s 24h duration
@@ -1292,11 +1330,12 @@ docs/reviews/QF-C-ANALYSIS-EVAL-RELEASE-2026-08-24.md)
 docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md)
 
 101. **[Tier 1 — operator/spend] The X all-time cap needs an operator decision before
-    fail-closed exhaustion.** Measured 2026-08-27: `x_api` cumulative spend is
-    **$57.6724 of the $75 `X_SPRINT_USD_CAP`** (76.9%), with the last three days at
-    $1.1603 / $1.0802 / $0.8730 (~$1.04/day average) against the $2.50 `X_DAILY_USD_CAP`.
-    At that rate the all-time headroom (~$17.33) lasts roughly **17 days — a
-    point-in-time projection, not a guarantee** (X volume varies with events). When the
+    fail-closed exhaustion.** Refreshed 2026-08-27 (late): `x_api` cumulative spend is
+    **$57.84 of the $75 `X_SPRINT_USD_CAP`** (77.1%), 7-day burn **~$1.15/day** against
+    the $2.50 `X_DAILY_USD_CAP` — headroom ~$17 lasts roughly **15 days (est.
+    exhaustion ~2026-09-11) — a point-in-time projection, not a guarantee** (X volume
+    varies with events). Options + recommendation:
+    `docs/reviews/OPERATOR-DECISION-PACKET-2026-08-28.md` §1. When the
     cap is reached, `SpendGuard.tryReserve()` fails closed and X ingestion STOPS — by
     design (ruling 4), but silently from a coverage standpoint apart from the X-health
     alerting. Options are the operator's: raise `X_SPRINT_USD_CAP` (an env change in all
