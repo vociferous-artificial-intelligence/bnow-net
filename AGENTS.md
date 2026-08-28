@@ -80,8 +80,8 @@ src/lib/llm/        analysis-model routing + money authorities: model-config.ts 
                     analysis-registry.ts (analysis-reg-v1 quality approvals — baseline
                     only), pricing.ts (the single analysis metering price table)
 src/lib/isw/        crawler, endnote parser, hedging classifier, registry materializer
-src/lib/text/       well-formed UTF-16 truncation primitives (the #86 repair, shared by
-                    every provider-bound truncation site — #97 family)
+src/lib/text/       well-formed UTF-16 truncation primitives (the #86 repair — the
+                    shared destination for #97-family sites; map+reduce+digest adopted)
 src/lib/validation/ ISW scoreboard: keyword gazetteer + majority-vote LLM matcher
 src/lib/usage/      SpendGuard, llm-guard (caps + kill-switch), cron-run bookkeeping
 src/lib/…           ask (incl. intent.ts: one-shot home→/ask handoff contract), entities,
@@ -927,9 +927,10 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
 1. **Operator:** `docs/SETUP-NEXT-WEEK.md` top-to-bottom — VERCEL_TOKEN regen and Stripe.
    bnow.net attach, Postmark sender cutover + DMARC, and MTProto are done.
    (OpenAI credits: done 2026-07-05; keep the billing alert.) **NEW: the X all-time cap
-   needs a decision before fail-closed exhaustion** — `x_api` measured $57.6724 of the $75
-   `X_SPRINT_USD_CAP` on 2026-08-27, ~$1.04/day recent burn ⇒ roughly 17 days of runway as
-   a point-in-time projection (OPEN-TASKS #101).
+   needs a decision before fail-closed exhaustion** — `x_api` at $57.84 of the $75
+   `X_SPRINT_USD_CAP` (77.1%), ~$1.15/day 7-day burn ⇒ ~15 days of runway, est.
+   exhaustion ~2026-09-11 (point-in-time; OPEN-TASKS #101 +
+   `docs/reviews/OPERATOR-DECISION-PACKET-2026-08-28.md`).
 2. **`DIGEST_ENGINE=mapreduce` is SET in prod (flipped 2026-07-09) and is producing again
    (#88 CLOSED — PASS 2026-08-27):** the 2026-08-25T02:02Z finalize resumed mapreduce
    naturally and the 6-mapreduce/5-legacy daily matrix has held since (see the Analysis
@@ -1580,7 +1581,7 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   rollback checkpoint): **R0** PR #27 `ed9bc35` → `dpl_62NHUKhDGVL6S6Xp7YbvYMuZ23mx`
   (#97 reduce site; baseline: old-vs-new differs on ZERO of 157,765 current claims —
   defensive; observed PASS incl. the 02:00Z finalize's exactly-30 reduce requests
-  = 6 cells × K=5 through the new code, $0.0450). **R1** PR #28 `afbf06e` →
+  = 6 cells × K=5 through the new code, $0.0450, 1 expected thin-regen refusal). **R1** PR #28 `afbf06e` →
   `dpl_H7uqWF3DhToY7ufouNBSeSkYLaWH` (#87 mechanical digest fix; baseline: 61
   malformed doc lines/14d under old code; 04:00Z intraday observed clean). **R2**
   PR #29 `ad6e078` → `dpl_5ocJPF4GLPHDFB4Cv3MB4tgkScou` (#87 degraded-run

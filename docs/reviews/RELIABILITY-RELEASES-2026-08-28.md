@@ -15,7 +15,7 @@ untouched throughout.
 
 | # | PR → merge | Deployment | Deployed (UTC) | Rollback target | Observation |
 |---|---|---|---|---|---|
-| R0 | #27 → `ed9bc35` | `dpl_62NHUKhDGVL6S6Xp7YbvYMuZ23mx` | 08-27 20:38:07Z | `dpl_FPYase3HqbCF3d2uW3AnwPHibyt4` | **PASS** — 02:00Z finalize ok, 0 errors; reduce made exactly 30 requests = 6 mapreduce cells × K=5 through the new `serializeGroup` ($0.0450); engine matrix intact; 4 clean hourly map cycles |
+| R0 | #27 → `ed9bc35` | `dpl_62NHUKhDGVL6S6Xp7YbvYMuZ23mx` | 08-27 20:38:07Z | `dpl_FPYase3HqbCF3d2uW3AnwPHibyt4` | **PASS** — 02:00Z finalize ok, 0 errors, 1 thin-regen refusal (persist guard, expected); reduce made exactly 30 requests = 6 mapreduce cells × K=5 through the new `serializeGroup` ($0.0450); engine matrix intact; 4 clean hourly map cycles |
 | R1 | #28 → `afbf06e` | `dpl_H7uqWF3DhToY7ufouNBSeSkYLaWH` | 08-28 ~02:20Z | `dpl_62NHUKhDGVL6S6Xp7YbvYMuZ23mx` | **PASS** — 04:00Z intraday ok (10 digests, 0 errors, 0 refusals — `digestDocLine` exercised on the 5 legacy gulf cells); 17 runs post-deploy, 0 failed, 0 nested |
 | R2 | #29 → `ad6e078` | `dpl_5ocJPF4GLPHDFB4Cv3MB4tgkScou` | 08-28 ~04:20Z | `dpl_H7uqWF3DhToY7ufouNBSeSkYLaWH` | **PASS** — 7 runs across 5 jobs: 0 failed, 0 spurious degraded flips, 0 stale opens (clean runs keep ok=true; classification quiet as designed) |
 | R3 | #30 → `b62da02` | `dpl_Gf8AiKCpmuwRYdoAr1JvjfTaGLi6` | 08-28 ~05:10Z | `dpl_5ocJPF4GLPHDFB4Cv3MB4tgkScou` | **PASS + natural proof** — first job starts swept **9 genuinely-dead historical rows** (incl. the REAL 08-27T18:01:42Z telegram hang; correct per-family ceilings), **0 recent/alive rows swept**, post-deploy runs clean |

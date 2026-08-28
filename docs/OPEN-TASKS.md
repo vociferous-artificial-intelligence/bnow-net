@@ -1330,11 +1330,12 @@ docs/reviews/QF-C-ANALYSIS-EVAL-RELEASE-2026-08-24.md)
 docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md)
 
 101. **[Tier 1 — operator/spend] The X all-time cap needs an operator decision before
-    fail-closed exhaustion.** Measured 2026-08-27: `x_api` cumulative spend is
-    **$57.6724 of the $75 `X_SPRINT_USD_CAP`** (76.9%), with the last three days at
-    $1.1603 / $1.0802 / $0.8730 (~$1.04/day average) against the $2.50 `X_DAILY_USD_CAP`.
-    At that rate the all-time headroom (~$17.33) lasts roughly **17 days — a
-    point-in-time projection, not a guarantee** (X volume varies with events). When the
+    fail-closed exhaustion.** Refreshed 2026-08-27 (late): `x_api` cumulative spend is
+    **$57.84 of the $75 `X_SPRINT_USD_CAP`** (77.1%), 7-day burn **~$1.15/day** against
+    the $2.50 `X_DAILY_USD_CAP` — headroom ~$17 lasts roughly **15 days (est.
+    exhaustion ~2026-09-11) — a point-in-time projection, not a guarantee** (X volume
+    varies with events). Options + recommendation:
+    `docs/reviews/OPERATOR-DECISION-PACKET-2026-08-28.md` §1. When the
     cap is reached, `SpendGuard.tryReserve()` fails closed and X ingestion STOPS — by
     design (ruling 4), but silently from a coverage standpoint apart from the X-health
     alerting. Options are the operator's: raise `X_SPRINT_USD_CAP` (an env change in all

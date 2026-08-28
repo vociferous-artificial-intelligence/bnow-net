@@ -33,8 +33,8 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   (PRs #16–#22 — DORMANT: `CONFLICTS_UI` absent everywhere, all public conflict routes
   404 anonymously, the gated evidence route gates on `requireAcceptedUser()` first;
   shadow soak and enablement stay separately gated); plus docs PRs #12/#13/#23/#24.
-  `main` is docs-only ahead of production (the deploy record, then the 2026-08-27
-  closeout) — **no redeploy is needed**; there are zero remaining release-train merges.
+  (At that train's closeout `main` was docs-only ahead; the current
+  main-vs-production posture is stated in the 2026-08-28 bullet above.)
   **Operational watch (updated 2026-08-28):** #87 and #98 are CLOSED (deployed +
   observed, see the reliability record); #97 is re-scoped OPEN (reduce + digest sites
   deployed; the Ask family is the next code PR); still-open observations: the first
@@ -63,7 +63,7 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
 
 - **AI Search/Ask release (2026-07-21):** release commit `836b46e` (original deploy
   `dpl_5scfsMfttrHZbLFWgdkAKdpBAHFT`; carried forward by every later release and live in
-  the current production build `143964a`); production DB migrated 0021–0027 (backup branch
+  the `143964a` build, carried forward inside current production); production DB migrated 0021–0027 (backup branch
   `backup-pre-ask-release-2026-07-21` retained); Privacy 1.3 live with forced
   reacknowledgement; retention envs 30/7/7 set; **`ASK_RUNS_SHADOW=1` soak running** —
   every other new flag (enforce/progressive/stream/cache/sessions/router/billing
@@ -223,7 +223,7 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   unauthorized for every other reason.
 - **Model routing (PR #5 — LIVE in production since 2026-08-20, first carried by
   `dpl_GH6UWFojKPEgPrhBiT7utPBPnQBJ` / `7336b9c`, 24h formal soak CLOSED PASS 2026-08-21;
-  carried forward through the current `143964a` release-train build):** `src/lib/llm/model-config.ts`
+  carried forward through the `143964a` release-train build and its successors):** `src/lib/llm/model-config.ts`
   is the ONE authority for which model each analysis workload dispatches and at what
   reasoning effort — map, reduce, digest, validation, entity_audit — resolved at CALL time,
   precedence `<WORKLOAD>_MODEL` → `OPENAI_MODEL` → `gpt-4o-mini` (values trimmed;
@@ -522,17 +522,19 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
 - **Stubbed / off:** ACLED (fixture stub, unwired); Stripe flagged off; Resend adapter
   superseded by Postmark. (MTProto left this list 2026-07-11 — real adapter wired,
   session-gated; see Ingestion above.)
-- **Deploy:** current production **`dpl_FPYase3HqbCF3d2uW3AnwPHibyt4`** — the 2026-08-24
-  release train from `main` `143964a`, deployment created 2026-08-24T23:56:34Z from the
-  plain release clone, READY, aliased bnow.net; `/health` stamps `143964a` with DB OK
-  (re-verified 2026-08-27T18:13Z). **Rollback target =
-  `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`** (the 2026-08-23 #86-repair release, `0aa3d7d`).
-  `main` is docs-only ahead of production (PR #25's deploy record, then the 2026-08-27
-  QF-A/#88 closeout) — the runtime trees are identical and **no redeploy is needed or
-  warranted**. Deployment lineage (all carried forward inside `143964a`): `0aa3d7d`
-  #86 repair (2026-08-23) ← `23a1280` QF-B map lease (2026-08-22) ← `7336b9c` PR #5
-  routing seams (2026-08-20) ← `9c5e9cb` Candidate B cron clustering (2026-08-17, 48h
-  window CLOSED PASS 2026-08-19T07:00Z) ← `26989f7` Iran recovery (PR #2). Command:
+- **Deploy:** current production **`dpl_Gf8AiKCpmuwRYdoAr1JvjfTaGLi6`** — the
+  2026-08-28 reliability queue's final release, from `main` merge `b62da02`, deployed
+  from the plain release clone, aliased bnow.net; `/health` stamps `b62da02` with DB OK.
+  **Rollback target = `dpl_5ocJPF4GLPHDFB4Cv3MB4tgkScou`** (`ad6e078`, the release
+  before the #98 sweep; the full four-release rollback chain is in
+  `docs/reviews/RELIABILITY-RELEASES-2026-08-28.md`). `main` (`bf0061b`) is
+  DORMANT-EVAL code ahead of production (PRs #31/#32/#33 — no reachable runtime
+  behavior; they ride the next natural deploy; no redeploy needed for them).
+  Deployment lineage (all carried forward inside `b62da02`): `ad6e078` #87
+  classification ← `afbf06e` #87 mechanical ← `ed9bc35` #97 reduce ← `143964a`
+  release train (2026-08-24) ← `0aa3d7d` #86 repair ← `23a1280` QF-B map lease ←
+  `7336b9c` PR #5 routing seams ← `9c5e9cb` Candidate B ← `26989f7` Iran recovery.
+  Command:
   `npx vercel@latest deploy --prod --yes` via the machine CLI session
   (`VERCEL_TOKEN` is expired; regen is an operator task, SETUP-NEXT-WEEK #2). Note: a CLI
   deploy from a git WORKTREE ships no git metadata (`.git` is a file there) and renders an
@@ -544,12 +546,12 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   github.com resolves slowly/flakily: pushes work, but short-timeout git commands can
   fail — retry or wait ~30s+. api.gdeltproject.org DNS still fails locally (not
   pinned). TASS/RIA/Lenta RSS unreachable → covered via their Telegram channels.
-- **Git:** the last application-code release is the **2026-08-24 release train**
-  (`main` `143964a` → `dpl_FPYase3HqbCF3d2uW3AnwPHibyt4`; eleven PRs #12–#22 plus docs
-  PRs #23/#24, landed per `docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md`). At the
-  2026-08-27 reconciliation: zero open PRs; `origin/main` (`eecbd63` at that read) is
-  docs-only ahead of production; the parked audit/integration branches
-  (`codex/quality-foundation-*`, `codex/conflict-evaluations-*`, the p0–p7 gate branches)
-  are retained provenance whose content is contained in `main`; the one unmerged remote
-  branch is `codex/paddle-onboarding-page` (a 2026-08-25 preservation commit of unfinished
-  Paddle pricing work, outside the release train).
+- **Git:** the last application-code releases are the **2026-08-28 reliability queue**
+  (PRs #27–#30, final `b62da02` → `dpl_Gf8AiKCpmuwRYdoAr1JvjfTaGLi6`); before that the
+  2026-08-24 release train (`143964a`, eleven PRs #12–#22 + docs, per
+  `docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md`). As of 2026-08-28: zero open
+  PRs; `origin/main` (`bf0061b`) is dormant-eval ahead of production (PRs #31–#33); the
+  parked audit/integration branches (`codex/quality-foundation-*`,
+  `codex/conflict-evaluations-*`, p0–p7) remain retained provenance contained in
+  `main`; the one unmerged remote branch is `codex/paddle-onboarding-page` (a
+  2026-08-25 preservation commit of unfinished Paddle pricing work — parked, intact).

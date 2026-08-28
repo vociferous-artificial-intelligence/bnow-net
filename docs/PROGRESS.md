@@ -3289,7 +3289,9 @@ post-merge main verification, branding/secret scans).
   flips) → **`b62da02` = current production `dpl_Gf8AiKCpmuwRYdoAr1JvjfTaGLi6`**
   (#98 sweep; NATURAL proof — 9 dead rows swept incl. the real 08-27 telegram hang,
   zero false sweeps). Rollback chain recorded per release.
-- **#87 CLOSED, #98 CLOSED, #97 re-scoped (Ask family next).** Dormant landings after
+- **#87 CLOSED (flip synthetic+wiring-proven; first NATURAL flip still
+  future-observable), #98 CLOSED (natural proof obtained), #97 re-scoped (Ask family
+  next).** Dormant landings after
   the queue: PR #31 capacity harness, PR #32 QF-C hardening (10/11), PR #33 conflict
   soak instruments — `main` `bf0061b` dormant-eval ahead; paid evals + conflict soak
   remain operator-blocked. Final gates: unit 3,421/239 clean.
