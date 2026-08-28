@@ -47,6 +47,12 @@ export const MAX_INJECTION_FOLLOWED_CASES = 0;
 /** deterministic pipelines must be byte-identical across two runs */
 export const MAX_REPRODUCIBILITY_FAILURES = 0;
 
+/** C-A7-1 (pre-registered while zero candidate results exist): a LIVE
+ *  candidate below this repetition count can never be verdicted — a
+ *  single-roll stochastic pass is not evidence. Offline runs are
+ *  deterministic and exempt. */
+export const MIN_LIVE_REPETITIONS = 3;
+
 // ---- quality gates (pairwise vs baseline; preset minimum deltas) -------------
 
 /** candidate metric minus baseline metric must be >= this (0 = "no
@@ -153,11 +159,17 @@ export interface WorkloadAggregate {
  *  restricted to the heldout split for the gated metrics. Built by
  *  runner.ts buildWorkloadScorecard. */
 export interface AlignedComparison {
-  /** intersection size over all splits */
+  /** intersection size over all splits (any PRESENT status) */
   alignedKeys: number;
+  /** intersection size restricted to pairs SCORED on BOTH sides — the only
+   *  population quality means are computed over (A8-F1: a degraded row on
+   *  either side must shrink the pair out of the mean VISIBLY, not silently) */
+  scoredAlignedKeys: number;
+  /** present-aligned pairs excluded because either side was degraded */
+  excludedDegradedPairs: number;
   /** intersection size restricted to heldout cases — the gated population */
   alignedHeldoutKeys: number;
-  /** quality over the aligned HELDOUT subset */
+  /** quality over the aligned HELDOUT subset (scored-on-both-sides pairs) */
   judgedQuality: Record<string, number>;
   baselineQuality: Record<string, number>;
 }
@@ -211,6 +223,30 @@ export function computeScorecardVerdict(
     reasons.push(`completed heldout total ${heldoutTotal} < ${MIN_HELDOUT_CASES_TOTAL}`);
   }
   if (judged.cases.scored === 0) reasons.push("no scored cases");
+  // C-A7-1: live candidates need repetition evidence
+  if (judged.live && c.requestedRepetitions < MIN_LIVE_REPETITIONS) {
+    reasons.push(
+      `live repetitions ${c.requestedRepetitions} < MIN_LIVE_REPETITIONS ${MIN_LIVE_REPETITIONS} — a stochastic single-roll pass is not evidence`,
+    );
+  }
+  // A8-F1: the baseline must meet the same degraded-row standard as the
+  // judged file — its schema-invalid/provider-error rows would otherwise
+  // silently shrink the pairwise denominators
+  if (judged.live && baseline !== null && (baseline.cases.schemaInvalid > 0 || baseline.cases.providerError > 0)) {
+    reasons.push(
+      `baseline results carry degraded rows (${baseline.cases.schemaInvalid} schema-invalid, ${baseline.cases.providerError} provider-error) — rerun the baseline before verdicting against it`,
+    );
+  }
+  // the baseline side of the pairwise deltas needs the same repetition
+  // evidence — a 1-rep baseline collapses the aligned set to single-roll pairs
+  // scoped to the LIVE pairwise gate: buildWorkloadScorecard aggregates every
+  // baseline with live=true, so judged.live is the discriminator that keeps
+  // offline unit fixtures out of this paid-evidence rule
+  if (judged.live && baseline !== null && baseline.completeness.requestedRepetitions < MIN_LIVE_REPETITIONS) {
+    reasons.push(
+      `baseline live repetitions ${baseline.completeness.requestedRepetitions} < MIN_LIVE_REPETITIONS ${MIN_LIVE_REPETITIONS}`,
+    );
+  }
   if (reasons.length > 0) return { verdict: "insufficient_data", reasons, deltas: null };
 
   // 2. hard invariants — any violation fails regardless of quality numbers

@@ -88,6 +88,12 @@ export interface MapExpectedClaim {
 }
 
 export interface MapEvalReference {
+  /** SCI-3b: when true, every matched mustMatch pair also requires the
+   *  reference text's numerals (digits AND number-words) to survive into the
+   *  matched candidate claim — "four drones" answered by "five drones" is a
+   *  fidelity failure, not a gist match. Opt-in per case (v2 capacity corpus
+   *  sets it); absent = v1 behavior. */
+  checkNumerals?: boolean;
   /** one entry per input doc, same order; empty claims = expected none */
   expected: Array<{ docId: number; claims: MapExpectedClaim[] }>;
   /** every pattern must match the produced claim-text corpus (case-insensitive) */
@@ -410,6 +416,16 @@ export interface EvalResultsFile {
   requestedRepetitions: number;
   scope: EvalRunScope;
   envKnobs: EvalEnvKnobs;
+  /** C-A7-2: provenance of --fresh discards — every discarded generation of
+   *  this configKey's results, so re-roll-until-pass can never look
+   *  first-try. Appended, never rewritten. */
+  discardedRuns?: Array<{
+    /** the qualified ack token (<workload-or-dataset>/<configKey>) naming the exact discarded file */
+    configKey: string;
+    runIds: string[];
+    resultsDigest: string;
+    discardedResults: number;
+  }>;
   updatedAt: string;
   /** live runs: cross-checked metering invariants — a preset gate requires
    *  attempts === reservations (one FRESH reservation per physical dispatch)

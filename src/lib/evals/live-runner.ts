@@ -181,6 +181,28 @@ export function assertLivePreflight(
       `DB host not acknowledged: pass --db-ack ${host} (exact match) to confirm the spend ledger writes to that host`,
     );
   }
+  // SAF-m3: a copy-paste slip that points EVAL_DATABASE_URL at the production
+  // DATABASE_URL sitting in the same env would write openai_eval ledger rows
+  // to production. Refuse host equality outright (ab-mapreduce precedent).
+  const prodUrl = env.DATABASE_URL;
+  if (prodUrl) {
+    const normalizeHost = (h: string) => h.toLowerCase().replace(/:5432$/, "");
+    let prodHost: string;
+    try {
+      prodHost = normalizeHost(new URL(prodUrl).host);
+    } catch {
+      // fail CLOSED: an unparseable production URL means the equality check
+      // cannot run, and a paid run must not proceed on an unverifiable guard
+      throw new EvalDispatchError(
+        "DATABASE_URL is set but not URL-parseable — cannot verify it differs from EVAL_DATABASE_URL; fix or unset it before a live run",
+      );
+    }
+    if (prodHost === normalizeHost(host)) {
+      throw new EvalDispatchError(
+        `EVAL_DATABASE_URL host ${host} EQUALS the production DATABASE_URL host — live evals must run against a disposable eval branch, never production`,
+      );
+    }
+  }
   if (!env.OPENAI_API_KEY) {
     throw new EvalDispatchError("OPENAI_API_KEY is not set");
   }

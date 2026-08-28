@@ -15,6 +15,7 @@ import { createHash } from "node:crypto";
 // Capacity-profile API re-exported so the eval CLI's audited static-import
 // surface stays exactly contracts+runner (isolation.test.ts pin). The module
 // is pure (imports nothing), so the CLI's eager closure character is unchanged.
+export { MIN_LIVE_REPETITIONS } from "./gates";
 export {
   BASELINE_PROFILE,
   CAPACITY_PROFILES,
@@ -366,6 +367,8 @@ export interface ResultsFileHeader {
   requestedRepetitions: number;
   scope: EvalRunScope;
   envKnobs: EvalEnvKnobs;
+  /** C-A7-2 discard provenance — see EvalResultsFile.discardedRuns. */
+  discardedRuns?: EvalResultsFile["discardedRuns"];
 }
 
 export function emptyEvalResultsFile(header: ResultsFileHeader): EvalResultsFile {
@@ -753,6 +756,7 @@ export function aggregateResults(
     wrongDocIdsTotal += num(r.checks, "wrongDocIds");
     strengthenedHedgesTotal += num(r.checks, "strengthenedHedges");
     fidelityFailures += list(r.checks, "mustMatchMisses").length + list(r.checks, "mustNotMatchHits").length;
+    fidelityFailures += Number((r.checks as unknown as Record<string, unknown>).numeralMisses ?? 0); // SCI-3b
     if (list(r.checks, "injectionHits").length > 0) injectionFollowedCases++;
     if (field(r.checks, "reproducible") === false) reproducibilityFailures++;
     if (c?.split === "heldout" && num(r.checks, "omittedDocs") > 0) heldoutUnderfillCases++;
@@ -862,7 +866,19 @@ export function alignedComparison(
   const jKeys = presentKeys(judged);
   const bKeys = presentKeys(baseline);
   const aligned = [...jKeys].filter((k) => bKeys.has(k));
-  const alignedSet = new Set(aligned);
+  // A8-F1: quality means are computed ONLY over pairs scored on BOTH sides;
+  // a degraded row on either side removes the pair VISIBLY (counted below)
+  // instead of silently shrinking one side's denominator.
+  const scoredKeys = (rf: EvalResultsFile) =>
+    new Set(
+      Object.values(rf.results)
+        .filter((r) => r.status === "scored")
+        .map((r) => resultKey(r.caseId, r.repetition)),
+    );
+  const jScored = scoredKeys(judged);
+  const bScored = scoredKeys(baseline);
+  const scoredAligned = aligned.filter((k) => jScored.has(k) && bScored.has(k));
+  const alignedSet = new Set(scoredAligned);
   const heldoutSubset = (rf: EvalResultsFile) =>
     Object.values(rf.results).filter(
       (r) =>
@@ -872,10 +888,65 @@ export function alignedComparison(
   const judgedHeldout = heldoutSubset(judged);
   return {
     alignedKeys: aligned.length,
+    scoredAlignedKeys: scoredAligned.length,
+    excludedDegradedPairs: aligned.length - scoredAligned.length,
     alignedHeldoutKeys: judgedHeldout.length,
     judgedQuality: qualityOf(dataset.workload, judgedHeldout),
     baselineQuality: qualityOf(dataset.workload, heldoutSubset(baseline)),
   };
+}
+
+/** C-A6-1: the dataset-derived identity components recomputable at REPORT
+ *  time from the current tree. A results file whose recorded identity
+ *  disagrees must never render a binding-looking verdict. */
+export function reportIdentityMismatch(
+  ds: AnalysisEvalDataset,
+  rf: EvalResultsFile,
+): string | null {
+  // The recompute must run under the KNOB ENVIRONMENT the file recorded —
+  // mapContentChars sits in mapExtractorVersion's basis and reduceGroupsFed
+  // in the digest promptHash, so recomputing a capacity-profiled cell under
+  // the report invocation's own profile would false-degrade deterministically
+  // (review finding: the matrix's whole population). Model envs are NOT
+  // restored here (they are not part of envKnobs); that residual sensitivity
+  // is documented in the hardening record.
+  const KNOB_ENVS: Array<[string, number | undefined]> = [
+    ["REDUCE_VOTES", rf.envKnobs.reduceVotes],
+    ["REDUCE_MAX_OUTPUT_TOKENS", rf.envKnobs.reduceMaxOutputTokens],
+    ["MAP_OUT_TOKENS_PER_DOC", rf.envKnobs.mapOutTokensPerDoc],
+    ["MAP_CONTENT_CHARS", rf.envKnobs.mapContentChars],
+    ["REDUCE_GROUPS_FED", rf.envKnobs.reduceGroupsFed ?? 200],
+  ];
+  const saved = KNOB_ENVS.map(([k]) => [k, process.env[k]] as const);
+  for (const [k, v] of KNOB_ENVS) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = String(v);
+  }
+  let nowPrompt: string;
+  let nowSchema: string;
+  let nowExtractor: string | null;
+  try {
+    nowPrompt = datasetPromptHash(ds);
+    nowSchema = workloadSchemaVersion(ds);
+    nowExtractor = datasetExtractorVersions(ds) ?? null;
+  } finally {
+    for (const [k, v] of saved) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+  const diffs: string[] = [];
+  if (rf.identity.promptHash !== nowPrompt) {
+    diffs.push(`promptHash recorded ${rf.identity.promptHash.slice(0, 12)} vs current ${nowPrompt.slice(0, 12)}`);
+  }
+  if (rf.identity.schemaVersion !== nowSchema) {
+    diffs.push(`schemaVersion recorded ${rf.identity.schemaVersion.slice(0, 12)} vs current ${nowSchema.slice(0, 12)}`);
+  }
+  const recExt = rf.identity.extractorVersion ?? null;
+  if (recExt !== nowExtractor) {
+    diffs.push(`extractorVersion recorded ${recExt ?? "absent"} vs current ${nowExtractor ?? "absent"}`);
+  }
+  return diffs.length === 0 ? null : diffs.join("; ");
 }
 
 // ============================================================================
@@ -902,6 +973,10 @@ export interface WorkloadScorecard {
    *  knob drift between judged and baseline must be VISIBLE at report time. */
   judgedEnvKnobs: EvalEnvKnobs;
   baselineEnvKnobs: EvalEnvKnobs | null;
+  baselineIdentity: CandidateDispatchIdentity | null;
+  /** C-A7-2: prior generations discarded with --fresh (from the header) —
+   *  rendered so a re-rolled artifact can never look first-try. */
+  discardedGenerations: number;
 }
 
 export function buildWorkloadScorecard(
@@ -915,11 +990,51 @@ export function buildWorkloadScorecard(
    *  AFTER a run must never let stale results read as a verdict against the
    *  current gold. */
   currentDatasetContentHash?: string,
+  /** C-A6-2: what the report EXPECTS the baseline file to be — its configKey
+   *  (filename-derived) and the default model its identity must carry. */
+  baselineExpectation?: { configKey: string; model: string } | null,
 ): WorkloadScorecard {
   const judged = aggregateResults(dataset, judgedFile, liveJudged);
   const baseline = baselineFile ? aggregateResults(dataset, baselineFile, true) : null;
   const aligned = baselineFile ? alignedComparison(dataset, judgedFile, baselineFile) : null;
   let verdictResult = computeScorecardVerdict(judged, baseline, aligned);
+  const degrade = (reason: string) => {
+    verdictResult = {
+      verdict: "insufficient_data",
+      reasons: [reason, ...verdictResult.reasons],
+      deltas: null,
+    };
+  };
+  // C-A6-1: dataset-derived identity must recompute to what the file recorded
+  const idDrift = reportIdentityMismatch(dataset, judgedFile);
+  if (idDrift !== null) {
+    degrade(`recorded identity does not recompute from the current tree (${idDrift}) — rerun before verdicting`);
+  }
+  if (baselineFile !== null && liveJudged) {
+    // C-A6-2: the LIVE baseline is trusted by filename today — cross-check its
+    // own header/identity, and refuse a self-comparison. Offline judged files
+    // never take a baseline through discovery, and offline runIds are
+    // deterministic (`offline-<datasetVersion>`), so the overlap check is
+    // live-scoped by design.
+    if (baselineExpectation) {
+      if (baselineFile.configKey !== baselineExpectation.configKey) {
+        degrade(`baseline header configKey "${baselineFile.configKey}" does not match its filename-derived key "${baselineExpectation.configKey}"`);
+      }
+      if (baselineFile.identity.model !== baselineExpectation.model) {
+        degrade(`baseline identity.model "${baselineFile.identity.model}" is not the default baseline model "${baselineExpectation.model}"`);
+      }
+    }
+    const baseIdDrift = reportIdentityMismatch(dataset, baselineFile);
+    if (baseIdDrift !== null) {
+      degrade(`baseline identity does not recompute from the current tree (${baseIdDrift})`);
+    }
+    const runIds = (rf: EvalResultsFile) => new Set(Object.values(rf.results).map((r) => r.runId));
+    const jRuns = runIds(judgedFile);
+    const overlap = [...runIds(baselineFile)].filter((r) => jRuns.has(r));
+    if (overlap.length > 0) {
+      degrade(`judged and baseline share runId(s) ${overlap.slice(0, 3).join(", ")} — a self-comparison can only produce zero deltas`);
+    }
+  }
   if (
     baselineFile !== null &&
     JSON.stringify({ reduceGroupsFed: 200, ...(judgedFile.envKnobs as unknown as Record<string, unknown>) }) !==
@@ -973,6 +1088,8 @@ export function buildWorkloadScorecard(
     proposedRegistryEntry,
     judgedEnvKnobs: judgedFile.envKnobs,
     baselineEnvKnobs: baselineFile ? baselineFile.envKnobs : null,
+    baselineIdentity: baselineFile ? baselineFile.identity : null,
+    discardedGenerations: (judgedFile.discardedRuns ?? []).length,
   };
 }
 
@@ -1034,6 +1151,17 @@ export function renderAnalysisScorecardMarkdown(input: {
         (sc.judgedIdentity.extractorVersion ? ` extractor=${sc.judgedIdentity.extractorVersion}` : ""),
     );
     lines.push(`Env knobs: ${knobsLine(sc.judgedEnvKnobs)}`);
+    if (sc.discardedGenerations > 0) {
+      lines.push(
+        `Discarded generations (--fresh provenance): ${sc.discardedGenerations} — this file's results are not first-try`,
+      );
+    }
+    if (sc.baseline && sc.baselineIdentity) {
+      lines.push(
+        `Baseline identity: model=${sc.baselineIdentity.model} effort=${sc.baselineIdentity.reasoningEffort ?? "absent"} ` +
+          `promptHash=${sc.baselineIdentity.promptHash.slice(0, 12)}`,
+      );
+    }
     if (sc.baselineEnvKnobs) {
       const drift = knobsLine(sc.baselineEnvKnobs) !== knobsLine(sc.judgedEnvKnobs);
       lines.push(
@@ -1089,7 +1217,8 @@ export function renderAnalysisScorecardMarkdown(input: {
       );
       if (sc.aligned) {
         lines.push(
-          `Aligned population: ${sc.aligned.alignedKeys} key(s), ${sc.aligned.alignedHeldoutKeys} heldout (the gated set). ` +
+          `Aligned population: ${sc.aligned.alignedKeys} present pair(s), ${sc.aligned.scoredAlignedKeys} scored-on-both-sides ` +
+          `(${sc.aligned.excludedDegradedPairs} excluded degraded), ${sc.aligned.alignedHeldoutKeys} heldout (the gated set). ` +
             `Aligned-heldout quality — judged: ${Object.entries(sc.aligned.judgedQuality)
               .filter(([k]) => !k.endsWith("VacuousCount"))
               .map(([k, v]) => `${k}=${pct(v)}`)
