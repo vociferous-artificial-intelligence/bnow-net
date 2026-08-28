@@ -9,6 +9,7 @@
 // per the master prompt.
 
 import { Pool, type PoolClient } from "@neondatabase/serverless";
+import { wellFormedSlice } from "../text/well-formed-slice";
 import { askWithLimits } from "./limits";
 import { askPipeline } from "./config";
 import { effectiveAskFeatures } from "./features";
@@ -102,13 +103,13 @@ export function compactHistory(turns: TurnSummaryInput[], answerCharBudget = 120
   const lines: string[] = [];
   for (const t of turns) {
     lines.push(
-      `T${t.seq}: Q: ${t.question.slice(0, 200)} → ${t.state}` +
+      `T${t.seq}: Q: ${wellFormedSlice(t.question, 200)} → ${t.state}` +
         (t.citedClaimIds.length > 0 ? ` [cited: ${t.citedClaimIds.slice(0, 20).join(",")}]` : ""),
     );
   }
   const last = turns[turns.length - 1];
   if (last.answer) {
-    lines.push(`T${last.seq} answer: ${last.answer.slice(0, answerCharBudget)}`);
+    lines.push(`T${last.seq} answer: ${wellFormedSlice(last.answer, answerCharBudget)}`);
   }
   return lines.join("\n");
 }

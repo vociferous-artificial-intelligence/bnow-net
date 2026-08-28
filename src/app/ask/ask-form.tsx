@@ -14,7 +14,7 @@ import { Loader2 } from "lucide-react";
 import type { Locale } from "@/i18n/dictionaries";
 import type { ClaimEvidenceLabels } from "@/components/claim-evidence-model";
 import type { ClaimCopyLabels } from "@/components/claim-copy-model";
-import { askIntentStorageKey } from "@/lib/ask/intent";
+import { askIntentStorageKey, normalizeAskQuestion } from "@/lib/ask/intent";
 import { askStartedEventEnabled } from "@/lib/analytics/events";
 import { captureProductEvent } from "@/lib/analytics/client";
 import {
@@ -429,7 +429,7 @@ export function AskForm({
       if (!progressive) return; // action path (useActionState) handles it
       e.preventDefault();
       const fd = new FormData(e.currentTarget);
-      const question = String(fd.get("question") ?? "").trim().slice(0, 400);
+      const question = normalizeAskQuestion(String(fd.get("question") ?? ""));
       if (question.length < 3) return;
       const key = String(fd.get("idempotencyKey") ?? "");
       const entry = entryRef.current;

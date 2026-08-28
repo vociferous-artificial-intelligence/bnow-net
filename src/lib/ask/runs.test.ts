@@ -73,6 +73,22 @@ describe("createRun", () => {
       createRun({ runId: RUN_ROW.id, userEmail: "u@x.com", question: "q", idempotencyKey: "k1" }),
     ).rejects.toThrow("conflict resolution");
   });
+
+  it("persists a WELL-FORMED question when a pair straddles the 400-unit clip (#97)", async () => {
+    h.queryMock.mockImplementation(async (sql: string) =>
+      String(sql).includes("INSERT INTO ask_runs") ? { rows: [RUN_ROW] } : { rows: [] },
+    );
+    await createRun({
+      runId: RUN_ROW.id,
+      userEmail: "u@x.com",
+      question: "x".repeat(399) + "💥 tail past the cap",
+      idempotencyKey: "k1",
+    });
+    const insert = h.queryMock.mock.calls.find((c) => String(c[0]).includes("INSERT INTO ask_runs"))!;
+    // Same 400-unit budget as before; the orphaned half is dropped, so the
+    // persisted identity matches what the boundaries dispatch to the provider.
+    expect((insert[1] as unknown[])[2]).toBe("x".repeat(399));
+  });
 });
 
 describe("reserveAllowance", () => {

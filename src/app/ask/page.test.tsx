@@ -104,4 +104,18 @@ describe("GET /ask?q=... never executes the paid pipeline", () => {
     expect(requireAcceptedUser).toHaveBeenCalled();
     expect(askWithLimitsMock).not.toHaveBeenCalled();
   });
+
+  it("normalizes a boundary-straddling ?q= prefill exactly like every submit boundary (#97) — still free", async () => {
+    // A forged/overlong ?q= whose astral pair straddles unit 400 must not seed
+    // the form (or the HTML) with an isolated surrogate, and must equal what a
+    // submit would normalize to, or the one-click intent exact-match would break.
+    const element = await AskPage({
+      searchParams: Promise.resolve({ q: "x".repeat(399) + "💥 tail past the cap" }),
+    });
+    render(element);
+
+    expect(askWithLimitsMock).not.toHaveBeenCalled();
+    const input = screen.getByPlaceholderText(PLACEHOLDER) as HTMLInputElement;
+    expect(input.value).toBe("x".repeat(399));
+  });
 });

@@ -231,6 +231,41 @@ describe("askAction — the money-path guard's server half", () => {
       idempotencyKey: undefined,
     });
   });
+
+  it("dispatches a WELL-FORMED question when an astral pair straddles the 400 boundary (#97)", async () => {
+    askWithLimitsMock.mockResolvedValue(fullAnswer());
+    queryMock.mockResolvedValue([]);
+    await askAction(null, formWith("x".repeat(399) + "💥 tail past the cap"));
+    // The old `.slice(0, 400)` kept the pair's lone high half at unit 399 —
+    // a string the provider's strict JSON parser rejects with a 400.
+    expect(askWithLimitsMock).toHaveBeenCalledWith("x".repeat(399), "user@example.com", {
+      idempotencyKey: undefined,
+    });
+  });
+
+  it("refuses (no charge) when surrogate repair leaves the question under the minimum (#97)", async () => {
+    // undici's FormData.set() USVString-converts an orphan to U+FFFD before our
+    // code runs, so hand-roll the carrier to prove the SERVER-side repair holds
+    // even for a multipart decoder that forwards the raw code units.
+    const fd = { get: (k: string) => (k === "question" ? "ab\uD800" : null) } as unknown as FormData;
+    // 3 raw units — the old code would have dispatched the malformed string.
+    const result = await askAction(null, fd);
+    expect(result).toBeNull();
+    expect(askWithLimitsMock).not.toHaveBeenCalled();
+  });
+
+  it("authorizes BEFORE any money-path work — the gate precedes askWithLimits", async () => {
+    askWithLimitsMock.mockResolvedValue(fullAnswer());
+    queryMock.mockResolvedValue([]);
+    const { requireAcceptedUser } = await import("@/lib/gate");
+    const gateMock = vi.mocked(requireAcceptedUser);
+    gateMock.mockClear();
+    await askAction(null, formWith("did russia strike kyiv today"));
+    expect(gateMock).toHaveBeenCalledTimes(1);
+    expect(gateMock.mock.invocationCallOrder[0]).toBeLessThan(
+      askWithLimitsMock.mock.invocationCallOrder[0],
+    );
+  });
 });
 
 // ---- Phase 0 measurement: the action patches ONLY its own run's row --------------

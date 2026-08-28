@@ -22,6 +22,8 @@
 
 import { createHash } from "node:crypto";
 import { Pool } from "@neondatabase/serverless";
+import { ASK_QUESTION_MAX } from "./intent";
+import { wellFormedSlice } from "../text/well-formed-slice";
 import type { AskAnswerV2, TimeWindow } from "./types";
 import type { EvidenceSnapshot } from "./events";
 import {
@@ -181,7 +183,7 @@ export async function cacheStore(opts: {
         opts.userEmail,
         opts.key,
         opts.corpusVersion,
-        opts.question.slice(0, 400),
+        wellFormedSlice(opts.question, ASK_QUESTION_MAX),
         JSON.stringify(stored),
         JSON.stringify(opts.snapshot),
       ],

@@ -2,6 +2,7 @@
 
 import { requireAcceptedUser } from "@/lib/gate";
 import { askWithLimits, recordEntryTimings } from "@/lib/ask/limits";
+import { normalizeAskQuestion } from "@/lib/ask/intent";
 import { clampMs, monotonicMs } from "@/lib/ask/timings";
 import { hydrateResultClaims } from "@/lib/ask/hydrate";
 import type { AskResultLike, ResolvedClaim } from "./ask-result";
@@ -25,7 +26,7 @@ export async function askAction(
   formData: FormData,
 ): Promise<AskActionState | null> {
   const user = await requireAcceptedUser(); // gated: subscriber tool, requires acceptance too
-  const question = String(formData.get("question") ?? "").trim().slice(0, 400);
+  const question = normalizeAskQuestion(String(formData.get("question") ?? ""));
   // Too short to be a real question: return the previous state unchanged — no
   // pipeline call, no charge, no error page (mirrors the API route's floor).
   if (question.length < 3) return prevState;

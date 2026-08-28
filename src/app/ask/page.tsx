@@ -4,7 +4,7 @@ import { getLocale } from "@/i18n/server";
 import { dict, makeT } from "@/i18n/dictionaries";
 import { makeClaimEvidenceLabels } from "@/components/claim-evidence-labels";
 import { claimCopyLabels } from "@/components/claim-copy-model";
-import { isAskIntentId } from "@/lib/ask/intent";
+import { isAskIntentId, normalizeAskQuestion } from "@/lib/ask/intent";
 import { progressiveAllowedFor } from "@/lib/ask/features";
 import { AskForm } from "./ask-form";
 
@@ -41,7 +41,10 @@ export default async function AskPage({
   const locale = await getLocale();
   const t = makeT(locale);
   const { q, intent } = await searchParams;
-  const initialQuestion = q?.slice(0, 400) ?? "";
+  // Same normalization as every submit boundary (#97): the prefill must equal
+  // the intent's stored question byte-for-byte for the one-click exact-match,
+  // and a truncated ?q= must never seed the form with an isolated surrogate.
+  const initialQuestion = q == null ? "" : normalizeAskQuestion(q);
   // Untrusted: anything that isn't a well-formed UUID becomes null and the form
   // renders exactly as it does on a bare GET.
   const askIntent = isAskIntentId(intent) ? intent : null;

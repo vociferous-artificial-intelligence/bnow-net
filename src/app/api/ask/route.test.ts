@@ -99,4 +99,31 @@ describe("POST /api/ask — Phase 0 wrapper timing", () => {
     expect(askWithLimitsMock).not.toHaveBeenCalled();
     expect(recordEntryTimingsMock).not.toHaveBeenCalled();
   });
+
+  it("dispatches a WELL-FORMED question when an astral pair straddles the 400 boundary (#97)", async () => {
+    askWithLimitsMock.mockResolvedValue(answer());
+    const res = await post({ question: "x".repeat(399) + "💥 tail past the cap" });
+    expect(res.status).toBe(200);
+    expect(askWithLimitsMock).toHaveBeenCalledWith("x".repeat(399), "user@example.com", {
+      idempotencyKey: undefined,
+    });
+  });
+
+  it("400s (no charge) when surrogate repair leaves the question under the minimum (#97)", async () => {
+    const res = await post({ question: "ab\uD800" }); // 3 raw units, 2 after repair
+    expect(res.status).toBe(400);
+    expect(askWithLimitsMock).not.toHaveBeenCalled();
+  });
+
+  it("authorizes BEFORE any money-path work — the gate precedes askWithLimits", async () => {
+    askWithLimitsMock.mockResolvedValue(answer());
+    const { requireAcceptedUser } = await import("@/lib/gate");
+    const gateMock = vi.mocked(requireAcceptedUser);
+    gateMock.mockClear();
+    await post({ question: "what happened in kherson" });
+    expect(gateMock).toHaveBeenCalledTimes(1);
+    expect(gateMock.mock.invocationCallOrder[0]).toBeLessThan(
+      askWithLimitsMock.mock.invocationCallOrder[0],
+    );
+  });
 });

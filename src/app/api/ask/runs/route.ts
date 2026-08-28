@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Pool } from "@neondatabase/serverless";
 import { requireAcceptedUser } from "@/lib/gate";
 import { askWithLimits } from "@/lib/ask/limits";
+import { normalizeAskQuestion } from "@/lib/ask/intent";
 import { progressiveAllowedFor } from "@/lib/ask/features";
 import {
   encodeSseEvent,
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
     question?: string;
     idempotencyKey?: string;
   };
-  const question = (body.question ?? "").trim().slice(0, 400);
+  const question = normalizeAskQuestion(body.question ?? "");
   if (question.length < 3) {
     return NextResponse.json({ error: "question too short" }, { status: 400 });
   }
