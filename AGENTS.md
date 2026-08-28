@@ -80,6 +80,8 @@ src/lib/llm/        analysis-model routing + money authorities: model-config.ts 
                     analysis-registry.ts (analysis-reg-v1 quality approvals — baseline
                     only), pricing.ts (the single analysis metering price table)
 src/lib/isw/        crawler, endnote parser, hedging classifier, registry materializer
+src/lib/text/       well-formed UTF-16 truncation primitives (the #86 repair, shared by
+                    every provider-bound truncation site — #97 family)
 src/lib/validation/ ISW scoreboard: keyword gazetteer + majority-vote LLM matcher
 src/lib/usage/      SpendGuard, llm-guard (caps + kill-switch), cron-run bookkeeping
 src/lib/…           ask (incl. intent.ts: one-shot home→/ask handoff contract), entities,
@@ -107,24 +109,27 @@ place whenever reality changes. Historical narrative: `docs/PROGRESS.md` + `docs
 debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
 
 - **Live/repository:** https://bnow.net · Vercel `bnow-net` / team `vociferous`; production
-  is **`dpl_FPYase3HqbCF3d2uW3AnwPHibyt4`, the 2026-08-24 release train** (deployment
-  created 2026-08-24T23:56:34Z per `vercel inspect`, from the plain release clone at
-  `main` `143964a`, operator-authorized):
-  QF-A (PR #14, evidence recency + funnel), QF-C (PR #15, analysis-eval control plane),
-  the seven-PR conflict evaluator (PRs #16–#22, DORMANT — `CONFLICTS_UI` absent in every
-  environment), plus docs PRs #12/#13/#23/#24. `/health` 200 stamping **`143964a`**
-  (plain clone, #78 trap avoided), DB OK — re-verified 2026-08-27T18:13Z; post-deploy
-  smoke PASS (conflict flag-off
-  body-leak clean bare+RSC on all routes; ruling-21 spots clean; the gated evidence route
-  307s on `requireAcceptedUser()` FIRST), and the same anonymous bare+`RSC: 1` probes
-  re-ran clean across 17 gated/conflict routes on 2026-08-27. **Rollback target =
-  `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`**. QF-A's ≥1-day digest-cycle observation window is
-  **CLOSED — PASS** (adjudicated 2026-08-27: 44/44 digests for digest dates 08-24→08-27
-  carry additive `structured.stats.evidenceRecency`, claim/document reconciliation exact
-  on all 44, no structural or relational drift attributable to QF-A —
-  `docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md`). `main` is
-  docs-only ahead of production (the deploy record, then this closeout); no redeploy is
-  needed. Register: `docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md`.
+  is **`dpl_Gf8AiKCpmuwRYdoAr1JvjfTaGLi6` / `main` merge `b62da02` — the 2026-08-28
+  reliability queue** (PRs #27/#28/#29/#30 released SERIALLY overnight from the plain
+  release clone, each with its own gate, deploy verification and natural observation,
+  all PASS: #97 reduce site → #87 mechanical digest fix → #87 degraded-run
+  classification → #98 timeout sweep; record + rollback chain:
+  `docs/reviews/RELIABILITY-RELEASES-2026-08-28.md`). `/health` 200 stamping
+  **`b62da02`**, DB OK; anonymous bare+`RSC: 1` bodies re-verified clean after every
+  deploy. **Rollback target = `dpl_5ocJPF4GLPHDFB4Cv3MB4tgkScou`** (`ad6e078`, the
+  release before the sweep). `main` (`bf0061b`) is DORMANT-EVAL code ahead of
+  production — PRs #31 (capacity-profile eval harness), #32 (QF-C hardening) and #33
+  (conflict soak instruments) landed after the runtime queue and ship no reachable
+  runtime behavior (no `EVAL_*` env exists; nothing imports the instruments); they ride
+  the next natural deploy, and no redeploy is needed for them. The 2026-08-24 release
+  train (QF-A/QF-C/conflict evaluator, `143964a`) is carried forward inside this
+  lineage; the conflict surfaces stay DORMANT (`CONFLICTS_UI` absent everywhere). QF-A's
+  observation window is **CLOSED — PASS** (adjudicated 2026-08-27: 44/44 digests for
+  digest dates 08-24→08-27 carry additive `structured.stats.evidenceRecency`,
+  claim/document reconciliation exact on all 44 —
+  `docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md`).
+  Register: `docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md`; operator decisions:
+  `docs/reviews/OPERATOR-DECISION-PACKET-2026-08-28.md`.
   Previous production deployment detail:
   (PR #10, merge `0aa3d7d`), created 2026-08-23T14:08:53Z, READY, aliased `bnow.net` +
   `bnow-net.vercel.app` + `bnow-net-vociferous.vercel.app`; `/health` stamps **`0aa3d7d`**
@@ -239,14 +244,24 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   corpus-wide replay finds **zero** of the 7,292 still-unprocessed eligible documents
   capable of reproducing it. Map freshness RECOVERED during that window
   (`map-health` recovery notice 2026-08-24T13:40Z; `episodeKey` null; backlog 25,857 →
-  7,292). **#87 remains OPEN** (per-item failures swallowed into a counter with `ok=true`;
-  mechanical root = the legacy digest truncation at `openai-provider.ts:153` — #97): the 5
-  daily gulf legacy digests still exercise that path, though every map and digest run since
-  2026-08-24T00:00Z has recorded zero nested `errors`/`batchErrors` (measured 2026-08-27 —
-  encouraging, not a repair). **#97 remains OPEN and is now the top code priority:** the
-  reduce-path truncation sites (`synthesize.ts:138-139`) went LIVE again with the mapreduce
-  resumption — the "fix before #88 recovers" intent was overtaken by the natural recovery;
-  no failure was observed in the 08-25→08-27 window, which proves nothing about the defect.
+  7,292). **#87 is CLOSED (both halves deployed 2026-08-28 and observed):** the digest
+  doc line cannot emit malformed UTF-16 (`digestDocLine` + `wellFormedSlice`, R1/PR #28;
+  the 04:00Z intraday exercised it clean), and a run carrying REAL per-item failures now
+  records `ok=false` with a machine-readable `counts.degraded` while `error` stays NULL
+  (R2/PR #29 — routes declare, `withCronRun` flips; map failures classified into
+  content-safe `batchErrorClasses`; validate's benign ISW-not-published returns split
+  into `unvalidated` and no longer read as errors). Honest caveat, recorded: the flip is
+  synthetic- and wiring-proven (a real-cycle itest fails a live dispatch and asserts the
+  classification lands); no natural nested-error event has occurred since deploy, so the
+  first natural flip remains future-observable via audit-cron's FAIL list. **#98 is
+  CLOSED (R3/PR #30, with natural proof):** the startup timeout sweep classified 9
+  genuinely-dead historical rows — including a REAL prior-day telegram hang — with zero
+  false sweeps; `finished_at` is never fabricated (ruling 10 intact); no email channel
+  by explicit scope decision (visibility = cron_runs + audit-cron + the soak-check's
+  timed_out taxonomy). **#97 umbrella remains OPEN, re-scoped:** the reduce and digest
+  provider-bound sites are FIXED AND DEPLOYED; remaining sites = the Ask family
+  (user-controlled, highest exposure — next code PR), `embeddings/client.ts`,
+  `validation/llm-match.ts`, and the inert anthropic site (#83).
   Validation uses k=5 LLM matching
   with keyword fallback and exposes coverage/divergence/timeliness/thin-source metrics.
   **2026-07-29→08-15 map outage (recovered; residual backlog drained to ~7K docs by 2026-08-24, #86 track):**
@@ -302,10 +317,11 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   Postmark `BNOW.NET <no-reply@bnow.net>` is live; magic-link guidance is single-use/24h and
   copy-before-opening. PostHog is production-only, explicit opt-in, allowlist-sanitized, UUID
   identity, no Ask/Search/source text; GeoIP is retained per disclosed operator ruling.
-- **Quality/ops:** **3,329 unit tests / 231 files + 151 real-Postgres integration tests /
-  21 files**, all green (measured 2026-08-24 on the full release-train tree `e359c61`;
-  QF-C's figures were 2,518/188 + 119/19, QF-A's 2,412/180 + 119/19, PR #7's
-  2,309/176 + 118/19). Production DB migrated through 0027
+- **Quality/ops:** **3,421 unit tests / 239 files** green (measured 2026-08-28 on the
+  final merged `main` `bf0061b`, typecheck + lint clean) + **155 real-Postgres
+  integration tests / 23 files** (as of the PR #30 branch gate; every reliability branch
+  ran the full suite on a disposable Neon fork). Historical gates: 3,329/231 + 151/21 on
+  the 2026-08-24 release train `e359c61`. Production DB migrated through 0027
   (2026-07-21, verified + idempotent); no strand in the 2026-08-24 release train adds a migration.
   Enforced pre-push gate = typecheck+lint+test. Crons: fast */15; telegram :01; X :02;
   MTProto :03 (clustered since the 2026-08-17 Candidate B release; :10/:20/:35 before);
@@ -920,11 +936,13 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
    bullet). `openai_reduce` is back in its expected ≈$0.10–0.30/day band against
    `REDUCE_USD_CAP_DAILY=2` ($0.17/$0.18/$0.14 on 08-25/26/27). Watch the scoreboard now
    that mapreduce output is reaching validation again. Rollback of the engine itself =
-   remove the Vercel prod env var (or set `legacy`) + redeploy. **Next code PR: #97**
-   (route the provider-bound truncation sites through `wellFormedSlice` — the reduce sites
-   are live again with the resumption, the Ask sites are user-controlled, and the digest
-   site is #87's mechanical fix), then the #87/#98 reliability work. Then: gulf theaters
-   onto the map worker, the #33 remap path (the operator
+   remove the Vercel prod env var (or set `legacy`) + redeploy. **The 2026-08-28
+   reliability queue DELIVERED the reduce + digest #97 sites and closed #87/#98** (see
+   the Analysis bullet and `docs/reviews/RELIABILITY-RELEASES-2026-08-28.md`). **Next
+   code PRs: the #97 Ask family** (user-controlled truncation sites through
+   `wellFormedSlice`) **and the eval corpus-v2 landing** (drafts machinery-verified;
+   carries hardening item 6 + the numeral fixtures + the contract cap raise). Then: gulf
+   theaters onto the map worker, the #33 remap path (the operator
    now EXISTS in the tree — see the map-lease release — but has never been RUN; its
    production deployment is recorded in the closeout decision-log entry, not here),
    per-country mix policy.
@@ -1552,3 +1570,38 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   migration, no paid provider call, and no production write**; production remains
   `dpl_FPYase3HqbCF3d2uW3AnwPHibyt4` / `143964a`, `main` docs-only ahead. Report:
   `docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md`.
+
+- **2026-08-27/28 (reliability release queue + dormant eval/conflict landings —
+  operator-authorized roadmap)** One overnight session executed the authorized roadmap:
+  **seven PRs merged (#27–#33), four SERIAL observed production releases, three dormant
+  landings, zero manual paid calls, zero env/cap/flag/cron/migration changes.** Runtime
+  queue (each: standard gate → fresh-context review → fixes → re-review → checks →
+  merge → plain-clone deploy → /health+DB+authz verification → natural observation →
+  rollback checkpoint): **R0** PR #27 `ed9bc35` → `dpl_62NHUKhDGVL6S6Xp7YbvYMuZ23mx`
+  (#97 reduce site; baseline: old-vs-new differs on ZERO of 157,765 current claims —
+  defensive; observed PASS incl. the 02:00Z finalize's exactly-30 reduce requests
+  = 6 cells × K=5 through the new code, $0.0450). **R1** PR #28 `afbf06e` →
+  `dpl_H7uqWF3DhToY7ufouNBSeSkYLaWH` (#87 mechanical digest fix; baseline: 61
+  malformed doc lines/14d under old code; 04:00Z intraday observed clean). **R2**
+  PR #29 `ad6e078` → `dpl_5ocJPF4GLPHDFB4Cv3MB4tgkScou` (#87 degraded-run
+  classification; 7 post-deploy runs, 0 spurious flips; one transient Vercel CLI
+  "Not authorized" cleared on retry, no auth change). **R3** PR #30 `b62da02` →
+  **`dpl_Gf8AiKCpmuwRYdoAr1JvjfTaGLi6` (current production)** (#98 sweep; NATURAL
+  proof: 9 dead historical rows swept incl. the real 08-27T18:01:42Z telegram hang,
+  zero false sweeps). **#87 CLOSED** (flip synthetic+wiring-proven; first natural flip
+  future-observable), **#98 CLOSED** (natural proof obtained), **#97 re-scoped OPEN**
+  (Ask family next). Dormant landings after the queue: PR #31 `2c1eac5`
+  (capacity-profile harness + matrix dry-run + SCI-N6 both sides + env-knob surfacing),
+  PR #32 `5643b72` (10/11 QF-C close-before-paid items; item 6 rides corpus-v2),
+  PR #33 `bf0061b` (conflict soak §5/§5.1 instruments; partial-verdict policy
+  deliberately deferred to register #12.3) — `main` `bf0061b` is dormant-eval ahead of
+  production by design; paid evals remain BLOCKED (no `EVAL_*` env; §6 gate);
+  conflict soak remains blocked on its eight §8 gates. Final gates on merged `main`:
+  typecheck/lint clean · unit 3,421/3,421 (239 files). Docs landed with this entry:
+  `RELIABILITY-RELEASES-2026-08-28.md` (release+observation record),
+  `OPERATOR-DECISION-PACKET-2026-08-28.md` (X cap #101 ~15-day runway is the nearest
+  deadline; #94 override removal; hygiene; npm/pnpm; §6 paid-eval; conflict gates;
+  corpus-v2 review), `docs/designs/MODEL-PROMOTION-READINESS-2026-08-27.md` (prepared,
+  not executed), and `docs/designs/HUMAN-ADJUDICATION.md` carried from the parked QF
+  branch (register §9.4 discharged). The dirty primary checkout was untouched
+  throughout; every deploy came from the plain release clone.

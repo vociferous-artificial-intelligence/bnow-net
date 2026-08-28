@@ -5,17 +5,23 @@ this file is **not append-only**: correct it in place whenever live product, ope
 deployment, test, credential, or repository state changes. Historical narrative belongs in
 `PROGRESS.md`, review notes, and `DECISIONS.md`.
 
-## Current state — snapshot (verified through 2026-08-27; correct in place when it changes)
+## Current state — snapshot (verified through 2026-08-28; correct in place when it changes)
 
 Live at **https://bnow.net** (Vercel project `bnow-net`, team `vociferous`;
 deployment URLs are SSO-walled — always use the project domain). History/narrative:
 `docs/PROGRESS.md` + `docs/reviews/`; debt: `docs/OPEN-TASKS.md`.
 
-- **2026-08-24 release train (the CURRENT production release):** production is
-  **`dpl_FPYase3HqbCF3d2uW3AnwPHibyt4`** built from `main` **`143964a`** (deployment
-  created 2026-08-24T23:56:34Z from the plain release clone; `/health` stamps `143964a`,
-  DB OK — re-verified 2026-08-27T18:13Z; rollback target
-  `dpl_HzDMuajSbg98XuXTAoD1ztKogGA2`). Contents: **QF-A** (PR #14 — evidence-recency
+- **2026-08-28 reliability queue (the CURRENT production release):** production is
+  **`dpl_Gf8AiKCpmuwRYdoAr1JvjfTaGLi6`** built from `main` merge **`b62da02`** — four
+  SERIAL observed releases overnight (PR #27 #97-reduce → PR #28 #87-mechanical →
+  PR #29 #87-classification → PR #30 #98-sweep), each gate-complete, deploy-verified
+  and observation-PASS; rollback target **`dpl_5ocJPF4GLPHDFB4Cv3MB4tgkScou`**
+  (`ad6e078`). Record: `docs/reviews/RELIABILITY-RELEASES-2026-08-28.md`. `main`
+  (`bf0061b`) is DORMANT-EVAL code ahead of production (PRs #31/#32/#33 — capacity
+  harness, QF-C hardening, conflict soak instruments; no reachable runtime behavior, no
+  redeploy needed). The 2026-08-24 release train content below is carried inside this
+  lineage. Prior release-train identity: `dpl_FPYase3HqbCF3d2uW3AnwPHibyt4` / `143964a`
+  (deployment created 2026-08-24T23:56:34Z from the plain release clone). Contents: **QF-A** (PR #14 — evidence-recency
   stats + the read-only quality-funnel report; its post-deploy observation window is
   **CLOSED — PASS 2026-08-27**: 44/44 digests for digest dates 08-24→08-27 carry additive
   `structured.stats.evidenceRecency` with exact claim/document reconciliation on all 44 —
@@ -29,14 +35,14 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   shadow soak and enablement stay separately gated); plus docs PRs #12/#13/#23/#24.
   `main` is docs-only ahead of production (the deploy record, then the 2026-08-27
   closeout) — **no redeploy is needed**; there are zero remaining release-train merges.
-  **Operational watch (measured 2026-08-27):** #87 (nested per-item errors swallowed with
-  `ok=true` — zero occurrences since 08-24, defect unrepaired, the 5 daily gulf legacy
-  digests still exercise the path), #97 (provider-bound UTF-16 truncation sites — the
-  reduce sites are LIVE again since mapreduce resumed; next code PR), #98 (sporadic hung
-  `ingest:*` rows — recurred 08-27T18:01:42Z), and **#101: `x_api` at $57.6724 of the $75
-  all-time `X_SPRINT_USD_CAP` (76.9%; ~$1.04/day recent burn ⇒ roughly 17 days of runway
-  as a point-in-time projection) — operator cap decision needed before fail-closed
-  exhaustion**.
+  **Operational watch (updated 2026-08-28):** #87 and #98 are CLOSED (deployed +
+  observed, see the reliability record); #97 is re-scoped OPEN (reduce + digest sites
+  deployed; the Ask family is the next code PR); still-open observations: the first
+  NATURAL degraded-run flip and the first natural exercise of validate's benign/thrown
+  split (next 07:00Z run). **#101 remains the nearest operator deadline: `x_api`
+  $57.84 of the $75 all-time cap (77.1%; ~$1.15/day 7-day burn ⇒ ~15 days of runway,
+  point-in-time projection; est. exhaustion ~2026-09-11) — decision needed before
+  fail-closed exhaustion** (`docs/reviews/OPERATOR-DECISION-PACKET-2026-08-28.md`).
 
 - **OpenSanctions match-safety release (2026-07-22):** release commit `441ee09`
   (original deploy `dpl_E5ysiLJSg1ynNmqJkgmpDjrzZD32`, then the 2026-08-14 env-only
@@ -496,13 +502,12 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   Signals proof; optional analytics was left off and persisted `denied`. It remains the standing
   verification identity and was signed back out after the proof. Evidence:
   `docs/reviews/POSTHOG-ANALYTICS-IMPLEMENTATION-NOTE-2026-07-14.md`.
-- **Tests:** **3,329 unit tests / 231 files** green (`npm test`) + **151/151**
-  Neon-branch integration tests / **21 files** (against disposable production forks with
-  zero paid calls) — measured 2026-08-24 on the full release-train tree `e359c61` with
-  `LLM_DISABLE=1` and every provider key blanked; the fork is deleted after each run
-  (per-strand gates along the way: QF-C 2,518/188 + 119/19, QF-A 2,412/180 + 119/19,
-  PR #7 2,309/176 + 118/19). `main` has moved docs-only since `e359c61`, so those counts
-  remain the authoritative merged-tree gate.
+- **Tests:** **3,421 unit tests / 239 files** green (`npm test`, typecheck + lint
+  clean — measured 2026-08-28 on the final merged `main` `bf0061b`) + **155/155**
+  Neon-branch integration tests / **23 files** (as of the PR #30 branch gate; every
+  2026-08-27/28 reliability branch ran the full suite on a disposable production fork
+  with zero paid calls; the fork is deleted after each run). Historical authoritative
+  gates: 3,329/231 + 151/21 on the 2026-08-24 release-train tree `e359c61`.
   The saved `NEON_API_KEY` works (disposable branches created and deleted cleanly). CI
   mirror: `.github/workflows/ci.yml`; the enforced pre-push gate is `.githooks/pre-push`
   (typecheck+lint+test), which does not include the integration suite.
