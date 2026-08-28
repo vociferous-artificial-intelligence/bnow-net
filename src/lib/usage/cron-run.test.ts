@@ -14,7 +14,11 @@ const { cronJobName, markDegraded, withCronRun } = await import("./cron-run");
 beforeEach(() => querySpy.mockClear());
 
 function finishArgs(): unknown[] {
-  const call = querySpy.mock.calls.find(([sql]) => /UPDATE cron_runs/.test(sql as string));
+  // the parameterless #98 sweep is also an UPDATE cron_runs — the finish
+  // UPDATE is the one carrying bind params
+  const call = querySpy.mock.calls.find(
+    ([sql, params]) => /UPDATE cron_runs/.test(sql as string) && Array.isArray(params),
+  );
   expect(call).toBeDefined();
   return call![1] as unknown[];
 }
@@ -79,5 +83,60 @@ describe("withCronRun degraded classification (#87)", () => {
     const counts: Record<string, unknown> = {};
     markDegraded(counts, "batch_errors", { batchErrors: 3 });
     expect(counts.degraded).toEqual({ category: "batch_errors", batchErrors: 3 });
+  });
+});
+
+describe("#98 timeout sweep wiring", () => {
+  it("every job start issues the sweep before opening its own row", async () => {
+    await withCronRun("job", async () => null);
+    const sqls = querySpy.mock.calls.map(([sql]) => String(sql));
+    const sweepIdx = sqls.findIndex((s) => s.includes("timeoutSweep"));
+    const insertIdx = sqls.findIndex((s) => /INSERT INTO cron_runs/.test(s));
+    expect(sweepIdx).toBeGreaterThanOrEqual(0);
+    expect(sweepIdx).toBeLessThan(insertIdx); // the fresh row can never self-match anyway (age 0)
+    const sweep = sqls[sweepIdx];
+    // the three guards that make the sweep safe + idempotent
+    expect(sweep).toContain("finished_at IS NULL");
+    expect(sweep).toContain("ok IS NULL");
+    expect(sweep).toContain("make_interval");
+    // ruling 10 preserved: the sweep must never write finished_at
+    expect(sweep).not.toMatch(/SET[^]*finished_at\s*=/);
+  });
+
+  it("a sweep failure never breaks the job (bookkeeping contract)", async () => {
+    querySpy.mockImplementationOnce(async () => {
+      throw new Error("db down");
+    });
+    const out = await withCronRun("job", async () => "survived");
+    expect(out).toBe("survived");
+  });
+
+  it("the ceiling table stays in lockstep with every cron route that records runs", async () => {
+    // Enumerate the ACTUAL route files rather than a second hardcoded list, so
+    // a future cron route added with withCronRun but no table entry fails here
+    // (its runs would otherwise fall to the widest-ceiling fallback — safe
+    // today only because no route exceeds 800s, an invariant this test pins).
+    const { JOB_MAX_DURATION_SEC } = await import("./cron-run");
+    const { readFileSync, readdirSync } = await import("node:fs");
+    const families = new Map<string, number>(); // family -> maxDuration from source
+    for (const dir of readdirSync("src/app/api/cron", { withFileTypes: true })) {
+      if (!dir.isDirectory()) continue;
+      const path = `src/app/api/cron/${dir.name}/route.ts`;
+      let src: string;
+      try {
+        src = readFileSync(path, "utf8");
+      } catch {
+        continue; // nested-only dirs (probe/mtproto) have no top-level route
+      }
+      if (!src.includes("withCronRun")) continue; // probes never write cron_runs
+      const m = src.match(/export const maxDuration = (\d+);/);
+      expect(m, `${path} must export maxDuration`).not.toBeNull();
+      families.set(dir.name, Number(m![1]));
+      expect(Number(m![1]), `${path} maxDuration must stay <= 800 (the fallback bound)`).toBeLessThanOrEqual(800);
+    }
+    expect([...families.keys()].sort()).toEqual(Object.keys(JOB_MAX_DURATION_SEC).sort());
+    for (const [family, secs] of families) {
+      expect(JOB_MAX_DURATION_SEC[family], `ceiling for ${family}`).toBe(secs);
+    }
   });
 });
