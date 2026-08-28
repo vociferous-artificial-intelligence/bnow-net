@@ -1248,12 +1248,39 @@ docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md)
     DEPLOYED:** the reduce site (PR #27, `ed9bc35` — shared `wellFormedSlice` moved to
     `src/lib/text/well-formed-slice.ts`, observed through 30 clean live reduce requests)
     and the legacy digest site (PR #28, `afbf06e` — `digestDocLine`, = #87's mechanical
-    fix, observed at the 04:00Z intraday). REMAINING under this umbrella, in priority
-    order: the Ask family (`ask/actions.ts` + `api/ask/route.ts` + runs route +
-    ask-form + sessions + rerank — user-controlled input, highest exposure; NEXT code
-    PR), `embeddings/client.ts`, `validation/llm-match.ts:83,85` (degrades to keyword
-    on failure, ruling 9 — quiet), and `anthropic-provider.ts:70` (inert, no key —
-    #83). Umbrella stays OPEN until each is repaired or documented safe with evidence.
+    fix, observed at the 04:00Z intraday).
+    **STATUS 2026-08-28 (second update) — the ASK FAMILY is REPAIRED (PR #35), the
+    highest-exposure user-controlled site set.** One shared pure normalization
+    (`normalizeAskQuestion` in `src/lib/ask/intent.ts` = trim, then `wellFormedSlice`
+    at the historical 400-code-unit cap) is now called by ALL SIX question boundaries:
+    `ask/actions.ts` (server action), `api/ask/route.ts` (JSON), `api/ask/runs/route.ts`
+    (progressive), `ask-form.tsx` (client progressive submit), `page.tsx` (?q= prefill,
+    which previously did not trim — the one deliberate alignment change; required for
+    the one-click intent exact-match), and the home box (which already used the shared
+    function). The question's persistence/identity clips (`runs.ts` createRun,
+    `cache.ts` cacheStore, `limits.ts` ask_usage insert + idempotency replay
+    comparison) route through `wellFormedSlice` at the same cap (limit-only, no trim —
+    byte-identical for every already-normalized caller), and the remaining
+    provider-bound Ask truncations are repaired at their existing budgets:
+    `sessions.ts compactHistory` (question 200 / answer budget) and `rerank.ts
+    serializeCandidate` (`RERANK_SNIPPET_CHARS`). Baseline reproduction: a 400-unit
+    question with an astral pair straddling the boundary left old code emitting a lone
+    `0xD83D` (strict-JSON-rejecting; `encodeURIComponent` throws in the home handoff);
+    ordinary-input old-vs-new byte identity 9/9 scripts, boundary sweep 41 offsets
+    (old malforms at exactly the straddle offset, new never). Aggregate-only
+    production measurement: 42 ask_usage / 1 ask_runs rows, max question length 96,
+    zero U+FFFD — the defect never fired in production persistence. 26 new tests;
+    five mutations (question-normalize, rerank-snippet, session-history, run-persist,
+    usage-log) each fail 1–13 tests when the repair is reverted. Deliberately NOT
+    included, documented safe: `sessions.ts` title clips (DB/display-bound — the
+    milder U+FFFD class this item already adjudicates out of the provider-bound
+    family), array slices (entities/claims/ids), ASCII/protocol slices (hex key,
+    dates, SSE framing), and the offline eval harness (`eval-run.ts`/`eval-set.ts`,
+    fixture-fed, rides the eval follow-up). REMAINING under this umbrella:
+    `embeddings/client.ts` (`truncateInput`), `validation/llm-match.ts:83,85`
+    (degrades to keyword on failure, ruling 9 — quiet), and `anthropic-provider.ts:70`
+    (inert, no key — #83; candidate for a documented-safe disposition). Umbrella stays
+    OPEN until each is repaired or documented safe with evidence.
 
 ### New (from the #86 recovery-window closeout — 2026-08-24,
 docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md §14)
