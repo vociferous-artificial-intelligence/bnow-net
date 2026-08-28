@@ -17,6 +17,7 @@ import {
   type ReduceClaim,
 } from "../analysis/reduce";
 import {
+  reduceGroupsFed,
   finalizeEvents,
   mergeVotes,
   parseVote,
@@ -199,7 +200,10 @@ function runDigestPipeline(evalCase: DigestEvalCase, votesRaw: string[]): Digest
   const groups = clusterClaims(input.claims as ReduceClaim[], { mirrorOf });
   // rank recency against the window end, exactly like the day-window engine
   const nowMs = Date.parse(`${input.date}T00:00:00Z`) + 86_400_000;
-  const fed = rankGroups(groups, nowMs); // fixtures are far below reduceGroupsFed()
+  // SCI-N6 (scorer side): the same production cutoff synthesize.ts:642 applies —
+  // a vote citing an unfed group's gid must be stripped here exactly as the
+  // engine strips it, or >cutoff capacity cases mis-score.
+  const fed = rankGroups(groups, nowMs).slice(0, reduceGroupsFed());
   const fedGids = new Set(fed.map((g) => g.key));
   const groupByKey = new Map(fed.map((g) => [g.key, g]));
 

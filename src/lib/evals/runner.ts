@@ -11,6 +11,18 @@
 // iterate prompts against heldout results (docs/evals/analysis/README.md).
 
 import { createHash } from "node:crypto";
+
+// Capacity-profile API re-exported so the eval CLI's audited static-import
+// surface stays exactly contracts+runner (isolation.test.ts pin). The module
+// is pure (imports nothing), so the CLI's eager closure character is unchanged.
+export {
+  BASELINE_PROFILE,
+  CAPACITY_PROFILES,
+  UNIMPLEMENTED_MATRIX_CELLS,
+  applyCapacityProfile,
+  capacityProfileNames,
+  withCapacityProfileKey,
+} from "./capacity-profiles";
 import {
   mapContentChars,
   mapDocLine,
@@ -22,6 +34,7 @@ import {
 import { mapOutTokensPerDoc } from "../analysis/map-worker";
 import { clusterClaims, rankGroups, type ReduceClaim } from "../analysis/reduce";
 import {
+  reduceGroupsFed,
   reduceVotes,
   synthesisResponseSchema,
   synthesisUserMessage,
@@ -83,6 +96,7 @@ export function currentEnvKnobs(): EvalEnvKnobs {
     reduceMaxOutputTokens: reduceMaxOutputTokens(),
     mapOutTokensPerDoc: mapOutTokensPerDoc(),
     mapContentChars: mapContentChars(),
+    reduceGroupsFed: reduceGroupsFed(),
   };
 }
 
@@ -128,7 +142,12 @@ export function buildDigestVotePrompt(input: DigestEvalInput): CandidatePrompt {
     input.mirrorOf && input.mirrorOf.length > 0 ? new Map(input.mirrorOf) : undefined;
   const groups = clusterClaims(input.claims as ReduceClaim[], { mirrorOf });
   const nowMs = Date.parse(`${input.date}T00:00:00Z`) + 86_400_000;
-  const fed = rankGroups(groups, nowMs);
+  // SCI-N6 closed: apply production's fed cutoff (synthesize.ts feeds
+  // ranked.slice(0, reduceGroupsFed())) so capacity cases past the cutoff
+  // measure the REAL pipeline. Identity-neutral for every v1 dataset (all
+  // fixture group counts sit under the cutoff, pinned by test), so committed
+  // results' promptHash is unchanged.
+  const fed = rankGroups(groups, nowMs).slice(0, reduceGroupsFed());
   return {
     system: synthesisSystemPrompt(input.track as Track, input.theater),
     user: synthesisUserMessage(input.theater, input.date, fed, {
@@ -243,7 +262,7 @@ export const EST_TOKENS_PER_CHAR = 0.32;
 export const EST_CALL_OVERHEAD_TOKENS = 120;
 /** map output: the worker's own per-doc assumption with headroom (audit §11
  *  measures ~135; the worker budgets 200 — the estimate uses the budget) */
-export const EST_MAP_OUT_TOKENS_PER_DOC = 200;
+export const EST_MAP_OUT_TOKENS_PER_DOC = 200; // baseline floor; live value below
 /** digest output per vote: <=12 events of title+summary+claims; fixtures feed
  *  far fewer groups than production, 2000 is deliberate headroom */
 export const EST_DIGEST_OUT_TOKENS_PER_VOTE = 2000;
@@ -293,13 +312,13 @@ export function buildAnalysisEstimatePlan(
         const docs = (c as MapEvalCase).input.docs.length;
         calls = 1;
         inTok = promptTok;
-        outTok = docs * EST_MAP_OUT_TOKENS_PER_DOC;
+        outTok = docs * Math.max(EST_MAP_OUT_TOKENS_PER_DOC, mapOutTokensPerDoc());
         break;
       }
       case "digest": {
         calls = reduceVotes(); // ruling 18: K=5 votes is the shipped configuration
         inTok = promptTok * calls;
-        outTok = EST_DIGEST_OUT_TOKENS_PER_VOTE * calls;
+        outTok = Math.max(EST_DIGEST_OUT_TOKENS_PER_VOTE, reduceMaxOutputTokens()) * calls;
         break;
       }
       case "validation": {
@@ -382,7 +401,10 @@ export function resumeIdentityMismatch(
   cmp("promptHash", existing.identity.promptHash, current.identity.promptHash);
   cmp("schemaVersion", existing.identity.schemaVersion, current.identity.schemaVersion);
   cmp("extractorVersion", existing.identity.extractorVersion ?? null, current.identity.extractorVersion ?? null);
-  cmp("envKnobs", existing.envKnobs, current.envKnobs);
+  // pre-2026-08-27 results files lack reduceGroupsFed; default it to the
+  // historical 200 on BOTH sides so old baselines stay resumable
+  const knobsWithDefault = (k: Record<string, unknown>) => ({ reduceGroupsFed: 200, ...k });
+  cmp("envKnobs", knobsWithDefault(existing.envKnobs as never), knobsWithDefault(current.envKnobs as never));
   return diffs.length === 0 ? null : diffs.join("; ");
 }
 
@@ -514,6 +536,7 @@ export function scoreOfflineCase(
   evalCase: AnalysisEvalCase,
   datasetVersion: string,
   runId: string,
+  configKey: string = OFFLINE_CONFIG_KEY,
 ): EvalCaseResult {
   let checks: EvalCaseResult["checks"];
   let status: EvalCaseResult["status"] = "scored";
@@ -556,7 +579,7 @@ export function scoreOfflineCase(
     caseId: evalCase.id,
     datasetVersion,
     runId,
-    configKey: OFFLINE_CONFIG_KEY,
+    configKey,
     repetition: 0,
     attempt: 0,
     status,
@@ -874,6 +897,11 @@ export interface WorkloadScorecard {
    *  requires results completeness (MAJOR-1), so a partial/--dev/--only file
    *  can never render this. */
   proposedRegistryEntry: string | null;
+  /** Hardening item 8 (C-A6-3) + the capacity matrix: the knob values the
+   *  results were produced under, straight from the results-file headers —
+   *  knob drift between judged and baseline must be VISIBLE at report time. */
+  judgedEnvKnobs: EvalEnvKnobs;
+  baselineEnvKnobs: EvalEnvKnobs | null;
 }
 
 export function buildWorkloadScorecard(
@@ -892,6 +920,22 @@ export function buildWorkloadScorecard(
   const baseline = baselineFile ? aggregateResults(dataset, baselineFile, true) : null;
   const aligned = baselineFile ? alignedComparison(dataset, judgedFile, baselineFile) : null;
   let verdictResult = computeScorecardVerdict(judged, baseline, aligned);
+  if (
+    baselineFile !== null &&
+    JSON.stringify({ reduceGroupsFed: 200, ...(judgedFile.envKnobs as unknown as Record<string, unknown>) }) !==
+      JSON.stringify({ reduceGroupsFed: 200, ...(baselineFile.envKnobs as unknown as Record<string, unknown>) })
+  ) {
+    // capacity-knob drift between judged and baseline: the pairwise deltas
+    // compare different pipeline configurations — never a formal verdict
+    verdictResult = {
+      verdict: "insufficient_data",
+      reasons: [
+        "env-knob drift between judged and baseline results — quality deltas compare different capacity configurations; rerun the baseline under the same --capacity profile",
+        ...verdictResult.reasons,
+      ],
+      deltas: null,
+    };
+  }
   if (
     currentDatasetContentHash !== undefined &&
     judgedFile.datasetContentHash !== currentDatasetContentHash
@@ -915,7 +959,7 @@ export function buildWorkloadScorecard(
           `  model: ${judgedFile.identity.model}`,
           `  allowedEfforts: [${judgedFile.identity.reasoningEffort ?? "null"}]`,
           `  status: evaluated_candidate`,
-          `  evidence: this scorecard (dataset ${dataset.datasetVersion}, promptHash ${judgedFile.identity.promptHash.slice(0, 12)})`,
+          `  evidence: this scorecard (dataset ${dataset.datasetVersion}, promptHash ${judgedFile.identity.promptHash.slice(0, 12)}, configKey ${judgedFile.configKey}, knobs ${JSON.stringify(judgedFile.envKnobs)})`,
         ].join("\n")
       : null;
   return {
@@ -927,7 +971,17 @@ export function buildWorkloadScorecard(
     aligned,
     verdictResult,
     proposedRegistryEntry,
+    judgedEnvKnobs: judgedFile.envKnobs,
+    baselineEnvKnobs: baselineFile ? baselineFile.envKnobs : null,
   };
+}
+
+function knobsLine(k: EvalEnvKnobs): string {
+  return (
+    `reduceVotes=${k.reduceVotes} reduceMaxOutputTokens=${k.reduceMaxOutputTokens} ` +
+    `mapOutTokensPerDoc=${k.mapOutTokensPerDoc} mapContentChars=${k.mapContentChars} ` +
+    `reduceGroupsFed=${k.reduceGroupsFed ?? 200}` // pre-2026-08-27 files lack the field
+  );
 }
 
 function pct(x: number): string {
@@ -979,6 +1033,15 @@ export function renderAnalysisScorecardMarkdown(input: {
         `schema=${sc.judgedIdentity.schemaVersion.slice(0, 12)}` +
         (sc.judgedIdentity.extractorVersion ? ` extractor=${sc.judgedIdentity.extractorVersion}` : ""),
     );
+    lines.push(`Env knobs: ${knobsLine(sc.judgedEnvKnobs)}`);
+    if (sc.baselineEnvKnobs) {
+      const drift = knobsLine(sc.baselineEnvKnobs) !== knobsLine(sc.judgedEnvKnobs);
+      lines.push(
+        drift
+          ? `Baseline knobs: ${knobsLine(sc.baselineEnvKnobs)} — **KNOB DRIFT vs judged: quality deltas compare different capacity configurations**`
+          : `Baseline knobs: identical`,
+      );
+    }
     lines.push("");
     lines.push("| metric | value |");
     lines.push("|---|---|");
