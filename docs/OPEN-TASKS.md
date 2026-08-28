@@ -1278,7 +1278,7 @@ docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md)
     (old malforms at exactly the straddle offset, new never). Aggregate-only
     production measurement: 42 ask_usage / 1 ask_runs rows, max question length 96,
     zero U+FFFD — the defect never fired in production persistence. 30 new tests
-    (28 well-formedness/consistency + 2 gate-before-money order pins); seven
+    (27 well-formedness/consistency + 3 gate-before-money order pins); seven
     reverse mutations each killed (full normalize revert 15 tests / 8 files;
     final-trim-only 1; array-guard-only 1; rerank-snippet 1; session-history 2;
     run-persist 1; usage-log 1). Five fresh-context reviews (Unicode/boundary,
@@ -1303,9 +1303,15 @@ docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md)
     `ask_runs.question` by exact text — an old-era U+FFFD-mutated run row paired
     with a new-era well-formed cache row for the same raw question would leave
     the cache row to its ≤7-day TTL instead of the immediate delete; (c) a
-    pre-fix ask_runs row whose stored question carries a wire-mutated U+FFFD
+    pre-fix ask_runs row whose stored question carries a wire-mutated U+FFFD —
+    or truncation-era edge whitespace the idempotent normalizer now trims —
     false-MISMATCHES an idempotent replay of the same raw question under the new
     comparison — fails safe (honest refusal, $0), tiny population, self-clears.
+    Full disclosure of the normalization divergence set vs the old code: besides
+    over-limit cuts landing on whitespace, an IN-limit edge orphan shielding
+    whitespace now trims (e.g. an "ab " + lone-surrogate input old-dispatched
+    "ab " and now refuses at $0) — the refusal set only ever grows, never
+    un-refuses.
     Pre-existing, out of family: `/search` shares the array-`?q=` hazard shape
     (`search/page.tsx:113`, free deterministic path, no provider). REMAINING
     under this umbrella: `embeddings/client.ts` (`truncateInput`),
