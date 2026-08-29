@@ -3299,3 +3299,44 @@ post-merge main verification, branding/secret scans).
   (X cap #101 ~15d runway = nearest deadline), `MODEL-PROMOTION-READINESS-2026-08-27.md`,
   `HUMAN-ADJUDICATION.md` carried onto main. Zero manual paid calls; zero env changes;
   primary dirty checkout untouched.
+
+## 2026-08-28 ~12:00Z — #97 Ask family: well-formed UTF-16 repair (planned block)
+
+1. Reverify the 11:29Z baseline read-only (main `ff9a7f1`, zero open PRs, production
+   `b62da02` healthy, cron/validate/digest clean, X ~$58.30/$75) — epochs, not driver
+   timestamps.
+2. Audit every Ask-family truncation; classify user-question / identity-persistence /
+   provider-bound / display / array; baseline reproduction + aggregate-only production
+   measurement.
+3. Repair: one shared `normalizeAskQuestion` (trim + `wellFormedSlice` 400) at all six
+   question boundaries; `wellFormedSlice` on runs/cache/limits question clips and on
+   sessions-history + rerank-snippet budgets. Byte-identical for well-formed in-limit
+   input, with two disclosed review-driven alignments (prefill gains trim; a final
+   trim makes the normalizer idempotent — see the OPEN-TASKS #97 status).
+4. Tests incl. deterministic boundary sweep + five mutation kills; full gates
+   (typecheck/lint/unit/integration/build); fresh-context adversarial review; PR;
+   merge on green.
+5. Hold deploy for the 19:30Z-digest predeploy observation gate; deploy from the plain
+   release clone (carries dormant #31–#33; verify no EVAL_*/CONFLICTS_UI env exists);
+   production smoke + ≥1 cron cycle; post-deploy docs/decision-log closeout.
+
+Execution (same block):
+
+- Baseline reverified exactly (55 completed runs by 11:47Z, zero
+  failed/degraded/swept; validate 3/0/0 at 07:01Z; intraday 10 digests 0 errors;
+  x_api $58.298/$75). Old-code repro: pair straddling unit 400 → lone `0xD83D`,
+  strict-JSON-poisoning, `encodeURIComponent` throws; ordinary inputs 9/9
+  byte-identical; production aggregate: zero U+FFFD in any stored question.
+- Repair + 30 new tests landed across 11 source / 13 test files; unit 3,451/239
+  green, typecheck clean, lint 0 errors (3 pre-existing warnings untouched),
+  build PASS, integration 155/155 on a disposable Neon fork; seven reverse
+  mutations each killed (full-normalize 15, final-trim 1, array-guard 1,
+  rerank 1, sessions 2, run-persist 1, usage-log 1). Five fresh-context reviews
+  (Unicode, money-path, auth/free-GET, test sufficiency, scope/docs): zero
+  money/auth defects; the two confirmed findings — array-form `?q=` throw and a
+  non-idempotent normalizer breaking the one-click exact-match on
+  whitespace-at-the-cut shapes — were fixed and mutation-pinned; the flag-off
+  sessions residuals are logged in #97. Deliberate exclusions documented in
+  OPEN-TASKS #97 (titles = DB-bound class; eval harness; array/ASCII slices).
+  Corrections landed: CURRENT-STATE now distinguishes production `b62da02` /
+  dormant runtime tree `bf0061b` / docs-only main `ff9a7f1`.

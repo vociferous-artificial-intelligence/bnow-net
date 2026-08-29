@@ -12,6 +12,7 @@ vi.mock("@neondatabase/serverless", () => ({
 
 const { cacheKey, cacheLookup, cacheStore, corpusVersion, normalizeQuestion, promptVersion } =
   await import("./cache");
+import { normalizeAskQuestion } from "./intent";
 import type { AskAnswerV2 } from "./types";
 import type { EvidenceSnapshot } from "./events";
 
@@ -185,5 +186,32 @@ describe("cacheLookup / cacheStore", () => {
     await expect(
       cacheStore({ userEmail: "u", key: "k", corpusVersion: "1:1", question: "q", result: RESULT, snapshot: SNAPSHOT }),
     ).resolves.toBeUndefined();
+  });
+
+  it("store persists a WELL-FORMED question when a pair straddles the 400-unit clip (#97)", async () => {
+    await cacheStore({
+      userEmail: "u@example.com",
+      key: "k1",
+      corpusVersion: "100:50",
+      question: "x".repeat(399) + "💥 tail past the cap",
+      result: RESULT,
+      snapshot: SNAPSHOT,
+    });
+    // Param order: user_email, cache_key, corpus_version, question, result, snapshot.
+    expect(h.queryMock.mock.calls[0][1][3]).toBe("x".repeat(399));
+  });
+});
+
+describe("cache identity is unchanged by the #97 boundary normalization", () => {
+  it("an ordinary well-formed question produces the same key whether or not it passed normalizeAskQuestion", () => {
+    for (const q of [
+      "What strikes happened?",
+      "Що відбулося поблизу Харкова вчора?",
+      "strike reported 💥 near the border",
+    ]) {
+      expect(cacheKey({ question: normalizeAskQuestion(q), window: null, corpusVersion: "100:50" })).toBe(
+        cacheKey({ question: q, window: null, corpusVersion: "100:50" }),
+      );
+    }
   });
 });

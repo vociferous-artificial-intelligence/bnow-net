@@ -14,6 +14,8 @@
 //    not spend).
 
 import { Pool } from "@neondatabase/serverless";
+import { ASK_QUESTION_MAX } from "./intent";
+import { wellFormedSlice } from "../text/well-formed-slice";
 import { analysisUnits, type BillingStamp } from "./units";
 import { utcDayIso } from "../usage/spend-guard";
 import { expireStaleReservations } from "../usage/reservations";
@@ -61,7 +63,7 @@ export async function createRun(opts: {
        VALUES ($1, $2, $3, $4)
        ON CONFLICT (user_email, idempotency_key) DO NOTHING
        RETURNING id, user_email, question, status, state, result, finished_at::text AS finished_at, expired`,
-      [opts.runId, opts.userEmail, opts.question.slice(0, 400), opts.idempotencyKey],
+      [opts.runId, opts.userEmail, wellFormedSlice(opts.question, ASK_QUESTION_MAX), opts.idempotencyKey],
     )).rows as Array<{
       id: string;
       user_email: string;

@@ -103,6 +103,48 @@ describe("POST /api/ask/runs — the progressive paid submission", () => {
     expect(h.askWithLimitsMock).not.toHaveBeenCalled();
   });
 
+  it("dispatches a WELL-FORMED question when an astral pair straddles the 400 boundary (#97)", async () => {
+    h.askWithLimitsMock.mockResolvedValue({
+      answer: "A.", state: "answered", provider: "openai:gpt-5", citedClaimIds: [], evidenceCount: 0,
+      terms: [], relatedClaimIds: [], window: null, totalMatching: 0, sampled: false, retrievalMode: "v2",
+    });
+    await postRun(
+      req("/api/ask/runs", {
+        method: "POST",
+        body: JSON.stringify({ question: "x".repeat(399) + "💥 tail past the cap" }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    expect(h.askWithLimitsMock).toHaveBeenCalledTimes(1);
+    // Same normalization as the action + JSON route: the orphaned half is dropped.
+    expect(h.askWithLimitsMock.mock.calls[0][0]).toBe("x".repeat(399));
+  });
+
+  it("400s (no charge) when surrogate repair leaves the question under the minimum (#97)", async () => {
+    const res = await postRun(
+      req("/api/ask/runs", { method: "POST", body: JSON.stringify({ question: "ab\uD800" }), headers: { "content-type": "application/json" } }),
+    );
+    expect(res.status).toBe(400);
+    expect(h.askWithLimitsMock).not.toHaveBeenCalled();
+  });
+
+  it("authorizes BEFORE any money-path work — the gate precedes askWithLimits", async () => {
+    h.askWithLimitsMock.mockResolvedValue({
+      answer: "A.", state: "answered", provider: "openai:gpt-5", citedClaimIds: [], evidenceCount: 0,
+      terms: [], relatedClaimIds: [], window: null, totalMatching: 0, sampled: false, retrievalMode: "v2",
+    });
+    const { requireAcceptedUser } = await import("@/lib/gate");
+    const gateMock = vi.mocked(requireAcceptedUser);
+    gateMock.mockClear();
+    await postRun(
+      req("/api/ask/runs", { method: "POST", body: JSON.stringify({ question: "what happened in kherson" }), headers: { "content-type": "application/json" } }),
+    );
+    expect(gateMock).toHaveBeenCalledTimes(1);
+    expect(gateMock.mock.invocationCallOrder[0]).toBeLessThan(
+      h.askWithLimitsMock.mock.invocationCallOrder[0],
+    );
+  });
+
   it("an unexpected askWithLimits throw still terminates the stream with run.failed (no message text)", async () => {
     h.askWithLimitsMock.mockRejectedValue(new Error("secret internals"));
     const res = await postRun(

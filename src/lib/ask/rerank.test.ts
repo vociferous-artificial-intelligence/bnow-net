@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { estimateCostUsd } from "./limits";
+import { dropIsolatedSurrogates } from "@/lib/text/well-formed-slice";
 import type { CandidateClaim } from "./types";
 
 // --- hoisted mocks (factories run before module-level consts) -----------------
@@ -163,6 +164,22 @@ describe("serialization", () => {
     const lines = block.split("\n");
     expect(lines[0]).toBe("id\tdate\tiso2\ttext");
     expect(lines).toHaveLength(3);
+  });
+
+  it("a pair straddling RERANK_SNIPPET_CHARS cannot emit an orphan into the paid rerank message (#97)", () => {
+    const line = serializeCandidate(
+      cand(1, { claimDate: null, text: "x".repeat(RERANK_SNIPPET_CHARS - 1) + "💥 tail" }),
+    );
+    const snippet = line.split("\t")[3];
+    expect(snippet).toBe("x".repeat(RERANK_SNIPPET_CHARS - 1)); // orphaned half dropped
+    expect(snippet.length).toBeLessThanOrEqual(RERANK_SNIPPET_CHARS);
+    expect(dropIsolatedSurrogates(line)).toBe(line); // the whole line stays well-formed
+  });
+
+  it("a pair ENTIRELY inside RERANK_SNIPPET_CHARS survives unchanged", () => {
+    const text = "x".repeat(RERANK_SNIPPET_CHARS - 2) + "😀"; // pair at units 198-199
+    const line = serializeCandidate(cand(1, { claimDate: null, text }));
+    expect(line.split("\t")[3]).toBe(text);
   });
 });
 

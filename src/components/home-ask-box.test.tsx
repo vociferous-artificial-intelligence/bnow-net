@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -101,6 +101,27 @@ describe("HomeAskBox: one-shot handoff", () => {
     expect(new URL(pushMock.mock.calls[0][0], "https://bnow.net").searchParams.get("q")).toBe(
       "spaced question",
     );
+  });
+
+  it("a boundary-straddling question hands off well-formed, and stored === ?q= after the page re-normalizes (#97)", async () => {
+    // maxLength=400 caps typing, but a script/extension/autofill-set value can
+    // exceed it — set the raw value directly. The OLD normalization kept the
+    // pair's lone high half, which made encodeURIComponent throw inside
+    // router.push and silently swallowed the click.
+    const user = userEvent.setup();
+    render(<HomeAskBox {...props} />);
+
+    fireEvent.change(screen.getByPlaceholderText(PLACEHOLDER), {
+      target: { value: "x".repeat(399) + "💥 tail past the cap" },
+    });
+    await user.click(screen.getByRole("button", { name: "Ask" }));
+
+    const stored = window.sessionStorage.getItem(storedIntents()[0]);
+    expect(stored).toBe("x".repeat(399)); // orphaned half dropped, well-formed
+    expect(pushMock).toHaveBeenCalledTimes(1); // the navigation actually happened
+    const q = new URL(pushMock.mock.calls[0][0], "https://bnow.net").searchParams.get("q");
+    expect(q).toBe(stored); // and the /ask page's re-normalization is the identity on it,
+    // so the one-click exact-match holds end-to-end (normalizeAskQuestion is idempotent).
   });
 
   it("rapid duplicate submits produce only one intent and one navigation", async () => {

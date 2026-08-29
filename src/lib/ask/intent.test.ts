@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   ASK_INTENT_KEY_PREFIX,
   ASK_QUESTION_MAX,
+  ASK_QUESTION_MIN,
   askIntentStorageKey,
   clearAskIntents,
   isAskIntentId,
   normalizeAskQuestion,
 } from "./intent";
+import { dropIsolatedSurrogates } from "@/lib/text/well-formed-slice";
 
 describe("isAskIntentId: bounds an untrusted ?intent=", () => {
   it("accepts a crypto.randomUUID() value", () => {
@@ -92,8 +94,10 @@ describe("clearAskIntents", () => {
 });
 
 describe("normalizeAskQuestion", () => {
-  // Must match askAction's own `.trim().slice(0, 400)`, or the stored question and
-  // the ?q= it travels beside could differ and the handoff would silently no-op.
+  // askAction (and every other boundary) now calls THIS function, so agreement is
+  // structural; these cases pin the contract itself — trim, then cap at 400 UTF-16
+  // code units — or the stored question and the ?q= it travels beside could differ
+  // and the handoff would silently no-op.
   it("trims surrounding whitespace", () => {
     expect(normalizeAskQuestion("   what happened in kyiv?   ")).toBe("what happened in kyiv?");
   });
@@ -113,5 +117,91 @@ describe("normalizeAskQuestion", () => {
     expect(normalizeAskQuestion("did russia strike kyiv today")).toBe(
       "did russia strike kyiv today",
     );
+  });
+});
+
+describe("normalizeAskQuestion — well-formed UTF-16 (#97 Ask family)", () => {
+  const wellFormed = (s: string) => dropIsolatedSurrogates(s) === s;
+
+  it("is byte-identical on ordinary text in every supported script", () => {
+    for (const q of [
+      "What happened near Kharkiv yesterday?",
+      "Що відбулося поблизу Харкова вчора?", // Ukrainian
+      "Что произошло под Харьковом вчера?", // Russian
+      "دیروز در نزدیکی خارکیف چه اتفاقی افتاد؟", // Persian
+      "ماذا حدث بالقرب من خاركيف أمس؟", // Arabic
+      "strike reported 💥🇺🇦 near the border", // astral emoji inside the limit
+    ]) {
+      const out = normalizeAskQuestion(q);
+      expect(out).toBe(q);
+      expect(Buffer.from(out, "utf8").equals(Buffer.from(q, "utf8"))).toBe(true);
+    }
+  });
+
+  it("keeps an astral pair that fits ENTIRELY inside the 400-unit limit", () => {
+    const q = "y".repeat(398) + "😀"; // pair occupies units 398-399: inside
+    const out = normalizeAskQuestion(q);
+    expect(out).toBe(q);
+    expect(out).toHaveLength(ASK_QUESTION_MAX);
+  });
+
+  it("cannot emit an orphan when a pair straddles the 400 boundary", () => {
+    // Old code kept unit 399 = the lone high half; the provider's strict JSON
+    // parser rejects that whole request body (the #86/#97 failure).
+    const q = "x".repeat(399) + "💥 and more text after the boundary";
+    const out = normalizeAskQuestion(q);
+    expect(out).toBe("x".repeat(399)); // limit - 1 units: the orphaned half is dropped
+    expect(wellFormed(out)).toBe(true);
+    expect(out).not.toContain("�"); // removed, never replaced
+  });
+
+  it("removes isolated high and low surrogates outright", () => {
+    expect(normalizeAskQuestion("ab\uD800cd")).toBe("abcd");
+    expect(normalizeAskQuestion("ab\uDC00cd")).toBe("abcd");
+    expect(normalizeAskQuestion("\uD83Dwhat happened\uDC00")).toBe("what happened");
+  });
+
+  it("can normalize below the minimum — the boundary min-length gates run AFTER this and refuse", () => {
+    const out = normalizeAskQuestion("ab\uD800"); // 3 units raw, 2 after repair
+    expect(out).toBe("ab");
+    expect(out.length).toBeLessThan(ASK_QUESTION_MIN);
+  });
+
+  it("deterministic boundary sweep: a pair at every offset around the cap never yields an orphan", () => {
+    const oldNormalize = (raw: string) => raw.trim().slice(0, ASK_QUESTION_MAX);
+    let oldMalformed = 0;
+    for (let pad = 380; pad <= 420; pad++) {
+      const q = "a".repeat(pad) + "🚀" + "b".repeat(30);
+      const out = normalizeAskQuestion(q);
+      expect(wellFormed(out), `pad=${pad}`).toBe(true);
+      expect(out.length).toBeLessThanOrEqual(ASK_QUESTION_MAX);
+      expect(normalizeAskQuestion(out), `pad=${pad} idempotent`).toBe(out);
+      const old = oldNormalize(q);
+      if (dropIsolatedSurrogates(old) !== old) {
+        oldMalformed++; // the old code DID malform here…
+      } else {
+        expect(out, `pad=${pad}`).toBe(old); // …and everywhere else the two agree exactly
+      }
+    }
+    expect(oldMalformed).toBe(1); // exactly the straddle offset (pad 399): non-vacuous sweep
+  });
+
+  it("is IDEMPOTENT — the home box stores its output and /ask re-applies it to ?q=, so a second pass must be the identity", () => {
+    // Both shapes defeat a single leading trim: truncation exposing trailing
+    // whitespace, and a dropped orphan shielding whitespace from the trim.
+    for (const raw of [
+      "x".repeat(399) + " yz", // the 400-unit cut lands ON the space
+      "hello \uD800", // the orphan shields the trailing space, then is dropped
+      "  plain  ",
+      "y".repeat(398) + "😀",
+      "x".repeat(399) + "💥 tail",
+    ]) {
+      const once = normalizeAskQuestion(raw);
+      expect(normalizeAskQuestion(once), JSON.stringify(raw.slice(0, 24))).toBe(once);
+      expect(wellFormed(once)).toBe(true);
+    }
+    // The two motivating cases resolve to fully-trimmed output.
+    expect(normalizeAskQuestion("x".repeat(399) + " yz")).toBe("x".repeat(399));
+    expect(normalizeAskQuestion("hello \uD800")).toBe("hello");
   });
 });

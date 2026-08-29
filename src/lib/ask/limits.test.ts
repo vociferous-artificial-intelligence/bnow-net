@@ -413,6 +413,15 @@ describe("askWithLimits — gate, run, log", () => {
     expect(String(insertParams()![COL.question]).length).toBe(400);
   });
 
+  it("logs a WELL-FORMED question when a pair straddles the 400-unit clip (#97 defense in depth)", async () => {
+    // Every production boundary normalizes before calling in, so this is the
+    // belt-and-braces layer: a future unnormalized caller still cannot persist
+    // an isolated surrogate (which the pg wire would mutate to U+FFFD).
+    h.askMock.mockResolvedValue(v2Full());
+    await askWithLimits("x".repeat(399) + "💥 tail", "u@x.com");
+    expect(insertParams()![COL.question]).toBe("x".repeat(399));
+  });
+
   it("user gate refuses BEFORE ask() runs and writes no row", async () => {
     usage.user_count = 100; // at the default per-user cap
     const res = await askWithLimits("q", "u@x.com");
@@ -702,6 +711,21 @@ describe("askWithLimits — Phase 1 enforce mode", () => {
     expect(res.answer).toContain("different question");
     expect(res.answer).not.toContain("stored answer");
     expect(res.replayed).toBe(true);
+    expect(h.askMock).not.toHaveBeenCalled();
+  });
+
+  it("replay comparison uses the SAME well-formed clip as run persistence — a boundary-straddling question replays instead of false-mismatching (#97)", async () => {
+    const raw = "x".repeat(399) + "💥 tail past the cap"; // normalizes to 399 units
+    const stored = v2Full({ answer: "stored answer." });
+    h.createRunMock.mockResolvedValue({
+      // createRun persisted the well-formed clip — the comparison must agree.
+      run: { id: "orig-run-id", userEmail: "u", question: "x".repeat(399), status: "finished", state: "answered", result: stored, finishedAt: "2026-07-19T00:00:00Z", expired: false },
+      replayed: true,
+    });
+    const res = await askWithLimits(raw, "u@x.com", { idempotencyKey: "key-1" });
+
+    expect(res.replayed).toBe(true);
+    expect(res.answer).toBe("stored answer."); // an idempotent replay, NOT the mismatch refusal
     expect(h.askMock).not.toHaveBeenCalled();
   });
 

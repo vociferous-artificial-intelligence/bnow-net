@@ -1,4 +1,6 @@
 import { Pool } from "@neondatabase/serverless";
+import { ASK_QUESTION_MAX } from "./intent";
+import { wellFormedSlice } from "../text/well-formed-slice";
 import { ask, type AskAnswer } from "./answer";
 import type { AskAnswerV2 } from "./types";
 import {
@@ -296,7 +298,7 @@ async function logUsage(
      )`,
     [
       email,
-      question.slice(0, 400),
+      wellFormedSlice(question, ASK_QUESTION_MAX),
       r.provider,
       // prompt_tokens/completion_tokens keep their historical meaning: answer-stage.
       s?.answer?.promptTokens ?? r.usage?.promptTokens ?? null,
@@ -491,7 +493,7 @@ export async function askWithLimits(
         }
         // A reused key with a DIFFERENT question never returns the stored answer
         // (Gate 1 finding) — refuse honestly, charge nothing.
-        if (existing.question !== question.slice(0, 400)) {
+        if (existing.question !== wellFormedSlice(question, ASK_QUESTION_MAX)) {
           return questionMismatchAnswer(existing.id);
         }
         if (existing.finishedAt !== null && existing.result) {

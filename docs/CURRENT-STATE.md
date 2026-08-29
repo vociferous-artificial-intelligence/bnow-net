@@ -16,10 +16,13 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   SERIAL observed releases overnight (PR #27 #97-reduce → PR #28 #87-mechanical →
   PR #29 #87-classification → PR #30 #98-sweep), each gate-complete, deploy-verified
   and observation-PASS; rollback target **`dpl_5ocJPF4GLPHDFB4Cv3MB4tgkScou`**
-  (`ad6e078`). Record: `docs/reviews/RELIABILITY-RELEASES-2026-08-28.md`. `main`
-  (`bf0061b`) is DORMANT-EVAL code ahead of production (PRs #31/#32/#33 — capacity
-  harness, QF-C hardening, conflict soak instruments; no reachable runtime behavior, no
-  redeploy needed). The 2026-08-24 release train content below is carried inside this
+  (`ad6e078`). Record: `docs/reviews/RELIABILITY-RELEASES-2026-08-28.md`. Three
+  distinct identities (correction 2026-08-28 — an earlier draft called `bf0061b`
+  "main"): production runs `b62da02`; the DORMANT-EVAL runtime tree is `bf0061b`
+  (PRs #31/#32/#33 — capacity harness, QF-C hardening, conflict soak instruments; no
+  reachable runtime behavior, no redeploy needed — they ride the next natural
+  deploy); `main` proper sits ABOVE `bf0061b` at the PR #34 docs-closeout merge
+  (`ff9a7f1`), which changes documentation only. The 2026-08-24 release train content below is carried inside this
   lineage. Prior release-train identity: `dpl_FPYase3HqbCF3d2uW3AnwPHibyt4` / `143964a`
   (deployment created 2026-08-24T23:56:34Z from the plain release clone). Contents: **QF-A** (PR #14 — evidence-recency
   stats + the read-only quality-funnel report; its post-deploy observation window is
@@ -503,7 +506,8 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   verification identity and was signed back out after the proof. Evidence:
   `docs/reviews/POSTHOG-ANALYTICS-IMPLEMENTATION-NOTE-2026-07-14.md`.
 - **Tests:** **3,421 unit tests / 239 files** green (`npm test`, typecheck + lint
-  clean — measured 2026-08-28 on the final merged `main` `bf0061b`) + **155/155**
+  clean — measured 2026-08-28 on `bf0061b`, then main's tip, now the dormant-eval
+  tree below the docs merges) + **155/155**
   Neon-branch integration tests / **23 files** (as of the PR #30 branch gate; every
   2026-08-27/28 reliability branch ran the full suite on a disposable production fork
   with zero paid calls; the fork is deleted after each run). Historical authoritative
@@ -527,9 +531,10 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   from the plain release clone, aliased bnow.net; `/health` stamps `b62da02` with DB OK.
   **Rollback target = `dpl_5ocJPF4GLPHDFB4Cv3MB4tgkScou`** (`ad6e078`, the release
   before the #98 sweep; the full four-release rollback chain is in
-  `docs/reviews/RELIABILITY-RELEASES-2026-08-28.md`). `main` (`bf0061b`) is
-  DORMANT-EVAL code ahead of production (PRs #31/#32/#33 — no reachable runtime
-  behavior; they ride the next natural deploy; no redeploy needed for them).
+  `docs/reviews/RELIABILITY-RELEASES-2026-08-28.md`). Ahead of production sit the
+  DORMANT-EVAL runtime tree `bf0061b` (PRs #31/#32/#33 — no reachable runtime
+  behavior; they ride the next natural deploy; no redeploy needed for them) and the
+  docs-only PR #34 merge `ff9a7f1` (= `main` at the 2026-08-28 correction).
   Deployment lineage (all carried forward inside `b62da02`): `ad6e078` #87
   classification ← `afbf06e` #87 mechanical ← `ed9bc35` #97 reduce ← `143964a`
   release train (2026-08-24) ← `0aa3d7d` #86 repair ← `23a1280` QF-B map lease ←
@@ -550,7 +555,9 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   (PRs #27–#30, final `b62da02` → `dpl_Gf8AiKCpmuwRYdoAr1JvjfTaGLi6`); before that the
   2026-08-24 release train (`143964a`, eleven PRs #12–#22 + docs, per
   `docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md`). As of 2026-08-28: zero open
-  PRs; `origin/main` (`bf0061b`) is dormant-eval ahead of production (PRs #31–#33); the
+  PRs; `origin/main` is `ff9a7f1` (the PR #34 docs-closeout merge above `bf0061b`) —
+  runtime-affecting code is unchanged since production's `b62da02`, with the
+  dormant-eval PRs #31–#33 (`bf0061b`) and docs-only PR #34 ahead of it; the
   parked audit/integration branches (`codex/quality-foundation-*`,
   `codex/conflict-evaluations-*`, p0–p7) remain retained provenance contained in
   `main`; the one unmerged remote branch is `codex/paddle-onboarding-page` (a

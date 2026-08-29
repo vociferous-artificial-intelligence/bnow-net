@@ -31,6 +31,7 @@ const {
   MAX_SESSION_TURNS,
   runReuseFollowupTurn,
 } = await import("./sessions");
+import { dropIsolatedSurrogates } from "@/lib/text/well-formed-slice";
 import type { EvidenceSnapshot } from "./events";
 
 const SNAPSHOT: EvidenceSnapshot = {
@@ -118,6 +119,34 @@ describe("compactHistory — bounded deterministic context (§7.5)", () => {
   });
   it("empty history is an empty block (byte-identical prompt downstream)", () => {
     expect(compactHistory([])).toBe("");
+  });
+
+  it("question and answer truncation stay well-formed when a pair straddles their budgets (#97)", () => {
+    const block = compactHistory(
+      [
+        {
+          seq: 1,
+          question: "q".repeat(199) + "💥 past the 200-unit question clip",
+          state: "answered",
+          citedClaimIds: [],
+          answer: "a".repeat(99) + "😀 past the answer budget",
+        },
+      ],
+      100,
+    );
+    expect(dropIsolatedSurrogates(block)).toBe(block); // provider-bound text: no orphans
+    expect(block).toContain("T1: Q: " + "q".repeat(199) + " →"); // orphaned half dropped, budget kept
+    expect(block).toContain("T1 answer: " + "a".repeat(99));
+    expect(block).not.toContain("�");
+  });
+
+  it("astral pairs entirely inside the budgets survive compaction unchanged", () => {
+    const block = compactHistory(
+      [{ seq: 1, question: "strike 💥 reported", state: "answered", citedClaimIds: [], answer: "confirmed 😀" }],
+      100,
+    );
+    expect(block).toContain("T1: Q: strike 💥 reported → answered");
+    expect(block).toContain("T1 answer: confirmed 😀");
   });
 });
 

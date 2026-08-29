@@ -15,6 +15,8 @@
 // components (the home box writes, AskForm consumes), so this module stays free of
 // both "use server" and "use client".
 
+import { wellFormedSlice } from "@/lib/text/well-formed-slice";
+
 export const ASK_QUESTION_MIN = 3;
 export const ASK_QUESTION_MAX = 400;
 
@@ -51,8 +53,24 @@ export function clearAskIntents(storage: Storage): void {
   }
 }
 
-/** Same normalization askAction applies, so the stored question and ?q= can be
- *  compared for exact equality on the other side of the navigation. */
+/** THE Ask question normalization — one pure function shared by every client
+ *  and server boundary (askAction, the JSON + progressive API routes, the
+ *  ask-form progressive submit, the /ask?q= prefill, and the home box), so the
+ *  stored intent question and ?q= can be compared for exact equality on the
+ *  other side of the navigation.
+ *
+ *  Trim, cap at the historical ASK_QUESTION_MAX UTF-16 code units through
+ *  wellFormedSlice (#97) — an astral pair straddling the cap loses its
+ *  orphaned half instead of emitting an isolated surrogate, which the
+ *  provider's strict JSON parser rejects with a request-killing 400 (and
+ *  which makes encodeURIComponent throw in the home handoff) — then trim
+ *  again. The final trim makes the function IDEMPOTENT (truncation can
+ *  expose trailing whitespace the leading trim never saw, and a dropped
+ *  orphan can shield whitespace from it): the home box stores this
+ *  function's output and the /ask page re-applies it to ?q=, so a
+ *  non-fixed-point would break their exact-match and silently swallow a
+ *  one-click handoff. Already well-formed, in-limit input is returned
+ *  byte-identical. */
 export function normalizeAskQuestion(raw: string): string {
-  return raw.trim().slice(0, ASK_QUESTION_MAX);
+  return wellFormedSlice(raw.trim(), ASK_QUESTION_MAX).trim();
 }

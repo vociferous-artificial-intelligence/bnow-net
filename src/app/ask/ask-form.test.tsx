@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { StrictMode } from "react";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { askIntentStorageKey } from "@/lib/ask/intent";
@@ -451,6 +451,44 @@ describe("AskForm: progressive transport (ASK_PROGRESSIVE client path)", () => {
       vi.unstubAllGlobals();
     }
   });
+
+  it("client submit normalizes a boundary-straddling question to well-formed UTF-16 before the paid POST (#97)", async () => {
+    const fetchMock = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url) === "/api/ask/runs" && init?.method === "POST") {
+        return new Response(sseStream([`event: run.ref\ndata: {"runId":"${RUN_ID}"}\n\n`]), { status: 200 });
+      }
+      throw new Error(`unexpected fetch ${String(url)}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const user = userEvent.setup();
+      render(<AskForm {...formProps} progressive />);
+      const input = screen.getByPlaceholderText(strings["ask.placeholder"]) as HTMLInputElement;
+      // The /ask input carries no maxLength, so an overlong paste reaches the
+      // submit handler raw — set the value directly to model it exactly.
+      fireEvent.change(input, { target: { value: "x".repeat(399) + "💥 tail past the cap" } });
+      await user.click(screen.getByRole("button", { name: strings["ask.submit"] }));
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+      const posts = fetchMock.mock.calls.filter(
+        (c) => (c[1] as RequestInit | undefined)?.method === "POST",
+      );
+      expect(posts).toHaveLength(1);
+      const postBody = JSON.parse(String((posts[0][1] as RequestInit).body));
+      // Identical to the server boundaries: orphaned half dropped, 399 units.
+      expect(postBody.question).toBe("x".repeat(399));
+      expect(actionMock).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  // NOT tested here: a client submit whose surrogate repair lands under the
+  // 3-unit minimum. The DOM makes it unreachable — FormData extraction
+  // USVString-converts an orphan to U+FFFD before onFormSubmit runs (verified:
+  // "ab\uD800" arrives as "ab�", length 3), and repair on an overlong
+  // value can never drop below 399 units. The reachable carriers (raw JSON on
+  // both API routes) are pinned in route.test.ts and this route's twin.
 
   it("a stored non-terminal run resumes READ-ONLY on mount (refresh mid-run bills nothing)", async () => {
     const tail = [

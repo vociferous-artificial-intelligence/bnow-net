@@ -1,4 +1,5 @@
 import { openaiGeneration } from "../llm/openai";
+import { wellFormedSlice } from "../text/well-formed-slice";
 import type { CandidateClaim, RankedEvidence, StageUsage } from "./types";
 import { askEvidenceK, askRerankModel } from "./config";
 import { isLlmDisabled, askGuardFromEnv, LlmBudgetError } from "../usage/llm-guard";
@@ -38,7 +39,7 @@ export function rerankOfflineReason(): string | null {
 /** One candidate as a single tab-separated line: id, date, iso2, snippet. Text is
  *  whitespace-collapsed and clipped to RERANK_SNIPPET_CHARS. */
 export function serializeCandidate(c: CandidateClaim): string {
-  const text = c.text.replace(/\s+/g, " ").trim().slice(0, RERANK_SNIPPET_CHARS);
+  const text = wellFormedSlice(c.text.replace(/\s+/g, " ").trim(), RERANK_SNIPPET_CHARS);
   return `${c.claimId}\t${c.claimDate ?? "undated"}\t${c.countryIso2}\t${text}`;
 }
 

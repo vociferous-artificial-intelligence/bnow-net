@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { askWithLimits, recordEntryTimings } from "@/lib/ask/limits";
 import { clampMs, monotonicMs } from "@/lib/ask/timings";
+import { normalizeAskQuestion } from "@/lib/ask/intent";
 import { requireAcceptedUser } from "@/lib/gate";
 
 export const maxDuration = 60;
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
     question?: string;
     idempotencyKey?: string;
   };
-  const question = (body.question ?? "").trim().slice(0, 400);
+  const question = normalizeAskQuestion(body.question ?? "");
   if (question.length < 3) {
     return NextResponse.json({ error: "question too short" }, { status: 400 });
   }

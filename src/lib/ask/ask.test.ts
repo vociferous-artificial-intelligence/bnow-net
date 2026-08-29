@@ -41,6 +41,9 @@ vi.mock("../usage/llm-guard", async (importOriginal) => {
 
 import { ask, answerFromEvidence, beginsWithDenial, SYSTEM_V2 } from "./answer";
 import { estimateCostUsd } from "./limits";
+import { normalizeAskQuestion } from "./intent";
+import { compactHistory } from "./sessions";
+import { dropIsolatedSurrogates } from "@/lib/text/well-formed-slice";
 import {
   DENIAL_LANGUAGE_PATTERN,
   isNegativeAnswerHonest,
@@ -674,6 +677,32 @@ describe("answerFromEvidence() — currency context (W1)", () => {
     const userMessage = mocks.createMock.mock.calls[0][0].messages[1].content as string;
     expect(userMessage).not.toContain("Data current through");
     expect(res.dataCurrentThrough).toBeUndefined();
+  });
+
+  it("the COMPLETE provider-bound message set is well-formed UTF-16 under adversarial boundary inputs (#97)", async () => {
+    envPaidV2();
+    mocks.currencyMock.mockResolvedValue("2026-07-11");
+    const retrieval = retrievalV2({ claims: pool, totalMatching: 2, window: null });
+    const rk = ranked({ claims: pool, rerankUsed: false });
+    mocks.createMock.mockResolvedValue(completion({ content: "Answer [c1]." }));
+
+    // Each component passes its own repaired boundary: the question through
+    // normalizeAskQuestion, the history block through compactHistory's clips.
+    const question = normalizeAskQuestion("x".repeat(399) + "💥 tail past the cap");
+    const historyBlock = compactHistory(
+      [{ seq: 1, question: "q".repeat(199) + "💥 clipped", state: "answered", citedClaimIds: [1], answer: "a".repeat(99) + "😀 clipped" }],
+      100,
+    );
+    await answerFromEvidence(question, retrieval, rk, { historyBlock });
+
+    const messages = mocks.createMock.mock.calls[0][0].messages as Array<{ content: string }>;
+    expect(messages.length).toBeGreaterThanOrEqual(2);
+    for (const m of messages) {
+      expect(dropIsolatedSurrogates(m.content)).toBe(m.content); // no orphan anywhere in the request
+    }
+    const userMessage = messages[1].content;
+    expect(userMessage).toContain(`Question: ${"x".repeat(399)}\n`); // repaired question, verbatim
+    expect(userMessage).toContain("T1: Q: " + "q".repeat(199) + " →"); // repaired history, verbatim
   });
 });
 
