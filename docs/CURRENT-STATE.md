@@ -5,23 +5,40 @@ this file is **not append-only**: correct it in place whenever live product, ope
 deployment, test, credential, or repository state changes. Historical narrative belongs in
 `PROGRESS.md`, review notes, and `DECISIONS.md`.
 
-## Current state — snapshot (verified through 2026-08-28; correct in place when it changes)
+## Current state — snapshot (verified through 2026-08-29; correct in place when it changes)
 
 Live at **https://bnow.net** (Vercel project `bnow-net`, team `vociferous`;
 deployment URLs are SSO-walled — always use the project domain). History/narrative:
 `docs/PROGRESS.md` + `docs/reviews/`; debt: `docs/OPEN-TASKS.md`.
 
-- **2026-08-28 reliability queue (the CURRENT production release):** production is
+- **2026-08-29 #97 Ask-family release (the CURRENT production release):** production is
+  **`dpl_FT3Hdpt2ece4kxQHudxT2FST162p`** built from `main` merge **`6ba72b5`** (PR #35,
+  reviewed head `f3d45b4`; merged tree byte-identical to it), deployed
+  2026-08-29T01:29:35Z from the plain release clone after the 19:30Z predeploy gate
+  PASSED. Shared idempotent `normalizeAskQuestion` (trim → `wellFormedSlice` 400 →
+  trim) at all six Ask question boundaries; `wellFormedSlice` on the runs/cache/limits
+  identity clips and the sessions-history + rerank-snippet provider-bound truncations;
+  array-`?q=` guard. Rollback target **`dpl_Gf8AiKCpmuwRYdoAr1JvjfTaGLi6`**
+  (`b62da02`). Observation window 01:30→07:12Z **CLOSED PASS**: 50 scheduled runs
+  clean, 6 map cycles (0 batchErrors, leases clean), 02:00Z finalize + 04:00Z intraday
+  + 07:00Z validate all on the new release; free-GET probes (incl. astral-boundary and
+  array `?q=`) produced zero Ask persistence/spend; no natural paid Ask occurred, so
+  the live money-path traversal of the new normalizer is FUTURE-OBSERVABLE. This
+  deploy also carried the dormant eval/conflict code (PRs #31/#32/#33) into production
+  for the first time — still inert (no `EVAL_*`, no `CONFLICTS_UI`; conflict surfaces
+  live-verified fail-closed). Record: `docs/reviews/ASK-FAMILY-RELEASE-2026-08-29.md`.
+
+- **2026-08-28 reliability queue (previous release):** production was
   **`dpl_Gf8AiKCpmuwRYdoAr1JvjfTaGLi6`** built from `main` merge **`b62da02`** — four
   SERIAL observed releases overnight (PR #27 #97-reduce → PR #28 #87-mechanical →
   PR #29 #87-classification → PR #30 #98-sweep), each gate-complete, deploy-verified
   and observation-PASS; rollback target **`dpl_5ocJPF4GLPHDFB4Cv3MB4tgkScou`**
   (`ad6e078`). Record: `docs/reviews/RELIABILITY-RELEASES-2026-08-28.md`. Three
   distinct identities (correction 2026-08-28 — an earlier draft called `bf0061b`
-  "main"): production runs `b62da02`; the DORMANT-EVAL runtime tree is `bf0061b`
+  "main"): production ran `b62da02`; the DORMANT-EVAL runtime tree was `bf0061b`
   (PRs #31/#32/#33 — capacity harness, QF-C hardening, conflict soak instruments; no
   reachable runtime behavior, no redeploy needed — they ride the next natural
-  deploy); `main` proper sits ABOVE `bf0061b` at the PR #34 docs-closeout merge
+  deploy); `main` proper sat ABOVE `bf0061b` at the PR #34 docs-closeout merge
   (`ff9a7f1`), which changes documentation only. The 2026-08-24 release train content below is carried inside this
   lineage. Prior release-train identity: `dpl_FPYase3HqbCF3d2uW3AnwPHibyt4` / `143964a`
   (deployment created 2026-08-24T23:56:34Z from the plain release clone). Contents: **QF-A** (PR #14 — evidence-recency
@@ -36,21 +53,27 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   (PRs #16–#22 — DORMANT: `CONFLICTS_UI` absent everywhere, all public conflict routes
   404 anonymously, the gated evidence route gates on `requireAcceptedUser()` first;
   shadow soak and enablement stay separately gated); plus docs PRs #12/#13/#23/#24.
-  (At that train's closeout `main` was docs-only ahead; the current
-  main-vs-production posture is stated in the 2026-08-28 bullet above.)
-  **Operational watch (updated 2026-08-28):** #87 and #98 are CLOSED (deployed +
-  observed, see the reliability record); #97 is re-scoped OPEN (reduce + digest sites
-  deployed; the Ask family is the next code PR); still-open observations: the first
-  NATURAL degraded-run flip and the first natural exercise of validate's benign/thrown
-  split (next 07:00Z run). **#101 remains the nearest operator deadline: `x_api`
-  $57.84 of the $75 all-time cap (77.1%; ~$1.15/day 7-day burn ⇒ ~15 days of runway,
-  point-in-time projection; est. exhaustion ~2026-09-11) — decision needed before
-  fail-closed exhaustion** (`docs/reviews/OPERATOR-DECISION-PACKET-2026-08-28.md`).
+  (At that train's closeout `main` was docs-only ahead. The three-identity posture
+  described here is HISTORICAL: the 2026-08-29 Ask-family deploy carried `bf0061b`'s
+  dormant code into production, and the current posture — `main` == production ==
+  `6ba72b5` — is stated in the 2026-08-29 bullet above.)
+  **Operational watch (updated 2026-08-29):** #87 and #98 are CLOSED (deployed +
+  observed, see the reliability record); #97 remains OPEN with the Ask family now
+  SHIPPED (remaining sites: embeddings client, validation llm-match, inert Anthropic
+  — see OPEN-TASKS #97); still-open observations: the first NATURAL degraded-run
+  flip, the first natural ISW-not-published benign validate return (the 08-28 and
+  08-29 07:00Z validates both ran clean with validated 3 / unvalidated 0 — all
+  theaters had reports, so the benign path has not yet fired naturally), and the
+  first live paid Ask through the new normalizer. **#101 remains the nearest
+  operator deadline: `x_api` $59.12 of the $75 all-time cap (78.8% as of 2026-08-29
+  07:10Z; ~$1.03–1.15/day burn ⇒ ~14–15 days of runway, point-in-time projection;
+  est. exhaustion ~2026-09-11→13) — decision needed before fail-closed exhaustion**
+  (`docs/reviews/OPERATOR-DECISION-PACKET-2026-08-28.md`).
 
 - **OpenSanctions match-safety release (2026-07-22):** release commit `441ee09`
   (original deploy `dpl_E5ysiLJSg1ynNmqJkgmpDjrzZD32`, then the 2026-08-14 env-only
   redeploy `dpl_GPNNsDBjuzsgJ7GKUfvdrbG3YMmC`; its behavior is carried forward by every
-  later release and is live in the current production build `143964a`). Fail-closed OpenSanctions read model (`src/lib/enrich/os-read.ts`) + admin-only
+  later release and is live in the current production build `6ba72b5`). Fail-closed OpenSanctions read model (`src/lib/enrich/os-read.ts`) + admin-only
   neutral candidate-review presentation on `/entities`; non-admin/public surfaces render ZERO
   OpenSanctions markup (verified live — the pre-release non-admin `opensanctions.org/entities/`
   profile-link leak is closed); Ask receives no OpenSanctions-derived categorical assertion,
@@ -66,7 +89,7 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
 
 - **AI Search/Ask release (2026-07-21):** release commit `836b46e` (original deploy
   `dpl_5scfsMfttrHZbLFWgdkAKdpBAHFT`; carried forward by every later release and live in
-  the `143964a` build, carried forward inside current production); production DB migrated 0021–0027 (backup branch
+  the `143964a` build, carried forward inside current production `6ba72b5`); production DB migrated 0021–0027 (backup branch
   `backup-pre-ask-release-2026-07-21` retained); Privacy 1.3 live with forced
   reacknowledgement; retention envs 30/7/7 set; **`ASK_RUNS_SHADOW=1` soak running** —
   every other new flag (enforce/progressive/stream/cache/sessions/router/billing
@@ -505,13 +528,14 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   Signals proof; optional analytics was left off and persisted `denied`. It remains the standing
   verification identity and was signed back out after the proof. Evidence:
   `docs/reviews/POSTHOG-ANALYTICS-IMPLEMENTATION-NOTE-2026-07-14.md`.
-- **Tests:** **3,421 unit tests / 239 files** green (`npm test`, typecheck + lint
-  clean — measured 2026-08-28 on `bf0061b`, then main's tip, now the dormant-eval
-  tree below the docs merges) + **155/155**
-  Neon-branch integration tests / **23 files** (as of the PR #30 branch gate; every
-  2026-08-27/28 reliability branch ran the full suite on a disposable production fork
-  with zero paid calls; the fork is deleted after each run). Historical authoritative
-  gates: 3,329/231 + 151/21 on the 2026-08-24 release-train tree `e359c61`.
+- **Tests:** **3,451 unit tests / 239 files** green (`npm test`, typecheck clean,
+  lint 0 errors with 3 pre-existing unused-var warnings in test files — measured
+  2026-08-29 on the release clone at `6ba72b5`, whose tree is byte-identical to the
+  reviewed PR #35 head `f3d45b4`) + **155/155** Neon-branch integration tests /
+  **23 files** (PR #35 ran the full suite twice on disposable production forks with
+  zero paid calls; the fork is deleted after each run). Historical authoritative
+  gates: 3,421/239 on `bf0061b` (2026-08-28); 3,329/231 + 151/21 on the 2026-08-24
+  release-train tree `e359c61`.
   The saved `NEON_API_KEY` works (disposable branches created and deleted cleanly). CI
   mirror: `.github/workflows/ci.yml`; the enforced pre-push gate is `.githooks/pre-push`
   (typecheck+lint+test), which does not include the integration suite.
@@ -526,19 +550,23 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
 - **Stubbed / off:** ACLED (fixture stub, unwired); Stripe flagged off; Resend adapter
   superseded by Postmark. (MTProto left this list 2026-07-11 — real adapter wired,
   session-gated; see Ingestion above.)
-- **Deploy:** current production **`dpl_Gf8AiKCpmuwRYdoAr1JvjfTaGLi6`** — the
-  2026-08-28 reliability queue's final release, from `main` merge `b62da02`, deployed
-  from the plain release clone, aliased bnow.net; `/health` stamps `b62da02` with DB OK.
-  **Rollback target = `dpl_5ocJPF4GLPHDFB4Cv3MB4tgkScou`** (`ad6e078`, the release
-  before the #98 sweep; the full four-release rollback chain is in
-  `docs/reviews/RELIABILITY-RELEASES-2026-08-28.md`). Ahead of production sit the
-  DORMANT-EVAL runtime tree `bf0061b` (PRs #31/#32/#33 — no reachable runtime
-  behavior; they ride the next natural deploy; no redeploy needed for them) and the
-  docs-only PR #34 merge `ff9a7f1` (= `main` at the 2026-08-28 correction).
-  Deployment lineage (all carried forward inside `b62da02`): `ad6e078` #87
-  classification ← `afbf06e` #87 mechanical ← `ed9bc35` #97 reduce ← `143964a`
-  release train (2026-08-24) ← `0aa3d7d` #86 repair ← `23a1280` QF-B map lease ←
-  `7336b9c` PR #5 routing seams ← `9c5e9cb` Candidate B ← `26989f7` Iran recovery.
+- **Deploy:** current production **`dpl_FT3Hdpt2ece4kxQHudxT2FST162p`** — the
+  2026-08-29 #97 Ask-family release, from `main` merge `6ba72b5` (PR #35), deployed
+  2026-08-29T01:29:35Z from the plain release clone (~45s build), aliased bnow.net;
+  `/health` stamps `6ba72b5` with DB OK. **Rollback target =
+  `dpl_Gf8AiKCpmuwRYdoAr1JvjfTaGLi6`** (`b62da02`, the 2026-08-28 reliability queue's
+  final release). Observation window 01:30→07:12Z CLOSED PASS (50 scheduled runs clean,
+  6 map cycles, finalize/intraday/validate on the new release; record:
+  `docs/reviews/ASK-FAMILY-RELEASE-2026-08-29.md`). This deploy also carried the
+  previously dormant eval/conflict code (PRs #31/#32/#33) into the production artifact
+  for the FIRST time — still INERT: no `EVAL_*` env, `CONFLICTS_UI` absent, conflict
+  surfaces live-verified fail-closed 404 and the evidence route gated. `main` and
+  production are now the same commit.
+  Deployment lineage (all carried forward inside `6ba72b5`): `b62da02` #98 sweep ←
+  `ad6e078` #87 classification ← `afbf06e` #87 mechanical ← `ed9bc35` #97 reduce ←
+  `143964a` release train (2026-08-24) ← `0aa3d7d` #86 repair ← `23a1280` QF-B map
+  lease ← `7336b9c` PR #5 routing seams ← `9c5e9cb` Candidate B ← `26989f7` Iran
+  recovery.
   Command:
   `npx vercel@latest deploy --prod --yes` via the machine CLI session
   (`VERCEL_TOKEN` is expired; regen is an operator task, SETUP-NEXT-WEEK #2). Note: a CLI
@@ -551,13 +579,13 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   github.com resolves slowly/flakily: pushes work, but short-timeout git commands can
   fail — retry or wait ~30s+. api.gdeltproject.org DNS still fails locally (not
   pinned). TASS/RIA/Lenta RSS unreachable → covered via their Telegram channels.
-- **Git:** the last application-code releases are the **2026-08-28 reliability queue**
-  (PRs #27–#30, final `b62da02` → `dpl_Gf8AiKCpmuwRYdoAr1JvjfTaGLi6`); before that the
+- **Git:** the last application-code release is the **2026-08-29 #97 Ask-family
+  release** (PR #35, merge `6ba72b5` → `dpl_FT3Hdpt2ece4kxQHudxT2FST162p`); before
+  that the 2026-08-28 reliability queue (PRs #27–#30, final `b62da02`) and the
   2026-08-24 release train (`143964a`, eleven PRs #12–#22 + docs, per
-  `docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md`). As of 2026-08-28: zero open
-  PRs; `origin/main` is `ff9a7f1` (the PR #34 docs-closeout merge above `bf0061b`) —
-  runtime-affecting code is unchanged since production's `b62da02`, with the
-  dormant-eval PRs #31–#33 (`bf0061b`) and docs-only PR #34 ahead of it; the
+  `docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md`). As of 2026-08-29: zero open
+  PRs; `origin/main` is `6ba72b5` = the deployed production commit (the
+  main/production dormant-code gap is closed); the
   parked audit/integration branches (`codex/quality-foundation-*`,
   `codex/conflict-evaluations-*`, p0–p7) remain retained provenance contained in
   `main`; the one unmerged remote branch is `codex/paddle-onboarding-page` (a

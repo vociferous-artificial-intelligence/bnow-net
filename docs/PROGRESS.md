@@ -3340,3 +3340,42 @@ Execution (same block):
   OPEN-TASKS #97 (titles = DB-bound class; eval harness; array/ASCII slices).
   Corrections landed: CURRENT-STATE now distinguishes production `b62da02` /
   dormant runtime tree `bf0061b` / docs-only main `ff9a7f1`.
+
+## 2026-08-29 ~01:22–07:30Z — #97 Ask-family release: merge, deploy, observation, closeout
+
+1. Reconstruct baseline in a fresh session (read state from `origin/main` git
+   objects, not the stale primary checkout); verify PR #35 head `f3d45b4`, checks,
+   worktree/clone cleanliness, production `b62da02`, env posture.
+2. 19:30Z predeploy gate + full post-#98 cron health read (epochs only).
+3. Merge PR #35 on gate pass; fast-forward the release clone; preflight; deploy;
+   smoke; one finite observation monitor through the 07:00Z validate; docs closeout.
+
+Execution (same block):
+
+- Baseline exact (§1 of the release report); 19:30Z gate PASS (run 10379: ok,
+  0 errors, 11 digests in the 8–11 band; 166 post-#98 runs zero
+  failed/unfinished/errored; sweeps still 9; X $58.98/$75).
+- PR #35 diff re-inspected = reviewed scope; merged as `6ba72b5` (parents
+  `ff9a7f1`+`f3d45b4`); merged tree byte-identical to the reviewed head.
+- Release clone `bf0061b→6ba72b5`: whitespace/typecheck clean, lint 0 errors
+  (3 pre-existing warnings untouched), unit 3,451/3,451 (239 files); zero
+  `EVAL_*`/`CONFLICTS_UI` re-verified in all three envs.
+- Deployed once: `dpl_FT3Hdpt2ece4kxQHudxT2FST162p` (01:29:35Z, ~45s), aliased
+  bnow.net, `/health` stamps `6ba72b5` DB OK. Rollback (unused):
+  `dpl_Gf8AiKCpmuwRYdoAr1JvjfTaGLi6`.
+- Smoke: authz matrix bodies token-clean bare+RSC (all hits classified benign);
+  conflict surfaces fail-closed; five Ask free-GET shapes → zero
+  persistence/spend deltas; bounded log scan info-only.
+- Observation 01:30→07:12Z CLOSED PASS: 50 runs clean; 6 map cycles (0
+  batchErrors, leases clean, 332 claims); 02:00Z finalize (10 digests, 1
+  expected ae thin-regen refusal), 04:00Z intraday, 07:00Z validate (3/0) all
+  on the new release; engine mix 6 mapreduce + 5 legacy gulf; only #69 GramJS
+  noise in the error stream; X $59.12/$75. One monitor false-positive ("DB not
+  OK") diagnosed as a raw-HTML substring artifact and fixed — no real anomaly.
+  No natural paid Ask → live money-path traversal future-observable.
+- Closeout: AGENTS.md snapshot + decision log, CURRENT-STATE, OPEN-TASKS #97
+  corrected in place; release report
+  `docs/reviews/ASK-FAMILY-RELEASE-2026-08-29.md`. #97 remains OPEN
+  (embeddings, validation matcher, inert Anthropic, sessions residuals).
+  Primary checkout, PR worktree, corpus-v2 drafts, envs/caps/flags/crons/DB
+  untouched; zero manual paid calls.

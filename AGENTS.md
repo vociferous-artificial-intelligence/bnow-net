@@ -102,26 +102,31 @@ drizzle/            migrations 0000–00NN + 9999_claim_source_trigger.sql (appl
 data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails)
 ```
 
-## Current state — compact snapshot (verified 2026-08-27; correct in place)
+## Current state — compact snapshot (verified 2026-08-29; correct in place)
 
 Detailed operational/product state lives in `docs/CURRENT-STATE.md` and is corrected in
 place whenever reality changes. Historical narrative: `docs/PROGRESS.md` + `docs/reviews/`;
 debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
 
 - **Live/repository:** https://bnow.net · Vercel `bnow-net` / team `vociferous`; production
-  is **`dpl_Gf8AiKCpmuwRYdoAr1JvjfTaGLi6` / `main` merge `b62da02` — the 2026-08-28
-  reliability queue** (PRs #27/#28/#29/#30 released SERIALLY overnight from the plain
-  release clone, each with its own gate, deploy verification and natural observation,
-  all PASS: #97 reduce site → #87 mechanical digest fix → #87 degraded-run
-  classification → #98 timeout sweep; record + rollback chain:
-  `docs/reviews/RELIABILITY-RELEASES-2026-08-28.md`). `/health` 200 stamping
-  **`b62da02`**, DB OK; anonymous bare+`RSC: 1` bodies re-verified clean after every
-  deploy. **Rollback target = `dpl_5ocJPF4GLPHDFB4Cv3MB4tgkScou`** (`ad6e078`, the
-  release before the sweep). `main` (`bf0061b`) is DORMANT-EVAL code ahead of
-  production — PRs #31 (capacity-profile eval harness), #32 (QF-C hardening) and #33
-  (conflict soak instruments) landed after the runtime queue and ship no reachable
-  runtime behavior (no `EVAL_*` env exists; nothing imports the instruments); they ride
-  the next natural deploy, and no redeploy is needed for them. The 2026-08-24 release
+  is **`dpl_FT3Hdpt2ece4kxQHudxT2FST162p` / `main` merge `6ba72b5` — the 2026-08-29
+  #97 Ask-family release** (PR #35: shared idempotent `normalizeAskQuestion` at all six
+  Ask question boundaries, `wellFormedSlice` on the runs/cache/limits identity clips and
+  sessions/rerank provider-bound truncations, array-`?q=` guard; deployed
+  2026-08-29T01:29:35Z from the plain release clone after the 19:30Z predeploy gate;
+  observation window 01:30→07:12Z CLOSED PASS — 50 scheduled runs clean, finalize/
+  intraday/validate on the new release, zero Ask persistence/spend from free-GET
+  probes; no natural paid Ask occurred, so the live money-path traversal is
+  future-observable; record: `docs/reviews/ASK-FAMILY-RELEASE-2026-08-29.md`).
+  `/health` 200 stamping **`6ba72b5`**, DB OK; anonymous bare+`RSC: 1` bodies
+  re-verified clean. **Rollback target = `dpl_Gf8AiKCpmuwRYdoAr1JvjfTaGLi6`**
+  (`b62da02`, the 2026-08-28 reliability queue's final release — its own record +
+  rollback chain: `docs/reviews/RELIABILITY-RELEASES-2026-08-28.md`). **`main` ==
+  production** — this deploy carried the previously dormant PRs #31 (capacity-profile
+  eval harness), #32 (QF-C hardening) and #33 (conflict soak instruments) into the
+  production artifact for the first time; they remain INERT (no `EVAL_*` env exists,
+  `CONFLICTS_UI` absent everywhere, conflict surfaces live-verified fail-closed 404
+  with the evidence route gated). The 2026-08-24 release
   train (QF-A/QF-C/conflict evaluator, `143964a`) is carried forward inside this
   lineage; the conflict surfaces stay DORMANT (`CONFLICTS_UI` absent everywhere). QF-A's
   observation window is **CLOSED — PASS** (adjudicated 2026-08-27: 44/44 digests for
@@ -1606,3 +1611,37 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   not executed), and `docs/designs/HUMAN-ADJUDICATION.md` carried from the parked QF
   branch (register §9.4 discharged). The dirty primary checkout was untouched
   throughout; every deploy came from the plain release clone.
+
+- **2026-08-29 (#97 Ask-family release — merge, deploy, observation CLOSED PASS)**
+  Resumed session executed the authorized finite tail of the Ask-family release.
+  Baseline reverified exactly (PR #35 open at `f3d45b4`, checks green, main `ff9a7f1`,
+  production `b62da02` healthy, zero `EVAL_*`/`CONFLICTS_UI` in all three envs); the
+  2026-08-28 19:30Z predeploy gate PASSED (run 10379: ok, 0 errors, 11 digests in the
+  8–11 band; 166 post-#98 runs with zero failures/unfinished/errors; sweeps still the
+  nine historical rows; OpenSanctions monthly_cap classified known-bounded). PR #35
+  merged as **`6ba72b5`** (parents `ff9a7f1`+`f3d45b4`; diff re-inspected = reviewed
+  scope; merged tree BYTE-IDENTICAL to the reviewed head, so the branch integration/
+  build evidence carries). Release-clone preflight: whitespace/typecheck clean, lint 0
+  errors, unit 3,451/3,451 (239 files). Deployed once (no retry needed) as
+  **`dpl_FT3Hdpt2ece4kxQHudxT2FST162p`** (created 01:29:35Z, ~45s build, aliased
+  bnow.net; `/health` stamps `6ba72b5`, DB OK). Smoke: authz matrix bare+`RSC: 1`
+  bodies token-clean (all grep hits classified benign — e.g. "claim" inside
+  "disclaimer", nav "Sanctions" label, router path echoes); conflict surfaces
+  fail-closed; five Ask free-GET shapes (incl. astral-boundary and array `?q=`)
+  produced ZERO ask_runs/ask_usage/reservation/provider deltas. Observation
+  01:30→07:12Z closed PASS: 50 scheduled runs clean; 6 map cycles 0 batchErrors,
+  leases clean; 02:00Z finalize (10 digests, 1 expected `ae thin-regen` refusal),
+  04:00Z intraday, 07:00Z validate (3 validated / 0 unvalidated) all on the new
+  release; engine mix 6 mapreduce + 5 legacy gulf, in band; runtime-error scan shows
+  only the known #69 GramJS noise. One monitor false-positive ("DB not OK") was
+  diagnosed as a raw-HTML substring artifact (React splits "DB "/"OK" text nodes),
+  production verified healthy, and the probe corrected — no anomaly existed. NO
+  natural paid Ask occurred: the live money-path traversal of `normalizeAskQuestion`
+  is FUTURE-OBSERVABLE (construction test-pinned; no paid Ask manufactured, per
+  authorization). Zero manual paid calls; zero production writes beyond scheduled
+  pipelines; env/caps/flags/models/crons/DB config, the dirty primary checkout, the
+  PR worktree, and the corpus-v2 drafts (26-case packet) all untouched. #97 stays
+  OPEN — remaining sites: `embeddings/client.ts`, `validation/llm-match.ts`,
+  `anthropic-provider.ts` (inert, #83), plus the documented flag-off sessions
+  residuals. X refresh: $59.12 of $75 (~14–15 days runway; #101 unchanged as the
+  nearest operator deadline). Report: `docs/reviews/ASK-FAMILY-RELEASE-2026-08-29.md`.
