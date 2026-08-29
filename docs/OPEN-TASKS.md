@@ -1250,7 +1250,7 @@ docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md)
     and the legacy digest site (PR #28, `afbf06e` — `digestDocLine`, = #87's mechanical
     fix, observed at the 04:00Z intraday).
     **STATUS 2026-08-28 (second update) — the ASK FAMILY is REPAIRED (branch
-    `claude/97-ask-wellformed-20260828`; PR number recorded at merge), the
+    `claude/97-ask-wellformed-20260828`; merged 2026-08-29 as PR #35), the
     highest-exposure user-controlled site set.** One shared pure normalization
     (`normalizeAskQuestion` in `src/lib/ask/intent.ts` = trim, `wellFormedSlice` at
     the historical 400-code-unit cap, then a final trim) is now called by ALL SIX
@@ -1313,11 +1313,23 @@ docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md)
     "ab " and now refuses at $0) — the refusal set only ever grows, never
     un-refuses.
     Pre-existing, out of family: `/search` shares the array-`?q=` hazard shape
-    (`search/page.tsx:113`, free deterministic path, no provider). REMAINING
+    (`search/page.tsx:113`, free deterministic path, no provider).
+    **STATUS 2026-08-29 — the ASK FAMILY above is MERGED AND DEPLOYED (PR #35 →
+    `main` merge `6ba72b5` → production `dpl_FT3Hdpt2ece4kxQHudxT2FST162p`,
+    2026-08-29T01:29:35Z).** The 19:30Z predeploy gate passed, the smoke's five
+    free-GET shapes (incl. astral-boundary and array `?q=`) produced zero Ask
+    persistence/spend, and the 01:30→07:12Z observation window CLOSED PASS (50
+    scheduled runs clean; finalize/intraday/validate on the new release). NO
+    natural paid Ask occurred in the window, so the first live money-path
+    traversal of `normalizeAskQuestion` remains FUTURE-OBSERVABLE (construction
+    test-pinned; free/GET side live-probed). Record:
+    `docs/reviews/ASK-FAMILY-RELEASE-2026-08-29.md`. REMAINING
     under this umbrella: `embeddings/client.ts` (`truncateInput`),
-    `validation/llm-match.ts:83,85` (degrades to keyword on failure, ruling 9 —
-    quiet), and `anthropic-provider.ts:70` (inert, no key — #83; candidate for a
-    documented-safe disposition). Umbrella stays OPEN until each is repaired or
+    `validation/llm-match.ts:86,88` (the takeaway/claim clips; degrades to
+    keyword on failure, ruling 9 — quiet), `anthropic-provider.ts:70` (inert,
+    no key — #83; candidate for a
+    documented-safe disposition), and the review-logged flag-off sessions
+    residuals (a)–(c) above. Umbrella stays OPEN until each is repaired or
     documented safe with evidence.
 
 ### New (from the #86 recovery-window closeout — 2026-08-24,
