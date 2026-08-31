@@ -8,6 +8,7 @@
 // Stub vectors are IN-MEMORY ONLY — the persist layer refuses to store them
 // (truth-in-UI analog of standing ruling 3).
 
+import { wellFormedSlice } from "../text/well-formed-slice";
 import { openaiEmbedBatches } from "../llm/openai";
 import type { StageGuard } from "../usage/reservations";
 
@@ -53,9 +54,17 @@ export function embedStubReason(): string | null {
   return null;
 }
 
-/** Truncate one input to the per-text char guard (claims are <=500 anyway). */
+/** Truncate one input to the per-text char guard (claims are <=500 anyway) and
+ *  keep the provider-bound string WELL-FORMED (#97): the budget stays 2,000
+ *  UTF-16 code units, a surrogate pair straddling the cutoff loses only its
+ *  orphaned high half, and an isolated surrogate is dropped even when the input
+ *  is under the limit — an orphan would poison the whole batched embeddings
+ *  request as a `\udXXX` JSON escape. Well-formed input at or under the limit
+ *  is returned unchanged. The stub path shares this repair, so a previously
+ *  malformed text now seeds its deterministic stub vector from the repaired
+ *  text (well-formed inputs' stub vectors are unchanged). */
 export function truncateInput(text: string): string {
-  return text.length > EMBED_MAX_INPUT_CHARS ? text.slice(0, EMBED_MAX_INPUT_CHARS) : text;
+  return wellFormedSlice(text, EMBED_MAX_INPUT_CHARS);
 }
 
 // -- deterministic stub vectors -------------------------------------------------

@@ -185,3 +185,78 @@ describe("stubVector + truncateInput units", () => {
     expect(truncateInput("y".repeat(EMBED_MAX_INPUT_CHARS + 1))).toHaveLength(EMBED_MAX_INPUT_CHARS);
   });
 });
+
+describe("truncateInput — well-formed UTF-16 provider inputs (#97)", () => {
+  const wf = (s: string) => (s as unknown as { isWellFormed(): boolean }).isWellFormed();
+  // a \udXXX high escape not followed by a low escape, or a bare low escape —
+  // the strict-JSON shape the provider rejects with 400
+  const LONE_ESCAPE = /\\u[dD][89aAbB][0-9a-fA-F]{2}(?!\\u[dD][c-fC-F][0-9a-fA-F]{2})|(?<!\\u[dD][89aAbB][0-9a-fA-F]{2})\\u[dD][c-fC-F][0-9a-fA-F]{2}/;
+
+  it("a surrogate pair straddling the cutoff loses only its orphaned high half", () => {
+    const input = "x".repeat(EMBED_MAX_INPUT_CHARS - 1) + "\u{1F600}" + "tail";
+    const out = truncateInput(input);
+    expect(out).toHaveLength(EMBED_MAX_INPUT_CHARS - 1); // budget kept; orphan dropped
+    expect(wf(out)).toBe(true);
+    expect(LONE_ESCAPE.test(JSON.stringify(out))).toBe(false);
+  });
+
+  it("a pair entirely inside the cutoff is preserved intact at the full budget", () => {
+    const input = "x".repeat(EMBED_MAX_INPUT_CHARS - 2) + "\u{1F600}" + "tail";
+    const out = truncateInput(input);
+    expect(out).toHaveLength(EMBED_MAX_INPUT_CHARS);
+    expect(out.endsWith("\u{1F600}")).toBe(true);
+  });
+
+  it("repairs isolated surrogates even when the input is under the limit", () => {
+    expect(truncateInput("ab\uD83Dcd")).toBe("abcd"); // lone high
+    expect(truncateInput("ab\uDE00cd")).toBe("abcd"); // lone low
+    expect(wf(truncateInput("\uD83Dab"))).toBe(true);
+  });
+
+  it("exact-limit and ordinary multilingual inputs are returned unchanged", () => {
+    const exact = "y".repeat(EMBED_MAX_INPUT_CHARS);
+    expect(truncateInput(exact)).toBe(exact);
+    const multilingual = "Українська фарсі فارسی العربية 日本語 😀🚀";
+    expect(truncateInput(multilingual)).toBe(multilingual);
+  });
+
+  it("an all-orphan input repairs to the empty string — the pre-existing empty-input path, no new policy", () => {
+    // BEFORE the repair such an input poisoned its ENTIRE batched request (the
+    // lone escape 400s the whole body). Repaired to "", it rides the SAME
+    // pre-existing failure surface an empty-string input always had: a
+    // definitive provider 400 on that batch, settled $0, never retried
+    // (openaiEmbedBatches retries only 429/5xx). Nothing here filters or pads.
+    expect(truncateInput("\uD83D\uD83D")).toBe("");
+  });
+
+  it("the actual embeddings request path sends only well-formed inputs", async () => {
+    embeddingsCreate.mockImplementation(async ({ input }: { input: string[] }) =>
+      resp(
+        input.map(() => [1]),
+        1,
+      ),
+    );
+    await embedTexts([
+      "x".repeat(EMBED_MAX_INPUT_CHARS - 1) + "\u{1F600}" + "tail",
+      "short \uD83D orphan",
+      "plain unaffected text",
+    ]);
+    const sent = (embeddingsCreate.mock.calls[0][0] as { input: string[] }).input;
+    for (const s of sent) {
+      expect(wf(s)).toBe(true);
+      expect(LONE_ESCAPE.test(JSON.stringify(s))).toBe(false);
+    }
+    expect(sent[2]).toBe("plain unaffected text"); // valid input byte-identical
+  });
+
+  it("stub vectors: a previously malformed text now seeds from its repaired form; valid text unchanged", async () => {
+    delete process.env.OPENAI_API_KEY;
+    const out = await embedTexts(["ab\uD83Dcd", "plain"]);
+    // Intentional, documented divergence: the malformed text hashes as its
+    // repaired form ("abcd"), so its deterministic stub vector differs from the
+    // pre-repair one. Stub vectors are in-memory only (never persisted), and
+    // well-formed inputs' stub vectors are unchanged.
+    expect(out.vectors[0]).toEqual(stubVector("abcd"));
+    expect(out.vectors[1]).toEqual(stubVector("plain"));
+  });
+});

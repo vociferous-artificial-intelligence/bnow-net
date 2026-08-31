@@ -196,4 +196,28 @@ describe("llm-match SpendGuard coverage (every dispatch reserved + recorded)", (
     expect(await llmMatchTakeaways(TAKEAWAYS, CLAIMS)).toBeNull();
     expect(createSpy).not.toHaveBeenCalled();
   });
+
+  it("dispatched message content is well-formed for boundary-straddling inputs (#97)", async () => {
+    // Exercises the ACTUAL request-building path: a surrogate pair straddling
+    // the takeaway 400 / claim 300 clips must not reach the SDK as a lone
+    // surrogate (pre-fix, the strict JSON body 400'd and the day degraded
+    // QUIETLY to the keyword matcher per ruling 9).
+    process.env.MATCHER_MODE = "single";
+    createSpy.mockResolvedValue(okCompletion());
+    const out = await llmMatchTakeaways(
+      ["t".repeat(399) + "\u{1F680}" + " beyond"],
+      [{ claimId: 1, text: "c".repeat(299) + "\u{1F9E8}" + " beyond" }] as ClaimForValidation[],
+    );
+    expect(out?.matcher).toBe("llm"); // the call went through, no degradation
+    expect(createSpy).toHaveBeenCalledTimes(1);
+    const req = createSpy.mock.calls[0][0] as {
+      messages: Array<{ role: string; content: string }>;
+    };
+    for (const m of req.messages) {
+      expect((m.content as unknown as { isWellFormed(): boolean }).isWellFormed()).toBe(true);
+    }
+    expect(
+      /\\u[dD][89aAbB][0-9a-fA-F]{2}(?!\\u[dD][c-fC-F][0-9a-fA-F]{2})/.test(JSON.stringify(req)),
+    ).toBe(false);
+  });
 });

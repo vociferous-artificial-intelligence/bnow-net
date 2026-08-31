@@ -1331,6 +1331,49 @@ docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md)
     documented-safe disposition), and the review-logged flag-off sessions
     residuals (a)–(c) above. Umbrella stays OPEN until each is repaired or
     documented safe with evidence.
+    **STATUS 2026-08-31 — the EMBEDDINGS and VALIDATION sites are REPAIRED
+    (branch `claude/97-embed-validate-wellformed-20260831`).**
+    `embeddings/client.ts truncateInput` and the two
+    `validation/llm-match.ts buildMatchUserPrompt` clips (takeaway 400 /
+    claim 300) now route through the shared `wellFormedSlice` at their
+    historical code-unit budgets; whitespace-collapse-before-clip order and
+    valid-input prompt bytes are unchanged (byte-identity test-pinned), and an
+    isolated surrogate is repaired even when the input is under the limit.
+    EXPOSURE CORRECTION: the earlier "lowest exposure" framing for the
+    embeddings site under-stated it — `digest-persist.ts` calls
+    `embedAndStoreClaims` on every digest persist, so `truncateInput` is a
+    DAILY-exercised paid path (`openai_embed` 28–41 requests/day at digest
+    cron times), not a dormant backstop. Production-shaped measurement
+    (read-only, 2026-08-31): all 4,969 `claims` rows — max text 196 code
+    points, 0 over the 300 clip, 0 over the 2,000 embed budget, 0 astral, 0
+    U+FFFD; all 42 `ask_usage` questions max 96, 0 astral; 4,969/4,969 claims
+    embedded. Neither clip has ever fired on the current corpus, and Postgres
+    cannot store a lone surrogate (wire-encodes U+FFFD), so the live-input
+    hazard is the in-process straddle/orphan path — established by boundary
+    tests, not by naturally occurring malformed rows. The ISW takeaway side is
+    deliberately unmeasured at rest (prose is transient, ruling 1); its
+    boundary behavior is synthetic-only evidence. Repaired-to-empty
+    disposition (documented, no policy change): an all-orphan embed input now
+    repairs to `""` and rides the PRE-EXISTING empty-input provider path
+    (definitive 400 on that batch, settled $0, never retried) — before the
+    repair the same input 400'd the whole batch as malformed JSON. Stub-vector
+    divergence (intentional, test-pinned): a previously malformed text now
+    seeds its deterministic stub vector from the repaired form; well-formed
+    inputs' stub vectors are unchanged, and stub vectors remain in-memory
+    only. No change to models, dims, batching, pricing, reservation/metering,
+    retries, persistence, or cache/version identities; no embeddings
+    regenerated or backfilled. Consumers of the shared prompt builder
+    (analysis-eval `runner.ts`, dormant conflict `llm-compatible-matcher.ts`)
+    inherit the repair by design — `datasetPromptHash` is computed from the
+    real builder at runtime and no fixture straddles a clip boundary, so
+    committed eval identities are unchanged (full suite green). ANTHROPIC
+    DISPOSITION (inspected 2026-08-31): `anthropic-provider.ts:70` still
+    carries the raw `.slice(0, 400)` doc-line clip; the absence of a key is
+    NOT a safe disposition — it stays a DORMANT DEFECT that must be repaired
+    (with the #83 wiring) before any Anthropic activation; deliberately not
+    modified in this PR. Still remaining under the umbrella after this lands:
+    that dormant Anthropic site and the flag-off ASK_SESSIONS residuals
+    (a)–(c) above.
 
 ### New (from the #86 recovery-window closeout — 2026-08-24,
 docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md §14)
