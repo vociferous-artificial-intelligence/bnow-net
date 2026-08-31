@@ -217,8 +217,10 @@ describe("steady-mode flood bounds end-to-end (real Postgres, mocked provider)",
   });
 
   it("a candidate exact-mirrors a FETCHED processed reference with identical content under a different title (revived exact arm, real SQL alias)", async () => {
-    // The reference's title differs so strongly that text2k jaccard sits far
-    // below the 0.7 minhash threshold — under the historical snake_case md5
+    // The reference's title differs enough that text2k jaccard sits below the
+    // 0.7 minhash threshold (measured ~0.66 — a thin but deterministic margin;
+    // keep the titles strongly distinct if editing) — under the historical
+    // snake_case md5
     // alias (contentMd5 undefined on reference rows) NEITHER arm would match
     // and the candidate would stay canonical, so this scenario fails if the
     // `AS "contentMd5"` alias is ever reverted.

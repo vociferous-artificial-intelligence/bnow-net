@@ -328,7 +328,7 @@ async function selectSteadyCandidateRows(
   dateParam: string,
   docCap: number,
   counts: Record<string, unknown>,
-): Promise<CandRowRaw[]> {
+): Promise<{ rows: CandRowRaw[]; freshCutoff: string | null }> {
   const stub = `${STUB_CONTENT_PREFIX}%`;
   // The historical selection, verbatim; `extra` narrows a flood segment.
   const selectSql = (extra: string) =>
@@ -363,7 +363,7 @@ async function selectSteadyCandidateRows(
   const probeDays = dayRows.map((r) => String(r.day));
   if (probeDays.length <= MAP_STEADY_SPAN_DAYS) {
     const { rows } = await pool.query(selectSql(""), [theaters, stub, dateParam, docCap]);
-    return rows as CandRowRaw[];
+    return { rows: rows as CandRowRaw[], freshCutoff: null };
   }
 
   // Flood path. Fresh cutoff from the DB clock (not the function's).
@@ -380,7 +380,7 @@ async function selectSteadyCandidateRows(
     // stragglers): the plain selection is day-bounded enough — the reference
     // fetch is independently bounded by dedupRefDays either way.
     const { rows } = await pool.query(selectSql(""), [theaters, stub, dateParam, docCap]);
-    return rows as CandRowRaw[];
+    return { rows: rows as CandRowRaw[], freshCutoff: null };
   }
   const freshCap = Math.ceil(docCap / 2);
   const { rows: freshRows } = await pool.query(
@@ -405,8 +405,9 @@ async function selectSteadyCandidateRows(
     selectedFresh: freshRows.length,
   };
   // old (strictly pre-cutoff) days sort before fresh ones: global oldest-first
-  // ordering is preserved by construction.
-  return [...oldRows, ...freshRows] as CandRowRaw[];
+  // ordering is preserved by construction. The cutoff rides back so the dedup
+  // block can shed old days if the union reference window overflows.
+  return { rows: [...oldRows, ...freshRows] as CandRowRaw[], freshCutoff };
 }
 
 export interface MapCycleOptions {
@@ -576,7 +577,9 @@ async function cycle(
   //    the dedup gate for documents that have no mirror verdict yet. Cursor
   //    (afterId, id order) lets the driver advance past docs that yield no
   //    work (e.g. lexicon mismatches) without rescanning them forever.
-  const { rows: candRows } = opts.remap
+  // steady/backfill selections also report the flood path's fresh cutoff so
+  // the dedup block below can shed old days on a reference-window overflow
+  const selection: { rows: CandRowRaw[]; freshCutoff: string | null } = opts.remap
     ? await pool.query(
         `SELECT rd.id, rd.title, rd.content, rd.adapter, rd.country_iso2 AS theater,
                 COALESCE(rd.published_at, rd.fetched_at)::date::text AS day,
@@ -596,8 +599,10 @@ async function cycle(
          ORDER BY rd.id ASC
          LIMIT $5`,
         [theaters, `${STUB_CONTENT_PREFIX}%`, dateParam, opts.afterId ?? 0, docCap],
-      )
-    : { rows: await selectSteadyCandidateRows(pool, theaters, dateOp, dateParam, docCap, counts) };
+      ).then((r) => ({ rows: r.rows as CandRowRaw[], freshCutoff: null }))
+    : await selectSteadyCandidateRows(pool, theaters, dateOp, dateParam, docCap, counts);
+  const candRows = selection.rows;
+  const steadyFreshCutoff = selection.freshCutoff;
   const candidates: CandidateDoc[] = candRows.map((r) => ({
     id: r.id,
     theater: r.theater,
@@ -636,7 +641,6 @@ async function cycle(
     // between (the 2026-08-31 incident materialized 419K rows that way and the
     // instance was OOM-killed). The excluded rows are exactly the ones the
     // gate's ±1-day rule could never match, so no matchable pair is lost.
-    const refDays = dedupRefDays([...new Set(candidates.map((c) => c.day))]);
     // ONE shared predicate for the count-guard and the fetch — the guard is
     // only honest while both queries select the same set.
     const refWhere = `FROM raw_documents rd
@@ -644,12 +648,46 @@ async function cycle(
          AND rd.country_iso2 = ANY($1)
          AND COALESCE(rd.published_at, rd.fetched_at)::date = ANY($2::date[])
          AND NOT EXISTS (SELECT 1 FROM doc_dedup dd WHERE dd.raw_document_id = rd.id)`;
-    const { rows: refCountRows } = await pool.query(
-      `SELECT count(*)::int AS n
+    const countRefs = async (days: string[]): Promise<number> => {
+      if (days.length === 0) return 0;
+      const { rows } = await pool.query(
+        `SELECT count(*)::int AS n
        ${refWhere}`,
-      [theaters, refDays],
-    );
-    const refCount = Number(refCountRows[0]?.n ?? 0);
+        [theaters, days],
+      );
+      return Number(rows[0]?.n ?? 0);
+    };
+    let gateCandidates = candidates;
+    let refDays = dedupRefDays([...new Set(gateCandidates.map((c) => c.day))]);
+    let refCount = await countRefs(refDays);
+    // Adaptive old-day shedding: the flood split's union window (up to 3
+    // sparse old days + the fresh segment ≈ 13 reference days) can exceed the
+    // row cap at realistic densities — and a refusal dispositions nothing, so
+    // it would repeat identically every hour. Instead shed the NEWEST old day
+    // (keeping the OLDEST for backlog progress and never touching the fresh
+    // segment), recount, and repeat. Shed candidates are simply not selected
+    // this run — no verdict, no mark, exactly the out-of-window rule — and the
+    // shed count is recorded for audit visibility. The hard refusal below
+    // remains only for the true pathological case where the fresh window
+    // alone (or a single-day/backfill window, which never sheds) overflows.
+    const cutoff = steadyFreshCutoff;
+    if (refCount > MAP_REF_ROW_CAP && cutoff !== null) {
+      const oldDaysAsc = [
+        ...new Set(gateCandidates.filter((c) => c.day < cutoff).map((c) => c.day)),
+      ].sort();
+      let dropped = 0;
+      while (refCount > MAP_REF_ROW_CAP && oldDaysAsc.length > 0) {
+        const drop = oldDaysAsc.pop()!;
+        gateCandidates = gateCandidates.filter((c) => c.day !== drop);
+        dropped++;
+        refDays = dedupRefDays([...new Set(gateCandidates.map((c) => c.day))]);
+        refCount = await countRefs(refDays);
+      }
+      if (dropped > 0) {
+        counts.refShedDays = dropped;
+        counts.refShedCandidates = candidates.length - gateCandidates.length;
+      }
+    }
     counts.refRows = refCount;
     if (refCount > MAP_REF_ROW_CAP) {
       // explicit ok=false failure instead of a silent memory kill; nothing was
@@ -677,7 +715,7 @@ async function cycle(
        ${refWhere}`,
       [theaters, refDays],
     );
-    const gate = dedupGate(candidates, refRows as unknown as DedupDoc[]);
+    const gate = dedupGate(gateCandidates, refRows as unknown as DedupDoc[]);
     mirrors = gate.mirrors;
     canonical = gate.canonical;
     counts.mirrors = mirrors.length;

@@ -58,7 +58,10 @@ const isFreshSelect = (sql: string) => isCandidate(sql) && />= \$5::date/.test(s
 const isOldSelect = (sql: string) => isCandidate(sql) && /= ANY\(\$5::date\[\]\)/.test(sql);
 const isPlainSelect = (sql: string) => isCandidate(sql) && !/\$5/.test(sql);
 const isRefCount = (sql: string) => /count\(\*\)::int AS n/.test(sql);
-const isRefFetch = (sql: string) => /AS text2k/.test(sql) && /rd\.processed = true/.test(sql);
+const isRefFetch = (sql: string) =>
+  // the remap candidate query also contains text2k + processed = true; only
+  // the reference fetch lacks the source join column
+  /AS text2k/.test(sql) && /rd\.processed = true/.test(sql) && !/canonical_url/.test(sql);
 const isWrite = (sql: string) => /^(INSERT|UPDATE|DELETE)\b/i.test(sql.trim());
 
 /** raw_documents row as the candidate/reference SELECTs return it. Content
@@ -342,6 +345,66 @@ describe("flood path — old/fresh split with bounded reference window", () => {
     expect(h.queries.filter((q) => isPlainSelect(q.sql))).toHaveLength(1);
     const refFetch = h.queries.find((q) => isRefFetch(q.sql))!;
     expect(refFetch.params[1]).toEqual(["2026-08-29", "2026-08-30", "2026-08-31"]);
+  });
+});
+
+describe("adaptive old-day shedding — an overflowing flood union self-drains instead of refusing", () => {
+  /** flood shape: 3 sparse old days + 2 fresh days; the count-guard reports
+   *  over-cap whenever the NEWEST old day (08-12) is still in the window. */
+  const shedResponder = (sql: string, params: unknown[]): unknown[] => {
+    if (isProbe(sql))
+      return [
+        { day: "2026-07-05" },
+        { day: "2026-07-09" },
+        { day: "2026-08-12" },
+        { day: "2026-08-30" },
+      ];
+    if (isCutoff(sql)) return [{ d: "2026-08-30" }];
+    if (isFreshSelect(sql))
+      return [
+        doc(100, "2026-08-30"),
+        // adjacent-day fresh doc with clearly distinct text so it cannot
+        // accidentally minhash-mirror doc 100 (one-char id diffs sit >0.7)
+        doc(101, "2026-08-31", {
+          text2k: "Customs office notice about grain shipment paperwork and berth allocation delays",
+        }),
+      ];
+    if (isOldSelect(sql))
+      return [doc(1, "2026-07-05"), doc(2, "2026-07-09"), doc(3, "2026-08-12")];
+    if (isRefCount(sql))
+      return [(params[1] as string[]).includes("2026-08-12") ? { n: MAP_REF_ROW_CAP + 500 } : { n: 10 }];
+    if (isRefFetch(sql)) return [];
+    return [];
+  };
+
+  it("sheds the NEWEST old day, keeps the oldest and the fresh segment, and proceeds", async () => {
+    h.rowsFor = shedResponder;
+    const counts = await runMapCycle({ dryRun: true, theaters: ["ru"] });
+    expect(counts.refShedDays).toBe(1);
+    expect(counts.refShedCandidates).toBe(1); // doc(3) on the shed day
+    expect(counts.refRows).toBe(10);
+    expect(counts.selected).toBe(5); // physically selected, before shedding
+    expect(counts.canonical).toBe(4); // doc(3) got NO verdict and no processing
+    const refFetch = h.queries.find((q) => isRefFetch(q.sql))!;
+    const days = refFetch.params[1] as string[];
+    expect(days).not.toContain("2026-08-12");
+    expect(days).toContain("2026-07-04"); // oldest day kept
+    expect(days).toContain("2026-08-31"); // fresh segment kept
+    expect(h.queries.filter((q) => isRefCount(q.sql))).toHaveLength(2); // initial + 1 recount
+  });
+
+  it("refuses only when the fresh window ALONE still overflows after shedding every old day", async () => {
+    h.rowsFor = (sql, params) => {
+      const base = shedResponder(sql, params);
+      if (isRefCount(sql)) return [{ n: MAP_REF_ROW_CAP + 1 }]; // over-cap at every width
+      return base;
+    };
+    await expect(runMapCycle({ dryRun: true, theaters: ["ru"] })).rejects.toThrow(
+      /reference window overflow/,
+    );
+    // initial count + one recount per shed old day (3), never a fetch
+    expect(h.queries.filter((q) => isRefCount(q.sql))).toHaveLength(4);
+    expect(h.queries.filter((q) => isRefFetch(q.sql))).toHaveLength(0);
   });
 });
 

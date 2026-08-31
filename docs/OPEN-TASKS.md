@@ -1466,19 +1466,26 @@ docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md)
     level (unit) and against a fetched reference (itest).
     Unselected out-of-window documents keep `processed=false` untouched until a later
     run's window reaches them (the old segment drains AT MOST `MAP_STEADY_SPAN_DAYS`=3
-    backlog days per hourly run; fresh input continues meanwhile). Dense-day policy: a
-    single day whose ±1 window exceeds 75K reference rows refuses loudly every run
-    (visible as cron_runs ok=false; ~2.6× the observed ~28.6K 3-day-window peak, so a
-    backstop, not an expected path) rather than dying or truncating the examined set —
-    a persistent overflow starves that window until operator action and, like every
-    pre-completion death, produces no email until #103 lands. Review-noted accepted
-    residuals: the unrenewed lease span across a large ref fetch+gate (bounded: the
-    pre-write ownership re-check discards cleanly), fetch lacking a LIMIT backstop
-    (count-guard + lease serialization bound it), and the cap being a constant rather
-    than an env knob. Unit (16 tests incl. partition-boundary collapse, cross-theater
-    isolation, cap-refusal write-freedom, SQL-alias pin, all-fresh fallback) +
-    real-Postgres itest (3 scenarios on a disposable fork incl. a fetched-reference
-    exact mirror).
+    backlog days per hourly run; fresh input continues meanwhile). Overflow policy,
+    two-tier (second review round — a replay of this incident's own densities across a
+    3-sparse-old-day + fresh union ≈ up to 13 reference days can exceed 75K): first,
+    ADAPTIVE SHEDDING — the flood path drops the NEWEST old day (keeping the oldest
+    for progress, never touching fresh), recounts, and proceeds; shed candidates are
+    simply unselected that run (no verdict, no mark) and `refShedDays`/
+    `refShedCandidates` land in counts for audit visibility, so a flood replay
+    self-drains one old day at a time instead of refusing hourly. Only when the fresh
+    window alone — or a single-day/backfill window, which never sheds — still exceeds
+    75K does the run refuse loudly (cron_runs ok=false; that single-window scale is
+    ~2.6× the observed ~28.6K 3-day peak, a backstop) rather than dying or truncating
+    the examined set; a persistent refusal, like every pre-completion death, produces
+    no email until #103 lands. Review-noted accepted residuals: the unrenewed lease
+    span across a large ref fetch+gate (bounded: the pre-write ownership re-check
+    discards cleanly), fetch lacking a LIMIT backstop (count-guard + lease
+    serialization bound it), and the cap being a constant rather than an env knob.
+    Unit (17 tests incl. partition-boundary collapse, cross-theater isolation,
+    cap-refusal write-freedom, SQL-alias pin, all-fresh fallback, shed-and-proceed,
+    shed-exhaustion refusal) + real-Postgres itest (3 scenarios on a disposable fork
+    incl. a fetched-reference exact mirror).
 
 103. **[Tier 1 — monitoring blind spot] Nothing alerts when map runs die BEFORE their own
     health evaluation.** Proven live by #102: eleven consecutive OOM-killed hourly runs
