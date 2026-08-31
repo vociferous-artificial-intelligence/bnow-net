@@ -119,6 +119,17 @@ describe("evaluateMapWatch — problem detection", () => {
 });
 
 describe("evaluateMapWatch — episode dedup + recovery", () => {
+  it("a claim-seeded PARTIAL prior (lastCheckAtMs only) does NOT fire a spurious recovery", () => {
+    // the atomic claim's INSERT arm creates {lastCheckAtMs} with no episode
+    // fields; undefined !== null must not read as "an episode just cleared"
+    const partial = { lastCheckAtMs: NOW - 1 } as unknown as MapWatchState;
+    const e = evaluateMapWatch(healthy(), partial, CFG, NOW);
+    expect(e.fire).toBe(false);
+    expect(e.kind).toBeNull();
+    expect(e.nextState.lastAlertAtMs).toBeNull();
+  });
+
+
   it("the same episode inside the cooldown fires exactly once", () => {
     const first = evaluateMapWatch(healthy({ sweptRecent: 3 }), DEFAULT_MAP_WATCH_STATE, CFG, NOW);
     expect(first.fire).toBe(true);
