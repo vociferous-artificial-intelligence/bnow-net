@@ -687,6 +687,16 @@ async function cycle(
         counts.refShedDays = dropped;
         counts.refShedCandidates = candidates.length - gateCandidates.length;
       }
+      if (dropped > 0 && gateCandidates.length === 0) {
+        // exhaustion with an EMPTY fresh segment: countRefs([]) is 0, so the
+        // cap refusal below would never fire and the run would complete
+        // ok=true having dispositioned nothing — repeating silently every
+        // hour, the exact failure mode this fix exists to eliminate. Refuse
+        // loudly instead.
+        throw new Error(
+          `map dedup reference window overflow: shedding exhausted every candidate day (${dropped} old days, empty fresh segment) — refusing instead of completing a zero-work run`,
+        );
+      }
     }
     counts.refRows = refCount;
     if (refCount > MAP_REF_ROW_CAP) {

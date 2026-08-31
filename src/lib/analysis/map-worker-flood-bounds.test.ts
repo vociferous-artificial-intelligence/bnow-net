@@ -393,6 +393,18 @@ describe("adaptive old-day shedding — an overflowing flood union self-drains i
     expect(h.queries.filter((q) => isRefCount(q.sql))).toHaveLength(2); // initial + 1 recount
   });
 
+  it("exhaustion with an EMPTY fresh segment refuses loudly instead of completing a zero-work run", async () => {
+    h.rowsFor = (sql, params) => {
+      if (isFreshSelect(sql)) return []; // ingestion gap: nothing fresh
+      if (isRefCount(sql)) return [{ n: MAP_REF_ROW_CAP + 1 }]; // over-cap at every width
+      return shedResponder(sql, params);
+    };
+    await expect(runMapCycle({ dryRun: true, theaters: ["ru"] })).rejects.toThrow(
+      /exhausted every candidate day/,
+    );
+    expect(h.queries.filter((q) => isRefFetch(q.sql))).toHaveLength(0);
+  });
+
   it("refuses only when the fresh window ALONE still overflows after shedding every old day", async () => {
     h.rowsFor = (sql, params) => {
       const base = shedResponder(sql, params);
