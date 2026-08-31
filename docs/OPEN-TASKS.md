@@ -1504,3 +1504,21 @@ docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md)
     on an actively-running job inside its ceiling, benign lease contention
     (`counts.skipped`), an empty eligible set, or budget-stop categories the in-run
     alerting already owns. Honest bookkeeping: never fabricate `finished_at`.
+    **STATUS 2026-08-31 — IMPLEMENTED (branch `claude/incident-map-watch-20260831`):**
+    `src/lib/analysis/map-watch.ts` (pure evaluator + episode/cooldown/recovery
+    mirroring map-health; FIVE bounded DB-clock signal queries; mail carrying
+    numbers, fixed reason slugs, and one enum-bounded category string via the
+    existing seams; `provider_state` row `map_watch` claimed ATOMICALLY per
+    10-minute slot — read-then-act would double-evaluate at the several cron
+    minutes ingest:fast shares — and the email send raced against a 10s
+    timeout) hooked at the `withCronRun` start for NON-map job families only,
+    AFTER the host's own row INSERT so a watch stall is visible as a swept host
+    run, dynamically imported so no route's static graph grows, and inert under
+    a test runner (deps-injected tests cover the logic). Progress
+    is keyed on `doc_map_state.mapped_at`, not run ok — a lease-contention
+    `skipped` run cannot mask starvation. 23 unit tests (incl. the KEY scenario:
+    map dead before its own evaluator, watch detects via an ingest start and
+    emails; every no-false-alarm case; throttle; failure-swallowing) + a
+    real-Postgres signals itest pinning the #98 sweep signature. Detection proof
+    is SYNTHETIC (fixtures/mocks); no natural incident evidence yet — the next
+    real pre-completion death class is the first live proof.

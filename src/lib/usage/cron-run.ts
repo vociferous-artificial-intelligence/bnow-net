@@ -122,16 +122,33 @@ export async function sweepTimedOutRuns(): Promise<number> {
 
 async function startRun(job: string): Promise<number | null> {
   await sweepTimedOutRuns();
+  let id: number | null = null;
   try {
     const rows = (await (await sql()).query(
       `INSERT INTO cron_runs (job) VALUES ($1) RETURNING id`,
       [job],
     )) as Array<{ id: number }>;
-    return rows[0]?.id ?? null;
+    id = rows[0]?.id ?? null;
   } catch (e) {
     console.warn(`cron-run: could not open a run row for ${job}: ${msg(e)}`);
-    return null;
   }
+  // #103: the map watchdog rides NON-map job starts (same home as the sweep —
+  // at least every 15 minutes via ingest:fast) so its detection path can never
+  // share the map worker's fate; it claims its slot atomically (one cheap
+  // statement on the common path), bounds its own email send, and swallows
+  // every failure. It runs AFTER the host's row INSERT above so a pathological
+  // stall inside the watch is visible as a swept host run rather than as a
+  // cron that appears never to have fired. Dynamic import keeps the watch out
+  // of every route's static graph.
+  if (!job.startsWith("map")) {
+    try {
+      const { runScheduledMapWatch } = await import("../analysis/map-watch");
+      await runScheduledMapWatch();
+    } catch (e) {
+      console.warn(`cron-run: map watch failed (job unaffected): ${msg(e)}`);
+    }
+  }
+  return id;
 }
 
 async function finishRun(
