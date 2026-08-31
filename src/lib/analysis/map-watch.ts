@@ -126,8 +126,15 @@ export function evaluateMapWatch(
   config: MapWatchConfig,
   nowMs: number,
 ): MapWatchEvaluation {
+  // Normalize BEFORE any branch reads them: the atomic claim's INSERT arm
+  // seeds a PARTIAL row ({lastCheckAtMs} only), so on the first-ever
+  // evaluation prior.episodeKey is undefined — and `undefined !== null` made
+  // the recovery branch fire a spurious "recovered" email at first deploy
+  // (observed live 2026-08-31T21:45:15Z). All comparisons below use the
+  // normalized value.
+  const priorEpisodeKey = prior.episodeKey ?? null;
   const state: MapWatchState = {
-    episodeKey: prior.episodeKey ?? null,
+    episodeKey: priorEpisodeKey,
     lastAlertAtMs: prior.lastAlertAtMs ?? null,
     lastCheckAtMs: nowMs,
   };
@@ -155,7 +162,7 @@ export function evaluateMapWatch(
   let fire = false;
   let kind: "unhealthy" | "recovery" | null = null;
   if (episodeKey !== null) {
-    if (prior.episodeKey === episodeKey && withinCooldown) {
+    if (priorEpisodeKey === episodeKey && withinCooldown) {
       fire = false;
     } else {
       fire = true;
@@ -164,7 +171,7 @@ export function evaluateMapWatch(
     }
     state.episodeKey = episodeKey;
   } else {
-    if (prior.episodeKey !== null) {
+    if (priorEpisodeKey !== null) {
       fire = true;
       kind = "recovery";
       state.lastAlertAtMs = nowMs;
