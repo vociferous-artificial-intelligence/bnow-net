@@ -8,6 +8,7 @@ import {
   type AnalysisDispatchIdentity,
 } from "../llm/model-config";
 import { estimateCostUsd } from "../llm/pricing";
+import { wellFormedSlice } from "../text/well-formed-slice";
 import { isLlmDisabled } from "../usage/llm-guard";
 import { SpendGuard, envCap, envNum, pgUsageStore } from "../usage/spend-guard";
 import type { ClaimForValidation } from "./score";
@@ -81,11 +82,17 @@ Rules:
 - confidence: 0.9+ same event, 0.7 same development described differently, below 0.6 do not match (return null).`;
 
 export function buildMatchUserPrompt(takeawayTexts: string[], claims: ClaimForValidation[]): string {
+  // Whitespace collapse FIRST, then the historical 400/300 code-unit clips —
+  // via wellFormedSlice (#97) so a surrogate pair straddling a clip boundary,
+  // or an isolated surrogate anywhere, can no longer poison the request body
+  // (a lone `\udXXX` escape 400s the whole call, which here degrades QUIETLY
+  // to the keyword matcher per ruling 9). Well-formed in-limit text is
+  // byte-identical to the old builder.
   return (
     "TAKEAWAYS:\n" +
-    takeawayTexts.map((t, i) => `[${i}] ${t.replace(/\s+/g, " ").slice(0, 400)}`).join("\n") +
+    takeawayTexts.map((t, i) => `[${i}] ${wellFormedSlice(t.replace(/\s+/g, " "), 400)}`).join("\n") +
     "\n\nCLAIMS:\n" +
-    claims.map((c) => `(${c.claimId}) ${c.text.replace(/\s+/g, " ").slice(0, 300)}`).join("\n")
+    claims.map((c) => `(${c.claimId}) ${wellFormedSlice(c.text.replace(/\s+/g, " "), 300)}`).join("\n")
   );
 }
 

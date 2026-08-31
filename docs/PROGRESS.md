@@ -3379,3 +3379,27 @@ Execution (same block):
   (embeddings, validation matcher, inert Anthropic, sessions residuals).
   Primary checkout, PR worktree, corpus-v2 drafts, envs/caps/flags/crons/DB
   untouched; zero manual paid calls.
+
+## 2026-08-31T17:55Z — plan: #97 embeddings + validation wellFormedSlice release (session start 17:40Z)
+
+1. Reconstruct state from origin/main `8f1b493` (docs-only ahead of production
+   `6ba72b5` / `dpl_FT3Hdpt2ece4kxQHudxT2FST162p` — verified live); new clean
+   worktree; preserve dirty primary, all worktrees, corpus-v2 drafts.
+2. Repair `embeddings/client.ts truncateInput` and the two
+   `validation/llm-match.ts buildMatchUserPrompt` clips via shared
+   `wellFormedSlice` (budgets/order/valid-input bytes unchanged); document the
+   Anthropic `.slice(0,400)` as a retained dormant defect (no modification).
+3. Before/after boundary repro per site + read-only production-shaped
+   aggregates (claims/ask_usage/openai_embed activity); no paid calls, no
+   backfills.
+4. Tests: boundary + request-path (mocked SDK) + stub-divergence pins;
+   full-suite mutation checks per site. Independent fresh-context reviews;
+   fix confirmed findings.
+5. Gates on final candidate: whitespace/typecheck/lint/unit/integration
+   (disposable Neon fork)/build; focused PR; merge + deploy from the plain
+   release clone once green (rollback = current production
+   `dpl_FT3Hdpt2ece4kxQHudxT2FST162p`/`6ba72b5`).
+6. Smoke + ≥4h natural observation through the next 07:00Z validate (deadline
+   ≤26h post-deploy) with LLM-matcher-executed evidence, embed-path natural
+   traversal if it occurs; then closeout docs PR, #101 refresh, corpus-v2
+   read-only next-step plan.
