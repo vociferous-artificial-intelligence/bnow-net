@@ -114,7 +114,7 @@ const { mapExtractorVersion } = await import("./map-prompts");
 /** short, stable label for the ordering ledger */
 function label(sql: string): string {
   if (/canonical_url AS source_key/.test(sql)) return "select-candidates";
-  if (/BETWEEN \$2::date - 1/.test(sql)) return "select-dedup-refs";
+  if (/rd\.processed = true/.test(sql) && /AS text2k/.test(sql)) return "select-dedup-refs";
   if (/FROM doc_map_state/.test(sql)) return "select-doc-map-state";
   if (/INSERT INTO doc_dedup/.test(sql)) return "WRITE-doc-dedup";
   if (/INSERT INTO doc_claims/.test(sql)) return "WRITE-doc-claims";

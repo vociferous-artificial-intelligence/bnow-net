@@ -95,6 +95,59 @@ function mapRunDocCap(): number {
   return Number.isFinite(v) && v > 0 ? Math.floor(v) : 500;
 }
 
+// -- steady-mode flood bounds (2026-08-31 incident) -------------------------
+// A single MTProto long-park catch-up inserted 447 documents whose
+// published_at reached back eight weeks. The oldest-first steady selection
+// then spanned 58 days, the dedup reference window [minDay-1, maxDay+1]
+// materialized 419K rows (~each with a 2,000-char text2k), and the function
+// was killed for memory (confirmed "instance was killed because it ran out of
+// available memory") after lease acquisition and before any dispatch — every
+// hour, because nothing was ever dispositioned. These bounds make one
+// invocation's dedup work finite regardless of how old the backlog is, while
+// the fresh-window reservation keeps current input flowing as it drains.
+
+/** Max distinct candidate DAYS one steady (hourly) selection may span. Healthy
+ *  steady selections span 1–2 days; a wider span engages the old/fresh split
+ *  below instead of widening the reference window. Backlog days drain
+ *  oldest-first, at most this many days per run. */
+export const MAP_STEADY_SPAN_DAYS = 3;
+
+/** Steady runs reserve up to half the doc cap for documents from the last N
+ *  UTC days (today and yesterday, DB clock), so a historical flood can never
+ *  starve fresh input while it drains — the crash must not be replaced by
+ *  days of freshness loss. */
+export const MAP_FRESH_WINDOW_DAYS = 2;
+
+/** Hard ceiling on dedup reference rows materialized per cycle. Under the
+ *  day-window bounds a realistic window is ≤ ~50K rows; this only fires on a
+ *  pathological single day, turning a silent OOM death into an explicit
+ *  ok=false cron_runs error an operator can see. Nothing is marked processed
+ *  on that path. */
+export const MAP_REF_ROW_CAP = 150_000;
+
+/** yyyy-mm-dd shifted by n UTC days — pure day arithmetic, no clock read. */
+export function shiftDay(day: string, n: number): string {
+  return new Date(Date.parse(`${day}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+}
+
+/** The exact set of reference DAYS the ±1-day dedup rule can match against
+ *  the given candidate days. Replaces the min..max BETWEEN: with sparse
+ *  candidate days (07-05 and 08-29, say) min..max materializes the whole
+ *  two-month window even though every row further than one day from a
+ *  candidate is unmatchable dead weight, while this set is bounded by the
+ *  selection's day-span caps. For any candidate set the MATCHABLE reference
+ *  rows fetched are identical to the BETWEEN's — only never-matchable rows
+ *  are excluded. */
+export function dedupRefDays(candidateDays: string[]): string[] {
+  const out = new Set<string>();
+  for (const d of candidateDays) {
+    out.add(shiftDay(d, -1));
+    out.add(d);
+    out.add(shiftDay(d, 1));
+  }
+  return [...out].sort();
+}
+
 /** Concurrent micro-batch calls. 3 workers ≈ 140K tok/min at measured batch
  *  sizes — inside the 200K Tier-1 TPM (audit §7b) with margin for the digest
  *  crons; a 429 still sleeps out the window per worker. */
@@ -231,6 +284,125 @@ interface CandidateDoc extends DedupDoc {
   adapter: string;
   sourceKey: string | null;
   reliability: number | null;
+}
+
+/** Raw candidate row exactly as the selection SQL returns it. */
+interface CandRowRaw {
+  id: number;
+  title: string | null;
+  content: string;
+  adapter: string;
+  theater: string;
+  day: string;
+  source_key: string | null;
+  reliability: string | number | null;
+  content_md5: string;
+  text2k: string;
+}
+
+/** Steady/backfill candidate selection under the flood bounds.
+ *
+ *  Ordinary path — the eligible backlog spans at most MAP_STEADY_SPAN_DAYS
+ *  distinct days (every healthy hourly run, and every date-scoped backfill run
+ *  by construction since ${dateOp}='=' admits one day): ONE query, byte-identical
+ *  to the historical selection.
+ *
+ *  Flood path — more distinct days than that: fresh-first allocation. Up to
+ *  ceil(docCap/2) documents from the last MAP_FRESH_WINDOW_DAYS UTC days (DB
+ *  clock) keep current input flowing; the remaining capacity drains the OLDEST
+ *  MAP_STEADY_SPAN_DAYS backlog days. Segments are concatenated old-first, so
+ *  global candidate ordering — and therefore dedup first-seen precedence — is
+ *  unchanged, and both segments pass through ONE dedupGate call, so
+ *  candidate-to-candidate matching across the partition boundary is intact.
+ *  Documents outside both windows are simply NOT selected this run: no
+ *  verdict, no processed mark, nothing fabricated — the next run's oldest
+ *  window has moved forward past whatever this run dispositioned. */
+async function selectSteadyCandidateRows(
+  pool: Pool,
+  theaters: string[],
+  dateOp: string,
+  dateParam: string,
+  docCap: number,
+  counts: Record<string, unknown>,
+): Promise<CandRowRaw[]> {
+  const stub = `${STUB_CONTENT_PREFIX}%`;
+  // The historical selection, verbatim; `extra` narrows a flood segment.
+  const selectSql = (extra: string) =>
+    `SELECT rd.id, rd.title, rd.content, rd.adapter, rd.country_iso2 AS theater,
+                COALESCE(rd.published_at, rd.fetched_at)::date::text AS day,
+                s.canonical_url AS source_key, s.reliability_score AS reliability,
+                md5(trim(regexp_replace(rd.content, '\\s+', ' ', 'g'))) AS content_md5,
+                left(coalesce(rd.title, '') || ' ' || rd.content, 2000) AS text2k
+         FROM raw_documents rd
+         LEFT JOIN sources s ON s.id = rd.source_id
+         WHERE rd.processed = false
+           AND rd.country_iso2 = ANY($1)
+           AND length(rd.content) >= 40
+           AND rd.content NOT LIKE $2
+           AND COALESCE(rd.published_at, rd.fetched_at)::date ${dateOp} $3::date${extra}
+         ORDER BY COALESCE(rd.published_at, rd.fetched_at) ASC, rd.id ASC
+         LIMIT $4`;
+
+  // Cheap span probe: the first SPAN+1 distinct eligible days, oldest first.
+  const { rows: dayRows } = await pool.query(
+    `SELECT DISTINCT COALESCE(rd.published_at, rd.fetched_at)::date::text AS day
+       FROM raw_documents rd
+       WHERE rd.processed = false
+         AND rd.country_iso2 = ANY($1)
+         AND length(rd.content) >= 40
+         AND rd.content NOT LIKE $2
+         AND COALESCE(rd.published_at, rd.fetched_at)::date ${dateOp} $3::date
+       ORDER BY day ASC
+       LIMIT ${MAP_STEADY_SPAN_DAYS + 1}`,
+    [theaters, stub, dateParam],
+  );
+  const probeDays = dayRows.map((r) => String(r.day));
+  if (probeDays.length <= MAP_STEADY_SPAN_DAYS) {
+    const { rows } = await pool.query(selectSql(""), [theaters, stub, dateParam, docCap]);
+    return rows as CandRowRaw[];
+  }
+
+  // Flood path. Fresh cutoff from the DB clock (not the function's).
+  const { rows: cutoffRows } = await pool.query(
+    `SELECT ((now() at time zone 'utc')::date - ${MAP_FRESH_WINDOW_DAYS - 1})::text AS d`,
+    [],
+  );
+  // A missing cutoff (defensive; cannot happen against a real DB) fails toward
+  // the BOUNDED old-days-only path, never toward the unbounded historical one.
+  const freshCutoff = cutoffRows[0]?.d ? String(cutoffRows[0].d) : "9999-12-31";
+  const oldDays = probeDays.filter((d) => d < freshCutoff).slice(0, MAP_STEADY_SPAN_DAYS);
+  if (oldDays.length === 0) {
+    // >SPAN distinct days but none older than the fresh window (future-dated
+    // stragglers): the plain selection is day-bounded enough — the reference
+    // fetch is independently bounded by dedupRefDays either way.
+    const { rows } = await pool.query(selectSql(""), [theaters, stub, dateParam, docCap]);
+    return rows as CandRowRaw[];
+  }
+  const freshCap = Math.ceil(docCap / 2);
+  const { rows: freshRows } = await pool.query(
+    selectSql(`
+           AND COALESCE(rd.published_at, rd.fetched_at)::date >= $5::date`),
+    [theaters, stub, dateParam, freshCap, freshCutoff],
+  );
+  const oldCap = docCap - freshRows.length;
+  const oldRows =
+    oldCap > 0
+      ? (
+          await pool.query(
+            selectSql(`
+           AND COALESCE(rd.published_at, rd.fetched_at)::date = ANY($5::date[])`),
+            [theaters, stub, dateParam, oldCap, oldDays],
+          )
+        ).rows
+      : [];
+  counts.floodGuard = {
+    oldDays: oldDays.length,
+    selectedOld: oldRows.length,
+    selectedFresh: freshRows.length,
+  };
+  // old (strictly pre-cutoff) days sort before fresh ones: global oldest-first
+  // ordering is preserved by construction.
+  return [...oldRows, ...freshRows] as CandRowRaw[];
 }
 
 export interface MapCycleOptions {
@@ -421,23 +593,7 @@ async function cycle(
          LIMIT $5`,
         [theaters, `${STUB_CONTENT_PREFIX}%`, dateParam, opts.afterId ?? 0, docCap],
       )
-    : await pool.query(
-        `SELECT rd.id, rd.title, rd.content, rd.adapter, rd.country_iso2 AS theater,
-                COALESCE(rd.published_at, rd.fetched_at)::date::text AS day,
-                s.canonical_url AS source_key, s.reliability_score AS reliability,
-                md5(trim(regexp_replace(rd.content, '\\s+', ' ', 'g'))) AS content_md5,
-                left(coalesce(rd.title, '') || ' ' || rd.content, 2000) AS text2k
-         FROM raw_documents rd
-         LEFT JOIN sources s ON s.id = rd.source_id
-         WHERE rd.processed = false
-           AND rd.country_iso2 = ANY($1)
-           AND length(rd.content) >= 40
-           AND rd.content NOT LIKE $2
-           AND COALESCE(rd.published_at, rd.fetched_at)::date ${dateOp} $3::date
-         ORDER BY COALESCE(rd.published_at, rd.fetched_at) ASC, rd.id ASC
-         LIMIT $4`,
-        [theaters, `${STUB_CONTENT_PREFIX}%`, dateParam, docCap],
-      );
+    : { rows: await selectSteadyCandidateRows(pool, theaters, dateOp, dateParam, docCap, counts) };
   const candidates: CandidateDoc[] = candRows.map((r) => ({
     id: r.id,
     theater: r.theater,
@@ -471,21 +627,48 @@ async function cycle(
     counts.mirrors = 0;
     counts.canonical = canonical.length;
   } else {
-    const days = candidates.map((c) => c.day).sort();
+    // Reference fetch by exact ±1-day IN-list (dedupRefDays), never min..max
+    // BETWEEN: sparse candidate days must not widen the window to every day in
+    // between (the 2026-08-31 incident materialized 419K rows that way and the
+    // instance was OOM-killed). Verdicts are unchanged — the rows excluded are
+    // exactly the ones the gate's ±1-day rule could never match.
+    const refDays = dedupRefDays([...new Set(candidates.map((c) => c.day))]);
+    const { rows: refCountRows } = await pool.query(
+      `SELECT count(*)::int AS n
+       FROM raw_documents rd
+       WHERE rd.processed = true
+         AND rd.country_iso2 = ANY($1)
+         AND COALESCE(rd.published_at, rd.fetched_at)::date = ANY($2::date[])
+         AND NOT EXISTS (SELECT 1 FROM doc_dedup dd WHERE dd.raw_document_id = rd.id)`,
+      [theaters, refDays],
+    );
+    const refCount = Number(refCountRows[0]?.n ?? 0);
+    counts.refRows = refCount;
+    if (refCount > MAP_REF_ROW_CAP) {
+      // explicit ok=false failure instead of a silent memory kill; nothing was
+      // marked processed and no verdict was fabricated for the unexamined set
+      throw new Error(
+        `map dedup reference window overflow: ${refCount} reference rows over ${refDays.length} days exceed the ${MAP_REF_ROW_CAP}-row cap — refusing before materialization`,
+      );
+    }
+    // The md5 column is aliased to the DedupDoc field name: the historical
+    // snake_case alias left contentMd5 undefined on every reference row, so
+    // the gate's exact-md5 arm silently never fired against references (the
+    // minhash arm still caught those dupes at jaccard ~1, mis-labeled
+    // "minhash") — verdicts are preserved, the method label becomes honest.
     const { rows: refRows } = await pool.query(
       `SELECT rd.id, rd.country_iso2 AS theater,
               COALESCE(rd.published_at, rd.fetched_at)::date::text AS day,
-              md5(trim(regexp_replace(rd.content, '\\s+', ' ', 'g'))) AS content_md5,
+              md5(trim(regexp_replace(rd.content, '\\s+', ' ', 'g'))) AS "contentMd5",
               left(coalesce(rd.title, '') || ' ' || rd.content, 2000) AS text2k
        FROM raw_documents rd
        WHERE rd.processed = true
          AND rd.country_iso2 = ANY($1)
-         AND COALESCE(rd.published_at, rd.fetched_at)::date
-               BETWEEN $2::date - 1 AND $3::date + 1
+         AND COALESCE(rd.published_at, rd.fetched_at)::date = ANY($2::date[])
          AND NOT EXISTS (SELECT 1 FROM doc_dedup dd WHERE dd.raw_document_id = rd.id)`,
-      [theaters, days[0], days[days.length - 1]],
+      [theaters, refDays],
     );
-    const gate = dedupGate(candidates, refRows as DedupDoc[]);
+    const gate = dedupGate(candidates, refRows as unknown as DedupDoc[]);
     mirrors = gate.mirrors;
     canonical = gate.canonical;
     counts.mirrors = mirrors.length;

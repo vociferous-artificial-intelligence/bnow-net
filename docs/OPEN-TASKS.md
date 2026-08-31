@@ -1421,3 +1421,45 @@ docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md)
     Cross-reference: the ruling-4 ordering (set the env BEFORE deploying anything that
     reads it) does not apply here — the guard already reads this env; a plain env edit +
     redeploy suffices when authorized.
+
+### New (from the 2026-08-31 map OOM incident)
+
+102. **[Tier 1 — reliability incident, fix in review] Steady map selection had no day-span
+    bound and the dedup reference window had no materialization bound.** On 2026-08-31 the
+    07:03Z MTProto long-park catch-up inserted 447 documents whose `published_at` reached
+    back to 2026-06-14 (t.me/kharkivnapriamok 211, t.me/pushilindenis 192, t.me/sladkov_plus
+    44, all fetched 07:04:33Z). The oldest-first hourly selection then spanned 58 days, the
+    dedup reference `BETWEEN minDay-1 AND maxDay+1` matched **419,360** processed rows (each
+    with a 2,000-char text2k), and the function was killed for memory — CONFIRMED from
+    runtime logs: `Vercel Runtime Error: instance was killed because it ran out of available
+    memory` — after lease acquisition and before any provider dispatch, EVERY hour from
+    07:40Z (11 consecutive #98-swept runs 07:40→17:40Z), because nothing was ever
+    dispositioned. `doc_claims` froze at 06:40:57Z; zero `openai_map` spend all day after;
+    NO operator alert fired (`map_health` evaluates only inside completing runs — the
+    monitoring blind spot is its own follow-up item). Service was restored the same day by
+    driving the existing date-scoped backfill route over the affected days (normal
+    disposition path, `scripts/map-backfill.ts`, ≤$1 authorized manual spend; recovery
+    record in the incident review). FIX (branch
+    `claude/incident-map-dedup-bounds-20260831`): (1) steady selection probes its distinct
+    eligible days and, above `MAP_STEADY_SPAN_DAYS` (3), splits fresh-first — up to
+    ceil(docCap/2) docs from the last `MAP_FRESH_WINDOW_DAYS` (2, DB clock) so a historical
+    flood can never starve fresh input, remainder from the OLDEST 3 backlog days;
+    concatenated old-first so ordering/precedence are unchanged and ONE dedupGate call
+    keeps candidate-to-candidate matching across the partition; ordinary-span runs take the
+    historical single query byte-identically; (2) the reference fetch uses the exact
+    ±1-day IN-list per candidate day (`dedupRefDays`) — sparse candidate days no longer
+    widen the window to every day between them; excluded rows are precisely the
+    never-matchable ones; (3) `MAP_REF_ROW_CAP` (150K) refuses BEFORE materializing a
+    pathological window with an explicit ok=false error — nothing marked, no verdict
+    fabricated — instead of a silent OOM death (observed 3-day windows peak ~28.6K rows);
+    (4) discovered while pinning the gate: the reference rows' snake_case `content_md5`
+    alias left `DedupDoc.contentMd5` undefined, so the exact-md5 arm NEVER fired against
+    references (dupes were still caught by the minhash arm at jaccard ~1, mis-labeled
+    "minhash") — the alias is fixed and the exact arm is now live and test-pinned.
+    Unselected out-of-window documents keep `processed=false` untouched until a later
+    run's window reaches them (backlog drains ≥3 days/hour). Dense-day policy: a single
+    day whose ±1 window exceeds 150K rows refuses loudly (visible in cron_runs) rather
+    than dying or truncating the examined set — at ~15× the observed peak this is a
+    backstop, not an expected path. Unit (14 tests incl. partition-boundary collapse,
+    cross-theater isolation, cap-refusal write-freedom) + real-Postgres itest (2 flood
+    timelines on a disposable fork).
