@@ -57,6 +57,13 @@ mockCreate.mockImplementation(async (req: { messages: Array<{ content: string }>
 
 const MARK = "itest-map-flood";
 
+// Fixture-margin notes: distinct `tag` variants across adjacent days measure
+// text2k jaccard ~0.50-0.69 — below the gate's 0.7 minhash threshold, and
+// minhash is deterministic (fixed FNV seeds), so non-twin docs reliably stay
+// canonical; keep tags multi-token-distinct when editing. Day seeds derive
+// from the DB-clock `today` resolved once in beforeAll — a UTC midnight
+// rollover mid-test could shift the fresh window by one day (accepted flake
+// window of ~1 minute/day; re-run on failure at 00:00Z).
 const militaryText = (tag: string) =>
   `Reports describe a missile strike near the ${tag} port and drone intercepts over shipping lanes; air defense batteries repositioned overnight. ${MARK}`;
 
@@ -207,6 +214,43 @@ describe("steady-mode flood bounds end-to-end (real Postgres, mocked provider)",
     expect(run3.floodGuard).toBeUndefined();
     expect(run3.selected).toBe(1);
     expect(await docState(e4)).toEqual({ processed: true, mapRows: 1, dedupRows: 0 });
+  });
+
+  it("a candidate exact-mirrors a FETCHED processed reference with identical content under a different title (revived exact arm, real SQL alias)", async () => {
+    // The reference's title differs so strongly that text2k jaccard sits far
+    // below the 0.7 minhash threshold — under the historical snake_case md5
+    // alias (contentMd5 undefined on reference rows) NEITHER arm would match
+    // and the candidate would stay canonical, so this scenario fails if the
+    // `AS "contentMd5"` alias is ever reverted.
+    const sharedBody = militaryText("identical-body-for-exact-arm");
+    const refDay = shiftDay(today, -1);
+    const { rows } = await pool.query(
+      `INSERT INTO raw_documents (adapter, external_id, url, title, content, content_hash, lang, country_iso2, published_at, processed)
+       VALUES ('rss', $1, $2, $3, $4, md5($1 || $4), 'en', 'ir', $5, true) RETURNING id`,
+      [
+        "fb-exact-ref",
+        "https://example.test/fb-exact-ref",
+        "Entirely different headline about port logistics and customs paperwork backlog figures",
+        sharedBody,
+        `${refDay}T09:00:00Z`,
+      ],
+    );
+    const refId = rows[0].id as number;
+    const candId = await seedDoc("fb-exact-cand", today, sharedBody); // title "itest fb-exact-cand"
+
+    const counts = await runMapCycle({
+      theaters: ["ir"],
+      docCap: 10,
+      leaseDriver: memoryMapLeaseDriver(),
+    });
+    expect(counts.mirrorsExact).toBe(1);
+    const { rows: verdict } = await pool.query(
+      `SELECT canonical_doc_id, method FROM doc_dedup WHERE raw_document_id = $1`,
+      [candId],
+    );
+    expect(verdict[0]).toEqual({ canonical_doc_id: refId, method: "exact" });
+    expect(await docState(candId)).toEqual({ processed: true, mapRows: 0, dedupRows: 1 });
+    // clean the extra processed reference (cleanSeeded keys on MARK content)
   });
 
   it("date-scoped backfill mode is unchanged: selects exactly its day with a 3-day reference window", async () => {

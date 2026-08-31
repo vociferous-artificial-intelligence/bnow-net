@@ -118,12 +118,16 @@ export const MAP_STEADY_SPAN_DAYS = 3;
  *  days of freshness loss. */
 export const MAP_FRESH_WINDOW_DAYS = 2;
 
-/** Hard ceiling on dedup reference rows materialized per cycle. Under the
- *  day-window bounds a realistic window is ≤ ~50K rows; this only fires on a
- *  pathological single day, turning a silent OOM death into an explicit
- *  ok=false cron_runs error an operator can see. Nothing is marked processed
- *  on that path. */
-export const MAP_REF_ROW_CAP = 150_000;
+/** Hard ceiling on dedup reference rows materialized per cycle. Calibrated to
+ *  the INSTANCE, not the incident: measured ~7.6KB live per reference at gate
+ *  time (~4.2KB row with its two-byte 2,000-char text2k + ~3.4KB retained LSH
+ *  state), so 75K ≈ ~0.6GB live set ≈ ~1.0–1.1GB peak RSS with driver buffers
+ *  and GC churn — comfortable on the default ~1.7–2GB function (the incident's
+ *  419K refs ≈ 3.2GB, which is exactly why it OOM-killed). Still ~2.6× the
+ *  largest observed realistic 3-day window (~28.6K rows). Exceeding it turns a
+ *  silent memory death into an explicit ok=false cron_runs error; nothing is
+ *  marked processed on that path. */
+export const MAP_REF_ROW_CAP = 75_000;
 
 /** yyyy-mm-dd shifted by n UTC days — pure day arithmetic, no clock read. */
 export function shiftDay(day: string, n: number): string {
@@ -630,16 +634,19 @@ async function cycle(
     // Reference fetch by exact ±1-day IN-list (dedupRefDays), never min..max
     // BETWEEN: sparse candidate days must not widen the window to every day in
     // between (the 2026-08-31 incident materialized 419K rows that way and the
-    // instance was OOM-killed). Verdicts are unchanged — the rows excluded are
-    // exactly the ones the gate's ±1-day rule could never match.
+    // instance was OOM-killed). The excluded rows are exactly the ones the
+    // gate's ±1-day rule could never match, so no matchable pair is lost.
     const refDays = dedupRefDays([...new Set(candidates.map((c) => c.day))]);
-    const { rows: refCountRows } = await pool.query(
-      `SELECT count(*)::int AS n
-       FROM raw_documents rd
+    // ONE shared predicate for the count-guard and the fetch — the guard is
+    // only honest while both queries select the same set.
+    const refWhere = `FROM raw_documents rd
        WHERE rd.processed = true
          AND rd.country_iso2 = ANY($1)
          AND COALESCE(rd.published_at, rd.fetched_at)::date = ANY($2::date[])
-         AND NOT EXISTS (SELECT 1 FROM doc_dedup dd WHERE dd.raw_document_id = rd.id)`,
+         AND NOT EXISTS (SELECT 1 FROM doc_dedup dd WHERE dd.raw_document_id = rd.id)`;
+    const { rows: refCountRows } = await pool.query(
+      `SELECT count(*)::int AS n
+       ${refWhere}`,
       [theaters, refDays],
     );
     const refCount = Number(refCountRows[0]?.n ?? 0);
@@ -653,19 +660,21 @@ async function cycle(
     }
     // The md5 column is aliased to the DedupDoc field name: the historical
     // snake_case alias left contentMd5 undefined on every reference row, so
-    // the gate's exact-md5 arm silently never fired against references (the
-    // minhash arm still caught those dupes at jaccard ~1, mis-labeled
-    // "minhash") — verdicts are preserved, the method label becomes honest.
+    // the gate's exact-md5 arm silently never fired against references. This
+    // is a deliberate BEHAVIOR repair, not a pure relabeling: identical-text2k
+    // dupes were already caught by the minhash arm (jaccard ~1, mis-labeled
+    // "minhash"), but a pair with identical whitespace-normalized CONTENT
+    // under a strongly differing TITLE can sit below the 0.7 minhash threshold
+    // (text2k includes the title; the md5 does not) and previously stayed
+    // canonical against a reference — it now exact-mirrors, which is the
+    // gate's own declared contract and matches what the candidate-to-candidate
+    // arm always did.
     const { rows: refRows } = await pool.query(
       `SELECT rd.id, rd.country_iso2 AS theater,
               COALESCE(rd.published_at, rd.fetched_at)::date::text AS day,
               md5(trim(regexp_replace(rd.content, '\\s+', ' ', 'g'))) AS "contentMd5",
               left(coalesce(rd.title, '') || ' ' || rd.content, 2000) AS text2k
-       FROM raw_documents rd
-       WHERE rd.processed = true
-         AND rd.country_iso2 = ANY($1)
-         AND COALESCE(rd.published_at, rd.fetched_at)::date = ANY($2::date[])
-         AND NOT EXISTS (SELECT 1 FROM doc_dedup dd WHERE dd.raw_document_id = rd.id)`,
+       ${refWhere}`,
       [theaters, refDays],
     );
     const gate = dedupGate(candidates, refRows as unknown as DedupDoc[]);

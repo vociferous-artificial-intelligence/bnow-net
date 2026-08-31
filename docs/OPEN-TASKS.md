@@ -1436,10 +1436,11 @@ docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md)
     07:40Z (11 consecutive #98-swept runs 07:40→17:40Z), because nothing was ever
     dispositioned. `doc_claims` froze at 06:40:57Z; zero `openai_map` spend all day after;
     NO operator alert fired (`map_health` evaluates only inside completing runs — the
-    monitoring blind spot is its own follow-up item). Service was restored the same day by
+    monitoring blind spot is #103). Service was restored the same day by
     driving the existing date-scoped backfill route over the affected days (normal
     disposition path, `scripts/map-backfill.ts`, ≤$1 authorized manual spend; recovery
-    record in the incident review). FIX (branch
+    record in the forthcoming incident review
+    `docs/reviews/MAP-FLOOD-OOM-INCIDENT-2026-08-31.md`, written at closeout). FIX (branch
     `claude/incident-map-dedup-bounds-20260831`): (1) steady selection probes its distinct
     eligible days and, above `MAP_STEADY_SPAN_DAYS` (3), splits fresh-first — up to
     ceil(docCap/2) docs from the last `MAP_FRESH_WINDOW_DAYS` (2, DB clock) so a historical
@@ -1449,17 +1450,48 @@ docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md)
     historical single query byte-identically; (2) the reference fetch uses the exact
     ±1-day IN-list per candidate day (`dedupRefDays`) — sparse candidate days no longer
     widen the window to every day between them; excluded rows are precisely the
-    never-matchable ones; (3) `MAP_REF_ROW_CAP` (150K) refuses BEFORE materializing a
+    never-matchable ones; (3) `MAP_REF_ROW_CAP` (75K — sized to the INSTANCE from
+    measured ~7.6KB live per reference: ~0.6GB live / ~1.0–1.1GB peak on the default
+    ~1.7–2GB function, vs the incident's 419K ≈ 3.2GB) refuses BEFORE materializing a
     pathological window with an explicit ok=false error — nothing marked, no verdict
-    fabricated — instead of a silent OOM death (observed 3-day windows peak ~28.6K rows);
+    fabricated — instead of a silent OOM death;
     (4) discovered while pinning the gate: the reference rows' snake_case `content_md5`
     alias left `DedupDoc.contentMd5` undefined, so the exact-md5 arm NEVER fired against
-    references (dupes were still caught by the minhash arm at jaccard ~1, mis-labeled
-    "minhash") — the alias is fixed and the exact arm is now live and test-pinned.
+    references. Reviving it is a deliberate BEHAVIOR repair, not relabeling:
+    identical-text2k dupes were already minhash-caught at jaccard ~1 (mis-labeled), but
+    an identical-content pair under a strongly differing TITLE can sit below the 0.7
+    minhash threshold and previously stayed canonical against a reference — it now
+    exact-mirrors, matching the gate's declared content-md5 contract and the
+    candidate-to-candidate arm's historical behavior; the alias is pinned at the SQL
+    level (unit) and against a fetched reference (itest).
     Unselected out-of-window documents keep `processed=false` untouched until a later
-    run's window reaches them (backlog drains ≥3 days/hour). Dense-day policy: a single
-    day whose ±1 window exceeds 150K rows refuses loudly (visible in cron_runs) rather
-    than dying or truncating the examined set — at ~15× the observed peak this is a
-    backstop, not an expected path. Unit (14 tests incl. partition-boundary collapse,
-    cross-theater isolation, cap-refusal write-freedom) + real-Postgres itest (2 flood
-    timelines on a disposable fork).
+    run's window reaches them (the old segment drains AT MOST `MAP_STEADY_SPAN_DAYS`=3
+    backlog days per hourly run; fresh input continues meanwhile). Dense-day policy: a
+    single day whose ±1 window exceeds 75K reference rows refuses loudly every run
+    (visible as cron_runs ok=false; ~2.6× the observed ~28.6K 3-day-window peak, so a
+    backstop, not an expected path) rather than dying or truncating the examined set —
+    a persistent overflow starves that window until operator action and, like every
+    pre-completion death, produces no email until #103 lands. Review-noted accepted
+    residuals: the unrenewed lease span across a large ref fetch+gate (bounded: the
+    pre-write ownership re-check discards cleanly), fetch lacking a LIMIT backstop
+    (count-guard + lease serialization bound it), and the cap being a constant rather
+    than an env knob. Unit (16 tests incl. partition-boundary collapse, cross-theater
+    isolation, cap-refusal write-freedom, SQL-alias pin, all-fresh fallback) +
+    real-Postgres itest (3 scenarios on a disposable fork incl. a fetched-reference
+    exact mirror).
+
+103. **[Tier 1 — monitoring blind spot] Nothing alerts when map runs die BEFORE their own
+    health evaluation.** Proven live by #102: eleven consecutive OOM-killed hourly runs
+    (07:40→17:40Z on 2026-08-31) produced #98-swept `ok=false` rows, a frozen
+    `doc_claims`, and ZERO operator email — `runScheduledMapHealth` executes only inside
+    a COMPLETING steady run, and the #102 ref-cap refusal throws before it too. Fix
+    direction (its own focused PR): a cheap map-watch check piggybacked on an
+    independently completing operational path (e.g. the ingest-family `withCronRun`
+    start, where the #98 sweep already lives), throttled via a `provider_state` row,
+    detecting (a) ≥2 consecutive swept/failed map runs, (b) no map-family success AND
+    stale `doc_claims` progress while eligible work exists, (c) a missing scheduled
+    start; alerting through the existing episode-deduped `map-health` mail
+    infrastructure with a recovery notice, numeric-only content; explicitly NOT firing
+    on an actively-running job inside its ceiling, benign lease contention
+    (`counts.skipped`), an empty eligible set, or budget-stop categories the in-run
+    alerting already owns. Honest bookkeeping: never fabricate `finished_at`.

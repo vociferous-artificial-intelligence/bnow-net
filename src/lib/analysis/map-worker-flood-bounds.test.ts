@@ -310,6 +310,38 @@ describe("flood path — old/fresh split with bounded reference window", () => {
     const counts = await runMapCycle({ dryRun: true, theaters: ["ru"] });
     expect(counts.mirrorsExact).toBe(1);
     expect(counts.refRows).toBe(1);
+    // SQL-level pin of the exact-arm repair: the historical snake_case alias
+    // (AS content_md5) left DedupDoc.contentMd5 undefined on every reference
+    // row, silently disabling the exact arm against references. The fixture
+    // rows above bypass SQL, so without this assertion an alias revert
+    // survives the whole suite.
+    const refFetch = h.queries.find((q) => isRefFetch(q.sql))!;
+    expect(refFetch.sql).toContain('AS "contentMd5"');
+  });
+
+  it(">SPAN distinct days ALL at/after the fresh cutoff falls back to the plain bounded query", async () => {
+    // future-dated stragglers: more distinct days than the span cap, none
+    // older than the fresh window — the split has no old segment to protect,
+    // and the reference fetch stays day-IN-list bounded regardless.
+    h.rowsFor = (sql) => {
+      if (isProbe(sql))
+        return [
+          { day: "2026-08-30" },
+          { day: "2026-08-31" },
+          { day: "2026-09-01" },
+          { day: "2026-09-15" },
+        ];
+      if (isCutoff(sql)) return [{ d: "2026-08-30" }];
+      if (isPlainSelect(sql)) return [doc(1, "2026-08-30")];
+      if (isRefCount(sql)) return [{ n: 0 }];
+      return [];
+    };
+    const counts = await runMapCycle({ dryRun: true, theaters: ["ru"] });
+    expect(counts.floodGuard).toBeUndefined();
+    expect(h.queries.filter((q) => isOldSelect(q.sql) || isFreshSelect(q.sql))).toHaveLength(0);
+    expect(h.queries.filter((q) => isPlainSelect(q.sql))).toHaveLength(1);
+    const refFetch = h.queries.find((q) => isRefFetch(q.sql))!;
+    expect(refFetch.params[1]).toEqual(["2026-08-29", "2026-08-30", "2026-08-31"]);
   });
 });
 
