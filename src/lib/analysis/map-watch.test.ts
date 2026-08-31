@@ -334,20 +334,31 @@ describe("buildMapWatchEmail — content safety", () => {
 describe("cron-run hook — the watch rides NON-map job starts only", () => {
   it("withCronRun triggers the watch for ingest jobs and never for map-family jobs", async () => {
     vi.resetModules();
-    const watchCalls: string[] = [];
+    const order: string[] = [];
     vi.doMock("./map-watch", () => ({
       runScheduledMapWatch: async () => {
-        watchCalls.push("called");
+        order.push("watch");
         return { evaluated: 1, alertKind: 0, alertDelivery: 0 };
       },
     }));
-    vi.doMock("@/db", () => ({ rawSql: { query: async () => [] } }));
+    vi.doMock("@/db", () => ({
+      rawSql: {
+        query: async (sql: string) => {
+          if (/INSERT INTO cron_runs/.test(sql)) order.push("insert");
+          return [];
+        },
+      },
+    }));
     const { withCronRun } = await import("../usage/cron-run");
     await withCronRun("ingest:fast", async () => 1);
+    const watchCalls = order.filter((x) => x === "watch");
     expect(watchCalls).toHaveLength(1);
+    // the watch runs AFTER the host row exists, so a watch stall is visible
+    // as a swept host run instead of a cron that never appears to have fired
+    expect(order.indexOf("watch")).toBeGreaterThan(order.indexOf("insert"));
     await withCronRun("map", async () => 1);
     await withCronRun("map:backfill", async () => 1);
-    expect(watchCalls).toHaveLength(1); // unchanged — map never triggers itself
+    expect(order.filter((x) => x === "watch")).toHaveLength(1); // map never triggers itself
     vi.doUnmock("./map-watch");
     vi.doUnmock("@/db");
     vi.resetModules();
