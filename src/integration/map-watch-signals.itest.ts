@@ -50,3 +50,20 @@ describe("loadMapWatchSignals against a production fork", () => {
     expect(after.lastStartAgeSec).toBeLessThanOrEqual(60); // the seed just started
   });
 });
+
+describe("pgClaimWatchSlot against a production fork", () => {
+  it("first claim wins, an immediate second claim throttles, an aged slot re-claims", async () => {
+    const { pgClaimWatchSlot } = await import("@/lib/analysis/map-watch");
+    const q = (sql: string, params: unknown[]) =>
+      pool.query(sql, params).then((r) => r.rows) as Promise<Array<Record<string, unknown>>>;
+    await pool.query(`DELETE FROM provider_state WHERE provider = 'map_watch'`);
+    try {
+      const t = 1_788_200_000_000;
+      expect(await pgClaimWatchSlot(q, t, 600_000)).toBe(true); // fresh row
+      expect(await pgClaimWatchSlot(q, t + 1_000, 600_000)).toBe(false); // inside interval
+      expect(await pgClaimWatchSlot(q, t + 600_000, 600_000)).toBe(true); // slot aged out
+    } finally {
+      await pool.query(`DELETE FROM provider_state WHERE provider = 'map_watch'`);
+    }
+  });
+});

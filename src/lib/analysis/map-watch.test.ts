@@ -13,6 +13,7 @@ const {
 } = await import("./map-watch");
 
 const { MAP_EPOCH, mapTheaters } = await import("./map-worker");
+const { STUB_CONTENT_PREFIX } = await import("../adapters/stubs");
 
 const CFG = {
   checkIntervalMs: 600_000,
@@ -20,6 +21,7 @@ const CFG = {
   startStaleMs: 75 * 60_000,
   progressStaleMs: 3 * 3600_000,
   cooldownMs: 6 * 3600_000,
+  emailTimeoutMs: 5_000,
 };
 
 const NOW = 1_788_200_000_000;
@@ -161,6 +163,7 @@ describe("runMapWatchCheck — the KEY incident scenario end-to-end", () => {
       saved,
       queries,
       deps: {
+        claimSlot: async () => true,
         loadState: async () => null,
         saveState: async (_p: string, s: Record<string, unknown>) => {
           saved.push(s);
@@ -201,17 +204,41 @@ describe("runMapWatchCheck — the KEY incident scenario end-to-end", () => {
     expect(h.saved[0].episodeKey).toBe("map_no_progress,map_timeouts");
   });
 
-  it("throttles: a second check inside the interval does ONE state read and ZERO signal queries", async () => {
-    const h = deps({
-      loadState: async <T,>() =>
-        ({ episodeKey: null, lastAlertAtMs: null, lastCheckAtMs: NOW - 60_000 }) as T,
-    });
+  it("throttles: a lost atomic claim does ZERO signal queries, sends nothing, saves nothing", async () => {
+    const h = deps({ claimSlot: async () => false });
     const out = await runMapWatchCheck(h.deps, CFG);
     expect(out.throttled).toBe(true);
     expect(out.evaluated).toBe(false);
     expect(h.queries).toHaveLength(0);
     expect(h.sent).toHaveLength(0);
-    expect(h.saved).toHaveLength(0); // throttled path writes nothing
+    expect(h.saved).toHaveLength(0);
+  });
+
+  it("claims the slot BEFORE any signal query (concurrent starts cannot double-evaluate)", async () => {
+    const order: string[] = [];
+    const h = deps({
+      claimSlot: async () => {
+        order.push("claim");
+        return true;
+      },
+    });
+    const wrapped = h.deps.query;
+    h.deps.query = async (sql: string, params: unknown[]) => {
+      order.push("query");
+      return wrapped(sql, params);
+    };
+    await runMapWatchCheck(h.deps, CFG);
+    expect(order[0]).toBe("claim");
+  });
+
+  it("a hung email send is bounded by the timeout and recorded as failed", async () => {
+    const h = deps({
+      sendEmail: () => new Promise(() => {}), // never settles
+    });
+    const out = await runMapWatchCheck(h.deps, { ...CFG, emailTimeoutMs: 20 });
+    expect(out.alert).toBe("unhealthy");
+    expect(out.delivery).toBe("failed");
+    expect(h.saved).toHaveLength(1); // state still advances past the stall
   });
 
   it("state/query failures are swallowed — the host job is never broken", async () => {
@@ -234,7 +261,7 @@ describe("runMapWatchCheck — the KEY incident scenario end-to-end", () => {
 });
 
 describe("loadMapWatchSignals — query shapes", () => {
-  it("issues four bounded queries and maps rows to signals", async () => {
+  it("issues five bounded queries and maps rows to signals", async () => {
     const seen: Array<{ sql: string; params: unknown[] }> = [];
     const signals = await loadMapWatchSignals(async (sql, params) => {
       seen.push({ sql, params });
@@ -252,6 +279,7 @@ describe("loadMapWatchSignals — query shapes", () => {
       eligibleExists: false,
       lastBudgetStopCategory: "daily_cap",
     });
+    expect(seen).toHaveLength(5);
     // the swept query keys on the #98 sweep signature, never fabricating
     // finish instants: ok=false AND finished_at IS NULL
     const swept = seen.find((q) => /count\(\*\)::int AS n/.test(q.sql))!;
@@ -268,7 +296,7 @@ describe("duplicated eligibility constants stay in lockstep with map-worker", ()
       "utf8",
     );
     expect(src).toContain(`const MAP_EPOCH = "${MAP_EPOCH}"`);
-    expect(src).toContain('const STUB_CONTENT_PREFIX = "[STUB FIXTURE]"');
+    expect(src).toContain(`const STUB_CONTENT_PREFIX = "${STUB_CONTENT_PREFIX}"`);
     // theater parsing: same env, same default as mapTheaters()
     delete process.env.MAP_THEATERS;
     expect(mapTheaters()).toEqual(["ru", "ua", "ir"]);
@@ -277,6 +305,18 @@ describe("duplicated eligibility constants stay in lockstep with map-worker", ()
 });
 
 describe("buildMapWatchEmail — content safety", () => {
+  it("bounds the one DB-derived string to the known category enum", () => {
+    const mail = buildMapWatchEmail(
+      "ops@example.test",
+      "unhealthy",
+      ["map_no_progress"],
+      healthy({ lastBudgetStopCategory: "SELECT pg_sleep(1); --" }),
+      NOW,
+    );
+    expect(mail.text).toContain("lastBudgetStop=other");
+    expect(mail.text).not.toContain("pg_sleep");
+  });
+
   it("carries only numeric signals and reason slugs", () => {
     const mail = buildMapWatchEmail(
       "ops@example.test",

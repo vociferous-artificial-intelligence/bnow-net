@@ -90,6 +90,9 @@ export interface MapWatchConfig {
   /** disposition staleness that counts as "no progress" */
   progressStaleMs: number;
   cooldownMs: number;
+  /** ceiling on the alert email send — the watch runs inside OTHER jobs'
+   *  startup and must never let a hung mail provider stall a host cron */
+  emailTimeoutMs: number;
 }
 
 export function mapWatchConfigFromEnv(): MapWatchConfig {
@@ -99,6 +102,7 @@ export function mapWatchConfigFromEnv(): MapWatchConfig {
     startStaleMs: envNum("MAP_WATCH_START_STALE_SEC", 75 * 60) * 1000,
     progressStaleMs: envNum("MAP_WATCH_PROGRESS_STALE_SEC", 3 * 3600) * 1000,
     cooldownMs: envNum("MAP_WATCH_COOLDOWN_SEC", 6 * 3600) * 1000,
+    emailTimeoutMs: envNum("MAP_WATCH_EMAIL_TIMEOUT_SEC", 10) * 1000,
   };
 }
 
@@ -175,7 +179,7 @@ export function evaluateMapWatch(
 
 type QueryFn = (sql: string, params: unknown[]) => Promise<Array<Record<string, unknown>>>;
 
-/** Four bounded queries; every instant is DB-clock-derived (epoch seconds),
+/** Five bounded queries; every instant is DB-clock-derived (epoch seconds),
  *  never a driver-rendered timestamp string. */
 export async function loadMapWatchSignals(
   query: QueryFn,
@@ -239,6 +243,15 @@ export function buildMapWatchEmail(
 ): OutboundEmail {
   const status = kind === "recovery" ? "RECOVERED" : "UNHEALTHY";
   const reasonLine = reasons.length ? reasons.join(", ") : kind === "recovery" ? "resumed" : "unknown";
+  // the one DB-derived string in the mail is enum-bounded before rendering —
+  // a corrupt counts JSON must not flow verbatim into an operator email
+  const budgetStop =
+    signals.lastBudgetStopCategory === null
+      ? "none"
+      : BUDGET_OWNED.has(signals.lastBudgetStopCategory) ||
+          signals.lastBudgetStopCategory === "run_cap"
+        ? signals.lastBudgetStopCategory
+        : "other";
   const lines = [
     `Map stage watchdog (independent of map-run completion) — ${status}.`,
     "",
@@ -247,7 +260,7 @@ export function buildMapWatchEmail(
     "",
     `Signals: sweptTimeouts=${signals.sweptRecent} lastStartAgeSec=${signals.lastStartAgeSec ?? "none"} ` +
       `dispositionAgeSec=${signals.dispositionAgeSec ?? "none"} eligibleWork=${signals.eligibleExists ? 1 : 0} ` +
-      `lastBudgetStop=${signals.lastBudgetStopCategory ?? "none"}`,
+      `lastBudgetStop=${budgetStop}`,
     "",
     "map_timeouts: map runs are dying before completion (the in-run health check",
     "cannot see this class); map_no_start: the hourly cron is not firing;",
@@ -274,6 +287,12 @@ export interface MapWatchOutcome {
 }
 
 export interface MapWatchDeps {
+  /** Atomically claim the next check slot: true = this caller evaluates now,
+   *  false = another caller inside the interval already holds it. Read-then-act
+   *  through loadState is NOT enough — several crons share a wall-clock minute
+   *  with ingest:fast, and two starts passing a stale read together would
+   *  double-evaluate and, mid-incident, double-email. */
+  claimSlot(nowMs: number, intervalMs: number): Promise<boolean>;
   loadState<T extends Record<string, unknown>>(provider: string): Promise<T | null>;
   saveState(provider: string, state: Record<string, unknown>): Promise<void>;
   sendEmail(mail: OutboundEmail): Promise<{ delivered: boolean; via: string }>;
@@ -282,8 +301,31 @@ export interface MapWatchDeps {
   query: QueryFn;
 }
 
-/** Evaluate the watch once per interval: one state read on the throttled path,
- *  four bounded queries + episode-deduped alert otherwise. Never throws. */
+/** Production claim: one conditional statement against the provider_state row.
+ *  A row comes back only when the stored lastCheckAtMs is old enough (or the
+ *  row is new); the losing concurrent caller gets zero rows and throttles. */
+export async function pgClaimWatchSlot(
+  query: QueryFn,
+  nowMs: number,
+  intervalMs: number,
+): Promise<boolean> {
+  const rows = await query(
+    `INSERT INTO provider_state (provider, state)
+     VALUES ($1, jsonb_build_object('lastCheckAtMs', $2::bigint))
+     ON CONFLICT (provider) DO UPDATE
+       SET state = jsonb_set(provider_state.state, '{lastCheckAtMs}', to_jsonb($2::bigint)),
+           updated_at = now()
+       WHERE coalesce((provider_state.state->>'lastCheckAtMs')::bigint, 0) <= $2::bigint - $3::bigint
+     RETURNING 1 AS claimed`,
+    [MAP_WATCH_PROVIDER, nowMs, intervalMs],
+  );
+  return rows.length > 0;
+}
+
+/** Evaluate the watch once per interval: one atomic claim statement on the
+ *  throttled path, five bounded queries + episode-deduped alert otherwise.
+ *  The email send is raced against config.emailTimeoutMs so a hung mail
+ *  provider can never stall the host cron. Never throws. */
 export async function runMapWatchCheck(
   deps: MapWatchDeps,
   config: MapWatchConfig = mapWatchConfigFromEnv(),
@@ -295,16 +337,16 @@ export async function runMapWatchCheck(
     reasons: [],
     delivery: "none",
   };
+  const nowMs = deps.now();
   let prior: MapWatchState;
   try {
+    if (!(await deps.claimSlot(nowMs, config.checkIntervalMs))) {
+      return { ...none, throttled: true };
+    }
     prior = (await deps.loadState<MapWatchState>(MAP_WATCH_PROVIDER)) ?? DEFAULT_MAP_WATCH_STATE;
   } catch (e) {
-    console.warn(`map-watch: could not load state — skipping: ${e instanceof Error ? e.message : e}`);
+    console.warn(`map-watch: could not claim/load state — skipping: ${e instanceof Error ? e.message : e}`);
     return none;
-  }
-  const nowMs = deps.now();
-  if (prior.lastCheckAtMs !== null && nowMs - prior.lastCheckAtMs < config.checkIntervalMs) {
-    return { ...none, throttled: true };
   }
 
   let signals: MapWatchSignals;
@@ -325,14 +367,25 @@ export async function runMapWatchCheck(
     if (!to) {
       delivery = "no_recipient";
     } else {
+      let timer: ReturnType<typeof setTimeout> | undefined;
       try {
-        await deps.sendEmail(buildMapWatchEmail(to, evaln.kind, evaln.reasons, signals, nowMs));
+        await Promise.race([
+          deps.sendEmail(buildMapWatchEmail(to, evaln.kind, evaln.reasons, signals, nowMs)),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(
+              () => reject(new Error(`email send exceeded ${config.emailTimeoutMs}ms`)),
+              config.emailTimeoutMs,
+            );
+          }),
+        ]);
         delivery = "sent";
       } catch (e) {
         delivery = "failed";
         console.warn(
           `map-watch: alert email failed (host job unaffected): ${e instanceof Error ? e.message : e}`,
         );
+      } finally {
+        clearTimeout(timer);
       }
     }
   }
@@ -361,18 +414,26 @@ export async function runScheduledMapWatch(): Promise<{
   alertKind: number;
   alertDelivery: number;
 }> {
+  // Unit suites drive the REAL withCronRun with mocked databases; the
+  // scheduled wiring must never evaluate — let alone dispatch mail — from a
+  // test runner. The module's own tests inject deps into runMapWatchCheck
+  // directly, and the signals itest calls loadMapWatchSignals itself.
+  if (process.env.VITEST) return { evaluated: 0, alertKind: 0, alertDelivery: 0 };
   try {
     const { rawSql } = await import("@/db");
     const { loadProviderState, saveProviderState } = await import("../usage/spend-guard");
     const { sendEmail } = await import("../email/send");
     const { feedbackEmail } = await import("../feedback");
+    const query = (sql: string, params: unknown[]) =>
+      rawSql.query(sql, params) as Promise<Array<Record<string, unknown>>>;
     const outcome = await runMapWatchCheck({
+      claimSlot: (nowMs, intervalMs) => pgClaimWatchSlot(query, nowMs, intervalMs),
       loadState: loadProviderState,
       saveState: saveProviderState,
       sendEmail,
       recipient: feedbackEmail,
       now: () => Date.now(),
-      query: (sql, params) => rawSql.query(sql, params) as Promise<Array<Record<string, unknown>>>,
+      query,
     });
     return {
       evaluated: outcome.evaluated ? 1 : 0,
