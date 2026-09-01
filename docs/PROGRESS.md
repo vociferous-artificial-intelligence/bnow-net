@@ -3403,3 +3403,39 @@ Execution (same block):
    ≤26h post-deploy) with LLM-matcher-executed evidence, embed-path natural
    traversal if it occurs; then closeout docs PR, #101 refresh, corpus-v2
    read-only next-step plan.
+
+## 2026-08-31 → 09-01 — map flood OOM incident + three serialized releases + #97 embed/validate ship (session record)
+
+- 17:40Z session start: state reconstruction; #97 embed/validate repair built,
+  four-way reviewed (zero defects), PR #37 opened, all gates green — merge HELD
+  at the pre-merge health recheck, which caught 11 consecutive OOM-killed hourly
+  map runs (since 07:40Z, silent — no alert path fires for pre-completion
+  deaths).
+- Read-only diagnosis: MTProto catch-up flood (447 old-dated docs 07:04:33Z) →
+  58-day selection span → 419K-row dedup reference window → runtime-log-confirmed
+  OOM kill; operator push-notified; work stopped at the blocker per instructions.
+- Operator-authorized incident envelope executed: bounded manual recovery via the
+  date-scoped backfill route (dry-estimate-gated; **$0.2968 actual of $1**;
+  backlog 6,081→0; 2,199 claims; freshness restored; service-restored and
+  backlog-cleared separately verified).
+- PR #38 (#102 bounded dedup; 3 reviews + 2 delta reviews, 3,000-trial oracle,
+  memory-sized 75K cap, adaptive shedding, revived exact arm) → `52ea272` →
+  deployed 19:47Z; natural cycles 20:40/21:40Z healthy with bounded refRows.
+- PR #39 (#103 watchdog; 2 review rounds, atomic claim, bounded email, hook after
+  host row) → `c0aa788` → deployed ~21:48Z; its first traversal exposed a
+  first-evaluation notification bug (one spurious recovery email 21:45:15Z),
+  fixed same-hour in PR #40 (reviewed, mutation-proven).
+- PR #37 rebased twice (five reviewed files byte-identical each time; gates
+  re-run per head) → merged `a4ed5cb` → deployed ~22:00Z with #40; smoke PASS
+  (authz bodies clean, three free-GET Ask shapes zero-delta, conflicts dormant).
+- Observation to 2026-09-01T13:32Z: 132 crons clean; 15 map cycles, 1,507
+  claims, 0 batchErrors/lease losses; watchdog quiet post-fix; **02:00Z finalize
+  embed checkpoint PROVEN** (11 req/76 units == 76/76 claims embedded) and
+  **07:00Z validate matcher checkpoint PROVEN** (`llm-majority` ×5 ×3 theaters =
+  15 llm_match requests); health identity `a4ed5cb` held throughout.
+- Closeout docs (this PR): incident review, #97 embed/validate release review,
+  AGENTS snapshot + decision log, CURRENT-STATE, OPEN-TASKS #97/#101/#102/#103.
+- #101 refreshed: $62.78/$75, ~$1.09/day ⇒ exhaustion ≈ 09-12; decide by ≈ 09-09.
+- Next implementation session: corpus-v2 review/admission (26 = 21 dev + 5
+  heldout candidates; start with the 14 open questions; no paid evaluation or
+  candidate activation without separate authorization).
