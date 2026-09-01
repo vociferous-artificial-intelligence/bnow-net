@@ -102,27 +102,41 @@ drizzle/            migrations 0000–00NN + 9999_claim_source_trigger.sql (appl
 data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails)
 ```
 
-## Current state — compact snapshot (verified 2026-08-29; correct in place)
+## Current state — compact snapshot (verified 2026-09-01; correct in place)
 
 Detailed operational/product state lives in `docs/CURRENT-STATE.md` and is corrected in
 place whenever reality changes. Historical narrative: `docs/PROGRESS.md` + `docs/reviews/`;
 debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
 
 - **Live/repository:** https://bnow.net · Vercel `bnow-net` / team `vociferous`; production
-  is **`dpl_FT3Hdpt2ece4kxQHudxT2FST162p` / `main` merge `6ba72b5` — the 2026-08-29
-  #97 Ask-family release** (PR #35: shared idempotent `normalizeAskQuestion` at all six
+  is **`dpl_Bya68YX6a3GaDQe1LnYyMo1YhHkh` / `main` merge `a4ed5cb`** — the 2026-08-31
+  four-PR stack deployed as three serialized releases during the map-flood OOM
+  incident response: PR #38 (`52ea272`, #102 map flood bounds), PR #39 (`c0aa788`,
+  #103 watchdog), and PR #40 + PR #37 together (`4ab388f` + `a4ed5cb`: the watchdog
+  first-evaluation hotfix and the #97 embeddings/validation `wellFormedSlice`
+  repair). Observation CLOSED PASS 2026-09-01T13:32Z: 132 crons clean, 15 map cycles
+  (1,507 claims, 0 batchErrors), both natural checkpoints PROVEN (02:00Z finalize
+  embed 11 req/76 units == 76/76 claims embedded; 07:00Z validate `llm-majority`
+  ×5 votes ×3 theaters = 15 `llm_match` requests). **Rollback ladder** (never roll
+  below `52ea272` — that reintroduces the flood failure): narrow #37 regression →
+  `dpl_GxEcce4WiTkF1reDZknaPYDeubjn`/`c0aa788` (carries the state-dependent
+  watchdog first-eval defect); watchdog/combined regression →
+  `dpl_FJ33AS2DKMcme3qwjBiSTyNABxYh`/`52ea272`. Records:
+  `docs/reviews/MAP-FLOOD-OOM-INCIDENT-2026-08-31.md` +
+  `docs/reviews/EMBED-VALIDATE-RELEASE-2026-08-31.md`. The prior release — the
+  2026-08-29 #97 Ask-family deploy `dpl_FT3Hdpt2ece4kxQHudxT2FST162p`/`6ba72b5`
+  (PR #35: shared idempotent `normalizeAskQuestion` at all six
   Ask question boundaries, `wellFormedSlice` on the runs/cache/limits identity clips and
   sessions/rerank provider-bound truncations, array-`?q=` guard; deployed
   2026-08-29T01:29:35Z from the plain release clone after the 19:30Z predeploy gate;
   observation window 01:30→07:12Z CLOSED PASS — 50 scheduled runs clean, finalize/
   intraday/validate on the new release, zero Ask persistence/spend from free-GET
   probes; no natural paid Ask occurred, so the live money-path traversal is
-  future-observable; record: `docs/reviews/ASK-FAMILY-RELEASE-2026-08-29.md`).
-  `/health` 200 stamping **`6ba72b5`**, DB OK; anonymous bare+`RSC: 1` bodies
-  re-verified clean. **Rollback target = `dpl_Gf8AiKCpmuwRYdoAr1JvjfTaGLi6`**
-  (`b62da02`, the 2026-08-28 reliability queue's final release — its own record +
-  rollback chain: `docs/reviews/RELIABILITY-RELEASES-2026-08-28.md`). **`main` ==
-  production** — this deploy carried the previously dormant PRs #31 (capacity-profile
+  future-observable; record: `docs/reviews/ASK-FAMILY-RELEASE-2026-08-29.md`) —
+  remains carried forward unchanged inside the current lineage. `/health` 200
+  stamping **`a4ed5cb`** with matching `data-dpl-id`, DB OK; anonymous
+  bare+`RSC: 1` bodies re-verified clean on the current release. **`main` ==
+  production.** The 2026-08-29 deploy carried the previously dormant PRs #31 (capacity-profile
   eval harness), #32 (QF-C hardening) and #33 (conflict soak instruments) into the
   production artifact for the first time; they remain INERT (no `EVAL_*` env exists,
   `CONFLICTS_UI` absent everywhere, conflict surfaces live-verified fail-closed 404
@@ -322,10 +336,10 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   Postmark `BNOW.NET <no-reply@bnow.net>` is live; magic-link guidance is single-use/24h and
   copy-before-opening. PostHog is production-only, explicit opt-in, allowlist-sanitized, UUID
   identity, no Ask/Search/source text; GeoIP is retained per disclosed operator ruling.
-- **Quality/ops:** **3,421 unit tests / 239 files** green (measured 2026-08-28 on the
-  final merged `main` `bf0061b`, typecheck + lint clean) + **155 real-Postgres
-  integration tests / 23 files** (as of the PR #30 branch gate; every reliability branch
-  ran the full suite on a disposable Neon fork). Historical gates: 3,329/231 + 151/21 on
+- **Quality/ops:** **3,508 unit tests / 241 files** green (measured 2026-08-31 on the
+  final PR #37 head `adec440` == merged `a4ed5cb`, typecheck + lint clean) + **160
+  real-Postgres integration tests / 25 files** (disposable Neon forks; every
+  incident/#97 branch ran the full suite). Historical gates: 3,329/231 + 151/21 on
   the 2026-08-24 release train `e359c61`. Production DB migrated through 0027
   (2026-07-21, verified + idempotent); no strand in the 2026-08-24 release train adds a migration.
   Enforced pre-push gate = typecheck+lint+test. Crons: fast */15; telegram :01; X :02;
@@ -893,6 +907,54 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   `evaluated_candidate` registry entry, and explicit operator authorization — and for map,
   the #33 remap path first. Report:
   `docs/reviews/CLOUD-MODEL-ROUTING-SEAMS-2026-08-17.md`.
+
+- **2026-08-31/09-01 (map flood OOM incident — detection, bounded recovery, three
+  serialized fix releases; #97 embeddings/validation shipped)** During PR #37's
+  pre-merge health recheck the session found the hourly map worker OOM-killed
+  (runtime-log-confirmed) on every run since 07:40Z: a 07:03Z MTProto long-park
+  catch-up had inserted 447 documents dated back to 2026-06-14, the oldest-first
+  steady selection spanned 58 days, and the dedup reference BETWEEN materialized
+  419,360 rows. Twelve consecutive #98-swept runs; doc_claims frozen 06:40:57Z; NO
+  operator email (map_health evaluates only inside completing runs → #103). The
+  merge was HELD and the operator authorized a bounded response. Executed: (1)
+  read-only diagnosis with live pg_stat_activity + runtime-log capture; (2) manual
+  recovery through the EXISTING date-scoped backfill route (normal dispositions —
+  no blanket processed updates, no deletion, no remap of never-dispositioned docs):
+  whole-range dry estimate $0.4180 gated a $1 allowance, **actual $0.2968**;
+  backlog 6,081→0, 2,199 claims recovered, newest-eligible == newest-mapped ==
+  08-31; service restored (19:40Z natural cycle healthy) and backlog cleared are
+  separately evidenced verdicts; (3) PR #38 `52ea272` — #102 bounded dedup
+  (day-span probe + fresh-first split, ±1-day IN-list reference fetch,
+  MAP_REF_ROW_CAP=75K sized to the instance from measured ~7.6KB/reference,
+  adaptive old-day shedding with loud no-work refusals, revived reference
+  exact-md5 arm as a documented contract-valid behavior repair) — three
+  independent reviews + two delta reviews, 3,000-trial verdict oracle, deployed
+  `dpl_FJ33AS2DKMcme3qwjBiSTyNABxYh` 19:47Z; (4) PR #39 `c0aa788` — #103 watchdog
+  independent of map-run completion (atomic slot claim, bounded email send,
+  hook after the host row INSERT, inert under test runners), deployed
+  `dpl_GxEcce4WiTkF1reDZknaPYDeubjn`; its first natural traversal exposed a
+  first-evaluation notification bug (ONE spurious "recovered" email 21:45:15Z —
+  a release defect, not an outage event), repaired same-hour in PR #40 `4ab388f`
+  and verified non-recurring; (5) PR #37 `a4ed5cb` — the #97
+  embeddings/validation `wellFormedSlice` repair, rebased twice with the five
+  reviewed files verified byte-identical each time and gates re-run per head,
+  deployed `dpl_Bya68YX6a3GaDQe1LnYyMo1YhHkh` ~22:00Z with #40. Observation
+  CLOSED PASS 2026-09-01T13:32Z: 132 crons clean; 15 map cycles, 1,507 claims,
+  0 batchErrors; both natural checkpoints PROVEN (finalize embed 11 requests/76
+  units == 76/76 new claims embedded, provider row updated at the run's finish
+  instant; validate `llm-majority` ×5 votes ×3 theaters == 15 llm_match
+  requests — keyword fallback dispatches zero, so genuine matcher traversal).
+  Binding until superseded: the #102 flood bounds and refusal semantics are load-
+  bearing (do not widen MAP_REF_ROW_CAP without re-deriving the memory
+  arithmetic); the watchdog contract (never break the host job; honest
+  ruling-10 bookkeeping; budget episodes stay owned by in-run map-health);
+  the rollback ladder above (never below `52ea272`). #97 stays OPEN: dormant
+  `anthropic-provider.ts:70` (repair + #83 wiring + scorecard are activation
+  prerequisites — key absence is not a repair) and the ASK_SESSIONS residuals.
+  Spend ledger: $0.2968 manual map recovery (of $1 authorized); zero other
+  manual paid calls; no cap/env/flag/cron/migration change. Records:
+  `docs/reviews/MAP-FLOOD-OOM-INCIDENT-2026-08-31.md`,
+  `docs/reviews/EMBED-VALIDATE-RELEASE-2026-08-31.md`.
 
 ## Conventions
 

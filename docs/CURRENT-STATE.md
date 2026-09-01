@@ -5,13 +5,43 @@ this file is **not append-only**: correct it in place whenever live product, ope
 deployment, test, credential, or repository state changes. Historical narrative belongs in
 `PROGRESS.md`, review notes, and `DECISIONS.md`.
 
-## Current state — snapshot (verified through 2026-08-29; correct in place when it changes)
+## Current state — snapshot (verified through 2026-09-01; correct in place when it changes)
 
 Live at **https://bnow.net** (Vercel project `bnow-net`, team `vociferous`;
 deployment URLs are SSO-walled — always use the project domain). History/narrative:
 `docs/PROGRESS.md` + `docs/reviews/`; debt: `docs/OPEN-TASKS.md`.
 
-- **2026-08-29 #97 Ask-family release (the CURRENT production release):** production is
+- **2026-08-31/09-01 map-flood incident response + #97 embed/validate release (the
+  CURRENT production release):** production is **`dpl_Bya68YX6a3GaDQe1LnYyMo1YhHkh`**
+  built from `main` merge **`a4ed5cb`**, the last of three serialized releases
+  deployed 2026-08-31 during the map-flood OOM incident response: PR #38
+  (`52ea272` → `dpl_FJ33AS2DKMcme3qwjBiSTyNABxYh`, 19:47Z — #102 bounded map
+  dedup: day-span split, ±1-day IN-list reference window, `MAP_REF_ROW_CAP=75K`
+  with adaptive shedding, revived reference exact-md5 arm), PR #39 (`c0aa788` →
+  `dpl_GxEcce4WiTkF1reDZknaPYDeubjn`, ~21:44Z (live by 21:45:15Z, when its first traversal fired) — the #103 map watchdog), and
+  PR #40 + PR #37 together (`4ab388f` + `a4ed5cb` → the current deployment,
+  ~22:00Z — the watchdog first-evaluation hotfix and the #97
+  embeddings/validation `wellFormedSlice` repair). The incident: a 07:03Z MTProto
+  catch-up inserted 447 old-dated docs, the steady selection spanned 58 days, the
+  dedup reference query materialized 419K rows, and the map function was
+  OOM-killed (runtime-log-confirmed) hourly 07:40→18:40Z with NO operator alert;
+  manual recovery ran the date-scoped backfill route for **$0.2968** of a $1
+  allowance (backlog 6,081→0; 2,199 claims recovered; no blanket processed
+  updates). Observation CLOSED PASS 2026-09-01T13:32Z: 132 crons clean, 15 map
+  cycles post-deploy (1,507 claims, 0 batchErrors, 0 lease losses), watchdog
+  quiet after its one repaired spurious first-evaluation email, and BOTH #97
+  natural checkpoints PROVEN — 02:00Z finalize embed (11 requests/76 units ==
+  76/76 new claims embedded) and 07:00Z validate matcher (`llm-majority` ×5
+  votes ×3 theaters == 15 `llm_match` requests). **Rollback ladder** (never
+  below `52ea272`, which would reintroduce the flood failure): narrow #37
+  regression → `dpl_GxEcce4WiTkF1reDZknaPYDeubjn`/`c0aa788` (carries the
+  state-dependent watchdog first-eval defect — one spurious recovery email
+  possible only if the `map_watch` state row is ever deleted); watchdog or
+  combined regression → `dpl_FJ33AS2DKMcme3qwjBiSTyNABxYh`/`52ea272`. Records:
+  `docs/reviews/MAP-FLOOD-OOM-INCIDENT-2026-08-31.md`,
+  `docs/reviews/EMBED-VALIDATE-RELEASE-2026-08-31.md`.
+
+- **2026-08-29 #97 Ask-family release (previous release, carried forward):** production was
   **`dpl_FT3Hdpt2ece4kxQHudxT2FST162p`** built from `main` merge **`6ba72b5`** (PR #35,
   reviewed head `f3d45b4`; merged tree byte-identical to it), deployed
   2026-08-29T01:29:35Z from the plain release clone after the 19:30Z predeploy gate
@@ -57,18 +87,20 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   described here is HISTORICAL: the 2026-08-29 Ask-family deploy carried `bf0061b`'s
   dormant code into production, and the current posture — `main` == production ==
   `6ba72b5` — is stated in the 2026-08-29 bullet above.)
-  **Operational watch (updated 2026-08-29):** #87 and #98 are CLOSED (deployed +
-  observed, see the reliability record); #97 remains OPEN with the Ask family now
-  SHIPPED (remaining sites: embeddings client, validation llm-match, inert Anthropic
-  — see OPEN-TASKS #97); still-open observations: the first NATURAL degraded-run
-  flip, the first natural ISW-not-published benign validate return (the 08-28 and
-  08-29 07:00Z validates both ran clean with validated 3 / unvalidated 0 — all
-  theaters had reports, so the benign path has not yet fired naturally), and the
-  first live paid Ask through the new normalizer. **#101 remains the nearest
-  operator deadline: `x_api` $59.12 of the $75 all-time cap (78.8% as of 2026-08-29
-  07:10Z; ~$1.03–1.15/day burn ⇒ ~14–15 days of runway, point-in-time projection;
-  est. exhaustion ~2026-09-11→13) — decision needed before fail-closed exhaustion**
-  (`docs/reviews/OPERATOR-DECISION-PACKET-2026-08-28.md`).
+  **Operational watch (updated 2026-09-01):** #87/#98/#86 CLOSED; #102 (map flood
+  bounds) and #103 (map watchdog) are DEPLOYED and observed healthy — their
+  OPEN-TASKS entries hold the residuals (shed/refusal paths not yet naturally
+  fired; watchdog detection proof still synthetic). #97 remains OPEN with the Ask
+  family AND the embeddings/validation sites now SHIPPED and naturally proven —
+  remaining: the dormant Anthropic doc-line clip (repair + #83 wiring + scorecard
+  before any activation) and the ASK_SESSIONS-gated residuals. Still-open
+  observations: the first NATURAL degraded-run flip, the first natural
+  ISW-not-published benign validate return, the first live paid Ask through the
+  2026-08-29 normalizer, and the watchdog's first real pre-completion-death
+  detection. **#101 is the nearest operator deadline: `x_api` $62.78 of the $75
+  all-time cap (83.7% as of 2026-09-01T13:35Z; ~$1.09/day 7-day burn ⇒ ~11 days;
+  est. exhaustion ≈ 2026-09-12) — decide by ≈ 2026-09-09**
+  (`docs/reviews/OPERATOR-DECISION-PACKET-2026-08-28.md` §1).
 
 - **OpenSanctions match-safety release (2026-07-22):** release commit `441ee09`
   (original deploy `dpl_E5ysiLJSg1ynNmqJkgmpDjrzZD32`, then the 2026-08-14 env-only

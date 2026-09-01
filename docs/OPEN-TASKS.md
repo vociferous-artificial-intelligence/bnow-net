@@ -1374,6 +1374,26 @@ docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md)
     modified in this PR. Still remaining under the umbrella after this lands:
     that dormant Anthropic site and the flag-off ASK_SESSIONS residuals
     (a)–(c) above.
+    **STATUS 2026-09-01 — the EMBEDDINGS and VALIDATION sites are MERGED, DEPLOYED,
+    and NATURALLY PROVEN** (PR #37 → `main` merge `a4ed5cb` → production
+    `dpl_Bya68YX6a3GaDQe1LnYyMo1YhHkh`, deployed ~2026-08-31T22:00Z after two
+    incident-forced rebases with the five reviewed files verified byte-identical
+    each time and gates re-run per head). Both natural checkpoints PASSED without
+    manufactured traffic: the 02:00Z finalize traversed the repaired
+    `truncateInput` (11 `openai_embed` requests / 76 units, provider row updated
+    at the run's finish instant, 76/76 new claims embedded — three-way
+    reconciliation), and the 07:00Z validate traversed the repaired
+    `buildMatchUserPrompt` through the REAL LLM matcher (`llm-majority`,
+    voteRounds 5 on all three theaters == 15 `llm_match` requests; keyword
+    fallback dispatches zero, so ok=true is not doing the proving). Observation
+    window CLOSED PASS 2026-09-01T13:32Z. Record:
+    `docs/reviews/EMBED-VALIDATE-RELEASE-2026-08-31.md`. THE UMBRELLA STAYS
+    OPEN — remaining: (a) `anthropic-provider.ts:70`, a DORMANT defect (key
+    absence is not a repair); activation prerequisites: `wellFormedSlice` on the
+    doc-line clip + the #83 wiring (model-config, analysis registry, pricing) +
+    its own promotion scorecard; (b) the flag-off ASK_SESSIONS residuals
+    (session-entry normalization, §7.7 cache-deletion join, pre-fix-row
+    idempotency comparison) — close before `ASK_SESSIONS` ships.
 
 ### New (from the #86 recovery-window closeout — 2026-08-24,
 docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md §14)
@@ -1464,6 +1484,13 @@ docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md)
     Cross-reference: the ruling-4 ordering (set the env BEFORE deploying anything that
     reads it) does not apply here — the guard already reads this env; a plain env edit +
     redeploy suffices when authorized.
+    **REFRESH 2026-09-01T13:35Z:** `x_api` cumulative **$62.7754 of $75 (83.7%)**;
+    7-day burn (08-25→08-31) $7.66 ≈ **$1.09/day** → ~$12.22 headroom ≈ **~11
+    days; est. fail-closed exhaustion ≈ 2026-09-12** (point-in-time projection —
+    X volume is event-driven). **Operator decision needed by ≈ 2026-09-09** to
+    leave execution margin. Options unchanged (packet §1): raise to $150
+    (recommended), raise to $100, or accept the stop. No cap changed by this
+    refresh.
 
 ### New (from the 2026-08-31 map OOM incident)
 
@@ -1531,6 +1558,18 @@ docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md)
     cap-refusal write-freedom, SQL-alias pin, all-fresh fallback, shed-and-proceed,
     empty-fresh exhaustion refusal) + real-Postgres itest (3 scenarios on a
     disposable fork incl. a fetched-reference exact mirror).
+    **STATUS 2026-09-01 — MERGED, DEPLOYED, OBSERVED HEALTHY** (PR #38 → `52ea272`
+    → `dpl_FJ33AS2DKMcme3qwjBiSTyNABxYh`, 2026-08-31T19:47Z). 17 consecutive
+    natural hourly cycles through 2026-09-01T12:40Z: ok, bounded `refRows`
+    recorded every cycle (~7.9K–60.6K — the later windows are denser because the
+    recovery converted ~6K backlog docs into processed references on 08-31; all
+    under the 75K cap with the shed path never needed), 0 batchErrors, 0 lease
+    losses, 1,747 claims
+    across the window (120 + 120 on 08-31, 1,507 across the 15 post-22:00Z cycles). The manual recovery preceding it drained the flood through
+    the date-scoped backfill route ($0.2968 of the $1 allowance; backlog
+    6,081→0). The shed/refusal paths have NOT fired naturally (no flood since) —
+    they remain unit/itest-pinned only. Incident record:
+    `docs/reviews/MAP-FLOOD-OOM-INCIDENT-2026-08-31.md`.
 
 103. **[Tier 1 — monitoring blind spot] Nothing alerts when map runs die BEFORE their own
     health evaluation.** Proven live by #102: eleven consecutive OOM-killed hourly runs
@@ -1565,3 +1604,15 @@ docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md)
     real-Postgres signals itest pinning the #98 sweep signature. Detection proof
     is SYNTHETIC (fixtures/mocks); no natural incident evidence yet — the next
     real pre-completion death class is the first live proof.
+    **STATUS 2026-09-01 — MERGED, DEPLOYED, plus a first-evaluation hotfix** (PR
+    #39 → `c0aa788` → `dpl_GxEcce4WiTkF1reDZknaPYDeubjn` ~21:44Z (live by 21:45:15Z, when its first traversal fired); hotfix PR #40 →
+    `4ab388f`, deployed with PR #37). The first natural traversal (21:45:15Z)
+    fired ONE spurious "recovered" email — the atomic claim seeds a partial state
+    row and the recovery branch's `!== null` read the missing episode key as an
+    episode clearing; a release defect found live and repaired the same hour
+    (one-line normalization + regression test, independently reviewed). Verified
+    after the fix: evaluations advance `lastCheckAtMs` on the throttled cadence
+    with NO further alert and no episode through 2026-09-01T13:30Z, under a fully
+    healthy pipeline — the false notification did not repeat and no real incident
+    was masked. Detection proof remains SYNTHETIC; unchanged: the first real
+    pre-completion death is the first live proof.
