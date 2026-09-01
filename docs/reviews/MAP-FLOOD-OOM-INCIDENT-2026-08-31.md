@@ -84,7 +84,7 @@ mutation coverage for every piece. Gates on the deployed tree: unit
 natural cycles on the new code: 20:40Z (420 selected / 120 claims / refRows
 12,679) and 21:40Z (362 / 120 / 13,045), zero batch errors, zero lease loss.
 
-## 5. Watchdog — PR #39 (`c0aa788` → `dpl_GxEcce4WiTkF1reDZknaPYDeubjn`, ~21:48Z)
+## 5. Watchdog — PR #39 (`c0aa788` → `dpl_GxEcce4WiTkF1reDZknaPYDeubjn`, live by 21:45Z)
 
 OPEN-TASKS #103, closing the blind spot: a throttled watchdog independent of
 map-run completion rides non-map cron starts (after the host's own row
