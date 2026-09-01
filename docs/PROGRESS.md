@@ -3422,7 +3422,7 @@ Execution (same block):
   memory-sized 75K cap, adaptive shedding, revived exact arm) → `52ea272` →
   deployed 19:47Z; natural cycles 20:40/21:40Z healthy with bounded refRows.
 - PR #39 (#103 watchdog; 2 review rounds, atomic claim, bounded email, hook after
-  host row) → `c0aa788` → deployed ~21:48Z; its first traversal exposed a
+  host row) → `c0aa788` → deployed ~21:44Z (live by 21:45:15Z, when its first traversal fired); its first traversal exposed a
   first-evaluation notification bug (one spurious recovery email 21:45:15Z),
   fixed same-hour in PR #40 (reviewed, mutation-proven).
 - PR #37 rebased twice (five reviewed files byte-identical each time; gates

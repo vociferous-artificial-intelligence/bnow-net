@@ -23,7 +23,9 @@ behaved as designed.
   carrying a 2,000-char `text2k`.
 - CONFIRMED (live observation): at 18:43:21Z the 18:40Z run was executing that
   reference query with parallel workers (`pg_stat_activity`), AFTER acquiring
-  the lease (fences advanced one per hung run, 222→233).
+  the lease (fences advanced one per hung run: the healthy 06:40Z run held 222,
+  the twelve hung runs held 223–234, and the first recovery call took 235 via
+  expired takeover).
 - CONFIRMED (runtime log): `Vercel Runtime Error: instance was killed because
   it ran out of available memory`, attributed to the 18:40:02Z map invocation.
   An OOM kill, not the 800s route ceiling.

@@ -1561,7 +1561,10 @@ docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md)
     **STATUS 2026-09-01 — MERGED, DEPLOYED, OBSERVED HEALTHY** (PR #38 → `52ea272`
     → `dpl_FJ33AS2DKMcme3qwjBiSTyNABxYh`, 2026-08-31T19:47Z). 17 consecutive
     natural hourly cycles through 2026-09-01T12:40Z: ok, bounded `refRows`
-    recorded every cycle (~12–13K), 0 batchErrors, 0 lease losses, 1,747 claims
+    recorded every cycle (~7.9K–60.6K — the later windows are denser because the
+    recovery converted ~6K backlog docs into processed references on 08-31; all
+    under the 75K cap with the shed path never needed), 0 batchErrors, 0 lease
+    losses, 1,747 claims
     across the window (120 + 120 on 08-31, 1,507 across the 15 post-22:00Z cycles). The manual recovery preceding it drained the flood through
     the date-scoped backfill route ($0.2968 of the $1 allowance; backlog
     6,081→0). The shed/refusal paths have NOT fired naturally (no flood since) —
@@ -1602,7 +1605,7 @@ docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md)
     is SYNTHETIC (fixtures/mocks); no natural incident evidence yet — the next
     real pre-completion death class is the first live proof.
     **STATUS 2026-09-01 — MERGED, DEPLOYED, plus a first-evaluation hotfix** (PR
-    #39 → `c0aa788` → `dpl_GxEcce4WiTkF1reDZknaPYDeubjn` ~21:48Z; hotfix PR #40 →
+    #39 → `c0aa788` → `dpl_GxEcce4WiTkF1reDZknaPYDeubjn` ~21:44Z (live by 21:45:15Z, when its first traversal fired); hotfix PR #40 →
     `4ab388f`, deployed with PR #37). The first natural traversal (21:45:15Z)
     fired ONE spurious "recovered" email — the atomic claim seeds a partial state
     row and the recovery branch's `!== null` read the missing episode key as an

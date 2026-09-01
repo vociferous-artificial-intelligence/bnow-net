@@ -18,7 +18,7 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   (`52ea272` → `dpl_FJ33AS2DKMcme3qwjBiSTyNABxYh`, 19:47Z — #102 bounded map
   dedup: day-span split, ±1-day IN-list reference window, `MAP_REF_ROW_CAP=75K`
   with adaptive shedding, revived reference exact-md5 arm), PR #39 (`c0aa788` →
-  `dpl_GxEcce4WiTkF1reDZknaPYDeubjn`, ~21:48Z — the #103 map watchdog), and
+  `dpl_GxEcce4WiTkF1reDZknaPYDeubjn`, ~21:44Z (live by 21:45:15Z, when its first traversal fired) — the #103 map watchdog), and
   PR #40 + PR #37 together (`4ab388f` + `a4ed5cb` → the current deployment,
   ~22:00Z — the watchdog first-evaluation hotfix and the #97
   embeddings/validation `wellFormedSlice` repair). The incident: a 07:03Z MTProto

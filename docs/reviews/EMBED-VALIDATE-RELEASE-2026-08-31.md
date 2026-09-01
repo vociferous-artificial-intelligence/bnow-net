@@ -51,7 +51,7 @@ recheck caught the outage and the merge was HELD until recovery gates passed.
 
 ## 3. Release mechanics
 
-- Original head `3a59679` (PR opened 2026-08-31 ~18:05Z; merge HELD at the
+- Original head `3a59679` (PR opened 2026-08-31T18:02Z; merge HELD at the
   health gate when the map incident was found).
 - Rebased twice as the incident releases landed (`2185d4b`, then final
   `adec440` on `4ab388f`); all five reviewed src/test files verified
@@ -61,7 +61,7 @@ recheck caught the outage and the merge was HELD until recovery gates passed.
   (exit 0; same 160-test suite captured at the prior head) · build PASS · CI
   `gate` pass. The CI `integration` check SKIPS (no Neon secret) — the local
   fork runs are the integration evidence, on every head.
-- Merged 2026-08-31 ~21:57Z as **`a4ed5cb`** (merged tree byte-identical to
+- Merged 2026-08-31T21:55Z as **`a4ed5cb`** (merged tree byte-identical to
   `adec440`); deployed from the plain release clone as
   **`dpl_Bya68YX6a3GaDQe1LnYyMo1YhHkh`** (~22:00Z), carrying the PR #40
   watchdog hotfix in the same artifact. `/health`: 200, stamp `a4ed5cb`,
