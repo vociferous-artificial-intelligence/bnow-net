@@ -780,7 +780,7 @@
       "id": "dig-c2-cap-001-fed200-rank185",
       "partition": "edge",
       "split": "development",
-      "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+      "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
       "notes": "Fed-cutoff control INSIDE the cut: the decisive 'sluice gate' event depends solely on the group at rank 185; under the production fed cutoff of 200 (applied by the shipped harness since SCI-N6, 2026-08-28) the gid is fed and the event must survive. exactReduceGroupsFed: 200 — inapplicable under the reduce-fed-400 profile. Shared 260-claim population: 260 textually-distinct single-claim groups (verified singleton clustering against the real clusterClaims), reliability strictly descending with claim id, publishedAt null everywhere — so rankGroups order == id order and 'rank N' means the group of claim id 10001+N. Locality names are fused SYNTHETIC single tokens (base+suffix; any resemblance to real settlements coincidental); no named persons. The population is byte-identical across the four dig-c2-cap cases by design.",
       "workload": "digest",
       "input": {
@@ -5505,7 +5505,7 @@
       "id": "dig-c2-cap-002-fed200-rank230-dead",
       "partition": "edge",
       "split": "development",
-      "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+      "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
       "notes": "Tail-event probe OUTSIDE the cut: the decisive 'ferry cable' event depends solely on the group at rank 230. Under the production fed cutoff of 200 the gid is never fed, parseVote strips it in all 5 votes (droppedGidRefs 5) and the event must DIE. ADMISSION CORRECTION 2026-09-03: the draft annotated this as requiring a future v2 runner change — SCI-N6 (2026-08-28) landed the production-aligned cutoff in both the prompt builder and the scorer, so the reference holds against the SHIPPED harness and offline.expectation 'pass' is true today under the baseline profile. exactReduceGroupsFed: 200. Shared 260-claim population: 260 textually-distinct single-claim groups (verified singleton clustering against the real clusterClaims), reliability strictly descending with claim id, publishedAt null everywhere — so rankGroups order == id order and 'rank N' means the group of claim id 10001+N. Locality names are fused SYNTHETIC single tokens (base+suffix; any resemblance to real settlements coincidental); no named persons. The population is byte-identical across the four dig-c2-cap cases by design.",
       "workload": "digest",
       "input": {
@@ -10227,7 +10227,7 @@
       "id": "dig-c2-cap-003-fed400-tailranks",
       "partition": "edge",
       "split": "development",
-      "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+      "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
       "notes": "400-fed variant: decisive events depend on the groups at ranks 230 and 255; with REDUCE_GROUPS_FED=400 (the knob's clamped maximum, the reduce-fed-400 profile) both are fed and must survive. ADMISSION CORRECTION 2026-09-03: the draft called this 'runnable today' against a no-cutoff harness — the shipped harness applies the production cutoff, so under the default fed 200 BOTH decisive events die and this case is structurally INAPPLICABLE (exactReduceGroupsFed: 400); it scores only in the +reduce-fed-400 results file. The scorer is never widened per case. Shared 260-claim population: 260 textually-distinct single-claim groups (verified singleton clustering against the real clusterClaims), reliability strictly descending with claim id, publishedAt null everywhere — so rankGroups order == id order and 'rank N' means the group of claim id 10001+N. Locality names are fused SYNTHETIC single tokens (base+suffix; any resemblance to real settlements coincidental); no named persons. The population is byte-identical across the four dig-c2-cap cases by design.",
       "workload": "digest",
       "input": {
@@ -14958,7 +14958,7 @@
       "id": "dig-c2-cap-004-fed-boundary-pair",
       "partition": "edge",
       "split": "development",
-      "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+      "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
       "notes": "Boundary-straddle pair: decisive gids at ranks 190 (fed under 200) and 210 (unfed under 200 — its gid rides the culvert event and parseVote strips it, droppedGidRefs 5 across the 5 votes; under fed 400 nothing is stripped). Reference pins are harness-invariant under the declared exactReduceGroupsFed: 200. Shared 260-claim population: 260 textually-distinct single-claim groups (verified singleton clustering against the real clusterClaims), reliability strictly descending with claim id, publishedAt null everywhere — so rankGroups order == id order and 'rank N' means the group of claim id 10001+N. Locality names are fused SYNTHETIC single tokens (base+suffix; any resemblance to real settlements coincidental); no named persons. The population is byte-identical across the four dig-c2-cap cases by design.",
       "workload": "digest",
       "input": {
@@ -19686,7 +19686,7 @@
       "id": "dig-c2-late-001-heating-plant",
       "partition": "typical",
       "split": "development",
-      "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+      "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
       "notes": "DRAFT. Late-document recall (positive): the decisive fact (Kramatorsk heating plant strike) arrives in the two NEWEST documents of the window (23:20/23:40 vs 02:10-06:20 for everything else) from two independent domains — clustering merges them and corroboration promotes the group to confirmed; recency ranks it at the top. A candidate synthesis must lead with it. Runnable under the current contract. [capacity-annotations: lateDocCase=true; latestPublishedAt=2026-09-05T23:40:00Z; windowEnd=2026-09-06T00:00:00Z]",
       "workload": "digest",
       "input": {
@@ -19840,7 +19840,7 @@
       "id": "dig-c2-late-002-late-miss",
       "partition": "edge",
       "split": "development",
-      "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+      "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
       "notes": "DRAFT. Late-document recall (machinery proof, expectation fail): the decisive late fact (Barvinkove ammunition railcar fire, published 23:35 — the newest document) is OMITTED by every committed vote; the reference requires it to survive, so scoring must fail. Proves the harness catches a candidate that under-weights the newest documents in the window. Runnable under the current contract. [capacity-annotations: lateDocCase=true; failureMode=late decisive fact omitted from all votes; latestPublishedAt=2026-09-05T23:35:00Z]",
       "workload": "digest",
       "input": {
@@ -19951,7 +19951,7 @@
       "id": "dig-c2-safe-001-late-allegation-drop",
       "partition": "adversarial",
       "split": "heldout",
-      "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+      "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
       "notes": "DRAFT — HELDOUT CANDIDATE (maintainer confirms split at admission). Publication safety (ruling 19 R1+wash) on a FICTIONAL person (Yegor Stavitsky — does not exist): a single-doc reputational allegation arriving as the NEWEST document (23:45) rides a vote event beside a confirmed strike claim. The guard must DROP the allegation claim and wash the event title/summary so none of its prose survives; the confirmed subclaim keeps the event alive. Runnable under the current contract; guard stats verified against the real pipeline. [capacity-annotations: lateDocCase=true; personAllegation=true]",
       "workload": "digest",
       "input": {

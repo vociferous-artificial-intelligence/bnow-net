@@ -2,7 +2,7 @@
   "workload": "digest",
   "configKey": "offline-fixtures",
   "datasetVersion": "digest-v2",
-  "datasetContentHash": "2835b72fe2528b8739723279ded1a69e433f2e0d96b35cea9a2b7aac3a6c284a",
+  "datasetContentHash": "5b55b3d1c73fc3e9e9e31cece1f77bcb90a2d40275942a0e67583921a0147a00",
   "identity": {
     "provider": "stub",
     "model": "offline-fixtures",
@@ -21,7 +21,7 @@
     "mapContentChars": 1500,
     "reduceGroupsFed": 200
   },
-  "updatedAt": "2026-09-03T13:30:18.260Z",
+  "updatedAt": "2026-09-03T13:33:24.502Z",
   "meter": {
     "attempts": 0,
     "reservations": 0,

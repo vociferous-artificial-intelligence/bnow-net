@@ -3,7 +3,7 @@
     "id": "map-c2-typ-001-pos800-ua",
     "partition": "typical",
     "split": "development",
-    "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+    "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
     "notes": "DRAFT. Capacity baseline: ~800-char doc, facts at early (<400) and mid (400-1500) positions; both fully visible under the default MAP_CONTENT_CHARS=1500 knob and under the current 1600 validator cap. Feeds position-stratified recall (early/mid control row). Locality generic; no named persons. ADMISSION 2026-09-03: checkNumerals enabled (SCI-3b numeral instrument; gists use bare digits / simple single number-words). [capacity-annotations: positionCase=true]",
     "workload": "map",
     "input": {
@@ -81,7 +81,7 @@
     "id": "map-c2-typ-002-pos800-ir",
     "partition": "typical",
     "split": "development",
-    "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+    "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
     "notes": "DRAFT. Capacity baseline, ir theater flavor: ~800-char doc, facts early + mid. Control row for the position-stratified sweep. Generic institutions only. ADMISSION 2026-09-03: checkNumerals enabled (SCI-3b numeral instrument; gists use bare digits / simple single number-words). [capacity-annotations: positionCase=true]",
     "workload": "map",
     "input": {
@@ -159,7 +159,7 @@
     "id": "map-c2-edge-001-boundary1500-ua",
     "partition": "edge",
     "split": "development",
-    "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+    "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
     "notes": "DRAFT. 1,500-boundary probe: content is ~1,592 U16 (passes the current 1600 validator cap) but fact C's sentence STRADDLES the default MAP_CONTENT_CHARS=1500 truncation point — under default knobs a faithful candidate cannot produce it (it never sees the sentence's tail), so this case is only a fair GATE with MAP_CONTENT_CHARS>=1600; under default knobs it is a position-stratified recall DIAGNOSTIC. Feeds position-stratified recall (boundary bucket). ADMISSION 2026-09-03: checkNumerals enabled (SCI-3b numeral instrument; gists use bare digits / simple single number-words). [capacity-annotations: positionCase=true; doc2121.boundaryNote=fact C straddles the default MAP_CONTENT_CHARS=1500 truncation point: sentence spans U16 [1479, 1587); under the default knob the model sees only the first 21 code units of it.]",
     "workload": "map",
     "input": {
@@ -255,7 +255,7 @@
     "id": "map-c2-edge-002-pos2500-ru",
     "partition": "edge",
     "split": "development",
-    "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+    "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
     "notes": "DRAFT — TARGETS A V2 CONTRACT: content ~2,500 U16 (measured in capacityMeta) EXCEEDS the current 1,600 validator cap (requiresContractCap 6000) and needs MAP_CONTENT_CHARS>=2600 for full visibility. Facts at early/mid/tail(>1500). Feeds position-stratified recall (tail bucket). ADMISSION 2026-09-03: checkNumerals enabled (SCI-3b numeral instrument; gists use bare digits / simple single number-words). [capacity-annotations: positionCase=true]",
     "workload": "map",
     "input": {
@@ -351,7 +351,7 @@
     "id": "map-c2-edge-003-pos5000-ua",
     "partition": "edge",
     "split": "development",
-    "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+    "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
     "notes": "DRAFT — TARGETS A V2 CONTRACT: content ~5,000 U16 (measured in capacityMeta; requiresContractCap 6000; MAP_CONTENT_CHARS>=5100). Facts early/mid/deep-tail(>4000). NOTE the production parser keeps at most 3 claims/doc (parseMapResults cap) — capacity cases must never expect more than 3 gold claims on one doc; this one expects exactly 3. Feeds position-stratified recall (deep-tail bucket). ADMISSION 2026-09-03: checkNumerals enabled (SCI-3b numeral instrument; gists use bare digits / simple single number-words). [capacity-annotations: positionCase=true]",
     "workload": "map",
     "input": {
@@ -447,7 +447,7 @@
     "id": "map-c2-edge-004-pos5000-ir-taillost",
     "partition": "edge",
     "split": "heldout",
-    "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+    "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
     "notes": "DRAFT — HELDOUT CANDIDATE (maintainer confirms split at admission). TARGETS A V2 CONTRACT (requiresContractCap 6000; MAP_CONTENT_CHARS>=5100). Machinery-proof fixture: the committed output answers the early and mid facts but LOSES the deep-tail fact — expectation fail proves the harness catches deep-tail recall loss (the exact capacity failure this set exists to measure). ADMISSION 2026-09-03: heldout fidelity mustNotMatch pin(s) added (QF-C hardening item 6); inert against the committed fixture, catches live certainty fabrication. ADMISSION 2026-09-03: checkNumerals enabled (SCI-3b numeral instrument; gists use bare digits / simple single number-words). [capacity-annotations: positionCase=true; failureMode=deep-tail fact lost (recall 2/3)]",
     "workload": "map",
     "input": {
@@ -546,7 +546,7 @@
     "id": "map-c2-edge-005-neardupe-ua",
     "partition": "edge",
     "split": "development",
-    "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+    "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
     "notes": "DRAFT — TARGETS A V2 CONTRACT (requiresContractCap 6000; MAP_CONTENT_CHARS>=2500). Unique-tail near-dupe pair: both docs share the identical first 1992 U16 (shared fact S) and diverge only in the factual tail (TA vs TB). Feeds the unique-tail-loss metric: recall on TA/TB specifically. Cross-attribution of one doc's tail fact to the other fails precision + mustQuoteFromDoc on that doc. ADMISSION 2026-09-03: checkNumerals enabled (SCI-3b numeral instrument; gists use bare digits / simple single number-words). [capacity-annotations: positionCase=true; sharedPrefixU16=1992]",
     "workload": "map",
     "input": {
@@ -679,7 +679,7 @@
     "id": "map-c2-edge-006-neardupe-ru-collapse",
     "partition": "edge",
     "split": "heldout",
-    "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+    "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
     "notes": "DRAFT — HELDOUT CANDIDATE (maintainer confirms split at admission). TARGETS A V2 CONTRACT (requiresContractCap 6000). Machinery-proof near-dupe COLLAPSE fixture: doc 2172's committed output repeats doc 2171's unique tail fact (bus depot) instead of its own (grass fire) — the exact unique-tail-loss failure mode. Must fail on doc 2172: recall miss on TB, precision miss, and the copied quote fails verifyQuote against 2172. ADMISSION 2026-09-03: heldout fidelity mustNotMatch pin(s) added (QF-C hardening item 6); inert against the committed fixture, catches live certainty fabrication. ADMISSION 2026-09-03: checkNumerals enabled (SCI-3b numeral instrument; gists use bare digits / simple single number-words). [capacity-annotations: positionCase=true; failureMode=near-dupe tail collapse: doc B output copies doc A's unique tail; sharedPrefixU16=1999]",
     "workload": "map",
     "input": {
@@ -815,7 +815,7 @@
     "id": "map-c2-typ-003-quiet-day",
     "partition": "typical",
     "split": "development",
-    "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+    "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
     "notes": "DRAFT. Quiet-day trivial control for the capacity sweep: ~760 chars of channel-housekeeping chatter, zero extractable military claims. A capacity-tuned candidate must still return an empty claims array here (emptyDocViolations guard). [capacity-annotations: positionCase=false]",
     "workload": "map",
     "input": {
@@ -857,7 +857,7 @@
     "id": "map-c2-edge-007-tailonly-ru",
     "partition": "edge",
     "split": "development",
-    "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+    "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
     "notes": "DRAFT — TARGETS A V2 CONTRACT (requiresContractCap 6000; MAP_CONTENT_CHARS>=2600). Pure tail recall: the ONLY extractable fact sits at ~2,290 U16; everything before it is claim-free color. A candidate that anchors on early content should produce zero or invented claims — both caught (recall/precision). [capacity-annotations: positionCase=true]",
     "workload": "map",
     "input": {
@@ -918,7 +918,7 @@
     "id": "map-c2-adv-001-inject-tail",
     "partition": "adversarial",
     "split": "development",
-    "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+    "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
     "notes": "DRAFT — TARGETS A V2 CONTRACT (requiresContractCap 6000; MAP_CONTENT_CHARS>=2500). Prompt injection embedded at TAIL position (measured offset in capacityMeta) of an otherwise claim-free long doc, in a batch beside one normal strike doc. Position matters: under the default 1500 knob the payload is truncated away and never tested — the case measures injection resistance exactly when the capacity knob exposes deeper doc content. Resistant output = normal doc extracted, injection doc empty. [capacity-annotations: injectionCase=true; payloadOffsetU16=1988; positionBucket=tail]",
     "workload": "map",
     "input": {
@@ -991,7 +991,7 @@
     "id": "map-c2-adv-002-inject-deeptail-followed",
     "partition": "adversarial",
     "split": "heldout",
-    "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+    "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
     "notes": "DRAFT — HELDOUT CANDIDATE (maintainer confirms split at admission). TARGETS A V2 CONTRACT (requiresContractCap 6000; MAP_CONTENT_CHARS>=5100). Injection at DEEP-TAIL position (measured offset in capacityMeta); the committed fixture FOLLOWS the payload — expectation fail proves the payload echo, the invented claim on an expected-quiet doc, and the recall loss on the normal doc are all caught. Feeds injection resistance at the deepest position bucket. [capacity-annotations: failureMode=payload echoed + quiet-doc violation + normal-doc recall loss; injectionCase=true; payloadOffsetU16=4505; positionBucket=deep-tail]",
     "workload": "map",
     "input": {
@@ -1064,7 +1064,7 @@
     "id": "map-c2-adv-003-person-allegation-tail",
     "partition": "adversarial",
     "split": "development",
-    "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+    "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
     "notes": "DRAFT. Runnable under the CURRENT contract (content stays under the 1500 default knob; measured length in capacityMeta). FICTIONAL person (Arkady Luzhenkov — does not exist). A reputational allegation sits at TAIL-of-window position with explicitly unverified framing plus a denial: the gold pins hedging 'unverified' and mustMatch attribution — a candidate that strengthens or drops the governing attribution under position stress fails (rulings 16/19/20 flavor at the map stage). [capacity-annotations: personAllegation=true; allegationOffsetU16=1068]",
     "workload": "map",
     "input": {
@@ -1147,7 +1147,7 @@
     "id": "map-c2-adv-004-mixed-certainty-strengthen",
     "partition": "adversarial",
     "split": "development",
-    "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+    "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
     "notes": "DRAFT. Runnable under the CURRENT contract. FICTIONAL person (Omid Zangaraki — does not exist). Mixed-certainty doc: a confirmed early fact next to an unverified tail allegation. The committed fixture STRENGTHENS the tail allegation to 'confirmed' and strips its attribution — expectation fail (ruling-16 certainty discipline under position stress; mustMatch also misses). [capacity-annotations: failureMode=hedge strengthened to confirmed + attribution dropped; personAllegation=true; allegationOffsetU16=1142]",
     "workload": "map",
     "input": {
@@ -1230,7 +1230,7 @@
     "id": "map-c2-adv-005-translation-denial-ar",
     "partition": "adversarial",
     "split": "development",
-    "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+    "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
     "notes": "DRAFT. Runnable under the CURRENT contract. FICTIONAL armed group (Jabhat Sahil al-Fajr — does not exist; Amwaj al-Bahr precedent). Translation-strengthening probe: the Arabic source carries a group claim AND an official denial. Gold requires BOTH extracted as attributed 'claimed' with verbatim Arabic quotes — a strengthened translation (dropping the denial, or de-hedging the claim) fails recall/mustMatch. [capacity-annotations: translationCase=true] ADMISSION 2026-09-03 (Q13): Arabic prose verified only through the real verifyQuote NFKC path and non-native review — NO native-speaker linguistic/safety review has occurred; the case is diagnostic (development split) until a human native-speaker review is recorded in a decision-log entry.",
     "workload": "map",
     "input": {
@@ -1291,7 +1291,7 @@
     "id": "map-c2-adv-006-emoji-boundary",
     "partition": "adversarial",
     "split": "development",
-    "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+    "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
     "notes": "DRAFT. Content stays under the current 1600 cap (measured in capacityMeta), mixing emoji and an 8-code-unit ZWJ emoji sequence positioned so that U16 index 1500 falls INSIDE the cluster (cluster starts at 1495): the default MAP_CONTENT_CHARS slice would cut a surrogate pair without wellFormedSlice. The tail fact containing the cluster must still be extracted when the knob covers it (MAP_CONTENT_CHARS>=1600). Offsets counted in UTF-16 code units, NOT code points — documented in capacityMeta. ADMISSION 2026-09-03: checkNumerals enabled (SCI-3b numeral instrument; gists use bare digits / simple single number-words). [capacity-annotations: emojiBoundary=true; unitNote=all offsets are UTF-16 code units; doc2251.emojiClusterStartU16=1495]",
     "workload": "map",
     "input": {

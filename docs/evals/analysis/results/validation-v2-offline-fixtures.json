@@ -2,7 +2,7 @@
   "workload": "validation",
   "configKey": "offline-fixtures",
   "datasetVersion": "validation-v2",
-  "datasetContentHash": "810a67f3e940892dc711672db9855f3cc2d129892f0b097dd4de79055f1218a9",
+  "datasetContentHash": "db9fdf263a9bc8d7536713cfd1857a8b79df6adbf0dde895ab6f529179d0bf04",
   "identity": {
     "provider": "stub",
     "model": "offline-fixtures",
@@ -21,7 +21,7 @@
     "mapContentChars": 1500,
     "reduceGroupsFed": 200
   },
-  "updatedAt": "2026-09-03T13:30:18.264Z",
+  "updatedAt": "2026-09-03T13:33:24.506Z",
   "meter": {
     "attempts": 0,
     "reservations": 0,

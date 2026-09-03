@@ -175,12 +175,22 @@ function annotationNote(entries: Array<[string, unknown]>): string {
   return ` [capacity-annotations: ${body}]`;
 }
 
+/** the admission act itself: the drafts carried a "hand-authored-draft …
+ *  PENDING human review … not admitted to any dataset" provenance; this
+ *  maintainer pass IS that review, so admitted cases record both instants */
+const ADMITTED_PROVENANCE =
+  "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)";
+
 function baseFields(c: Raw): Pick<AnalysisEvalCase, "id" | "partition" | "split" | "provenance"> & { notes?: string } {
+  const draftProvenance = c.provenance as string;
+  if (!draftProvenance.startsWith("hand-authored-draft-2026-08-27")) {
+    fail(c.id as string, `unexpected draft provenance: ${draftProvenance}`);
+  }
   return {
     id: c.id as string,
     partition: c.partition as AnalysisEvalCase["partition"],
     split: c.split as AnalysisEvalCase["split"],
-    provenance: c.provenance as string,
+    provenance: ADMITTED_PROVENANCE,
     ...(typeof c.notes === "string" ? { notes: c.notes } : {}),
   };
 }
@@ -387,7 +397,8 @@ function admitLateCase(c: Raw): DigestEvalCase {
 
 function admitValidationCase(c: Raw): ValidationEvalCase {
   const id = c.id as string;
-  let out = c as unknown as ValidationEvalCase;
+  let raw = c;
+  let sentinelNote = "";
   if (id === RED_SEA_CASE) {
     // Q12: swap the real-region probe for the synthetic off-gazetteer
     // sentinel. Textual swap only — the takeaway still matches no claim
@@ -399,17 +410,16 @@ function admitValidationCase(c: Raw): ValidationEvalCase {
       .replaceAll("red_sea", "varn_strait")
       .replaceAll("Red Sea", "Varn Strait"); // takeaway text + the notes prose
     if (swapped.includes("Red Sea")) fail(id, "a Red Sea mention survived the sentinel swap");
-    out = JSON.parse(swapped) as ValidationEvalCase;
-    out.notes =
-      (out.notes ?? "") +
-      " ADMISSION 2026-09-03: the draft's off-gazetteer probe used the real region token red_sea, whose meaning would silently flip if the gazetteer ever gained it (draft open question 12); replaced with the synthetic sentinel varn_strait (probe expect 'both' unchanged; the takeaway still matches no claim).";
+    raw = JSON.parse(swapped) as Raw;
+    sentinelNote =
+      " ADMISSION 2026-09-03 (Q12): the draft's off-gazetteer probe used the real region token red_sea, whose meaning would silently flip if the gazetteer ever gained it; replaced with the synthetic sentinel varn_strait (probe expect 'both' unchanged; the takeaway still matches no claim).";
   }
-  if (id === "val-c2-edge-002-compound-takeaway") {
-    // Q13: the heldout compound-takeaway case is admissible as-is; the Arabic
-    // limitation note lives on map-c2-adv-005 (the only Arabic-content case).
-    out = { ...out };
-  }
-  return out;
+  const base = baseFields(raw);
+  return {
+    ...(raw as unknown as ValidationEvalCase),
+    ...base,
+    ...(sentinelNote !== "" ? { notes: (base.notes ?? "") + sentinelNote } : {}),
+  };
 }
 
 // ---- entry ---------------------------------------------------------------------

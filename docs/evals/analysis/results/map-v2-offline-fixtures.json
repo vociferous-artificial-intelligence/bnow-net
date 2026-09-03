@@ -2,7 +2,7 @@
   "workload": "map",
   "configKey": "offline-fixtures",
   "datasetVersion": "map-v2",
-  "datasetContentHash": "c46571f9d3fa4d6080e8e16630f61ca905fce79b406b3135b9b3734ecdb3da21",
+  "datasetContentHash": "40cfa76cfe7c472d28831c3741c2a4755ce77c7296c80b0979cbeb764f932124",
   "identity": {
     "provider": "stub",
     "model": "offline-fixtures",
@@ -22,7 +22,7 @@
     "mapContentChars": 1500,
     "reduceGroupsFed": 200
   },
-  "updatedAt": "2026-09-03T13:30:18.215Z",
+  "updatedAt": "2026-09-03T13:33:24.459Z",
   "meter": {
     "attempts": 0,
     "reservations": 0,

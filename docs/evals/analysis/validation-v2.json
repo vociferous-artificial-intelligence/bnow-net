@@ -990,7 +990,7 @@
       "workload": "validation",
       "partition": "typical",
       "split": "development",
-      "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+      "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
       "notes": "DRAFT. Quiet-day flavor: a no-activity takeaway genuinely matched by a quiet-day claim. Hand-computed pins: keyword timelinessHours is NULL because the keyword path records no agreement (timeliness is computed over keyword agreements only); thin rate = 1 of 2 claims (claim 2002: docCount 1 + claimed; claim 2001 docCount 2 is not thin) = 0.5; keyword path: the takeaway has NO gazetteer toponym, so the keyword matcher cannot reach the 0.6 threshold — coverage 0, matchedPairs 0 (verified against the real scorer); at-publish (match-set): 1 of 1 fetched (14:30) before publish (23:00) = 100.",
       "input": {
         "takeaways": [
@@ -1054,8 +1054,8 @@
       "workload": "validation",
       "partition": "edge",
       "split": "development",
-      "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
-      "notes": "DRAFT. Off-theater flavor: a Varn Strait maritime takeaway inside the ru/ua validation lens has no genuine counterpart (label null) and no gazetteer toponym — the keyword path can reach at most the action-only score 0.25 < 0.6, so it must not match it; the Belgorod takeaway matches normally. Theater probes: belgorod->ru, kherson->ua, varn_strait (off-gazetteer)->both, []->both. Hand-computed: keyword timeliness = 23:30 - 09:30 = 14h (over the one keyword agreement); thin rate 0 of 1 (claim 2011 docCount 2); at-publish coveragePct = matchedBefore/ALL takeaways = 1/2 = 50 with matchedTotal 1 (the production at-publish denominator is the takeaway count, not the match count). Pins verified against the real scorer. ADMISSION 2026-09-03: the draft's off-gazetteer probe used the real region token red_sea, whose meaning would silently flip if the gazetteer ever gained it (draft open question 12); replaced with the synthetic sentinel varn_strait (probe expect 'both' unchanged; the takeaway still matches no claim).",
+      "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
+      "notes": "DRAFT. Off-theater flavor: a Varn Strait maritime takeaway inside the ru/ua validation lens has no genuine counterpart (label null) and no gazetteer toponym — the keyword path can reach at most the action-only score 0.25 < 0.6, so it must not match it; the Belgorod takeaway matches normally. Theater probes: belgorod->ru, kherson->ua, varn_strait (off-gazetteer)->both, []->both. Hand-computed: keyword timeliness = 23:30 - 09:30 = 14h (over the one keyword agreement); thin rate 0 of 1 (claim 2011 docCount 2); at-publish coveragePct = matchedBefore/ALL takeaways = 1/2 = 50 with matchedTotal 1 (the production at-publish denominator is the takeaway count, not the match count). Pins verified against the real scorer. ADMISSION 2026-09-03 (Q12): the draft's off-gazetteer probe used the real region token red_sea, whose meaning would silently flip if the gazetteer ever gained it; replaced with the synthetic sentinel varn_strait (probe expect 'both' unchanged; the takeaway still matches no claim).",
       "input": {
         "takeaways": [
           {
@@ -1147,7 +1147,7 @@
       "workload": "validation",
       "partition": "edge",
       "split": "heldout",
-      "provenance": "hand-authored-draft-2026-08-27 PENDING human review (c2 capacity workstream; DRAFT — not admitted to any dataset)",
+      "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
       "notes": "DRAFT — HELDOUT CANDIDATE (maintainer confirms split at admission). Compound-takeaway flavor: one takeaway carries TWO assertions (Kupyansk advance + Kramatorsk depot strike); the scoring contract allows a single claimId per takeaway, so the human label picks the claim covering the leading clause (2021) and the case DOCUMENTS the known limitation: coverage counts the whole compound takeaway as covered by half its content. The keyword path sees toponyms from BOTH clauses and may match either claim — measured, not excused. Hand-computed: keyword timeliness = 22:45 - 11:00 = 11.75h, recorded as 11.8 by the scorer's rounding; thin rate = 1 of 2 (claim 2022 docCount 1 claimed); at-publish 1/1 takeaways = 100. Pins verified against the real scorer.",
       "input": {
         "takeaways": [

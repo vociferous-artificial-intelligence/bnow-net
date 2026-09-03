@@ -9,15 +9,28 @@ import {
 } from "./contracts";
 
 const EVALS_DIR = join(__dirname, "..", "..", "..", "docs", "evals", "analysis");
-const DATASET_FILES = {
+/** the frozen historical v1 files — committed forever, byte-stable */
+const V1_FILES = {
   map: "map-v1.json",
   reduce: "reduce-v1.json",
   digest: "digest-v1.json",
   validation: "validation-v1.json",
 } as const;
+/** the files the runner actually loads (scripts/analysis-eval.ts DATASETS) */
+const ACTIVE_FILES = {
+  map: "map-v2.json",
+  reduce: "reduce-v1.json",
+  digest: "digest-v2.json",
+  validation: "validation-v2.json",
+} as const;
+const DATASET_FILES = V1_FILES;
+
+function loadFile(file: string): AnalysisEvalDataset {
+  return JSON.parse(readFileSync(join(EVALS_DIR, file), "utf8")) as AnalysisEvalDataset;
+}
 
 function loadDataset(workload: keyof typeof DATASET_FILES): AnalysisEvalDataset {
-  return JSON.parse(readFileSync(join(EVALS_DIR, DATASET_FILES[workload]), "utf8")) as AnalysisEvalDataset;
+  return loadFile(DATASET_FILES[workload]);
 }
 
 function minimalMapDataset(): AnalysisEvalDataset {
@@ -321,33 +334,73 @@ describe("contractVersion 2 (corpus-v2 capacity contract)", () => {
 });
 
 describe("committed datasets", () => {
-  it("every committed dataset validates against its contract", () => {
+  it("every committed dataset (v1 frozen + active v2) validates against its contract", () => {
     for (const w of ANALYSIS_EVAL_WORKLOADS) {
-      const errs = validateAnalysisEvalDataset(loadDataset(w), w);
-      expect(errs, `${w} dataset`).toEqual([]);
+      expect(validateAnalysisEvalDataset(loadFile(V1_FILES[w]), w), `${w} v1`).toEqual([]);
+      expect(validateAnalysisEvalDataset(loadFile(ACTIVE_FILES[w]), w), `${w} active`).toEqual([]);
     }
   });
 
   it("every case is hand-authored (no model-generated provenance) and every partition has heldout coverage", () => {
     for (const w of ANALYSIS_EVAL_WORKLOADS) {
-      const ds = loadDataset(w);
-      const heldout = { typical: 0, edge: 0, adversarial: 0 };
-      for (const c of ds.cases) {
-        expect(c.provenance, `${w}/${c.id}`).toMatch(/^authored-/);
-        if (c.split === "heldout") heldout[c.partition]++;
+      for (const file of new Set([V1_FILES[w], ACTIVE_FILES[w]])) {
+        const ds = loadFile(file);
+        const heldout = { typical: 0, edge: 0, adversarial: 0 };
+        for (const c of ds.cases) {
+          expect(c.provenance, `${file}/${c.id}`).toMatch(/^authored-/);
+          if (c.split === "heldout") heldout[c.partition]++;
+        }
+        expect(heldout.typical, `${file} heldout typical`).toBeGreaterThanOrEqual(1);
+        expect(heldout.edge, `${file} heldout edge`).toBeGreaterThanOrEqual(1);
+        expect(heldout.adversarial, `${file} heldout adversarial`).toBeGreaterThanOrEqual(1);
       }
-      expect(heldout.typical, `${w} heldout typical`).toBeGreaterThanOrEqual(1);
-      expect(heldout.edge, `${w} heldout edge`).toBeGreaterThanOrEqual(1);
-      expect(heldout.adversarial, `${w} heldout adversarial`).toBeGreaterThanOrEqual(1);
     }
   });
 
   it("no committed doc snippet or takeaway is long enough to be plausibly copied full text", () => {
     // ruling 1 / copyright discipline: snippets stay short synthetic texts.
-    // The structural cap is also enforced by the validator; this pins it stays.
-    const map = loadDataset("map");
-    for (const c of map.cases as MapEvalCase[]) {
+    // The structural caps are also enforced by the validator; this pins them:
+    // v1 keeps its frozen 1,600 ceiling; v2's graded capacity docs stay under
+    // the 6,000 dataset safety ceiling and actually exercise the raise.
+    const mapV1 = loadFile(V1_FILES.map);
+    for (const c of mapV1.cases as MapEvalCase[]) {
       for (const d of c.input.docs) expect(d.content.length, `${c.id}/${d.docId}`).toBeLessThanOrEqual(1600);
+    }
+    const mapV2 = loadFile(ACTIVE_FILES.map);
+    let over1600 = 0;
+    for (const c of mapV2.cases as MapEvalCase[]) {
+      for (const d of c.input.docs) {
+        expect(d.content.length, `${c.id}/${d.docId}`).toBeLessThanOrEqual(6000);
+        if (d.content.length > 1600) over1600++;
+      }
+    }
+    expect(over1600, "v2 must exercise the raised ceiling").toBeGreaterThanOrEqual(1);
+  });
+
+  it("the v2 files carry contractVersion 2; v1 files carry none", () => {
+    for (const w of ANALYSIS_EVAL_WORKLOADS) {
+      expect(loadFile(V1_FILES[w]).contractVersion, `${V1_FILES[w]}`).toBeUndefined();
+      if (ACTIVE_FILES[w] !== V1_FILES[w]) {
+        expect(loadFile(ACTIVE_FILES[w]).contractVersion, `${ACTIVE_FILES[w]}`).toBe(2);
+      }
+    }
+  });
+
+  it("every v1 case is byte-frozen inside its v2 union (immutability contract)", () => {
+    for (const w of ANALYSIS_EVAL_WORKLOADS) {
+      if (ACTIVE_FILES[w] === V1_FILES[w]) continue;
+      const v1 = loadFile(V1_FILES[w]);
+      const v2ById = new Map(loadFile(ACTIVE_FILES[w]).cases.map((c) => [c.id, c]));
+      for (const c of v1.cases) {
+        const in2 = v2ById.get(c.id);
+        expect(in2, `${w}/${c.id} present in v2`).toBeDefined();
+        for (const part of ["input", "reference", "offline"] as const) {
+          expect(
+            JSON.stringify((in2 as unknown as Record<string, unknown>)[part]),
+            `${w}/${c.id}.${part} frozen`,
+          ).toBe(JSON.stringify((c as unknown as Record<string, unknown>)[part]));
+        }
+      }
     }
   });
 });

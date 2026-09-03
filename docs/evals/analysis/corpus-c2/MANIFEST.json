@@ -9,8 +9,8 @@
     "validation-c2-draft.json": "c8f7429f8fac2e01e154b1caf2cf931274b6aa4453696da464b235fe98561d1e"
   },
   "fragmentSha256": {
-    "map-c2-cases.json": "b6147b85769cdbe75dbe205b4d6615def6495b09cec9625a0757eac009a915fc",
-    "digest-c2-cases.json": "270316b73e9380db7a3155ae38259d2ee3f800ba6288e0f66d9f2c898adcec97",
-    "validation-c2-cases.json": "2341a45be5bee98a1817b858378e29daf7c26c2e7e146473e3dba07ae34fad79"
+    "map-c2-cases.json": "6e7db01963a16b831f5142ee896143f781dddd94fcad56bf4a8ad271e487926a",
+    "digest-c2-cases.json": "516008e3dad5012930265936fe758a22ebafceb69babcd62c605305e82c715d6",
+    "validation-c2-cases.json": "45f8ebeb3822699382e8a076404c376cbc0ea9f6757186fba1dc57d872a9fd71"
   }
 }

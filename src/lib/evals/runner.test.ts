@@ -50,6 +50,7 @@ import {
   buildCandidatePrompt,
   buildWorkloadScorecard,
   computeCompleteness,
+  classifyCaseApplicability,
   currentEnvKnobs,
   datasetPromptHash,
   emptyEvalResultsFile,
@@ -69,10 +70,14 @@ import {
 const EVALS_DIR = join(__dirname, "..", "..", "..", "docs", "evals", "analysis");
 const load = (f: string) => JSON.parse(readFileSync(join(EVALS_DIR, f), "utf8")) as AnalysisEvalDataset;
 
-const MAP_DS = load("map-v1.json");
+// the ACTIVE datasets the runner loads (corpus-v2 union files where bumped),
+// so the leakage sentinel / estimate / pendingWork coverage includes the c2
+// cases; reduce stays on v1 and an explicit v1-bytes test below keeps the
+// frozen contract exercised
+const MAP_DS = load("map-v2.json");
 const REDUCE_DS = load("reduce-v1.json");
-const DIGEST_DS = load("digest-v1.json");
-const VALIDATION_DS = load("validation-v1.json");
+const DIGEST_DS = load("digest-v2.json");
+const VALIDATION_DS = load("validation-v2.json");
 const ALL = [MAP_DS, REDUCE_DS, DIGEST_DS, VALIDATION_DS];
 
 function mkHeader(ds: AnalysisEvalDataset, overrides: Partial<ResultsFileHeader> = {}): ResultsFileHeader {
@@ -240,23 +245,37 @@ describe("estimate mode", () => {
     expect(reduce.totalCalls).toBe(0);
     expect(reduce.totalUsd).toBe(0);
 
+    // corpus-v2: baseline-inapplicable capacity cases cost ZERO calls (they
+    // are never dispatched); applicable cases cost exactly one each
+    const knobs = currentEnvKnobs();
+    const applicableMap = MAP_DS.cases.filter((c) => classifyCaseApplicability(c, knobs).applicable).length;
+    expect(applicableMap).toBe(24); // 34 minus the 10 depth-requiring cases
     const map = buildAnalysisEstimatePlan(MAP_DS, "gpt-5-mini", 2);
-    expect(map.totalCalls).toBe(MAP_DS.cases.length * 2);
+    expect(map.totalCalls).toBe(applicableMap * 2);
+    expect(map.rows.filter((r) => r.calls === 0).length).toBe(MAP_DS.cases.length - applicableMap);
     expect(map.totalUsd).toBeGreaterThan(0);
 
     const digest = buildAnalysisEstimatePlan(DIGEST_DS, "gpt-5-mini", 1);
-    // K=5 synthesis votes per digest case (ruling 18's shipped configuration)
-    expect(digest.totalCalls).toBe(DIGEST_DS.cases.length * 5);
+    // K=5 synthesis votes per digest case (ruling 18's shipped configuration);
+    // dig-c2-cap-003 (exact fed 400) is baseline-inapplicable
+    const applicableDigest = DIGEST_DS.cases.filter((c) => classifyCaseApplicability(c, knobs).applicable).length;
+    expect(applicableDigest).toBe(DIGEST_DS.cases.length - 1);
+    expect(digest.totalCalls).toBe(applicableDigest * 5);
   });
 });
 
 describe("completeness (MAJOR-1) + aggregation over the committed datasets", () => {
   it("every committed fixture behaves exactly as its declared expectation (the machinery proof)", () => {
+    const knobs = currentEnvKnobs();
     for (const ds of ALL) {
       const rf = runAll(ds);
       const agg = aggregateResults(ds, rf, false);
-      expect(agg.machinery.total, ds.workload).toBe(ds.cases.length);
-      expect(agg.machinery.matched, ds.workload).toBe(ds.cases.length);
+      // corpus-v2: baseline-inapplicable capacity cases are recorded but are
+      // NOT machinery data points; every APPLICABLE fixture must match
+      const applicable = ds.cases.filter((c) => classifyCaseApplicability(c, knobs).applicable).length;
+      expect(agg.machinery.total, ds.workload).toBe(applicable);
+      expect(agg.machinery.matched, ds.workload).toBe(applicable);
+      expect(agg.cases.inapplicable, ds.workload).toBe(ds.cases.length - applicable);
       expect(agg.completeness.complete, ds.workload).toBe(true);
       expect(agg.completeness.missingResults, ds.workload).toBe(0);
     }
