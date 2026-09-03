@@ -218,6 +218,34 @@ describe("assertLivePreflight (all guards BEFORE any client construction)", () =
     expect(assertLivePreflight(GOOD_ARGS, okEnv)).toBeTruthy();
   });
 
+  it("SAF-m3: pooled/unpooled host aliasing cannot defeat the equality guard", () => {
+    // Neon endpoints expose the SAME branch as ep-x.region.neon.tech (direct)
+    // and ep-x-pooler.region.neon.tech (pgbouncer). Pasting the production
+    // UNPOOLED URL into EVAL_DATABASE_URL must still refuse when DATABASE_URL
+    // holds the pooled form — and vice versa.
+    const pooled = "postgres://user:pw@ep-prod-pooler.region.neon.tech/db";
+    const direct = "postgres://user:pw@ep-prod.region.neon.tech/db";
+    for (const [evalUrl, prodUrl] of [
+      [direct, pooled],
+      [pooled, direct],
+    ] as const) {
+      const env = { ...GOOD_ENV, EVAL_DATABASE_URL: evalUrl, DATABASE_URL: prodUrl };
+      const ack = new URL(evalUrl).host;
+      expect(() => assertLivePreflight({ ...GOOD_ARGS, dbAck: ack }, env)).toThrow(
+        /EQUALS the production DATABASE_URL host/,
+      );
+    }
+    // a genuinely different branch host still passes with the pooled prod URL
+    const env = {
+      ...GOOD_ENV,
+      EVAL_DATABASE_URL: "postgres://user:pw@ep-eval.region.neon.tech/db",
+      DATABASE_URL: pooled,
+    };
+    expect(
+      assertLivePreflight({ ...GOOD_ARGS, dbAck: "ep-eval.region.neon.tech" }, env),
+    ).toBeTruthy();
+  });
+
   it("refuses without the API key or either cap (fail-closed)", () => {
     for (const missing of ["OPENAI_API_KEY", "LLM_SPRINT_USD_CAP", "EVAL_USD_CAP_DAILY"] as const) {
       const env = { ...GOOD_ENV };

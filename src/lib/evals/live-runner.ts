@@ -205,9 +205,13 @@ export function assertLivePreflight(
   // SAF-m3: a copy-paste slip that points EVAL_DATABASE_URL at the production
   // DATABASE_URL sitting in the same env would write openai_eval ledger rows
   // to production. Refuse host equality outright (ab-mapreduce precedent).
+  // Neon pooled/unpooled hosts differ only by "-pooler." (backfill-at-publish
+  // precedent) — normalize it away so the production UNPOOLED URL cannot slip
+  // past an equality check against the pooled DATABASE_URL.
   const prodUrl = env.DATABASE_URL;
   if (prodUrl) {
-    const normalizeHost = (h: string) => h.toLowerCase().replace(/:5432$/, "");
+    const normalizeHost = (h: string) =>
+      h.toLowerCase().replace(/:5432$/, "").replace(/-pooler\./, ".");
     let prodHost: string;
     try {
       prodHost = normalizeHost(new URL(prodUrl).host);

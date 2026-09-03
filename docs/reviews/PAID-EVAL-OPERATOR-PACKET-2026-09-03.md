@@ -41,7 +41,8 @@ every guard below — fail-closed at multiple layers.
 
 Priced in `src/lib/llm/pricing.ts` (per MTok in/out): gpt-5-nano $0.05/$0.40 ·
 gpt-5-mini $0.25/$2.00 · gpt-5 $1.25/$10.00 · gpt-4o $2.50/$10.00. An
-unpriced model is refused by the live runner (`hasScorecard`/pricing gates).
+unpriced model is refused by the live runner (the `PRICES_PER_MTOK` check in
+`evalDispatchConfig` — its spend could only be guessed).
 **The initial authorized campaign is baseline (gpt-4o-mini) + gpt-5-nano
 ONLY, both effort-absent.** gpt-5-mini is a LATER, separately authorized
 decision (even if nano fails); gpt-5/gpt-4o later still. Effort variants
@@ -66,10 +67,16 @@ vacuously: no deployed code reads any `EVAL_*` variable.
   fail-closed on unparseable URLs) and requires `--db-ack <host>` naming the
   branch host exactly. Create the branch fresh per campaign; delete after.
 - `LLM_SPRINT_USD_CAP=6` — campaign-local value for the eval invocations
-  only: it caps the fresh `openai_eval` ledger row (which starts at zero in
-  the disposable branch), making $6 the campaign's absolute expenditure
-  ceiling. The production/Vercel value stays the untouched shared $10
-  backstop; nothing deployed reads the campaign-local value.
+  only: it caps the fresh `openai_eval` ledger row, making $6 the campaign's
+  expenditure ceiling. Cap semantics are the repo-standard reservation
+  threshold (recorded spend is compared BEFORE each call), so terminal spend
+  can exceed the ceiling by at most one in-flight response's cost — cents at
+  these prices. Verify before the first dispatch that the disposable branch's
+  `openai_eval` ledger holds zero rows (a Neon branch inherits parent rows;
+  zero is expected because no live eval has ever run, but verify, don't
+  assume). One branch per campaign — recreating the branch would silently
+  re-arm both caps. The production/Vercel value stays the untouched shared
+  $10 backstop; nothing deployed reads the campaign-local value.
 - NO other variable changes. `ASK_*`, `MAP_*`, `X_*`, cron, cap, routing and
   flag settings are untouched by evaluation work.
 
@@ -97,9 +104,10 @@ Freshly generated 2026-09-03 (`--estimate` per intended cell, ×3 reps,
 deliberate over-estimates): gpt-4o-mini baseline profile $1.0056 +
 map-depth-4000 map $0.0507 + reduce-fed-400 digest $1.1940 = **$2.2503**;
 gpt-5-nano same cells $0.6298 + $0.0272 + $0.7760 = **$1.4330**; campaign
-total **$3.6833 expected**. The campaign's HARD absolute ceiling is **$6**,
-enforced by the campaign-local `LLM_SPRINT_USD_CAP=6` on the fresh
-`openai_eval` ledger (§4). A previous draft of this packet stated a $15
+total **$3.6833 expected**. The campaign's HARD ceiling is **$6**, enforced
+by the campaign-local `LLM_SPRINT_USD_CAP=6` on the fresh `openai_eval`
+ledger (§4; reservation-threshold semantics — terminal spend can exceed it
+by at most one response's cost, cents here). A previous draft of this packet stated a $15
 worst-case envelope — that was inconsistent as written: the $10 shared
 backstop cannot support a $15 campaign without a separate cap decision, and
 no such decision exists; the $6 ceiling supersedes it. The $2/day cap paces
@@ -134,9 +142,9 @@ diagnostics are REPORT-ONLY and gate nothing. A PASS scorecard only ever
    is purely local (§4); no Vercel variable is set.**
 2. Operator names the candidate list and confirms the cost envelope.
    **Resolved 2026-09-03: gpt-5-nano only; $2/day, $6 campaign ceiling.**
-3. Operator explicitly authorizes the paid run (packet §5's four decisions).
-   **Resolved 2026-09-03 for the baseline + gpt-5-nano cells of §5; the
-   paid calls additionally wait for the baseline-identity repair PR to
-   merge.**
+3. Operator explicitly authorizes the paid run (the §5 campaign steps plus
+   the §4 environment posture). **Resolved 2026-09-03 for the baseline +
+   gpt-5-nano cells of §5; the paid calls additionally wait for the
+   baseline-identity repair PR to merge.**
 4. The corpus-v2 PR is MERGED (this packet assumes the admitted datasets).
    **Resolved: merged as `d96180b`.**
