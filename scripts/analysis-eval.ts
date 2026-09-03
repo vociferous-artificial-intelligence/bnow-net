@@ -914,18 +914,21 @@ function modeCapacityMatrix(model: string, repetitions: number): void {
   }
   lines.push("");
   lines.push(
-    `> HONESTY NOTE: with the v1 datasets these estimates barely differentiate across`,
+    `> The corpus-v2 datasets (2026-09-03) carry graded long synthetic docs and`,
   );
   lines.push(
-    `> profiles — v1 fixture docs are short (validator cap 1,600 chars), so depth knobs`,
+    `> >200-group fed-cutoff cases, so the cells now genuinely diverge: capacity`,
   );
   lines.push(
-    `> change nothing yet. The capacity corpus (v2 datasets with graded long synthetic`,
+    `> cases a profile's knobs cannot satisfy are classified structurally`,
   );
   lines.push(
-    `> docs and >200-group reduce cases) is what makes the cells diverge; until it`,
+    `> INAPPLICABLE and cost ZERO calls in that cell (never dispatched), so each`,
   );
-  lines.push(`> lands, this table is a harness proof, not a cost forecast.`);
+  lines.push(
+    `> cell's estimate covers exactly the cases it would actually run. Estimates`,
+  );
+  lines.push(`> remain deliberate over-estimates, never a billing promise.`);
   lines.push("");
   lines.push(`Estimated grand total (all cells, all workloads): $${grand.toFixed(4)}`);
   lines.push("");

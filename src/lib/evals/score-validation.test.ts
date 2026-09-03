@@ -138,6 +138,11 @@ describe("scoreValidationCase", () => {
           { toponyms: ["belgorod"], expect: "ru" },
           { toponyms: ["pokrovsk"], expect: "ua" },
           { toponyms: ["belgorod", "pokrovsk"], expect: "both" },
+          // corpus-v2 Q12: the SYNTHETIC off-gazetteer sentinel used by
+          // val-c2-edge-001 — a fictional token that can never legitimately
+          // join the real-toponym gazetteer, so its fall-through-to-"both"
+          // meaning is stable by construction (unlike the draft's red_sea)
+          { toponyms: ["varn_strait"], expect: "both" },
         ],
       },
       {},
