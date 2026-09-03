@@ -453,7 +453,11 @@ export interface CandidateDispatchIdentity {
   extractorVersion?: string;
 }
 
-export type EvalCaseStatus = "scored" | "schema_invalid" | "provider_error" | "skipped";
+/** "inapplicable" (corpus-v2): the case declares a capacity requirement the
+ *  run's applied knobs cannot satisfy (applicability.ts). The row is finished
+ *  work for completeness, but it is never scored, never machinery, never a
+ *  quality data point — a structural classification, not a model verdict. */
+export type EvalCaseStatus = "scored" | "schema_invalid" | "provider_error" | "skipped" | "inapplicable";
 
 /** Minimal structural contract every workload's checks object satisfies
  *  (MapCaseChecks / ReduceCaseChecks / DigestCaseChecks /
@@ -493,6 +497,12 @@ export interface EvalCaseResult {
   rawOutputDigest: string;
   /** offline runs only: which committed fixture produced the scored output */
   fixtureId?: string;
+  /** status "inapplicable" only: the recorded requirement/actual witness */
+  applicability?: {
+    required: Record<string, number>;
+    actual: Record<string, number>;
+    reason: string;
+  };
 }
 
 // ============================================================================

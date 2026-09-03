@@ -115,6 +115,9 @@ export interface WorkloadAggregate {
     schemaInvalid: number;
     providerError: number;
     skipped: number;
+    /** corpus-v2: structurally inapplicable rows (applicability.ts) — finished
+     *  work for completeness, never a verdict/quality/machinery data point */
+    inapplicable: number;
   };
   checks: { passed: number; total: number };
   /** offline machinery proof: results whose checks.pass equals the fixture's
@@ -167,6 +170,10 @@ export interface AlignedComparison {
   scoredAlignedKeys: number;
   /** present-aligned pairs excluded because either side was degraded */
   excludedDegradedPairs: number;
+  /** present-aligned pairs excluded because either side was structurally
+   *  inapplicable (corpus-v2) — named separately so a capacity exclusion is
+   *  never mislabeled as data loss */
+  excludedInapplicablePairs: number;
   /** intersection size restricted to heldout cases — the gated population */
   alignedHeldoutKeys: number;
   /** quality over the aligned HELDOUT subset (scored-on-both-sides pairs) */

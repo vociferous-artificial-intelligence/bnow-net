@@ -104,6 +104,8 @@ import {
   applyCapacityProfile,
   capacityProfileNames,
   withCapacityProfileKey,
+  classifyCaseApplicability,
+  inapplicableResult,
   mergeEvalResults,
   offlineIdentity,
   pendingWork,
@@ -386,6 +388,15 @@ function modeOffline(
       const result = scoreOfflineCase(item.evalCase, ds.datasetVersion, runId, profiledKey(OFFLINE_CONFIG_KEY));
       rf = mergeEvalResults(rf, header, [result], ZERO_METER, new Date());
       saveResults(rf); // durable after EVERY case (resumable-by-key)
+      if (result.status === "inapplicable") {
+        // structural classification, not a machinery data point — the fixture
+        // was authored for a capacity the applied knobs cannot satisfy
+        console.log(
+          `  ${item.evalCase.id} [${item.evalCase.partition}/${item.evalCase.split}] status=inapplicable ` +
+            `(${result.applicability?.reason ?? "capacity requirement unmet"}) machinery=N/A`,
+        );
+        continue;
+      }
       const expectation = "offline" in item.evalCase ? item.evalCase.offline.expectation : "pass";
       const machineryOk = result.checks.pass === (expectation === "pass");
       console.log(
@@ -783,6 +794,22 @@ async function modeLive(opts: {
   let rf = (opts.fresh ? null : existing) ?? emptyEvalResultsFile(header);
   const runId = `live-${Date.now()}`;
   for (const item of work) {
+    // corpus-v2: classify applicability BEFORE any dispatch — an inapplicable
+    // case is recorded durably (zero meter, nothing dispatched, nothing
+    // billed), one row per requested repetition, so completeness holds
+    const applicability = classifyCaseApplicability(item.evalCase, currentEnvKnobs());
+    if (!applicability.applicable && applicability.requirement !== null) {
+      const req = applicability.requirement;
+      const row = inapplicableResult(item.evalCase, ds.datasetVersion, runId, configKey, item.repetition, {
+        required: { [req.kind]: req.required },
+        actual: { [req.knob]: req.actual },
+        reason: applicability.reason ?? "structurally inapplicable",
+      });
+      rf = mergeEvalResults(rf, header, [row], ZERO_METER, new Date());
+      saveResults(rf);
+      console.log(`  ${item.evalCase.id}#r${item.repetition} status=inapplicable (${applicability.reason}) — not dispatched`);
+      continue;
+    }
     const meterBefore = { ...deps.meter };
     let result;
     try {
