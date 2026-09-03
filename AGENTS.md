@@ -1775,3 +1775,41 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   model evaluated or activated. Paid baseline/candidate evaluation remains BLOCKED
   on the §5 operator decisions — next-session packet:
   `docs/reviews/PAID-EVAL-OPERATOR-PACKET-2026-09-03.md`.
+
+- **2026-09-03 (eval baseline-identity repair + operator packet corrections; paid
+  campaign authorized — repair PR only, campaign not yet run)** Operator authorized a
+  three-part program: this control-plane repair PR, then a LOCAL-ONLY paid evaluation
+  campaign (mandatory gpt-4o-mini baseline + gpt-5-nano candidate, both effort-absent,
+  ×3 repetitions, cells baseline{map,digest,validation} + map-depth-4000{map} +
+  reduce-fed-400{digest}, `EVAL_USD_CAP_DAILY=2`, campaign-local `LLM_SPRINT_USD_CAP=6`
+  as a $6 absolute ceiling on the fresh openai_eval ledger of one disposable Neon
+  branch), then a docs-only closeout PR. NOT authorized: gpt-5-mini/gpt-5/gpt-4o or any
+  effort variant, Vercel env changes, deploys, production writes, registry edits/model
+  activation, #33 remapping, prompt tuning, post-hoc gate changes, targeted heldout
+  reruns. Repair (this PR): `evalDispatchConfig` stamped `approval:
+  "evaluation_candidate"` on EVERY model — including the registered production baseline
+  gpt-4o-mini/effort-absent, contradicting the packet's CandidateDispatchIdentity
+  contract. Now the exact (workload, model, effort) combination the analysis approval
+  registry holds as status "baseline" is resolved THROUGH `analysisApproval` and
+  stamped `approval: "baseline"`; every other priced combination keeps the isolated
+  bypass and the `evaluation_candidate` stamp; the CLI banner prints the actual
+  approval. Candidate isolation, the map activation lock, pricing/effort refusals, and
+  the production no-bypass posture (isolation.test.ts) are unchanged; a passing
+  baseline no longer renders a bogus PROPOSED-registry-entry block (that block is
+  correctly evaluation_candidate-only). Deterministic tests pin: registry-backed
+  baseline identity for map/digest/validation, gpt-5-nano/gpt-5-mini stay
+  evaluation_candidate, unpriced/invalid-effort refusals, preflight approval stamps.
+  Packet corrections (same PR, `PAID-EVAL-OPERATOR-PACKET-2026-09-03.md`): corpus-v2
+  "merged-pending"→MERGED (`d96180b`); reduce documented as deterministic/offline
+  (never a paid live cell — live workloads are map/digest/validation); initial
+  campaign restated as baseline+gpt-5-nano only with fresh 2026-09-03 estimates
+  (gpt-4o-mini $2.2503 + gpt-5-nano $1.4330 = $3.6833 expected, over-estimates) and
+  the $6 hard ceiling (the prior "$15 worst-case" was unsupportable under the $10
+  shared backstop and is superseded); local-only environment posture per packet §9
+  (no EVAL_* in Vercel; corpus-v2 + this CLI-only repair NOT deployed). Phase-0
+  reconstruction verified before the repair: PR #42 MERGED head `6b1bda6` ≡ merge
+  `d96180b` tree; datasets validate; regen proof PASS; all five heldout
+  admitted-basis hashes match the admission record; preserved drafts manifest 8/8 OK;
+  production /health 200; provider accepts gpt-4o-mini + gpt-5-nano and published
+  pricing matches `PRICES_PER_MTOK` exactly. Paid calls remain PROHIBITED until this
+  PR is merged and the merged tree is verified identical to the reviewed tree.
