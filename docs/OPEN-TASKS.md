@@ -1158,11 +1158,13 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md §9)
     durable stores plus out-of-band alert email. Configure a drain (or extend retention)
     before the next formal observation window so a self-reported counts payload is not the
     only in-window narrative.
-94. **[Tier 3 — hygiene] The expired `MAP_USD_CAP_DAILY_OVERRIDE_USD` / `_UNTIL` pair is
-    still installed in Production.** It expired 2026-08-17T13:00:00Z and the guard reverts
-    BY CODE at that instant (boundary test-pinned), so this is housekeeping, not
-    correctness. Removing it is an environment change and therefore needs its own
-    authorization; until then the base `MAP_USD_CAP_DAILY=4` governs.
+94. **[CLOSED 2026-09-03] The expired `MAP_USD_CAP_DAILY_OVERRIDE_USD` / `_UNTIL` pair
+    was removed from Production in the operator's 2026-09-03 configuration-only release**
+    (with the X cap raise; see that decision-log entry). It had expired
+    2026-08-17T13:00:00Z with the guard reverting BY CODE at that instant (boundary
+    test-pinned), so the removal changed no runtime behavior — base
+    `MAP_USD_CAP_DAILY=4` governed before and after. Verified absent from every
+    environment via read-only `vercel env` on 2026-09-03.
 95. **[Tier 3 — assurance] The map lease's contention paths are test-proven, not
     production-proven.** Across all 35 lease-era cycles the outcome was `acquired` every
     time with `lost=0`, `leaseLostDiscards=0` and zero `skipped`, so `expired_takeover`,
@@ -1469,8 +1471,15 @@ docs/reviews/QF-C-ANALYSIS-EVAL-RELEASE-2026-08-24.md)
 ### New (from the 2026-08-27 QF-A/#88 closeout,
 docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md)
 
-101. **[Tier 1 — operator/spend] The X all-time cap needs an operator decision before
-    fail-closed exhaustion.** Refreshed 2026-08-27 (late): `x_api` cumulative spend is
+101. **[RESOLVED 2026-09-03] The X all-time cap decision was taken: the operator set
+    `X_SPRINT_USD_CAP=150` and `X_DAILY_USD_CAP=4` in Production, Preview, and
+    Development and redeployed (`dpl_6RN34UVHefQsvTfC2HM8Si5QnNmT` from `8a19ade`).**
+    Packet §1 option (a) executed; the daily raise $2.50→$4 goes beyond option (a) as an
+    explicit operator choice. At the 2026-09-01 reading ($62.78 spent) the raised
+    all-time cap leaves ~$87 headroom ≈ 2.5+ months at ~$1.1/day. History below is
+    retained for context; no further action open.
+    Original task: the X all-time cap needed an operator decision before
+    fail-closed exhaustion. Refreshed 2026-08-27 (late): `x_api` cumulative spend is
     **$57.84 of the $75 `X_SPRINT_USD_CAP`** (77.1%), 7-day burn **~$1.15/day** against
     the $2.50 `X_DAILY_USD_CAP` — headroom ~$17 lasts roughly **15 days (est.
     exhaustion ~2026-09-11) — a point-in-time projection, not a guarantee** (X volume

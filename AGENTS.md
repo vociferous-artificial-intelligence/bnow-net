@@ -102,14 +102,17 @@ drizzle/            migrations 0000–00NN + 9999_claim_source_trigger.sql (appl
 data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails)
 ```
 
-## Current state — compact snapshot (verified 2026-09-01; correct in place)
+## Current state — compact snapshot (verified 2026-09-03; correct in place)
 
 Detailed operational/product state lives in `docs/CURRENT-STATE.md` and is corrected in
 place whenever reality changes. Historical narrative: `docs/PROGRESS.md` + `docs/reviews/`;
 debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
 
 - **Live/repository:** https://bnow.net · Vercel `bnow-net` / team `vociferous`; production
-  is **`dpl_Bya68YX6a3GaDQe1LnYyMo1YhHkh` / `main` merge `a4ed5cb`** — the 2026-08-31
+  is **`dpl_6RN34UVHefQsvTfC2HM8Si5QnNmT` / `main` tip `8a19ade`** — the 2026-09-03
+  configuration-only release (X cap raise + #94 override removal; same code lineage,
+  now including the 2026-09-01 docs-only commits atop `a4ed5cb`). The prior release
+  in this lineage was the 2026-08-31
   four-PR stack deployed as three serialized releases during the map-flood OOM
   incident response: PR #38 (`52ea272`, #102 map flood bounds), PR #39 (`c0aa788`,
   #103 watchdog), and PR #40 + PR #37 together (`4ab388f` + `a4ed5cb`: the watchdog
@@ -134,9 +137,9 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   probes; no natural paid Ask occurred, so the live money-path traversal is
   future-observable; record: `docs/reviews/ASK-FAMILY-RELEASE-2026-08-29.md`) —
   remains carried forward unchanged inside the current lineage. `/health` 200
-  stamping **`a4ed5cb`** with matching `data-dpl-id`, DB OK; anonymous
-  bare+`RSC: 1` bodies re-verified clean on the current release. **`main` ==
-  production.** The 2026-08-29 deploy carried the previously dormant PRs #31 (capacity-profile
+  stamping **`8a19ade`** with matching `data-dpl-id`, DB OK; anonymous
+  bare+`RSC: 1` bodies re-verified clean on the 2026-08-31 release this
+  configuration redeploy carries forward. **`main` == production.** The 2026-08-29 deploy carried the previously dormant PRs #31 (capacity-profile
   eval harness), #32 (QF-C hardening) and #33 (conflict soak instruments) into the
   production artifact for the first time; they remain INERT (no `EVAL_*` env exists,
   `CONFLICTS_UI` absent everywhere, conflict surfaces live-verified fail-closed 404
@@ -981,7 +984,7 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
 | Sign-in policy | `SIGNIN_MODE` | **Production invite-only since 2026-07-15** (existing user OR admin allowlist OR approved access request) | Vercel environment |
 | Cron auth | `CRON_SECRET` | **live** | (already set) |
 | Auth.js | `AUTH_SECRET` | **live** (hashes magic-link tokens: rotating it invalidates every unclicked link) | (already set) |
-| X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live, gap-recovered; self-heal production-proven 2026-08-13** (`$75` sprint / `$2.50` daily; #66 closed 2026-08-14, #38 closed 2026-08-23 on mailbox-confirmed incident + recovery alert emails) | api.twitterapi.io |
+| X via twitterapi.io | `X_API_KEY` + `X_SPRINT_USD_CAP` | **live, gap-recovered; self-heal production-proven 2026-08-13** (`$150` sprint / `$4` daily since the 2026-09-03 operator raise — #101 resolved; #66 closed 2026-08-14, #38 closed 2026-08-23 on mailbox-confirmed incident + recovery alert emails) | api.twitterapi.io |
 | OpenSanctions | `OPENSANCTIONS_API_KEY` + caps | **live gap-fill; monthly accounting + fixed-cutoff rescore + claim-linked spend eligibility deployed** (rescore `f9aaa9e`; #17 spend subset `be0ebf1` / `dpl_2p13bnGVNv2VfVVNQkVe4nW3CEaj` 2026-07-16, zero paid calls; fresh 2026-07-16: 1,012 eligible / 475 claim-linked / 232 missing-or-stub of which only 46 are billable; July ledger 780 calls / $85.8000; #17 match-score/caption, kind-safe cleanup #61 + paid #41 remain gated) | opensanctions.org |
 | Telegram MTProto | `TELEGRAM_API_ID/HASH` + `TELEGRAM_SESSION` (all in prod env) | **live** (session added 2026-07-11; first fetch + repeated hourly runs verified; registry top-120 ROCA roster) | my.telegram.org |
 | PostHog (product analytics) | `NEXT_PUBLIC_POSTHOG_KEY` + `_HOST` (Production only) + `POSTHOG_PERSONAL_API_KEY`/`POSTHOG_PROJECT_ID` (.env.local, ops) | **LIVE opt-in-only** (US project 512327 "BNOW.NET"; rollback = remove key + redeploy; billing limit configured 2026-07-15; project-membership review remains) | us.posthog.com |
@@ -993,11 +996,10 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
 
 1. **Operator:** `docs/SETUP-NEXT-WEEK.md` top-to-bottom — VERCEL_TOKEN regen and Stripe.
    bnow.net attach, Postmark sender cutover + DMARC, and MTProto are done.
-   (OpenAI credits: done 2026-07-05; keep the billing alert.) **NEW: the X all-time cap
-   needs a decision before fail-closed exhaustion** — `x_api` at $57.84 of the $75
-   `X_SPRINT_USD_CAP` (77.1%), ~$1.15/day 7-day burn ⇒ ~15 days of runway, est.
-   exhaustion ~2026-09-11 (point-in-time; OPEN-TASKS #101 +
-   `docs/reviews/OPERATOR-DECISION-PACKET-2026-08-28.md`).
+   (OpenAI credits: done 2026-07-05; keep the billing alert.) The X all-time cap
+   decision is RESOLVED: the operator raised `X_SPRINT_USD_CAP` to $150 and
+   `X_DAILY_USD_CAP` to $4 on 2026-09-03 (#101 closed; ~2.5 months of runway at the
+   ~$1.1/day burn observed before the raise).
 2. **`DIGEST_ENGINE=mapreduce` is SET in prod (flipped 2026-07-09) and is producing again
    (#88 CLOSED — PASS 2026-08-27):** the 2026-08-25T02:02Z finalize resumed mapreduce
    naturally and the 6-mapreduce/5-legacy daily matrix has held since (see the Analysis
@@ -1707,3 +1709,25 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   `anthropic-provider.ts` (inert, #83), plus the documented flag-off sessions
   residuals. X refresh: $59.12 of $75 (~14–15 days runway; #101 unchanged as the
   nearest operator deadline). Report: `docs/reviews/ASK-FAMILY-RELEASE-2026-08-29.md`.
+
+- **2026-09-03 (operator configuration-only release — X cap raise + #94 override removal;
+  recorded after the fact, no operation repeated)** The operator executed packet §1
+  option (a) and §2: `X_SPRINT_USD_CAP=150` and `X_DAILY_USD_CAP=4` set in Production,
+  Preview, and Development, and the expired `MAP_USD_CAP_DAILY_OVERRIDE_USD`/`_UNTIL`
+  pair removed from Production (base `MAP_USD_CAP_DAILY=4` untouched and governing, as
+  it had been since the override's 2026-08-17T13:00Z in-code expiry — no runtime
+  behavior change from the removal). The daily raise $2.50→$4 goes BEYOND packet
+  option (a), which assumed the daily cap stayed $2.50; recorded here as the
+  operator's explicit choice (the daily cap remains the real brake, now ~3.6× the
+  observed ~$1.1/day burn). Production redeployed as
+  `dpl_6RN34UVHefQsvTfC2HM8Si5QnNmT` (created 2026-09-03T11:12:43Z, READY, aliased
+  bnow.net) from `main` tip `8a19ade` — a code-identical lineage carry-forward (only
+  the 2026-09-01 docs-only commits sit atop the previously deployed `a4ed5cb`), so
+  `main` == production still holds. Verified this session (read-only): `/health`
+  stamps `8a19ade` with matching `data-dpl-id`; `X_DAILY_USD_CAP=4` read back
+  plaintext in Production and Development and `X_SPRINT_USD_CAP=150` plaintext in
+  Development (the Production/Preview sprint values are sensitive-type secrets the
+  CLI cannot read back — presence verified in all three environments, values taken
+  from the operator's statement); the override pair absent from every environment; zero
+  `EVAL_*` variables anywhere; no candidate model activated. #101 and #94 close.
+  No code, migration, DB, flag, cron, or other env change rode this release.

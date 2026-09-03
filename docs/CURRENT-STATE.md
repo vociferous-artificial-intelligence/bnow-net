@@ -5,14 +5,30 @@ this file is **not append-only**: correct it in place whenever live product, ope
 deployment, test, credential, or repository state changes. Historical narrative belongs in
 `PROGRESS.md`, review notes, and `DECISIONS.md`.
 
-## Current state — snapshot (verified through 2026-09-01; correct in place when it changes)
+## Current state — snapshot (verified through 2026-09-03; correct in place when it changes)
 
 Live at **https://bnow.net** (Vercel project `bnow-net`, team `vociferous`;
 deployment URLs are SSO-walled — always use the project domain). History/narrative:
 `docs/PROGRESS.md` + `docs/reviews/`; debt: `docs/OPEN-TASKS.md`.
 
-- **2026-08-31/09-01 map-flood incident response + #97 embed/validate release (the
-  CURRENT production release):** production is **`dpl_Bya68YX6a3GaDQe1LnYyMo1YhHkh`**
+- **2026-09-03 configuration-only release (the CURRENT production release):**
+  production is **`dpl_6RN34UVHefQsvTfC2HM8Si5QnNmT`** built from `main` tip
+  **`8a19ade`** (created 2026-09-03T11:12:43Z, aliased bnow.net; `/health` stamps
+  `8a19ade`) — the operator's X-cap raise + #94 override-removal redeploy. Env
+  deltas, the ONLY changes in this release: `X_SPRINT_USD_CAP` $75→**$150** and
+  `X_DAILY_USD_CAP` $2.50→**$4** in Production, Preview, and Development (#101
+  resolved — packet §1 option (a), with the daily raise going beyond it as an
+  explicit operator choice), and the expired `MAP_USD_CAP_DAILY_OVERRIDE_USD`/
+  `_UNTIL` pair removed from Production (#94 closed; no runtime behavior change —
+  the override had been expired-by-code since 2026-08-17T13:00Z). Code is a
+  lineage carry-forward: only the 2026-09-01 docs-only commits sit atop the
+  previously deployed `a4ed5cb`, so `main` == production holds. No migration, no
+  flag, no cron, no other env change. Verification limits recorded in the
+  2026-09-03 decision-log entry (Production/Preview sprint values are
+  sensitive-type secrets the CLI cannot read back).
+
+- **2026-08-31/09-01 map-flood incident response + #97 embed/validate release
+  (previous release, carried forward):** production was **`dpl_Bya68YX6a3GaDQe1LnYyMo1YhHkh`**
   built from `main` merge **`a4ed5cb`**, the last of three serialized releases
   deployed 2026-08-31 during the map-flood OOM incident response: PR #38
   (`52ea272` → `dpl_FJ33AS2DKMcme3qwjBiSTyNABxYh`, 19:47Z — #102 bounded map
@@ -97,15 +113,16 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   observations: the first NATURAL degraded-run flip, the first natural
   ISW-not-published benign validate return, the first live paid Ask through the
   2026-08-29 normalizer, and the watchdog's first real pre-completion-death
-  detection. **#101 is the nearest operator deadline: `x_api` $62.78 of the $75
-  all-time cap (83.7% as of 2026-09-01T13:35Z; ~$1.09/day 7-day burn ⇒ ~11 days;
-  est. exhaustion ≈ 2026-09-12) — decide by ≈ 2026-09-09**
-  (`docs/reviews/OPERATOR-DECISION-PACKET-2026-08-28.md` §1).
+  detection. **#101 RESOLVED 2026-09-03: the operator raised `X_SPRINT_USD_CAP` to
+  $150 and `X_DAILY_USD_CAP` to $4** (was $62.78 of $75 / 83.7% as of
+  2026-09-01T13:35Z at ~$1.09/day burn; now ~42% of the raised all-time cap with
+  ~2.5 months of runway; `docs/reviews/OPERATOR-DECISION-PACKET-2026-08-28.md` §1
+  option (a), daily raise beyond it by explicit operator choice).
 
 - **OpenSanctions match-safety release (2026-07-22):** release commit `441ee09`
   (original deploy `dpl_E5ysiLJSg1ynNmqJkgmpDjrzZD32`, then the 2026-08-14 env-only
   redeploy `dpl_GPNNsDBjuzsgJ7GKUfvdrbG3YMmC`; its behavior is carried forward by every
-  later release and is live in the current production build `6ba72b5`). Fail-closed OpenSanctions read model (`src/lib/enrich/os-read.ts`) + admin-only
+  later release and is live in the current production build `8a19ade`). Fail-closed OpenSanctions read model (`src/lib/enrich/os-read.ts`) + admin-only
   neutral candidate-review presentation on `/entities`; non-admin/public surfaces render ZERO
   OpenSanctions markup (verified live — the pre-release non-admin `opensanctions.org/entities/`
   profile-link leak is closed); Ask receives no OpenSanctions-derived categorical assertion,
@@ -121,7 +138,7 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
 
 - **AI Search/Ask release (2026-07-21):** release commit `836b46e` (original deploy
   `dpl_5scfsMfttrHZbLFWgdkAKdpBAHFT`; carried forward by every later release and live in
-  the `143964a` build, carried forward inside current production `6ba72b5`); production DB migrated 0021–0027 (backup branch
+  the `143964a` build, carried forward inside current production `8a19ade`); production DB migrated 0021–0027 (backup branch
   `backup-pre-ask-release-2026-07-21` retained); Privacy 1.3 live with forced
   reacknowledgement; retention envs 30/7/7 set; **`ASK_RUNS_SHADOW=1` soak running** —
   every other new flag (enforce/progressive/stream/cache/sessions/router/billing
@@ -229,8 +246,10 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   provider_state `map_health`; cooldown `MAP_ALERT_COOLDOWN_SEC` 6h; staleness
   `MAP_STALE_DAYS` 2), and `scripts/map-backfill.ts` supports `--theater` + typed stop
   classification (run/daily/total/transport). The temporary recovery daily elevation
-  (`MAP_USD_CAP_DAILY_OVERRIDE_USD=20` until `2026-08-17T13:00:00Z`) auto-expires in
-  code; base `MAP_USD_CAP_DAILY=4` was never changed. **Concurrency — corrected
+  (`MAP_USD_CAP_DAILY_OVERRIDE_USD=20` until `2026-08-17T13:00:00Z`) auto-expired in
+  code at that instant and the env pair was REMOVED from Production in the
+  2026-09-03 configuration-only release (#94 closed); base `MAP_USD_CAP_DAILY=4`
+  was never changed. **Concurrency — corrected
   2026-08-22: the session advisory lock is GONE from production.** The pgbouncer
   stranding trap (#77 — the pooled DSN could route `pg_advisory_unlock` to a different
   backend, leaving every later cycle `skipped`) was replaced by the durable
@@ -582,19 +601,18 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
 - **Stubbed / off:** ACLED (fixture stub, unwired); Stripe flagged off; Resend adapter
   superseded by Postmark. (MTProto left this list 2026-07-11 — real adapter wired,
   session-gated; see Ingestion above.)
-- **Deploy:** current production **`dpl_FT3Hdpt2ece4kxQHudxT2FST162p`** — the
-  2026-08-29 #97 Ask-family release, from `main` merge `6ba72b5` (PR #35), deployed
-  2026-08-29T01:29:35Z from the plain release clone (~45s build), aliased bnow.net;
-  `/health` stamps `6ba72b5` with DB OK. **Rollback target =
-  `dpl_Gf8AiKCpmuwRYdoAr1JvjfTaGLi6`** (`b62da02`, the 2026-08-28 reliability queue's
-  final release). Observation window 01:30→07:12Z CLOSED PASS (50 scheduled runs clean,
-  6 map cycles, finalize/intraday/validate on the new release; record:
-  `docs/reviews/ASK-FAMILY-RELEASE-2026-08-29.md`). This deploy also carried the
-  previously dormant eval/conflict code (PRs #31/#32/#33) into the production artifact
-  for the FIRST time — still INERT: no `EVAL_*` env, `CONFLICTS_UI` absent, conflict
-  surfaces live-verified fail-closed 404 and the evidence route gated. `main` and
-  production are now the same commit.
-  Deployment lineage (all carried forward inside `6ba72b5`): `b62da02` #98 sweep ←
+- **Deploy:** current production **`dpl_6RN34UVHefQsvTfC2HM8Si5QnNmT`** — the
+  2026-09-03 configuration-only release from `main` tip `8a19ade` (X cap raise +
+  #94 override removal; created 2026-09-03T11:12:43Z, aliased bnow.net; `/health`
+  stamps `8a19ade`). **Rollback ladder unchanged from the 2026-08-31 incident
+  releases** (never below `52ea272`): narrow #37 regression →
+  `dpl_GxEcce4WiTkF1reDZknaPYDeubjn`/`c0aa788`; watchdog/combined →
+  `dpl_FJ33AS2DKMcme3qwjBiSTyNABxYh`/`52ea272`. The eval/conflict code (PRs
+  #31/#32/#33) first carried into production 2026-08-29 remains INERT: no `EVAL_*`
+  env, `CONFLICTS_UI` absent, conflict surfaces fail-closed.
+  Deployment lineage (all carried forward inside `8a19ade`): `a4ed5cb` #97
+  embed/validate + `4ab388f` watchdog hotfix ← `c0aa788` #103 watchdog ←
+  `52ea272` #102 flood bounds ← `6ba72b5` #97 Ask family ← `b62da02` #98 sweep ←
   `ad6e078` #87 classification ← `afbf06e` #87 mechanical ← `ed9bc35` #97 reduce ←
   `143964a` release train (2026-08-24) ← `0aa3d7d` #86 repair ← `23a1280` QF-B map
   lease ← `7336b9c` PR #5 routing seams ← `9c5e9cb` Candidate B ← `26989f7` Iran
@@ -611,13 +629,14 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   github.com resolves slowly/flakily: pushes work, but short-timeout git commands can
   fail — retry or wait ~30s+. api.gdeltproject.org DNS still fails locally (not
   pinned). TASS/RIA/Lenta RSS unreachable → covered via their Telegram channels.
-- **Git:** the last application-code release is the **2026-08-29 #97 Ask-family
-  release** (PR #35, merge `6ba72b5` → `dpl_FT3Hdpt2ece4kxQHudxT2FST162p`); before
-  that the 2026-08-28 reliability queue (PRs #27–#30, final `b62da02`) and the
+- **Git:** the last application-code releases are the **2026-08-31 map-flood
+  incident stack** (PRs #38/#39/#40 + #37, final merge `a4ed5cb`); before that the
+  2026-08-29 #97 Ask-family release (PR #35, `6ba72b5`), the 2026-08-28 reliability
+  queue (PRs #27–#30, final `b62da02`) and the
   2026-08-24 release train (`143964a`, eleven PRs #12–#22 + docs, per
-  `docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md`). As of 2026-08-29: zero open
-  PRs; `origin/main` is `6ba72b5` = the deployed production commit (the
-  main/production dormant-code gap is closed); the
+  `docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md`). As of 2026-09-03: zero open
+  PRs; `origin/main` is `8a19ade` (the 2026-09-01 docs-only closeout merge atop
+  `a4ed5cb`) = the deployed production commit; the
   parked audit/integration branches (`codex/quality-foundation-*`,
   `codex/conflict-evaluations-*`, p0–p7) remain retained provenance contained in
   `main`; the one unmerged remote branch is `codex/paddle-onboarding-page` (a
