@@ -1,0 +1,16 @@
+{
+  "generator": "scripts/evals/corpus-v2/build-draft.py (byte-identical to the preserved 2026-08-27 tools/build.py) -> src/lib/evals/corpus-v2-admit.ts",
+  "admittedAt": "2026-09-03T00:00:00Z",
+  "draftSha256": {
+    "map-capacity-c2-draft.json": "efff8166c1bd159aacf280fbd1cec4c741c2b6136ec8edaf029a49a7ca3e09e3",
+    "map-adversarial-c2-draft.json": "fed9e8dbda4bbc581dd828e5040d18641d9dae39ecee157ef8a7b5f13d1a93fe",
+    "reduce-capacity-c2-draft.json": "3388e6cd49b1f59969d4adf9eeaf84ba9cecf84fa4b368fad03100549718312b",
+    "digest-late-c2-draft.json": "5d6a2932979411591ceb6ce1de44baf700f2d37cfb05bb680eca78f2eaa9a4a2",
+    "validation-c2-draft.json": "c8f7429f8fac2e01e154b1caf2cf931274b6aa4453696da464b235fe98561d1e"
+  },
+  "fragmentSha256": {
+    "map-c2-cases.json": "b6147b85769cdbe75dbe205b4d6615def6495b09cec9625a0757eac009a915fc",
+    "digest-c2-cases.json": "270316b73e9380db7a3155ae38259d2ee3f800ba6288e0f66d9f2c898adcec97",
+    "validation-c2-cases.json": "2341a45be5bee98a1817b858378e29daf7c26c2e7e146473e3dba07ae34fad79"
+  }
+}

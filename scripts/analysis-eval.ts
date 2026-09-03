@@ -125,12 +125,16 @@ const EVALS_DIR = path.join(__dirname, "..", "docs", "evals", "analysis");
 const RESULTS_DIR = path.join(EVALS_DIR, "results");
 const DEFAULT_REPORT_PATH = path.join(EVALS_DIR, "ANALYSIS-EVAL-SCORECARD.md");
 
-/** One dataset file per workload; bump here when a datasetVersion bumps. */
-const DATASET_FILES: Record<AnalysisEvalWorkload, string> = {
-  map: "map-v1.json",
-  reduce: "reduce-v1.json",
-  digest: "digest-v1.json",
-  validation: "validation-v1.json",
+/** One dataset per workload; bump here when a datasetVersion bumps. The
+ *  results basename changed with the v2 datasets so the committed v1 offline
+ *  results stay byte-identical at their historical paths (re-pointing the
+ *  bare workload name at v2 would identity-refuse against them); reduce
+ *  stays on v1 and keeps its historical basename. */
+const DATASETS: Record<AnalysisEvalWorkload, { file: string; resultsBase: string }> = {
+  map: { file: "map-v2.json", resultsBase: "map-v2" },
+  reduce: { file: "reduce-v1.json", resultsBase: "reduce" },
+  digest: { file: "digest-v2.json", resultsBase: "digest-v2" },
+  validation: { file: "validation-v2.json", resultsBase: "validation-v2" },
 };
 
 // ---- CLI args -----------------------------------------------------------------
@@ -187,7 +191,7 @@ interface LoadedDataset {
 }
 
 function loadDataset(workload: AnalysisEvalWorkload): LoadedDataset {
-  const p = path.join(EVALS_DIR, DATASET_FILES[workload]);
+  const p = path.join(EVALS_DIR, DATASETS[workload].file);
   if (!existsSync(p)) {
     console.error(`missing dataset: ${p}`);
     process.exit(2);
@@ -206,7 +210,7 @@ function resultsPath(workload: AnalysisEvalWorkload, configKey: string): string 
   // offline keys (incl. capacity-profiled "offline-fixtures+<profile>") carry
   // no prefix; everything else is a live run artifact
   const prefix = configKey.startsWith(OFFLINE_CONFIG_KEY) ? "" : "live-";
-  return path.join(RESULTS_DIR, `${prefix}${workload}-${configKey}.json`);
+  return path.join(RESULTS_DIR, `${prefix}${DATASETS[workload].resultsBase}-${configKey}.json`);
 }
 
 // The capacity profile active for this invocation (--capacity; default
@@ -275,34 +279,44 @@ function saveResults(rf: EvalResultsFile): void {
 
 // ---- --validate-dataset --------------------------------------------------------
 
+/** every committed dataset for a workload: the ACTIVE file the runner loads
+ *  plus the frozen historical v1 file where the active one superseded it —
+ *  both must stay valid forever */
+function committedDatasetFiles(w: AnalysisEvalWorkload): string[] {
+  const v1 = `${w}-v1.json`;
+  return DATASETS[w].file === v1 ? [v1] : [DATASETS[w].file, v1];
+}
+
 function modeValidate(workloads: AnalysisEvalWorkload[]): void {
   let bad = 0;
   for (const w of workloads) {
-    const p = path.join(EVALS_DIR, DATASET_FILES[w]);
-    if (!existsSync(p)) {
-      console.error(`[${w}] MISSING dataset file ${p}`);
-      bad++;
-      continue;
-    }
-    let raw: unknown;
-    try {
-      raw = JSON.parse(readFileSync(p, "utf8"));
-    } catch (e) {
-      console.error(`[${w}] UNPARSEABLE: ${e instanceof Error ? e.message : e}`);
-      bad++;
-      continue;
-    }
-    const errs = validateAnalysisEvalDataset(raw, w);
-    if (errs.length > 0) {
-      console.error(`[${w}] INVALID (${errs.length} violation(s)):\n  ${errs.join("\n  ")}`);
-      bad++;
-    } else {
-      const ds = raw as AnalysisEvalDataset;
-      const heldout = heldoutCoverage(ds);
-      console.log(
-        `[${w}] OK — ${ds.datasetVersion}: ${ds.cases.length} cases ` +
-          `(heldout typical/edge/adversarial: ${heldout.typical}/${heldout.edge}/${heldout.adversarial})`,
-      );
+    for (const file of committedDatasetFiles(w)) {
+      const p = path.join(EVALS_DIR, file);
+      if (!existsSync(p)) {
+        console.error(`[${w}] MISSING dataset file ${p}`);
+        bad++;
+        continue;
+      }
+      let raw: unknown;
+      try {
+        raw = JSON.parse(readFileSync(p, "utf8"));
+      } catch (e) {
+        console.error(`[${w}] UNPARSEABLE ${file}: ${e instanceof Error ? e.message : e}`);
+        bad++;
+        continue;
+      }
+      const errs = validateAnalysisEvalDataset(raw, w);
+      if (errs.length > 0) {
+        console.error(`[${w}] INVALID ${file} (${errs.length} violation(s)):\n  ${errs.join("\n  ")}`);
+        bad++;
+      } else {
+        const ds = raw as AnalysisEvalDataset;
+        const heldout = heldoutCoverage(ds);
+        console.log(
+          `[${w}] OK — ${ds.datasetVersion}: ${ds.cases.length} cases ` +
+            `(heldout typical/edge/adversarial: ${heldout.typical}/${heldout.edge}/${heldout.adversarial})`,
+        );
+      }
     }
   }
   if (bad > 0) process.exit(2);
@@ -420,10 +434,11 @@ function discoverConfigs(workload: AnalysisEvalWorkload): string[] {
   const configs = new Set<string>();
   if (existsSync(resultsPath(workload, OFFLINE_CONFIG_KEY))) configs.add(OFFLINE_CONFIG_KEY);
   if (existsSync(RESULTS_DIR)) {
+    const base = DATASETS[workload].resultsBase;
     for (const f of readdirSync(RESULTS_DIR)) {
-      const m = f.match(new RegExp(`^live-${workload}-(.+)\\.json$`));
+      const m = f.match(new RegExp(`^live-${base}-(.+)\\.json$`));
       if (m) configs.add(m[1]);
-      const off = f.match(new RegExp(`^${workload}-(${OFFLINE_CONFIG_KEY}\\+.+)\\.json$`));
+      const off = f.match(new RegExp(`^${base}-(${OFFLINE_CONFIG_KEY}\\+.+)\\.json$`));
       if (off) configs.add(off[1]);
     }
   }
