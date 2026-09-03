@@ -2,14 +2,14 @@
   "workload": "digest",
   "configKey": "offline-fixtures+reduce-fed-400",
   "datasetVersion": "digest-v2",
-  "datasetContentHash": "5b55b3d1c73fc3e9e9e31cece1f77bcb90a2d40275942a0e67583921a0147a00",
+  "datasetContentHash": "6789e212ee3d8f55d4085847777e445787226b1ac6ddbf05122be9bf9d6e0eaf",
   "identity": {
     "provider": "stub",
     "model": "offline-fixtures",
     "reasoningEffort": null,
     "registryVersion": "analysis-reg-v1",
     "approval": "baseline",
-    "promptHash": "f670bf802f27105e303719bfbd97d95359a68e8a2b6a88264e6280a7cb89d86c",
+    "promptHash": "b55bb7e12a3bd0f2431470faeabbc9c4a0144d67c762acecff9ee7fe07f027ae",
     "schemaVersion": "361f13aaa609d7d14245a7b408373e5216480f48832a82ece17bf96093277095"
   },
   "requestedRepetitions": 1,
@@ -21,7 +21,7 @@
     "mapContentChars": 1500,
     "reduceGroupsFed": 400
   },
-  "updatedAt": "2026-09-03T13:33:25.512Z",
+  "updatedAt": "2026-09-03T13:41:52.396Z",
   "meter": {
     "attempts": 0,
     "reservations": 0,
@@ -529,7 +529,7 @@
       },
       "humanLabels": null,
       "graderJudgments": null,
-      "rawOutputDigest": "8289092e4c3d1a139ad7bd230ef783f6c37f8554915c9ef7d483e35c523cb316",
+      "rawOutputDigest": "63e905882ffd312ece97b80aea488debf8577bc24052db2f6f65723077fd5bdf",
       "fixtureId": "dig-c2-cap-003-votes"
     },
     "dig-c2-cap-004-fed-boundary-pair#r0": {

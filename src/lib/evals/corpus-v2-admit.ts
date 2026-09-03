@@ -113,16 +113,44 @@ const DECISIVE_EVENTS: Record<string, Array<{ rank: number; titlePattern: string
   ],
 };
 
+/** Q10: the draft's fused locality rows built with the productive real
+ *  Ukrainian toponym suffixes -ivka and -ove collide with real settlements
+ *  (Verbove, Berehove, Dubove, Klynove, Verbivka, Piskivka, Kholmivka, …
+ *  are all real places). The admission pass substitutes those two rows with
+ *  the clearly synthetic -ivask / -ovask rows across each fed-cap case's
+ *  whole JSON (claims AND vote fixtures — the head events cite three -ivka
+ *  names in their titles). Check scope recorded honestly: repo gazetteers +
+ *  maintainer knowledge, NOT an exhaustive worldwide proof. The remaining
+ *  eleven suffix rows (-yne, -iede, -opil, -avka, -enky, -ychi, -kove,
+ *  -ianka, -utsk, -olia, -ezhi) were screened and kept (Luhyne considered
+ *  against the real town Luhyny and kept as a distinct spelling). */
+const LOC_BASES = [
+  "Klyn", "Horb", "Loz", "Stavk", "Yar", "Hais", "Brod", "Luh", "Verb", "Dub",
+  "Most", "Kryn", "Ozer", "Pisk", "Kholm", "Sadk", "Val", "Lan", "Bereh", "Kut",
+];
+const LOCALITY_SUBSTITUTIONS: Array<[string, string]> = LOC_BASES.flatMap((b) => [
+  [`${b}ivka`, `${b}ivask`] as [string, string],
+  [`${b}ove`, `${b}ovask`] as [string, string],
+]);
+
+function substituteLocalities(caseJson: string): string {
+  let out = caseJson;
+  for (const [from, to] of LOCALITY_SUBSTITUTIONS) out = out.replaceAll(from, to);
+  return out;
+}
+
 /** corrected notes for the four fed-cutoff cases (replaces the drafts' stale
  *  pre-SCI-N6 harness narratives; the shared-population description the
- *  drafts carried is preserved verbatim in the tail sentence) */
+ *  drafts carried is preserved in the tail sentence, updated for the Q10
+ *  locality substitution) */
 const SHARED_POP_NOTE =
   "Shared 260-claim population: 260 textually-distinct single-claim groups " +
   "(verified singleton clustering against the real clusterClaims), reliability " +
   "strictly descending with claim id, publishedAt null everywhere — so " +
   "rankGroups order == id order and 'rank N' means the group of claim id " +
-  "10001+N. Locality names are fused SYNTHETIC single tokens (base+suffix; any " +
-  "resemblance to real settlements coincidental); no named persons. The " +
+  "10001+N. Locality names are fused SYNTHETIC single tokens; the admission " +
+  "pass replaced the draft's -ivka/-ove rows (real-settlement collisions, Q10) " +
+  "with the clearly synthetic -ivask/-ovask rows; no named persons. The " +
   "population is byte-identical across the four dig-c2-cap cases by design.";
 
 const FEDCAP_NOTES: Record<string, string> = {
@@ -333,7 +361,9 @@ function admitMapCase(c: Raw): MapEvalCase {
 
 // ---- digest --------------------------------------------------------------------
 
-function admitFedCapCase(c: Raw): DigestEvalCase {
+function admitFedCapCase(rawCase: Raw): DigestEvalCase {
+  // Q10 locality substitution applies to the WHOLE case (claims + votes)
+  const c = JSON.parse(substituteLocalities(JSON.stringify(rawCase))) as Raw;
   const id = c.id as string;
   const meta = (c.capacityMeta ?? {}) as Raw;
   const notes = FEDCAP_NOTES[id];

@@ -10,7 +10,7 @@
   },
   "fragmentSha256": {
     "map-c2-cases.json": "6e7db01963a16b831f5142ee896143f781dddd94fcad56bf4a8ad271e487926a",
-    "digest-c2-cases.json": "516008e3dad5012930265936fe758a22ebafceb69babcd62c605305e82c715d6",
+    "digest-c2-cases.json": "6622ef3be7b285375c135033f9305a7e2a478438b2a4cb56ddf08cade897b7fd",
     "validation-c2-cases.json": "45f8ebeb3822699382e8a076404c376cbc0ea9f6757186fba1dc57d872a9fd71"
   }
 }

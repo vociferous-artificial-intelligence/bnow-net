@@ -2,14 +2,14 @@
   "workload": "digest",
   "configKey": "offline-fixtures",
   "datasetVersion": "digest-v2",
-  "datasetContentHash": "5b55b3d1c73fc3e9e9e31cece1f77bcb90a2d40275942a0e67583921a0147a00",
+  "datasetContentHash": "6789e212ee3d8f55d4085847777e445787226b1ac6ddbf05122be9bf9d6e0eaf",
   "identity": {
     "provider": "stub",
     "model": "offline-fixtures",
     "reasoningEffort": null,
     "registryVersion": "analysis-reg-v1",
     "approval": "baseline",
-    "promptHash": "1588fde4d2ea45272dac0b8817941902522127aa740807b43c6eb9ad643328e0",
+    "promptHash": "47951b4905971cf50078738ad90537ec4a6f1e273cee610ffcbdba89d75400a3",
     "schemaVersion": "361f13aaa609d7d14245a7b408373e5216480f48832a82ece17bf96093277095"
   },
   "requestedRepetitions": 1,
@@ -21,7 +21,7 @@
     "mapContentChars": 1500,
     "reduceGroupsFed": 200
   },
-  "updatedAt": "2026-09-03T13:33:24.502Z",
+  "updatedAt": "2026-09-03T13:41:51.707Z",
   "meter": {
     "attempts": 0,
     "reservations": 0,
@@ -465,7 +465,7 @@
       },
       "humanLabels": null,
       "graderJudgments": null,
-      "rawOutputDigest": "79333359dd685d4a84b1795b51c80796916d42fdb603605de18f50f997f7ad9a",
+      "rawOutputDigest": "57cdf87fcfb78913ae191d1735879c5b69d453daedd69978aaf5eaaf59305014",
       "fixtureId": "dig-c2-cap-001-votes"
     },
     "dig-c2-cap-002-fed200-rank230-dead#r0": {
@@ -510,7 +510,7 @@
       },
       "humanLabels": null,
       "graderJudgments": null,
-      "rawOutputDigest": "60c0b975530a2e16d19e19b51980c213fca8765cd43d96abdfaf0120680d7582",
+      "rawOutputDigest": "385c8cc46e607db3b24344f9a977923843b86944b40ed2c8e528e88d55a476e8",
       "fixtureId": "dig-c2-cap-002-votes"
     },
     "dig-c2-cap-003-fed400-tailranks#r0": {
@@ -587,7 +587,7 @@
       },
       "humanLabels": null,
       "graderJudgments": null,
-      "rawOutputDigest": "38edf2e8f91cadbf2d772deafbcd77082565e00e221d7403918e7a83e65266f5",
+      "rawOutputDigest": "516380391986d9c23c3795687470d9df7713a827369e4f179250cb6077e54652",
       "fixtureId": "dig-c2-cap-004-votes"
     },
     "dig-c2-late-001-heating-plant#r0": {
