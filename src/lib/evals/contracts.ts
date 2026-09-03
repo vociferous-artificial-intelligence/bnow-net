@@ -24,6 +24,7 @@
 import type { Hedging, ReduceClaim } from "../analysis/reduce";
 import type { ClaimForValidation } from "../validation/score";
 import type { EvidenceRecencyDocInput } from "./evidence-recency-summary";
+import { gistNumeralStyleErrors } from "./numerals";
 
 // ============================================================================
 // Case envelope
@@ -56,6 +57,97 @@ export interface AnalysisEvalCaseBase {
   notes?: string;
 }
 
+// ---- capacity metadata (contractVersion 2) -----------------------------------
+//
+// The corpus-v2 capacity cases annotate WHERE facts sit inside long synthetic
+// documents (UTF-16 code-unit offsets — the unit of String.length, the
+// validator doc cap, and mapDocLine's MAP_CONTENT_CHARS slice) and WHAT
+// capacity configuration the case's expectations were authored against. All
+// shapes below are strictly validated: unknown keys are dataset errors, never
+// silently tolerated annotations. Diagnostics read them; the scorers'
+// pass/fail logic never does.
+
+export const POSITION_BUCKETS = ["early", "mid", "tail", "deep-tail"] as const;
+export type PositionBucket = (typeof POSITION_BUCKETS)[number];
+
+/** Single bucket authority (validator AND metrics): by fact START offset —
+ *  early < 400 · mid 400..1500 · tail 1501..4000 · deep-tail > 4000. Bucket
+ *  edges reference the production MAP_CONTENT_CHARS default (1500) and the
+ *  map-depth-4000 profile. */
+export function positionBucketForOffset(startU16: number): PositionBucket {
+  if (startU16 < 400) return "early";
+  if (startU16 <= 1500) return "mid";
+  if (startU16 <= 4000) return "tail";
+  return "deep-tail";
+}
+
+export interface MapDocFact {
+  /** stable key linking expected claims to this fact (unique per doc) */
+  key: string;
+  /** inclusive UTF-16 start offset of the fact sentence in doc content */
+  startU16: number;
+  /** exclusive UTF-16 end offset (≤ content.length) */
+  endU16: number;
+  /** must equal positionBucketForOffset(startU16) — validator-pinned */
+  positionBucket: PositionBucket;
+  /** must equal (startU16 < 1500 && endU16 > 1500) whenever present — the
+   *  boundary-straddle flag gets its own diagnostic, never hidden in a bucket */
+  straddlesDefaultKnob1500?: boolean;
+}
+
+export interface MapDocCapacity {
+  /** measured fact positions (generator-computed, never hand-typed) */
+  facts?: MapDocFact[];
+  /** informative per-doc annotation: the MAP_CONTENT_CHARS this doc's deepest
+   *  fact needs. The APPLICABILITY authority is the case-level
+   *  capacityMeta.minMapContentChars (= max over docs, validator-pinned). */
+  requiredMapContentChars?: number;
+  /** doc exceeds the v1 1,600-unit cap and needs the contractVersion-2 6,000
+   *  ceiling (generator sets it whenever content.length > 1600) */
+  requiresContractCap?: number;
+  /** adversarial cases: UTF-16 offset of the injection payload */
+  injectionPayloadOffsetU16?: number;
+  /** near-dupe pair partner (docId; both sides must declare each other) */
+  nearDupePairId?: number;
+  /** quiet-control doc: the reference must expect ZERO claims from it */
+  quietControl?: boolean;
+}
+
+export interface MapClaimCapacity {
+  /** must equal positionBucketForOffset(charOffsetU16) — validator-pinned */
+  positionBucket: PositionBucket;
+  /** UTF-16 start offset of the supporting fact in the cited doc */
+  charOffsetU16: number;
+  /** links this expected claim to its doc fact (exact key match) — enables
+   *  unique-tail-loss with a deterministic denominator */
+  factKey?: string;
+}
+
+export interface MapCaseCapacityMeta {
+  /** MIN semantics: the case is structurally applicable only when the applied
+   *  mapContentChars() >= this (facts past the applied depth are unreadable —
+   *  a smaller knob is classified inapplicable, never scored as failure). */
+  minMapContentChars?: number;
+  /** every named person in this case (all FICTIONAL by policy) */
+  fictionalPersons?: string[];
+  /** every named organization in this case (all FICTIONAL by policy) */
+  fictionalOrgs?: string[];
+}
+
+export interface DigestCaseCapacityMeta {
+  /** EXACT semantics: fed-cutoff survivor/dead expectations are authored
+   *  against ONE cutoff — both fewer AND more fed groups change survivorship,
+   *  so the case is applicable only when reduceGroupsFed() === this. */
+  exactReduceGroupsFed?: number;
+  /** decisive events by rank in the deterministic rankGroups order; rank N
+   *  means the group of the N-th ranked claim. Feeds tailEventRecall. */
+  decisiveEvents?: Array<{ rank: number; titlePattern: string }>;
+  /** claim ids from the latest-published docs (late-document-recall basis) */
+  lateClaimIds?: number[];
+  fictionalPersons?: string[];
+  fictionalOrgs?: string[];
+}
+
 // ---- map ---------------------------------------------------------------------
 
 export interface MapEvalDoc {
@@ -68,6 +160,8 @@ export interface MapEvalDoc {
   day: string;
   sourceKey?: string | null;
   reliability?: number | null;
+  /** contractVersion 2 only */
+  capacity?: MapDocCapacity;
 }
 
 export interface MapEvalInput {
@@ -85,6 +179,8 @@ export interface MapExpectedClaim {
   /** the matched produced claim must carry a quote that verifies (verifyQuote)
    *  against THIS doc's title+content */
   mustQuoteFromDoc?: boolean;
+  /** contractVersion 2 only */
+  capacity?: MapClaimCapacity;
 }
 
 export interface MapEvalReference {
@@ -267,6 +363,8 @@ export interface MapEvalCase extends AnalysisEvalCaseBase {
   input: MapEvalInput;
   reference: MapEvalReference;
   offline: MapOfflineFixture;
+  /** contractVersion 2 only */
+  capacityMeta?: MapCaseCapacityMeta;
 }
 
 export interface ReduceEvalCase extends AnalysisEvalCaseBase {
@@ -283,6 +381,8 @@ export interface DigestEvalCase extends AnalysisEvalCaseBase {
   input: DigestEvalInput;
   reference: DigestEvalReference;
   offline: DigestOfflineFixture;
+  /** contractVersion 2 only */
+  capacityMeta?: DigestCaseCapacityMeta;
 }
 
 export interface ValidationEvalCase extends AnalysisEvalCaseBase {
@@ -301,9 +401,26 @@ export type AnalysisEvalCase =
 export interface AnalysisEvalDataset {
   /** e.g. "map-v1" — bump on any input/reference change to an existing id */
   datasetVersion: string;
+  /** absent = the frozen v1 contract (1,600-unit map doc cap, no capacity
+   *  metadata). 2 = corpus-v2 contract (6,000-unit DATASET safety ceiling —
+   *  a bound on committed fixtures, NOT a production MAP_CONTENT_CHARS
+   *  recommendation — plus the typed capacity metadata above). Any other
+   *  value fails validation closed. */
+  contractVersion?: 2;
   workload: AnalysisEvalWorkload;
   createdAt: string;
   cases: AnalysisEvalCase[];
+}
+
+interface ContractLimits {
+  maxMapDocChars: number;
+  allowCapacityMeta: boolean;
+}
+
+function contractLimits(ds: AnalysisEvalDataset): ContractLimits {
+  return ds.contractVersion === 2
+    ? { maxMapDocChars: 6000, allowCapacityMeta: true }
+    : { maxMapDocChars: 1600, allowCapacityMeta: false };
 }
 
 // ============================================================================
@@ -475,7 +592,176 @@ function checkPatternList(errs: string[], where: string, list: unknown): void {
   }
 }
 
-function validateMapCase(errs: string[], c: MapEvalCase): void {
+/** Capacity metadata is strictly keyed: an unknown key is a dataset error,
+ *  never a silently tolerated annotation (the pre-admission drafts carried
+ *  free-form fields; the admitted contract types every one of them). */
+function checkAllowedKeys(errs: string[], where: string, obj: unknown, allowed: readonly string[]): boolean {
+  if (!isRecord(obj)) {
+    errs.push(`${where}: must be an object`);
+    return false;
+  }
+  for (const k of Object.keys(obj)) {
+    if (!allowed.includes(k)) errs.push(`${where}: unknown key "${k}" (allowed: ${allowed.join(", ")})`);
+  }
+  return true;
+}
+
+function checkFictionalList(errs: string[], where: string, list: unknown): void {
+  if (list === undefined) return;
+  if (!Array.isArray(list) || list.some((n) => typeof n !== "string" || n.length === 0)) {
+    errs.push(`${where}: must be an array of non-empty strings`);
+  }
+}
+
+/** contractVersion-2 map capacity validation: offsets in range, buckets
+ *  consistent with offsets, straddle flags consistent both directions,
+ *  near-dupe symmetry, quiet-control ⇔ zero expected claims, and the
+ *  case-level minMapContentChars as the single applicability authority. */
+function validateMapCapacity(errs: string[], c: MapEvalCase): void {
+  const w = `case ${c.id}`;
+  const docById = new Map(c.input.docs.map((d) => [d.docId, d]));
+  const expectedByDoc = new Map(c.reference.expected.map((e) => [e.docId, e.claims]));
+  let maxRequired: number | undefined;
+
+  for (const d of c.input.docs) {
+    if (d.capacity === undefined) continue;
+    const dw = `${w}: doc ${d.docId} capacity`;
+    if (!checkAllowedKeys(errs, dw, d.capacity, [
+      "facts", "requiredMapContentChars", "requiresContractCap",
+      "injectionPayloadOffsetU16", "nearDupePairId", "quietControl",
+    ])) continue;
+    const cap = d.capacity;
+    const len = typeof d.content === "string" ? d.content.length : 0;
+    const factKeys = new Set<string>();
+    for (const f of cap.facts ?? []) {
+      const fw = `${dw} fact ${String(f?.key)}`;
+      if (!checkAllowedKeys(errs, fw, f, ["key", "startU16", "endU16", "positionBucket", "straddlesDefaultKnob1500"])) continue;
+      if (typeof f.key !== "string" || f.key.length === 0) errs.push(`${fw}: missing key`);
+      else if (factKeys.has(f.key)) errs.push(`${fw}: duplicate fact key`);
+      else factKeys.add(f.key);
+      if (!Number.isInteger(f.startU16) || !Number.isInteger(f.endU16) || f.startU16 < 0 || f.endU16 <= f.startU16 || f.endU16 > len) {
+        errs.push(`${fw}: offsets must satisfy 0 <= startU16 < endU16 <= content.length (${len})`);
+        continue;
+      }
+      if (f.positionBucket !== positionBucketForOffset(f.startU16)) {
+        errs.push(`${fw}: positionBucket ${f.positionBucket} != positionBucketForOffset(${f.startU16}) = ${positionBucketForOffset(f.startU16)}`);
+      }
+      const straddles = f.startU16 < 1500 && f.endU16 > 1500;
+      if (f.straddlesDefaultKnob1500 !== undefined && f.straddlesDefaultKnob1500 !== straddles) {
+        errs.push(`${fw}: straddlesDefaultKnob1500 ${f.straddlesDefaultKnob1500} inconsistent with offsets [${f.startU16}, ${f.endU16})`);
+      }
+      if (f.straddlesDefaultKnob1500 === undefined && straddles) {
+        errs.push(`${fw}: fact straddles offset 1500 but does not declare straddlesDefaultKnob1500`);
+      }
+    }
+    if (cap.requiredMapContentChars !== undefined) {
+      if (!Number.isInteger(cap.requiredMapContentChars) || cap.requiredMapContentChars < 200 || cap.requiredMapContentChars > 6000) {
+        errs.push(`${dw}: requiredMapContentChars must be an integer in 200..6000`);
+      } else {
+        maxRequired = Math.max(maxRequired ?? 0, cap.requiredMapContentChars);
+      }
+    }
+    if (cap.requiresContractCap !== undefined) {
+      if (cap.requiresContractCap !== 6000) errs.push(`${dw}: requiresContractCap must be 6000 (the v2 ceiling)`);
+      if (len <= 1600) errs.push(`${dw}: requiresContractCap declared but content fits the v1 1600 cap`);
+    } else if (len > 1600) {
+      errs.push(`${dw}: content exceeds 1600 chars but does not declare requiresContractCap`);
+    }
+    if (cap.injectionPayloadOffsetU16 !== undefined) {
+      if (!Number.isInteger(cap.injectionPayloadOffsetU16) || cap.injectionPayloadOffsetU16 < 0 || cap.injectionPayloadOffsetU16 >= len) {
+        errs.push(`${dw}: injectionPayloadOffsetU16 out of range`);
+      }
+      if ((c.reference.injectionPatterns ?? []).length === 0) {
+        errs.push(`${dw}: injectionPayloadOffsetU16 requires reference.injectionPatterns`);
+      }
+    }
+    if (cap.nearDupePairId !== undefined) {
+      const partner = docById.get(cap.nearDupePairId);
+      if (cap.nearDupePairId === d.docId || partner === undefined) {
+        errs.push(`${dw}: nearDupePairId must cite another doc in this case`);
+      } else if (partner.capacity?.nearDupePairId !== d.docId) {
+        errs.push(`${dw}: near-dupe pair is asymmetric (doc ${cap.nearDupePairId} does not declare ${d.docId} back)`);
+      }
+    }
+    if (cap.quietControl === true && (expectedByDoc.get(d.docId) ?? []).length > 0) {
+      errs.push(`${dw}: quietControl doc must expect zero claims`);
+    }
+  }
+
+  for (const e of c.reference.expected) {
+    const doc = docById.get(e.docId);
+    for (const cl of e.claims ?? []) {
+      if (cl.capacity === undefined) continue;
+      const cw = `${w}: expected claim on doc ${e.docId} capacity`;
+      if (!checkAllowedKeys(errs, cw, cl.capacity, ["positionBucket", "charOffsetU16", "factKey"])) continue;
+      const cc = cl.capacity;
+      const len = typeof doc?.content === "string" ? doc.content.length : 0;
+      if (!Number.isInteger(cc.charOffsetU16) || cc.charOffsetU16 < 0 || cc.charOffsetU16 >= len) {
+        errs.push(`${cw}: charOffsetU16 out of range for doc ${e.docId} (${len})`);
+      } else if (cc.positionBucket !== positionBucketForOffset(cc.charOffsetU16)) {
+        errs.push(`${cw}: positionBucket ${cc.positionBucket} != positionBucketForOffset(${cc.charOffsetU16})`);
+      }
+      if (cc.factKey !== undefined) {
+        const keys = new Set((doc?.capacity?.facts ?? []).map((f) => f.key));
+        if (!keys.has(cc.factKey)) errs.push(`${cw}: factKey "${cc.factKey}" not declared in doc ${e.docId} capacity.facts`);
+      }
+    }
+  }
+
+  if (c.capacityMeta !== undefined) {
+    const mw = `${w}: capacityMeta`;
+    if (checkAllowedKeys(errs, mw, c.capacityMeta, ["minMapContentChars", "fictionalPersons", "fictionalOrgs"])) {
+      const m = c.capacityMeta;
+      if (m.minMapContentChars !== undefined && (!Number.isInteger(m.minMapContentChars) || m.minMapContentChars < 200 || m.minMapContentChars > 6000)) {
+        errs.push(`${mw}: minMapContentChars must be an integer in 200..6000`);
+      }
+      checkFictionalList(errs, `${mw}.fictionalPersons`, m.fictionalPersons);
+      checkFictionalList(errs, `${mw}.fictionalOrgs`, m.fictionalOrgs);
+    }
+  }
+  // the applicability authority is case-level and must equal the per-doc max —
+  // a doc requirement without the case declaration (or a mismatch) is an error
+  if (maxRequired !== undefined && c.capacityMeta?.minMapContentChars !== maxRequired) {
+    errs.push(`${w}: capacityMeta.minMapContentChars must equal the max doc requiredMapContentChars (${maxRequired})`);
+  }
+  if (c.capacityMeta?.minMapContentChars !== undefined && maxRequired === undefined) {
+    errs.push(`${w}: capacityMeta.minMapContentChars declared but no doc declares requiredMapContentChars`);
+  }
+}
+
+function validateDigestCapacityMeta(errs: string[], c: DigestEvalCase): void {
+  const w = `case ${c.id}: capacityMeta`;
+  if (!checkAllowedKeys(errs, w, c.capacityMeta, [
+    "exactReduceGroupsFed", "decisiveEvents", "lateClaimIds", "fictionalPersons", "fictionalOrgs",
+  ])) return;
+  const m = c.capacityMeta as DigestCaseCapacityMeta;
+  const claims = Array.isArray(c.input.claims) ? c.input.claims : [];
+  if (m.exactReduceGroupsFed !== undefined) {
+    // the production clamp in synthesize.ts reduceGroupsFed() is 50..400 — an
+    // out-of-clamp requirement could never be applied, so it fails validation
+    if (!Number.isInteger(m.exactReduceGroupsFed) || m.exactReduceGroupsFed < 50 || m.exactReduceGroupsFed > 400) {
+      errs.push(`${w}: exactReduceGroupsFed must be an integer in 50..400 (the production clamp)`);
+    }
+  }
+  for (const ev of m.decisiveEvents ?? []) {
+    const ew = `${w} decisiveEvents`;
+    if (!checkAllowedKeys(errs, ew, ev, ["rank", "titlePattern"])) continue;
+    if (!Number.isInteger(ev.rank) || ev.rank < 1 || ev.rank > claims.length) {
+      errs.push(`${ew}: rank ${String(ev.rank)} out of range 1..${claims.length}`);
+    }
+    if (!compileOk(ev.titlePattern)) errs.push(`${ew}: titlePattern does not compile: ${String(ev.titlePattern)}`);
+  }
+  if (m.lateClaimIds !== undefined) {
+    const ids = new Set(claims.map((cl) => cl.id));
+    for (const id of m.lateClaimIds) {
+      if (!ids.has(id)) errs.push(`${w}: lateClaimIds cites unknown claim id ${String(id)}`);
+    }
+  }
+  checkFictionalList(errs, `${w}.fictionalPersons`, m.fictionalPersons);
+  checkFictionalList(errs, `${w}.fictionalOrgs`, m.fictionalOrgs);
+}
+
+function validateMapCase(errs: string[], c: MapEvalCase, limits: ContractLimits): void {
   const w = `case ${c.id}`;
   const input = c.input as unknown;
   const mapInput = input as MapEvalInput | undefined;
@@ -492,8 +778,16 @@ function validateMapCase(errs: string[], c: MapEvalCase): void {
     else if (docIds.has(d.docId)) errs.push(`${w}: duplicate docId ${d.docId}`);
     else docIds.add(d.docId);
     if (typeof d.content !== "string" || d.content.length === 0) errs.push(`${w}: doc ${d.docId} has no content`);
-    if (typeof d.content === "string" && d.content.length > 1600) {
-      errs.push(`${w}: doc ${d.docId} content exceeds 1600 chars (synthetic snippets stay short)`);
+    if (typeof d.content === "string" && d.content.length > limits.maxMapDocChars) {
+      errs.push(
+        `${w}: doc ${d.docId} content exceeds ${limits.maxMapDocChars} chars` +
+          (limits.allowCapacityMeta
+            ? " (the contractVersion-2 dataset safety ceiling)"
+            : " (synthetic snippets stay short; graded capacity docs need contractVersion 2)"),
+      );
+    }
+    if (!limits.allowCapacityMeta && d.capacity !== undefined) {
+      errs.push(`${w}: doc ${d.docId} capacity metadata requires contractVersion 2`);
     }
     if (typeof d.day !== "string" || !DAY_RE.test(d.day)) errs.push(`${w}: doc ${d.docId} day must be yyyy-mm-dd`);
     if (typeof d.lang !== "string") errs.push(`${w}: doc ${d.docId} missing lang`);
@@ -517,6 +811,18 @@ function validateMapCase(errs: string[], c: MapEvalCase): void {
         errs.push(`${w}: expected claim on doc ${e.docId} missing textGist`);
       }
       if (!HEDGINGS.has(cl.hedging)) errs.push(`${w}: expected claim on doc ${e.docId} invalid hedging ${cl.hedging}`);
+      if (!limits.allowCapacityMeta && cl.capacity !== undefined) {
+        errs.push(`${w}: expected claim on doc ${e.docId} capacity metadata requires contractVersion 2`);
+      }
+      // SCI-3b gist discipline: numericValues cannot read compound
+      // number-words, so a checkNumerals case with one in a gist would assert
+      // the wrong values — rejected up front (any contract version; no v1
+      // case sets the flag, so v1 behavior is unchanged)
+      if (ref.checkNumerals === true && typeof cl.textGist === "string") {
+        for (const e2 of gistNumeralStyleErrors(cl.textGist)) {
+          errs.push(`${w}: expected claim on doc ${e.docId} textGist: ${e2}`);
+        }
+      }
     }
   }
   for (const dId of docIds) {
@@ -533,6 +839,11 @@ function validateMapCase(errs: string[], c: MapEvalCase): void {
     errs.push(`${w}: offline fixture must carry fixtureId + rawOutput`);
   } else if (!["pass", "fail"].includes(fix.expectation)) {
     errs.push(`${w}: offline.expectation must be "pass" or "fail"`);
+  }
+  if (limits.allowCapacityMeta) {
+    validateMapCapacity(errs, c);
+  } else if (c.capacityMeta !== undefined) {
+    errs.push(`${w}: capacityMeta requires contractVersion 2`);
   }
 }
 
@@ -593,7 +904,7 @@ function validateReduceCase(errs: string[], c: ReduceEvalCase): void {
   }
 }
 
-function validateDigestCase(errs: string[], c: DigestEvalCase): void {
+function validateDigestCase(errs: string[], c: DigestEvalCase, limits: ContractLimits): void {
   const w = `case ${c.id}`;
   if (!isRecord(c.input)) {
     errs.push(`${w}: input must be an object`);
@@ -620,6 +931,10 @@ function validateDigestCase(errs: string[], c: DigestEvalCase): void {
   for (const h of ref.expectHedging ?? []) {
     if (!compileOk(h.textMatch)) errs.push(`${w}: expectHedging textMatch does not compile: ${h.textMatch}`);
     if (!HEDGINGS.has(h.hedging)) errs.push(`${w}: expectHedging invalid hedging ${h.hedging}`);
+  }
+  if (c.capacityMeta !== undefined) {
+    if (!limits.allowCapacityMeta) errs.push(`${w}: capacityMeta requires contractVersion 2`);
+    else validateDigestCapacityMeta(errs, c);
   }
 }
 
@@ -703,6 +1018,13 @@ export function validateAnalysisEvalDataset(
   if (typeof ds.createdAt !== "string" || Number.isNaN(Date.parse(ds.createdAt))) {
     errs.push("dataset: createdAt must be a valid ISO timestamp");
   }
+  // fail closed on unknown contract versions: a future-version file must be
+  // rejected loudly, never validated under the wrong limits
+  if (ds.contractVersion !== undefined && ds.contractVersion !== 2) {
+    errs.push(`dataset: unknown contractVersion ${String(ds.contractVersion)} (absent = v1, 2 = corpus-v2)`);
+    return errs;
+  }
+  const limits = contractLimits(ds);
   if (!Array.isArray(ds.cases) || ds.cases.length === 0) {
     errs.push("dataset: cases must be a non-empty array");
     return errs;
@@ -724,16 +1046,22 @@ export function validateAnalysisEvalDataset(
     if (typeof c.provenance !== "string" || c.provenance.length === 0) errs.push(`case ${c.id}: missing provenance`);
     switch (ds.workload) {
       case "map":
-        validateMapCase(errs, c as MapEvalCase);
+        validateMapCase(errs, c as MapEvalCase, limits);
         break;
       case "reduce":
         validateReduceCase(errs, c as ReduceEvalCase);
+        if ((c as unknown as Record<string, unknown>).capacityMeta !== undefined) {
+          errs.push(`case ${c.id}: capacityMeta is not defined for the reduce workload`);
+        }
         break;
       case "digest":
-        validateDigestCase(errs, c as DigestEvalCase);
+        validateDigestCase(errs, c as DigestEvalCase, limits);
         break;
       case "validation":
         validateValidationCase(errs, c as ValidationEvalCase);
+        if ((c as unknown as Record<string, unknown>).capacityMeta !== undefined) {
+          errs.push(`case ${c.id}: capacityMeta is not defined for the validation workload`);
+        }
         break;
     }
   }
