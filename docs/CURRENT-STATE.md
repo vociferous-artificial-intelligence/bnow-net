@@ -93,9 +93,14 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   `structured.stats.evidenceRecency` with exact claim/document reconciliation on all 44 —
   `docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md`); **QF-C** (PR #15 —
   analysis-eval control plane; live/paid evaluation remains IMPOSSIBLE and BLOCKED: no
-  `EVAL_*` env exists in any Vercel environment, the fail-closed guard refuses dispatch,
-  and the register §9.3 gate is 2-of-5 met — the 11-item hardening list and operator
-  cap/candidate authorization are outstanding); the **seven-PR conflict evaluator**
+  `EVAL_*` env exists in any Vercel environment and the fail-closed guard refuses
+  dispatch. **2026-09-03 update: the 11-item hardening list is fully CLOSED and the
+  corpus-v2 datasets are admitted** — map-v2 34 / digest-v2 17 / validation-v2 17 /
+  reduce-v1 14 with typed capacity applicability, report-only capacity diagnostics,
+  and six committed per-profile offline machinery cells
+  (`docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md`); only the operator
+  cap/candidate authorization remains outstanding
+  (`docs/reviews/PAID-EVAL-OPERATOR-PACKET-2026-09-03.md`)); the **seven-PR conflict evaluator**
   (PRs #16–#22 — DORMANT: `CONFLICTS_UI` absent everywhere, all public conflict routes
   404 anonymously, the gated evidence route gates on `requireAcceptedUser()` first;
   shadow soak and enablement stay separately gated); plus docs PRs #12/#13/#23/#24.

@@ -98,12 +98,38 @@ means PROHIBITED FROM ITERATIVE PROMPT/CONFIG TUNING — development runs use
 `--dev` (which excludes the split), thresholds and prompts are tuned on
 development cases only, and the heldout machinery runs ONCE after code freeze.
 It does not mean secret or never viewed. Post-freeze deltas to heldout case
-bytes (e.g. the mechanical typed-capacityMeta migration) are enumerated in
-§[PENDING] with per-part diffs against the frozen hashes; any delta touching
+bytes (e.g. the mechanical typed-capacityMeta migration) are enumerated
+below with per-part diffs against the frozen hashes; any delta touching
 `input`/`reference`/`offline` semantics beyond mechanical re-shaping would
 demote the case out of heldout.
 
-Post-freeze single heldout run: [PENDING]. Admitted-basis hashes: [PENDING].
+**Post-freeze deltas (admitted basis, all declared and mechanical — no
+verdict tuning):** every heldout case's `offline` fixture is BYTE-UNCHANGED
+from the frozen basis (the verdict-bearing surface). Per case:
+
+| case | input | reference | offline | delta content |
+|---|---|---|---|---|
+| map-c2-edge-004 | changed | changed | **unchanged** (1c645314…) | input: additive `capacity` annotations only (doc text verbatim); reference: mechanical position→`capacity` nesting + the DECLARED item-6 `mustNotMatch: ["\\bconfirmed\\b"]` pin + `checkNumerals: true` (both adjudicated before implementation; both inert against the committed fixture) |
+| map-c2-edge-006 | changed | changed | **unchanged** (1be14b7c…) | same three declared deltas as edge-004 |
+| map-c2-adv-002 | changed | **unchanged** (e5f26267…) | **unchanged** (df4cffb6…) | input: additive capacity annotations (injection offset, quiet flag, facts) |
+| dig-c2-safe-001 | **unchanged** (197f8d13…) | **unchanged** (a22160ab…) | **unchanged** (f6960e03…) | only case-level capacityMeta (`lateClaimIds`), notes, provenance |
+| val-c2-edge-002 | **unchanged** (876a253f…) | **unchanged** (c14b2e39…) | **unchanged** (f8a241cf…) | provenance only |
+
+Admitted-basis full-case hashes (same recipe, against the committed v2 files):
+edge-004 f7f49234a87a56f5aa50d6b8f93d5f5239d20c6b9ae3531cf812ea1583c47a92 ·
+edge-006 98f6e2bd27e28a49be4816c5d610e8a210d8d714457ca3bb764af633133826f1 ·
+adv-002 25071f330745ed2876008fff69ffec0ad85246f0b9603b8a833375573bf7f4a5 ·
+safe-001 097b0d7c877dce88b5d77b099e6d2879c84f52e9d0f77a6b85dfcef2a05184cf ·
+val-edge-002 d9451d8e2c45cf325345f737b7c5300a71a034e8ec92ae6622d39fca99345133.
+
+**Run history (honest):** full-scope offline sweeps (heldout included) ran at
+admission to produce the committed machinery artifacts; every expectation was
+pre-declared by the drafts and no prompt, config, threshold, or expectation
+was adjusted in response to a heldout verdict. The `--dev` exclusion proof
+(26 of 34 map results, zero heldout keys, scope stamped "dev") ran against a
+scratch regeneration and the committed artifacts were restored byte-exact.
+The committed full-scope offline artifacts ARE the single post-freeze heldout
+machinery run.
 
 ## 4. Draft-to-current reconciliation table
 
@@ -206,8 +232,9 @@ verdicts in the drafts passed the real `clusterClaims` (<0.35 worst pair).
 Decision: **shared filler stays in development cases** subject to the Phase-5
 collision/unintended-near-duplicate audit; the 5 heldout cases get an explicit
 leakage audit (does shared filler make any heldout verdict predictable from a
-development case?); replacement only where that audit fails. Result:
-[PENDING]. Deferred risk: recorded in the audit outcome.
+development case?); replacement only where that audit fails. Result: audit
+executed (§7) — no leakage found, no replacement needed. Deferred risk: none
+beyond the recorded audit scope.
 
 **Q8 — Heldout sufficiency.**
 Evidence: gates compute heldout minima from results (≥1 per partition, ≥3
@@ -234,9 +261,12 @@ Evidence: 260 fused names (20 bases × 13 suffixes), never gazetteer-checked
 against the repo's own gazetteers/validation wordlists plus a static
 plausibility sweep; replace-and-regenerate deterministically on any real
 settlement match; record the check's scope honestly as NON-EXHAUSTIVE (no
-worldwide proof claimed). Result: [PENDING]. Deferred risk: a residual
-real-name collision outside checked sources; mitigation = all-fictional
-framing in dataset provenance + notes.
+worldwide proof claimed). Result: EXECUTED — repo gazetteers zero hits, but
+the -ivka/-ove suffix rows collide with real Ukrainian settlement patterns;
+all 40 names in those rows substituted with synthetic -ivask/-ovask
+(§7; machinery unchanged). Deferred risk: a residual real-name collision
+outside checked sources; mitigation = all-fictional framing in dataset
+provenance + notes.
 
 **Q11 — Promotion-rule coupling (dig-c2-late-001).**
 Evidence: the case pins `confirmed` via corroboration promotion, a deliberate
@@ -248,15 +278,16 @@ version — recorded in README. Deferred risk: rule drift creates a visible
 scorer-vs-annotation failure, which is the desired loud signal.
 
 **Q12 — red_sea theater probe.**
-Evidence: `classifyTakeawayTheater` gazetteer inspected at admission
-[PENDING — confirm off-gazetteer status and fall-through-to-"both" behavior];
-the probe's value is "off-gazetteer input falls through to both".
-Decision: **replace `red_sea` with an explicitly synthetic off-gazetteer
-sentinel token** if the probe contract accepts an arbitrary toponym cleanly
-(it does — `theaterProbes[].toponyms` is a free string list); this removes the
-silent-meaning-flip risk should `red_sea` ever join the gazetteer. A
-regression test pins the sentinel as off-gazetteer. Executed form: [PENDING].
-Deferred risk: none once synthetic.
+Evidence: `classifyTakeawayTheater` (src/lib/validation/keywords.ts) reads
+`TOPONYM_THEATER[t]` and falls through to "both" for unknown tokens —
+confirmed at admission; `theaterProbes[].toponyms` is a free string list.
+Decision: **replaced `red_sea` with the explicitly synthetic off-gazetteer
+sentinel `varn_strait`** (probe token, takeaway text "southern Varn Strait",
+and the notes prose), removing the silent-meaning-flip risk should red_sea
+ever join the gazetteer. Executed in the admission transform; the case's
+expectKeyword/label pins re-verified by the offline run (still matches no
+claim); score-validation.test.ts pins `varn_strait → both` through the real
+classifier. Deferred risk: none — the token is fictional by construction.
 
 **Q13 — Arabic fixture (map-c2-adv-005).**
 Evidence: quotes verified through the real `verifyQuote` NFKC normalization;
@@ -283,22 +314,143 @@ per-metric unavailable). Documented as UNVALIDATED diagnostics — not
 statistically validated quality gates. Consequence: `qualityOf`/aggregate/
 renderer additions only; gates untouched.
 
-## 6. Dataset topology and counts
+## 6. Dataset topology and counts (final)
 
-[PENDING — filled at composition; planned:]
-- map-v2.json = 18 map-v1 cases (input/reference/offline byte-frozen) + 16 admitted c2 = 34 (heldout 8: 5 v1 + 3 c2).
-- digest-v2.json = 10 digest-v1 + 7 c2 = 17 (heldout 4: 3 v1 + 1 c2).
-- validation-v2.json = 14 validation-v1 + 3 c2 = 17 (heldout 6: 5 v1 + 1 c2).
-- reduce-v1.json unchanged (14; heldout 5).
-- Proposed c2: 26. Admitted / provisional / excluded: [PENDING].
+- **Proposed c2 cases: 26. Admitted: 26. Provisional: 0. Excluded: 0.
+  Newly authored: 0.** (map-c2-adv-005-translation-denial-ar is admitted with
+  an explicit DIAGNOSTIC limitation pending native-speaker review — Q13; it
+  is development-split, so it carries no gate weight by construction.)
+- map-v2.json = 18 map-v1 cases (input/reference/offline byte-frozen,
+  test-pinned) + 16 c2 = **34** (dev 26 / heldout 8: typ 1, edge 4, adv 3).
+- digest-v2.json = 10 digest-v1 + 7 c2 = **17** (dev 13 / heldout 4: 1/1/2).
+- validation-v2.json = 14 validation-v1 + 3 c2 = **17** (dev 11 / heldout 6: 1/4/1).
+- reduce-v1.json unchanged (**14**; heldout 5: 1/1/3) — no new reduce-workload
+  cases; the four fed-cutoff cases are workload=digest by the drafts' own
+  (correct) rationale: the cutoff lives in synthesize.ts.
+- Union total across the four active datasets: **82 cases, 23 heldout.**
+  Every workload/partition exceeds the gate minima
+  (MIN_HELDOUT_CASES_PER_PARTITION=1, MIN_HELDOUT_CASES_TOTAL=3) with no
+  relabeling (Q8).
+- Contract topology: v2 files carry `contractVersion: 2` (6,000-U16 dataset
+  safety ceiling + typed capacity metadata); v1 files stay committed
+  byte-identical at their historical paths with their committed results
+  untouched. The CLI's `DATASETS` table names new results basenames
+  (`map-v2-…`/`digest-v2-…`/`validation-v2-…`; reduce keeps its historical
+  name) so no historical results file can be identity-collided.
+- Committed v2 offline results (one per meaningful capacity cell): map
+  baseline / +map-depth-4000 / +map-depth-full; digest baseline /
+  +reduce-fed-400; validation baseline. Each cell scores exactly the cases
+  its knobs can honestly measure; the rest are recorded `inapplicable`.
 
-## 7. Content, safety, and provenance audit
+## 7. Content, safety, and provenance audit (Phase 5 — executed)
 
-[PENDING — Phase 5.]
+- **Fictional identities:** name-shaped-bigram sweep over all 26 admitted
+  cases found exactly the three declared fictional persons (Arkady Luzhenkov,
+  Omid Zangaraki, Yegor Stavitsky), the declared fictional org (Jabhat Sahil
+  al-Fajr), one real place used as a location only (Bandar Abbas — the
+  drafted ir exercise setting, consistent with house policy on real places),
+  and the synthetic sentinel Varn Strait. No undeclared person or org names.
+  Fictional names are also machine-recorded in `capacityMeta.fictionalPersons/
+  fictionalOrgs` on their cases.
+- **No ISW prose / no copied source text:** all content is emitted by the
+  deterministic generator (fixed literal wordlists + hand-written filler
+  sentences); nothing is scraped or quoted from any source. Long capacity
+  docs are synthetic channel-housekeeping filler around planted facts.
+- **Locality collision check (Q10, executed):** the 260 fed-population names
+  were reproduced from the generator arithmetic and screened against repo
+  gazetteers (zero hits) and maintainer knowledge. The draft's -ivka/-ove
+  suffix rows collide with real Ukrainian settlement patterns (Verbove,
+  Berehove, Dubove, Klynove, Verbivka, Piskivka, Kholmivka are real places);
+  all 40 names in those two rows were substituted with the clearly synthetic
+  -ivask/-ovask rows across claims AND vote fixtures (pre-admission change,
+  regenerated deterministically, zero machinery changes — the
+  expectEventCount/droppedGidRefs pins re-verified singleton clustering).
+  The remaining eleven suffix rows were screened and kept (Luhyne considered
+  against the real town Luhyny; kept as a distinct spelling). Scope recorded
+  honestly: NOT an exhaustive worldwide proof.
+- **Quote fidelity:** the Arabic case's quotes verify through the real
+  `verifyQuote` NFKC path (its committed compliant fixture scores pass);
+  `mustQuoteFromDoc` gold pins are exercised by the offline run.
+- **Numeral fidelity:** `checkNumerals` enabled on 9 map cases; the validator
+  numeral-gist pin (`gistNumeralStyleErrors`) passes over every gist (no
+  compound number-words), and every applicable fixture preserved its
+  numerals (machinery all-OK).
+- **Injection markers / publication safety / quiet-day precision /
+  hedging-attribution:** carried by the drafted references (injectionPatterns
+  on both injection cases with typed payload offsets; expectGuardStats +
+  mustNotMatch on dig-c2-safe-001; quietControl docs validator-pinned to
+  zero expected claims; hedging golds all "claimed" with the strengthening
+  fail-fixture on adv-004) and verified by the committed offline runs.
+- **No duplicate IDs / no v1 collision:** validator + compose both enforce;
+  the frozen-subset test pins v1 content inside v2.
+- **No hidden environment dependence:** offline scoring is byte-deterministic
+  across independent runs (§8); the generator uses no RNG/clock; composition
+  is pure; fixture ordering comes from committed file order, never directory
+  enumeration.
+- **Filler-reuse leakage audit (Q7, executed):** the shared 58-sentence
+  filler library appears in rotated, per-batch-disjoint slices; heldout
+  verdicts hinge exclusively on planted facts unique to each case (frozen
+  hashes above), and no development case's filler or facts reveal a heldout
+  case's expected claims. Structural parallels (edge-005 dev ↔ edge-006
+  heldout near-dupe design) share shape, not content. No replacement needed.
+- **Provenance:** every admitted case carries
+  `authored-2026-08-27; admitted-2026-09-03 after maintainer review (…)`.
+  The generator is preserved byte-identical (manifest hash 00818a79…) at
+  `scripts/evals/corpus-v2/build-draft.py`; EVERY admission delta lives in
+  `src/lib/evals/corpus-v2-admit.ts` (typed-metadata migration, stale-note
+  corrections, item-6 pins, checkNumerals, Q10 substitution, Q12 sentinel,
+  provenance rewrite), each commented with its adjudication.
 
-## 8. Deterministic verification evidence
+## 8. Deterministic verification evidence (Phase 6 — executed; provider keys
+absent, no production DB)
 
-[PENDING — Phase 6.]
+- Dataset validation: `--validate-dataset` passes all SEVEN committed files
+  (map/digest/validation v2 + all four v1) with the expected counts.
+- Deterministic regeneration: `scripts/evals/corpus-v2/check-regen.sh`
+  PASSED — python3 regenerates the five drafts byte-identical to the
+  preserved-originals manifest, and admit+compose over them byte-matches
+  every committed fragment and v2 dataset (`run-admit.ts --check` clean).
+- Offline determinism: two independent `--offline --workload map` runs
+  produced byte-identical results files modulo the header `updatedAt`
+  timestamp (runId is deterministic).
+- Machinery: zero MACHINERY MISMATCH lines across all six committed v2
+  offline cells; every applicable fixture matches its declared expectation;
+  deliberate-fail fixtures still fail (converted to pass nowhere).
+- Heldout exclusion: `--offline --dev` scored 26 of 34 map cases with ZERO
+  heldout caseIds present and scope stamped "dev" (exact-set check);
+  committed artifacts restored byte-exact afterwards.
+- Applicability matrix (committed-artifact pins, capacity-fidelity.test.ts):
+  dig-c2-cap-003 inapplicable at baseline / scored+pass under
+  +reduce-fed-400; dig-c2-cap-002 the mirror image; map-c2-edge-004
+  inapplicable through depth 4000 / scored under map-depth-full; every v2
+  offline file COMPLETE.
+- Resume/identity refusal: CLI-level demonstration — a one-character dataset
+  edit made `--offline` refuse with the datasetContentHash pair printed
+  (restored afterwards); unit pins cover promptHash / schema / extractor /
+  envKnobs (fed-cap + map-depth) / repetitions drift; contract-version drift
+  is covered by datasetVersion + datasetContentHash (v1↔v2 files can never
+  resume into each other) and unknown `contractVersion` values fail
+  validation closed.
+- Mutation proofs: disabling the map applicability branch failed exactly the
+  applicability tests (2); deleting the positionRecall accumulation failed
+  exactly the capacity-metrics tests (2); both restored, suite green.
+- v1 identity stability: the committed v1 promptHash/schemaVersion tests pass
+  unchanged (v1 files byte-untouched).
+- Gates: typecheck clean · lint 0 errors (3 pre-existing warnings on
+  origin/main) · unit **3,545/3,545 (244 files)** (baseline on untouched
+  origin/main: 3,508/241) · production build PASS · integration suite
+  **160/160 (25 files)** on a disposable Neon branch
+  (br-lingering-bread-atbh8eii, created fresh, deleted after — the
+  repo-sanctioned fork→test→delete flow; NOT production access).
+- Offline isolation: structural (isolation.test.ts pins the only
+  OpenAI-capable module + the CLI's static import surface + the new
+  run-admit.ts pure-module allowlist; cli-dynamic-imports.test.ts pins the
+  dynamic specifiers; hardening-cli.test.ts proves report/offline modes
+  DB-free in a blanked-env subprocess). All eval commands in this program ran
+  with OPENAI_API_KEY/DATABASE_URL explicitly unset. No EVAL_* variable, no
+  candidate-model variable, no routing variable, no Vercel environment
+  variable was created or changed; no production DB query or write occurred
+  for corpus work.
 
 ## 9. Independent review findings and resolutions
 

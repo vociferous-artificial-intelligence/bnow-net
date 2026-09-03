@@ -1008,10 +1008,12 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
    that mapreduce output is reaching validation again. Rollback of the engine itself =
    remove the Vercel prod env var (or set `legacy`) + redeploy. **The 2026-08-28
    reliability queue DELIVERED the reduce + digest #97 sites and closed #87/#98** (see
-   the Analysis bullet and `docs/reviews/RELIABILITY-RELEASES-2026-08-28.md`). **Next
-   code PRs: the #97 Ask family** (user-controlled truncation sites through
-   `wellFormedSlice`) **and the eval corpus-v2 landing** (drafts machinery-verified;
-   carries hardening item 6 + the numeral fixtures + the contract cap raise). Then: gulf
+   the Analysis bullet and `docs/reviews/RELIABILITY-RELEASES-2026-08-28.md`). **The #97 Ask
+   family landed 2026-08-29 and the eval corpus-v2 landed 2026-09-03** (26 cases
+   admitted; hardening item 6 + the numeral fixtures + the contract cap raise all
+   rode it — the QF-C close-before-paid list is fully closed; paid evaluation now
+   waits only on the operator §5 decisions, see
+   `docs/reviews/PAID-EVAL-OPERATOR-PACKET-2026-09-03.md`). Then: gulf
    theaters onto the map worker, the #33 remap path (the operator
    now EXISTS in the tree — see the map-lease release — but has never been RUN; its
    production deployment is recorded in the closeout decision-log entry, not here),
@@ -1731,3 +1733,45 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   from the operator's statement); the override pair absent from every environment; zero
   `EVAL_*` variables anywhere; no candidate model activated. #101 and #94 close.
   No code, migration, DB, flag, cron, or other env change rode this release.
+
+- **2026-09-03 (eval corpus-v2 admitted — maintainer pass over the 26-case packet;
+  branch `claude/eval-corpus-v2-20260903`, offline, default-off)** Executed the
+  operator packet §7 maintainer review of the preserved 2026-08-27 drafts (manifest
+  re-verified 8/8 before and after; originals byte-untouched; all edits in a separate
+  reviewed copy + new repo files). Inventory corrected: 26 cases = 21 development +
+  5 heldout (the draft README's "31/26" line was wrong on both numbers). All 14 open
+  questions adjudicated with an evidence table
+  (`docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md`); the drafts' fed-cutoff
+  annotations were STALE in reverse — SCI-N6 (2026-08-28) had already landed the
+  production cutoff, so dig-c2-cap-002 passes against the shipped scorer and
+  dig-c2-cap-003 became profile-dependent. Shipped: `contractVersion: 2` dataset
+  validation (6,000-U16 capacity-doc ceiling, v1 frozen at 1,600), strictly-typed
+  capacity metadata, the structural-applicability classification (`inapplicable`
+  result status — classified before scoring or dispatch, completeness-neutral, never
+  a quality/machinery/gate data point, zero estimated calls), five REPORT-ONLY
+  capacity diagnostics (position/straddle/unique-tail/tail-event/late-document
+  recall; QUALITY_GATE_METRICS byte-stability-pinned), the checkNumerals gist
+  validator pin, QF-C hardening item 6's heldout mustNotMatch pins + the numeral
+  fixtures (both inert against committed fixtures), and the v2 union datasets
+  map-v2 34 / digest-v2 17 / validation-v2 17 (reduce stays v1; every v1 case
+  byte-frozen inside its union, test-pinned; v1 files + results untouched at their
+  historical paths; new results basenames prevent identity collision). Admission
+  deltas are concentrated in one deterministic transform
+  (`src/lib/evals/corpus-v2-admit.ts`) over the byte-identical preserved generator;
+  regeneration is proven byte-exact end-to-end (`check-regen.sh`). Pre-admission
+  content changes, all recorded: Q10 locality substitution (the -ivka/-ove rows
+  collided with real Ukrainian settlements — replaced with synthetic
+  -ivask/-ovask), Q12 red_sea→varn_strait synthetic sentinel, provenance rewritten
+  to `authored-2026-08-27; admitted-2026-09-03…`. Heldout freeze ledger: per-part
+  sha256 frozen before implementation; every heldout offline fixture byte-unchanged;
+  deltas mechanical/declared only. Six committed offline results cells (map
+  baseline/+depth-4000/+depth-full, digest baseline/+reduce-fed-400, validation
+  baseline) — zero machinery mismatches; the capacity matrix estimate now genuinely
+  diverges. Gates: typecheck/lint clean · unit 3,545/3,545 (244 files; from
+  3,508/241) · integration 160/160 (25 files, disposable Neon fork) · build PASS ·
+  offline determinism, --dev heldout-exclusion, drift-refusal, and mutation-kill
+  proofs recorded in the admission report §8. ZERO paid calls, zero production DB
+  access, zero env changes, zero deploys, zero migrations; no EVAL_* exists; no
+  model evaluated or activated. Paid baseline/candidate evaluation remains BLOCKED
+  on the §5 operator decisions — next-session packet:
+  `docs/reviews/PAID-EVAL-OPERATOR-PACKET-2026-09-03.md`.

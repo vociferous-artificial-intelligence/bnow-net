@@ -831,6 +831,11 @@ docs/reviews/CLOUD-MODEL-ROUTING-SEAMS-2026-08-17.md §12.11)
     design, digest production baseline), a registry entry citing that evidence, and
     explicit operator spend authorization. Separately blocked/unauthorized — the routing
     seam only makes the gate enforceable; it does not schedule the evaluation.
+    STATUS 2026-09-03: every technical prerequisite is now met — the corpus-v2
+    datasets are admitted (heldout 8/4/6/5 across map/digest/validation/reduce),
+    the 11-item hardening list is closed, and the pre-registered gates stand
+    unchanged; only the operator decisions remain
+    (`docs/reviews/PAID-EVAL-OPERATOR-PACKET-2026-09-03.md`).
 82. **[Tier 2 — spend hygiene] `scripts/ask-eval-harvest.ts` still constructs an
     unguarded, default-retry OpenAI client.** The routing hardening put every ANALYSIS
     dispatch behind `analysisOpenAiClient()` (`maxRetries: 0`, one reservation per physical
