@@ -12,6 +12,7 @@ vi.mock("openai", () => ({
   },
 }));
 
+import { analysisApproval } from "../llm/analysis-registry";
 import { LlmBudgetError } from "../usage/llm-guard";
 import { SpendGuard, type UsageStore } from "../usage/spend-guard";
 import type { DigestEvalCase, MapEvalCase, ValidationEvalCase } from "./contracts";
@@ -22,6 +23,7 @@ import {
   assertLivePreflight,
   dispatchOnce,
   evalDispatchConfig,
+  liveIdentity,
   runLiveCase,
   type LiveDeps,
 } from "./live-runner";
@@ -84,7 +86,7 @@ const MAP_CASE: MapEvalCase = {
 
 // ---- evalDispatchConfig --------------------------------------------------------
 
-describe("evalDispatchConfig (the ONE registry bypass, private to the eval library)", () => {
+describe("evalDispatchConfig (baseline via registry; candidates via the ONE registry bypass)", () => {
   it("refuses an unpriced model even for evaluation", () => {
     expect(() => evalDispatchConfig("map", "gpt-99-hypothetical", null)).toThrow(/no entry in the metering price table/);
   });
@@ -98,7 +100,30 @@ describe("evalDispatchConfig (the ONE registry bypass, private to the eval libra
     expect(() => evalDispatchConfig("reduce", "gpt-4o-mini", null)).toThrow(/deterministic/);
   });
 
-  it("bypasses registry approval and the map activation lock, stamping evaluation_candidate", () => {
+  it("resolves the registered production baseline through the registry, stamping baseline", () => {
+    // gpt-4o-mini with ABSENT effort is the analysis-reg-v1 status-"baseline"
+    // approval for every live workload — its eval identity must record the
+    // registry-backed production configuration, never evaluation_candidate.
+    for (const workload of ["map", "digest", "validation"] as const) {
+      const verdict = analysisApproval(workload, "gpt-4o-mini", null);
+      expect(verdict).toMatchObject({ approved: true, status: "baseline" });
+      expect(evalDispatchConfig(workload, "gpt-4o-mini", null)).toEqual({
+        workload,
+        model: "gpt-4o-mini",
+        reasoningCapable: false,
+        reasoningEffort: null,
+        approval: "baseline",
+      });
+    }
+  });
+
+  it("keeps gpt-5-nano an evaluation_candidate (no registry approval)", () => {
+    expect(evalDispatchConfig("map", "gpt-5-nano", null).approval).toBe("evaluation_candidate");
+    expect(evalDispatchConfig("digest", "gpt-5-nano", null).approval).toBe("evaluation_candidate");
+    expect(evalDispatchConfig("validation", "gpt-5-nano", null).approval).toBe("evaluation_candidate");
+  });
+
+  it("bypasses registry approval and the map activation lock for candidates, stamping evaluation_candidate", () => {
     // gpt-5-mini is priced but has NO analysis-registry approval for map, and
     // the map activation lock blocks any non-baseline model in production —
     // the eval path may still measure it, marked as a candidate only.
@@ -110,6 +135,22 @@ describe("evalDispatchConfig (the ONE registry bypass, private to the eval libra
       reasoningEffort: "low",
       approval: "evaluation_candidate",
     });
+  });
+
+  it("liveIdentity propagates the registry-backed baseline identity", () => {
+    const dataset = {
+      datasetVersion: "map-test",
+      workload: "map",
+      cases: [MAP_CASE],
+    } as unknown as Parameters<typeof liveIdentity>[0];
+    const id = liveIdentity(dataset, evalDispatchConfig("map", "gpt-4o-mini", null));
+    expect(id.approval).toBe("baseline");
+    expect(id.model).toBe("gpt-4o-mini");
+    expect(id.reasoningEffort).toBeNull();
+    expect(id.registryVersion).toBe("analysis-reg-v1");
+    expect(liveIdentity(dataset, evalDispatchConfig("map", "gpt-5-nano", null)).approval).toBe(
+      "evaluation_candidate",
+    );
   });
 });
 
@@ -133,8 +174,15 @@ describe("assertLivePreflight (all guards BEFORE any client construction)", () =
   it("passes with every guard satisfied and returns the acknowledged host", () => {
     const ok = assertLivePreflight(GOOD_ARGS, GOOD_ENV);
     expect(ok.dbHost).toBe("eval-branch.example.neon.tech");
-    expect(ok.cfg.approval).toBe("evaluation_candidate");
+    // gpt-4o-mini/absent IS the registered production baseline — its
+    // preflight identity is registry-backed, never evaluation_candidate
+    expect(ok.cfg.approval).toBe("baseline");
     expect(ctorSpy).not.toHaveBeenCalled(); // preflight builds nothing
+  });
+
+  it("stamps an unapproved candidate evaluation_candidate through the same preflight", () => {
+    const ok = assertLivePreflight({ ...GOOD_ARGS, model: "gpt-5-nano" }, GOOD_ENV);
+    expect(ok.cfg.approval).toBe("evaluation_candidate");
   });
 
   it("refuses without the explicit --execute-live flag", () => {

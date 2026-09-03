@@ -16,15 +16,20 @@
 // 8); an attempt that errors before any response is unbilled and counts in
 // erroredAttempts instead.
 //
-// evalDispatchConfig() below is the ONE deliberate registry bypass in the
-// repo: it validates pricing and reasoning effort exactly like production
-// model-config, but skips the analysis-registry approval check and the map
-// activation lock so a NON-approved candidate can be measured OUTSIDE the
-// production routes. It is private to the eval library — a source-scan test
-// (isolation.test.ts) proves no src/app/ file and no production analysis
-// dispatch module imports anything from src/lib/evals. A passing scorecard
-// only ever yields a PROPOSED registry entry in report text; nothing here
-// edits analysis-registry.ts.
+// evalDispatchConfig() below resolves the dispatch identity two ways. A
+// (workload, model, effort) combination the analysis approval registry holds
+// as status "baseline" — the registered production configuration — resolves
+// THROUGH the registry and is stamped approval "baseline". Every other priced
+// combination takes the ONE deliberate registry bypass in the repo: pricing
+// and reasoning effort are validated exactly like production model-config,
+// but the analysis-registry approval check and the map activation lock are
+// skipped so a NON-approved candidate can be measured OUTSIDE the production
+// routes, stamped approval "evaluation_candidate". The module is private to
+// the eval library — a source-scan test (isolation.test.ts) proves no
+// src/app/ file and no production analysis dispatch module imports anything
+// from src/lib/evals, so production routes gain no bypass either way. A
+// passing candidate scorecard only ever yields a PROPOSED registry entry in
+// report text; nothing here edits analysis-registry.ts.
 
 import type OpenAI from "openai";
 import { analysisOpenAiClient } from "../analysis/openai-client";
@@ -37,7 +42,7 @@ import {
   analysisChatParams,
   type AnalysisReasoningEffort,
 } from "../llm/model-config";
-import { ANALYSIS_ROUTING_REGISTRY_VERSION } from "../llm/analysis-registry";
+import { ANALYSIS_ROUTING_REGISTRY_VERSION, analysisApproval } from "../llm/analysis-registry";
 import { PRICES_PER_MTOK, estimateCostUsd } from "../llm/pricing";
 import { LlmBudgetError, reduceMaxOutputTokens } from "../usage/llm-guard";
 import type { SpendGuard } from "../usage/spend-guard";
@@ -84,17 +89,25 @@ export interface EvalCandidateDispatchConfig {
   model: string;
   reasoningCapable: boolean;
   reasoningEffort: AnalysisReasoningEffort | null;
-  approval: "evaluation_candidate";
+  /** "baseline" ONLY when the analysis approval registry holds this exact
+   *  (workload, model, effort) as a status-"baseline" entry — the registered
+   *  production configuration, registry-resolved. Everything else is
+   *  "evaluation_candidate" (the isolated bypass). */
+  approval: "baseline" | "evaluation_candidate";
 }
 
 const REASONING_MODEL = /^(gpt-5|o\d)/; // mirror of model-config's split
 
-/** Resolve a CANDIDATE for evaluation dispatch. Validates pricing (an unpriced
+/** Resolve a model for evaluation dispatch. Validates pricing (an unpriced
  *  model still refuses — its spend could only be guessed, ruling 4's spirit)
- *  and reasoning effort (allowlist; effort on a non-reasoning model refuses),
- *  but deliberately BYPASSES the analysis-registry approval and the map
- *  activation lock, stamping approval "evaluation_candidate" into every
- *  artifact so no output can masquerade as production-approved. */
+ *  and reasoning effort (allowlist; effort on a non-reasoning model refuses).
+ *  A combination the analysis approval registry records as status "baseline"
+ *  (the registered production configuration, e.g. gpt-4o-mini/effort-absent)
+ *  is resolved THROUGH the registry and stamped approval "baseline". Any
+ *  other priced combination deliberately BYPASSES the analysis-registry
+ *  approval and the map activation lock, stamping approval
+ *  "evaluation_candidate" into every artifact so no candidate output can
+ *  masquerade as production-approved. */
 export function evalDispatchConfig(
   workload: string,
   model: string,
@@ -125,7 +138,15 @@ export function evalDispatchConfig(
     }
     reasoningEffort = lower as AnalysisReasoningEffort;
   }
-  return { workload, model, reasoningCapable, reasoningEffort, approval: "evaluation_candidate" };
+  // Registry-backed baseline identity: the registered production baseline
+  // must never be stamped as an evaluation candidate (its results ARE the
+  // production configuration's). Only a status-"baseline" registry verdict
+  // resolves here; a future "evaluated_candidate" registry entry still takes
+  // the bypass stamp — its eval artifacts describe candidate dispatches.
+  const verdict = analysisApproval(workload, model, reasoningEffort);
+  const approval: EvalCandidateDispatchConfig["approval"] =
+    verdict.approved && verdict.status === "baseline" ? "baseline" : "evaluation_candidate";
+  return { workload, model, reasoningCapable, reasoningEffort, approval };
 }
 
 // ============================================================================

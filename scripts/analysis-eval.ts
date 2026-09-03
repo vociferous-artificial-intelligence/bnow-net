@@ -757,7 +757,11 @@ async function modeLive(opts: {
   // ACKNOWLEDGED eval branch — DATABASE_URL is overwritten, never read
   process.env.DATABASE_URL = evalDatabaseUrl;
   console.log(`live eval: workload=${cfg.workload} model=${cfg.model} effort=${cfg.reasoningEffort ?? "absent"} db=${dbHost}`);
-  console.log(`approval=evaluation_candidate — outputs can only ever PROPOSE a registry entry, never activate one.`);
+  console.log(
+    cfg.approval === "baseline"
+      ? `approval=baseline — registry-backed production baseline identity (see identity.registryVersion in the results header).`
+      : `approval=evaluation_candidate — outputs can only ever PROPOSE a registry entry, never activate one.`,
+  );
 
   const { ds, contentHash } = loadDataset(opts.workload);
   const configKey = profiledKey(liveConfigKey(cfg.model, cfg.reasoningEffort));
