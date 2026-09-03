@@ -1,4 +1,4 @@
-# Capacity-quality matrix — dry-run estimates (2026-08-27T21:46:19.602Z)
+# Capacity-quality matrix — dry-run estimates (2026-09-03T14:07:59.043Z)
 
 Model `gpt-4o-mini`, 1 repetition(s) per case. Estimates use the same deliberate
 over-estimating heuristics as `--estimate`. NOTHING here dispatches: paid cells run only
@@ -6,30 +6,31 @@ under the QF-C §6 operator gate with EVAL_* caps set.
 
 | profile | knobs | workload | cases | est calls | est tokens (in/out) | est $ |
 |---|---|---|---|---|---|---|
-| baseline | depth=1500 fed=<=200 outTok=200 | map | 18 | 18 | 21235/5400 | $0.0064 |
+| baseline | depth=1500 fed=<=200 outTok=200 | map | 34 | 24 | 29805/6600 | $0.0084 |
 | baseline | depth=1500 fed=<=200 outTok=200 | reduce | 14 | 0 | 0/0 | $0.0000 |
-| baseline | depth=1500 fed=<=200 outTok=200 | digest | 10 | 50 | 43865/300000 | $0.1866 |
-| baseline | depth=1500 fed=<=200 outTok=200 | validation | 14 | 14 | 6095/3600 | $0.0031 |
-| map-depth-4000 | depth=4000 fed=<=200 outTok=400 | map | 18 | 18 | 21235/10800 | $0.0097 |
+| baseline | depth=1500 fed=<=200 outTok=200 | digest | 17 | 80 | 233660/480000 | $0.3230 |
+| baseline | depth=1500 fed=<=200 outTok=200 | validation | 17 | 17 | 7464/4360 | $0.0037 |
+| map-depth-4000 | depth=4000 fed=<=200 outTok=400 | map | 34 | 31 | 43831/17200 | $0.0169 |
 | map-depth-4000 | depth=4000 fed=<=200 outTok=400 | reduce | 14 | 0 | 0/0 | $0.0000 |
-| map-depth-4000 | depth=4000 fed=<=200 outTok=400 | digest | 10 | 50 | 43865/300000 | $0.1866 |
-| map-depth-4000 | depth=4000 fed=<=200 outTok=400 | validation | 14 | 14 | 6095/3600 | $0.0031 |
-| map-depth-full | depth=20000 fed=<=200 outTok=500 | map | 18 | 18 | 21235/13500 | $0.0113 |
+| map-depth-4000 | depth=4000 fed=<=200 outTok=400 | digest | 17 | 80 | 233660/480000 | $0.3230 |
+| map-depth-4000 | depth=4000 fed=<=200 outTok=400 | validation | 17 | 17 | 7464/4360 | $0.0037 |
+| map-depth-full | depth=20000 fed=<=200 outTok=500 | map | 34 | 34 | 52100/23500 | $0.0219 |
 | map-depth-full | depth=20000 fed=<=200 outTok=500 | reduce | 14 | 0 | 0/0 | $0.0000 |
-| map-depth-full | depth=20000 fed=<=200 outTok=500 | digest | 10 | 50 | 43865/300000 | $0.1866 |
-| map-depth-full | depth=20000 fed=<=200 outTok=500 | validation | 14 | 14 | 6095/3600 | $0.0031 |
-| reduce-fed-400 | depth=1500 fed=<=400 outTok=200 | map | 18 | 18 | 21235/5400 | $0.0064 |
+| map-depth-full | depth=20000 fed=<=200 outTok=500 | digest | 17 | 80 | 233660/480000 | $0.3230 |
+| map-depth-full | depth=20000 fed=<=200 outTok=500 | validation | 17 | 17 | 7464/4360 | $0.0037 |
+| reduce-fed-400 | depth=1500 fed=<=400 outTok=200 | map | 34 | 24 | 29805/6600 | $0.0084 |
 | reduce-fed-400 | depth=1500 fed=<=400 outTok=200 | reduce | 14 | 0 | 0/0 | $0.0000 |
-| reduce-fed-400 | depth=1500 fed=<=400 outTok=200 | digest | 10 | 50 | 43865/450000 | $0.2766 |
-| reduce-fed-400 | depth=1500 fed=<=400 outTok=200 | validation | 14 | 14 | 6095/3600 | $0.0031 |
+| reduce-fed-400 | depth=1500 fed=<=400 outTok=200 | digest | 17 | 70 | 133325/630000 | $0.3980 |
+| reduce-fed-400 | depth=1500 fed=<=400 outTok=200 | validation | 17 | 17 | 7464/4360 | $0.0037 |
 
-> HONESTY NOTE: with the v1 datasets these estimates barely differentiate across
-> profiles — v1 fixture docs are short (validator cap 1,600 chars), so depth knobs
-> change nothing yet. The capacity corpus (v2 datasets with graded long synthetic
-> docs and >200-group reduce cases) is what makes the cells diverge; until it
-> lands, this table is a harness proof, not a cost forecast.
+> The corpus-v2 datasets (2026-09-03) carry graded long synthetic docs and
+> >200-group fed-cutoff cases, so the cells now genuinely diverge: capacity
+> cases a profile's knobs cannot satisfy are classified structurally
+> INAPPLICABLE and cost ZERO calls in that cell (never dispatched), so each
+> cell's estimate covers exactly the cases it would actually run. Estimates
+> remain deliberate over-estimates, never a billing promise.
 
-Estimated grand total (all cells, all workloads): $0.8824
+Estimated grand total (all cells, all workloads): $1.4378
 
 ## Cells not expressible as env profiles (visible by design)
 - **reduce-fed-800** — requires widening the production clamp in synthesize.ts reduceGroupsFed() (50..400 today) — a reviewed code change, not an env knob

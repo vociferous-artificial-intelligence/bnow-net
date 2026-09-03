@@ -66,10 +66,11 @@ engine mix + `openai_reduce`/`openai_map` daily spend tracked against the §1 pr
 ## 5. Paid-matrix prerequisites checklist (state at 2026-08-27)
 
 - [x] Harness capacity dimension + per-cell results files (PR #31)
-- [x] 11-item hardening list implemented (pending review/merge; items 6+numeral fixtures
-      ride corpus-v2)
-- [ ] Corpus v2 committed (drafts machinery-verified, pending human review of the 14
-      open questions + contract cap raise to 6,000)
+- [x] 11-item hardening list implemented — fully closed 2026-09-03 (items 6 + the
+      numeral fixtures rode corpus-v2)
+- [x] Corpus v2 committed (admitted 2026-09-03 after the maintainer pass over the 14
+      open questions + the contractVersion-2 cap raise;
+      docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)
 - [ ] Baseline live run (gpt-4o-mini, reps ≥3) — first paid step, needs §6 authorization
 - [ ] `EVAL_*` caps set in all envs BEFORE any live run (ruling 4 ordering)
 - [ ] Operator §6 authorization: caps + candidate identity + matrix cells

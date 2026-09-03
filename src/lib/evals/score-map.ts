@@ -11,7 +11,8 @@ import { parseMapResults, type MapClaim } from "../analysis/map-worker";
 import { verifyQuote } from "../analysis/quote-verify";
 import { claimTokens } from "../analysis/reduce";
 import { firesAffirmatively } from "../ask/eval-run";
-import type { MapEvalCase } from "./contracts";
+import { POSITION_BUCKETS, type MapEvalCase, type PositionBucket } from "./contracts";
+import { numeralsPreserved } from "./numerals";
 
 /** Gold-claim match rule: token-jaccard (claimTokens, the reduce stage's own
  *  tokenizer) between reference textGist and produced text_en must reach this
@@ -69,6 +70,18 @@ export interface MapCaseChecks {
   numeralMisses: number;
   mustNotMatchHits: string[];
   injectionHits: string[];
+  // ---- corpus-v2 capacity diagnostics (REPORT-ONLY: never failures, never
+  // gates; undefined = the case supplies no capacity metadata) ----
+  /** per-bucket {matched, expected} over expected claims carrying capacity
+   *  metadata, bucketed by their validator-pinned declared positionBucket */
+  positionRecall?: Record<PositionBucket, { matched: number; expected: number }>;
+  /** {matched, expected} over expected claims whose linked doc fact
+   *  (capacity.factKey) declares straddlesDefaultKnob1500 */
+  straddleRecall?: { matched: number; expected: number };
+  /** {lost, uniqueTail} over tail/deep-tail expected claims whose factKey
+   *  occurs in exactly ONE doc's facts across the case (no near-dupe backup
+   *  copy exists — losing it loses the fact entirely) */
+  uniqueTailLoss?: { lost: number; uniqueTail: number };
 }
 
 function baseChecks(batchSize: number, expectedClaimCount: number, expectedEmptyDocs: number): MapCaseChecks {
@@ -106,37 +119,57 @@ function baseChecks(batchSize: number, expectedClaimCount: number, expectedEmpty
   };
 }
 
-/** SCI-3b: numeric fidelity between a matched gold gist and its candidate
- *  claim. Digits and English number-words normalize to values; every value
- *  the reference carries must appear in the candidate ("four drones" answered
- *  by "five drones" is a fidelity failure, not a gist match). Deterministic,
- *  deliberately conservative: only exact-value presence, no ranges/units. */
-const NUMBER_WORDS: Record<string, number> = {
-  zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7,
-  eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13,
-  fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18,
-  nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60,
-  seventy: 70, eighty: 80, ninety: 90, hundred: 100, thousand: 1000,
-};
-export function numericValues(text: string): number[] {
-  const out: number[] = [];
-  // thousands separators stripped FIRST ("1,000" is one thousand, never 1.0);
-  // decimals are dot-only. Compound number-words ("two hundred",
-  // "twenty-one") are deliberately unsupported: checkNumerals gists must use
-  // bare digits or simple single number-words (validator-pinned when the v2
-  // corpus adopts the flag).
-  const normalized = text.replace(/(\d),(?=\d{3}(?!\d))/g, "$1"); // "1,000km" included
-  for (const m of normalized.matchAll(/\d+(?:\.\d+)?/g)) {
-    out.push(Number(m[0]));
+// SCI-3b numeric-fidelity instrument — moved to numerals.ts at the corpus-v2
+// landing (the dataset validator needs it too); re-exported for existing
+// importers.
+export { numericValues, numeralsPreserved } from "./numerals";
+
+/** truncated-path capacity accounting: every capacity-annotated expected
+ *  claim is expected-and-unmatched (the whole output was discarded), so the
+ *  report-only diagnostics record the loss instead of going unavailable. */
+function attachTruncatedCapacityLosses(evalCase: MapEvalCase, checks: MapCaseChecks): void {
+  const factDocCount = new Map<string, number>();
+  const factsByDoc = new Map<number, Map<string, { straddles: boolean }>>();
+  for (const d of evalCase.input.docs) {
+    const perDoc = new Map<string, { straddles: boolean }>();
+    for (const f of d.capacity?.facts ?? []) {
+      factDocCount.set(f.key, (factDocCount.get(f.key) ?? 0) + 1);
+      perDoc.set(f.key, { straddles: f.straddlesDefaultKnob1500 === true });
+    }
+    if (perDoc.size > 0) factsByDoc.set(d.docId, perDoc);
   }
-  for (const m of text.toLowerCase().matchAll(/[a-z]+/g)) {
-    if (m[0] in NUMBER_WORDS) out.push(NUMBER_WORDS[m[0]]);
+  const positionRecall = Object.fromEntries(
+    POSITION_BUCKETS.map((b) => [b, { matched: 0, expected: 0 }]),
+  ) as Record<PositionBucket, { matched: number; expected: number }>;
+  const straddleRecall = { matched: 0, expected: 0 };
+  const uniqueTailLoss = { lost: 0, uniqueTail: 0 };
+  let annotated = 0;
+  for (const expected of evalCase.reference.expected) {
+    for (const gold of expected.claims) {
+      if (gold.capacity === undefined) continue;
+      annotated++;
+      const bucket = gold.capacity.positionBucket;
+      positionRecall[bucket].expected++;
+      const fact =
+        gold.capacity.factKey !== undefined
+          ? factsByDoc.get(expected.docId)?.get(gold.capacity.factKey)
+          : undefined;
+      if (fact?.straddles === true) straddleRecall.expected++;
+      if (
+        (bucket === "tail" || bucket === "deep-tail") &&
+        gold.capacity.factKey !== undefined &&
+        factDocCount.get(gold.capacity.factKey) === 1
+      ) {
+        uniqueTailLoss.uniqueTail++;
+        uniqueTailLoss.lost++;
+      }
+    }
   }
-  return out;
-}
-export function numeralsPreserved(refText: string, candText: string): boolean {
-  const cand = numericValues(candText);
-  return numericValues(refText).every((v) => cand.includes(v));
+  if (annotated > 0) {
+    checks.positionRecall = positionRecall;
+    checks.straddleRecall = straddleRecall;
+    checks.uniqueTailLoss = uniqueTailLoss;
+  }
 }
 
 /** Score one map case's candidate output. `truncated` mirrors finish_reason
@@ -155,6 +188,11 @@ export function scoreMapCase(
   if (truncated) {
     checks.truncated = true;
     checks.failures.push("response truncated (finish_reason=length) — output discarded, docs left unmapped");
+    // capacity accounting must not FLATTER a truncating candidate (review
+    // finding, 2026-09-03): a truncated row stays status "scored" with recall
+    // 0, so its capacity-annotated expected claims count as expected-and-lost
+    // rather than silently leaving the diagnostics' denominators.
+    attachTruncatedCapacityLosses(evalCase, checks);
     return checks;
   }
 
@@ -173,6 +211,25 @@ export function scoreMapCase(
   checks.underfillRate = input.docs.length > 0 ? checks.omittedDocs / input.docs.length : 0;
 
   const docText = new Map(input.docs.map((d) => [d.docId, `${d.title ?? ""} ${d.content}`]));
+
+  // corpus-v2 capacity diagnostics (report-only): fact-key occurrence counts
+  // across docs (uniqueness basis) and per-doc fact lookup (straddle basis)
+  const factDocCount = new Map<string, number>();
+  const factsByDoc = new Map<number, Map<string, { straddles: boolean }>>();
+  for (const d of input.docs) {
+    const perDoc = new Map<string, { straddles: boolean }>();
+    for (const f of d.capacity?.facts ?? []) {
+      factDocCount.set(f.key, (factDocCount.get(f.key) ?? 0) + 1);
+      perDoc.set(f.key, { straddles: f.straddlesDefaultKnob1500 === true });
+    }
+    if (perDoc.size > 0) factsByDoc.set(d.docId, perDoc);
+  }
+  const positionRecall = Object.fromEntries(
+    POSITION_BUCKETS.map((b) => [b, { matched: 0, expected: 0 }]),
+  ) as Record<PositionBucket, { matched: number; expected: number }>;
+  const straddleRecall = { matched: 0, expected: 0 };
+  const uniqueTailLoss = { lost: 0, uniqueTail: 0 };
+  let capacityAnnotatedClaims = 0;
   const producedTexts: string[] = [];
   // m6: production persists text_en, event_hint AND entity names — a payload
   // or forbidden assertion hiding in the hint or an entity name is just as
@@ -214,7 +271,32 @@ export function scoreMapCase(
           bestIdx = i;
         }
       }
-      if (bestIdx < 0 || bestSim < MAP_GIST_MATCH_THRESHOLD) continue;
+      const isMatched = bestIdx >= 0 && bestSim >= MAP_GIST_MATCH_THRESHOLD;
+      // capacity diagnostics accounting (report-only; every denominator is
+      // exact: only claims carrying capacity metadata enter)
+      if (gold.capacity !== undefined) {
+        capacityAnnotatedClaims++;
+        const bucket = gold.capacity.positionBucket;
+        positionRecall[bucket].expected++;
+        if (isMatched) positionRecall[bucket].matched++;
+        const fact =
+          gold.capacity.factKey !== undefined
+            ? factsByDoc.get(expected.docId)?.get(gold.capacity.factKey)
+            : undefined;
+        if (fact?.straddles === true) {
+          straddleRecall.expected++;
+          if (isMatched) straddleRecall.matched++;
+        }
+        if (
+          (bucket === "tail" || bucket === "deep-tail") &&
+          gold.capacity.factKey !== undefined &&
+          factDocCount.get(gold.capacity.factKey) === 1
+        ) {
+          uniqueTailLoss.uniqueTail++;
+          if (!isMatched) uniqueTailLoss.lost++;
+        }
+      }
+      if (!isMatched) continue;
       used.add(bestIdx);
       matched++;
       const p = producedClaims[bestIdx];
@@ -233,6 +315,12 @@ export function scoreMapCase(
         checks.numeralMisses++;
       }
     }
+  }
+
+  if (capacityAnnotatedClaims > 0) {
+    checks.positionRecall = positionRecall;
+    checks.straddleRecall = straddleRecall;
+    checks.uniqueTailLoss = uniqueTailLoss;
   }
 
   checks.producedClaimCount = produced;

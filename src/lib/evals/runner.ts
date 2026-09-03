@@ -52,6 +52,7 @@ import {
 } from "../validation/llm-match";
 import type { ClaimForValidation } from "../validation/score";
 import {
+  POSITION_BUCKETS,
   resultKey,
   type AnalysisEvalCase,
   type AnalysisEvalDataset,
@@ -65,10 +66,15 @@ import {
   type EvalRunScope,
   type MapEvalCase,
   type MapEvalInput,
+  type PositionBucket,
   type ReduceEvalCase,
   type ValidationEvalCase,
   type ValidationEvalInput,
 } from "./contracts";
+import { classifyCaseApplicability } from "./applicability";
+// re-exported so the CLI's static eval-import surface stays contracts+runner
+// (isolation.test.ts pins that surface)
+export { classifyCaseApplicability, type CaseApplicability } from "./applicability";
 import {
   computeScorecardVerdict,
   type AlignedComparison,
@@ -296,11 +302,18 @@ export function buildAnalysisEstimatePlan(
   repetitions: number,
 ): EstimatePlan {
   const rows: EstimateRow[] = [];
+  const knobs = currentEnvKnobs();
   for (const c of dataset.cases) {
     let calls = 0;
     let inTok = 0;
     let outTok = 0;
     if (dataset.workload === "reduce") {
+      rows.push({ caseId: c.id, calls: 0, estPromptTokens: 0, estCompletionTokens: 0, estUsd: 0 });
+      continue;
+    }
+    // corpus-v2: a case the applied knobs classify inapplicable is never
+    // dispatched — the matrix estimate must not over-count undispatchable cells
+    if (!classifyCaseApplicability(c, knobs).applicable) {
       rows.push({ caseId: c.id, calls: 0, estPromptTokens: 0, estCompletionTokens: 0, estUsd: 0 });
       continue;
     }
@@ -541,6 +554,20 @@ export function scoreOfflineCase(
   runId: string,
   configKey: string = OFFLINE_CONFIG_KEY,
 ): EvalCaseResult {
+  // corpus-v2: applicability is classified BEFORE any scoring. An offline
+  // fixture was authored assuming the case's declared capacity; scoring it
+  // under insufficient knobs would report a pass the real configuration
+  // cannot produce — fail closed: classify, don't score.
+  const applicability = classifyCaseApplicability(evalCase, currentEnvKnobs());
+  if (!applicability.applicable && applicability.requirement !== null) {
+    const req = applicability.requirement;
+    return inapplicableResult(evalCase, datasetVersion, runId, configKey, 0, {
+      required: { [req.kind]: req.required },
+      actual: { [req.knob]: req.actual },
+      reason: applicability.reason ?? "structurally inapplicable",
+    });
+  }
+
   let checks: EvalCaseResult["checks"];
   let status: EvalCaseResult["status"] = "scored";
   let rawOutputDigest: string;
@@ -598,13 +625,50 @@ export function scoreOfflineCase(
   };
 }
 
+/** The durable row for a structurally inapplicable (caseId, repetition) key —
+ *  used by the offline scorer above and the CLI's live loop. `checks.pass` is
+ *  false on its face (never a flattering default), but every consumer
+ *  discriminates on `status`, never on `pass`. */
+export function inapplicableResult(
+  evalCase: AnalysisEvalCase,
+  datasetVersion: string,
+  runId: string,
+  configKey: string,
+  repetition: number,
+  applicability: NonNullable<EvalCaseResult["applicability"]>,
+): EvalCaseResult {
+  return {
+    caseId: evalCase.id,
+    datasetVersion,
+    runId,
+    configKey,
+    repetition,
+    attempt: 0,
+    status: "inapplicable",
+    latencyMs: null,
+    promptTokens: null,
+    completionTokens: null,
+    estUsd: null,
+    checks: { pass: false, failures: [`structurally inapplicable: ${applicability.reason}`] },
+    humanLabels: null,
+    graderJudgments: null,
+    rawOutputDigest: sha256(`inapplicable:${applicability.reason}`),
+    ...("offline" in evalCase && "fixtureId" in evalCase.offline
+      ? { fixtureId: (evalCase.offline as { fixtureId: string }).fixtureId }
+      : {}),
+    applicability,
+  };
+}
+
 // ============================================================================
 // Completeness (MAJOR-1) + aggregation
 // ============================================================================
 
 /** Statuses that count as a PRESENT result: a failing result is still a
- *  result; a skipped row is missing work. */
-const PRESENT_STATUSES = new Set(["scored", "schema_invalid", "provider_error"]);
+ *  result, and an inapplicable row is FINISHED work (the applied knobs can
+ *  never satisfy it — leaving it "missing" would rot every such file at
+ *  insufficient_data forever); a skipped row is missing work. */
+const PRESENT_STATUSES = new Set(["scored", "schema_invalid", "provider_error", "inapplicable"]);
 
 export function heldoutCoverage(dataset: AnalysisEvalDataset): HeldoutCoverage {
   const cov: HeldoutCoverage = { typical: 0, edge: 0, adversarial: 0 };
@@ -624,19 +688,29 @@ export function computeCompleteness(
       .filter((r) => PRESENT_STATUSES.has(r.status))
       .map((r) => resultKey(r.caseId, r.repetition)),
   );
+  // corpus-v2: inapplicable rows are present/finished work, but a heldout
+  // case whose every row is inapplicable contributed no verdict EVIDENCE —
+  // it must not inflate the heldout coverage minima the gates read.
+  const evidential = new Set(
+    Object.values(rf.results)
+      .filter((r) => PRESENT_STATUSES.has(r.status) && r.status !== "inapplicable")
+      .map((r) => resultKey(r.caseId, r.repetition)),
+  );
   let missing = 0;
   let missingHeldout = 0;
   const heldoutPresent: HeldoutCoverage = { typical: 0, edge: 0, adversarial: 0 };
   for (const c of dataset.cases) {
     let caseComplete = true;
+    let caseEvidential = false;
     for (let rep = 0; rep < reps; rep++) {
       if (!present.has(resultKey(c.id, rep))) {
         missing++;
         caseComplete = false;
         if (c.split === "heldout") missingHeldout++;
       }
+      if (evidential.has(resultKey(c.id, rep))) caseEvidential = true;
     }
-    if (c.split === "heldout" && caseComplete) heldoutPresent[c.partition]++;
+    if (c.split === "heldout" && caseComplete && caseEvidential) heldoutPresent[c.partition]++;
   }
   const expected = dataset.cases.length * reps;
   return {
@@ -681,7 +755,11 @@ export function qualityOf(
   results: EvalCaseResult[],
 ): Record<string, number> {
   const scored = results.filter((r) => r.status === "scored");
-  const passRate = results.length > 0 ? scored.filter((r) => r.checks.pass).length / results.length : NaN;
+  // corpus-v2: inapplicable rows are structural classifications, not quality
+  // data points — they leave every denominator (a run under a small knob must
+  // not read as a quality regression against facts it could not see)
+  const considered = results.filter((r) => r.status !== "inapplicable");
+  const passRate = considered.length > 0 ? scored.filter((r) => r.checks.pass).length / considered.length : NaN;
   switch (workload) {
     case "map":
       return {
@@ -725,9 +803,13 @@ export function qualityOf(
 }
 
 function sliceStats(workload: AnalysisEvalWorkload, results: EvalCaseResult[]): SliceStats {
+  // inapplicable rows leave the slice fractions too (review finding: the
+  // "X/Y passed" render must agree with checksPassRate's denominator — a
+  // structural exclusion must never read as a failure)
+  const considered = results.filter((r) => r.status !== "inapplicable");
   return {
-    results: results.length,
-    checksPassed: results.filter((r) => r.checks.pass).length,
+    results: considered.length,
+    checksPassed: considered.filter((r) => r.checks.pass).length,
     quality: qualityOf(workload, results),
   };
 }
@@ -752,6 +834,10 @@ export function aggregateResults(
   let machineryTotal = 0;
 
   for (const r of results) {
+    // corpus-v2: an inapplicable row is neither a gate signal, a guard
+    // failure, nor a machinery data point — its checks carry only the
+    // structural classification
+    if (r.status === "inapplicable") continue;
     const c = caseById.get(r.caseId);
     wrongDocIdsTotal += num(r.checks, "wrongDocIds");
     strengthenedHedgesTotal += num(r.checks, "strengthenedHedges");
@@ -776,6 +862,61 @@ export function aggregateResults(
       if (r.checks.pass === expectPass) machineryMatched++;
     }
   }
+
+  // corpus-v2 capacity diagnostics: summed over SCORED rows only (an
+  // inapplicable row contributed no measurement); null when no row carried
+  // any capacity figure
+  const capDiag = {
+    positionRecall: Object.fromEntries(
+      POSITION_BUCKETS.map((b) => [b, { matched: 0, expected: 0 }]),
+    ) as Record<PositionBucket, { matched: number; expected: number }>,
+    straddleRecall: { matched: 0, expected: 0 },
+    uniqueTailLoss: { lost: 0, uniqueTail: 0 },
+    tailEventRecall: { survived: 0, fed: 0, unfed: 0 },
+    lateDocumentRecall: { cited: 0, total: 0, unfed: 0 },
+    resultsWithMeta: 0,
+    inapplicableResults: results.filter((r) => r.status === "inapplicable").length,
+  };
+  for (const r of scored) {
+    const ch = r.checks as unknown as Record<string, unknown>;
+    let contributed = false;
+    const pr = ch.positionRecall as Record<PositionBucket, { matched: number; expected: number }> | undefined;
+    if (pr !== undefined) {
+      contributed = true;
+      for (const b of POSITION_BUCKETS) {
+        capDiag.positionRecall[b].matched += pr[b]?.matched ?? 0;
+        capDiag.positionRecall[b].expected += pr[b]?.expected ?? 0;
+      }
+    }
+    const sr = ch.straddleRecall as { matched: number; expected: number } | undefined;
+    if (sr !== undefined) {
+      contributed = true;
+      capDiag.straddleRecall.matched += sr.matched;
+      capDiag.straddleRecall.expected += sr.expected;
+    }
+    const ut = ch.uniqueTailLoss as { lost: number; uniqueTail: number } | undefined;
+    if (ut !== undefined) {
+      contributed = true;
+      capDiag.uniqueTailLoss.lost += ut.lost;
+      capDiag.uniqueTailLoss.uniqueTail += ut.uniqueTail;
+    }
+    const te = ch.tailEventRecall as { survived: number; fed: number; unfed: number } | undefined;
+    if (te !== undefined) {
+      contributed = true;
+      capDiag.tailEventRecall.survived += te.survived;
+      capDiag.tailEventRecall.fed += te.fed;
+      capDiag.tailEventRecall.unfed += te.unfed;
+    }
+    const ld = ch.lateDocumentRecall as { cited: number; total: number; unfed: number } | undefined;
+    if (ld !== undefined) {
+      contributed = true;
+      capDiag.lateDocumentRecall.cited += ld.cited;
+      capDiag.lateDocumentRecall.total += ld.total;
+      capDiag.lateDocumentRecall.unfed += ld.unfed;
+    }
+    if (contributed) capDiag.resultsWithMeta++;
+  }
+  const capacityDiagnostics = capDiag.resultsWithMeta > 0 ? capDiag : null;
 
   // per-repetition quality spread (variance stat for multi-repetition runs)
   const reps = [...new Set(results.map((r) => r.repetition))].sort((a, b) => a - b);
@@ -819,8 +960,14 @@ export function aggregateResults(
       schemaInvalid: results.filter((r) => r.status === "schema_invalid").length,
       providerError: results.filter((r) => r.status === "provider_error").length,
       skipped: results.filter((r) => r.status === "skipped").length,
+      inapplicable: results.filter((r) => r.status === "inapplicable").length,
     },
-    checks: { passed: results.filter((r) => r.checks.pass).length, total: results.length },
+    checks: {
+      passed: results.filter((r) => r.checks.pass).length,
+      // inapplicable rows are not check attempts (their pass:false is a
+      // structural classification, not a verdict)
+      total: results.filter((r) => r.status !== "inapplicable").length,
+    },
     machinery: { matched: machineryMatched, total: machineryTotal },
     completeness: computeCompleteness(dataset, rf),
     bySplit,
@@ -835,6 +982,7 @@ export function aggregateResults(
       reproducibilityFailures,
     },
     quality: qualityOf(dataset.workload, results),
+    capacityDiagnostics,
     resources: {
       latencyMsMean: latencies.length > 0 ? mean(latencies) : null,
       promptTokensTotal: results.reduce((s, r) => s + (r.promptTokens ?? 0), 0),
@@ -878,6 +1026,17 @@ export function alignedComparison(
   const jScored = scoredKeys(judged);
   const bScored = scoredKeys(baseline);
   const scoredAligned = aligned.filter((k) => jScored.has(k) && bScored.has(k));
+  // corpus-v2: name the structural exclusions — an inapplicable pair (either
+  // side) is not a DEGRADED pair; mislabeling it would read as data loss
+  const inapplicableKeys = (rf: EvalResultsFile) =>
+    new Set(
+      Object.values(rf.results)
+        .filter((r) => r.status === "inapplicable")
+        .map((r) => resultKey(r.caseId, r.repetition)),
+    );
+  const jInap = inapplicableKeys(judged);
+  const bInap = inapplicableKeys(baseline);
+  const excludedInapplicablePairs = aligned.filter((k) => jInap.has(k) || bInap.has(k)).length;
   const alignedSet = new Set(scoredAligned);
   const heldoutSubset = (rf: EvalResultsFile) =>
     Object.values(rf.results).filter(
@@ -889,7 +1048,8 @@ export function alignedComparison(
   return {
     alignedKeys: aligned.length,
     scoredAlignedKeys: scoredAligned.length,
-    excludedDegradedPairs: aligned.length - scoredAligned.length,
+    excludedDegradedPairs: aligned.length - scoredAligned.length - excludedInapplicablePairs,
+    excludedInapplicablePairs,
     alignedHeldoutKeys: judgedHeldout.length,
     judgedQuality: qualityOf(dataset.workload, judgedHeldout),
     baselineQuality: qualityOf(dataset.workload, heldoutSubset(baseline)),
@@ -1177,6 +1337,13 @@ export function renderAnalysisScorecardMarkdown(input: {
       `| completeness | scope=${c.scope} · ${c.presentResults}/${c.expectedResults} results present (${c.missingResults} missing, ${c.missingHeldout} heldout missing) · reps=${c.requestedRepetitions} · datasetHash=${c.datasetContentHash.slice(0, 12)} · ${c.complete ? "COMPLETE" : "INCOMPLETE"} |`,
     );
     lines.push(`| cases (scored / schema-invalid / provider-error / skipped) | ${a.cases.scored} / ${a.cases.schemaInvalid} / ${a.cases.providerError} / ${a.cases.skipped} of ${a.cases.total} |`);
+    if (a.cases.inapplicable > 0) {
+      // load-bearing, not cosmetic: without this line a capacity file reads
+      // "N/N checks passed" while some cases were structurally excluded
+      lines.push(
+        `| **structurally inapplicable (not scored, not gated)** | ${a.cases.inapplicable} of ${a.cases.total} — capacity requirement unmet under this profile's knobs |`,
+      );
+    }
     lines.push(`| checks passed | ${a.checks.passed}/${a.checks.total} |`);
     if (a.machinery.total > 0) {
       lines.push(`| machinery proof (result matches fixture expectation) | ${a.machinery.matched}/${a.machinery.total} |`);
@@ -1187,6 +1354,18 @@ export function renderAnalysisScorecardMarkdown(input: {
           ? `| quality: ${k} (excluded from mean) | ${v} |`
           : `| quality: ${k} (all results, diagnostic) | ${pct(v)} |`,
       );
+    }
+    if (a.capacityDiagnostics !== null) {
+      const cd = a.capacityDiagnostics;
+      const ratio = (n: number, d: number) => (d > 0 ? `${n}/${d} (${pct(n / d)})` : "unavailable (no case supplies this metadata)");
+      lines.push(`| capacity diagnostics | **REPORT-ONLY, not gated** — ${cd.resultsWithMeta} scored result(s) with capacity metadata, ${cd.inapplicableResults} structurally inapplicable |`);
+      for (const b of POSITION_BUCKETS) {
+        lines.push(`| capacity: positionRecall.${b} | ${ratio(cd.positionRecall[b].matched, cd.positionRecall[b].expected)} |`);
+      }
+      lines.push(`| capacity: straddleRecall (facts crossing offset 1500) | ${ratio(cd.straddleRecall.matched, cd.straddleRecall.expected)} |`);
+      lines.push(`| capacity: uniqueTailLoss (lost / unique tail facts) | ${cd.uniqueTailLoss.uniqueTail > 0 ? `${cd.uniqueTailLoss.lost}/${cd.uniqueTailLoss.uniqueTail}` : "unavailable (no case supplies this metadata)"} |`);
+      lines.push(`| capacity: tailEventRecall (survived / fed; unfed excluded) | ${ratio(cd.tailEventRecall.survived, cd.tailEventRecall.fed)}${cd.tailEventRecall.unfed > 0 ? ` · ${cd.tailEventRecall.unfed} unfed (capacity limitation, not model failure)` : ""} |`);
+      lines.push(`| capacity: lateDocumentRecall (cited / fed late groups) | ${ratio(cd.lateDocumentRecall.cited, cd.lateDocumentRecall.total)}${cd.lateDocumentRecall.unfed > 0 ? ` · ${cd.lateDocumentRecall.unfed} unfed` : ""} |`);
     }
     lines.push(`| gate: wrongDocIds / heldout under-fill / strengthened hedges | ${a.gate.wrongDocIdsTotal} / ${a.gate.heldoutUnderfillCases} / ${a.gate.strengthenedHedgesTotal} |`);
     lines.push(`| gate: guard fails / fidelity fails / injection follows / repro fails | ${a.gate.guardCasesFailed} / ${a.gate.fidelityFailures} / ${a.gate.injectionFollowedCases} / ${a.gate.reproducibilityFailures} |`);
@@ -1218,7 +1397,7 @@ export function renderAnalysisScorecardMarkdown(input: {
       if (sc.aligned) {
         lines.push(
           `Aligned population: ${sc.aligned.alignedKeys} present pair(s), ${sc.aligned.scoredAlignedKeys} scored-on-both-sides ` +
-          `(${sc.aligned.excludedDegradedPairs} excluded degraded), ${sc.aligned.alignedHeldoutKeys} heldout (the gated set). ` +
+          `(${sc.aligned.excludedDegradedPairs} excluded degraded, ${sc.aligned.excludedInapplicablePairs} excluded structurally inapplicable), ${sc.aligned.alignedHeldoutKeys} heldout (the gated set). ` +
             `Aligned-heldout quality — judged: ${Object.entries(sc.aligned.judgedQuality)
               .filter(([k]) => !k.endsWith("VacuousCount"))
               .map(([k, v]) => `${k}=${pct(v)}`)

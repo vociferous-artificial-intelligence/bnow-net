@@ -16,7 +16,7 @@
 // as RESERVED (contracts.ts EvalCaseResult.graderJudgments) — never an
 // authority.
 
-import type { AnalysisEvalWorkload, EvalPartition, EvalRunScope } from "./contracts";
+import type { AnalysisEvalWorkload, EvalPartition, EvalRunScope, PositionBucket } from "./contracts";
 
 // ---- heldout coverage minima (insufficient_data below these) -----------------
 // Computed from the RESULTS (cases whose every requested repetition is
@@ -80,9 +80,9 @@ export const QUALITY_GATE_METRICS: Record<AnalysisEvalWorkload, string[]> = {
 export type HeldoutCoverage = Record<EvalPartition, number>;
 
 /** RESULTS-side completeness of one results file against its dataset
- *  (MAJOR-1). "Present" counts scored, schema_invalid, and provider_error
- *  results — those are FAILING results, not missing ones; a skipped row is
- *  missing work. */
+ *  (MAJOR-1). "Present" counts scored, schema_invalid, provider_error, and
+ *  inapplicable results — failing results and structural classifications are
+ *  finished work, not missing work; a skipped row is missing work. */
 export interface CompletenessInfo {
   scope: EvalRunScope;
   requestedRepetitions: number;
@@ -115,6 +115,9 @@ export interface WorkloadAggregate {
     schemaInvalid: number;
     providerError: number;
     skipped: number;
+    /** corpus-v2: structurally inapplicable rows (applicability.ts) — finished
+     *  work for completeness, never a verdict/quality/machinery data point */
+    inapplicable: number;
   };
   checks: { passed: number; total: number };
   /** offline machinery proof: results whose checks.pass equals the fixture's
@@ -135,6 +138,21 @@ export interface WorkloadAggregate {
   /** workload-specific quality means in [0,1] over ALL results (diagnostic;
    *  the pairwise gate uses the aligned-heldout figures instead) */
   quality: Record<string, number>;
+  /** corpus-v2 capacity diagnostics summed over SCORED rows — REPORT-ONLY,
+   *  never gated (Q5 adjudication: no binding threshold before a
+   *  representative live baseline exists; promoting any of these into
+   *  QUALITY_GATE_METRICS requires a decision-log entry). null = no result
+   *  in this file carried capacity metadata. */
+  capacityDiagnostics: {
+    positionRecall: Record<PositionBucket, { matched: number; expected: number }>;
+    straddleRecall: { matched: number; expected: number };
+    uniqueTailLoss: { lost: number; uniqueTail: number };
+    tailEventRecall: { survived: number; fed: number; unfed: number };
+    lateDocumentRecall: { cited: number; total: number; unfed: number };
+    /** scored results that contributed at least one capacity figure */
+    resultsWithMeta: number;
+    inapplicableResults: number;
+  } | null;
   resources: {
     latencyMsMean: number | null;
     promptTokensTotal: number;
@@ -167,6 +185,10 @@ export interface AlignedComparison {
   scoredAlignedKeys: number;
   /** present-aligned pairs excluded because either side was degraded */
   excludedDegradedPairs: number;
+  /** present-aligned pairs excluded because either side was structurally
+   *  inapplicable (corpus-v2) — named separately so a capacity exclusion is
+   *  never mislabeled as data loss */
+  excludedInapplicablePairs: number;
   /** intersection size restricted to heldout cases — the gated population */
   alignedHeldoutKeys: number;
   /** quality over the aligned HELDOUT subset (scored-on-both-sides pairs) */

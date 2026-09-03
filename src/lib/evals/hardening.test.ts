@@ -40,6 +40,22 @@ describe("C-A6-1: report-time identity recompute", () => {
     const { ds, rf } = loadCommitted("map");
     expect(reportIdentityMismatch(ds, rf)).toBeNull();
   });
+
+  it("the corpus-v2 committed baseline recomputes and degrades on tamper too", () => {
+    const ds = JSON.parse(readFileSync("docs/evals/analysis/map-v2.json", "utf8")) as AnalysisEvalDataset;
+    expect(validateAnalysisEvalDataset(ds)).toEqual([]);
+    const rf = JSON.parse(
+      readFileSync("docs/evals/analysis/results/map-v2-offline-fixtures.json", "utf8"),
+    ) as EvalResultsFile;
+    expect(reportIdentityMismatch(ds, rf)).toBeNull();
+    const tampered: EvalResultsFile = {
+      ...rf,
+      identity: { ...rf.identity, promptHash: "f".repeat(64) },
+    };
+    const sc = buildWorkloadScorecard(ds, tampered, null, false, rf.datasetContentHash);
+    expect(sc.verdictResult.verdict).toBe("insufficient_data");
+    expect(sc.verdictResult.reasons.join(" ")).toMatch(/does not recompute from the current tree/);
+  });
 });
 
 describe("C-A6-2: live baseline gating", () => {

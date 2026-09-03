@@ -3439,3 +3439,24 @@ Execution (same block):
 - Next implementation session: corpus-v2 review/admission (26 = 21 dev + 5
   heldout candidates; start with the 14 open questions; no paid evaluation or
   candidate activation without separate authorization).
+
+## 2026-09-03 — configuration-release reconciliation + eval corpus-v2 admission
+
+- Recorded the operator's 2026-09-03 configuration-only release after read-only
+  verification (X_SPRINT_USD_CAP=150 + X_DAILY_USD_CAP=4 in all three envs — #101
+  resolved, daily raise beyond packet option (a) noted; #94 override pair removed
+  from Production; production `dpl_6RN34UVHefQsvTfC2HM8Si5QnNmT` / `8a19ade`,
+  `/health` verified; no operation repeated).
+- Admitted the 26-case corpus-v2 packet after the maintainer pass over the 14 open
+  questions (branch `claude/eval-corpus-v2-20260903`): contractVersion-2 validation
+  (6,000-U16 capacity docs), typed capacity metadata, structural applicability
+  (`inapplicable` status), five report-only capacity diagnostics, checkNumerals
+  validator pin, item-6 heldout pins; v2 unions map 34 / digest 17 / validation 17
+  (v1 byte-frozen inside, historical files untouched); Q10 locality substitution
+  (-ivka/-ove → -ivask/-ovask); Q12 red_sea → varn_strait sentinel; deterministic
+  regeneration proven byte-exact end-to-end; six committed per-profile offline
+  cells, zero machinery mismatches. Gates: unit 3,545/3,545 (244 files) ·
+  integration 160/160 (25 files, disposable Neon fork) · build PASS · zero paid
+  calls / prod access / env edits / deploys / migrations. Records:
+  docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md +
+  docs/reviews/PAID-EVAL-OPERATOR-PACKET-2026-09-03.md.

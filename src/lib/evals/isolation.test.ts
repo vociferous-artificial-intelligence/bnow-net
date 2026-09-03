@@ -68,6 +68,24 @@ describe("eval-library isolation", () => {
   it("no script other than the eval CLI imports the eval library, and the CLI's static surface is contracts+runner only", () => {
     for (const f of scriptFiles) {
       const src = readFileSync(join(SCRIPTS_DIR, f), "utf8");
+      if (f === "evals/corpus-v2/run-admit.ts") {
+        // the corpus-v2 admission pipeline: PURE modules only (validator +
+        // admission transform + composition) — never the runner, guards, or
+        // any dispatch-capable surface. The matcher covers static `from`,
+        // dynamic import(), and require() so a future dynamic import cannot
+        // evade the allowlist (review finding, 2026-09-03).
+        const specs = [
+          ...src.matchAll(/(?:from\s*|import\s*\(\s*|require\s*\(\s*)["']([^"']*evals\/[^"']*)["']/g),
+        ].map((m) => m[1]);
+        expect(specs.length).toBeGreaterThan(0);
+        for (const spec of specs) {
+          expect(
+            /evals\/(contracts|corpus-v2-admit|corpus-v2-compose)$/.test(spec),
+            `scripts/${f} statically imports ${spec} — only contracts/corpus-v2-admit/corpus-v2-compose allowed`,
+          ).toBe(true);
+        }
+        continue;
+      }
       if (f !== "analysis-eval.ts") {
         expect(EVALS_IMPORT_RE.test(src), `scripts/${f} must not import src/lib/evals`).toBe(false);
         continue;

@@ -32,7 +32,7 @@ function agg(overrides: Partial<WorkloadAggregate> = {}): WorkloadAggregate {
   return {
     workload: "map",
     configKey: "gpt-5-mini",
-    cases: { total: 10, scored: 10, schemaInvalid: 0, providerError: 0, skipped: 0 },
+    cases: { total: 10, scored: 10, schemaInvalid: 0, providerError: 0, skipped: 0, inapplicable: 0 },
     checks: { passed: 10, total: 10 },
     machinery: { matched: 0, total: 0 },
     completeness: completeness(),
@@ -48,6 +48,7 @@ function agg(overrides: Partial<WorkloadAggregate> = {}): WorkloadAggregate {
       reproducibilityFailures: 0,
     },
     quality: { recallMean: 0.9, precisionMean: 0.95, checksPassRate: 1 },
+    capacityDiagnostics: null,
     resources: { latencyMsMean: 100, promptTokensTotal: 1000, completionTokensTotal: 500, estUsdTotal: 0.01 },
     meter: { attempts: 10, reservations: 10, meterings: 10, erroredAttempts: 0 },
     runs: { distinctRunIds: ["run-1"], mixedRun: false, keysByRunId: { "run-1": 10 } },
@@ -63,6 +64,7 @@ function aligned(overrides: Partial<AlignedComparison> = {}): AlignedComparison 
     alignedKeys: 10,
     scoredAlignedKeys: 10,
     excludedDegradedPairs: 0,
+    excludedInapplicablePairs: 0,
     alignedHeldoutKeys: 4,
     judgedQuality: { recallMean: 0.9, precisionMean: 0.95 },
     baselineQuality: { recallMean: 0.85, precisionMean: 0.95 },
@@ -159,7 +161,7 @@ describe("computeScorecardVerdict", () => {
 
   it("fails on schema-invalid or provider-error outputs", () => {
     const v = computeScorecardVerdict(
-      agg({ cases: { total: 10, scored: 9, schemaInvalid: 1, providerError: 0, skipped: 0 } }),
+      agg({ cases: { total: 10, scored: 9, schemaInvalid: 1, providerError: 0, skipped: 0, inapplicable: 0 } }),
       BASELINE(),
       aligned(),
     );
@@ -242,7 +244,7 @@ describe("C-A7-1 + A8-F1 hardening gates", () => {
   });
 
   it("a baseline carrying degraded rows blocks the pairwise verdict", () => {
-    const baseline = agg({ live: true, cases: { total: 10, scored: 9, schemaInvalid: 1, providerError: 0, skipped: 0 } });
+    const baseline = agg({ live: true, cases: { total: 10, scored: 9, schemaInvalid: 1, providerError: 0, skipped: 0, inapplicable: 0 } });
     const v = computeScorecardVerdict(agg({ live: true }), baseline, aligned());
     expect(v.verdict).toBe("insufficient_data");
     expect(v.reasons.join(" ")).toMatch(/baseline results carry degraded rows/);

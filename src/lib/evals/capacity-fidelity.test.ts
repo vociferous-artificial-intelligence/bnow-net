@@ -4,7 +4,7 @@ import type { DigestEvalInput, EvalResultsFile } from "./contracts";
 import { applyCapacityProfile } from "./capacity-profiles";
 
 process.env.DATABASE_URL ??= "postgres://test:test@localhost:5432/test";
-const { buildDigestVotePrompt, offlineIdentity } = await import("./runner");
+const { buildDigestVotePrompt, computeCompleteness, offlineIdentity } = await import("./runner");
 const { validateAnalysisEvalDataset } = await import("./contracts");
 
 let restore: (() => void) | null = null;
@@ -133,5 +133,74 @@ describe("committed results identity stability (the SCI-N6 fix must not drift v1
       checked++;
     }
     expect(checked).toBe(4);
+  });
+});
+
+describe("committed v2 results identity + applicability stability (corpus-v2)", () => {
+  const dir = "docs/evals/analysis";
+  const V2_RESULTS: Array<{ dataset: string; results: string; profile: string }> = [
+    { dataset: "map-v2.json", results: "map-v2-offline-fixtures.json", profile: "baseline" },
+    { dataset: "map-v2.json", results: "map-v2-offline-fixtures+map-depth-4000.json", profile: "map-depth-4000" },
+    { dataset: "map-v2.json", results: "map-v2-offline-fixtures+map-depth-full.json", profile: "map-depth-full" },
+    { dataset: "digest-v2.json", results: "digest-v2-offline-fixtures.json", profile: "baseline" },
+    { dataset: "digest-v2.json", results: "digest-v2-offline-fixtures+reduce-fed-400.json", profile: "reduce-fed-400" },
+    { dataset: "validation-v2.json", results: "validation-v2-offline-fixtures.json", profile: "baseline" },
+  ];
+
+  it("offlineIdentity under each results file's profile matches its committed header", () => {
+    for (const { dataset, results, profile } of V2_RESULTS) {
+      const ds = JSON.parse(readFileSync(`${dir}/${dataset}`, "utf8"));
+      expect(validateAnalysisEvalDataset(ds), dataset).toEqual([]);
+      const rf = JSON.parse(readFileSync(`${dir}/results/${results}`, "utf8")) as EvalResultsFile;
+      // identity must be recomputed under the SAME knob env the file ran
+      // under (mapContentChars is in the map extractorVersion basis)
+      const restore = applyCapacityProfile(profile);
+      try {
+        const now = offlineIdentity(ds);
+        expect(now.promptHash, `${results} promptHash drift`).toBe(rf.identity.promptHash);
+        expect(now.schemaVersion, `${results} schemaVersion drift`).toBe(rf.identity.schemaVersion);
+      } finally {
+        restore();
+      }
+    }
+  });
+
+  it("the committed fed population clusters to 260 singletons (0.34-margin pin)", async () => {
+    // review finding: the worst pairScore in the shared 260-claim population
+    // sits at 0.340 vs REDUCE_THRESHOLD 0.35 — every fed-cutoff rank claim
+    // depends on singleton clustering, so pin the outcome loudly
+    const { clusterClaims } = await import("../analysis/reduce");
+    const ds = JSON.parse(readFileSync(`${dir}/digest-v2.json`, "utf8")) as {
+      cases: Array<{ id: string; input: { claims: unknown[] } }>;
+    };
+    const cap = ds.cases.find((c) => c.id === "dig-c2-cap-001-fed200-rank185")!;
+    const groups = clusterClaims(cap.input.claims as never);
+    expect(groups.length).toBe(260);
+    expect(groups.every((g) => g.memberIds.length === 1)).toBe(true);
+  });
+
+  it("the committed artifacts pin the applicability matrix end-to-end", () => {
+    const status = (results: string, key: string) => {
+      const rf = JSON.parse(readFileSync(`${dir}/results/${results}`, "utf8")) as EvalResultsFile;
+      return rf.results[key]?.status;
+    };
+    // dig-c2-cap-003 (exact fed 400): inapplicable at baseline, scored+pass
+    // only in the +reduce-fed-400 file — the profile IS the discriminator
+    expect(status("digest-v2-offline-fixtures.json", "dig-c2-cap-003-fed400-tailranks#r0")).toBe("inapplicable");
+    expect(status("digest-v2-offline-fixtures+reduce-fed-400.json", "dig-c2-cap-003-fed400-tailranks#r0")).toBe("scored");
+    // dig-c2-cap-002 (exact fed 200): the mirror image
+    expect(status("digest-v2-offline-fixtures.json", "dig-c2-cap-002-fed200-rank230-dead#r0")).toBe("scored");
+    expect(status("digest-v2-offline-fixtures+reduce-fed-400.json", "dig-c2-cap-002-fed200-rank230-dead#r0")).toBe("inapplicable");
+    // deep-tail map cases (min 5100): inapplicable through depth 4000,
+    // scored under map-depth-full
+    expect(status("map-v2-offline-fixtures.json", "map-c2-edge-004-pos5000-ir-taillost#r0")).toBe("inapplicable");
+    expect(status("map-v2-offline-fixtures+map-depth-4000.json", "map-c2-edge-004-pos5000-ir-taillost#r0")).toBe("inapplicable");
+    expect(status("map-v2-offline-fixtures+map-depth-full.json", "map-c2-edge-004-pos5000-ir-taillost#r0")).toBe("scored");
+    // every v2 offline file is COMPLETE (inapplicable rows are finished work)
+    for (const { dataset, results } of V2_RESULTS) {
+      const ds = JSON.parse(readFileSync(`${dir}/${dataset}`, "utf8"));
+      const rf = JSON.parse(readFileSync(`${dir}/results/${results}`, "utf8")) as EvalResultsFile;
+      expect(computeCompleteness(ds, rf).complete, results).toBe(true);
+    }
   });
 });

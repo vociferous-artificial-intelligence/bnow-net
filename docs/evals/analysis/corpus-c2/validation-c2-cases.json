@@ -1,0 +1,223 @@
+[
+  {
+    "id": "val-c2-typ-001-quiet-day",
+    "workload": "validation",
+    "partition": "typical",
+    "split": "development",
+    "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
+    "notes": "DRAFT. Quiet-day flavor: a no-activity takeaway genuinely matched by a quiet-day claim. Hand-computed pins: keyword timelinessHours is NULL because the keyword path records no agreement (timeliness is computed over keyword agreements only); thin rate = 1 of 2 claims (claim 2002: docCount 1 + claimed; claim 2001 docCount 2 is not thin) = 0.5; keyword path: the takeaway has NO gazetteer toponym, so the keyword matcher cannot reach the 0.6 threshold — coverage 0, matchedPairs 0 (verified against the real scorer); at-publish (match-set): 1 of 1 fetched (14:30) before publish (23:00) = 100.",
+    "input": {
+      "takeaways": [
+        {
+          "index": 0,
+          "text": "No significant assault activity was recorded along the eastern axis and units held their positions."
+        }
+      ],
+      "claims": [
+        {
+          "claimId": 2001,
+          "text": "The evening report said no assault actions were recorded on the eastern axis and positions were held.",
+          "hedging": "claimed",
+          "docCount": 2,
+          "earliestDocAt": "2026-09-05T14:00:00Z",
+          "earliestFetchedAt": "2026-09-05T14:30:00Z"
+        },
+        {
+          "claimId": 2002,
+          "text": "A local channel claimed a supply column was spotted on the ring road.",
+          "hedging": "claimed",
+          "docCount": 1,
+          "earliestDocAt": null,
+          "earliestFetchedAt": null
+        }
+      ],
+      "iswPublishedAt": "2026-09-05T23:00:00Z",
+      "llmMatches": [
+        {
+          "takeawayIndex": 0,
+          "claimId": 2001,
+          "confidence": 0.8
+        }
+      ]
+    },
+    "reference": {
+      "labels": [
+        {
+          "takeawayIndex": 0,
+          "claimId": 2001
+        }
+      ],
+      "expectKeyword": {
+        "coveragePct": 0,
+        "matchedPairs": 0,
+        "thinSourcedRate": 0.5,
+        "timelinessHours": null
+      },
+      "expectAtPublish": {
+        "coveragePct": 100,
+        "matchedBefore": 1,
+        "matchedTotal": 1
+      }
+    },
+    "offline": {
+      "expectation": "pass"
+    }
+  },
+  {
+    "id": "val-c2-edge-001-off-theater",
+    "workload": "validation",
+    "partition": "edge",
+    "split": "development",
+    "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
+    "notes": "DRAFT. Off-theater flavor: a Varn Strait maritime takeaway inside the ru/ua validation lens has no genuine counterpart (label null) and no gazetteer toponym — the keyword path can reach at most the action-only score 0.25 < 0.6, so it must not match it; the Belgorod takeaway matches normally. Theater probes: belgorod->ru, kherson->ua, varn_strait (off-gazetteer)->both, []->both. Hand-computed: keyword timeliness = 23:30 - 09:30 = 14h (over the one keyword agreement); thin rate 0 of 1 (claim 2011 docCount 2); at-publish coveragePct = matchedBefore/ALL takeaways = 1/2 = 50 with matchedTotal 1 (the production at-publish denominator is the takeaway count, not the match count). Pins verified against the real scorer. ADMISSION 2026-09-03 (Q12): the draft's off-gazetteer probe used the real region token red_sea, whose meaning would silently flip if the gazetteer ever gained it; replaced with the synthetic sentinel varn_strait (probe expect 'both' unchanged; the takeaway still matches no claim).",
+    "input": {
+      "takeaways": [
+        {
+          "index": 0,
+          "text": "Cross-border shelling struck settlements around Belgorod."
+        },
+        {
+          "index": 1,
+          "text": "Maritime attacks disrupted commercial shipping in the southern Varn Strait."
+        }
+      ],
+      "claims": [
+        {
+          "claimId": 2011,
+          "text": "Shelling hit border settlements around Belgorod, the governor claimed.",
+          "hedging": "claimed",
+          "docCount": 2,
+          "earliestDocAt": "2026-09-05T09:30:00Z",
+          "earliestFetchedAt": "2026-09-05T10:00:00Z"
+        }
+      ],
+      "iswPublishedAt": "2026-09-05T23:30:00Z",
+      "llmMatches": [
+        {
+          "takeawayIndex": 0,
+          "claimId": 2011,
+          "confidence": 0.9
+        },
+        {
+          "takeawayIndex": 1,
+          "claimId": null,
+          "confidence": 0
+        }
+      ],
+      "theaterProbes": [
+        {
+          "toponyms": [
+            "belgorod"
+          ],
+          "expect": "ru"
+        },
+        {
+          "toponyms": [
+            "kherson"
+          ],
+          "expect": "ua"
+        },
+        {
+          "toponyms": [
+            "varn_strait"
+          ],
+          "expect": "both"
+        },
+        {
+          "toponyms": [],
+          "expect": "both"
+        }
+      ]
+    },
+    "reference": {
+      "labels": [
+        {
+          "takeawayIndex": 0,
+          "claimId": 2011
+        },
+        {
+          "takeawayIndex": 1,
+          "claimId": null
+        }
+      ],
+      "expectKeyword": {
+        "coveragePct": 50,
+        "matchedPairs": 1,
+        "thinSourcedRate": 0,
+        "timelinessHours": 14
+      },
+      "expectAtPublish": {
+        "coveragePct": 50,
+        "matchedBefore": 1,
+        "matchedTotal": 1
+      }
+    },
+    "offline": {
+      "expectation": "pass"
+    }
+  },
+  {
+    "id": "val-c2-edge-002-compound-takeaway",
+    "workload": "validation",
+    "partition": "edge",
+    "split": "heldout",
+    "provenance": "authored-2026-08-27; admitted-2026-09-03 after maintainer review (docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md)",
+    "notes": "DRAFT — HELDOUT CANDIDATE (maintainer confirms split at admission). Compound-takeaway flavor: one takeaway carries TWO assertions (Kupyansk advance + Kramatorsk depot strike); the scoring contract allows a single claimId per takeaway, so the human label picks the claim covering the leading clause (2021) and the case DOCUMENTS the known limitation: coverage counts the whole compound takeaway as covered by half its content. The keyword path sees toponyms from BOTH clauses and may match either claim — measured, not excused. Hand-computed: keyword timeliness = 22:45 - 11:00 = 11.75h, recorded as 11.8 by the scorer's rounding; thin rate = 1 of 2 (claim 2022 docCount 1 claimed); at-publish 1/1 takeaways = 100. Pins verified against the real scorer.",
+    "input": {
+      "takeaways": [
+        {
+          "index": 0,
+          "text": "Assault units advanced near Kupyansk while drone strikes damaged a rail depot in Kramatorsk."
+        }
+      ],
+      "claims": [
+        {
+          "claimId": 2021,
+          "text": "Assault units advanced on the Kupyansk axis, the general staff reported.",
+          "hedging": "claimed",
+          "docCount": 2,
+          "earliestDocAt": "2026-09-05T11:00:00Z",
+          "earliestFetchedAt": "2026-09-05T12:00:00Z"
+        },
+        {
+          "claimId": 2022,
+          "text": "A drone strike damaged a rail depot in Kramatorsk, a local channel claimed.",
+          "hedging": "claimed",
+          "docCount": 1,
+          "earliestDocAt": "2026-09-05T16:00:00Z",
+          "earliestFetchedAt": "2026-09-05T18:00:00Z"
+        }
+      ],
+      "iswPublishedAt": "2026-09-05T22:45:00Z",
+      "llmMatches": [
+        {
+          "takeawayIndex": 0,
+          "claimId": 2021,
+          "confidence": 0.75
+        }
+      ]
+    },
+    "reference": {
+      "labels": [
+        {
+          "takeawayIndex": 0,
+          "claimId": 2021
+        }
+      ],
+      "expectKeyword": {
+        "coveragePct": 100,
+        "matchedPairs": 1,
+        "thinSourcedRate": 0.5,
+        "timelinessHours": 11.8
+      },
+      "expectAtPublish": {
+        "coveragePct": 100,
+        "matchedBefore": 1,
+        "matchedTotal": 1
+      }
+    },
+    "offline": {
+      "expectation": "pass"
+    }
+  }
+]
