@@ -1,7 +1,6 @@
 # Corpus-v2 review and admission — 2026-09-03
 
-Status: IN PROGRESS (this header flips to FINAL at closeout; sections marked
-[PENDING] are filled as phases complete).
+Status: FINAL (closeout 2026-09-03).
 
 Scope: maintainer review and admission of the 2026-08-27 eval-corpus-v2 draft
 packet (operator decision packet §7; MODEL-PROMOTION-READINESS §5 checkbox
@@ -32,7 +31,9 @@ c8f7429f8fac2e01e154b1caf2cf931274b6aa4453696da464b235fe98561d1e  ./validation-c
 Actual inventory: exactly these 8 files, nothing extra, nothing missing.
 All review edits happen ONLY in the working copy
 `/Users/go/code/bnow-net-eval-corpus-v2-review-20260903/` or in new repository
-files. Closeout re-verification: [PENDING].
+files. Closeout re-verification (after every phase, reviews, and
+remediations): **8/8 OK, byte-identical, exactly 8 files** — the preserved
+originals were never touched.
 
 ## 2. Inventory reconciliation (binding)
 
@@ -451,11 +452,14 @@ absent, no production DB)
 - v1 identity stability: the committed v1 promptHash/schemaVersion tests pass
   unchanged (v1 files byte-untouched).
 - Gates: typecheck clean · lint 0 errors (3 pre-existing warnings on
-  origin/main) · unit **3,545/3,545 (244 files)** (baseline on untouched
-  origin/main: 3,508/241) · production build PASS · integration suite
-  **160/160 (25 files)** on a disposable Neon branch
-  (br-lingering-bread-atbh8eii, created fresh, deleted after — the
-  repo-sanctioned fork→test→delete flow; NOT production access).
+  origin/main) · unit **3,547/3,547 (244 files)** after the review
+  remediations (3,545 pre-review; baseline on untouched origin/main:
+  3,508/241) · production build PASS · integration suite **160/160 (25
+  files)** on a disposable Neon branch (br-lingering-bread-atbh8eii, created
+  fresh, deleted after — the repo-sanctioned fork→test→delete flow; NOT
+  production access). All six offline cells, the scorecard, and the capacity
+  matrix were REGENERATED after the remediations; the regen proof re-ran
+  PASS on the final artifacts.
 - Offline isolation: structural (isolation.test.ts pins the only
   OpenAI-capable module + the CLI's static import surface + the new
   run-admit.ts pure-module allowlist; cli-dynamic-imports.test.ts pins the
@@ -547,6 +551,18 @@ fictional allegation surnames sit near real corruption-associated figures
 (Stavitsky~Stavytskyi, Luzhenkov~Luzhkov) — declared fictional everywhere,
 gold requires suppression, cases frozen; future minting should pick more
 distant surnames.
+
+**Final remediation-delta review (7th fresh-context pass over the
+remediation commit): 11/11 MINOR fixes CONFIRMED-FIXED, the adv-006
+correction verified geometrically accurate against the actual UTF-16 bytes,
+zero regressions (208/208 eval tests, regen proof PASS, all five heldout
+hashes unchanged), zero new defects.** Its two for-the-record observations:
+Barvinkove in dig-c2-late-002 is a real town hosting a synthetic event — a
+DELIBERATE real-place-as-location usage of the same class as
+Kramatorsk/Izium/Millerovo (listed in §7's inventory), not a Q10 fused-token
+collision; and the adv-006 notes retain the superseded draft sentence ahead
+of the appended correction (the correction explicitly supersedes it —
+consistent with append-style notes discipline).
 
 ## 10. Statements required at admission (final)
 
