@@ -71,8 +71,12 @@ describe("eval-library isolation", () => {
       if (f === "evals/corpus-v2/run-admit.ts") {
         // the corpus-v2 admission pipeline: PURE modules only (validator +
         // admission transform + composition) — never the runner, guards, or
-        // any dispatch-capable surface
-        const specs = [...src.matchAll(/from\s*["']([^"']*evals\/[^"']*)["']/g)].map((m) => m[1]);
+        // any dispatch-capable surface. The matcher covers static `from`,
+        // dynamic import(), and require() so a future dynamic import cannot
+        // evade the allowlist (review finding, 2026-09-03).
+        const specs = [
+          ...src.matchAll(/(?:from\s*|import\s*\(\s*|require\s*\(\s*)["']([^"']*evals\/[^"']*)["']/g),
+        ].map((m) => m[1]);
         expect(specs.length).toBeGreaterThan(0);
         for (const spec of specs) {
           expect(

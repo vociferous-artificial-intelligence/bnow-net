@@ -345,6 +345,31 @@ describe("completeness (MAJOR-1) + aggregation over the committed datasets", () 
     expect(Number.isNaN(aligned.judgedQuality.checksPassRate)).toBe(false);
   });
 
+  it("aligned exclusions are disjoint and non-negative under a mixed inapplicable/degraded population", () => {
+    // review finding: pin the arithmetic with BOTH exclusion kinds present.
+    // DIGEST_DS (v2) carries dig-c2-cap-003, inapplicable at baseline knobs
+    // on BOTH sides; degrade one additional dev case on the baseline side.
+    const judged = runAll(DIGEST_DS);
+    const header = mkHeader(DIGEST_DS, { configKey: "gpt-4o-mini" });
+    let baseline = emptyEvalResultsFile(header);
+    const degradeId = DIGEST_DS.cases.find(
+      (c) => c.split === "development" && c.id !== "dig-c2-cap-003-fed400-tailranks",
+    )!.id;
+    for (const c of DIGEST_DS.cases) {
+      const r = scoreOfflineCase(c, DIGEST_DS.datasetVersion, "b");
+      if (c.id === degradeId) r.status = "provider_error";
+      baseline = mergeEvalResults(baseline, header, [r], ZERO_METER);
+    }
+    const judgedInap = Object.values(judged.results).filter((r) => r.status === "inapplicable").length;
+    expect(judgedInap).toBe(1); // dig-c2-cap-003 at baseline knobs
+    const aligned = alignedComparison(DIGEST_DS, judged, baseline);
+    expect(aligned.alignedKeys).toBe(DIGEST_DS.cases.length);
+    expect(aligned.excludedInapplicablePairs).toBe(1);
+    expect(aligned.excludedDegradedPairs).toBe(1); // the provider_error pair, NOT double-counted
+    expect(aligned.scoredAlignedKeys).toBe(DIGEST_DS.cases.length - 2);
+    expect(aligned.excludedDegradedPairs).toBeGreaterThanOrEqual(0);
+  });
+
   it("renders completeness, slices, and identity into the scorecard", () => {
     const rf = runAll(DIGEST_DS);
     const sc = buildWorkloadScorecard(DIGEST_DS, rf, null, false);

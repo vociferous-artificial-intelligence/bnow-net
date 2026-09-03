@@ -261,12 +261,13 @@ Evidence: 260 fused names (20 bases × 13 suffixes), never gazetteer-checked
 against the repo's own gazetteers/validation wordlists plus a static
 plausibility sweep; replace-and-regenerate deterministically on any real
 settlement match; record the check's scope honestly as NON-EXHAUSTIVE (no
-worldwide proof claimed). Result: EXECUTED — repo gazetteers zero hits, but
-the -ivka/-ove suffix rows collide with real Ukrainian settlement patterns;
-all 40 names in those rows substituted with synthetic -ivask/-ovask
-(§7; machinery unchanged). Deferred risk: a residual real-name collision
-outside checked sources; mitigation = all-fictional framing in dataset
-provenance + notes.
+worldwide proof claimed). Result: EXECUTED in two passes — repo gazetteers
+zero hits; the maintainer pass substituted the -ivka/-ove rows (Verbove,
+Berehove, Piskivka … are real), and the independent content-safety review
+flagged two more rows (Krynychi, Yarkove likely real), so FOUR rows were
+substituted in total (-ivask/-ovask/-ychask/-kovask; 80 names; machinery
+unchanged). Deferred risk: a residual real-name collision outside checked
+sources; mitigation = all-fictional framing in dataset provenance + notes.
 
 **Q11 — Promotion-rule coupling (dig-c2-late-001).**
 Evidence: the case pins `confirmed` via corroboration promotion, a deliberate
@@ -344,30 +345,43 @@ renderer additions only; gates untouched.
 
 ## 7. Content, safety, and provenance audit (Phase 5 — executed)
 
-- **Fictional identities:** name-shaped-bigram sweep over all 26 admitted
-  cases found exactly the three declared fictional persons (Arkady Luzhenkov,
-  Omid Zangaraki, Yegor Stavitsky), the declared fictional org (Jabhat Sahil
-  al-Fajr), one real place used as a location only (Bandar Abbas — the
-  drafted ir exercise setting, consistent with house policy on real places),
-  and the synthetic sentinel Varn Strait. No undeclared person or org names.
+- **Fictional identities:** name-shaped-bigram sweep + independent review over
+  all 26 admitted cases found exactly the three declared fictional persons
+  (Arkady Luzhenkov, Omid Zangaraki, Yegor Stavitsky) and the declared
+  fictional org (Jabhat Sahil al-Fajr). No undeclared person or org names.
   Fictional names are also machine-recorded in `capacityMeta.fictionalPersons/
   fictionalOrgs` on their cases.
+- **Real places (corrected inventory per independent review — the bigram
+  sweep sees only two-word names):** ~20 real toponyms appear, all as
+  LOCATIONS of synthetic events, consistent with v1 precedent — Kherson,
+  Kupyansk, Oskil, Bryansk, Vyazma, Lyman, Siversk, Balakliia, Rostov,
+  Odesa, Bandar Abbas, Chabahar, Konarak, Jask, Bandar-e Mahshahr, Belgorod,
+  Kramatorsk, Hulyaipole, Izium, Barvinkove, Millerovo, plus probe tokens.
+  In practice the corpus's real-place norm is "synthetic CONFLICT-PLAUSIBLE
+  events at real locations" (e.g. the Millerovo airfield fuel-depot claim),
+  not only mundane ones — stated here so the policy reads accurately. The C2
+  corpus contains zero Red Sea references (the frozen v1 case
+  map-typ-005-ir-redsea retains its location prose by immutability — that is
+  location usage, not the Q12 gazetteer-token risk).
 - **No ISW prose / no copied source text:** all content is emitted by the
   deterministic generator (fixed literal wordlists + hand-written filler
   sentences); nothing is scraped or quoted from any source. Long capacity
   docs are synthetic channel-housekeeping filler around planted facts.
 - **Locality collision check (Q10, executed):** the 260 fed-population names
   were reproduced from the generator arithmetic and screened against repo
-  gazetteers (zero hits) and maintainer knowledge. The draft's -ivka/-ove
-  suffix rows collide with real Ukrainian settlement patterns (Verbove,
-  Berehove, Dubove, Klynove, Verbivka, Piskivka, Kholmivka are real places);
-  all 40 names in those two rows were substituted with the clearly synthetic
-  -ivask/-ovask rows across claims AND vote fixtures (pre-admission change,
-  regenerated deterministically, zero machinery changes — the
-  expectEventCount/droppedGidRefs pins re-verified singleton clustering).
-  The remaining eleven suffix rows were screened and kept (Luhyne considered
-  against the real town Luhyny; kept as a distinct spelling). Scope recorded
-  honestly: NOT an exhaustive worldwide proof.
+  gazetteers (zero hits), maintainer knowledge, AND the independent
+  content-safety review. Four suffix rows collide with real Ukrainian
+  settlement patterns — -ivka/-ove caught by the maintainer pass (Verbove,
+  Berehove, Dubove, Klynove, Verbivka, Piskivka, Kholmivka are real places)
+  and -ychi/-kove by the independent review (Krynychi, Yarkove likely real);
+  all 80 names in those four rows were substituted with the clearly synthetic
+  -ivask/-ovask/-ychask/-kovask rows across claims AND vote fixtures
+  (pre-admission change, regenerated deterministically, zero machinery
+  changes — the expectEventCount/droppedGidRefs pins re-verified singleton
+  clustering). The remaining nine suffix rows were screened and kept
+  (near-misses considered as distinct spellings: Luhyne vs Luhyny, Haisyne vs
+  Haisyn, Brodianka vs Borodianka). Scope recorded honestly: NOT an
+  exhaustive worldwide proof.
 - **Quote fidelity:** the Arabic case's quotes verify through the real
   `verifyQuote` NFKC path (its committed compliant fixture scores pass);
   `mustQuoteFromDoc` gold pins are exercised by the offline run.
@@ -452,13 +466,115 @@ absent, no production DB)
   variable was created or changed; no production DB query or write occurred
   for corpus work.
 
-## 9. Independent review findings and resolutions
+## 9. Independent review findings and resolutions (Phase 7 — executed)
 
-[PENDING — Phase 7.]
+Six fresh-context reviews ran over the full diff + decisions (contract/
+identity, scoring science, heldout discipline, legal/content safety, offline
+isolation/spend/secrets, fixture discriminative quality). **Zero BLOCKERs.
+Two MAJORs, ten MINORs, assorted NITs** — every confirmed finding resolved or
+explicitly accepted below; affected verification re-ran after remediation
+(all six offline cells regenerated, scorecard + matrix regenerated, full
+regen proof re-PASSED, unit 3,547/3,547).
 
-## 10. Statements required at admission
+**MAJORs (both fixture-quality):**
+- *adv-006 surrogate-split rationale geometrically wrong* (cluster spans U16
+  [1495,1503); offset 1500 lands on the second ZWJ, so a 1500-cut is
+  well-formed regardless; no configured cell cuts this doc at 1500). FIXED by
+  an admission-correction note on the case recording what it actually
+  discriminates (U16-offset integrity in emoji-dense content, the straddling
+  ferry fact requiring depth 1600, numeral fidelity); no input/reference
+  change (development case; verdicts unaffected).
+- *Corpus-wide attributed-sentence regularity*: every extractable gold fact is
+  an "X said/reported Y" sentence while filler carries none — a
+  template-aware candidate could ace relevance selection and quiet-day
+  precision without the underlying capability (depth capacity remains
+  honestly measured: no template reads past a truncation). ACCEPTED as a
+  RECORDED LIMITATION: the planned campaign evaluates generic hosted models
+  that are not tuned on this corpus (the heldout discipline forbids exactly
+  that tuning), and the affected signals are diagnostics/baseline-pairwise,
+  not absolute thresholds. Named follow-up: the next corpus generation must
+  interleave decoy attributed sentences in filler and vary fact framing.
+  Documented in the README limitations note.
 
-[PENDING — final: proposed/admitted counts, gate-vs-diagnostic listing,
-conditionally deferred questions, no-live-eval / no-activation / originals
-unchanged / zero-paid / zero-prod-DB / zero-env / zero-deploy / zero-migration
-confirmations.]
+**MINORs, all fixed:**
+- Validator hole: a >1,600-char v2 doc with NO capacity object escaped the
+  requiresContractCap check → check made unconditional (contracts.ts).
+- sliceStats counted inapplicable rows in its "X/Y passed" fractions while
+  its own rate excluded them → slices now exclude inapplicable (runner.ts);
+  scorecard regenerated.
+- Frozen-subset test pinned only input/reference/offline → now WHOLE-CASE
+  JSON equality for every v1 case inside its v2 union (contracts.test.ts).
+- isolation.test.ts run-admit allowlist matched static `from` imports only →
+  matcher now covers `import(`/`require(` forms.
+- Committed scorecard was stale (generated before the Q10 substitution
+  rewrote digest-v2) → regenerated from the final artifacts; slice render
+  verified internally consistent.
+- Truncated map responses escaped capacity accounting (flattering the
+  diagnostics) → truncated rows now count capacity-annotated expected claims
+  as expected-and-lost (score-map.ts).
+- No length backstop for the digest representative-text citation rule (the
+  finalizeEvents 200-char publication slice) → digest claim textEn now
+  validator-capped at 200 (all committed cases ≤125).
+- cap-004 omitted the `expectDroppedGidRefs: 5` pin the reconciliation table
+  (R9) promised → pin added via the admission transform; regenerated;
+  machinery unchanged.
+- Q10 residue: the retained -ychi/-kove rows still produce likely-real
+  settlements (Krynychi, Yarkove) → substitution extended to FOUR rows
+  (-ivka/-ove/-ychi/-kove → -ivask/-ovask/-ychask/-kovask); zero residual
+  risky names; near-misses (Luhyne/Haisyne/Brodianka) considered and kept as
+  distinct spellings.
+- Singleton-clustering margin (worst pairScore 0.340 vs threshold 0.35)
+  unpinned → committed-population test added asserting 260 singletons.
+- No mixed-population aligned-exclusion test → added (inapplicable pair +
+  degraded pair disjoint, non-negative).
+- §7's real-place sentence understated usage → corrected below.
+
+**Accepted residuals (documented, no code change):** tailEventRecall trusts
+the authored rank (mitigated by the token-disjoint singleton population, the
+admission-transform rank pins, and the loud droppedGidRefs/dead-title
+reference pins); lateDocumentRecall counts a guard-dropped late allegation as
+"uncited" (a safety success reads as a capacity miss in a REPORT-ONLY
+diagnostic — dig-c2-safe-001's committed 0/1 is exactly this); pins on
+expected-fail fixtures could in principle mask a future loss of the original
+failure mode (currently zero-firing, original failure strings
+regression-visible); mustMatch patterns test the joined claim corpus, so
+attribution words can ride a different claim (backstopped by the per-claim
+hedging-field checks); "frozen before implementation" rests on commit
+topology + attestation; machine-local absolute paths appear in this report as
+deliberate provenance; a live run whose every case is inapplicable still
+constructs the (zero-dispatch) client behind the full operator preflight;
+fictional allegation surnames sit near real corruption-associated figures
+(Stavitsky~Stavytskyi, Luzhenkov~Luzhkov) — declared fictional everywhere,
+gold requires suppression, cases frozen; future minting should pick more
+distant surnames.
+
+## 10. Statements required at admission (final)
+
+- **26 proposed c2 cases; 26 admitted; 0 provisional; 0 excluded; 0 newly
+  authored.** Total unioned datasets by workload (dev/heldout): map-v2 34
+  (26/8: typ 1, edge 4, adv 3) · digest-v2 17 (13/4: 1/1/2) · validation-v2
+  17 (11/6: 1/4/1) · reduce-v1 14 unchanged (9/5: 1/1/3). Union 82 / 23
+  heldout.
+- **Gates vs diagnostics:** gating is UNCHANGED — completeness, the
+  pre-registered hard invariants, and the aligned-heldout pairwise
+  QUALITY_GATE_METRICS (byte-stability test-pinned). The five capacity
+  metrics (positionRecall buckets, straddleRecall, uniqueTailLoss,
+  tailEventRecall, lateDocumentRecall) are REPORT-ONLY diagnostics; promoting
+  any requires a live baseline distribution + a decision-log entry.
+- **Conditionally deferred:** Q13 stays OPEN with its resolving condition (a
+  human native-speaker review of the Arabic case; OPEN-TASKS #104; the case
+  is development-split diagnostic meanwhile). Q5's gate promotion is deferred
+  on a live baseline. The Q10 residual (collisions outside checked sources)
+  and the attributed-sentence template limitation (§9) are named risks with
+  recorded mitigations.
+- **No live baseline or candidate evaluation has occurred. No model has been
+  approved or activated.** The analysis registry holds baseline-only entries;
+  `--execute-live` was never run; `results/live-*` is empty and gitignored.
+- **The preserved originals are unchanged:** manifest re-verified 8/8 OK at
+  closeout (see the closeout line in §1).
+- **Zero paid provider calls, zero production DB operations (the integration
+  suite ran on a disposable Neon fork per the repo's sanctioned flow), zero
+  environment edits, zero deploys, zero migrations** occurred in this
+  workstream's implementation. (The separate 2026-09-03 docs-reconciliation
+  commit RECORDS the operator's own earlier configuration-only release; this
+  workstream performed read-only verification of it and repeated nothing.)

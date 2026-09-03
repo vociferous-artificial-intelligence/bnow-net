@@ -113,24 +113,31 @@ const DECISIVE_EVENTS: Record<string, Array<{ rank: number; titlePattern: string
   ],
 };
 
-/** Q10: the draft's fused locality rows built with the productive real
- *  Ukrainian toponym suffixes -ivka and -ove collide with real settlements
- *  (Verbove, Berehove, Dubove, Klynove, Verbivka, Piskivka, Kholmivka, …
- *  are all real places). The admission pass substitutes those two rows with
- *  the clearly synthetic -ivask / -ovask rows across each fed-cap case's
- *  whole JSON (claims AND vote fixtures — the head events cite three -ivka
- *  names in their titles). Check scope recorded honestly: repo gazetteers +
- *  maintainer knowledge, NOT an exhaustive worldwide proof. The remaining
- *  eleven suffix rows (-yne, -iede, -opil, -avka, -enky, -ychi, -kove,
- *  -ianka, -utsk, -olia, -ezhi) were screened and kept (Luhyne considered
- *  against the real town Luhyny and kept as a distinct spelling). */
+/** Q10: the draft's fused locality rows built with productive real Ukrainian
+ *  toponym suffixes collide with real settlements — -ivka/-ove directly
+ *  (Verbove, Berehove, Dubove, Klynove, Verbivka, Piskivka, Kholmivka are
+ *  real places), and the independent content-safety review additionally
+ *  flagged -ychi/-kove (Krynychi and Yarkove are likely real villages). The
+ *  admission pass substitutes those FOUR rows with clearly synthetic
+ *  -ivask / -ovask / -ychask / -kovask rows across each fed-cap case's whole
+ *  JSON (claims AND vote fixtures — the head events cite three -ivka names
+ *  in their titles). Check scope recorded honestly: repo gazetteers +
+ *  maintainer knowledge + independent review, NOT an exhaustive worldwide
+ *  proof. The remaining nine suffix rows (-yne, -iede, -opil, -avka, -enky,
+ *  -ianka, -utsk, -olia, -ezhi) were screened and kept (near-misses
+ *  considered and kept as distinct spellings: Luhyne vs the real Luhyny,
+ *  Haisyne vs Haisyn, Brodianka vs Borodianka). */
 const LOC_BASES = [
   "Klyn", "Horb", "Loz", "Stavk", "Yar", "Hais", "Brod", "Luh", "Verb", "Dub",
   "Most", "Kryn", "Ozer", "Pisk", "Kholm", "Sadk", "Val", "Lan", "Bereh", "Kut",
 ];
 const LOCALITY_SUBSTITUTIONS: Array<[string, string]> = LOC_BASES.flatMap((b) => [
+  // order matters: "kove" must be replaced before "ove" would ever match a
+  // "…kove" tail, so the longer suffix comes first per base
+  [`${b}kove`, `${b}kovask`] as [string, string],
   [`${b}ivka`, `${b}ivask`] as [string, string],
   [`${b}ove`, `${b}ovask`] as [string, string],
+  [`${b}ychi`, `${b}ychask`] as [string, string],
 ]);
 
 function substituteLocalities(caseJson: string): string {
@@ -149,8 +156,9 @@ const SHARED_POP_NOTE =
   "strictly descending with claim id, publishedAt null everywhere — so " +
   "rankGroups order == id order and 'rank N' means the group of claim id " +
   "10001+N. Locality names are fused SYNTHETIC single tokens; the admission " +
-  "pass replaced the draft's -ivka/-ove rows (real-settlement collisions, Q10) " +
-  "with the clearly synthetic -ivask/-ovask rows; no named persons. The " +
+  "pass replaced the draft's -ivka/-ove/-ychi/-kove rows (real-settlement " +
+  "collisions, Q10 + independent review) with the clearly synthetic " +
+  "-ivask/-ovask/-ychask/-kovask rows; no named persons. The " +
   "population is byte-identical across the four dig-c2-cap cases by design.";
 
 const FEDCAP_NOTES: Record<string, string> = {
@@ -373,12 +381,21 @@ function admitFedCapCase(rawCase: Raw): DigestEvalCase {
   if (JSON.stringify(decisive.map((d) => d.rank)) !== JSON.stringify(meta.decisiveRanks)) {
     fail(id, `decisive ranks drifted from the draft (${JSON.stringify(meta.decisiveRanks)})`);
   }
+  const reference = { ...(c.reference as DigestEvalCase["reference"]) };
+  if (id === "dig-c2-cap-004-fed-boundary-pair") {
+    // reconciliation R9: the boundary-straddle pair exists to witness the
+    // rank-210 gid being stripped under fed 200 — bind it (the draft left
+    // droppedGidRefs unpinned, so a harness that stopped stripping unfed
+    // gids would have left this case passing unchanged; review finding).
+    if (reference.expectDroppedGidRefs !== undefined) fail(id, "expected the draft to leave droppedGidRefs unpinned");
+    reference.expectDroppedGidRefs = 5;
+  }
   return {
     ...baseFields(c),
     workload: "digest",
     notes,
     input: c.input as DigestEvalCase["input"],
-    reference: c.reference as DigestEvalCase["reference"],
+    reference,
     offline: c.offline as DigestEvalCase["offline"],
     capacityMeta: {
       exactReduceGroupsFed: meta.targetFedCap as number,
@@ -469,6 +486,17 @@ export function admitCorpusC2(drafts: DraftFiles): AdmittedFragments {
         admitted.notes =
           (admitted.notes ?? "") +
           " ADMISSION 2026-09-03 (Q13): Arabic prose verified only through the real verifyQuote NFKC path and non-native review — NO native-speaker linguistic/safety review has occurred; the case is diagnostic (development split) until a human native-speaker review is recorded in a decision-log entry.";
+      }
+      if (admitted.id === "map-c2-adv-006-emoji-boundary") {
+        // review finding (fixture-quality MAJOR): the draft's design-intent
+        // claim of a surrogate-pair split at the 1500 cut is geometrically
+        // wrong (the cluster occupies U16 [1495,1503) and index 1500 lands on
+        // the second ZWJ — slice(0,1500) is well-formed either way), and no
+        // configured cell cuts this doc at 1500 (baseline classifies it
+        // inapplicable at minMapContentChars 1600). Correct the record.
+        admitted.notes =
+          (admitted.notes ?? "") +
+          " ADMISSION CORRECTION 2026-09-03: the drafted surrogate-split rationale does not hold — the ZWJ-family cluster spans U16 [1495,1503) with offset 1500 falling BETWEEN pairs (on the second ZWJ), so a 1500-unit slice is well-formed with or without wellFormedSlice, and no configured capacity cell performs that cut on this doc. What the case actually discriminates: U16-offset integrity in emoji-dense content, the straddling ferry fact at ~[1504,1586) (unreadable at knob 1500 — hence minMapContentChars 1600), and numeral fidelity (checkNumerals).";
       }
       return admitted;
     }),

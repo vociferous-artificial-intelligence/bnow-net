@@ -124,6 +124,54 @@ function baseChecks(batchSize: number, expectedClaimCount: number, expectedEmpty
 // importers.
 export { numericValues, numeralsPreserved } from "./numerals";
 
+/** truncated-path capacity accounting: every capacity-annotated expected
+ *  claim is expected-and-unmatched (the whole output was discarded), so the
+ *  report-only diagnostics record the loss instead of going unavailable. */
+function attachTruncatedCapacityLosses(evalCase: MapEvalCase, checks: MapCaseChecks): void {
+  const factDocCount = new Map<string, number>();
+  const factsByDoc = new Map<number, Map<string, { straddles: boolean }>>();
+  for (const d of evalCase.input.docs) {
+    const perDoc = new Map<string, { straddles: boolean }>();
+    for (const f of d.capacity?.facts ?? []) {
+      factDocCount.set(f.key, (factDocCount.get(f.key) ?? 0) + 1);
+      perDoc.set(f.key, { straddles: f.straddlesDefaultKnob1500 === true });
+    }
+    if (perDoc.size > 0) factsByDoc.set(d.docId, perDoc);
+  }
+  const positionRecall = Object.fromEntries(
+    POSITION_BUCKETS.map((b) => [b, { matched: 0, expected: 0 }]),
+  ) as Record<PositionBucket, { matched: number; expected: number }>;
+  const straddleRecall = { matched: 0, expected: 0 };
+  const uniqueTailLoss = { lost: 0, uniqueTail: 0 };
+  let annotated = 0;
+  for (const expected of evalCase.reference.expected) {
+    for (const gold of expected.claims) {
+      if (gold.capacity === undefined) continue;
+      annotated++;
+      const bucket = gold.capacity.positionBucket;
+      positionRecall[bucket].expected++;
+      const fact =
+        gold.capacity.factKey !== undefined
+          ? factsByDoc.get(expected.docId)?.get(gold.capacity.factKey)
+          : undefined;
+      if (fact?.straddles === true) straddleRecall.expected++;
+      if (
+        (bucket === "tail" || bucket === "deep-tail") &&
+        gold.capacity.factKey !== undefined &&
+        factDocCount.get(gold.capacity.factKey) === 1
+      ) {
+        uniqueTailLoss.uniqueTail++;
+        uniqueTailLoss.lost++;
+      }
+    }
+  }
+  if (annotated > 0) {
+    checks.positionRecall = positionRecall;
+    checks.straddleRecall = straddleRecall;
+    checks.uniqueTailLoss = uniqueTailLoss;
+  }
+}
+
 /** Score one map case's candidate output. `truncated` mirrors finish_reason
  *  === "length": production discards such output unparsed (metered first), so
  *  the eval refuses to score its content too. */
@@ -140,6 +188,11 @@ export function scoreMapCase(
   if (truncated) {
     checks.truncated = true;
     checks.failures.push("response truncated (finish_reason=length) — output discarded, docs left unmapped");
+    // capacity accounting must not FLATTER a truncating candidate (review
+    // finding, 2026-09-03): a truncated row stays status "scored" with recall
+    // 0, so its capacity-annotated expected claims count as expected-and-lost
+    // rather than silently leaving the diagnostics' denominators.
+    attachTruncatedCapacityLosses(evalCase, checks);
     return checks;
   }
 

@@ -102,11 +102,23 @@ heldout 1/2/2), reduce 14 (9/5 1/1/3), digest 10 (7/3 1/1/1), validation 14
   recommendation.
 - The corpus-c2 fictional names: Arkady Luzhenkov, Omid Zangaraki, Yegor
   Stavitsky, the "Jabhat Sahil al-Fajr" group — none exist. The 260
-  fed-population locality names are fused synthetic tokens (base+suffix);
+  fed-population locality names are fused synthetic tokens (base+suffix;
+  four real-pattern suffix rows were substituted at admission — Q10);
   `varn_strait` is a deliberately synthetic off-gazetteer theater sentinel.
   The Arabic case (`map-c2-adv-005`) has had NO native-speaker
   linguistic/safety review — it is development-split diagnostic until a
-  human native-speaker review is recorded in a decision-log entry.
+  human native-speaker review is recorded in a decision-log entry
+  (OPEN-TASKS #104).
+- **Known corpus-c2 limitation (recorded at admission, 2026-09-03 review):**
+  in the c2 map cases every extractable gold fact is an actively-attributed
+  "X said/reported Y" sentence while filler carries none — a candidate TUNED
+  on this template could ace relevance selection and quiet-day precision
+  without the underlying capability. Depth capacity remains honestly
+  measured (no template reads past a truncation), the campaign evaluates
+  generic models the heldout discipline forbids tuning on this corpus, and
+  the affected signals are diagnostics/baseline-pairwise. The next corpus
+  generation must interleave decoy attributed sentences in filler and vary
+  fact framing.
 
 ## Immutability
 

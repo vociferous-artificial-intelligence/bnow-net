@@ -80,9 +80,9 @@ export const QUALITY_GATE_METRICS: Record<AnalysisEvalWorkload, string[]> = {
 export type HeldoutCoverage = Record<EvalPartition, number>;
 
 /** RESULTS-side completeness of one results file against its dataset
- *  (MAJOR-1). "Present" counts scored, schema_invalid, and provider_error
- *  results — those are FAILING results, not missing ones; a skipped row is
- *  missing work. */
+ *  (MAJOR-1). "Present" counts scored, schema_invalid, provider_error, and
+ *  inapplicable results — failing results and structural classifications are
+ *  finished work, not missing work; a skipped row is missing work. */
 export interface CompletenessInfo {
   scope: EvalRunScope;
   requestedRepetitions: number;

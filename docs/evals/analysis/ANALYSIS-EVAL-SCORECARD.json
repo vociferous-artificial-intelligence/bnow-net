@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-03T13:36:41.227Z",
+  "generatedAt": "2026-09-03T14:07:58.764Z",
   "headerNote": "Verdicts use the PRESET gates in src/lib/evals/gates.ts (completeness + aligned-heldout pairwise rules pre-registered before any candidate result existed). The offline-fixtures config scores COMMITTED fixture outputs (compliant AND deliberately violating ones) through the real pipeline functions — it is a machinery proof, NOT a model evaluation; no paid calls are involved in producing it.",
   "scorecards": [
     {
@@ -31,7 +31,7 @@
           "presentResults": 34,
           "missingResults": 0,
           "missingHeldout": 0,
-          "datasetContentHash": "40cfa76cfe7c472d28831c3741c2a4755ce77c7296c80b0979cbeb764f932124",
+          "datasetContentHash": "a0e4f07724ae1c49a9dd9d0b1215cf7ad1fa78950b58da3bbd020547e87d36b6",
           "heldoutPresent": {
             "typical": 1,
             "edge": 2,
@@ -41,7 +41,7 @@
         },
         "bySplit": {
           "development": {
-            "results": 26,
+            "results": 19,
             "checksPassed": 13,
             "quality": {
               "recallMean": 0.9298245614035089,
@@ -50,7 +50,7 @@
             }
           },
           "heldout": {
-            "results": 8,
+            "results": 5,
             "checksPassed": 2,
             "quality": {
               "recallMean": 1,
@@ -70,7 +70,7 @@
             }
           },
           "edge": {
-            "results": 14,
+            "results": 7,
             "checksPassed": 2,
             "quality": {
               "recallMean": 0.7777777777777777,
@@ -79,7 +79,7 @@
             }
           },
           "adversarial": {
-            "results": 11,
+            "results": 8,
             "checksPassed": 4,
             "quality": {
               "recallMean": 1,
@@ -233,7 +233,7 @@
           "presentResults": 34,
           "missingResults": 0,
           "missingHeldout": 0,
-          "datasetContentHash": "40cfa76cfe7c472d28831c3741c2a4755ce77c7296c80b0979cbeb764f932124",
+          "datasetContentHash": "a0e4f07724ae1c49a9dd9d0b1215cf7ad1fa78950b58da3bbd020547e87d36b6",
           "heldoutPresent": {
             "typical": 1,
             "edge": 3,
@@ -243,7 +243,7 @@
         },
         "bySplit": {
           "development": {
-            "results": 26,
+            "results": 25,
             "checksPassed": 19,
             "quality": {
               "recallMean": 0.9466666666666668,
@@ -252,7 +252,7 @@
             }
           },
           "heldout": {
-            "results": 8,
+            "results": 6,
             "checksPassed": 2,
             "quality": {
               "recallMean": 0.95,
@@ -272,7 +272,7 @@
             }
           },
           "edge": {
-            "results": 14,
+            "results": 12,
             "checksPassed": 6,
             "quality": {
               "recallMean": 0.856060606060606,
@@ -281,7 +281,7 @@
             }
           },
           "adversarial": {
-            "results": 11,
+            "results": 10,
             "checksPassed": 6,
             "quality": {
               "recallMean": 1,
@@ -435,7 +435,7 @@
           "presentResults": 34,
           "missingResults": 0,
           "missingHeldout": 0,
-          "datasetContentHash": "40cfa76cfe7c472d28831c3741c2a4755ce77c7296c80b0979cbeb764f932124",
+          "datasetContentHash": "a0e4f07724ae1c49a9dd9d0b1215cf7ad1fa78950b58da3bbd020547e87d36b6",
           "heldoutPresent": {
             "typical": 1,
             "edge": 4,
@@ -781,7 +781,7 @@
           "presentResults": 17,
           "missingResults": 0,
           "missingHeldout": 0,
-          "datasetContentHash": "5b55b3d1c73fc3e9e9e31cece1f77bcb90a2d40275942a0e67583921a0147a00",
+          "datasetContentHash": "d09e15fc5671119de0572717528e9033406f1fdd446998672e2cddc1c154d769",
           "heldoutPresent": {
             "typical": 1,
             "edge": 1,
@@ -791,7 +791,7 @@
         },
         "bySplit": {
           "development": {
-            "results": 13,
+            "results": 12,
             "checksPassed": 11,
             "quality": {
               "checksPassRate": 0.9166666666666666
@@ -814,7 +814,7 @@
             }
           },
           "edge": {
-            "results": 9,
+            "results": 8,
             "checksPassed": 7,
             "quality": {
               "checksPassRate": 0.875
@@ -911,7 +911,7 @@
         "reasoningEffort": null,
         "registryVersion": "analysis-reg-v1",
         "approval": "baseline",
-        "promptHash": "1588fde4d2ea45272dac0b8817941902522127aa740807b43c6eb9ad643328e0",
+        "promptHash": "b855709270eefb1a098c4060875ee006143c5b7c84e9290000f038e31316165b",
         "schemaVersion": "361f13aaa609d7d14245a7b408373e5216480f48832a82ece17bf96093277095"
       },
       "baseline": null,
@@ -965,7 +965,7 @@
           "presentResults": 17,
           "missingResults": 0,
           "missingHeldout": 0,
-          "datasetContentHash": "5b55b3d1c73fc3e9e9e31cece1f77bcb90a2d40275942a0e67583921a0147a00",
+          "datasetContentHash": "d09e15fc5671119de0572717528e9033406f1fdd446998672e2cddc1c154d769",
           "heldoutPresent": {
             "typical": 1,
             "edge": 1,
@@ -975,7 +975,7 @@
         },
         "bySplit": {
           "development": {
-            "results": 13,
+            "results": 10,
             "checksPassed": 9,
             "quality": {
               "checksPassRate": 0.9
@@ -998,7 +998,7 @@
             }
           },
           "edge": {
-            "results": 9,
+            "results": 6,
             "checksPassed": 5,
             "quality": {
               "checksPassRate": 0.8333333333333334
@@ -1095,7 +1095,7 @@
         "reasoningEffort": null,
         "registryVersion": "analysis-reg-v1",
         "approval": "baseline",
-        "promptHash": "f670bf802f27105e303719bfbd97d95359a68e8a2b6a88264e6280a7cb89d86c",
+        "promptHash": "079ee7510a079f7f55f806a3eae7f44095816441a9975befcd3866f370af2efe",
         "schemaVersion": "361f13aaa609d7d14245a7b408373e5216480f48832a82ece17bf96093277095"
       },
       "baseline": null,

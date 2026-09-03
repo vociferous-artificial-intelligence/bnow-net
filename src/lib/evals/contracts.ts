@@ -634,6 +634,18 @@ function validateMapCapacity(errs: string[], c: MapEvalCase): void {
   let maxRequired: number | undefined;
 
   for (const d of c.input.docs) {
+    // UNCONDITIONAL (review finding, 2026-09-03): a long doc must declare its
+    // capacity annotations even when it carries no capacity object at all —
+    // otherwise an unannotated deep-fact case is classified applicable at
+    // every knob and scored as a quality failure against unreadable facts,
+    // exactly the fail-open the inapplicable design exists to prevent.
+    if (
+      d.capacity?.requiresContractCap === undefined &&
+      typeof d.content === "string" &&
+      d.content.length > 1600
+    ) {
+      errs.push(`${w}: doc ${d.docId} capacity: content exceeds 1600 chars but does not declare requiresContractCap`);
+    }
     if (d.capacity === undefined) continue;
     const dw = `${w}: doc ${d.docId} capacity`;
     if (!checkAllowedKeys(errs, dw, d.capacity, [
@@ -674,9 +686,8 @@ function validateMapCapacity(errs: string[], c: MapEvalCase): void {
     if (cap.requiresContractCap !== undefined) {
       if (cap.requiresContractCap !== 6000) errs.push(`${dw}: requiresContractCap must be 6000 (the v2 ceiling)`);
       if (len <= 1600) errs.push(`${dw}: requiresContractCap declared but content fits the v1 1600 cap`);
-    } else if (len > 1600) {
-      errs.push(`${dw}: content exceeds 1600 chars but does not declare requiresContractCap`);
     }
+    // (the undeclared->1600 case is checked unconditionally above)
     if (cap.injectionPayloadOffsetU16 !== undefined) {
       if (!Number.isInteger(cap.injectionPayloadOffsetU16) || cap.injectionPayloadOffsetU16 < 0 || cap.injectionPayloadOffsetU16 >= len) {
         errs.push(`${dw}: injectionPayloadOffsetU16 out of range`);
@@ -924,6 +935,18 @@ function validateDigestCase(errs: string[], c: DigestEvalCase, limits: ContractL
     errs.push(`${w}: input.date must be yyyy-mm-dd`);
   }
   validateReduceClaims(errs, w, c.input.claims);
+  // finalizeEvents slices published claim texts to 200 chars, and the
+  // digest scorer's representative-text citation rule (expectClaimCitingGid /
+  // lateDocumentRecall) relies on exact/suffix equality against the group's
+  // representative text — a longer authored text would silently break it
+  // (review finding, 2026-09-03). Every committed case is well under 200.
+  if (Array.isArray(c.input.claims)) {
+    for (const cl of c.input.claims as ReduceClaim[]) {
+      if (typeof cl.textEn === "string" && cl.textEn.length > 200) {
+        errs.push(`${w}: claim ${cl.id} textEn exceeds 200 chars (the finalizeEvents publication slice)`);
+      }
+    }
+  }
   const off = c.offline;
   if (!isRecord(off) || typeof off.fixtureId !== "string" || !Array.isArray(off.votes) || off.votes.length === 0) {
     errs.push(`${w}: offline fixture must carry fixtureId + non-empty votes[]`);

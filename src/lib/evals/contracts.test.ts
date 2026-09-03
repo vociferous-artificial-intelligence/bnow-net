@@ -386,7 +386,11 @@ describe("committed datasets", () => {
     }
   });
 
-  it("every v1 case is byte-frozen inside its v2 union (immutability contract)", () => {
+  it("every v1 case is WHOLE-CASE frozen inside its v2 union (immutability contract)", () => {
+    // whole-case equality (review finding, 2026-09-03): composeV2Dataset
+    // copies v1 cases verbatim, so split/partition/provenance/notes are
+    // frozen too — a hand-edit flipping a v1 case's split inside the v2 file
+    // must fail the always-run suite, not just the manual regen check
     for (const w of ANALYSIS_EVAL_WORKLOADS) {
       if (ACTIVE_FILES[w] === V1_FILES[w]) continue;
       const v1 = loadFile(V1_FILES[w]);
@@ -394,12 +398,7 @@ describe("committed datasets", () => {
       for (const c of v1.cases) {
         const in2 = v2ById.get(c.id);
         expect(in2, `${w}/${c.id} present in v2`).toBeDefined();
-        for (const part of ["input", "reference", "offline"] as const) {
-          expect(
-            JSON.stringify((in2 as unknown as Record<string, unknown>)[part]),
-            `${w}/${c.id}.${part} frozen`,
-          ).toBe(JSON.stringify((c as unknown as Record<string, unknown>)[part]));
-        }
+        expect(JSON.stringify(in2), `${w}/${c.id} frozen (whole case)`).toBe(JSON.stringify(c));
       }
     }
   });

@@ -803,9 +803,13 @@ export function qualityOf(
 }
 
 function sliceStats(workload: AnalysisEvalWorkload, results: EvalCaseResult[]): SliceStats {
+  // inapplicable rows leave the slice fractions too (review finding: the
+  // "X/Y passed" render must agree with checksPassRate's denominator — a
+  // structural exclusion must never read as a failure)
+  const considered = results.filter((r) => r.status !== "inapplicable");
   return {
-    results: results.length,
-    checksPassed: results.filter((r) => r.checks.pass).length,
+    results: considered.length,
+    checksPassed: considered.filter((r) => r.checks.pass).length,
     quality: qualityOf(workload, results),
   };
 }

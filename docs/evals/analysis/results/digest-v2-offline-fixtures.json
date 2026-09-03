@@ -2,14 +2,14 @@
   "workload": "digest",
   "configKey": "offline-fixtures",
   "datasetVersion": "digest-v2",
-  "datasetContentHash": "6789e212ee3d8f55d4085847777e445787226b1ac6ddbf05122be9bf9d6e0eaf",
+  "datasetContentHash": "d09e15fc5671119de0572717528e9033406f1fdd446998672e2cddc1c154d769",
   "identity": {
     "provider": "stub",
     "model": "offline-fixtures",
     "reasoningEffort": null,
     "registryVersion": "analysis-reg-v1",
     "approval": "baseline",
-    "promptHash": "47951b4905971cf50078738ad90537ec4a6f1e273cee610ffcbdba89d75400a3",
+    "promptHash": "b855709270eefb1a098c4060875ee006143c5b7c84e9290000f038e31316165b",
     "schemaVersion": "361f13aaa609d7d14245a7b408373e5216480f48832a82ece17bf96093277095"
   },
   "requestedRepetitions": 1,
@@ -21,7 +21,7 @@
     "mapContentChars": 1500,
     "reduceGroupsFed": 200
   },
-  "updatedAt": "2026-09-03T13:41:51.707Z",
+  "updatedAt": "2026-09-03T14:07:26.128Z",
   "meter": {
     "attempts": 0,
     "reservations": 0,

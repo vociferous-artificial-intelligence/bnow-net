@@ -1,4 +1,4 @@
-# Analysis eval scorecard — 2026-09-03T13:36:41.227Z
+# Analysis eval scorecard — 2026-09-03T14:07:58.764Z
 
 > Verdicts use the PRESET gates in src/lib/evals/gates.ts (completeness + aligned-heldout pairwise rules pre-registered before any candidate result existed). The offline-fixtures config scores COMMITTED fixture outputs (compliant AND deliberately violating ones) through the real pipeline functions — it is a machinery proof, NOT a model evaluation; no paid calls are involved in producing it.
 
@@ -9,7 +9,7 @@ Env knobs: reduceVotes=5 reduceMaxOutputTokens=6000 mapOutTokensPerDoc=200 mapCo
 
 | metric | value |
 |---|---|
-| completeness | scope=full · 34/34 results present (0 missing, 0 heldout missing) · reps=1 · datasetHash=40cfa76cfe7c · COMPLETE |
+| completeness | scope=full · 34/34 results present (0 missing, 0 heldout missing) · reps=1 · datasetHash=a0e4f07724ae · COMPLETE |
 | cases (scored / schema-invalid / provider-error / skipped) | 23 / 1 / 0 / 0 of 34 |
 | **structurally inapplicable (not scored, not gated)** | 10 of 34 — capacity requirement unmet under this profile's knobs |
 | checks passed | 15/24 |
@@ -35,11 +35,11 @@ Env knobs: reduceVotes=5 reduceMaxOutputTokens=6000 mapOutTokensPerDoc=200 mapCo
 
 | slice | checks | quality |
 |---|---|---|
-| split: development (diagnostic) | 13/26 passed | recallMean=93.0%, precisionMean=94.7%, checksPassRate=68.4% |
-| split: heldout (gated) | 2/8 passed | recallMean=100.0%, precisionMean=87.5%, checksPassRate=40.0% |
+| split: development (diagnostic) | 13/19 passed | recallMean=93.0%, precisionMean=94.7%, checksPassRate=68.4% |
+| split: heldout (gated) | 2/5 passed | recallMean=100.0%, precisionMean=87.5%, checksPassRate=40.0% |
 | partition: typical | 9/9 passed | recallMean=100.0%, precisionMean=100.0%, checksPassRate=100.0% |
-| partition: edge | 2/14 passed | recallMean=77.8%, precisionMean=83.3%, checksPassRate=28.6% |
-| partition: adversarial | 4/11 passed | recallMean=100.0%, precisionMean=93.8%, checksPassRate=50.0% |
+| partition: edge | 2/7 passed | recallMean=77.8%, precisionMean=83.3%, checksPassRate=28.6% |
+| partition: adversarial | 4/8 passed | recallMean=100.0%, precisionMean=93.8%, checksPassRate=50.0% |
 
 VERDICT: **FAIL**
 - traceability: wrongDocIds 1 > 0
@@ -57,7 +57,7 @@ Env knobs: reduceVotes=5 reduceMaxOutputTokens=6000 mapOutTokensPerDoc=400 mapCo
 
 | metric | value |
 |---|---|
-| completeness | scope=full · 34/34 results present (0 missing, 0 heldout missing) · reps=1 · datasetHash=40cfa76cfe7c · COMPLETE |
+| completeness | scope=full · 34/34 results present (0 missing, 0 heldout missing) · reps=1 · datasetHash=a0e4f07724ae · COMPLETE |
 | cases (scored / schema-invalid / provider-error / skipped) | 30 / 1 / 0 / 0 of 34 |
 | **structurally inapplicable (not scored, not gated)** | 3 of 34 — capacity requirement unmet under this profile's knobs |
 | checks passed | 21/31 |
@@ -83,11 +83,11 @@ Env knobs: reduceVotes=5 reduceMaxOutputTokens=6000 mapOutTokensPerDoc=400 mapCo
 
 | slice | checks | quality |
 |---|---|---|
-| split: development (diagnostic) | 19/26 passed | recallMean=94.7%, precisionMean=96.0%, checksPassRate=76.0% |
-| split: heldout (gated) | 2/8 passed | recallMean=95.0%, precisionMean=85.0%, checksPassRate=33.3% |
+| split: development (diagnostic) | 19/25 passed | recallMean=94.7%, precisionMean=96.0%, checksPassRate=76.0% |
+| split: heldout (gated) | 2/6 passed | recallMean=95.0%, precisionMean=85.0%, checksPassRate=33.3% |
 | partition: typical | 9/9 passed | recallMean=100.0%, precisionMean=100.0%, checksPassRate=100.0% |
-| partition: edge | 6/14 passed | recallMean=85.6%, precisionMean=88.6%, checksPassRate=50.0% |
-| partition: adversarial | 6/11 passed | recallMean=100.0%, precisionMean=95.0%, checksPassRate=60.0% |
+| partition: edge | 6/12 passed | recallMean=85.6%, precisionMean=88.6%, checksPassRate=50.0% |
+| partition: adversarial | 6/10 passed | recallMean=100.0%, precisionMean=95.0%, checksPassRate=60.0% |
 
 VERDICT: **FAIL**
 - traceability: wrongDocIds 1 > 0
@@ -105,7 +105,7 @@ Env knobs: reduceVotes=5 reduceMaxOutputTokens=6000 mapOutTokensPerDoc=500 mapCo
 
 | metric | value |
 |---|---|
-| completeness | scope=full · 34/34 results present (0 missing, 0 heldout missing) · reps=1 · datasetHash=40cfa76cfe7c · COMPLETE |
+| completeness | scope=full · 34/34 results present (0 missing, 0 heldout missing) · reps=1 · datasetHash=a0e4f07724ae · COMPLETE |
 | cases (scored / schema-invalid / provider-error / skipped) | 33 / 1 / 0 / 0 of 34 |
 | checks passed | 22/34 |
 | machinery proof (result matches fixture expectation) | 34/34 |
@@ -177,12 +177,12 @@ VERDICT: **INSUFFICIENT_DATA**
 
 ## digest — config `offline-fixtures` (dataset digest-v2)
 
-Identity: provider=stub model=offline-fixtures effort=absent approval=baseline registry=analysis-reg-v1 promptHash=1588fde4d2ea schema=361f13aaa609
+Identity: provider=stub model=offline-fixtures effort=absent approval=baseline registry=analysis-reg-v1 promptHash=b855709270ee schema=361f13aaa609
 Env knobs: reduceVotes=5 reduceMaxOutputTokens=6000 mapOutTokensPerDoc=200 mapContentChars=1500 reduceGroupsFed=200
 
 | metric | value |
 |---|---|
-| completeness | scope=full · 17/17 results present (0 missing, 0 heldout missing) · reps=1 · datasetHash=5b55b3d1c73f · COMPLETE |
+| completeness | scope=full · 17/17 results present (0 missing, 0 heldout missing) · reps=1 · datasetHash=d09e15fc5671 · COMPLETE |
 | cases (scored / schema-invalid / provider-error / skipped) | 16 / 0 / 0 / 0 of 17 |
 | **structurally inapplicable (not scored, not gated)** | 1 of 17 — capacity requirement unmet under this profile's knobs |
 | checks passed | 15/16 |
@@ -206,10 +206,10 @@ Env knobs: reduceVotes=5 reduceMaxOutputTokens=6000 mapOutTokensPerDoc=200 mapCo
 
 | slice | checks | quality |
 |---|---|---|
-| split: development (diagnostic) | 11/13 passed | checksPassRate=91.7% |
+| split: development (diagnostic) | 11/12 passed | checksPassRate=91.7% |
 | split: heldout (gated) | 4/4 passed | checksPassRate=100.0% |
 | partition: typical | 4/4 passed | checksPassRate=100.0% |
-| partition: edge | 7/9 passed | checksPassRate=87.5% |
+| partition: edge | 7/8 passed | checksPassRate=87.5% |
 | partition: adversarial | 4/4 passed | checksPassRate=100.0% |
 
 VERDICT: **FAIL**
@@ -218,12 +218,12 @@ VERDICT: **FAIL**
 
 ## digest — config `offline-fixtures+reduce-fed-400` (dataset digest-v2)
 
-Identity: provider=stub model=offline-fixtures effort=absent approval=baseline registry=analysis-reg-v1 promptHash=f670bf802f27 schema=361f13aaa609
+Identity: provider=stub model=offline-fixtures effort=absent approval=baseline registry=analysis-reg-v1 promptHash=079ee7510a07 schema=361f13aaa609
 Env knobs: reduceVotes=5 reduceMaxOutputTokens=9000 mapOutTokensPerDoc=200 mapContentChars=1500 reduceGroupsFed=400
 
 | metric | value |
 |---|---|
-| completeness | scope=full · 17/17 results present (0 missing, 0 heldout missing) · reps=1 · datasetHash=5b55b3d1c73f · COMPLETE |
+| completeness | scope=full · 17/17 results present (0 missing, 0 heldout missing) · reps=1 · datasetHash=d09e15fc5671 · COMPLETE |
 | cases (scored / schema-invalid / provider-error / skipped) | 14 / 0 / 0 / 0 of 17 |
 | **structurally inapplicable (not scored, not gated)** | 3 of 17 — capacity requirement unmet under this profile's knobs |
 | checks passed | 13/14 |
@@ -247,10 +247,10 @@ Env knobs: reduceVotes=5 reduceMaxOutputTokens=9000 mapOutTokensPerDoc=200 mapCo
 
 | slice | checks | quality |
 |---|---|---|
-| split: development (diagnostic) | 9/13 passed | checksPassRate=90.0% |
+| split: development (diagnostic) | 9/10 passed | checksPassRate=90.0% |
 | split: heldout (gated) | 4/4 passed | checksPassRate=100.0% |
 | partition: typical | 4/4 passed | checksPassRate=100.0% |
-| partition: edge | 5/9 passed | checksPassRate=83.3% |
+| partition: edge | 5/6 passed | checksPassRate=83.3% |
 | partition: adversarial | 4/4 passed | checksPassRate=100.0% |
 
 VERDICT: **FAIL**

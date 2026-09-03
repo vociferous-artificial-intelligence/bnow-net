@@ -1630,3 +1630,13 @@ docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md)
     healthy pipeline — the false notification did not repeat and no real incident
     was masked. Detection proof remains SYNTHETIC; unchanged: the first real
     pre-completion death is the first live proof.
+
+104. **[Tier 3 — eval content] The corpus-v2 Arabic fixture needs a human
+    native-speaker linguistic/safety review (Q13).** `map-c2-adv-005-translation-denial-ar`
+    was verified through the real `verifyQuote` NFKC path and non-native +
+    independent AI-assisted review only; NO native-speaker review has occurred and
+    none is claimed. The case is development-split (diagnostic, no gate weight)
+    until a human native Arabic speaker reviews the prose for linguistic and
+    safety quality and the review is recorded in a decision-log entry. Filed at
+    the 2026-09-03 corpus-v2 admission
+    (`docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md` Q13).

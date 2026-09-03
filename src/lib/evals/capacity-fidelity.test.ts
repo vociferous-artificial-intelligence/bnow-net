@@ -165,6 +165,20 @@ describe("committed v2 results identity + applicability stability (corpus-v2)", 
     }
   });
 
+  it("the committed fed population clusters to 260 singletons (0.34-margin pin)", async () => {
+    // review finding: the worst pairScore in the shared 260-claim population
+    // sits at 0.340 vs REDUCE_THRESHOLD 0.35 — every fed-cutoff rank claim
+    // depends on singleton clustering, so pin the outcome loudly
+    const { clusterClaims } = await import("../analysis/reduce");
+    const ds = JSON.parse(readFileSync(`${dir}/digest-v2.json`, "utf8")) as {
+      cases: Array<{ id: string; input: { claims: unknown[] } }>;
+    };
+    const cap = ds.cases.find((c) => c.id === "dig-c2-cap-001-fed200-rank185")!;
+    const groups = clusterClaims(cap.input.claims as never);
+    expect(groups.length).toBe(260);
+    expect(groups.every((g) => g.memberIds.length === 1)).toBe(true);
+  });
+
   it("the committed artifacts pin the applicability matrix end-to-end", () => {
     const status = (results: string, key: string) => {
       const rf = JSON.parse(readFileSync(`${dir}/results/${results}`, "utf8")) as EvalResultsFile;
