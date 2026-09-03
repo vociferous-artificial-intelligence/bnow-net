@@ -437,8 +437,11 @@ export interface CandidateDispatchIdentity {
   model: string;
   reasoningEffort: string | null;
   registryVersion: string;
-  /** "baseline" = the production-approved configuration; "evaluation_candidate"
-   *  = dispatched through evalDispatchConfig's registry-bypass (live eval only).
+  /** "baseline" = the production-approved configuration: for LIVE runs it is
+   *  registry-resolved (analysisApproval status "baseline"); for OFFLINE runs
+   *  (provider "stub", model "offline-fixtures") it is the deterministic
+   *  stand-in convention — provider disambiguates. "evaluation_candidate" =
+   *  dispatched through evalDispatchConfig's registry-bypass (live eval only).
    *  A passing candidate scorecard can only ever PROPOSE a registry entry in
    *  report output — it never edits analysis-registry.ts. */
   approval: "baseline" | "evaluation_candidate";

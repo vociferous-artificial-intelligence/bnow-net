@@ -1782,8 +1782,9 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   campaign (mandatory gpt-4o-mini baseline + gpt-5-nano candidate, both effort-absent,
   ×3 repetitions, cells baseline{map,digest,validation} + map-depth-4000{map} +
   reduce-fed-400{digest}, `EVAL_USD_CAP_DAILY=2`, campaign-local `LLM_SPRINT_USD_CAP=6`
-  as a $6 absolute ceiling on the fresh openai_eval ledger of one disposable Neon
-  branch), then a docs-only closeout PR. NOT authorized: gpt-5-mini/gpt-5/gpt-4o or any
+  as a $6 ceiling on the fresh openai_eval ledger of one disposable Neon branch —
+  repo-standard reservation-threshold semantics, so terminal spend can exceed it by
+  at most one response's cost), then a docs-only closeout PR. NOT authorized: gpt-5-mini/gpt-5/gpt-4o or any
   effort variant, Vercel env changes, deploys, production writes, registry edits/model
   activation, #33 remapping, prompt tuning, post-hoc gate changes, targeted heldout
   reruns. Repair (this PR): `evalDispatchConfig` stamped `approval:
@@ -1799,6 +1800,10 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   correctly evaluation_candidate-only). Deterministic tests pin: registry-backed
   baseline identity for map/digest/validation, gpt-5-nano/gpt-5-mini stay
   evaluation_candidate, unpriced/invalid-effort refusals, preflight approval stamps.
+  Review-driven hardening in the same PR: the SAF-m3 production-host equality guard
+  now normalizes Neon's "-pooler." pooled/unpooled host aliasing (test-pinned both
+  directions) so the production UNPOOLED URL can no longer slip past an equality
+  check against the pooled DATABASE_URL.
   Packet corrections (same PR, `PAID-EVAL-OPERATOR-PACKET-2026-09-03.md`): corpus-v2
   "merged-pending"→MERGED (`d96180b`); reduce documented as deterministic/offline
   (never a paid live cell — live workloads are map/digest/validation); initial
