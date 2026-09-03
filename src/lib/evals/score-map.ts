@@ -11,7 +11,7 @@ import { parseMapResults, type MapClaim } from "../analysis/map-worker";
 import { verifyQuote } from "../analysis/quote-verify";
 import { claimTokens } from "../analysis/reduce";
 import { firesAffirmatively } from "../ask/eval-run";
-import type { MapEvalCase } from "./contracts";
+import { POSITION_BUCKETS, type MapEvalCase, type PositionBucket } from "./contracts";
 import { numeralsPreserved } from "./numerals";
 
 /** Gold-claim match rule: token-jaccard (claimTokens, the reduce stage's own
@@ -70,6 +70,18 @@ export interface MapCaseChecks {
   numeralMisses: number;
   mustNotMatchHits: string[];
   injectionHits: string[];
+  // ---- corpus-v2 capacity diagnostics (REPORT-ONLY: never failures, never
+  // gates; undefined = the case supplies no capacity metadata) ----
+  /** per-bucket {matched, expected} over expected claims carrying capacity
+   *  metadata, bucketed by their validator-pinned declared positionBucket */
+  positionRecall?: Record<PositionBucket, { matched: number; expected: number }>;
+  /** {matched, expected} over expected claims whose linked doc fact
+   *  (capacity.factKey) declares straddlesDefaultKnob1500 */
+  straddleRecall?: { matched: number; expected: number };
+  /** {lost, uniqueTail} over tail/deep-tail expected claims whose factKey
+   *  occurs in exactly ONE doc's facts across the case (no near-dupe backup
+   *  copy exists — losing it loses the fact entirely) */
+  uniqueTailLoss?: { lost: number; uniqueTail: number };
 }
 
 function baseChecks(batchSize: number, expectedClaimCount: number, expectedEmptyDocs: number): MapCaseChecks {
@@ -146,6 +158,25 @@ export function scoreMapCase(
   checks.underfillRate = input.docs.length > 0 ? checks.omittedDocs / input.docs.length : 0;
 
   const docText = new Map(input.docs.map((d) => [d.docId, `${d.title ?? ""} ${d.content}`]));
+
+  // corpus-v2 capacity diagnostics (report-only): fact-key occurrence counts
+  // across docs (uniqueness basis) and per-doc fact lookup (straddle basis)
+  const factDocCount = new Map<string, number>();
+  const factsByDoc = new Map<number, Map<string, { straddles: boolean }>>();
+  for (const d of input.docs) {
+    const perDoc = new Map<string, { straddles: boolean }>();
+    for (const f of d.capacity?.facts ?? []) {
+      factDocCount.set(f.key, (factDocCount.get(f.key) ?? 0) + 1);
+      perDoc.set(f.key, { straddles: f.straddlesDefaultKnob1500 === true });
+    }
+    if (perDoc.size > 0) factsByDoc.set(d.docId, perDoc);
+  }
+  const positionRecall = Object.fromEntries(
+    POSITION_BUCKETS.map((b) => [b, { matched: 0, expected: 0 }]),
+  ) as Record<PositionBucket, { matched: number; expected: number }>;
+  const straddleRecall = { matched: 0, expected: 0 };
+  const uniqueTailLoss = { lost: 0, uniqueTail: 0 };
+  let capacityAnnotatedClaims = 0;
   const producedTexts: string[] = [];
   // m6: production persists text_en, event_hint AND entity names — a payload
   // or forbidden assertion hiding in the hint or an entity name is just as
@@ -187,7 +218,32 @@ export function scoreMapCase(
           bestIdx = i;
         }
       }
-      if (bestIdx < 0 || bestSim < MAP_GIST_MATCH_THRESHOLD) continue;
+      const isMatched = bestIdx >= 0 && bestSim >= MAP_GIST_MATCH_THRESHOLD;
+      // capacity diagnostics accounting (report-only; every denominator is
+      // exact: only claims carrying capacity metadata enter)
+      if (gold.capacity !== undefined) {
+        capacityAnnotatedClaims++;
+        const bucket = gold.capacity.positionBucket;
+        positionRecall[bucket].expected++;
+        if (isMatched) positionRecall[bucket].matched++;
+        const fact =
+          gold.capacity.factKey !== undefined
+            ? factsByDoc.get(expected.docId)?.get(gold.capacity.factKey)
+            : undefined;
+        if (fact?.straddles === true) {
+          straddleRecall.expected++;
+          if (isMatched) straddleRecall.matched++;
+        }
+        if (
+          (bucket === "tail" || bucket === "deep-tail") &&
+          gold.capacity.factKey !== undefined &&
+          factDocCount.get(gold.capacity.factKey) === 1
+        ) {
+          uniqueTailLoss.uniqueTail++;
+          if (!isMatched) uniqueTailLoss.lost++;
+        }
+      }
+      if (!isMatched) continue;
       used.add(bestIdx);
       matched++;
       const p = producedClaims[bestIdx];
@@ -206,6 +262,12 @@ export function scoreMapCase(
         checks.numeralMisses++;
       }
     }
+  }
+
+  if (capacityAnnotatedClaims > 0) {
+    checks.positionRecall = positionRecall;
+    checks.straddleRecall = straddleRecall;
+    checks.uniqueTailLoss = uniqueTailLoss;
   }
 
   checks.producedClaimCount = produced;

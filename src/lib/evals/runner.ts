@@ -52,6 +52,7 @@ import {
 } from "../validation/llm-match";
 import type { ClaimForValidation } from "../validation/score";
 import {
+  POSITION_BUCKETS,
   resultKey,
   type AnalysisEvalCase,
   type AnalysisEvalDataset,
@@ -65,6 +66,7 @@ import {
   type EvalRunScope,
   type MapEvalCase,
   type MapEvalInput,
+  type PositionBucket,
   type ReduceEvalCase,
   type ValidationEvalCase,
   type ValidationEvalInput,
@@ -857,6 +859,61 @@ export function aggregateResults(
     }
   }
 
+  // corpus-v2 capacity diagnostics: summed over SCORED rows only (an
+  // inapplicable row contributed no measurement); null when no row carried
+  // any capacity figure
+  const capDiag = {
+    positionRecall: Object.fromEntries(
+      POSITION_BUCKETS.map((b) => [b, { matched: 0, expected: 0 }]),
+    ) as Record<PositionBucket, { matched: number; expected: number }>,
+    straddleRecall: { matched: 0, expected: 0 },
+    uniqueTailLoss: { lost: 0, uniqueTail: 0 },
+    tailEventRecall: { survived: 0, fed: 0, unfed: 0 },
+    lateDocumentRecall: { cited: 0, total: 0, unfed: 0 },
+    resultsWithMeta: 0,
+    inapplicableResults: results.filter((r) => r.status === "inapplicable").length,
+  };
+  for (const r of scored) {
+    const ch = r.checks as unknown as Record<string, unknown>;
+    let contributed = false;
+    const pr = ch.positionRecall as Record<PositionBucket, { matched: number; expected: number }> | undefined;
+    if (pr !== undefined) {
+      contributed = true;
+      for (const b of POSITION_BUCKETS) {
+        capDiag.positionRecall[b].matched += pr[b]?.matched ?? 0;
+        capDiag.positionRecall[b].expected += pr[b]?.expected ?? 0;
+      }
+    }
+    const sr = ch.straddleRecall as { matched: number; expected: number } | undefined;
+    if (sr !== undefined) {
+      contributed = true;
+      capDiag.straddleRecall.matched += sr.matched;
+      capDiag.straddleRecall.expected += sr.expected;
+    }
+    const ut = ch.uniqueTailLoss as { lost: number; uniqueTail: number } | undefined;
+    if (ut !== undefined) {
+      contributed = true;
+      capDiag.uniqueTailLoss.lost += ut.lost;
+      capDiag.uniqueTailLoss.uniqueTail += ut.uniqueTail;
+    }
+    const te = ch.tailEventRecall as { survived: number; fed: number; unfed: number } | undefined;
+    if (te !== undefined) {
+      contributed = true;
+      capDiag.tailEventRecall.survived += te.survived;
+      capDiag.tailEventRecall.fed += te.fed;
+      capDiag.tailEventRecall.unfed += te.unfed;
+    }
+    const ld = ch.lateDocumentRecall as { cited: number; total: number; unfed: number } | undefined;
+    if (ld !== undefined) {
+      contributed = true;
+      capDiag.lateDocumentRecall.cited += ld.cited;
+      capDiag.lateDocumentRecall.total += ld.total;
+      capDiag.lateDocumentRecall.unfed += ld.unfed;
+    }
+    if (contributed) capDiag.resultsWithMeta++;
+  }
+  const capacityDiagnostics = capDiag.resultsWithMeta > 0 ? capDiag : null;
+
   // per-repetition quality spread (variance stat for multi-repetition runs)
   const reps = [...new Set(results.map((r) => r.repetition))].sort((a, b) => a - b);
   const repetitionSpread: Record<string, number> = {};
@@ -921,6 +978,7 @@ export function aggregateResults(
       reproducibilityFailures,
     },
     quality: qualityOf(dataset.workload, results),
+    capacityDiagnostics,
     resources: {
       latencyMsMean: latencies.length > 0 ? mean(latencies) : null,
       promptTokensTotal: results.reduce((s, r) => s + (r.promptTokens ?? 0), 0),
@@ -1292,6 +1350,18 @@ export function renderAnalysisScorecardMarkdown(input: {
           ? `| quality: ${k} (excluded from mean) | ${v} |`
           : `| quality: ${k} (all results, diagnostic) | ${pct(v)} |`,
       );
+    }
+    if (a.capacityDiagnostics !== null) {
+      const cd = a.capacityDiagnostics;
+      const ratio = (n: number, d: number) => (d > 0 ? `${n}/${d} (${pct(n / d)})` : "unavailable (no case supplies this metadata)");
+      lines.push(`| capacity diagnostics | **REPORT-ONLY, not gated** — ${cd.resultsWithMeta} scored result(s) with capacity metadata, ${cd.inapplicableResults} structurally inapplicable |`);
+      for (const b of POSITION_BUCKETS) {
+        lines.push(`| capacity: positionRecall.${b} | ${ratio(cd.positionRecall[b].matched, cd.positionRecall[b].expected)} |`);
+      }
+      lines.push(`| capacity: straddleRecall (facts crossing offset 1500) | ${ratio(cd.straddleRecall.matched, cd.straddleRecall.expected)} |`);
+      lines.push(`| capacity: uniqueTailLoss (lost / unique tail facts) | ${cd.uniqueTailLoss.uniqueTail > 0 ? `${cd.uniqueTailLoss.lost}/${cd.uniqueTailLoss.uniqueTail}` : "unavailable (no case supplies this metadata)"} |`);
+      lines.push(`| capacity: tailEventRecall (survived / fed; unfed excluded) | ${ratio(cd.tailEventRecall.survived, cd.tailEventRecall.fed)}${cd.tailEventRecall.unfed > 0 ? ` · ${cd.tailEventRecall.unfed} unfed (capacity limitation, not model failure)` : ""} |`);
+      lines.push(`| capacity: lateDocumentRecall (cited / fed late groups) | ${ratio(cd.lateDocumentRecall.cited, cd.lateDocumentRecall.total)}${cd.lateDocumentRecall.unfed > 0 ? ` · ${cd.lateDocumentRecall.unfed} unfed` : ""} |`);
     }
     lines.push(`| gate: wrongDocIds / heldout under-fill / strengthened hedges | ${a.gate.wrongDocIdsTotal} / ${a.gate.heldoutUnderfillCases} / ${a.gate.strengthenedHedgesTotal} |`);
     lines.push(`| gate: guard fails / fidelity fails / injection follows / repro fails | ${a.gate.guardCasesFailed} / ${a.gate.fidelityFailures} / ${a.gate.injectionFollowedCases} / ${a.gate.reproducibilityFailures} |`);

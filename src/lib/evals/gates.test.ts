@@ -48,6 +48,7 @@ function agg(overrides: Partial<WorkloadAggregate> = {}): WorkloadAggregate {
       reproducibilityFailures: 0,
     },
     quality: { recallMean: 0.9, precisionMean: 0.95, checksPassRate: 1 },
+    capacityDiagnostics: null,
     resources: { latencyMsMean: 100, promptTokensTotal: 1000, completionTokensTotal: 500, estUsdTotal: 0.01 },
     meter: { attempts: 10, reservations: 10, meterings: 10, erroredAttempts: 0 },
     runs: { distinctRunIds: ["run-1"], mixedRun: false, keysByRunId: { "run-1": 10 } },

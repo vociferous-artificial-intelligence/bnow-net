@@ -16,7 +16,7 @@
 // as RESERVED (contracts.ts EvalCaseResult.graderJudgments) — never an
 // authority.
 
-import type { AnalysisEvalWorkload, EvalPartition, EvalRunScope } from "./contracts";
+import type { AnalysisEvalWorkload, EvalPartition, EvalRunScope, PositionBucket } from "./contracts";
 
 // ---- heldout coverage minima (insufficient_data below these) -----------------
 // Computed from the RESULTS (cases whose every requested repetition is
@@ -138,6 +138,21 @@ export interface WorkloadAggregate {
   /** workload-specific quality means in [0,1] over ALL results (diagnostic;
    *  the pairwise gate uses the aligned-heldout figures instead) */
   quality: Record<string, number>;
+  /** corpus-v2 capacity diagnostics summed over SCORED rows — REPORT-ONLY,
+   *  never gated (Q5 adjudication: no binding threshold before a
+   *  representative live baseline exists; promoting any of these into
+   *  QUALITY_GATE_METRICS requires a decision-log entry). null = no result
+   *  in this file carried capacity metadata. */
+  capacityDiagnostics: {
+    positionRecall: Record<PositionBucket, { matched: number; expected: number }>;
+    straddleRecall: { matched: number; expected: number };
+    uniqueTailLoss: { lost: number; uniqueTail: number };
+    tailEventRecall: { survived: number; fed: number; unfed: number };
+    lateDocumentRecall: { cited: number; total: number; unfed: number };
+    /** scored results that contributed at least one capacity figure */
+    resultsWithMeta: number;
+    inapplicableResults: number;
+  } | null;
   resources: {
     latencyMsMean: number | null;
     promptTokensTotal: number;

@@ -177,6 +177,19 @@ export interface DigestCaseChecks {
   mustNotMatchHits: string[];
   /** fixture-conditional expectations were skipped (live candidate votes) */
   candidateInvariantOnly: boolean;
+  // ---- corpus-v2 capacity diagnostics (REPORT-ONLY: never failures, never
+  // gates; undefined = the case declares no capacity metadata or the
+  // pipeline refused) ----
+  /** over capacityMeta.decisiveEvents: survived = the fed decisive event's
+   *  titlePattern matches a surviving event; unfed = its rank sits past the
+   *  applied cutoff (a capacity limitation, EXCLUDED from any ratio and
+   *  reported on its own) */
+  tailEventRecall?: { survived: number; fed: number; unfed: number };
+  /** over capacityMeta.lateClaimIds: total = distinct FED groups holding at
+   *  least one declared late claim; cited = those whose representative text a
+   *  surviving event's claims carry (the expectClaimCitingGid mechanism);
+   *  unfed = late groups past the applied cutoff (reported, not in the ratio) */
+  lateDocumentRecall?: { cited: number; total: number; unfed: number };
 }
 
 export interface ScoredDigestCase {
@@ -186,6 +199,9 @@ export interface ScoredDigestCase {
 
 interface DigestPipelineRun {
   fed: ClaimGroup[];
+  /** the FULL deterministic rank order (fed = its prefix) — capacity
+   *  diagnostics need rank positions past the cutoff */
+  ranked: ClaimGroup[];
   votesUsable: VoteEvent[][];
   failedVotes: number;
   droppedGidRefs: number;
@@ -203,7 +219,8 @@ function runDigestPipeline(evalCase: DigestEvalCase, votesRaw: string[]): Digest
   // SCI-N6 (scorer side): the same production cutoff synthesize.ts:642 applies —
   // a vote citing an unfed group's gid must be stripped here exactly as the
   // engine strips it, or >cutoff capacity cases mis-score.
-  const fed = rankGroups(groups, nowMs).slice(0, reduceGroupsFed());
+  const ranked = rankGroups(groups, nowMs);
+  const fed = ranked.slice(0, reduceGroupsFed());
   const fedGids = new Set(fed.map((g) => g.key));
   const groupByKey = new Map(fed.map((g) => [g.key, g]));
 
@@ -221,13 +238,14 @@ function runDigestPipeline(evalCase: DigestEvalCase, votesRaw: string[]): Digest
   }
   const majorityNeeded = Math.floor(votesRaw.length / 2) + 1;
   if (votesUsable.length < majorityNeeded) {
-    return { fed, votesUsable, failedVotes, droppedGidRefs, pipelineRefusal: true, events: [], guardStats: null };
+    return { fed, ranked, votesUsable, failedVotes, droppedGidRefs, pipelineRefusal: true, events: [], guardStats: null };
   }
   const merged = mergeVotes(votesUsable);
   const finalized = finalizeEvents(merged, groupByKey);
   const guarded = guardPublishedEvents(finalized);
   return {
     fed,
+    ranked,
     votesUsable,
     failedVotes,
     droppedGidRefs,
@@ -313,6 +331,45 @@ export function scoreDigestCase(
     }
   }
 
+  // corpus-v2 capacity diagnostics (report-only; skipped on refusal — a
+  // refused digest published nothing to measure recall against)
+  let tailEventRecall: DigestCaseChecks["tailEventRecall"];
+  let lateDocumentRecall: DigestCaseChecks["lateDocumentRecall"];
+  const capMeta = evalCase.capacityMeta;
+  if (capMeta !== undefined && !run.pipelineRefusal) {
+    if (capMeta.decisiveEvents !== undefined) {
+      const t = { survived: 0, fed: 0, unfed: 0 };
+      for (const ev of capMeta.decisiveEvents) {
+        if (ev.rank > run.fed.length) {
+          t.unfed++;
+          continue;
+        }
+        t.fed++;
+        const re = new RegExp(ev.titlePattern, "i");
+        if (run.events.some((e) => re.test(e.title) || re.test(e.summary))) t.survived++;
+      }
+      tailEventRecall = t;
+    }
+    if (capMeta.lateClaimIds !== undefined) {
+      const lateIds = new Set(capMeta.lateClaimIds);
+      const fedKeys = new Set(run.fed.map((g) => g.key));
+      const l = { cited: 0, total: 0, unfed: 0 };
+      for (const g of run.ranked) {
+        if (!g.memberIds.some((id) => lateIds.has(id))) continue;
+        if (!fedKeys.has(g.key)) {
+          l.unfed++;
+          continue;
+        }
+        l.total++;
+        // the expectClaimCitingGid representative-text mechanism
+        if (run.events.some((e) => e.claims.some((c) => c.text === g.text || c.text.endsWith(g.text)))) {
+          l.cited++;
+        }
+      }
+      lateDocumentRecall = l;
+    }
+  }
+
   const mustMatchMisses: string[] = [];
   const mustNotMatchHits: string[] = [];
   if (!run.pipelineRefusal) {
@@ -343,6 +400,8 @@ export function scoreDigestCase(
       mustMatchMisses,
       mustNotMatchHits,
       candidateInvariantOnly: invariantOnly,
+      ...(tailEventRecall !== undefined ? { tailEventRecall } : {}),
+      ...(lateDocumentRecall !== undefined ? { lateDocumentRecall } : {}),
     },
     serializedOutput,
   };
