@@ -339,10 +339,10 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   Postmark `BNOW.NET <no-reply@bnow.net>` is live; magic-link guidance is single-use/24h and
   copy-before-opening. PostHog is production-only, explicit opt-in, allowlist-sanitized, UUID
   identity, no Ask/Search/source text; GeoIP is retained per disclosed operator ruling.
-- **Quality/ops:** **3,508 unit tests / 241 files** green (measured 2026-08-31 on the
-  final PR #37 head `adec440` == merged `a4ed5cb`, typecheck + lint clean) + **160
-  real-Postgres integration tests / 25 files** (disposable Neon forks; every
-  incident/#97 branch ran the full suite). Historical gates: 3,329/231 + 151/21 on
+- **Quality/ops:** **3,590 unit tests / 246 files** green (measured 2026-09-04 on the
+  eval-capture branch atop `774906f`, typecheck + lint clean; 3,508/241 on the
+  2026-08-31 PR #37 head) + **160 real-Postgres integration tests / 25 files**
+  (disposable Neon forks; last full run 2026-09-03 on corpus-v2). Historical gates: 3,329/231 + 151/21 on
   the 2026-08-24 release train `e359c61`. Production DB migrated through 0027
   (2026-07-21, verified + idempotent); no strand in the 2026-08-24 release train adds a migration.
   Enforced pre-push gate = typecheck+lint+test. Crons: fast */15; telegram :01; X :02;
@@ -1818,3 +1818,54 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   production /health 200; provider accepts gpt-4o-mini + gpt-5-nano and published
   pricing matches `PRICES_PER_MTOK` exactly. Paid calls remain PROHIBITED until this
   PR is merged and the merged tree is verified identical to the reviewed tree.
+
+- **2026-09-04 (eval capture + interrupted-attempt accounting — PR 1 of the
+  methodology follow-up; offline, branch/PR only)** Operator authorized two narrowly scoped
+  eval-infrastructure PRs from the adjudication packet
+  (`bnow-net-eval-campaign-20260903-artifacts/METHODOLOGY-ADJUDICATION-2026-09-04.md`,
+  treated as reviewed evidence, not blanket authorization) and NOTHING else: no paid call,
+  campaign resumption, production write, deploy, Vercel/registry change, scorer or gate
+  relaxation, label change, corpus replacement, heldout inspection/rerun, Neon-branch change,
+  or edit to the frozen campaign worktree/artifacts. The 2026-09-03 campaign stays stopped
+  with map FAIL / digest FAIL / validation insufficient_data, ledger ≈ $0.1518, and its two
+  abandoned votes accounted separately (they are NOT backfilled into any file).
+  Shipped on `claude/eval-capture-accounting-20260904` from `origin/main` `774906f`:
+  (1) `src/lib/evals/capture.ts` — opt-in (`EVAL_CAPTURE_DIR`), live-only, fs-injected
+  per-attempt JSONL capture: run identity (config/dataset/envKnobs/scorer source hash/git
+  HEAD), case/repetition/vote/attempt identity, requested vs returned model, response id,
+  finish/refusal/truncation, usage, est USD, raw sha256; raw content separately opt-in
+  (`EVAL_CAPTURE_RAW=1`, development only) and heldout raw a third, explicitly acknowledged
+  opt-in (`EVAL_CAPTURE_RAW_HELDOUT=1` + `--allow-heldout-raw-capture`, header-stamped);
+  separate dev/heldout files; calibration reader refuses heldout by name, declared split
+  and line; dir must be gitignored or outside the repo, 0700/0600, credential shapes and
+  exact secrets redacted. (2) `dispatchOnce` threads a case context; `attempt_start` before
+  dispatch, `attempt_end` AFTER `guard.record` (ruling 8, order test-pinned), `budget_stop`
+  on refusal; a capture write failure aborts (before dispatch on start, after metering on
+  end, evidence retained). (3) `runLiveSweep` (moved out of the CLI): a budget stop or
+  capture failure mid-case records an `abandonedAttempts` entry (reason/code/responses
+  received/meter delta/tokens/USD) folded into the file meter with NO result key — resume
+  re-lists the case and never reruns completed keys; `provider_error` rows carry
+  `partialUsage`; `captureRuns[]` is stamped incomplete before the first dispatch and
+  complete (with file hashes) only on a normal finish. (4) `--capture-reconcile` and
+  `--capture-inspect` CLI modes (no DB/provider). **No atomicity is claimed** between
+  provider billing, ledger metering and capture: an `attempt_start` without `attempt_end`
+  is reported `unresolved`, and capture line count is documented as NOT equal to
+  `provider_usage.requests`. Historical results files keep their exact shape (round-trip
+  byte-identical test on a committed file; campaign-shaped header test) and are never
+  backfilled. Production isolation unchanged (isolation.test.ts). Gates on the branch:
+  typecheck/lint clean · unit 3,590/3,590 (246 files; base `774906f` measured 3,552/244;
+  +38 tests: capture.test.ts, live-sweep.test.ts, 3 CLI subprocess pins). Independent
+  adversarial review round 1 (MERGEABLE-WITH-FIXES) found 3 required + 5 recommended
+  items — the documented default capture dir was refused before it existed (directory
+  ignore pattern; now probed with a trailing slash), reconciliation dispositions were not
+  runId-scoped (now completed/abandoned/superseded/orphan per run), and sink-open refusals
+  fired after the guard's DB init (sink now opens first) — all eight remediated and
+  pinned (+3 tests → 3,593/246). Round 2 confirmed all eight FIXED (reviewer re-ran the
+  full suite 3,593/3,593) → MERGEABLE; its three hygiene notes (inspect view shows the
+  `refused` flag; `results/*.tmp-*` gitignored; count corrected) folded in before merge. Report:
+  `docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md`. Methodology boundaries honoured
+  as instructed: no global `required=true` gate, no "increased"/"active" relabel
+  (OPEN-TASKS #105 records it as needing semantic adjudication), no blanket
+  `expectation=fail` exclusion, injection failures retained as an unresolved safety
+  finding (#106), not a scorer defect and not a production incident.
+

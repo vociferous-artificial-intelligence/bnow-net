@@ -44,6 +44,9 @@ repo-owned files + deterministic code.
   scored through the real pipeline functions (a machinery proof, NOT a model
   evaluation).
 - `results/live-*` — live candidate results. GITIGNORED; never committed.
+- `capture/` — the default location for the opt-in live capture
+  (`EVAL_CAPTURE_DIR`; see "Capture and attempt accounting"). GITIGNORED;
+  never committed; access-restricted local operator evidence.
 - `BASELINE-OFFLINE-2026-08-17.md` (+ `.json`) — the committed sample report
   built by `--report` from the offline results.
 - **Conflict-plane artifacts (2026-08-24 landing; NOT strays — do not delete or
@@ -224,6 +227,82 @@ so dev iteration cannot inflate the gated metric).
 (`--show-heldout-detail` reveals it for operator calibration) so the default
 report output cannot become a heldout iteration channel.
 
+### Interrupted attempts (2026-09-04 accounting)
+
+A live run persists after every completed case. Before 2026-09-04, a budget
+stop or crash mid-case (e.g. after two of a digest case's five votes) left
+those physical attempts in the `openai_eval` ledger but NOWHERE in the results
+file — the 2026-09-03 campaign's two abandoned votes are exactly that (the
+frozen file's meter reads 240 while the ledger reads 242 for those days).
+Now `runLiveSweep` (`src/lib/evals/live-runner.ts`) records every interrupted
+(case, repetition) as an `abandonedAttempts` entry — reason (`budget_stop` /
+`capture_write_failure`), reserve code, responses received, the attempt
+meter delta, tokens and USD — and folds the delta into the file `meter`, so
+`meter.attempts == Σ results[*].attempt + Σ abandonedAttempts[*].meter.attempts`
+on every file written by this runner. NO result key is invented: the case is
+pending again on resume and completed keys are never rerun. A
+`provider_error` row now also carries `partialUsage` (what the case metered
+before it errored). Historical files are never rewritten or backfilled: the
+optional fields are absent there, and `--capture-reconcile` says so
+explicitly instead of inferring anything.
+
+## Capture and attempt accounting (opt-in, live only)
+
+`EVAL_CAPTURE_DIR=<dir>` on an `--execute-live` invocation writes one JSONL
+line per PHYSICAL provider attempt to `<dir>/<runId>.dev.jsonl` and, for
+heldout cases, `<dir>/<runId>.heldout.jsonl` (`src/lib/evals/capture.ts`).
+Every other mode ignores the env with a printed notice and touches no file.
+Absent env ⇒ byte-identical runner behaviour (test-pinned: zero fs calls).
+
+- **Lines.** A `run` line first (run/config/dataset identity, envKnobs, the
+  scorer module + sha256 of its SOURCE at run time, git HEAD, this file's
+  split and whether it may hold raw). Per attempt: `attempt_start` (case,
+  repetition, vote index/count, attempt index 0/1 for the 429 retry, run-wide
+  `attemptSeq`, requested model) BEFORE dispatch, then `attempt_end`
+  (outcome response|error, returned model, response id, system fingerprint,
+  finish reason, refusal, truncated, usage, est USD, `metered`, sha256 +
+  byte length of the raw content, the raw content only when authorized,
+  sanitized error) AFTER the response was metered. Reservation refusals are
+  `budget_stop` lines (no attempt). The sweep ends with `run_end`.
+- **Raw content is a separate opt-in:** `EVAL_CAPTURE_RAW=1` stores raw
+  response content for DEVELOPMENT cases only. Heldout raw is a third,
+  separately acknowledged opt-in — `EVAL_CAPTURE_RAW_HELDOUT=1` AND the
+  explicit `--allow-heldout-raw-capture` flag — stamped into the results
+  header (`captureRuns[].rawHeldout`). Without it, heldout lines carry the
+  full accounting metadata (and the sha256) with `raw: null`, so
+  reconciliation never depends on raw capture. Flag values must be exactly
+  `1`; every misconfiguration refuses before any client or DB work.
+- **Local, restricted, secret-free.** The directory must be outside the repo
+  or gitignored (refused otherwise), is created 0700 and refused if
+  group/other-accessible; files are 0600; the sink redacts the API key and
+  DB URL strings plus common credential shapes from every message. Retention
+  = campaign-artifact retention (operator-deleted). Datasets are synthetic by
+  contract, so no production source text is ever captured.
+- **Fail-closed.** A capture write failure aborts the run (`CaptureWriteError`)
+  — but only after the attempt's metering (ruling 8 ordering is test-pinned),
+  and the interrupted case is recorded as abandoned with the evidence of the
+  calls already made. A failure on `attempt_start` aborts BEFORE dispatch.
+- **No atomicity is claimed.** Provider billing, `provider_usage` metering and
+  the capture line are sequential. A crash between them leaves an
+  `attempt_start` without an `attempt_end`: reconciliation classifies it
+  `unresolved` — the provider may have billed it and the ledger may or may
+  not hold it. `count(capture lines) == provider_usage.requests` is NOT an
+  invariant (errored attempts are unbilled/unmetered; unresolved ones are
+  unknown; the ledger is per UTC day, capture per run).
+- **Results header.** `captureRuns[]` records dir, raw flags, file names,
+  line counts and — ONLY when the sweep finished normally — `state:
+  "complete"` with each file's sha256; an aborted/interrupted run stays
+  `incomplete` forever. The record is stamped `incomplete` before the first
+  dispatch so a crash cannot hide that capture was on.
+- **Tools.** `--capture-reconcile --workload X --model M [--effort E]
+  [--capacity P] [--out p.md]` reconciles reservations, attempts, responses,
+  errors, unresolved, metered, budget stops and per-case dispositions
+  (completed / provider_error / abandoned / orphan) against the results
+  file, prints every discrepancy and never resolves one automatically; it
+  reads both splits' metadata and renders no raw. `--capture-inspect
+  <file> [--show-raw]` is the calibration entry point and REFUSES heldout
+  input by file name, by declared split, and by any heldout-split line.
+
 Note on fixture vote counts: the dataset validator requires a non-empty
 `offline.votes` array but pins no K — `dig-typ-003-gid-fill` deliberately
 uses 4 votes to construct its median-loss shape. LIVE digest evaluation
@@ -253,6 +332,9 @@ test-pinned with a sentinel in `runner.test.ts`.
   heldout case fails a future candidate run, do not tune against it: retire
   it to development in the NEXT dataset version and mint a genuinely new
   heldout case.
+- Capture: heldout raw output is default-off and separately acknowledged;
+  heldout capture lives in its own file; calibration/inspection tooling
+  refuses it (see "Capture and attempt accounting").
 
 ## Adding a case
 

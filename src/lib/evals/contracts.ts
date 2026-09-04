@@ -506,6 +506,62 @@ export interface EvalCaseResult {
     actual: Record<string, number>;
     reason: string;
   };
+  /** status "provider_error" only (2026-09-04 accounting): usage the case
+   *  DID meter before the error (e.g. the successful votes of a digest case
+   *  whose later vote errored). The row's promptTokens/completionTokens/
+   *  estUsd stay null as they always were — this is the separate account of
+   *  spend that produced no scored output. Absent on historical rows. */
+  partialUsage?: {
+    responsesReceived: number;
+    promptTokens: number;
+    completionTokens: number;
+    estUsd: number;
+  };
+}
+
+/** One interrupted (case, repetition) attempt sequence that never produced a
+ *  result key (2026-09-04 accounting). A budget stop or a capture-write
+ *  failure mid-case leaves the earlier physical attempts billed and metered
+ *  but without a result row; this record keeps that history durable so the
+ *  results meter reconciles to the ledger, WITHOUT inventing a completed key
+ *  (the case is pending again on resume) and without rerunning completed
+ *  keys. Appended, never rewritten; absent on historical files (their
+ *  interrupted attempts were never recorded — reconciliation says so). */
+export interface AbandonedAttemptRecord {
+  runId: string;
+  caseId: string;
+  repetition: number;
+  split: EvalSplit;
+  reason: "budget_stop" | "capture_write_failure";
+  /** SpendGuard ReserveCode for budget stops; null otherwise */
+  code: string | null;
+  /** secret-safe message */
+  message: string;
+  at: string;
+  /** physical attempts that RECEIVED a response (each metered before anything else — ruling 8) */
+  responsesReceived: number;
+  /** digest: K; single-dispatch workloads: 1 */
+  voteCount: number | null;
+  meter: { attempts: number; reservations: number; meterings: number; erroredAttempts: number };
+  promptTokens: number;
+  completionTokens: number;
+  estUsd: number;
+}
+
+/** The results-header record of one opt-in capture run (capture.ts). State
+ *  "complete" is stamped ONLY when the sweep finished normally and every
+ *  capture file was hashed; a resumed/aborted/interrupted run stays
+ *  "incomplete" forever (§4 identity rule). */
+export interface CaptureRunRecord {
+  runId: string;
+  dir: string;
+  rawDevelopment: boolean;
+  rawHeldout: boolean;
+  files: { development: string | null; heldout: string | null };
+  state: "incomplete" | "complete";
+  sha256: { development: string | null; heldout: string | null } | null;
+  lines: { development: number; heldout: number } | null;
+  note: string | null;
 }
 
 // ============================================================================
@@ -566,6 +622,15 @@ export interface EvalResultsFile {
   meter: { attempts: number; reservations: number; meterings: number; erroredAttempts: number };
   /** keyed `${caseId}#r${repetition}` */
   results: Record<string, EvalCaseResult>;
+  /** 2026-09-04 accounting: interrupted attempt sequences with no result key
+   *  (their meter deltas ARE folded into `meter`, so Σ results.attempt +
+   *  Σ abandonedAttempts.meter.attempts == meter.attempts on files written by
+   *  this or a later runner). Absent on historical files: never backfilled. */
+  abandonedAttempts?: AbandonedAttemptRecord[];
+  /** 2026-09-04 capture: one record per run that had capture enabled.
+   *  Absent when capture was never on. Upserted by runId, never rewritten
+   *  for other runs. */
+  captureRuns?: CaptureRunRecord[];
 }
 
 export function resultKey(caseId: string, repetition: number): string {

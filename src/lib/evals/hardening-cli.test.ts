@@ -5,7 +5,7 @@
 // branches are exercised) and the --fresh acknowledgement refusal (C-A7-2),
 // asserted to refuse BEFORE any byte of the committed results is touched.
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -57,5 +57,96 @@ describe("C-A7-2: --fresh requires an explicit discard acknowledgement", () => {
     expect(r.status).toBe(2);
     expect(r.stderr).toMatch(/acknowledge explicitly with: --fresh-ack validation\/offline-fixtures/);
     expect(readFileSync(path, "utf8")).toBe(before); // untouched
+  }, 120_000);
+});
+
+describe("2026-09-04 capture: live-only, refuses before any client/DB work, heldout inspection refused", () => {
+  const SCRATCH = join(process.cwd(), "docs", "evals", "analysis", "capture", "hardening-cli-probe");
+
+  it("a non-live mode with EVAL_CAPTURE_DIR set prints the notice and creates NOTHING", () => {
+    const r = runCli(["--estimate", "--workload", "validation", "--repetitions", "1"]);
+    // runCli's env is BLANKED_ENV; add the capture dir for this probe only
+    const probe = spawnSync(TSX_BIN, [CLI, "--estimate", "--workload", "validation", "--repetitions", "1"], {
+      env: { ...BLANKED_ENV, EVAL_CAPTURE_DIR: SCRATCH },
+      encoding: "utf8",
+      timeout: 120_000,
+    });
+    expect(r.status).toBe(0);
+    expect(probe.status).toBe(0);
+    expect(probe.stdout).toMatch(/only --execute-live dispatches — ignored/);
+    expect(existsSync(SCRATCH)).toBe(false);
+  }, 120_000);
+
+  it("--execute-live with an un-ignored in-repo EVAL_CAPTURE_DIR refuses AFTER preflight but BEFORE any client construction or DB use (exit 2, no results file)", () => {
+    const resultsPath = "docs/evals/analysis/results/live-validation-v2-gpt-4o-mini.json";
+    const existed = existsSync(resultsPath);
+    const r = spawnSync(
+      TSX_BIN,
+      [CLI, "--execute-live", "--workload", "validation", "--model", "gpt-4o-mini", "--db-ack", "eval-probe.invalid", "--repetitions", "3"],
+      {
+        env: {
+          ...BLANKED_ENV,
+          LLM_DISABLE: "",
+          OPENAI_API_KEY: "sk-probe-not-a-real-key",
+          EVAL_DATABASE_URL: "postgres://probe:probe@eval-probe.invalid/db",
+          LLM_SPRINT_USD_CAP: "1",
+          EVAL_USD_CAP_DAILY: "1",
+          EVAL_CAPTURE_DIR: join(process.cwd(), "docs", "evals", "analysis", "results"),
+        },
+        encoding: "utf8",
+        timeout: 120_000,
+      },
+    );
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/REFUSED \(capture\).*NOT gitignored/);
+    expect(r.stderr).not.toMatch(/ECONNREFUSED|ENOTFOUND|getaddrinfo/); // never reached the DB
+    expect(existsSync(resultsPath)).toBe(existed); // nothing written
+  }, 120_000);
+
+  it("the DEFAULT capture dir passes the gitignore check BEFORE it exists, and the sink opens before any DB/client work (review F1/F3)", () => {
+    const dir = join(process.cwd(), "docs", "evals", "analysis", "capture", `f1-probe-${process.pid}`);
+    expect(existsSync(dir)).toBe(false);
+    const r = spawnSync(
+      TSX_BIN,
+      [CLI, "--execute-live", "--workload", "validation", "--model", "gpt-4o-mini", "--db-ack", "eval-probe.invalid", "--repetitions", "3"],
+      {
+        env: {
+          ...BLANKED_ENV,
+          LLM_DISABLE: "",
+          OPENAI_API_KEY: "sk-probe-not-a-real-key",
+          EVAL_DATABASE_URL: "postgres://probe:probe@eval-probe.invalid/db",
+          LLM_SPRINT_USD_CAP: "1",
+          EVAL_USD_CAP_DAILY: "1",
+          EVAL_CAPTURE_DIR: dir,
+        },
+        encoding: "utf8",
+        timeout: 120_000,
+      },
+    );
+    try {
+      expect(r.stderr).not.toMatch(/REFUSED \(capture\)/); // the not-yet-existing default dir is accepted
+      expect(r.stdout).toMatch(/capture: .*f1-probe/); // the sink opened (dir created) ...
+      expect(existsSync(dir)).toBe(true);
+      expect(r.status).not.toBe(0); // ... and the run then failed at the guard's DB init against the unroutable host — no dispatch
+      expect(readdirSync(dir)).toEqual([]); // nothing dispatched: no attempt line, no file
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 120_000);
+
+  it("--capture-inspect refuses a heldout capture file by name (exit 2)", () => {
+    const dir = join(process.cwd(), "docs", "evals", "analysis", "capture");
+    const dirExisted = existsSync(dir);
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const held = join(dir, "probe.heldout.jsonl");
+    writeFileSync(held, "", { mode: 0o600 });
+    try {
+      const r = runCli(["--capture-inspect", held]);
+      expect(r.status).toBe(2);
+      expect(r.stderr).toMatch(/heldout input refused/);
+    } finally {
+      rmSync(held, { force: true });
+      if (!dirExisted) rmSync(dir, { recursive: true, force: true });
+    }
   }, 120_000);
 });

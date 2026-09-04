@@ -28,3 +28,8 @@ data/*.json
 # offline fixture results (no live- prefix) ARE committed as the sample
 # baseline report inputs.
 docs/evals/analysis/results/live-*
+# temp+rename write of any results file: a kill mid-write leaves this, never a torn file
+docs/evals/analysis/results/*.tmp-*
+# Analysis-eval opt-in capture (EVAL_CAPTURE_DIR default location): local
+# operator evidence — per-attempt accounting and optional raw output. Never committed.
+docs/evals/analysis/capture/

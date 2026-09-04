@@ -54,10 +54,12 @@ import type { ClaimForValidation } from "../validation/score";
 import {
   POSITION_BUCKETS,
   resultKey,
+  type AbandonedAttemptRecord,
   type AnalysisEvalCase,
   type AnalysisEvalDataset,
   type AnalysisEvalWorkload,
   type CandidateDispatchIdentity,
+  type CaptureRunRecord,
   type DigestEvalCase,
   type DigestEvalInput,
   type EvalCaseResult,
@@ -75,6 +77,27 @@ import { classifyCaseApplicability } from "./applicability";
 // re-exported so the CLI's static eval-import surface stays contracts+runner
 // (isolation.test.ts pins that surface)
 export { classifyCaseApplicability, type CaseApplicability } from "./applicability";
+// Capture API re-exported for the CLI (same static-surface reason). capture.ts
+// is I/O-free (every fs primitive is injected), so this keeps runner pure.
+export {
+  CaptureConfigError,
+  CaptureHeldoutRefusal,
+  CaptureWriteError,
+  captureFileName,
+  openCaptureForCalibration,
+  openCaptureSink,
+  parseCaptureFile,
+  reconcileCapture,
+  renderCaptureReconciliation,
+  resolveCaptureConfig,
+  sanitizeMessage,
+  type CaptureConfig,
+  type CaptureFs,
+  type CaptureReconciliation,
+  type CaptureResolution,
+  type CaptureSink,
+  type ParsedCaptureFile,
+} from "./capture";
 import {
   computeScorecardVerdict,
   type AlignedComparison,
@@ -442,15 +465,27 @@ export interface MeterDelta {
 
 export const ZERO_METER: MeterDelta = { attempts: 0, reservations: 0, meterings: 0, erroredAttempts: 0 };
 
+/** 2026-09-04 accounting extras a merge may carry: interrupted-attempt
+ *  records (appended) and the capture-run record (upserted by runId). */
+export interface MergeExtras {
+  abandoned?: AbandonedAttemptRecord[];
+  captureRun?: CaptureRunRecord;
+}
+
 /** Merge results into an existing file. THROWS on any identity drift
  *  (MAJOR-3) — the existing header is preserved verbatim (never restamped
- *  with the current run's values); only scope may evolve per mergedScope. */
+ *  with the current run's values); only scope may evolve per mergedScope.
+ *  Historical compatibility: the optional `abandonedAttempts` / `captureRuns`
+ *  arrays are carried through untouched when present and NEVER materialized
+ *  on a file that lacks them unless this merge actually adds an entry — an
+ *  old file re-saved by a new runner keeps its exact shape. */
 export function mergeEvalResults(
   existing: EvalResultsFile | null,
   header: ResultsFileHeader,
   additions: EvalCaseResult[],
   meterDelta: MeterDelta,
   now: Date = new Date(),
+  extras: MergeExtras = {},
 ): EvalResultsFile {
   if (existing !== null) {
     const mismatch = resumeIdentityMismatch(existing, header);
@@ -464,7 +499,7 @@ export function mergeEvalResults(
   for (const a of additions) results[resultKey(a.caseId, a.repetition)] = a;
   const prior = existing?.meter ?? ZERO_METER;
   const base: ResultsFileHeader = existing ?? header;
-  return {
+  const merged: EvalResultsFile = {
     ...base,
     scope: mergedScope(existing?.scope ?? null, header.scope),
     updatedAt: now.toISOString(),
@@ -476,6 +511,14 @@ export function mergeEvalResults(
     },
     results,
   };
+  if (extras.abandoned && extras.abandoned.length > 0) {
+    merged.abandonedAttempts = [...(existing?.abandonedAttempts ?? []), ...extras.abandoned];
+  }
+  if (extras.captureRun) {
+    const others = (existing?.captureRuns ?? []).filter((c) => c.runId !== extras.captureRun!.runId);
+    merged.captureRuns = [...others, extras.captureRun];
+  }
+  return merged;
 }
 
 export interface PendingWorkItem {

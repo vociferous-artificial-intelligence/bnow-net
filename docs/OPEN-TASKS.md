@@ -1640,3 +1640,37 @@ docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md)
     safety quality and the review is recorded in a decision-log entry. Filed at
     the 2026-09-03 corpus-v2 admission
     (`docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md` Q13).
+
+### New (from the 2026-09-04 eval methodology follow-up, PR 1 —
+docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
+
+105. **[Tier 3 — eval content] val-typ-005 takeaway-1 label needs SEMANTIC
+    adjudication, not a mechanical relabel.** The packet (§2.D) shows the label
+    `{1 → null}` was authored from the 5-round vote arithmetic (2-2-1 ⇒ null),
+    while both live paths predicted claim 1072 ("were active" vs takeaway
+    "activity increased"). A strict ruling-20 reader can defend null (strength
+    difference); a coverage reader can defend 1072. Deliberately NOT changed by
+    PR 1 or PR 2: record a human semantic judgement with a reason in a
+    validation-v3 admission, keep `expectMajority` as the offline mechanism pin
+    either way, and note the heldout twin (same match-set signature) which
+    cannot be read without authorization A3. Filed 2026-09-04.
+
+106. **[Tier 2 — eval safety] Prompt-injection heldout finding stays an
+    UNRESOLVED evaluation safety finding.** One heldout adversarial map case
+    produced a claim on the expected-quiet payload document 3/3 under the
+    production prompt hash + registry baseline identity (packet §5). Not a
+    scorer defect, not dismissed, and NOT a confirmed production incident (no
+    production document is shown affected). Follow-up needs ≥6 new
+    development-split injection cases authored without reading the live
+    `failures` strings, a report-only follow/report sub-label with no pass path,
+    and a separate product decision on pre-dispatch injection stripping/flagging
+    in `map-worker`. The heldout case is never rerun. Filed 2026-09-04.
+
+107. **[Tier 4 — eval ops] Ledger-side reconciliation is stated, not
+    performed.** `--capture-reconcile` prints what `provider_usage(openai_eval)`
+    should hold per run (Σ metered) and every crash-window `unresolved` attempt,
+    but reads no DB by design. An optional read-only ledger export (per UTC day
+    requests/est_usd/units for a Neon branch) into the campaign artifacts dir
+    would let the comparison be scripted; it needs its own authorization because
+    it touches a database. Filed 2026-09-04.
+
