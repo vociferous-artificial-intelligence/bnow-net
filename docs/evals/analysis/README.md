@@ -309,6 +309,51 @@ uses 4 votes to construct its median-loss shape. LIVE digest evaluation
 always dispatches the shipped K=5 (ruling 18) and the runner REFUSES a live
 digest run when `REDUCE_VOTES` resolves to anything else.
 
+### Validation vote parity (2026-09-04)
+
+Production matches takeaways with a FIVE-round majority vote
+(`MATCH_VOTES_DEFAULT` in `src/lib/validation/llm-match.ts`; `resolveVoteRounds`:
+≥3 usable rounds → strict majority via `majorityFromVotes`, 1–2 usable →
+the first round, 0 → none). Before 2026-09-04 the live validation eval
+dispatched ONE round and scored it — a different, un-labelled configuration;
+the 2026-09-03 baseline file `live-validation-v2-gpt-4o-mini.json` is such
+a single-round file and stays exactly as recorded (it is never opened,
+resumed, reinterpreted or overwritten by the new runner; `--report` labels
+it **LEGACY SINGLE-ROUND — NOT production-equivalent**).
+
+- **Default = production-equivalent.** A live validation case dispatches 5
+  vote rounds (sequentially, one reservation per physical attempt;
+  production fires them concurrently — the resolution rule is byte-identical
+  because both call `resolveVoteRounds`), parses and sanitizes each exactly
+  as production does, drops unusable votes exactly as production drops
+  failed votes, and scores the resolved match set against
+  `reference.labels`. Every row records `votes {requested, usable, mode,
+  matcher, perTakeaway}` (claimIds per round only — never text).
+- **Identity.** The vote count is stamped in `envKnobs.validationVotes` AND
+  in the configKey suffix (`gpt-4o-mini+votes5`), so the results path
+  differs from every pre-parity file; a resume whose vote count differs is
+  REFUSED (a legacy file without the field compares as 1). The knob is
+  compared for the validation workload only. The scorecard prints a
+  `Vote mode:` line for every validation file.
+- **Single-round diagnostic.** `--validation-votes 1` is the ONLY other
+  value and requires the explicit `--single-round-diagnostic` flag on
+  `--execute-live`; it writes `+votes1` files, records `mode:
+  "single-round-diagnostic"`, and is labelled NOT production-equivalent in
+  the banner, the header and the scorecard. No other vote count exists;
+  `--validation-votes 3` is refused. A stray production `MATCH_VOTES` /
+  `MATCHER_MODE=single` in the shell refuses a live validation run rather
+  than record an ambiguous identity.
+- **Accounting.** `--estimate` counts 5 calls (and 5× tokens) per validation
+  case (validation-v2: 85 calls per repetition, was 17). A budget stop
+  mid-case records the completed votes as `abandonedAttempts` (voteCount 5)
+  with no result key, exactly as for digest.
+- **Labels vs mechanism.** `reference.labels` is the semantic truth the LIVE
+  match set is judged against; `input.voteRounds` + `expectMajority` are the
+  OFFLINE machinery pin on the fixture arithmetic. Neither reads the other.
+  No label was changed by this work: val-typ-005's takeaway-1 label
+  ("increased" vs "were active") is recorded as needing semantic
+  adjudication (OPEN-TASKS #105), not relabelled.
+
 ## Leakage prevention
 
 The candidate prompt builders (`src/lib/evals/runner.ts buildCandidatePrompt`)

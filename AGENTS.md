@@ -1869,3 +1869,35 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   `expectation=fail` exclusion, injection failures retained as an unresolved safety
   finding (#106), not a scorer defect and not a production incident.
 
+- **2026-09-04 (validation evaluation parity — PR 2 of the methodology follow-up; offline,
+  branch/PR only)** Second authorized PR (same envelope and prohibitions as PR 1; campaign,
+  production, registry, scorers, gates, labels, corpus, heldout untouched; zero paid calls).
+  Defect: the live validation eval dispatched ONE match round while production uses the
+  five-vote majority (`MATCH_VOTES` default 5, `majorityFromVotes`). Shipped on
+  `claude/eval-validation-parity-20260904` atop PR 1: (1) `src/lib/validation/llm-match.ts`
+  exports `MATCH_VOTES_DEFAULT` and the extracted pure `resolveVoteRounds` (≥3 usable →
+  majority, 1–2 → first round, 0 → null); production's `llmMatchTakeaways` now calls it —
+  behaviour byte-identical (its guard tests unchanged). (2) The live validation case
+  dispatches K=5 rounds by default (sequential, one reservation each; production is
+  concurrent, same resolution), parses/sanitizes each as production does, applies
+  `resolveVoteRounds`, scores the result against `reference.labels`, and records
+  `votes {requested, usable, mode, matcher, perTakeaway}` per row. (3) Identity: new knob
+  `envKnobs.validationVotes` (set ONLY by the CLI from `--validation-votes`, default 5,
+  overriding any shell export) plus a `+votes5`/`+votes1` configKey suffix on every live
+  validation file, so no post-parity file shares a path with the pre-parity single-round
+  file `live-validation-v2-gpt-4o-mini.json` (never opened, resumed, reinterpreted or
+  overwritten; the scorecard labels it LEGACY SINGLE-ROUND — NOT production-equivalent);
+  `resumeIdentityMismatch` compares the knob for the validation workload only (a legacy
+  file compares as 1 → a 5-vote resume is REFUSED; map/digest files never compare it).
+  (4) `--validation-votes 1` = the explicitly supported single-round DIAGNOSTIC, refused
+  in preflight without `--single-round-diagnostic`, labelled non-production-equivalent in
+  banner/header/scorecard; every other value refused; a stray `MATCH_VOTES`/`MATCHER_MODE`
+  override refuses a live validation run. (5) Estimates count K calls/tokens per case
+  (validation-v2: 85 vs 17 per repetition); budget-stop accounting inherits PR 1's
+  abandoned-attempt record (voteCount 5). (6) Semantic labels stay separate from the
+  deterministic `voteRounds`/`expectMajority` fixture pins; test-pinned that neither reads
+  the other and that val-typ-005's committed labels are unchanged (#105 owns any relabel).
+  Gates: typecheck/lint clean · unit 3,608/3,608 (247 files; +15 tests: validation-parity
+  .test.ts 12 + 3 CLI subprocess pins). Report:
+  `docs/reviews/EVAL-VALIDATION-PARITY-2026-09-04.md`.
+

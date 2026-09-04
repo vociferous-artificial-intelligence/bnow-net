@@ -326,7 +326,8 @@ describe("runLiveSweep accounting", () => {
     expect(Object.keys(out.rf)).not.toContain("captureRuns");
     expect(Object.keys(out.rf)).not.toContain("abandonedAttempts");
     expect(out.rf.results["val-a#r0"].status).toBe("scored");
-    expect(out.rf.meter).toEqual({ attempts: 1, reservations: 1, meterings: 1, erroredAttempts: 0 });
+    // validation parity: 5 vote rounds per case
+    expect(out.rf.meter).toEqual({ attempts: 5, reservations: 5, meterings: 5, erroredAttempts: 0 });
   });
 
   it("cap stop during a multi-vote digest case: the two completed votes are accounted as abandoned (meter, tokens, USD), NO result key is invented, the budget_stop line names vote 2/5, and the capture run ends 'incomplete'", async () => {
@@ -365,9 +366,9 @@ describe("runLiveSweep accounting", () => {
   it("interrupted-run recovery: a resumed sweep completes the abandoned case under a new runId, keeps the abandoned history, and never reruns completed keys", async () => {
     const ds = dataset([valCase("val-a"), valCase("val-b")], "validation");
     const header = headerFor(ds, VAL_CFG);
-    // run 1: val-a completes, val-b hits the cap before any attempt
+    // run 1: val-a completes (5 votes), val-b hits the cap before any attempt
     const m1 = memFs();
-    const d1 = await mkDeps(vi.fn(async () => completion(VAL_RAW)), { capture: openCaptureSink(CAP_CFG, runHeader(header, "live-1"), m1.fs), runRequestCap: 1 });
+    const d1 = await mkDeps(vi.fn(async () => completion(VAL_RAW)), { capture: openCaptureSink(CAP_CFG, runHeader(header, "live-1"), m1.fs), runRequestCap: 5 });
     const run1 = await runLiveSweep({ deps: d1, cfg: VAL_CFG, dataset: ds, header, existing: null, work: [{ evalCase: ds.cases[0], repetition: 0 }, { evalCase: ds.cases[1], repetition: 0 }], runId: "live-1", knobs: currentEnvKnobs(), ...io });
     expect(run1.status).toBe("aborted");
     expect(Object.keys(run1.rf.results)).toEqual(["val-a#r0"]);
@@ -381,11 +382,11 @@ describe("runLiveSweep accounting", () => {
     const d2 = await mkDeps(create2, { capture: openCaptureSink(CAP_CFG, runHeader(header, "live-2"), m2.fs) });
     const run2 = await runLiveSweep({ deps: d2, cfg: VAL_CFG, dataset: ds, header, existing: run1.rf, work: pending.work, runId: "live-2", knobs: currentEnvKnobs(), ...io });
     expect(run2.status).toBe("complete");
-    expect(create2).toHaveBeenCalledTimes(1); // val-a NOT rerun
+    expect(create2).toHaveBeenCalledTimes(5); // val-b's 5 votes; val-a NOT rerun
     expect(Object.keys(run2.rf.results).sort()).toEqual(["val-a#r0", "val-b#r0"]);
     expect(run2.rf.results["val-b#r0"].runId).toBe("live-2");
     expect(run2.rf.abandonedAttempts).toHaveLength(1); // history retained
-    expect(run2.rf.meter).toEqual({ attempts: 2, reservations: 2, meterings: 2, erroredAttempts: 0 });
+    expect(run2.rf.meter).toEqual({ attempts: 10, reservations: 10, meterings: 10, erroredAttempts: 0 });
     expect(run2.rf.captureRuns!.map((c) => [c.runId, c.state])).toEqual([["live-1", "incomplete"], ["live-2", "complete"]]);
     expect(run2.rf.captureRuns![1].sha256?.development).toMatch(/^[0-9a-f]{64}$/);
     expect(run2.captureRun?.files).toEqual({ development: "live-2.dev.jsonl", heldout: null });

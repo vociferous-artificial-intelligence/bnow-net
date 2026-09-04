@@ -159,6 +159,31 @@ export function sanitizeMatches(
 /** Majority aggregation over k vote rounds (pure, unit-tested). A takeaway
  *  matches a claim only when MORE THAN HALF of the rounds vote for that same
  *  claimId; anything else (splits, null-majorities) resolves to no-match. */
+/** The production matcher's default vote count (MATCH_VOTES unset). The
+ *  analysis-eval control plane dispatches EXACTLY this many rounds by default
+ *  so a live validation evaluation measures the shipped configuration. */
+export const MATCH_VOTES_DEFAULT = 5;
+
+/** Production's resolution of the USABLE vote rounds into a match outcome:
+ *  >=3 usable rounds -> strict-majority vote (majorityFromVotes); 1-2 usable
+ *  rounds -> degrade honestly to the first round ("llm", single-shot
+ *  semantics); 0 -> null (caller falls back to keywords). Extracted pure so
+ *  the analysis-eval control plane applies EXACTLY this rule to candidate
+ *  vote outputs — production behaviour unchanged. */
+export function resolveVoteRounds(
+  rounds: LlmMatch[][],
+  nTakeaways: number,
+): { matches: LlmMatch[]; matcher: "llm-majority" | "llm"; votes?: TakeawayVotes[]; voteRounds: number } | null {
+  if (rounds.length >= 3) {
+    const { matches, votes } = majorityFromVotes(rounds, nTakeaways);
+    return { matches, matcher: "llm-majority", votes, voteRounds: rounds.length };
+  }
+  if (rounds.length >= 1) {
+    return { matches: rounds[0], matcher: "llm", voteRounds: rounds.length };
+  }
+  return null;
+}
+
 export function majorityFromVotes(
   voteRounds: LlmMatch[][],
   nTakeaways: number,
@@ -244,7 +269,7 @@ export async function llmMatchTakeaways(
   }
   const client = analysisOpenAiClient();
   const identity = dispatchIdentity(dispatch);
-  const k = Math.max(1, envNum("MATCH_VOTES", 5));
+  const k = Math.max(1, envNum("MATCH_VOTES", MATCH_VOTES_DEFAULT));
 
   // Release hardening 2026-08-17: EVERY validation dispatch — single-shot
   // included — now reserves before the billed call and records after it. The
@@ -277,14 +302,8 @@ export async function llmMatchTakeaways(
     }
     // majority needs at least 3 usable rounds; below that, degrade to the
     // best we have (1-2 rounds -> effectively single-shot, honestly labeled)
-    if (rounds.length >= 3) {
-      const { matches, votes } = majorityFromVotes(rounds, takeawayTexts.length);
-      return { matches, matcher: "llm-majority", votes, voteRounds: rounds.length, dispatch: identity };
-    }
-    if (rounds.length >= 1) {
-      return { matches: rounds[0], matcher: "llm", voteRounds: rounds.length, dispatch: identity };
-    }
-    return null;
+    const resolved = resolveVoteRounds(rounds, takeawayTexts.length);
+    return resolved === null ? null : { ...resolved, dispatch: identity };
   }
 
   const r = guard.tryReserve();
