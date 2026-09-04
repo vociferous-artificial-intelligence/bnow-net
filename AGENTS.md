@@ -1862,10 +1862,56 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   fired after the guard's DB init (sink now opens first) — all eight remediated and
   pinned (+3 tests → 3,593/246). Round 2 confirmed all eight FIXED (reviewer re-ran the
   full suite 3,593/3,593) → MERGEABLE; its three hygiene notes (inspect view shows the
-  `refused` flag; `results/*.tmp-*` gitignored; count corrected) folded in before merge. Report:
+  `refused` flag; `results/*.tmp-*` gitignored; count corrected) folded in before merge.
+  **MERGED** as PR #45 → `main` `9854626` (tip `f5def2c`; CI gate + integration PASS;
+  `git diff f5def2c origin/main` empty — merged tree ≡ reviewed tree). No deploy. Report:
   `docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md`. Methodology boundaries honoured
   as instructed: no global `required=true` gate, no "increased"/"active" relabel
   (OPEN-TASKS #105 records it as needing semantic adjudication), no blanket
   `expectation=fail` exclusion, injection failures retained as an unresolved safety
   finding (#106), not a scorer defect and not a production incident.
+
+- **2026-09-04 (validation evaluation parity — PR 2 of the methodology follow-up; offline,
+  branch/PR only)** Second authorized PR (same envelope and prohibitions as PR 1; campaign,
+  production, registry, scorers, gates, labels, corpus, heldout untouched; zero paid calls).
+  Defect: the live validation eval dispatched ONE match round while production uses the
+  five-vote majority (`MATCH_VOTES` default 5, `majorityFromVotes`). Shipped on
+  `claude/eval-validation-parity-20260904` atop PR 1: (1) `src/lib/validation/llm-match.ts`
+  exports `MATCH_VOTES_DEFAULT` and the extracted pure `resolveVoteRounds` (≥3 usable →
+  majority, 1–2 → first round, 0 → null); production's `llmMatchTakeaways` now calls it —
+  behaviour byte-identical (its guard tests unchanged). (2) The live validation case
+  dispatches K=5 rounds by default (sequential, one reservation each; production is
+  concurrent, same resolution), parses/sanitizes each as production does (a null-content
+  refusal is an empty USABLE round, mirroring `llmMatchOnce`'s `'{"matches":[]}'` fallback;
+  truncated votes are dropped outright — the one stated difference), applies
+  `resolveVoteRounds`, scores the result against `reference.labels`, and records
+  `votes {requested, usable, mode, matcher, perTakeaway}` per row. (3) Identity: new knob
+  `envKnobs.validationVotes` (set ONLY by the CLI from `--validation-votes`, default 5,
+  overriding any shell export) plus a `+votes5`/`+votes1` configKey suffix on every live
+  validation file, so no post-parity file shares a path with the pre-parity single-round
+  file `live-validation-v2-gpt-4o-mini.json` (never opened, resumed, reinterpreted or
+  overwritten; the scorecard labels it LEGACY SINGLE-ROUND — NOT production-equivalent);
+  `resumeIdentityMismatch` compares the knob for LIVE validation files only (a legacy live
+  file compares as 1 → a 5-vote resume is REFUSED; map/digest and every OFFLINE file never
+  compare it, and offline headers never stamp it — the committed offline results resume
+  byte-identically).
+  (4) `--validation-votes 1` = the explicitly supported single-round DIAGNOSTIC, refused
+  in preflight without `--single-round-diagnostic`, labelled non-production-equivalent in
+  banner/header/scorecard; every other value refused; a stray `MATCH_VOTES`/`MATCHER_MODE`
+  override refuses a live validation run. (5) Estimates count K calls/tokens per case
+  (validation-v2: 85 vs 17 per repetition); budget-stop accounting inherits PR 1's
+  abandoned-attempt record (voteCount 5). (6) Semantic labels stay separate from the
+  deterministic `voteRounds`/`expectMajority` fixture pins; test-pinned that neither reads
+  the other and that val-typ-005's committed labels are unchanged (#105 owns any relabel).
+  Independent adversarial review round 1 (MERGEABLE-WITH-FIXES): two majors — refusal
+  (null-content) rounds were dropped where production counts them as empty usable rounds
+  (2 refusals + {X,X,null} flipped X↔null), and the vote knob identity-refused the
+  committed OFFLINE validation/conflict results — plus two minors (report baseline-key
+  pairing under the vote suffix; unlabelled diagnostic estimate) and three notes, all
+  remediated and pinned. Round 2 confirmed all seven FIXED (reviewer re-ran the full suite
+  3,612/3,612 on the rebased tip `6bdc0db`; the frozen campaign validation file still refuses
+  a 5-vote resume; the committed offline files resume with zero changed files) → MERGEABLE,
+  no new findings. Gates: typecheck/lint clean · unit 3,612/3,612 (247 files; +19 tests).
+  Report: `docs/reviews/EVAL-VALIDATION-PARITY-2026-09-04.md`; successor plan:
+  `docs/reviews/EVAL-SUCCESSOR-PLAN-2026-09-04.md`.
 

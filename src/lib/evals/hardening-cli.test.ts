@@ -150,3 +150,72 @@ describe("2026-09-04 capture: live-only, refuses before any client/DB work, held
     }
   }, 120_000);
 });
+
+describe("2026-09-04 validation parity: vote-count flag, estimates, diagnostic acknowledgement", () => {
+  const LIVE_ENV = {
+    ...BLANKED_ENV,
+    LLM_DISABLE: "",
+    OPENAI_API_KEY: "sk-probe-not-a-real-key",
+    EVAL_DATABASE_URL: "postgres://probe:probe@eval-probe.invalid/db",
+    LLM_SPRINT_USD_CAP: "1",
+    EVAL_USD_CAP_DAILY: "1",
+  };
+  const totalCalls = (stdout: string): number => {
+    const m = stdout.match(/\bcalls (\d+) ·/);
+    return m ? Number(m[1]) : NaN;
+  };
+
+  it("--validation-votes accepts only 5 or 1; the estimate counts 5 calls per case by default and 1 in the diagnostic count", () => {
+    const bad = runCli(["--estimate", "--workload", "validation", "--validation-votes", "3"]);
+    expect(bad.status).toBe(2);
+    expect(bad.stderr).toMatch(/only 5 .* or 1/);
+    const five = runCli(["--estimate", "--workload", "validation", "--repetitions", "1"]);
+    const one = runCli(["--estimate", "--workload", "validation", "--repetitions", "1", "--validation-votes", "1"]);
+    expect(five.status).toBe(0);
+    expect(one.status).toBe(0);
+    const c5 = totalCalls(five.stdout);
+    const c1 = totalCalls(one.stdout);
+    expect(c1).toBe(17); // one call per validation-v2 case
+    expect(c5).toBe(85); // five vote rounds per case
+  }, 120_000);
+
+  it("--execute-live --validation-votes 1 without --single-round-diagnostic refuses in preflight (before any client/DB work); a stray MATCH_VOTES refuses too", () => {
+    const r = spawnSync(TSX_BIN, [CLI, "--execute-live", "--workload", "validation", "--model", "gpt-4o-mini", "--db-ack", "eval-probe.invalid", "--repetitions", "3", "--validation-votes", "1"], { env: LIVE_ENV, encoding: "utf8", timeout: 120_000 });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/REFUSED \(before any client construction\).*--single-round-diagnostic/);
+    const mv = spawnSync(TSX_BIN, [CLI, "--execute-live", "--workload", "validation", "--model", "gpt-4o-mini", "--db-ack", "eval-probe.invalid", "--repetitions", "3"], { env: { ...LIVE_ENV, MATCH_VOTES: "3" }, encoding: "utf8", timeout: 120_000 });
+    expect(mv.status).toBe(2);
+    expect(mv.stderr).toMatch(/MATCHER_MODE\/MATCH_VOTES alter/);
+    expect(existsSync("docs/evals/analysis/results/live-validation-v2-gpt-4o-mini+votes1.json")).toBe(false);
+  }, 120_000);
+
+  it("--offline --workload validation and --offline --profile conflict resume against the COMMITTED offline results with no identity refusal and no rewrite (review MAJOR-2)", () => {
+    const files = [
+      "docs/evals/analysis/results/validation-v2-offline-fixtures.json",
+      "docs/evals/analysis/results/conflict-roca-v1-offline-fixtures.json",
+      "docs/evals/analysis/results/conflict-iran-v1-offline-fixtures.json",
+    ];
+    const before = files.map((f) => readFileSync(f, "utf8"));
+    const v = runCli(["--offline", "--workload", "validation"]);
+    expect(v.status).toBe(0);
+    expect(v.stderr).not.toMatch(/REFUSED|identity changed/);
+    const c = runCli(["--offline", "--profile", "conflict"]);
+    expect(c.status).toBe(0);
+    expect(c.stderr).not.toMatch(/REFUSED|identity changed/);
+    files.forEach((f, i) => expect(readFileSync(f, "utf8")).toBe(before[i]));
+  }, 120_000);
+
+  it("--estimate labels the validation vote mode (production-equivalent vs SINGLE-ROUND DIAGNOSTIC) — review MINOR-2", () => {
+    expect(runCli(["--estimate", "--workload", "validation", "--repetitions", "1"]).stdout).toMatch(/validation votes: 5 — production-equivalent/);
+    expect(runCli(["--estimate", "--workload", "validation", "--repetitions", "1", "--validation-votes", "1"]).stdout).toMatch(/SINGLE-ROUND DIAGNOSTIC estimate, NOT production-equivalent/);
+    const trailing = runCli(["--estimate", "--workload", "validation", "--validation-votes"]);
+    expect(trailing.status).toBe(2);
+    expect(trailing.stderr).toMatch(/needs a value/);
+  }, 120_000);
+
+  it("--single-round-diagnostic outside live mode is refused (it is a live acknowledgement)", () => {
+    const r = runCli(["--estimate", "--workload", "validation", "--single-round-diagnostic"]);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/live-mode acknowledgement/);
+  }, 120_000);
+});

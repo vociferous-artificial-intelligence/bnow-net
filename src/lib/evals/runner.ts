@@ -48,6 +48,7 @@ import { reduceMaxOutputTokens } from "../usage/llm-guard";
 import {
   MATCH_RESPONSE_SCHEMA,
   MATCH_SYSTEM_PROMPT,
+  MATCH_VOTES_DEFAULT,
   buildMatchUserPrompt,
 } from "../validation/llm-match";
 import type { ClaimForValidation } from "../validation/score";
@@ -117,6 +118,35 @@ export function sha256(text: string | Buffer): string {
   return createHash("sha256").update(text).digest("hex");
 }
 
+/** The production validation matcher's vote count — the ONLY
+ *  production-equivalent value for a live validation eval. */
+export const VALIDATION_VOTES_PRODUCTION = MATCH_VOTES_DEFAULT;
+/** The explicitly labelled single-round diagnostic (NOT production-equivalent). */
+export const VALIDATION_VOTES_DIAGNOSTIC = 1;
+
+/** Vote rounds a live validation case dispatches. Read from
+ *  EVAL_VALIDATION_VOTES, which the eval CLI ALWAYS sets explicitly from its
+ *  --validation-votes flag (default 5) before any knob work, so a stray shell
+ *  export can never silently change the default. Only 5 (production) and 1
+ *  (diagnostic) exist; anything else throws. */
+export function evalValidationVotes(env: NodeJS.ProcessEnv = process.env): number {
+  const v = env.EVAL_VALIDATION_VOTES;
+  if (v === undefined || v === "") return VALIDATION_VOTES_PRODUCTION;
+  if (v === String(VALIDATION_VOTES_PRODUCTION)) return VALIDATION_VOTES_PRODUCTION;
+  if (v === String(VALIDATION_VOTES_DIAGNOSTIC)) return VALIDATION_VOTES_DIAGNOSTIC;
+  throw new Error(
+    `EVAL_VALIDATION_VOTES must be ${VALIDATION_VOTES_PRODUCTION} (production-equivalent majority) or ${VALIDATION_VOTES_DIAGNOSTIC} (single-round diagnostic); got ${JSON.stringify(v)}`,
+  );
+}
+
+/** The configKey suffix every LIVE validation results file carries, so a
+ *  5-vote file and a single-round diagnostic file can never share a path —
+ *  and neither can ever open (let alone overwrite) a pre-2026-09-04
+ *  single-round file, whose bare key stays its historical identity. */
+export function validationVotesKeySuffix(votes: number): string {
+  return `+votes${votes}`;
+}
+
 /** Env-tunable pipeline knobs, captured into every results-file header (m10):
  *  results are only interpretable against the knob values they ran under, and
  *  a resume under different knobs is refused (MAJOR-3). */
@@ -127,7 +157,41 @@ export function currentEnvKnobs(): EvalEnvKnobs {
     mapOutTokensPerDoc: mapOutTokensPerDoc(),
     mapContentChars: mapContentChars(),
     reduceGroupsFed: reduceGroupsFed(),
+    validationVotes: evalValidationVotes(),
   };
+}
+
+/** The knob set that IDENTIFIES a file of a given workload, with historical
+ *  defaults applied: pre-2026-08-27 files lack reduceGroupsFed (=200);
+ *  pre-2026-09-04 LIVE validation files lack validationVotes and were
+ *  single-round (=1). validationVotes is meaningful ONLY for LIVE validation
+ *  files (offline fixture scoring dispatches nothing — its committed results
+ *  must resume without churn), so it is dropped for every other workload and
+ *  for every offline file (review MAJOR-2). */
+export function comparableKnobs(knobs: EvalEnvKnobs, workload: AnalysisEvalWorkload, live: boolean): EvalEnvKnobs {
+  const votesApply = live && workload === "validation";
+  const legacyDefaults: Partial<EvalEnvKnobs> = {
+    reduceGroupsFed: 200,
+    ...(votesApply ? { validationVotes: VALIDATION_VOTES_DIAGNOSTIC } : {}),
+  };
+  const withDefaults: EvalEnvKnobs = { ...legacyDefaults, ...knobs } as EvalEnvKnobs;
+  if (!votesApply) delete withDefaults.validationVotes;
+  return withDefaults;
+}
+
+/** A results-file header is LIVE when its identity provider is a real
+ *  provider; offline fixture files record provider "stub". */
+export function headerIsLive(h: { identity: CandidateDispatchIdentity }): boolean {
+  return h.identity.provider !== "stub";
+}
+
+/** Knobs for an OFFLINE results header: the vote knob never applies (nothing
+ *  is dispatched), so it is not stamped — the committed offline files keep
+ *  their historical shape byte-for-byte on a no-op resume. */
+export function offlineEnvKnobs(): EvalEnvKnobs {
+  const k = currentEnvKnobs();
+  delete k.validationVotes;
+  return k;
 }
 
 /** Coverage breadth of a run: --only → subset, --dev → dev, else full. */
@@ -359,11 +423,14 @@ export function buildAnalysisEstimatePlan(
         break;
       }
       case "validation": {
-        calls = 1;
-        inTok = promptTok;
+        // 2026-09-04 parity: a live validation case dispatches K vote rounds
+        // (5 = production majority; 1 only in the labelled diagnostic mode)
+        calls = knobs.validationVotes ?? VALIDATION_VOTES_PRODUCTION;
+        inTok = promptTok * calls;
         outTok =
-          (c as ValidationEvalCase).input.takeaways.length * EST_VALIDATION_OUT_TOKENS_PER_TAKEAWAY +
-          EST_VALIDATION_OUT_TOKENS_BASE;
+          ((c as ValidationEvalCase).input.takeaways.length * EST_VALIDATION_OUT_TOKENS_PER_TAKEAWAY +
+            EST_VALIDATION_OUT_TOKENS_BASE) *
+          calls;
         break;
       }
     }
@@ -440,10 +507,15 @@ export function resumeIdentityMismatch(
   cmp("promptHash", existing.identity.promptHash, current.identity.promptHash);
   cmp("schemaVersion", existing.identity.schemaVersion, current.identity.schemaVersion);
   cmp("extractorVersion", existing.identity.extractorVersion ?? null, current.identity.extractorVersion ?? null);
-  // pre-2026-08-27 results files lack reduceGroupsFed; default it to the
-  // historical 200 on BOTH sides so old baselines stay resumable
-  const knobsWithDefault = (k: Record<string, unknown>) => ({ reduceGroupsFed: 200, ...k });
-  cmp("envKnobs", knobsWithDefault(existing.envKnobs as never), knobsWithDefault(current.envKnobs as never));
+  // historical defaults on BOTH sides (comparableKnobs): pre-2026-08-27 files
+  // lack reduceGroupsFed (=200); pre-2026-09-04 validation files lack
+  // validationVotes and were single-round (=1) — so a 5-vote run can NEVER
+  // resume into a single-round file, and the knob is ignored off-workload
+  cmp(
+    "envKnobs",
+    comparableKnobs(existing.envKnobs, existing.workload, headerIsLive(existing)),
+    comparableKnobs(current.envKnobs, current.workload, headerIsLive(current)),
+  );
   return diffs.length === 0 ? null : diffs.join("; ");
 }
 
@@ -1240,8 +1312,8 @@ export function buildWorkloadScorecard(
   }
   if (
     baselineFile !== null &&
-    JSON.stringify({ reduceGroupsFed: 200, ...(judgedFile.envKnobs as unknown as Record<string, unknown>) }) !==
-      JSON.stringify({ reduceGroupsFed: 200, ...(baselineFile.envKnobs as unknown as Record<string, unknown>) })
+    JSON.stringify(comparableKnobs(judgedFile.envKnobs, dataset.workload, headerIsLive(judgedFile))) !==
+      JSON.stringify(comparableKnobs(baselineFile.envKnobs, dataset.workload, headerIsLive(baselineFile)))
   ) {
     // capacity-knob drift between judged and baseline: the pairwise deltas
     // compare different pipeline configurations — never a formal verdict
@@ -1296,12 +1368,27 @@ export function buildWorkloadScorecard(
   };
 }
 
-function knobsLine(k: EvalEnvKnobs): string {
+function knobsLine(k: EvalEnvKnobs, workload: AnalysisEvalWorkload, live: boolean): string {
+  const c = comparableKnobs(k, workload, live);
   return (
-    `reduceVotes=${k.reduceVotes} reduceMaxOutputTokens=${k.reduceMaxOutputTokens} ` +
-    `mapOutTokensPerDoc=${k.mapOutTokensPerDoc} mapContentChars=${k.mapContentChars} ` +
-    `reduceGroupsFed=${k.reduceGroupsFed ?? 200}` // pre-2026-08-27 files lack the field
+    `reduceVotes=${c.reduceVotes} reduceMaxOutputTokens=${c.reduceMaxOutputTokens} ` +
+    `mapOutTokensPerDoc=${c.mapOutTokensPerDoc} mapContentChars=${c.mapContentChars} ` +
+    `reduceGroupsFed=${c.reduceGroupsFed}` + // pre-2026-08-27 files lack the field
+    (live && workload === "validation" ? ` validationVotes=${c.validationVotes}` : "")
   );
+}
+
+/** The validation vote mode a results file was produced under, for the
+ *  scorecard: a legacy file (no validationVotes recorded) was single-round. */
+export function validationVoteModeLine(k: EvalEnvKnobs, live: boolean): string {
+  if (!live) return "Vote mode: offline fixtures (no dispatch; expectMajority pins the fixture voteRounds)";
+  if (k.validationVotes === undefined) {
+    return `Vote mode: **LEGACY SINGLE-ROUND** (file predates 2026-09-04; no validationVotes recorded) — NOT production-equivalent (production = ${VALIDATION_VOTES_PRODUCTION}-vote majority)`;
+  }
+  if (k.validationVotes === VALIDATION_VOTES_PRODUCTION) {
+    return `Vote mode: production-equivalent (${VALIDATION_VOTES_PRODUCTION} vote rounds, majority via the production resolveVoteRounds)`;
+  }
+  return `Vote mode: **SINGLE-ROUND DIAGNOSTIC** (${k.validationVotes} vote round) — NOT production-equivalent (production = ${VALIDATION_VOTES_PRODUCTION}-vote majority)`;
 }
 
 function pct(x: number): string {
@@ -1353,7 +1440,9 @@ export function renderAnalysisScorecardMarkdown(input: {
         `schema=${sc.judgedIdentity.schemaVersion.slice(0, 12)}` +
         (sc.judgedIdentity.extractorVersion ? ` extractor=${sc.judgedIdentity.extractorVersion}` : ""),
     );
-    lines.push(`Env knobs: ${knobsLine(sc.judgedEnvKnobs)}`);
+    const judgedLive = sc.judgedIdentity.provider !== "stub";
+    lines.push(`Env knobs: ${knobsLine(sc.judgedEnvKnobs, sc.workload, judgedLive)}`);
+    if (sc.workload === "validation") lines.push(validationVoteModeLine(sc.judgedEnvKnobs, judgedLive));
     if (sc.discardedGenerations > 0) {
       lines.push(
         `Discarded generations (--fresh provenance): ${sc.discardedGenerations} — this file's results are not first-try`,
@@ -1366,10 +1455,11 @@ export function renderAnalysisScorecardMarkdown(input: {
       );
     }
     if (sc.baselineEnvKnobs) {
-      const drift = knobsLine(sc.baselineEnvKnobs) !== knobsLine(sc.judgedEnvKnobs);
+      const baseLive = sc.baselineIdentity ? sc.baselineIdentity.provider !== "stub" : judgedLive;
+      const drift = knobsLine(sc.baselineEnvKnobs, sc.workload, baseLive) !== knobsLine(sc.judgedEnvKnobs, sc.workload, judgedLive);
       lines.push(
         drift
-          ? `Baseline knobs: ${knobsLine(sc.baselineEnvKnobs)} — **KNOB DRIFT vs judged: quality deltas compare different capacity configurations**`
+          ? `Baseline knobs: ${knobsLine(sc.baselineEnvKnobs, sc.workload, baseLive)} — **KNOB DRIFT vs judged: quality deltas compare different capacity configurations**`
           : `Baseline knobs: identical`,
       );
     }

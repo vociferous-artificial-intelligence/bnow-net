@@ -191,5 +191,7 @@ response) → now `refused=`; N2 the temp+rename sibling of a committed OFFLINE 
 was not gitignored → `docs/evals/analysis/results/*.tmp-*` added; N3 the §4 test count →
 3,593. Verdict: **MERGEABLE**.
 
-Merge record (filled at merge): see the decision-log entry in AGENTS.md for the merge
-hash and the reviewed-tree comparison.
+Merge record: PR #45 merged to `main` as merge commit `9854626` (branch tip `f5def2c` =
+round-2-reviewed `644e424` + the three folded hygiene notes, docs/one display line/gitignore
+only). CI on `f5def2c`: gate PASS, integration PASS. Reviewed-tree comparison:
+`git diff --stat f5def2c origin/main` empty — the merged tree IS the reviewed tree.

@@ -506,6 +506,22 @@ export interface EvalCaseResult {
     actual: Record<string, number>;
     reason: string;
   };
+  /** validation LIVE rows only (2026-09-04 parity): the vote rounds behind
+   *  this row's match set. `mode` says whether the row is
+   *  production-equivalent (K=5, majority via the production
+   *  resolveVoteRounds) or the explicitly labelled single-round diagnostic;
+   *  `usable` < `requested` means unparseable/truncated votes were dropped
+   *  exactly as production drops them (1-2 usable degrade to the first
+   *  round, matcher "llm"). `perTakeaway` holds claimIds per round only —
+   *  never response text. Absent on offline rows and on historical
+   *  single-round files. */
+  votes?: {
+    requested: number;
+    usable: number;
+    mode: "production-equivalent" | "single-round-diagnostic";
+    matcher: "llm-majority" | "llm";
+    perTakeaway: Array<{ i: number; v: Array<number | null>; final: number | null }> | null;
+  };
   /** status "provider_error" only (2026-09-04 accounting): usage the case
    *  DID meter before the error (e.g. the successful votes of a digest case
    *  whose later vote errored). The row's promptTokens/completionTokens/
@@ -586,6 +602,13 @@ export interface EvalEnvKnobs {
   /** The reduce fed cutoff — the capacity matrix's defining knob (results
    *  files written before 2026-08-27 lack it; comparisons default it to 200). */
   reduceGroupsFed: number;
+  /** Validation matcher vote rounds a LIVE validation case dispatches
+   *  (2026-09-04 parity): 5 = the production majority configuration
+   *  (MATCH_VOTES_DEFAULT), 1 = the explicitly labelled single-round
+   *  diagnostic. Validation results files written before 2026-09-04 lack the
+   *  field and were single-round: comparisons default them to 1, and only
+   *  the validation workload compares it at all. */
+  validationVotes?: number;
 }
 
 export interface EvalResultsFile {

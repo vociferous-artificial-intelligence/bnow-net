@@ -46,7 +46,7 @@ import { ANALYSIS_ROUTING_REGISTRY_VERSION, analysisApproval } from "../llm/anal
 import { PRICES_PER_MTOK, estimateCostUsd } from "../llm/pricing";
 import { LlmBudgetError, reduceMaxOutputTokens } from "../usage/llm-guard";
 import type { SpendGuard } from "../usage/spend-guard";
-import { MATCH_RESPONSE_SCHEMA, sanitizeMatches, type LlmMatch } from "../validation/llm-match";
+import { MATCH_RESPONSE_SCHEMA, MATCH_VOTES_DEFAULT, resolveVoteRounds, sanitizeMatches, type LlmMatch } from "../validation/llm-match";
 import {
   type AbandonedAttemptRecord,
   type AnalysisEvalCase,
@@ -63,12 +63,15 @@ import {
 import { CAPTURE_LINE_VERSION, CaptureWriteError, sanitizeMessage, type CaptureSink, type DispatchContext } from "./capture";
 import { evalGuardFromEnv } from "./eval-guard";
 import {
+  VALIDATION_VOTES_DIAGNOSTIC,
+  VALIDATION_VOTES_PRODUCTION,
   ZERO_METER,
   buildCandidatePrompt,
   classifyCaseApplicability,
   datasetExtractorVersions,
   datasetPromptHash,
   emptyEvalResultsFile,
+  evalValidationVotes,
   inapplicableResult,
   liveConfigKey,
   mergeEvalResults,
@@ -171,6 +174,10 @@ export interface LivePreflightArgs {
   model: string | null;
   effort: string | null;
   dbAck: string | null;
+  /** the explicit --single-round-diagnostic flag: the ONLY way a validation
+   *  eval may dispatch one vote round (EVAL_VALIDATION_VOTES=1) — and it is
+   *  labelled as non-production-equivalent everywhere it appears */
+  singleRoundDiagnostic?: boolean;
 }
 
 export interface LivePreflightOk {
@@ -258,6 +265,37 @@ export function assertLivePreflight(
     throw new EvalDispatchError(
       `REDUCE_VOTES resolves to ${reduceVotes()} — a live digest eval must run the shipped K=5 (ruling 18); unset REDUCE_VOTES`,
     );
+  }
+  // 2026-09-04 parity: a live validation eval measures the production
+  // five-vote majority matcher. The eval's vote count comes ONLY from
+  // EVAL_VALIDATION_VOTES (set by the CLI from --validation-votes); a
+  // production MATCH_VOTES/MATCHER_MODE override in the shell would not
+  // change the eval's dispatch, but it signals a non-shipped configuration
+  // is being assumed — refuse rather than record an ambiguous identity.
+  if (cfg.workload !== "validation" && args.singleRoundDiagnostic) {
+    throw new EvalDispatchError("--single-round-diagnostic applies to the validation workload only — refusing an acknowledgement that authorizes nothing");
+  }
+  if (cfg.workload === "validation") {
+    const mv = env.MATCH_VOTES;
+    if (env.MATCHER_MODE === "single" || (mv !== undefined && mv !== "" && Number(mv) !== MATCH_VOTES_DEFAULT)) {
+      throw new EvalDispatchError(
+        `MATCHER_MODE/MATCH_VOTES alter the production matcher's vote count (shipped default ${MATCH_VOTES_DEFAULT}); unset them — a live validation eval's vote count comes from --validation-votes only`,
+      );
+    }
+    let votes: number;
+    try {
+      votes = evalValidationVotes(env);
+    } catch (e) {
+      throw new EvalDispatchError(e instanceof Error ? e.message : String(e));
+    }
+    if (votes === VALIDATION_VOTES_DIAGNOSTIC && !args.singleRoundDiagnostic) {
+      throw new EvalDispatchError(
+        `--validation-votes ${VALIDATION_VOTES_DIAGNOSTIC} is the single-round DIAGNOSTIC mode, not a production-equivalent evaluation — pass --single-round-diagnostic explicitly to acknowledge (results carry the +votes1 key and are labelled non-production-equivalent)`,
+      );
+    }
+    if (votes === VALIDATION_VOTES_PRODUCTION && args.singleRoundDiagnostic) {
+      throw new EvalDispatchError("--single-round-diagnostic given but --validation-votes resolves to the production 5 — refusing an acknowledgement that authorizes nothing");
+    }
   }
   return { cfg, dbHost: host, evalDatabaseUrl: url };
 }
@@ -517,6 +555,7 @@ export async function runLiveCase(
   let promptTokens = 0;
   let completionTokens = 0;
   let estUsd = 0;
+  let votes: EvalCaseResult["votes"] | undefined;
   const ctxFor = (voteIndex: number | null, voteCount: number | null): DispatchContext => ({
     runId,
     caseId: evalCase.id,
@@ -568,31 +607,61 @@ export async function runLiveCase(
     }
     case "validation": {
       const c = evalCase as ValidationEvalCase;
-      const out = await dispatchOnce(deps, cfg, prompt, { name: "matches", schema: MATCH_RESPONSE_SCHEMA }, {
-        temperature: 0, // the production match call's exact temperature
-      }, ctxFor(null, 1));
-      promptTokens = out.promptTokens;
-      completionTokens = out.completionTokens;
-      estUsd = out.estUsd;
-      rawOutputDigest = sha256(out.raw ?? "");
-      let matches: LlmMatch[] | null = null;
-      if (out.raw !== null && !out.truncated) {
+      // 2026-09-04 parity: production dispatches K=MATCH_VOTES_DEFAULT (5)
+      // rounds at temperature 0 and resolves them through resolveVoteRounds
+      // (>=3 usable -> strict majority; 1-2 -> first round; 0 -> none). The
+      // eval dispatches the same K rounds — sequentially, one reservation
+      // per physical attempt (production fires them concurrently; the
+      // resolution rule is identical) — parses/sanitizes each exactly as
+      // production does, and applies the SAME resolution function. K=1 is
+      // the explicitly labelled single-round diagnostic (preflight-gated).
+      const k = evalValidationVotes();
+      const claimIds = new Set(c.input.claims.map((cl) => cl.claimId));
+      const rounds: LlmMatch[][] = [];
+      const rawParts: string[] = [];
+      for (let v = 0; v < k; v++) {
+        const out = await dispatchOnce(deps, cfg, prompt, { name: "matches", schema: MATCH_RESPONSE_SCHEMA }, {
+          temperature: 0, // the production match call's exact temperature
+        }, ctxFor(k === 1 ? null : v, k));
+        promptTokens += out.promptTokens;
+        completionTokens += out.completionTokens;
+        estUsd += out.estUsd;
+        rawParts.push(out.raw ?? "");
+        // KNOWN DIFFERENCE (stated, not hidden): production never inspects
+        // finish_reason — a truncated vote is dropped there only because its
+        // JSON fails to parse; under strict JSON output a truncated-but-
+        // parseable body is practically unreachable, and the eval drops every
+        // truncated vote outright (truncation is itself a finding).
+        if (out.truncated) continue;
+        // PRODUCTION PARITY (llmMatchOnce: `content ?? '{"matches":[]}'`): a
+        // null-content response — the shape a strict-schema REFUSAL takes —
+        // is an EMPTY, USABLE round in production (all-null votes that still
+        // count in the majority denominator). Mirror it exactly.
+        const body = out.raw ?? '{"matches":[]}';
         try {
-          const parsed = (JSON.parse(out.raw) as { matches?: LlmMatch[] }).matches ?? [];
-          matches = sanitizeMatches(
-            parsed,
-            c.input.takeaways.length,
-            new Set(c.input.claims.map((cl) => cl.claimId)),
-          );
+          const parsed = (JSON.parse(body) as { matches?: LlmMatch[] }).matches ?? [];
+          rounds.push(sanitizeMatches(parsed, c.input.takeaways.length, claimIds));
         } catch {
-          matches = null;
+          // unparseable vote: dropped (production: the vote promise rejects and is skipped)
         }
       }
-      if (matches === null) {
+      // K=1 keeps the historical single-response digest byte-for-byte
+      rawOutputDigest = sha256(rawParts.join("\n---\n"));
+      const resolved = resolveVoteRounds(rounds, c.input.takeaways.length);
+      const mode: NonNullable<EvalCaseResult["votes"]>["mode"] = k === VALIDATION_VOTES_PRODUCTION ? "production-equivalent" : "single-round-diagnostic";
+      if (resolved === null) {
         status = "schema_invalid";
-        checks = { pass: false, failures: ["match response unparseable or truncated"] };
+        checks = { pass: false, failures: [`match response unparseable or truncated (0 of ${k} vote round(s) usable)`] };
+        votes = { requested: k, usable: 0, mode, matcher: "llm", perTakeaway: null };
       } else {
-        checks = scoreValidationCase(c, matches).checks;
+        checks = scoreValidationCase(c, resolved.matches).checks;
+        votes = {
+          requested: k,
+          usable: resolved.voteRounds,
+          mode,
+          matcher: resolved.matcher,
+          perTakeaway: resolved.votes ? resolved.votes.map((t) => ({ i: t.i, v: t.v, final: t.final })) : null,
+        };
       }
       break;
     }
@@ -616,6 +685,7 @@ export async function runLiveCase(
     humanLabels: null,
     graderJudgments: null,
     rawOutputDigest,
+    ...(votes !== undefined ? { votes } : {}),
   };
 }
 
@@ -623,6 +693,7 @@ export async function runLiveCase(
  *  abandoned-attempt record reports against. */
 export function liveVoteCount(evalCase: AnalysisEvalCase): number | null {
   if (evalCase.workload === "digest") return reduceVotes();
+  if (evalCase.workload === "validation") return evalValidationVotes();
   if (evalCase.workload === "reduce") return null;
   return 1;
 }

@@ -39,6 +39,7 @@ import "./env";
 //   --execute-live --workload X --model M [--effort E] --db-ack <host>
 //                  [--repetitions N] [--only id,...] [--fresh] [--dev]
 //                  [--allow-heldout-rerun]
+//                  [--validation-votes 5|1] [--single-round-diagnostic]
 //       LIVE candidate evaluation (PAID). Refuses loudly BEFORE any client
 //       construction unless ALL of: the explicit flag, EVAL_DATABASE_URL set
 //       (DATABASE_URL is never read — the spend ledger writes to the eval
@@ -53,6 +54,18 @@ import "./env";
 //       re-rolled to a pass), and any key replaced by a later run stays
 //       visible in the scorecard's run-provenance line.
 //
+//       Validation parity (2026-09-04): a live validation case dispatches the
+//       production matcher's FIVE vote rounds and resolves them through the
+//       production resolveVoteRounds (strict majority; 1-2 usable rounds
+//       degrade to the first round exactly as production does). Results
+//       files carry the vote count in envKnobs.validationVotes AND in the
+//       configKey (`<model>+votes5`), so a 5-vote file can never resume
+//       into — or overwrite — a pre-2026-09-04 single-round file (bare key,
+//       reported as LEGACY SINGLE-ROUND). `--validation-votes 1` is the
+//       single-round DIAGNOSTIC mode: it requires the explicit
+//       --single-round-diagnostic flag, writes `+votes1` files, and is
+//       labelled NOT production-equivalent in every artifact. No other vote
+//       count exists. Estimates count K calls per validation case.
 //       Abort accounting (2026-09-04): a budget stop or a capture-write
 //       failure mid-case records the interrupted case's physical attempts,
 //       meterings, tokens and USD in the file's `abandonedAttempts` (folded
@@ -130,6 +143,11 @@ import {
   CAPACITY_PROFILES,
   MIN_LIVE_REPETITIONS,
   UNIMPLEMENTED_MATRIX_CELLS,
+  VALIDATION_VOTES_DIAGNOSTIC,
+  VALIDATION_VOTES_PRODUCTION,
+  evalValidationVotes,
+  offlineEnvKnobs,
+  validationVotesKeySuffix,
   applyCapacityProfile,
   capacityProfileNames,
   withCapacityProfileKey,
@@ -298,6 +316,15 @@ function profiledKey(base: string): string {
   return withCapacityProfileKey(base, activeCapacityProfile);
 }
 
+/** The configKey a LIVE results file is written/read under: model+effort,
+ *  the capacity-profile suffix, and — validation only — the vote-count
+ *  suffix (`+votes5` / `+votes1`), which keeps every post-2026-09-04
+ *  validation file on a path no pre-parity single-round file ever used. */
+function liveResultsConfigKey(workload: AnalysisEvalWorkload, model: string, effort: string | null): string {
+  const base = profiledKey(liveConfigKey(model, effort));
+  return workload === "validation" ? `${base}${validationVotesKeySuffix(evalValidationVotes())}` : base;
+}
+
 function loadResultsAtPath(p: string): EvalResultsFile | null {
   if (!existsSync(p)) return null;
   const rf = JSON.parse(readFileSync(p, "utf8")) as EvalResultsFile;
@@ -376,12 +403,23 @@ function modeValidate(workloads: AnalysisEvalWorkload[]): void {
 
 // ---- --estimate ----------------------------------------------------------------
 
+/** The vote mode an estimate assumes for validation — labelled exactly like
+ *  the live banner so a single-round figure is never mistaken for the
+ *  production-equivalent cost (review MINOR-2). */
+function validationVoteModeEstimateLabel(): string {
+  const votes = evalValidationVotes();
+  return votes === VALIDATION_VOTES_PRODUCTION
+    ? `validation votes: ${votes} — production-equivalent majority; ${votes} calls per case`
+    : `validation votes: ${votes} — SINGLE-ROUND DIAGNOSTIC estimate, NOT production-equivalent (production = ${VALIDATION_VOTES_PRODUCTION}-vote majority, ${VALIDATION_VOTES_PRODUCTION}x these validation calls)`;
+}
+
 function modeEstimate(workloads: AnalysisEvalWorkload[], model: string, repetitions: number): void {
   let grand = 0;
   for (const w of workloads) {
     const { ds } = loadDataset(w);
     const plan = buildAnalysisEstimatePlan(ds, model, repetitions);
     console.log(`\n[${w}] ${ds.datasetVersion} — model ${model}, ${repetitions} repetition(s):`);
+    if (w === "validation") console.log(`  ${validationVoteModeEstimateLabel()}`);
     console.log(
       `  calls ${plan.totalCalls} · est prompt tok ${plan.totalPromptTokens} · est completion tok ${plan.totalCompletionTokens} · est $${plan.totalUsd.toFixed(4)}`,
     );
@@ -424,7 +462,7 @@ function modeOffline(
       identity: offlineIdentity(ds),
       requestedRepetitions: 1,
       scope: runScopeFor(opts.onlyIds, opts.devOnly),
-      envKnobs: currentEnvKnobs(),
+      envKnobs: offlineEnvKnobs(),
     };
     const existing = loadResults(w, profiledKey(OFFLINE_CONFIG_KEY));
     const discarded = acknowledgeFreshDiscard(existing, opts.fresh, `${w}/${profiledKey(OFFLINE_CONFIG_KEY)}`);
@@ -515,9 +553,16 @@ function modeReport(workloads: AnalysisEvalWorkload[], outPath: string, showHeld
       // LIVE results on the same dataset UNDER THE SAME capacity profile —
       // a profiled candidate must never be compared against an unprofiled
       // baseline (the knob-drift degrade would otherwise fire on every cell)
-      const plusAt = configKey.lastIndexOf("+");
-      const profileSuffix = plusAt === -1 ? "" : configKey.slice(plusAt);
-      const baselineKey = `${ANALYSIS_DEFAULT_MODEL}${profileSuffix}`;
+      // the validation vote suffix (+votes<K>) is NOT a capacity profile:
+      // strip it first, derive the profile suffix, then re-append it so a
+      // profiled validation candidate pairs with the profiled baseline at
+      // the SAME vote count (review MINOR-1)
+      const votesMatch = configKey.match(/\+votes\d+$/);
+      const votesSuffix = votesMatch ? votesMatch[0] : "";
+      const keySansVotes = votesSuffix ? configKey.slice(0, -votesSuffix.length) : configKey;
+      const plusAt = keySansVotes.lastIndexOf("+");
+      const profileSuffix = plusAt === -1 ? "" : keySansVotes.slice(plusAt);
+      const baselineKey = `${ANALYSIS_DEFAULT_MODEL}${profileSuffix}${votesSuffix}`;
       const baseline = live && configKey !== baselineKey ? loadResults(w, baselineKey) : null;
       const baselineExpectation = baseline
         ? { configKey: baselineKey, model: ANALYSIS_DEFAULT_MODEL }
@@ -657,7 +702,7 @@ async function conflictModeOffline(
       identity: offlineIdentity(run.dataset),
       requestedRepetitions: 1,
       scope: runScopeFor(opts.onlyIds, opts.devOnly),
-      envKnobs: currentEnvKnobs(),
+      envKnobs: offlineEnvKnobs(),
     };
     const p = conflictResultsPath(run.dataset.datasetVersion, OFFLINE_CONFIG_KEY);
     const existing = loadResultsAtPath(p);
@@ -798,6 +843,7 @@ async function modeLive(opts: {
       model: opts.model,
       effort: opts.effort,
       dbAck: opts.dbAck,
+      singleRoundDiagnostic: hasFlag("single-round-diagnostic"),
     });
   } catch (e) {
     console.error(`REFUSED (before any client construction): ${e instanceof Error ? e.message : e}`);
@@ -818,7 +864,15 @@ async function modeLive(opts: {
   );
 
   const { ds, contentHash } = loadDataset(opts.workload);
-  const configKey = profiledKey(liveConfigKey(cfg.model, cfg.reasoningEffort));
+  const configKey = liveResultsConfigKey(opts.workload, cfg.model, cfg.reasoningEffort);
+  if (opts.workload === "validation") {
+    const votes = evalValidationVotes();
+    console.log(
+      votes === VALIDATION_VOTES_PRODUCTION
+        ? `validation votes: ${votes} — production-equivalent majority (resolveVoteRounds); ${votes} paid dispatches per case`
+        : `validation votes: ${votes} — SINGLE-ROUND DIAGNOSTIC, NOT production-equivalent (production = ${VALIDATION_VOTES_PRODUCTION}-vote majority); results keyed ${configKey}`,
+    );
+  }
   const header: ResultsFileHeader = {
     workload: opts.workload,
     configKey,
@@ -989,7 +1043,7 @@ function captureDirOrExit(): string {
 
 function modeCaptureReconcile(workload: AnalysisEvalWorkload, model: string, effort: string | null, outPath: string | undefined): void {
   const dir = captureDirOrExit();
-  const configKey = profiledKey(liveConfigKey(model, effort));
+  const configKey = liveResultsConfigKey(workload, model, effort);
   const rfPath = resultsPath(workload, configKey);
   const rf = loadResultsAtPath(rfPath);
   const files = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(".jsonl")).sort() : [];
@@ -1047,6 +1101,8 @@ function modeCapacityMatrix(model: string, repetitions: number): void {
   const workloads = ["map", "reduce", "digest", "validation"] as AnalysisEvalWorkload[];
   const lines: string[] = [];
   lines.push(`# Capacity-quality matrix — dry-run estimates (${new Date().toISOString()})`);
+  lines.push("");
+  lines.push(`> ${validationVoteModeEstimateLabel()}`);
   lines.push("");
   lines.push(
     `Model \`${model}\`, ${repetitions} repetition(s) per case. Estimates use the same deliberate`,
@@ -1171,6 +1227,25 @@ async function main(): Promise<void> {
   // stray shell export or .env.local line can never write a knob-drifted file
   // under a baseline configKey (review finding 4).
   applyCapacityProfile(activeCapacityProfile);
+  // 2026-09-04 parity: the validation vote count is ALWAYS set here from the
+  // flag (default = production 5), overriding any shell export, so every knob
+  // reader (identity, estimate, live dispatch, configKey) sees one value.
+  const votesFlag = flagValue("validation-votes");
+  if (hasFlag("validation-votes") && votesFlag === undefined) {
+    console.error("--validation-votes needs a value (5 or 1)");
+    process.exit(2);
+  }
+  if (votesFlag !== undefined && votesFlag !== String(VALIDATION_VOTES_PRODUCTION) && votesFlag !== String(VALIDATION_VOTES_DIAGNOSTIC)) {
+    console.error(
+      `--validation-votes: only ${VALIDATION_VOTES_PRODUCTION} (production-equivalent majority, default) or ${VALIDATION_VOTES_DIAGNOSTIC} (single-round diagnostic; also needs --single-round-diagnostic) exist — got "${votesFlag}"`,
+    );
+    process.exit(2);
+  }
+  process.env.EVAL_VALIDATION_VOTES = votesFlag ?? String(VALIDATION_VOTES_PRODUCTION);
+  if (hasFlag("single-round-diagnostic") && !hasFlag("execute-live")) {
+    console.error("--single-round-diagnostic is a live-mode acknowledgement (it changes what --execute-live dispatches); it has no meaning here");
+    process.exit(2);
+  }
 
   if (hasFlag("capacity-matrix")) {
     if (profile === "conflict") {

@@ -430,6 +430,10 @@ describe("runLiveCase", () => {
     const result = await runLiveCase(d, cfg, valCase, "validation-v1", "run-t", 0);
     expect(result.status).toBe("schema_invalid");
     expect(result.checks.pass).toBe(false);
-    expect(d.meter.meterings).toBe(1); // billed and recorded despite being unusable
+    // 2026-09-04 parity: the production FIVE vote rounds are dispatched; every
+    // one is billed and recorded despite being unusable
+    expect(create).toHaveBeenCalledTimes(5);
+    expect(d.meter.meterings).toBe(5);
+    expect(result.votes).toEqual({ requested: 5, usable: 0, mode: "production-equivalent", matcher: "llm", perTakeaway: null });
   });
 });

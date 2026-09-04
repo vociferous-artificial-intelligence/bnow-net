@@ -3480,3 +3480,15 @@ Execution (same block):
   production `majorityFromVotes`, identity-stamped vote count, refused
   incompatible resumes, ×K estimates, single-round diagnostic mode labelled).
 
+## 2026-09-04 — validation evaluation parity (PR 2 of 2)
+
+- Extracted production's vote resolution (`resolveVoteRounds`, `MATCH_VOTES_DEFAULT`)
+  in `llm-match.ts` (behaviour-preserving) and made the live validation eval dispatch
+  the production five rounds by default, resolving through the same function and
+  scoring against `reference.labels`; per-row `votes` record; `validationVotes` knob in
+  identity + `+votes5`/`+votes1` configKey suffix; legacy single-round files untouched
+  and labelled; single-round diagnostic gated behind `--single-round-diagnostic`;
+  estimates ×K; interruption accounting inherited from PR 1.
+- Gates: typecheck/lint clean · unit 3,608/3,608 (247 files). Zero paid calls, no
+  DB/production access, no deploy.
+
