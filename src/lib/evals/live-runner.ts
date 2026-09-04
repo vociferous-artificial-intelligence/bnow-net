@@ -48,23 +48,35 @@ import { LlmBudgetError, reduceMaxOutputTokens } from "../usage/llm-guard";
 import type { SpendGuard } from "../usage/spend-guard";
 import { MATCH_RESPONSE_SCHEMA, sanitizeMatches, type LlmMatch } from "../validation/llm-match";
 import {
+  type AbandonedAttemptRecord,
   type AnalysisEvalCase,
   type AnalysisEvalDataset,
   type CandidateDispatchIdentity,
+  type CaptureRunRecord,
   type DigestEvalCase,
   type EvalCaseResult,
+  type EvalEnvKnobs,
+  type EvalResultsFile,
   type MapEvalCase,
   type ValidationEvalCase,
 } from "./contracts";
+import { CAPTURE_LINE_VERSION, CaptureWriteError, sanitizeMessage, type CaptureSink, type DispatchContext } from "./capture";
 import { evalGuardFromEnv } from "./eval-guard";
 import {
+  ZERO_METER,
   buildCandidatePrompt,
+  classifyCaseApplicability,
   datasetExtractorVersions,
   datasetPromptHash,
+  emptyEvalResultsFile,
+  inapplicableResult,
   liveConfigKey,
+  mergeEvalResults,
   sha256,
   workloadSchemaVersion,
   type MeterDelta,
+  type PendingWorkItem,
+  type ResultsFileHeader,
 } from "./runner";
 import { scoreMapCase } from "./score-map";
 import { scoreDigestCase } from "./score-reduce";
@@ -274,9 +286,24 @@ export interface LiveDeps {
   client: OpenAI;
   guard: SpendGuard;
   meter: MeterDelta;
+  /** in-memory metered usage totals (tokens/USD of RECEIVED responses) —
+   *  the per-case deltas account interrupted and errored cases whose
+   *  result row carries no usage (2026-09-04 accounting) */
+  usage: UsageTotals;
   /** injectable for tests; live default sleeps out the 429 TPM window */
   sleep: (ms: number) => Promise<void>;
+  /** opt-in per-attempt capture (capture.ts); null = byte-identical dispatch
+   *  with zero filesystem access */
+  capture: CaptureSink | null;
 }
+
+export interface UsageTotals {
+  promptTokens: number;
+  completionTokens: number;
+  estUsd: number;
+}
+
+export const ZERO_USAGE: UsageTotals = { promptTokens: 0, completionTokens: 0, estUsd: 0 };
 
 export interface DispatchOutcome {
   raw: string | null;
@@ -295,18 +322,54 @@ export const RETRY_429_DELAY_MS = 65_000;
 
 /** One logical dispatch = at most two physical attempts (the explicit 429
  *  retry), each behind its OWN tryReserve. Metering happens immediately after
- *  the response, BEFORE parsing/discarding (ruling 8). */
+ *  the response, BEFORE parsing/discarding (ruling 8).
+ *
+ *  Capture ordering per physical attempt (when deps.capture is set):
+ *    tryReserve → [budget_stop line on refusal, then throw]
+ *    attempt_start line   (a write failure here aborts BEFORE any dispatch —
+ *                          nothing reserved-counted, nothing billed)
+ *    provider request
+ *    on response: guard.record (ruling 8, FIRST) → attempt_end(response)
+ *    on error:    attempt_end(error) → 429 retry loop / rethrow
+ *  A capture write failure after a response surfaces as CaptureWriteError
+ *  with `responseMetered: true` — the ledger holds the attempt, the file
+ *  does not, and the caller must stop dispatching. */
 export async function dispatchOnce(
   deps: LiveDeps,
   cfg: EvalCandidateDispatchConfig,
   prompt: { system: string; user: string },
   schema: JsonSchemaSpec,
   opts: { temperature: number; maxCompletionTokens?: number },
+  ctx: DispatchContext | null = null,
 ): Promise<DispatchOutcome> {
-  const reserve = () => {
+  const capture = deps.capture;
+  if (capture !== null && ctx === null) {
+    // never write an unattributed capture line — refuse before any reservation
+    throw new EvalDispatchError("capture is enabled but this dispatch carries no case context");
+  }
+  const base = (attemptIndex: number) =>
+    ctx === null
+      ? null
+      : {
+          v: CAPTURE_LINE_VERSION,
+          ts: new Date().toISOString(),
+          runId: ctx.runId,
+          caseId: ctx.caseId,
+          split: ctx.split,
+          repetition: ctx.repetition,
+          voteIndex: ctx.voteIndex,
+          voteCount: ctx.voteCount,
+          attemptIndex,
+        };
+
+  const reserve = (attemptIndex: number) => {
     const r = deps.guard.tryReserve();
-    if (!r.ok) throw new LlmBudgetError(r.reason, r.code);
-    deps.meter.reservations++;
+    if (!r.ok) {
+      if (capture !== null) {
+        capture.write({ ...base(attemptIndex)!, kind: "budget_stop", code: r.code, reason: capture.redact(r.reason) });
+      }
+      throw new LlmBudgetError(r.reason, r.code);
+    }
   };
   const request = () =>
     deps.client.chat.completions.create({
@@ -322,25 +385,70 @@ export async function dispatchOnce(
       ...analysisChatParams(cfg, opts),
     });
 
-  reserve();
-  deps.meter.attempts++;
+  const errorLine = (attemptIndex: number, seq: number | null, e: unknown) => {
+    if (capture === null || seq === null) return;
+    const err = e as { name?: string; status?: number; message?: string };
+    capture.write({
+      ...base(attemptIndex)!,
+      kind: "attempt_end",
+      attemptSeq: seq,
+      outcome: "error",
+      requestedModel: cfg.model,
+      returnedModel: null,
+      responseId: null,
+      systemFingerprint: null,
+      finishReason: null,
+      refusal: null,
+      truncated: false,
+      usage: null,
+      estUsd: null,
+      metered: false,
+      rawSha256: null,
+      rawBytes: null,
+      raw: null,
+      error: {
+        name: typeof err?.name === "string" ? err.name : "Error",
+        status: typeof err?.status === "number" ? err.status : null,
+        message: capture.redact(typeof err?.message === "string" ? err.message : String(e)),
+      },
+    });
+  };
+
+  /** reserve + start line + attempt counters, in that order */
+  const begin = (attemptIndex: number): number | null => {
+    reserve(attemptIndex);
+    let seq: number | null = null;
+    if (capture !== null) {
+      seq = capture.nextAttemptSeq();
+      capture.write({ ...base(attemptIndex)!, kind: "attempt_start", attemptSeq: seq, requestedModel: cfg.model });
+    }
+    deps.meter.reservations++;
+    deps.meter.attempts++;
+    return seq;
+  };
+
+  let attemptIndex = 0;
+  let seq = begin(attemptIndex);
   let completion;
   try {
     completion = await request();
   } catch (e) {
     if ((e as { status?: number }).status === 429) {
       deps.meter.erroredAttempts++; // the 429 attempt received no billable response
+      errorLine(attemptIndex, seq, e);
       await deps.sleep(RETRY_429_DELAY_MS);
-      reserve(); // FRESH reservation for the second physical attempt
-      deps.meter.attempts++;
+      attemptIndex = 1;
+      seq = begin(attemptIndex); // FRESH reservation for the second physical attempt
       try {
         completion = await request();
       } catch (e2) {
         deps.meter.erroredAttempts++;
+        errorLine(attemptIndex, seq, e2);
         throw e2;
       }
     } else {
       deps.meter.erroredAttempts++;
+      errorLine(attemptIndex, seq, e);
       throw e;
     }
   }
@@ -353,14 +461,37 @@ export async function dispatchOnce(
   // truncated and unparseable responses are billed in full by the provider
   await deps.guard.record(1, promptTokens + completionTokens, estUsd);
   deps.meter.meterings++;
+  deps.usage.promptTokens += promptTokens;
+  deps.usage.completionTokens += completionTokens;
+  deps.usage.estUsd += estUsd;
 
-  return {
-    raw: choice?.message?.content ?? null,
-    truncated: choice?.finish_reason === "length",
-    promptTokens,
-    completionTokens,
-    estUsd,
-  };
+  const raw = choice?.message?.content ?? null;
+  const truncated = choice?.finish_reason === "length";
+  if (capture !== null && seq !== null) {
+    const msg = choice?.message as { refusal?: string | null } | undefined;
+    capture.write({
+      ...base(attemptIndex)!,
+      kind: "attempt_end",
+      attemptSeq: seq,
+      outcome: "response",
+      requestedModel: cfg.model,
+      returnedModel: typeof completion.model === "string" ? completion.model : null,
+      responseId: typeof completion.id === "string" ? completion.id : null,
+      systemFingerprint: typeof completion.system_fingerprint === "string" ? completion.system_fingerprint : null,
+      finishReason: choice?.finish_reason ?? null,
+      refusal: typeof msg?.refusal === "string" ? msg.refusal : null,
+      truncated,
+      usage: { promptTokens, completionTokens },
+      estUsd,
+      metered: true,
+      rawSha256: raw === null ? null : sha256(raw),
+      rawBytes: raw === null ? null : Buffer.byteLength(raw, "utf8"),
+      raw: raw !== null && capture.rawAllowed(ctx!.split) ? raw : null,
+      error: null,
+    });
+  }
+
+  return { raw, truncated, promptTokens, completionTokens, estUsd };
 }
 
 // ============================================================================
@@ -383,6 +514,14 @@ export async function runLiveCase(
   let promptTokens = 0;
   let completionTokens = 0;
   let estUsd = 0;
+  const ctxFor = (voteIndex: number | null, voteCount: number | null): DispatchContext => ({
+    runId,
+    caseId: evalCase.id,
+    split: evalCase.split,
+    repetition,
+    voteIndex,
+    voteCount,
+  });
 
   const prompt = buildCandidatePrompt(evalCase);
   switch (evalCase.workload) {
@@ -391,7 +530,7 @@ export async function runLiveCase(
       const out = await dispatchOnce(deps, cfg, prompt, { name: "doc_claims", schema: mapResponseSchema(c.input.docs.length) }, {
         temperature: 0.2,
         maxCompletionTokens: mapBatchMaxTokens(c.input.docs.length),
-      });
+      }, ctxFor(null, 1));
       promptTokens = out.promptTokens;
       completionTokens = out.completionTokens;
       estUsd = out.estUsd;
@@ -411,7 +550,7 @@ export async function runLiveCase(
         const out = await dispatchOnce(deps, cfg, prompt, { name: "digest_synthesis", schema: synthesisResponseSchema(c.input.track as Track) }, {
           temperature: 0.2,
           maxCompletionTokens: reduceMaxOutputTokens(),
-        });
+        }, ctxFor(v, k));
         promptTokens += out.promptTokens;
         completionTokens += out.completionTokens;
         estUsd += out.estUsd;
@@ -428,7 +567,7 @@ export async function runLiveCase(
       const c = evalCase as ValidationEvalCase;
       const out = await dispatchOnce(deps, cfg, prompt, { name: "matches", schema: MATCH_RESPONSE_SCHEMA }, {
         temperature: 0, // the production match call's exact temperature
-      });
+      }, ctxFor(null, 1));
       promptTokens = out.promptTokens;
       completionTokens = out.completionTokens;
       estUsd = out.estUsd;
@@ -477,9 +616,212 @@ export async function runLiveCase(
   };
 }
 
+/** Physical vote/dispatch count a case will make — the denominator an
+ *  abandoned-attempt record reports against. */
+export function liveVoteCount(evalCase: AnalysisEvalCase): number | null {
+  if (evalCase.workload === "digest") return reduceVotes();
+  if (evalCase.workload === "reduce") return null;
+  return 1;
+}
+
+// ============================================================================
+// The live sweep — durable per-case persistence, abort accounting, capture
+// ============================================================================
+
+export interface LiveSweepArgs {
+  deps: LiveDeps;
+  cfg: EvalCandidateDispatchConfig;
+  dataset: AnalysisEvalDataset;
+  header: ResultsFileHeader;
+  /** the file to resume into (null = start empty from `header`) */
+  existing: EvalResultsFile | null;
+  work: PendingWorkItem[];
+  runId: string;
+  knobs: EvalEnvKnobs;
+  /** durable write after EVERY state change (result row, abandoned record,
+   *  capture-run record) — the ONLY side effect besides dispatch and capture */
+  persist: (rf: EvalResultsFile) => void;
+  log: (line: string) => void;
+  logError: (line: string) => void;
+  now?: () => Date;
+}
+
+export interface LiveSweepAbort {
+  kind: "budget_stop" | "capture_write_failure";
+  caseId: string;
+  repetition: number;
+  message: string;
+  /** what the abandoned case had already done (all metered before the abort) */
+  responsesReceived: number;
+  estUsd: number;
+}
+
+export interface LiveSweepOutcome {
+  rf: EvalResultsFile;
+  status: "complete" | "aborted";
+  abort: LiveSweepAbort | null;
+  captureRun: CaptureRunRecord | null;
+}
+
+function snapshotMeter(m: MeterDelta): MeterDelta {
+  return { attempts: m.attempts, reservations: m.reservations, meterings: m.meterings, erroredAttempts: m.erroredAttempts };
+}
+
+function meterDeltaSince(before: MeterDelta, now: MeterDelta): MeterDelta {
+  return {
+    attempts: now.attempts - before.attempts,
+    reservations: now.reservations - before.reservations,
+    meterings: now.meterings - before.meterings,
+    erroredAttempts: now.erroredAttempts - before.erroredAttempts,
+  };
+}
+
+function usageDeltaSince(before: UsageTotals, now: UsageTotals): UsageTotals {
+  return {
+    promptTokens: now.promptTokens - before.promptTokens,
+    completionTokens: now.completionTokens - before.completionTokens,
+    estUsd: now.estUsd - before.estUsd,
+  };
+}
+
+/** The whole live loop, moved out of the CLI so its accounting is unit-
+ *  testable. Semantics (each pinned in live-runner.test.ts):
+ *  - inapplicable cases are recorded durably, never dispatched;
+ *  - a completed case is merged + persisted immediately (resume-safe);
+ *  - a provider error records a provider_error row (gates fail on it) with
+ *    the case's PARTIAL metered usage in `partialUsage`;
+ *  - a budget stop or a capture write failure ABORTS the sweep: the
+ *    interrupted case gets NO result key (it is pending again on resume) but
+ *    its physical attempts, meterings, tokens and USD are folded into the
+ *    file's meter and recorded as an `abandonedAttempts` entry — so the
+ *    ledger reconciles and nothing is fabricated; completed keys are never
+ *    rerun;
+ *  - with capture on, the capture-run record is stamped "incomplete" BEFORE
+ *    the first dispatch and upgraded to "complete" (with file hashes) only
+ *    when every work item finished. */
+export async function runLiveSweep(args: LiveSweepArgs): Promise<LiveSweepOutcome> {
+  const { deps, cfg, dataset, header, work, runId, knobs, persist, log, logError } = args;
+  const now = args.now ?? (() => new Date());
+  const configKey = header.configKey;
+  let rf = args.existing ?? emptyEvalResultsFile(header);
+  const capture = deps.capture;
+  if (capture !== null) {
+    rf = mergeEvalResults(rf, header, [], ZERO_METER, now(), { captureRun: capture.initialRecord() });
+    persist(rf);
+  }
+
+  const finishCapture = (outcome: "complete" | "aborted", reason: string | null): CaptureRunRecord | null => {
+    if (capture === null) return null;
+    const record = capture.finish(outcome, reason);
+    rf = mergeEvalResults(rf, header, [], ZERO_METER, now(), { captureRun: record });
+    persist(rf);
+    return record;
+  };
+
+  for (const item of work) {
+    // corpus-v2: classify applicability BEFORE any dispatch — an inapplicable
+    // case is recorded durably (zero meter, nothing dispatched, nothing
+    // billed), one row per requested repetition, so completeness holds
+    const applicability = classifyCaseApplicability(item.evalCase, knobs);
+    if (!applicability.applicable && applicability.requirement !== null) {
+      const req = applicability.requirement;
+      const row = inapplicableResult(item.evalCase, dataset.datasetVersion, runId, configKey, item.repetition, {
+        required: { [req.kind]: req.required },
+        actual: { [req.knob]: req.actual },
+        reason: applicability.reason ?? "structurally inapplicable",
+      });
+      rf = mergeEvalResults(rf, header, [row], ZERO_METER, now());
+      persist(rf);
+      log(`  ${item.evalCase.id}#r${item.repetition} status=inapplicable (${applicability.reason}) — not dispatched`);
+      continue;
+    }
+    const meterBefore = snapshotMeter(deps.meter);
+    const usageBefore = { ...deps.usage };
+    let result: EvalCaseResult;
+    try {
+      result = await runLiveCase(deps, cfg, item.evalCase, dataset.datasetVersion, runId, item.repetition);
+    } catch (e) {
+      const meterDelta = meterDeltaSince(meterBefore, deps.meter);
+      const usageDelta = usageDeltaSince(usageBefore, deps.usage);
+      if (e instanceof LlmBudgetError || e instanceof CaptureWriteError) {
+        const kind: LiveSweepAbort["kind"] = e instanceof LlmBudgetError ? "budget_stop" : "capture_write_failure";
+        const message = capture ? capture.redact(e.message) : sanitizeMessage(e.message);
+        const abandoned: AbandonedAttemptRecord = {
+          runId,
+          caseId: item.evalCase.id,
+          repetition: item.repetition,
+          split: item.evalCase.split,
+          reason: kind,
+          code: e instanceof LlmBudgetError ? (e.reserveCode ?? null) : null,
+          message,
+          at: now().toISOString(),
+          responsesReceived: meterDelta.meterings,
+          voteCount: liveVoteCount(item.evalCase),
+          meter: meterDelta,
+          promptTokens: usageDelta.promptTokens,
+          completionTokens: usageDelta.completionTokens,
+          estUsd: usageDelta.estUsd,
+        };
+        // the interrupted case's physical attempts ARE in the ledger — fold
+        // them into the file meter and keep the history; NO result key
+        rf = mergeEvalResults(rf, header, [], meterDelta, now(), { abandoned: [abandoned] });
+        persist(rf);
+        const captureRun = finishCapture("aborted", `${kind}: ${message}`);
+        logError(
+          `\nABORT — INVALID RUN: ${kind === "budget_stop" ? "budget-degraded" : "capture write failed"} (${message}). ` +
+            `${item.evalCase.id}#r${item.repetition} abandoned after ${meterDelta.attempts} physical attempt(s) / ${meterDelta.meterings} metered response(s) / $${usageDelta.estUsd.toFixed(4)} — recorded in abandonedAttempts, NOT as a result. ` +
+            `${Object.keys(rf.results).length} completed result(s) stay durable; a rerun resumes from the abandoned case. This partial run must NOT be read as a scorecard.`,
+        );
+        return {
+          rf,
+          status: "aborted",
+          abort: { kind, caseId: item.evalCase.id, repetition: item.repetition, message, responsesReceived: meterDelta.meterings, estUsd: usageDelta.estUsd },
+          captureRun,
+        };
+      }
+      // provider error: record it durably (the gates fail on providerError>0)
+      const msg = capture ? capture.redact(e instanceof Error ? e.message : String(e)) : sanitizeMessage(e instanceof Error ? e.message : String(e));
+      result = {
+        caseId: item.evalCase.id,
+        datasetVersion: dataset.datasetVersion,
+        runId,
+        configKey,
+        repetition: item.repetition,
+        attempt: meterDelta.attempts,
+        status: "provider_error",
+        latencyMs: null,
+        promptTokens: null,
+        completionTokens: null,
+        estUsd: null,
+        checks: { pass: false, failures: [`provider error: ${msg}`] },
+        humanLabels: null,
+        graderJudgments: null,
+        rawOutputDigest: "",
+        partialUsage: {
+          responsesReceived: meterDelta.meterings,
+          promptTokens: usageDelta.promptTokens,
+          completionTokens: usageDelta.completionTokens,
+          estUsd: usageDelta.estUsd,
+        },
+      };
+      logError(`  ${item.evalCase.id} PROVIDER ERROR: ${msg}`);
+    }
+    const meterDelta = meterDeltaSince(meterBefore, deps.meter);
+    rf = mergeEvalResults(rf, header, [result], meterDelta, now());
+    persist(rf); // durable after EVERY completed case
+    log(
+      `  ${item.evalCase.id}#r${item.repetition} status=${result.status} pass=${result.checks.pass} ` +
+        `$${(result.estUsd ?? result.partialUsage?.estUsd ?? 0).toFixed(4)} ${result.latencyMs ?? "—"}ms`,
+    );
+  }
+  const captureRun = finishCapture("complete", null);
+  return { rf, status: "complete", abort: null, captureRun };
+}
+
 /** Build the live deps for a REAL run: the shared factory client (maxRetries:
  *  0) + the fail-closed openai_eval guard. Only the script's authorized
- *  --execute-live path calls this. */
+ *  --execute-live path calls this. Capture is attached by the CLI afterwards
+ *  (it needs the results header identity the CLI assembles). */
 export async function buildLiveDeps(): Promise<LiveDeps> {
   const guard = evalGuardFromEnv();
   await guard.init();
@@ -487,6 +829,8 @@ export async function buildLiveDeps(): Promise<LiveDeps> {
     client: analysisOpenAiClient(),
     guard,
     meter: { attempts: 0, reservations: 0, meterings: 0, erroredAttempts: 0 },
+    usage: { ...ZERO_USAGE },
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+    capture: null,
   };
 }

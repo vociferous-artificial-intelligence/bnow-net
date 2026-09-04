@@ -53,6 +53,34 @@ import "./env";
 //       re-rolled to a pass), and any key replaced by a later run stays
 //       visible in the scorecard's run-provenance line.
 //
+//       Abort accounting (2026-09-04): a budget stop or a capture-write
+//       failure mid-case records the interrupted case's physical attempts,
+//       meterings, tokens and USD in the file's `abandonedAttempts` (folded
+//       into `meter`) with NO result key — the case is pending again on
+//       resume, completed keys are never rerun, nothing is fabricated.
+//
+//   Opt-in capture (--execute-live only; every other mode ignores the env):
+//       EVAL_CAPTURE_DIR=<dir>           per-attempt accounting JSONL, one
+//                                        file per split (<runId>.dev.jsonl /
+//                                        <runId>.heldout.jsonl); dir must be
+//                                        outside the repo or gitignored, 0700
+//       EVAL_CAPTURE_RAW=1               + raw response content, DEVELOPMENT
+//                                        split only
+//       EVAL_CAPTURE_RAW_HELDOUT=1       + heldout raw content; ALSO requires
+//         --allow-heldout-raw-capture    the explicit flag; stamped in header
+//       A capture write failure aborts the run (evidence of calls already
+//       made is retained: they are metered and recorded as abandoned).
+//
+//   --capture-reconcile --workload X --model M [--effort E] [--capacity P] [--out p.md]
+//       Reconcile EVAL_CAPTURE_DIR lines against the results file: attempts,
+//       responses, errors, unresolved (crash-window), metered, budget stops,
+//       abandoned vs completed vs orphan cases. Metadata only. No DB, no
+//       provider. The ledger comparison is stated, not performed.
+//
+//   --capture-inspect <file.jsonl> [--show-raw]
+//       Development-capture inspection (calibration input). REFUSES heldout
+//       files by name and by declared split. No DB, no provider.
+//
 // --fresh and --only are mutually exclusive (as in scripts/ask-eval.ts).
 // --dev excludes the heldout split (see docs/evals/analysis/README.md for the
 // heldout discipline: never iterate prompts against heldout results).
@@ -77,7 +105,8 @@ import "./env";
 //       zero-provider-contact; --execute-live REFUSES with --profile conflict
 //       (the conflict profile has no live dispatch path in this workstream).
 
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
   ANALYSIS_EVAL_WORKLOADS,
@@ -104,25 +133,41 @@ import {
   applyCapacityProfile,
   capacityProfileNames,
   withCapacityProfileKey,
-  classifyCaseApplicability,
-  inapplicableResult,
+  CaptureConfigError,
+  CaptureHeldoutRefusal,
   mergeEvalResults,
   offlineIdentity,
+  openCaptureForCalibration,
+  openCaptureSink,
+  parseCaptureFile,
   pendingWork,
+  reconcileCapture,
   renderAnalysisScorecardMarkdown,
+  renderCaptureReconciliation,
+  resolveCaptureConfig,
   resumeIdentityMismatch,
   runScopeFor,
   scoreOfflineCase,
   sha256,
+  type CaptureFs,
+  type CaptureResolution,
   type ResultsFileHeader,
   type ScorecardDetailBlock,
   type WorkloadScorecard,
 } from "../src/lib/evals/runner";
 import { ANALYSIS_DEFAULT_MODEL } from "../src/lib/llm/model-config";
-import { LlmBudgetError } from "../src/lib/usage/llm-guard";
 
-const EVALS_DIR = path.join(__dirname, "..", "docs", "evals", "analysis");
+const REPO_ROOT = path.resolve(__dirname, "..");
+const EVALS_DIR = path.join(REPO_ROOT, "docs", "evals", "analysis");
 const RESULTS_DIR = path.join(EVALS_DIR, "results");
+/** the scorer module a live workload scores through — its source hash is the
+ *  scorer identity stamped into every capture run line */
+const SCORER_MODULES: Record<AnalysisEvalWorkload, string> = {
+  map: "src/lib/evals/score-map.ts",
+  reduce: "src/lib/evals/score-reduce.ts",
+  digest: "src/lib/evals/score-reduce.ts",
+  validation: "src/lib/evals/score-validation.ts",
+};
 const DEFAULT_REPORT_PATH = path.join(EVALS_DIR, "ANALYSIS-EVAL-SCORECARD.md");
 
 /** One dataset per workload; bump here when a datasetVersion bumps. The
@@ -753,6 +798,9 @@ async function modeLive(opts: {
     process.exit(2);
   }
   const { cfg, dbHost, evalDatabaseUrl } = preflight;
+  // capture misconfiguration refuses HERE — before the ledger URL is applied
+  // and before any client/DB construction
+  const captureResolution = resolveCapture("live");
   // the spend ledger (provider_usage, provider openai_eval) writes to the
   // ACKNOWLEDGED eval branch — DATABASE_URL is overwritten, never read
   process.env.DATABASE_URL = evalDatabaseUrl;
@@ -810,72 +858,170 @@ async function modeLive(opts: {
   }
 
   const deps = await live.buildLiveDeps();
-  let rf = (opts.fresh ? null : existing) ?? emptyEvalResultsFile(header);
   const runId = `live-${Date.now()}`;
-  for (const item of work) {
-    // corpus-v2: classify applicability BEFORE any dispatch — an inapplicable
-    // case is recorded durably (zero meter, nothing dispatched, nothing
-    // billed), one row per requested repetition, so completeness holds
-    const applicability = classifyCaseApplicability(item.evalCase, currentEnvKnobs());
-    if (!applicability.applicable && applicability.requirement !== null) {
-      const req = applicability.requirement;
-      const row = inapplicableResult(item.evalCase, ds.datasetVersion, runId, configKey, item.repetition, {
-        required: { [req.kind]: req.required },
-        actual: { [req.knob]: req.actual },
-        reason: applicability.reason ?? "structurally inapplicable",
-      });
-      rf = mergeEvalResults(rf, header, [row], ZERO_METER, new Date());
-      saveResults(rf);
-      console.log(`  ${item.evalCase.id}#r${item.repetition} status=inapplicable (${applicability.reason}) — not dispatched`);
-      continue;
-    }
-    const meterBefore = { ...deps.meter };
-    let result;
+  if (captureResolution.enabled) {
+    // secrets the sink must never let into a line, whatever an error says
+    const secrets = [process.env.OPENAI_API_KEY, evalDatabaseUrl, process.env.DATABASE_URL_UNPOOLED].filter(
+      (v): v is string => typeof v === "string" && v.length > 0,
+    );
+    const scorerPath = path.join(REPO_ROOT, SCORER_MODULES[opts.workload]);
+    let gitHead: string | null = null;
     try {
-      result = await live.runLiveCase(deps, cfg, item.evalCase, ds.datasetVersion, runId, item.repetition);
-    } catch (e) {
-      if (e instanceof LlmBudgetError) {
-        console.error(
-          `\nABORT — INVALID RUN: budget-degraded (${e.message}). ` +
-            `${Object.keys(rf.results).length} completed result(s) stay durable in ${resultsPath(opts.workload, configKey)}; ` +
-            "fix the caps and rerun (resumes from here). This partial run must NOT be read as a scorecard.",
-        );
-        process.exit(1);
-      }
-      // provider error: record it durably (the gates fail on providerError>0)
-      result = {
-        caseId: item.evalCase.id,
-        datasetVersion: ds.datasetVersion,
-        runId,
-        configKey,
-        repetition: item.repetition,
-        attempt: deps.meter.attempts - meterBefore.attempts,
-        status: "provider_error" as const,
-        latencyMs: null,
-        promptTokens: null,
-        completionTokens: null,
-        estUsd: null,
-        checks: { pass: false, failures: [`provider error: ${e instanceof Error ? e.message : String(e)}`] },
-        humanLabels: null,
-        graderJudgments: null,
-        rawOutputDigest: "",
-      };
-      console.error(`  ${item.evalCase.id} PROVIDER ERROR: ${e instanceof Error ? e.message : e}`);
+      gitHead = execFileSync("git", ["rev-parse", "HEAD"], { cwd: REPO_ROOT, encoding: "utf8" }).trim();
+    } catch {
+      gitHead = null;
     }
-    const meterDelta = {
-      attempts: deps.meter.attempts - meterBefore.attempts,
-      reservations: deps.meter.reservations - meterBefore.reservations,
-      meterings: deps.meter.meterings - meterBefore.meterings,
-      erroredAttempts: deps.meter.erroredAttempts - meterBefore.erroredAttempts,
-    };
-    rf = mergeEvalResults(rf, header, [result], meterDelta, new Date());
-    saveResults(rf); // durable after EVERY completed case
+    try {
+      deps.capture = openCaptureSink(
+        captureResolution.cfg,
+        {
+          runId,
+          workload: opts.workload,
+          configKey,
+          datasetVersion: ds.datasetVersion,
+          datasetContentHash: contentHash,
+          identity: header.identity,
+          envKnobs: header.envKnobs,
+          scorer: {
+            module: SCORER_MODULES[opts.workload],
+            sourceSha256: existsSync(scorerPath) ? sha256(readFileSync(scorerPath)) : null,
+          },
+          gitHead,
+        },
+        CAPTURE_FS,
+        { secrets },
+      );
+    } catch (e) {
+      console.error(`REFUSED (capture): ${e instanceof Error ? e.message : e}`);
+      process.exit(2);
+    }
     console.log(
-      `  ${item.evalCase.id}#r${item.repetition} status=${result.status} pass=${result.checks.pass} ` +
-        `$${(result.estUsd ?? 0).toFixed(4)} ${result.latencyMs ?? "—"}ms`,
+      `capture: ${captureResolution.cfg.dir} (raw development=${captureResolution.cfg.rawDevelopment ? "ON" : "off"}, raw heldout=${captureResolution.cfg.rawHeldout ? "ON — explicitly acknowledged" : "off"}); a capture write failure ABORTS the run`,
+    );
+  }
+  const outcome = await live.runLiveSweep({
+    deps,
+    cfg,
+    dataset: ds,
+    header,
+    existing: opts.fresh ? null : existing,
+    work,
+    runId,
+    knobs: currentEnvKnobs(),
+    persist: saveResults,
+    log: (l) => console.log(l),
+    logError: (l) => console.error(l),
+  });
+  if (outcome.status === "aborted") {
+    console.error(`results file: ${resultsPath(opts.workload, configKey)}` + (outcome.captureRun ? ` · capture run ${outcome.captureRun.runId} state=${outcome.captureRun.state}` : ""));
+    process.exit(1);
+  }
+  if (outcome.captureRun) {
+    console.log(
+      `capture run ${outcome.captureRun.runId} state=${outcome.captureRun.state}` +
+        (outcome.captureRun.sha256 ? ` dev=${outcome.captureRun.sha256.development?.slice(0, 12) ?? "—"} heldout=${outcome.captureRun.sha256.heldout?.slice(0, 12) ?? "—"}` : ""),
     );
   }
   console.log(`\nlive sweep complete -> ${resultsPath(opts.workload, configKey)}. Run --report for the scorecard.`);
+}
+
+// ---- capture reconciliation / inspection (no DB, no provider) -----------------
+
+const CAPTURE_FS: CaptureFs = {
+  existsSync,
+  mkdirSync: (p, o) => mkdirSync(p, o),
+  statSync: (p) => statSync(p),
+  appendFileSync: (p, d, o) => appendFileSync(p, d, o),
+  readFileSync: (p) => readFileSync(p),
+};
+
+function isGitIgnored(absPath: string): boolean {
+  try {
+    execFileSync("git", ["check-ignore", "-q", absPath], { cwd: REPO_ROOT, stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Resolve the capture env for a mode. Refusals exit 2 BEFORE any client or
+ *  DB work; non-live modes get a notice and NO filesystem access. */
+function resolveCapture(mode: "live" | "other"): CaptureResolution {
+  try {
+    return resolveCaptureConfig(process.env, {
+      mode,
+      repoRoot: REPO_ROOT,
+      resolvePath: (p) => path.resolve(p),
+      isGitIgnored,
+      heldoutRawAck: hasFlag("allow-heldout-raw-capture"),
+    });
+  } catch (e) {
+    if (e instanceof CaptureConfigError) {
+      console.error(`REFUSED (capture): ${e.message}`);
+      process.exit(2);
+    }
+    throw e;
+  }
+}
+
+function captureDirOrExit(): string {
+  const dir = process.env.EVAL_CAPTURE_DIR;
+  if (!dir) {
+    console.error("EVAL_CAPTURE_DIR is not set — nothing to reconcile/inspect");
+    process.exit(2);
+  }
+  return path.resolve(dir);
+}
+
+function modeCaptureReconcile(workload: AnalysisEvalWorkload, model: string, effort: string | null, outPath: string | undefined): void {
+  const dir = captureDirOrExit();
+  const configKey = profiledKey(liveConfigKey(model, effort));
+  const rfPath = resultsPath(workload, configKey);
+  const rf = loadResultsAtPath(rfPath);
+  const files = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(".jsonl")).sort() : [];
+  const parsed = files
+    .map((f) => parseCaptureFile(f, readFileSync(path.join(dir, f), "utf8")))
+    // only runs for THIS workload/configKey; other cells' files are reported, never mixed in
+    .filter((p) => p.run !== null && p.run.workload === workload && p.run.configKey === configKey);
+  const skipped = files.length - parsed.length;
+  const rec = reconcileCapture(parsed, rf);
+  if (skipped > 0) rec.notes.unshift(`${skipped} capture file(s) in ${dir} belong to other workload/configKey cells (or lack a run line) and were not reconciled here`);
+  const md = renderCaptureReconciliation(rec, `${workload}/${configKey} (results ${rf ? path.basename(rfPath) : "absent"}, capture ${dir})`);
+  if (outPath) {
+    writeFileSync(outPath, md);
+    console.log(`reconciliation -> ${outPath}`);
+  } else {
+    console.log(md);
+  }
+  console.log("reconciliation only — no DB connection, no client construction, no LLM calls; the ledger comparison is stated for the operator to perform.");
+}
+
+function modeCaptureInspect(file: string, showRaw: boolean): void {
+  let parsed;
+  try {
+    parsed = openCaptureForCalibration(file, readFileSync(file, "utf8"));
+  } catch (e) {
+    if (e instanceof CaptureHeldoutRefusal) {
+      console.error(`REFUSED: ${e.message}`);
+      process.exit(2);
+    }
+    throw e;
+  }
+  const run = parsed.run!;
+  console.log(`capture ${path.basename(file)}: run ${run.runId} ${run.workload}/${run.configKey} dataset ${run.datasetVersion} split=${run.split} raw=${run.raw} model=${run.identity.model} scorer=${run.scorer.module}@${run.scorer.sourceSha256?.slice(0, 12) ?? "?"} git=${run.gitHead?.slice(0, 12) ?? "?"}`);
+  for (const l of parsed.lines) {
+    if (l.kind === "attempt_start") console.log(`  #${l.attemptSeq} start ${l.caseId}#r${l.repetition}${l.voteIndex !== null ? ` vote ${l.voteIndex}/${l.voteCount}` : ""} attempt ${l.attemptIndex} model ${l.requestedModel}`);
+    else if (l.kind === "attempt_end") {
+      console.log(
+        `  #${l.attemptSeq} end   ${l.outcome} finish=${l.finishReason ?? "—"} refusal=${l.refusal ? "yes" : "no"} truncated=${l.truncated} metered=${l.metered} usage=${l.usage ? `${l.usage.promptTokens}+${l.usage.completionTokens}` : "—"} $${(l.estUsd ?? 0).toFixed(4)} model=${l.returnedModel ?? "—"} id=${l.responseId ?? "—"} sha=${l.rawSha256?.slice(0, 12) ?? "—"}` +
+          (l.error ? ` error=${l.error.name}${l.error.status !== null ? `/${l.error.status}` : ""}: ${l.error.message}` : ""),
+      );
+      if (showRaw && l.raw !== null) console.log(`    raw: ${l.raw}`);
+      else if (showRaw && l.outcome === "response") console.log("    raw: (not captured — EVAL_CAPTURE_RAW was off for this run)");
+    } else if (l.kind === "budget_stop") console.log(`  budget_stop ${l.caseId}#r${l.repetition}${l.voteIndex !== null ? ` vote ${l.voteIndex}/${l.voteCount}` : ""} code=${l.code ?? "—"}: ${l.reason}`);
+    else if (l.kind === "run_end") console.log(`  run_end ${l.outcome}${l.reason ? ` (${l.reason})` : ""} lines=${l.lines}`);
+  }
+  if (parsed.malformed > 0) console.log(`  (${parsed.malformed} malformed line(s) skipped)`);
 }
 
 // ---- entry --------------------------------------------------------------------
@@ -1046,6 +1192,33 @@ async function main(): Promise<void> {
     return conflictModeOffline(mod, conflicts, { fresh, onlyIds, devOnly });
   }
 
+  if (hasFlag("capture-inspect")) {
+    const file = flagValue("capture-inspect");
+    if (!file) {
+      console.error("--capture-inspect takes a capture file path");
+      process.exit(2);
+    }
+    return modeCaptureInspect(path.resolve(file), hasFlag("show-raw"));
+  }
+  if (hasFlag("capture-reconcile")) {
+    const workloads = parseWorkloads(true);
+    if (workloads.length !== 1) {
+      console.error("--capture-reconcile takes exactly ONE --workload");
+      process.exit(2);
+    }
+    const model = flagValue("model");
+    if (!model) {
+      console.error("--capture-reconcile requires --model (the results file is keyed by configKey)");
+      process.exit(2);
+    }
+    return modeCaptureReconcile(workloads[0], model, flagValue("effort") ?? null, flagValue("out"));
+  }
+  if (!hasFlag("execute-live")) {
+    // capture is a live-only facility: every other mode ignores the env with
+    // a notice and touches no capture file
+    const r = resolveCapture("other");
+    if (!r.enabled && r.notice) console.log(`note: ${r.notice}`);
+  }
   if (hasFlag("validate-dataset")) return modeValidate(parseWorkloads(false));
   if (hasFlag("estimate")) {
     return modeEstimate(parseWorkloads(false), flagValue("model") ?? ANALYSIS_DEFAULT_MODEL, parseRepetitions());

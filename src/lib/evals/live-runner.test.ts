@@ -60,7 +60,9 @@ async function deps(create: ReturnType<typeof vi.fn>): Promise<LiveDeps & { slee
     client: { chat: { completions: { create } } } as unknown as OpenAI,
     guard,
     meter: { attempts: 0, reservations: 0, meterings: 0, erroredAttempts: 0 },
+    usage: { promptTokens: 0, completionTokens: 0, estUsd: 0 },
     sleep: sleepSpy,
+    capture: null,
     sleepSpy,
   };
 }
@@ -324,7 +326,9 @@ describe("dispatchOnce", () => {
       client: { chat: { completions: { create } } } as unknown as OpenAI,
       guard,
       meter: { attempts: 0, reservations: 0, meterings: 0, erroredAttempts: 0 },
+      usage: { promptTokens: 0, completionTokens: 0, estUsd: 0 },
       sleep: async () => {},
+      capture: null,
     };
     const out = await dispatchOnce(d, CFG, PROMPT, SCHEMA, { temperature: 0 });
     expect(out.truncated).toBe(true);
@@ -342,7 +346,9 @@ describe("dispatchOnce", () => {
       client: { chat: { completions: { create } } } as unknown as OpenAI,
       guard,
       meter: { attempts: 0, reservations: 0, meterings: 0, erroredAttempts: 0 },
+      usage: { promptTokens: 0, completionTokens: 0, estUsd: 0 },
       sleep: async () => {},
+      capture: null,
     };
     await expect(dispatchOnce(d, CFG, PROMPT, SCHEMA, { temperature: 0 })).rejects.toThrow(LlmBudgetError);
     expect(create).not.toHaveBeenCalled();

@@ -3460,3 +3460,23 @@ Execution (same block):
   calls / prod access / env edits / deploys / migrations. Records:
   docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md +
   docs/reviews/PAID-EVAL-OPERATOR-PACKET-2026-09-03.md.
+
+## 2026-09-04 — eval capture + interrupted-attempt accounting (PR 1 of 2)
+
+- Read the methodology adjudication packet as evidence; original campaign,
+  frozen worktree `eval-campaign-20260903` (774906f), backups, ledger and the
+  disposable Neon branch untouched. Fresh worktree
+  `bnow-net-worktrees/eval-capture-20260904` from verified `origin/main` 774906f.
+- Built `src/lib/evals/capture.ts` (opt-in, live-only, fs-injected, dev/heldout
+  split files, heldout raw default-off + separately acknowledged, secret-safe,
+  fail-closed writes, explicit crash-window `unresolved` class, reconciliation +
+  calibration readers), threaded a case context through `dispatchOnce`, moved the
+  live loop into `runLiveSweep` with durable `abandonedAttempts` accounting (no
+  invented keys, no reruns of completed keys, `partialUsage` on provider errors,
+  `captureRuns` header records), added `--capture-reconcile` / `--capture-inspect`.
+- Gates: typecheck/lint clean · unit 3,590/3,590 (246 files). Zero paid calls,
+  zero DB/production access, no deploy.
+- Next: PR 2 — validation five-vote parity (default K=5 with majority via the
+  production `majorityFromVotes`, identity-stamped vote count, refused
+  incompatible resumes, ×K estimates, single-round diagnostic mode labelled).
+
