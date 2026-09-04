@@ -106,7 +106,7 @@ import "./env";
 //       (the conflict profile has no live dispatch path in this workstream).
 
 import { execFileSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
   ANALYSIS_EVAL_WORKLOADS,
@@ -151,6 +151,7 @@ import {
   sha256,
   type CaptureFs,
   type CaptureResolution,
+  type CaptureSink,
   type ResultsFileHeader,
   type ScorecardDetailBlock,
   type WorkloadScorecard,
@@ -315,7 +316,12 @@ function loadResults(workload: AnalysisEvalWorkload, configKey: string): EvalRes
 
 function saveResultsAtPath(p: string, rf: EvalResultsFile): void {
   mkdirSync(RESULTS_DIR, { recursive: true });
-  writeFileSync(p, JSON.stringify(rf, null, 2) + "\n");
+  // temp + rename: a kill mid-write can no longer leave a torn results file
+  // that the next resume cannot parse (review F6); rename is atomic on the
+  // same filesystem, so the file is always either the old or the new version
+  const tmp = `${p}.tmp-${process.pid}`;
+  writeFileSync(tmp, JSON.stringify(rf, null, 2) + "\n");
+  renameSync(tmp, p);
 }
 
 function saveResults(rf: EvalResultsFile): void {
@@ -857,8 +863,11 @@ async function modeLive(opts: {
     return;
   }
 
-  const deps = await live.buildLiveDeps();
+  // the capture sink opens BEFORE buildLiveDeps: every capture refusal
+  // (directory mode, runId reuse) fires before the guard's DB init and the
+  // client construction (review F3)
   const runId = `live-${Date.now()}`;
+  let captureSink: CaptureSink | null = null;
   if (captureResolution.enabled) {
     // secrets the sink must never let into a line, whatever an error says
     const secrets = [process.env.OPENAI_API_KEY, evalDatabaseUrl, process.env.DATABASE_URL_UNPOOLED].filter(
@@ -872,7 +881,7 @@ async function modeLive(opts: {
       gitHead = null;
     }
     try {
-      deps.capture = openCaptureSink(
+      captureSink = openCaptureSink(
         captureResolution.cfg,
         {
           runId,
@@ -899,6 +908,8 @@ async function modeLive(opts: {
       `capture: ${captureResolution.cfg.dir} (raw development=${captureResolution.cfg.rawDevelopment ? "ON" : "off"}, raw heldout=${captureResolution.cfg.rawHeldout ? "ON — explicitly acknowledged" : "off"}); a capture write failure ABORTS the run`,
     );
   }
+  const deps = await live.buildLiveDeps();
+  deps.capture = captureSink;
   const outcome = await live.runLiveSweep({
     deps,
     cfg,
@@ -937,7 +948,10 @@ const CAPTURE_FS: CaptureFs = {
 
 function isGitIgnored(absPath: string): boolean {
   try {
-    execFileSync("git", ["check-ignore", "-q", absPath], { cwd: REPO_ROOT, stdio: "ignore" });
+    // trailing slash: directory-only ignore patterns (docs/evals/analysis/capture/)
+    // must match BEFORE the directory exists — the sink creates it later
+    // (review F1); path.resolve strips any slash the operator typed
+    execFileSync("git", ["check-ignore", "-q", `${absPath}/`], { cwd: REPO_ROOT, stdio: "ignore" });
     return true;
   } catch {
     return false;

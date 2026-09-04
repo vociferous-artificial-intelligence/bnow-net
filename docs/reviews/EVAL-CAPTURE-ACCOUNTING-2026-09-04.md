@@ -109,6 +109,7 @@ are sequential. Concretely:
 | after the response, before `guard.record` completes | billed | no | start only | `unresolved` — the ONE case where the ledger under-counts |
 | after `guard.record`, before `attempt_end` | billed | yes | start only | `unresolved` — the ledger is authoritative; capture under-counts |
 | process killed between cases | — | complete | complete for finished attempts; no `run_end` | "no run_end line"; the interrupted case is an `orphan` if it had attempts and no durable record (only a kill/crash can produce an orphan; budget stops and capture failures produce `abandoned`) |
+| `persist` (results-file write) throws | billed | yes | complete up to the failure; no `run_end` | the sweep does not catch a persist failure (review F6): an in-memory abandoned record or result row is lost, the on-disk meter lacks the case's delta, and a resume re-dispatches the case (double spend for that case). The write is now temp+rename, so a kill mid-write can no longer leave a torn file; a thrown persist still aborts the process with the error on stderr and the ledger as the only witness for the lost delta |
 
 Therefore: `Σ metered (capture)` ≤ `provider_usage.requests` ≤ `Σ attempts (capture)` is the
 expected relation for a fully captured run, with equality on both sides only when there are
@@ -157,11 +158,26 @@ hardening-cli.test.ts.
 - Injection failures retained as an unresolved evaluation safety finding (#106); not a
   scorer defect; no confirmed production incident is claimed.
 
-## 6. Independent review
+## 6. Independent review (round 1, adversarial safety/accounting; read-only, executed probes)
 
-Recorded in §7 below after the review round; the PR merges only after CI and a
-reviewed-tree comparison (merge tree ≡ reviewed branch tip).
+Verdict on `f305390`: **MERGEABLE-WITH-FIXES**. Claims 1–11 checked and holding (no
+loophole found in: default-off/zero-fs, line identities, heldout raw double guard,
+credential-free lines, split routing, no-invented-key, ruling-8 ordering, meter invariants on
+every abort path, fresh 429 reservation, separate reconciliation classes, header
+immutability, CLI import surface). Findings and their remediation (all applied on the
+branch, each pinned by a test where testable):
+
+| # | severity | finding | remediation |
+|---|---|---|---|
+| F1 | MAJOR (confirmed by execution) | `git check-ignore` on the not-yet-existing default dir exits 1 (directory-only pattern), so the documented default location was refused on first use | `isGitIgnored` probes `<abs>/`; CLI pin: the absent default dir is accepted, the sink creates it, and the run then fails at the guard's DB init with nothing dispatched |
+| F2 | MINOR (confirmed) | reconciliation labelled an abandoning run's attempts "completed" once a later run completed the key | dispositions are runId-scoped: completed/provider_error only when THIS run holds the key; `abandoned`; new `superseded` (key held by another run, no record) with a note; orphan; pinned |
+| F3 | MINOR (confirmed) | sink-open refusals (dir mode, runId reuse) fired AFTER `buildLiveDeps` (guard DB init + client) | the sink opens BEFORE `buildLiveDeps`; the F1 pin proves the order (dir exists, DB init failed, no file) |
+| F4 | MINOR (confirmed) | (a) raw flags parsed before the mode gate, so a malformed `EVAL_CAPTURE_RAW` failed $0 modes; (b) the heldout ack with no dir was silently accepted | non-live modes return before parsing any flag; the ack without a dir refuses ("authorizes nothing"); pinned |
+| F5 | MINOR (confirmed) | refusal TEXT (model output) landed on heldout lines with raw off | `refused: boolean` is always recorded; `refusal` text only where raw is authorized for the split, and the sink strips it defensively; pinned |
+| F6 | MINOR (plausible) | a thrown `persist` is outside the crash-window table; a kill mid-write could tear the results JSON | temp+rename write; the table above gains the persist-throw row |
+| F7 | NOTE | write-after-finish reported `responseMetered:false`; dead ternary | evidence computed from the line; ternary removed; pinned |
+| F8 | NOTE | the pre-dispatch capture record carried null file names | the record's note names the planned files |
 
 ## 7. Review round and merge record
 
-_(filled in at merge)_
+Round 2 (fix confirmation) and the merge hashes are recorded below at merge time.

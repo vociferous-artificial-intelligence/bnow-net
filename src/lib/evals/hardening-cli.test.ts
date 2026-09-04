@@ -5,7 +5,7 @@
 // branches are exercised) and the --fresh acknowledgement refusal (C-A7-2),
 // asserted to refuse BEFORE any byte of the committed results is touched.
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -101,6 +101,37 @@ describe("2026-09-04 capture: live-only, refuses before any client/DB work, held
     expect(r.stderr).toMatch(/REFUSED \(capture\).*NOT gitignored/);
     expect(r.stderr).not.toMatch(/ECONNREFUSED|ENOTFOUND|getaddrinfo/); // never reached the DB
     expect(existsSync(resultsPath)).toBe(existed); // nothing written
+  }, 120_000);
+
+  it("the DEFAULT capture dir passes the gitignore check BEFORE it exists, and the sink opens before any DB/client work (review F1/F3)", () => {
+    const dir = join(process.cwd(), "docs", "evals", "analysis", "capture", `f1-probe-${process.pid}`);
+    expect(existsSync(dir)).toBe(false);
+    const r = spawnSync(
+      TSX_BIN,
+      [CLI, "--execute-live", "--workload", "validation", "--model", "gpt-4o-mini", "--db-ack", "eval-probe.invalid", "--repetitions", "3"],
+      {
+        env: {
+          ...BLANKED_ENV,
+          LLM_DISABLE: "",
+          OPENAI_API_KEY: "sk-probe-not-a-real-key",
+          EVAL_DATABASE_URL: "postgres://probe:probe@eval-probe.invalid/db",
+          LLM_SPRINT_USD_CAP: "1",
+          EVAL_USD_CAP_DAILY: "1",
+          EVAL_CAPTURE_DIR: dir,
+        },
+        encoding: "utf8",
+        timeout: 120_000,
+      },
+    );
+    try {
+      expect(r.stderr).not.toMatch(/REFUSED \(capture\)/); // the not-yet-existing default dir is accepted
+      expect(r.stdout).toMatch(/capture: .*f1-probe/); // the sink opened (dir created) ...
+      expect(existsSync(dir)).toBe(true);
+      expect(r.status).not.toBe(0); // ... and the run then failed at the guard's DB init against the unroutable host — no dispatch
+      expect(readdirSync(dir)).toEqual([]); // nothing dispatched: no attempt line, no file
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   }, 120_000);
 
   it("--capture-inspect refuses a heldout capture file by name (exit 2)", () => {

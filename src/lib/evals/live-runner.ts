@@ -398,6 +398,7 @@ export async function dispatchOnce(
       responseId: null,
       systemFingerprint: null,
       finishReason: null,
+      refused: false,
       refusal: null,
       truncated: false,
       usage: null,
@@ -479,7 +480,9 @@ export async function dispatchOnce(
       responseId: typeof completion.id === "string" ? completion.id : null,
       systemFingerprint: typeof completion.system_fingerprint === "string" ? completion.system_fingerprint : null,
       finishReason: choice?.finish_reason ?? null,
-      refusal: typeof msg?.refusal === "string" ? msg.refusal : null,
+      refused: typeof msg?.refusal === "string" && msg.refusal.length > 0,
+      // refusal TEXT is model output: only where raw capture is authorized
+      refusal: typeof msg?.refusal === "string" && capture.rawAllowed(ctx!.split) ? msg.refusal : null,
       truncated,
       usage: { promptTokens, completionTokens },
       estUsd,

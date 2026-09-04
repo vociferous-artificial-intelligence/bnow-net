@@ -95,6 +95,7 @@ export {
   type CaptureFs,
   type CaptureReconciliation,
   type CaptureResolution,
+  type CaptureSink,
   type ParsedCaptureFile,
 } from "./capture";
 import {

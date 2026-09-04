@@ -171,19 +171,27 @@ function flag(env: NodeJS.ProcessEnv, name: string): boolean {
  *  capture intent it cannot honour. */
 export function resolveCaptureConfig(env: NodeJS.ProcessEnv, deps: CaptureResolveDeps): CaptureResolution {
   const dirRaw = env.EVAL_CAPTURE_DIR;
+  // non-live modes ignore the capture env ENTIRELY — the raw flags are not
+  // even parsed, so a malformed value cannot fail a $0 mode (review F4a)
+  if (deps.mode !== "live") {
+    return {
+      enabled: false,
+      notice:
+        dirRaw === undefined || dirRaw === ""
+          ? null
+          : "EVAL_CAPTURE_DIR is set but only --execute-live dispatches — ignored (no capture file is touched by this mode)",
+    };
+  }
   const rawDev = flag(env, "EVAL_CAPTURE_RAW");
   const rawHeldoutEnv = flag(env, "EVAL_CAPTURE_RAW_HELDOUT");
   if (dirRaw === undefined || dirRaw === "") {
     if (rawDev || rawHeldoutEnv) {
       throw new CaptureConfigError("EVAL_CAPTURE_RAW / EVAL_CAPTURE_RAW_HELDOUT require EVAL_CAPTURE_DIR");
     }
+    if (deps.heldoutRawAck) {
+      throw new CaptureConfigError("--allow-heldout-raw-capture given without EVAL_CAPTURE_DIR — refusing an acknowledgement that authorizes nothing");
+    }
     return { enabled: false, notice: null };
-  }
-  if (deps.mode !== "live") {
-    return {
-      enabled: false,
-      notice: "EVAL_CAPTURE_DIR is set but only --execute-live dispatches — ignored (no capture file is touched by this mode)",
-    };
   }
   if (rawHeldoutEnv && !rawDev) {
     throw new CaptureConfigError("EVAL_CAPTURE_RAW_HELDOUT=1 requires EVAL_CAPTURE_RAW=1 (heldout raw capture is an addition to development raw capture, never a substitute)");
@@ -263,6 +271,9 @@ export interface CaptureAttemptEndLine extends CaptureAttemptBase {
   responseId: string | null;
   systemFingerprint: string | null;
   finishReason: string | null;
+  /** the provider returned a refusal message (accounting metadata, always recorded) */
+  refused: boolean;
+  /** the refusal TEXT — model output, so present only when raw capture is on for this split */
   refusal: string | null;
   truncated: boolean;
   usage: { promptTokens: number; completionTokens: number } | null;
@@ -422,7 +433,7 @@ export function openCaptureSink(
     },
     state,
     sha256: hashes,
-    lines: state === "complete" ? { ...lineCount } : { ...lineCount },
+    lines: { ...lineCount },
     note,
   });
 
@@ -434,17 +445,23 @@ export function openCaptureSink(
     rawAllowed: (split) => (split === "heldout" ? cfg.rawHeldout : cfg.rawDevelopment),
     redact,
     write(line) {
-      if (finished) throw new CaptureWriteError({ line: line.kind, attemptSeq: "attemptSeq" in line ? line.attemptSeq : null, responseMetered: false }, new Error("sink already finished"));
-      // defensive: a line for a split whose raw capture is off can never carry raw
-      const safe = line.kind === "attempt_end" && !this.rawAllowed(line.split) ? { ...line, raw: null } : line;
       const evidence: CaptureWriteError["evidence"] = {
         line: line.kind,
         attemptSeq: "attemptSeq" in line ? line.attemptSeq : null,
         responseMetered: line.kind === "attempt_end" && line.outcome === "response" && line.metered,
       };
+      if (finished) throw new CaptureWriteError(evidence, new Error("sink already finished"));
+      // defensive: a line for a split whose raw capture is off can never carry
+      // model output — neither the response body nor the refusal text
+      const safe = line.kind === "attempt_end" && !this.rawAllowed(line.split) ? { ...line, raw: null, refusal: null } : line;
       appendTo(line.split, safe, evidence);
     },
-    initialRecord: () => recordOf("incomplete", "run in progress (stamped before the first dispatch)", null),
+    initialRecord: () =>
+      recordOf(
+        "incomplete",
+        `run in progress (stamped before the first dispatch; files are created on their first line: ${captureFileName(header.runId, "development")} / ${captureFileName(header.runId, "heldout")})`,
+        null,
+      ),
     finish(outcome, reason) {
       finished = true;
       let note: string | null = null;
@@ -556,10 +573,14 @@ export interface AttemptReconciliation {
     unresolved: number;
     budgetStops: number;
     estUsd: number;
-    /** "completed" = result key present; "abandoned" = recorded in
-     *  results.abandonedAttempts; "orphan" = neither (interrupted without a
-     *  durable record); "no-results-file" when reconciling capture alone */
-    disposition: "completed" | "provider_error" | "abandoned" | "orphan" | "no-results-file";
+    /** "completed"/"provider_error" = THIS run holds the result key;
+     *  "abandoned" = this run's attempt is recorded in
+     *  results.abandonedAttempts; "superseded" = another run holds the key
+     *  (a resume completed it, or --only replaced it) and this run's
+     *  attempts are neither its result nor a recorded abandonment;
+     *  "orphan" = no key and no record (interrupted without a durable
+     *  record); "no-results-file" when reconciling capture alone */
+    disposition: "completed" | "provider_error" | "abandoned" | "superseded" | "orphan" | "no-results-file";
   }>;
 }
 
@@ -617,8 +638,10 @@ export function reconcileCapture(files: ParsedCaptureFile[], results: EvalResult
       if (!c) {
         let disposition: AttemptReconciliation["byCase"][number]["disposition"];
         if (results === null) disposition = "no-results-file";
-        else if (resultKeys.has(k)) disposition = results.results[k].status === "provider_error" ? "provider_error" : "completed";
-        else if (abandonedKeys.has(`${runId}|${k}`)) disposition = "abandoned";
+        else if (resultKeys.has(k) && results.results[k].runId === runId) {
+          disposition = results.results[k].status === "provider_error" ? "provider_error" : "completed";
+        } else if (abandonedKeys.has(`${runId}|${k}`)) disposition = "abandoned";
+        else if (resultKeys.has(k)) disposition = "superseded";
         else disposition = "orphan";
         c = { caseId: l.caseId, repetition: l.repetition, split: l.split, attempts: 0, responses: 0, errors: 0, unresolved: 0, budgetStops: 0, estUsd: 0, disposition };
         caseMap.set(k, c);
@@ -654,6 +677,7 @@ export function reconcileCapture(files: ParsedCaptureFile[], results: EvalResult
     for (const s of rec.stops) caseRec(s).budgetStops++;
     const byCase = [...caseMap.values()].sort((a, b) => a.caseId.localeCompare(b.caseId) || a.repetition - b.repetition);
     for (const c of byCase) {
+      if (c.disposition === "superseded") notes.push(`${runId}: ${resultKey(c.caseId, c.repetition)} — the result key is held by run ${results!.results[resultKey(c.caseId, c.repetition)].runId}; this run's ${c.attempts} attempt(s) are neither its result nor a recorded abandonment (a --only rerun, or a pre-accounting interruption later completed by a resume)`);
       if (c.disposition === "orphan") notes.push(`${runId}: ${resultKey(c.caseId, c.repetition)} has ${c.attempts} captured attempt(s) but neither a result key nor an abandoned-attempt record — interrupted without a durable record (crash/kill); its metered responses are in the ledger`);
       if (c.unresolved > 0) notes.push(`${runId}: ${resultKey(c.caseId, c.repetition)} has ${c.unresolved} UNRESOLVED attempt(s) (start without end) — the provider may have billed them; the ledger may or may not hold them`);
     }

@@ -94,6 +94,7 @@ function endLine(over: Partial<CaptureAttemptEndLine> & { attemptSeq: number }):
     responseId: "chatcmpl-1",
     systemFingerprint: "fp_1",
     finishReason: "stop",
+    refused: false,
     refusal: null,
     truncated: false,
     usage: { promptTokens: 100, completionTokens: 20 },
@@ -129,12 +130,18 @@ describe("resolveCaptureConfig", () => {
     expect(() => resolveCaptureConfig(env({ EVAL_CAPTURE_RAW_HELDOUT: "1" }), DEPS)).toThrow(/require EVAL_CAPTURE_DIR/);
   });
 
-  it("non-live modes ignore a set dir with a notice and never resolve it", () => {
+  it("non-live modes ignore a set dir with a notice and never resolve it — nor parse the raw flags (a malformed value cannot fail a $0 mode)", () => {
     let resolved = 0;
     const r = resolveCaptureConfig(env({ EVAL_CAPTURE_DIR: "/x" }), { ...DEPS, mode: "other", resolvePath: (p) => (resolved++, p) });
     expect(r).toMatchObject({ enabled: false });
     expect((r as { notice: string }).notice).toMatch(/only --execute-live dispatches/);
     expect(resolved).toBe(0);
+    expect(resolveCaptureConfig(env({ EVAL_CAPTURE_DIR: "/x", EVAL_CAPTURE_RAW: "true" }), { ...DEPS, mode: "other" })).toMatchObject({ enabled: false });
+    expect(resolveCaptureConfig(env({ EVAL_CAPTURE_RAW: "garbage" }), { ...DEPS, mode: "other" })).toEqual({ enabled: false, notice: null });
+  });
+
+  it("the heldout-raw acknowledgement with NO capture dir refuses (an ack that authorizes nothing, same as with a dir)", () => {
+    expect(() => resolveCaptureConfig(env({}), { ...DEPS, heldoutRawAck: true })).toThrow(/authorizes nothing/);
   });
 
   it("flag values must be exactly \"1\" (no truthy strings)", () => {
@@ -178,11 +185,11 @@ describe("openCaptureSink", () => {
     expect(() => openCaptureSink(CFG, HEADER, memFs({ preexisting: ["/cap/live-1.dev.jsonl"] }).fs)).toThrow(/already exists/);
   });
 
-  it("writes a run line first, then attempt lines, to the split's own file; heldout goes to a separate file with raw forced off", () => {
+  it("writes a run line first, then attempt lines, to the split's own file; heldout goes to a separate file with raw AND refusal text forced off (refused flag kept)", () => {
     const m = memFs();
     const sink = openCaptureSink({ ...CFG, rawDevelopment: true }, HEADER, m.fs);
     sink.write(endLine({ attemptSeq: sink.nextAttemptSeq(), raw: '{"matches":[]}' }));
-    sink.write(endLine({ attemptSeq: sink.nextAttemptSeq(), split: "heldout", caseId: "val-typ-004", raw: "SECRET HELDOUT OUTPUT" }));
+    sink.write(endLine({ attemptSeq: sink.nextAttemptSeq(), split: "heldout", caseId: "val-typ-004", raw: "SECRET HELDOUT OUTPUT", refused: true, refusal: "I refuse: HELDOUT REFUSAL TEXT" }));
     const dev = parseCaptureFile("d", m.files.get(sink.files.development)!);
     const held = parseCaptureFile("h", m.files.get(sink.files.heldout)!);
     expect(dev.run).toMatchObject({ kind: "run", split: "development", raw: true, runId: "live-1", scorer: HEADER.scorer, gitHead: "abc123" });
@@ -191,6 +198,9 @@ describe("openCaptureSink", () => {
     expect((dev.lines[1] as CaptureAttemptEndLine).raw).toBe('{"matches":[]}');
     // heldout raw is dropped even though the caller passed it — default off is enforced in the sink, not just by config
     expect((held.lines[1] as CaptureAttemptEndLine).raw).toBeNull();
+    expect((held.lines[1] as CaptureAttemptEndLine).refusal).toBeNull();
+    expect((held.lines[1] as CaptureAttemptEndLine).refused).toBe(true);
+    expect(m.files.get(sink.files.heldout)).not.toContain("HELDOUT REFUSAL TEXT");
     expect(m.files.get(sink.files.heldout)).not.toContain("SECRET HELDOUT OUTPUT");
     expect(m.files.get(sink.files.development)).not.toContain("val-typ-004");
   });
@@ -218,15 +228,23 @@ describe("openCaptureSink", () => {
     expect(e.message).toMatch(/WAS received and metered/);
     expect(e.message).not.toContain("ABCDEF123456");
     expect(e.message).toContain("[REDACTED]");
-    // once finished, no line can be written
+    // once finished, no line can be written — and the evidence still says the response was metered
     sink.finish("aborted", "test");
-    expect(() => sink.write(endLine({ attemptSeq: 2 }))).toThrow(/already finished/);
+    let after: unknown;
+    try {
+      sink.write(endLine({ attemptSeq: 2 }));
+    } catch (e2) {
+      after = e2;
+    }
+    expect((after as CaptureWriteError).message).toMatch(/already finished/);
+    expect((after as CaptureWriteError).evidence).toEqual({ line: "attempt_end", attemptSeq: 2, responseMetered: true });
   });
 
   it("finish writes run_end to every opened file, hashes them, and only a normal completion is 'complete'", () => {
     const m = memFs();
     const sink = openCaptureSink(CFG, HEADER, m.fs);
     expect(sink.initialRecord()).toMatchObject({ runId: "live-1", state: "incomplete", files: { development: null, heldout: null }, sha256: null });
+    expect(sink.initialRecord().note).toMatch(/live-1\.dev\.jsonl \/ live-1\.heldout\.jsonl/); // planned names, so a kill mid-run still names the files
     sink.write(endLine({ attemptSeq: 1 }));
     const rec = sink.finish("complete", null);
     expect(rec.state).toBe("complete");
@@ -346,6 +364,32 @@ describe("parseCaptureFile + reconcileCapture", () => {
     expect(md).toContain("| live-1 | 5 | 3 | 1 | 1 | 3 | 1 | 0.0030 | MISSING |");
     expect(md).toContain("| live-1 | val-typ-009#r0 | development | 1 | 0 | 0 | 1 | 0 | 0.0000 | orphan |");
     expect(md).not.toContain('"raw"');
+  });
+
+  it("a key abandoned by run A and completed by run B is 'abandoned' for A and 'completed' for B; a key held by another run without a record is 'superseded'", () => {
+    const startB = (seq: number, caseId: string) => start(seq, caseId, { runId: "live-2" });
+    const endB = (seq: number, caseId: string) => JSON.stringify(endLine({ attemptSeq: seq, caseId, runId: "live-2" }));
+    const textAB = [
+      JSON.stringify({ ...HEADER, v: 1, kind: "run", ts: "t", split: "development", raw: false }),
+      start(1, "val-typ-003"), JSON.stringify(endLine({ attemptSeq: 1, caseId: "val-typ-003" })), // run A: abandoned (recorded)
+      start(2, "val-typ-001"), JSON.stringify(endLine({ attemptSeq: 2, caseId: "val-typ-001" })), // run A completed it... but the key below is held by live-2
+      startB(1, "val-typ-003"), endB(1, "val-typ-003"),
+      startB(2, "val-typ-001"), endB(2, "val-typ-001"),
+    ].join("\n");
+    const results: EvalResultsFile = {
+      ...RESULTS,
+      results: {
+        "val-typ-003#r0": { ...RESULTS.results["val-typ-001#r0"], caseId: "val-typ-003", runId: "live-2" },
+        "val-typ-001#r0": { ...RESULTS.results["val-typ-001#r0"], runId: "live-2" }, // an --only rerun replaced run A's row
+      },
+    };
+    const rec = reconcileCapture([parseCaptureFile("f", textAB)], results);
+    const disp = Object.fromEntries(rec.runs.map((r) => [r.runId, Object.fromEntries(r.byCase.map((c) => [c.caseId, c.disposition]))]));
+    expect(disp).toEqual({
+      "live-1": { "val-typ-003": "abandoned", "val-typ-001": "superseded" },
+      "live-2": { "val-typ-003": "completed", "val-typ-001": "completed" },
+    });
+    expect(rec.notes.some((n) => n.includes("live-1: val-typ-001#r0") && n.includes("held by run live-2"))).toBe(true);
   });
 
   it("a historical results file (no abandonedAttempts) is reconciled with an explicit pre-accounting note, never rewritten", () => {

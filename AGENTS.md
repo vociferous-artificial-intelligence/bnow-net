@@ -1854,7 +1854,13 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   byte-identical test on a committed file; campaign-shaped header test) and are never
   backfilled. Production isolation unchanged (isolation.test.ts). Gates on the branch:
   typecheck/lint clean · unit 3,590/3,590 (246 files; base `774906f` measured 3,552/244;
-  +38 tests: capture.test.ts, live-sweep.test.ts, 3 CLI subprocess pins). Report:
+  +38 tests: capture.test.ts, live-sweep.test.ts, 3 CLI subprocess pins). Independent
+  adversarial review round 1 (MERGEABLE-WITH-FIXES) found 3 required + 5 recommended
+  items — the documented default capture dir was refused before it existed (directory
+  ignore pattern; now probed with a trailing slash), reconciliation dispositions were not
+  runId-scoped (now completed/abandoned/superseded/orphan per run), and sink-open refusals
+  fired after the guard's DB init (sink now opens first) — all eight remediated and
+  pinned (+3 tests → 3,593/246). Report:
   `docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md`. Methodology boundaries honoured
   as instructed: no global `required=true` gate, no "increased"/"active" relabel
   (OPEN-TASKS #105 records it as needing semantic adjudication), no blanket

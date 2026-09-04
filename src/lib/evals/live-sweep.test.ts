@@ -203,6 +203,7 @@ describe("dispatchOnce capture lines", () => {
       responseId: "chatcmpl-abc",
       systemFingerprint: "fp_123",
       finishReason: "stop",
+      refused: false,
       refusal: null,
       truncated: false,
       usage: { promptTokens: 100, completionTokens: 50 },
@@ -235,7 +236,7 @@ describe("dispatchOnce capture lines", () => {
     expect(ends.map((e) => e.attemptSeq)).toEqual([1, 2, 3]);
     expect(ends[0].raw).toBe(VAL_RAW);
     expect(ends[1]).toMatchObject({ truncated: true, finishReason: "length", raw: "partial cut", metered: true, usage: { completionTokens: 4096 } });
-    expect(ends[2]).toMatchObject({ refusal: "I can't help with that.", raw: null, rawSha256: null, rawBytes: null, metered: true });
+    expect(ends[2]).toMatchObject({ refused: true, refusal: "I can't help with that.", raw: null, rawSha256: null, rawBytes: null, metered: true });
     expect(d.meter).toEqual({ attempts: 3, reservations: 3, meterings: 3, erroredAttempts: 0 });
   });
 
@@ -445,7 +446,7 @@ describe("runLiveSweep accounting", () => {
     expect(devEnd.raw).toBe(VAL_RAW); // development raw on
     expect(held).not.toContain("takeawayIndex"); // heldout raw off by default
     const heldEnd = parseCaptureFile("h", held).lines.find((l): l is CaptureAttemptEndLine => l.kind === "attempt_end")!;
-    expect(heldEnd).toMatchObject({ split: "heldout", raw: null, metered: true }); // accounting metadata still complete
+    expect(heldEnd).toMatchObject({ split: "heldout", raw: null, refusal: null, refused: false, metered: true }); // accounting metadata still complete
     expect(heldEnd.rawSha256).toMatch(/^[0-9a-f]{64}$/);
   });
 
