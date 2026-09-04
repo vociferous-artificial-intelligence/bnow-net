@@ -1860,7 +1860,9 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   ignore pattern; now probed with a trailing slash), reconciliation dispositions were not
   runId-scoped (now completed/abandoned/superseded/orphan per run), and sink-open refusals
   fired after the guard's DB init (sink now opens first) — all eight remediated and
-  pinned (+3 tests → 3,593/246). Report:
+  pinned (+3 tests → 3,593/246). Round 2 confirmed all eight FIXED (reviewer re-ran the
+  full suite 3,593/3,593) → MERGEABLE; its three hygiene notes (inspect view shows the
+  `refused` flag; `results/*.tmp-*` gitignored; count corrected) folded in before merge. Report:
   `docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md`. Methodology boundaries honoured
   as instructed: no global `required=true` gate, no "increased"/"active" relabel
   (OPEN-TASKS #105 records it as needing semantic adjudication), no blanket

@@ -143,9 +143,9 @@ test:
 | config refusals / live-only | capture.test `resolveCaptureConfig` (7 cases); CLI "non-live mode … creates NOTHING"; CLI "--execute-live with an un-ignored in-repo EVAL_CAPTURE_DIR refuses AFTER preflight but BEFORE any client construction or DB use" |
 
 Gates on the branch tip: `npm run typecheck` clean · `npm run lint` 0 errors (3
-pre-existing warnings) · `npm test` **3,590 / 3,590 (246 files)**. Baseline measured on
-`origin/main` `774906f` in a scratch worktree the same day: 3,552 / 244. This PR adds 38
-tests: two new files (capture.test.ts 17, live-sweep.test.ts 18) and 3 subprocess pins in
+pre-existing warnings) · `npm test` **3,593 / 3,593 (246 files)**. Baseline measured on
+`origin/main` `774906f` in a scratch worktree the same day: 3,552 / 244. This PR adds 41
+tests: two new files (capture.test.ts 19, live-sweep.test.ts 18) and 4 subprocess pins in
 hardening-cli.test.ts.
 
 ## 5. Methodology boundaries honoured
@@ -178,6 +178,18 @@ branch, each pinned by a test where testable):
 | F7 | NOTE | write-after-finish reported `responseMetered:false`; dead ternary | evidence computed from the line; ternary removed; pinned |
 | F8 | NOTE | the pre-dispatch capture record carried null file names | the record's note names the planned files |
 
-## 7. Review round and merge record
+## 7. Review round 2 and merge record
 
-Round 2 (fix confirmation) and the merge hashes are recorded below at merge time.
+Round 2 (fix confirmation on `644e424`, same reviewer, read-only with executed probes; the
+reviewer re-ran typecheck, the eval suite 254/254 and the full suite 3,593/3,593): F1–F8
+all **FIXED** with file:line evidence; the one artifact of opening the sink before
+`buildLiveDeps` is an empty 0700 directory when the guard's DB init then fails (no file, no
+runId consumed, results file untouched) — accepted and stated here. Three new hygiene notes,
+folded in before merge: N1 `--capture-inspect` displayed the `refusal` text presence
+instead of the `refused` flag (raw-off files would show `refusal=no` on a refused
+response) → now `refused=`; N2 the temp+rename sibling of a committed OFFLINE results file
+was not gitignored → `docs/evals/analysis/results/*.tmp-*` added; N3 the §4 test count →
+3,593. Verdict: **MERGEABLE**.
+
+Merge record (filled at merge): see the decision-log entry in AGENTS.md for the merge
+hash and the reviewed-tree comparison.

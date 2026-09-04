@@ -1027,7 +1027,7 @@ function modeCaptureInspect(file: string, showRaw: boolean): void {
     if (l.kind === "attempt_start") console.log(`  #${l.attemptSeq} start ${l.caseId}#r${l.repetition}${l.voteIndex !== null ? ` vote ${l.voteIndex}/${l.voteCount}` : ""} attempt ${l.attemptIndex} model ${l.requestedModel}`);
     else if (l.kind === "attempt_end") {
       console.log(
-        `  #${l.attemptSeq} end   ${l.outcome} finish=${l.finishReason ?? "—"} refusal=${l.refusal ? "yes" : "no"} truncated=${l.truncated} metered=${l.metered} usage=${l.usage ? `${l.usage.promptTokens}+${l.usage.completionTokens}` : "—"} $${(l.estUsd ?? 0).toFixed(4)} model=${l.returnedModel ?? "—"} id=${l.responseId ?? "—"} sha=${l.rawSha256?.slice(0, 12) ?? "—"}` +
+        `  #${l.attemptSeq} end   ${l.outcome} finish=${l.finishReason ?? "—"} refused=${l.refused ? "yes" : "no"} truncated=${l.truncated} metered=${l.metered} usage=${l.usage ? `${l.usage.promptTokens}+${l.usage.completionTokens}` : "—"} $${(l.estUsd ?? 0).toFixed(4)} model=${l.returnedModel ?? "—"} id=${l.responseId ?? "—"} sha=${l.rawSha256?.slice(0, 12) ?? "—"}` +
           (l.error ? ` error=${l.error.name}${l.error.status !== null ? `/${l.error.status}` : ""}: ${l.error.message}` : ""),
       );
       if (showRaw && l.raw !== null) console.log(`    raw: ${l.raw}`);
