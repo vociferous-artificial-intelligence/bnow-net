@@ -28,6 +28,7 @@ import {
   comparableKnobs,
   currentEnvKnobs,
   evalValidationVotes,
+  offlineEnvKnobs,
   pendingWork,
   resumeIdentityMismatch,
   sha256,
@@ -134,8 +135,25 @@ describe("validation vote knob", () => {
     const mapLegacy = { ...legacy, workload: "map" as const, identity: { ...legacy.identity } };
     const mapCurrent = { ...fiveVote, workload: "map" as const };
     expect(resumeIdentityMismatch(mapLegacy, mapCurrent)).toBeNull();
-    expect(comparableKnobs(legacy.envKnobs, "validation")).toMatchObject({ validationVotes: 1, reduceGroupsFed: 200 });
-    expect(comparableKnobs(fiveVote.envKnobs, "map")).not.toHaveProperty("validationVotes");
+    expect(comparableKnobs(legacy.envKnobs, "validation", true)).toMatchObject({ validationVotes: 1, reduceGroupsFed: 200 });
+    expect(comparableKnobs(fiveVote.envKnobs, "map", true)).not.toHaveProperty("validationVotes");
+    // OFFLINE validation files never compare the knob (review MAJOR-2): the committed
+    // offline-fixtures file (no field, provider stub) resumes under a current header
+    expect(comparableKnobs(fiveVote.envKnobs, "validation", false)).not.toHaveProperty("validationVotes");
+    const offlineLegacy: EvalResultsFile = { ...legacy, configKey: "offline-fixtures", identity: { ...legacy.identity, provider: "stub", model: "offline-fixtures" } };
+    const offlineNow = { ...offlineLegacy, envKnobs: offlineEnvKnobs() };
+    expect(offlineNow.envKnobs).not.toHaveProperty("validationVotes");
+    expect(resumeIdentityMismatch(offlineLegacy, offlineNow)).toBeNull();
+    // even a stamped offline header (a future runner stamping it) would not refuse
+    expect(resumeIdentityMismatch(offlineLegacy, { ...offlineNow, envKnobs: { ...offlineNow.envKnobs, validationVotes: 5 } })).toBeNull();
+  });
+
+  it("the committed offline validation results file resumes byte-identically under the current runner (no refusal, no rewrite)", () => {
+    const p = join(process.cwd(), "docs/evals/analysis/results/validation-v2-offline-fixtures.json");
+    const original = JSON.parse(readFileSync(p, "utf8")) as EvalResultsFile;
+    expect(original.envKnobs).not.toHaveProperty("validationVotes");
+    const header: ResultsFileHeader = { workload: original.workload, configKey: original.configKey, datasetVersion: original.datasetVersion, datasetContentHash: original.datasetContentHash, identity: original.identity, requestedRepetitions: original.requestedRepetitions, scope: original.scope, envKnobs: offlineEnvKnobs() };
+    expect(resumeIdentityMismatch(original, header)).toBeNull();
   });
 
   it("scorecard vote-mode line distinguishes production-equivalent, diagnostic, legacy and offline", () => {
@@ -173,8 +191,9 @@ describe("preflight vote guards (validation only)", () => {
     expect(() => assertLivePreflight(ARGS, { ...ENV, EVAL_VALIDATION_VOTES: "1" })).toThrow(/pass --single-round-diagnostic/);
     expect(assertLivePreflight({ ...ARGS, singleRoundDiagnostic: true }, { ...ENV, EVAL_VALIDATION_VOTES: "1" }).cfg.workload).toBe("validation");
     expect(() => assertLivePreflight({ ...ARGS, singleRoundDiagnostic: true }, ENV)).toThrow(/authorizes nothing/);
-    // the guards are validation-specific
+    // the guards are validation-specific — but the diagnostic ack is refused off-workload (it would authorize nothing)
     expect(assertLivePreflight({ ...ARGS, workload: "map" }, { ...ENV, MATCH_VOTES: "3", EVAL_VALIDATION_VOTES: "1" }).cfg.workload).toBe("map");
+    expect(() => assertLivePreflight({ ...ARGS, workload: "map", singleRoundDiagnostic: true }, ENV)).toThrow(/validation workload only/);
   });
 });
 
@@ -239,7 +258,7 @@ describe("runLiveCase validation parity", () => {
       .fn()
       .mockResolvedValueOnce(completion("garbage"))
       .mockResolvedValueOnce(completion(round(1071, 1072)))
-      .mockResolvedValueOnce(completion(null))
+      .mockResolvedValueOnce(completion("not json"))
       .mockResolvedValueOnce(completion("{"))
       .mockResolvedValueOnce(completion(round(null, null)));
     r = await runLiveCase(await mkDeps(two), CFG, CASE, "validation-test", "run-p", 0);
@@ -254,6 +273,27 @@ describe("runLiveCase validation parity", () => {
     expect(r.status).toBe("schema_invalid");
     expect(r.checks.failures).toEqual(["match response unparseable or truncated (0 of 5 vote round(s) usable)"]);
     expect(d.meter.meterings).toBe(5);
+  });
+
+  it("PRODUCTION PARITY on refusals: a null-content response is an EMPTY USABLE round (llmMatchOnce's '{\"matches\":[]}' fallback), so two refusals plus {X, X, null} resolve to null at k=5 — not to X at k=3", async () => {
+    const refusal = () => ({ ...completion(null), choices: [{ message: { content: null, refusal: "I can't help with that." }, finish_reason: "stop" }] });
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(refusal())
+      .mockResolvedValueOnce(completion(round(1071, 1072)))
+      .mockResolvedValueOnce(refusal())
+      .mockResolvedValueOnce(completion(round(1071, 1072)))
+      .mockResolvedValueOnce(completion(round(1071, null)));
+    const r = await runLiveCase(await mkDeps(create), CFG, CASE, "validation-test", "run-p", 0);
+    expect(r.votes).toMatchObject({ requested: 5, usable: 5, matcher: "llm-majority" });
+    expect(r.votes?.perTakeaway).toEqual([
+      { i: 0, v: [null, 1071, null, 1071, 1071], final: 1071 },
+      { i: 1, v: [null, 1072, null, 1072, null], final: null }, // 2 of 5 < threshold 3: production says null
+    ]);
+    // the same rounds through the production functions give the same finals
+    const rounds: LlmMatch[][] = [[], (JSON.parse(round(1071, 1072)) as { matches: LlmMatch[] }).matches, [], (JSON.parse(round(1071, 1072)) as { matches: LlmMatch[] }).matches, (JSON.parse(round(1071, null)) as { matches: LlmMatch[] }).matches];
+    expect(resolveVoteRounds(rounds, 2)!.votes!.map((v) => v.final)).toEqual([1071, null]);
+    expect(r.checks.pass).toBe(true); // {0→1071, 1→null} == labels
   });
 
   it("single-round diagnostic (EVAL_VALIDATION_VOTES=1): one dispatch, labelled non-production-equivalent, historical single-response digest preserved", async () => {

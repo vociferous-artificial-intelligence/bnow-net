@@ -189,6 +189,30 @@ describe("2026-09-04 validation parity: vote-count flag, estimates, diagnostic a
     expect(existsSync("docs/evals/analysis/results/live-validation-v2-gpt-4o-mini+votes1.json")).toBe(false);
   }, 120_000);
 
+  it("--offline --workload validation and --offline --profile conflict resume against the COMMITTED offline results with no identity refusal and no rewrite (review MAJOR-2)", () => {
+    const files = [
+      "docs/evals/analysis/results/validation-v2-offline-fixtures.json",
+      "docs/evals/analysis/results/conflict-roca-v1-offline-fixtures.json",
+      "docs/evals/analysis/results/conflict-iran-v1-offline-fixtures.json",
+    ];
+    const before = files.map((f) => readFileSync(f, "utf8"));
+    const v = runCli(["--offline", "--workload", "validation"]);
+    expect(v.status).toBe(0);
+    expect(v.stderr).not.toMatch(/REFUSED|identity changed/);
+    const c = runCli(["--offline", "--profile", "conflict"]);
+    expect(c.status).toBe(0);
+    expect(c.stderr).not.toMatch(/REFUSED|identity changed/);
+    files.forEach((f, i) => expect(readFileSync(f, "utf8")).toBe(before[i]));
+  }, 120_000);
+
+  it("--estimate labels the validation vote mode (production-equivalent vs SINGLE-ROUND DIAGNOSTIC) — review MINOR-2", () => {
+    expect(runCli(["--estimate", "--workload", "validation", "--repetitions", "1"]).stdout).toMatch(/validation votes: 5 — production-equivalent/);
+    expect(runCli(["--estimate", "--workload", "validation", "--repetitions", "1", "--validation-votes", "1"]).stdout).toMatch(/SINGLE-ROUND DIAGNOSTIC estimate, NOT production-equivalent/);
+    const trailing = runCli(["--estimate", "--workload", "validation", "--validation-votes"]);
+    expect(trailing.status).toBe(2);
+    expect(trailing.stderr).toMatch(/needs a value/);
+  }, 120_000);
+
   it("--single-round-diagnostic outside live mode is refused (it is a live acknowledgement)", () => {
     const r = runCli(["--estimate", "--workload", "validation", "--single-round-diagnostic"]);
     expect(r.status).toBe(2);

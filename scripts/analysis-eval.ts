@@ -146,6 +146,7 @@ import {
   VALIDATION_VOTES_DIAGNOSTIC,
   VALIDATION_VOTES_PRODUCTION,
   evalValidationVotes,
+  offlineEnvKnobs,
   validationVotesKeySuffix,
   applyCapacityProfile,
   capacityProfileNames,
@@ -402,12 +403,23 @@ function modeValidate(workloads: AnalysisEvalWorkload[]): void {
 
 // ---- --estimate ----------------------------------------------------------------
 
+/** The vote mode an estimate assumes for validation — labelled exactly like
+ *  the live banner so a single-round figure is never mistaken for the
+ *  production-equivalent cost (review MINOR-2). */
+function validationVoteModeEstimateLabel(): string {
+  const votes = evalValidationVotes();
+  return votes === VALIDATION_VOTES_PRODUCTION
+    ? `validation votes: ${votes} — production-equivalent majority; ${votes} calls per case`
+    : `validation votes: ${votes} — SINGLE-ROUND DIAGNOSTIC estimate, NOT production-equivalent (production = ${VALIDATION_VOTES_PRODUCTION}-vote majority, ${VALIDATION_VOTES_PRODUCTION}x these validation calls)`;
+}
+
 function modeEstimate(workloads: AnalysisEvalWorkload[], model: string, repetitions: number): void {
   let grand = 0;
   for (const w of workloads) {
     const { ds } = loadDataset(w);
     const plan = buildAnalysisEstimatePlan(ds, model, repetitions);
     console.log(`\n[${w}] ${ds.datasetVersion} — model ${model}, ${repetitions} repetition(s):`);
+    if (w === "validation") console.log(`  ${validationVoteModeEstimateLabel()}`);
     console.log(
       `  calls ${plan.totalCalls} · est prompt tok ${plan.totalPromptTokens} · est completion tok ${plan.totalCompletionTokens} · est $${plan.totalUsd.toFixed(4)}`,
     );
@@ -450,7 +462,7 @@ function modeOffline(
       identity: offlineIdentity(ds),
       requestedRepetitions: 1,
       scope: runScopeFor(opts.onlyIds, opts.devOnly),
-      envKnobs: currentEnvKnobs(),
+      envKnobs: offlineEnvKnobs(),
     };
     const existing = loadResults(w, profiledKey(OFFLINE_CONFIG_KEY));
     const discarded = acknowledgeFreshDiscard(existing, opts.fresh, `${w}/${profiledKey(OFFLINE_CONFIG_KEY)}`);
@@ -541,9 +553,16 @@ function modeReport(workloads: AnalysisEvalWorkload[], outPath: string, showHeld
       // LIVE results on the same dataset UNDER THE SAME capacity profile —
       // a profiled candidate must never be compared against an unprofiled
       // baseline (the knob-drift degrade would otherwise fire on every cell)
-      const plusAt = configKey.lastIndexOf("+");
-      const profileSuffix = plusAt === -1 ? "" : configKey.slice(plusAt);
-      const baselineKey = `${ANALYSIS_DEFAULT_MODEL}${profileSuffix}`;
+      // the validation vote suffix (+votes<K>) is NOT a capacity profile:
+      // strip it first, derive the profile suffix, then re-append it so a
+      // profiled validation candidate pairs with the profiled baseline at
+      // the SAME vote count (review MINOR-1)
+      const votesMatch = configKey.match(/\+votes\d+$/);
+      const votesSuffix = votesMatch ? votesMatch[0] : "";
+      const keySansVotes = votesSuffix ? configKey.slice(0, -votesSuffix.length) : configKey;
+      const plusAt = keySansVotes.lastIndexOf("+");
+      const profileSuffix = plusAt === -1 ? "" : keySansVotes.slice(plusAt);
+      const baselineKey = `${ANALYSIS_DEFAULT_MODEL}${profileSuffix}${votesSuffix}`;
       const baseline = live && configKey !== baselineKey ? loadResults(w, baselineKey) : null;
       const baselineExpectation = baseline
         ? { configKey: baselineKey, model: ANALYSIS_DEFAULT_MODEL }
@@ -683,7 +702,7 @@ async function conflictModeOffline(
       identity: offlineIdentity(run.dataset),
       requestedRepetitions: 1,
       scope: runScopeFor(opts.onlyIds, opts.devOnly),
-      envKnobs: currentEnvKnobs(),
+      envKnobs: offlineEnvKnobs(),
     };
     const p = conflictResultsPath(run.dataset.datasetVersion, OFFLINE_CONFIG_KEY);
     const existing = loadResultsAtPath(p);
@@ -1083,6 +1102,8 @@ function modeCapacityMatrix(model: string, repetitions: number): void {
   const lines: string[] = [];
   lines.push(`# Capacity-quality matrix — dry-run estimates (${new Date().toISOString()})`);
   lines.push("");
+  lines.push(`> ${validationVoteModeEstimateLabel()}`);
+  lines.push("");
   lines.push(
     `Model \`${model}\`, ${repetitions} repetition(s) per case. Estimates use the same deliberate`,
   );
@@ -1210,6 +1231,10 @@ async function main(): Promise<void> {
   // flag (default = production 5), overriding any shell export, so every knob
   // reader (identity, estimate, live dispatch, configKey) sees one value.
   const votesFlag = flagValue("validation-votes");
+  if (hasFlag("validation-votes") && votesFlag === undefined) {
+    console.error("--validation-votes needs a value (5 or 1)");
+    process.exit(2);
+  }
   if (votesFlag !== undefined && votesFlag !== String(VALIDATION_VOTES_PRODUCTION) && votesFlag !== String(VALIDATION_VOTES_DIAGNOSTIC)) {
     console.error(
       `--validation-votes: only ${VALIDATION_VOTES_PRODUCTION} (production-equivalent majority, default) or ${VALIDATION_VOTES_DIAGNOSTIC} (single-round diagnostic; also needs --single-round-diagnostic) exist — got "${votesFlag}"`,

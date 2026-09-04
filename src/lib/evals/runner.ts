@@ -163,18 +163,35 @@ export function currentEnvKnobs(): EvalEnvKnobs {
 
 /** The knob set that IDENTIFIES a file of a given workload, with historical
  *  defaults applied: pre-2026-08-27 files lack reduceGroupsFed (=200);
- *  pre-2026-09-04 validation files lack validationVotes and were single-round
- *  (=1). validationVotes is meaningful for the validation workload only, so
- *  it is dropped for every other workload — a new map/digest file must not
- *  identity-refuse against an older one over a knob its dispatch never reads. */
-export function comparableKnobs(knobs: EvalEnvKnobs, workload: AnalysisEvalWorkload): EvalEnvKnobs {
+ *  pre-2026-09-04 LIVE validation files lack validationVotes and were
+ *  single-round (=1). validationVotes is meaningful ONLY for LIVE validation
+ *  files (offline fixture scoring dispatches nothing — its committed results
+ *  must resume without churn), so it is dropped for every other workload and
+ *  for every offline file (review MAJOR-2). */
+export function comparableKnobs(knobs: EvalEnvKnobs, workload: AnalysisEvalWorkload, live: boolean): EvalEnvKnobs {
+  const votesApply = live && workload === "validation";
   const legacyDefaults: Partial<EvalEnvKnobs> = {
     reduceGroupsFed: 200,
-    ...(workload === "validation" ? { validationVotes: VALIDATION_VOTES_DIAGNOSTIC } : {}),
+    ...(votesApply ? { validationVotes: VALIDATION_VOTES_DIAGNOSTIC } : {}),
   };
   const withDefaults: EvalEnvKnobs = { ...legacyDefaults, ...knobs } as EvalEnvKnobs;
-  if (workload !== "validation") delete withDefaults.validationVotes;
+  if (!votesApply) delete withDefaults.validationVotes;
   return withDefaults;
+}
+
+/** A results-file header is LIVE when its identity provider is a real
+ *  provider; offline fixture files record provider "stub". */
+export function headerIsLive(h: { identity: CandidateDispatchIdentity }): boolean {
+  return h.identity.provider !== "stub";
+}
+
+/** Knobs for an OFFLINE results header: the vote knob never applies (nothing
+ *  is dispatched), so it is not stamped — the committed offline files keep
+ *  their historical shape byte-for-byte on a no-op resume. */
+export function offlineEnvKnobs(): EvalEnvKnobs {
+  const k = currentEnvKnobs();
+  delete k.validationVotes;
+  return k;
 }
 
 /** Coverage breadth of a run: --only → subset, --dev → dev, else full. */
@@ -494,7 +511,11 @@ export function resumeIdentityMismatch(
   // lack reduceGroupsFed (=200); pre-2026-09-04 validation files lack
   // validationVotes and were single-round (=1) — so a 5-vote run can NEVER
   // resume into a single-round file, and the knob is ignored off-workload
-  cmp("envKnobs", comparableKnobs(existing.envKnobs, existing.workload), comparableKnobs(current.envKnobs, current.workload));
+  cmp(
+    "envKnobs",
+    comparableKnobs(existing.envKnobs, existing.workload, headerIsLive(existing)),
+    comparableKnobs(current.envKnobs, current.workload, headerIsLive(current)),
+  );
   return diffs.length === 0 ? null : diffs.join("; ");
 }
 
@@ -1291,8 +1312,8 @@ export function buildWorkloadScorecard(
   }
   if (
     baselineFile !== null &&
-    JSON.stringify(comparableKnobs(judgedFile.envKnobs, dataset.workload)) !==
-      JSON.stringify(comparableKnobs(baselineFile.envKnobs, dataset.workload))
+    JSON.stringify(comparableKnobs(judgedFile.envKnobs, dataset.workload, headerIsLive(judgedFile))) !==
+      JSON.stringify(comparableKnobs(baselineFile.envKnobs, dataset.workload, headerIsLive(baselineFile)))
   ) {
     // capacity-knob drift between judged and baseline: the pairwise deltas
     // compare different pipeline configurations — never a formal verdict
@@ -1347,13 +1368,13 @@ export function buildWorkloadScorecard(
   };
 }
 
-function knobsLine(k: EvalEnvKnobs, workload: AnalysisEvalWorkload): string {
-  const c = comparableKnobs(k, workload);
+function knobsLine(k: EvalEnvKnobs, workload: AnalysisEvalWorkload, live: boolean): string {
+  const c = comparableKnobs(k, workload, live);
   return (
     `reduceVotes=${c.reduceVotes} reduceMaxOutputTokens=${c.reduceMaxOutputTokens} ` +
     `mapOutTokensPerDoc=${c.mapOutTokensPerDoc} mapContentChars=${c.mapContentChars} ` +
     `reduceGroupsFed=${c.reduceGroupsFed}` + // pre-2026-08-27 files lack the field
-    (workload === "validation" ? ` validationVotes=${c.validationVotes}` : "")
+    (live && workload === "validation" ? ` validationVotes=${c.validationVotes}` : "")
   );
 }
 
@@ -1419,8 +1440,9 @@ export function renderAnalysisScorecardMarkdown(input: {
         `schema=${sc.judgedIdentity.schemaVersion.slice(0, 12)}` +
         (sc.judgedIdentity.extractorVersion ? ` extractor=${sc.judgedIdentity.extractorVersion}` : ""),
     );
-    lines.push(`Env knobs: ${knobsLine(sc.judgedEnvKnobs, sc.workload)}`);
-    if (sc.workload === "validation") lines.push(validationVoteModeLine(sc.judgedEnvKnobs, sc.judgedIdentity.provider !== "stub"));
+    const judgedLive = sc.judgedIdentity.provider !== "stub";
+    lines.push(`Env knobs: ${knobsLine(sc.judgedEnvKnobs, sc.workload, judgedLive)}`);
+    if (sc.workload === "validation") lines.push(validationVoteModeLine(sc.judgedEnvKnobs, judgedLive));
     if (sc.discardedGenerations > 0) {
       lines.push(
         `Discarded generations (--fresh provenance): ${sc.discardedGenerations} — this file's results are not first-try`,
@@ -1433,10 +1455,11 @@ export function renderAnalysisScorecardMarkdown(input: {
       );
     }
     if (sc.baselineEnvKnobs) {
-      const drift = knobsLine(sc.baselineEnvKnobs, sc.workload) !== knobsLine(sc.judgedEnvKnobs, sc.workload);
+      const baseLive = sc.baselineIdentity ? sc.baselineIdentity.provider !== "stub" : judgedLive;
+      const drift = knobsLine(sc.baselineEnvKnobs, sc.workload, baseLive) !== knobsLine(sc.judgedEnvKnobs, sc.workload, judgedLive);
       lines.push(
         drift
-          ? `Baseline knobs: ${knobsLine(sc.baselineEnvKnobs, sc.workload)} — **KNOB DRIFT vs judged: quality deltas compare different capacity configurations**`
+          ? `Baseline knobs: ${knobsLine(sc.baselineEnvKnobs, sc.workload, baseLive)} — **KNOB DRIFT vs judged: quality deltas compare different capacity configurations**`
           : `Baseline knobs: identical`,
       );
     }

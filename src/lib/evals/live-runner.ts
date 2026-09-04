@@ -272,6 +272,9 @@ export function assertLivePreflight(
   // production MATCH_VOTES/MATCHER_MODE override in the shell would not
   // change the eval's dispatch, but it signals a non-shipped configuration
   // is being assumed — refuse rather than record an ambiguous identity.
+  if (cfg.workload !== "validation" && args.singleRoundDiagnostic) {
+    throw new EvalDispatchError("--single-round-diagnostic applies to the validation workload only — refusing an acknowledgement that authorizes nothing");
+  }
   if (cfg.workload === "validation") {
     const mv = env.MATCH_VOTES;
     if (env.MATCHER_MODE === "single" || (mv !== undefined && mv !== "" && Number(mv) !== MATCH_VOTES_DEFAULT)) {
@@ -624,9 +627,19 @@ export async function runLiveCase(
         completionTokens += out.completionTokens;
         estUsd += out.estUsd;
         rawParts.push(out.raw ?? "");
-        if (out.raw === null || out.truncated) continue; // an unusable vote is dropped, as production drops a failed vote
+        // KNOWN DIFFERENCE (stated, not hidden): production never inspects
+        // finish_reason — a truncated vote is dropped there only because its
+        // JSON fails to parse; under strict JSON output a truncated-but-
+        // parseable body is practically unreachable, and the eval drops every
+        // truncated vote outright (truncation is itself a finding).
+        if (out.truncated) continue;
+        // PRODUCTION PARITY (llmMatchOnce: `content ?? '{"matches":[]}'`): a
+        // null-content response — the shape a strict-schema REFUSAL takes —
+        // is an EMPTY, USABLE round in production (all-null votes that still
+        // count in the majority denominator). Mirror it exactly.
+        const body = out.raw ?? '{"matches":[]}';
         try {
-          const parsed = (JSON.parse(out.raw) as { matches?: LlmMatch[] }).matches ?? [];
+          const parsed = (JSON.parse(body) as { matches?: LlmMatch[] }).matches ?? [];
           rounds.push(sanitizeMatches(parsed, c.input.takeaways.length, claimIds));
         } catch {
           // unparseable vote: dropped (production: the vote promise rejects and is skipped)

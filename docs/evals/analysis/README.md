@@ -325,15 +325,19 @@ it **LEGACY SINGLE-ROUND — NOT production-equivalent**).
   vote rounds (sequentially, one reservation per physical attempt;
   production fires them concurrently — the resolution rule is byte-identical
   because both call `resolveVoteRounds`), parses and sanitizes each exactly
-  as production does, drops unusable votes exactly as production drops
-  failed votes, and scores the resolved match set against
-  `reference.labels`. Every row records `votes {requested, usable, mode,
+  as production does — a null-content (refusal) response is an EMPTY
+  usable round, as in production's `'{"matches":[]}'` fallback; an
+  unparseable vote is dropped as production drops a failed vote; a
+  truncated vote is dropped outright (production drops it only through the
+  parse failure — the one stated difference) — and scores the resolved
+  match set against `reference.labels`. Every row records `votes {requested, usable, mode,
   matcher, perTakeaway}` (claimIds per round only — never text).
 - **Identity.** The vote count is stamped in `envKnobs.validationVotes` AND
   in the configKey suffix (`gpt-4o-mini+votes5`), so the results path
   differs from every pre-parity file; a resume whose vote count differs is
-  REFUSED (a legacy file without the field compares as 1). The knob is
-  compared for the validation workload only. The scorecard prints a
+  REFUSED (a legacy LIVE file without the field compares as 1). The knob is
+  compared for LIVE validation files only; offline headers never stamp it,
+  so the committed offline results resume unchanged. The scorecard prints a
   `Vote mode:` line for every validation file.
 - **Single-round diagnostic.** `--validation-votes 1` is the ONLY other
   value and requires the explicit `--single-round-diagnostic` flag on
