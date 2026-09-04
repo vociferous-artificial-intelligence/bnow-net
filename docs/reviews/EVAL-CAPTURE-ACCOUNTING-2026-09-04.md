@@ -142,9 +142,10 @@ test:
 | config refusals / live-only | capture.test `resolveCaptureConfig` (7 cases); CLI "non-live mode … creates NOTHING"; CLI "--execute-live with an un-ignored in-repo EVAL_CAPTURE_DIR refuses AFTER preflight but BEFORE any client construction or DB use" |
 
 Gates on the branch tip: `npm run typecheck` clean · `npm run lint` 0 errors (3
-pre-existing warnings) · `npm test` **3,590 / 3,590 (246 files)** (main before this PR:
-3,549 / 243 at `774906f` per the 2026-09-03 merges' recorded counts + PR #43/#44 additions;
-this PR adds 41 tests in 3 files).
+pre-existing warnings) · `npm test` **3,590 / 3,590 (246 files)**. Baseline measured on
+`origin/main` `774906f` in a scratch worktree the same day: 3,552 / 244. This PR adds 38
+tests: two new files (capture.test.ts 17, live-sweep.test.ts 18) and 3 subprocess pins in
+hardening-cli.test.ts.
 
 ## 5. Methodology boundaries honoured
 

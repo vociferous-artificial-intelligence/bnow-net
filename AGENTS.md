@@ -1853,8 +1853,8 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   `provider_usage.requests`. Historical results files keep their exact shape (round-trip
   byte-identical test on a committed file; campaign-shaped header test) and are never
   backfilled. Production isolation unchanged (isolation.test.ts). Gates on the branch:
-  typecheck/lint clean · unit 3,590/3,590 (246 files; +3 files/+41 tests: capture,
-  live-sweep, CLI subprocess pins). Report:
+  typecheck/lint clean · unit 3,590/3,590 (246 files; base `774906f` measured 3,552/244;
+  +38 tests: capture.test.ts, live-sweep.test.ts, 3 CLI subprocess pins). Report:
   `docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md`. Methodology boundaries honoured
   as instructed: no global `required=true` gate, no "increased"/"active" relabel
   (OPEN-TASKS #105 records it as needing semantic adjudication), no blanket
