@@ -141,4 +141,14 @@ Findings and remediation (all applied; +4 tests → 3,612/247):
 | NOTE-2 | | trailing `--validation-votes` without a value defaulted silently | refused; pinned |
 | NOTE-3 | | stray PR-1 merge-record doc edits in the working tree | committed as a separate docs-only commit in this PR |
 
-Round 2 and the merge record follow below.
+Round 2 (fix confirmation on `6bdc0db`, rebased onto `main` `9854626`; same reviewer; re-ran
+typecheck and the full suite 3,612/3,612; executed probes on a `git archive` copy): all seven
+items **FIXED** with file:line evidence — the refusal-shape test asserts production's k=5
+outcome; `--offline --workload validation` and `--offline --profile conflict` complete with
+zero changed files; the real frozen campaign file still REFUSES a 5-vote resume and accepts a
+1-vote header; baseline-key derivation verified for profiled, bare and effort-suffixed keys.
+No new findings. Verdict: **MERGEABLE**.
+
+Merge record: recorded in the AGENTS.md decision-log entry (merge hash + reviewed-tree
+comparison `git diff --stat 6bdc0db origin/main -- src scripts` empty; the only commit after
+the reviewed tip is this docs-only round-2 record).

@@ -1908,6 +1908,10 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   (2 refusals + {X,X,null} flipped X↔null), and the vote knob identity-refused the
   committed OFFLINE validation/conflict results — plus two minors (report baseline-key
   pairing under the vote suffix; unlabelled diagnostic estimate) and three notes, all
-  remediated and pinned. Gates: typecheck/lint clean · unit 3,612/3,612 (247 files; +19
-  tests). Report: `docs/reviews/EVAL-VALIDATION-PARITY-2026-09-04.md`.
+  remediated and pinned. Round 2 confirmed all seven FIXED (reviewer re-ran the full suite
+  3,612/3,612 on the rebased tip `6bdc0db`; the frozen campaign validation file still refuses
+  a 5-vote resume; the committed offline files resume with zero changed files) → MERGEABLE,
+  no new findings. Gates: typecheck/lint clean · unit 3,612/3,612 (247 files; +19 tests).
+  Report: `docs/reviews/EVAL-VALIDATION-PARITY-2026-09-04.md`; successor plan:
+  `docs/reviews/EVAL-SUCCESSOR-PLAN-2026-09-04.md`.
 
