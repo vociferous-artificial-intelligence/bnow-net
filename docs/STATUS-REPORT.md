@@ -1,101 +1,99 @@
 # BNOW.NET — Status Report
 
-**For:** Gregory · **Date:** 2026-07-07 · **Live app:** https://bnow-net.vercel.app
-This is the plain-language summary. Technical state lives in `AGENTS.md`; your to-do
-list is `docs/SETUP-NEXT-WEEK.md`.
+**For:** Gregory · **Date:** 2026-08-17 · **Live app:** https://bnow.net
+This is the plain-language summary. Technical state lives in `AGENTS.md` +
+`docs/CURRENT-STATE.md`; your decision queue is `docs/HUMAN-SETUP-TODO.md`.
+(Prior report of 2026-07-07 is preserved in git history; this file is corrected in place.)
 
 ## What exists (in one paragraph)
 
-A deployed, self-running OSINT intelligence product covering Russia/Ukraine (flagship)
-and Iran/Gulf (second wave). It continuously ingests open sources (RSS + ~70 Telegram
-channels selected by ISW's own citation behavior), generates daily AI digests per
-country on three tracks (military, elite politics, Iran nuclear), scores itself publicly
-against ISW's daily assessments, and layers analyst tools on top: a source-reliability
-registry derived from 348K ISW citations, an entity/ownership graph, mirror-trade
-evasion flags, a critical-materials tracker, a Russia data-blackout tracker, automated
-analyst signals, and an ask-the-data Q&A. Every claim links to its source documents —
-that traceability is enforced by the database itself, tested, and is the product's core
-differentiator.
+A deployed, self-running OSINT intelligence product at **bnow.net**, operating as a
+**private analyst beta** (public request-access page; invite-only sign-in; no prices
+shown). It covers Russia/Ukraine (flagship) and Iran (validated; Gulf ingesting), pulls
+from RSS + registry-selected Telegram (web **and** MTProto) + **X via api.twitterapi.io**
+(364 registry accounts, 175K+ documents), generates digests four times daily on a
+map/reduce claims engine, scores itself publicly against ISW, and layers analyst tools on
+top: source-reliability registry (~10,015 sources, ~351K ISW citations, 1,608 reports),
+entity graph, mirror-trade evasion flags, critical-materials tracker, data-dark tracker,
+automated signals, free claim search, and the Ask Q&A pipeline (~$0.011/query, hard spend
+caps). Every claim links to its sources — DB-enforced. Versioned Terms/Privacy clickwrap,
+opt-in-only analytics, and fail-closed OpenSanctions handling are live.
 
-## Current numbers
+## Current numbers (2026-08-17)
 
 | Metric | Value |
 |---|---|
-| Source registry | 10,502 sources, 348,586 ISW citations (1,567 ROCA + 1,069 Iran Update reports) |
-| — Russia/Ukraine corpus | 6,985 sources with reliability scores (avg 0.57) |
-| — Middle East corpus | 3,598 sources with reliability scores (avg 0.49) — includes Hamas/PIJ/Hezbollah channels |
-| Ingestion | 15,358 documents total; ~4,000/day currently |
-| Digests | 61 across 6 active countries (ru 24, ua 17, ir 13, ae/om/qa 7) |
-| Claims | 353, every one source-linked (0 orphans — DB-enforced) |
-| Validation runs | 36 scored against same-day ISW reports |
-| Coverage vs ISW | ru ~12%, ua ~14% (day range 0–57%); Iran 33%/25% on 2 of 4 scored days (was flat 0%) |
-| Info lead | when we match ISW, we publish ~5–15h before them |
-| Entity graph | 97 clean entities (was 293 with junk) |
-| Trade/materials | 2,785 Comtrade rows; 28 dual-use rerouting flags; 11 US import dependencies tracked; data fresh as of Jul 6 |
-| Signals | all 3 detectors firing on real data (purge cluster, 4 classified RU data series, trade divergence) |
-| Tests | 137 unit + 6 database-integration, all green; CI workflow ready |
+| Source registry | ~10,015 materialized sources · ~351K citations · 1,608 ISW reports (ru + ir current through 2026-08-14) |
+| Ingestion | 34 RSS feeds + Telegram web + MTProto + X; X alone 175,842 docs, ~3,600/day |
+| Digests | 4×/day (3 intraday + 02:00 finalize), mapreduce engine in prod; Gulf falls back to legacy |
+| Validation | majority-vote LLM matching (k=5, 26/27 reproducible); coverage run-avg ~17.5% (~31% nonzero-day); **Iran comparable-day 43.5%** post-recovery (16-day mean 38.0%); median info-lead **+14.7h** |
+| Access | invite-only Production sign-in since 2026-07-15; beta requests queue at /admin/access |
+| Tests | 2,123 unit (166 files) + 107 integration (17 files), green; CI + enforced pre-push gate |
+| Platform cost | **≈$200–300/mo all-in** (LLM + X + OpenSanctions + Neon + Vercel + Postmark), every paid path hard-capped — see BUSINESS-PLAN §5 |
 
-## What this hardening pass fixed (before → after)
+## What changed since the 2026-07-07 report
 
-1. **Fabricated data can no longer reach users.** Demo fixtures were rendering as real
-   "SANCTIONED" badges on real people, fake ownership edges, and 2 digest claims cited
-   fixture documents. All purged from the database; three code layers now prevent stub
-   data from being written, selected, or rendered; a database-level test proves a
-   planted fixture doc cannot surface in a digest. *This was the most serious defect in
-   a provenance-branded product.*
-2. **The digest engine was silently dropping theaters.** The 6-hourly generation run
-   grew past its time budget and died mid-run — Ukraine, a flagship theater, lost its
-   same-day digest whenever that happened. Split into two independent cron runs
-   (ru+ua / gulf); verified complete since.
-3. **Iran was flatlined at 0%.** Its military digest ran a Russia-shaped prompt and
-   filter. With an Iran-specific prompt (proxies, IRGC/CENTCOM, shipping, air defense):
-   1–3 events/day and scoreboard days of 33%/25%.
-4. **Entity graph cleaned 293 → 97**: geography ("Moscow"), collectives ("Five
-   individuals", "Russian courts"), objects ("Su-27", "Ebola") deleted; 5 spellings of
-   Khamenei merged, likewise Zelensky/Trump/Houthi/IRGC clusters — with all evidence
-   repointed. Extraction prompts now forbid creating this junk; an LLM audit route
-   proposes (never auto-applies) future cleanups.
-5. **/ask can no longer run up the bill**: 20 questions/user/day + a global $1/day LLM
-   budget, every question logged per user (billing-ready).
-6. **3,598 Middle East sources had zero stats** in the registry (looked dead). All now
-   carry real citation counts and reliability, per corpus.
-7. **State-media claims no longer lead /ask evidence** — retrieval now down-weights
-   low-reliability sourcing (digest ranking already did).
-8. **Safety nets**: CI pipeline (activates on first GitHub push), enforced local
-   pre-push test gate, database integration tests on disposable DB forks, a cron-audit
-   script, and the original product brief installed as the authoritative spec.
+1. **Domain + email are real:** bnow.net live; Postmark sends from no-reply@bnow.net with
+   DKIM/SPF/DMARC passing. *(This was the stated blocker on partner outreach — cleared
+   2026-07-15; outreach itself has not started.)*
+2. **Commercial posture pivoted to private beta:** /pricing 308-redirects to /access;
+   price cards and `src/lib/pricing/` deleted; sign-in invite-only. Correct posture —
+   now recorded in the strategy docs (GTM-STRATEGY §6 rewrite).
+3. **Billing direction changed: Paddle (Merchant of Record), not Stripe** — full plan in
+   `docs/designs/PADDLE-BILLING-FOUNDATION-PLAN-2026-07-19.md` behind a provider-neutral
+   entitlement layer. Stripe references in older docs are superseded (banners added
+   2026-08-17). Blocked on the packaging freeze (next moves #1).
+4. **X and MTProto ingestion shipped** (the July report's #1 move): July 9–13 X gap
+   recovered cursor-complete ($3.92); bounded auto-recovery production-proven Aug 10–14.
+5. **Ask v2 + /search shipped**: hybrid retrieval, ~$0.011/query, 100/user/day; /search
+   is the $0 deterministic sibling. One-click home handoff proven single-bill.
+6. **OpenSanctions match-safety hardened (2026-07-22):** rejected candidates can no longer
+   persist as sanctions assertions; presentation is admin-only; Ask receives no
+   OpenSanctions-derived claims. Compliance data stays beta/internal until commercial
+   rights are resolved.
+7. **Map-stage outage and recovery (the honest one):** the map worker starved on a $10
+   all-time budget backstop 2026-07-29 → 2026-08-15 (418 runs, zero claims; digests fell
+   back to legacy) — masked as healthy by an observability defect, now repaired
+   (budget stops mark runs failed; per-theater freshness alerts). Iran validation was
+   rebuilt end-to-end: coverage 20.8% → 43.5% comparable-day. Scored history across the
+   outage window carries a quality discontinuity — any published accuracy claim must
+   footnote it.
+8. **Legal/consent shipped:** versioned clickwrap (Terms 1.1 / Privacy 1.3, forced
+   re-acceptance), opt-in-only PostHog analytics, append-only acceptance records.
+9. **Cost discipline built:** SpendGuard + llm-guard caps on every paid path; Neon
+   cron-clustering merged (est. ~17–19% DB-compute cut, deploy pending observation).
 
 ## Honest weaknesses
 
-- **Coverage vs ISW is far below the brief's 80% target** (~12–14% avg). The binding
-  constraints: (a) source gap — the missing half of ISW's citation diet is mostly X
-  accounts; `X_API_KEY` for api.twitterapi.io is now available, but the live adapter still
-  needs to be implemented; (b) the LLM matcher is noisy run-to-run (±30pts on individual
-  days), so the scoreboard moves for reasons other than product quality — fix queued
-  (majority-vote matching); (c) ISW summarizes at a level our per-doc claims don't always
-  reach.
-- **Saudi feeds went dark Jul 5** (bot-walling suspected) — theater is active but empty.
-  il/bh/kw were already scaffolded-only for the same reason.
-- **Elite-politics and Gulf digests are unvalidated by design** (no ISW equivalent) —
-  they're only as good as the prompt; treat as leads, not assessments.
-- **Key-blocked**: real sanctions/ownership data (OpenSanctions/Companies House keys),
-  MTProto/X ingestion, zakupki procurement (needs RU proxy), Stripe checkout.
-- **Email still sends from the borrowed scenefiend domain** until bnow.net DNS +
-  Postmark migration.
-- gpt-4o-mini is the only live model; Anthropic support is now in the seam but unkeyed.
+- **Coverage vs ISW remains far below the brief's 80% target** (~17.5% run-avg; ~31%
+  nonzero-day; Iran 43.5% comparable-day is the trajectory proof). The lever is corpus
+  depth + conversion (OPEN-TASKS #19), and the scoreboard framing must lead with the
+  info-lead + transparency, not the raw percentage (GTM-STRATEGY §1).
+- **The #1 ICP (compliance) is not currently sellable:** OpenSanctions commercial rights
+  unresolved + admin-only presentation; Companies House key pending; ownership edges
+  stub-only. Beachhead re-sequenced to commodity + consultancies (GTM-STRATEGY §2).
+- **Three incompatible pricing models still live in the docs** (bundles vs flat tiers vs
+  seed catalog) — the single most consequential unresolved business decision
+  (BUSINESS-PLAN §4.1, OPEN-TASKS #12). Nothing priced can ship until it's frozen.
+- **G1 (automated aid vs analyst-verified) undecided** — gates hiring, premium tier,
+  Paddle AUP category, and GTM claims (GTM-STRATEGY §7 G1).
+- **No revenue yet and no outreach started**; the access queue is the only funnel.
+- Gulf beyond Iran is thin (no ground-truth benchmark; bh/kw scaffolded; sa fragile).
+- Elite-politics and Gulf digests remain unvalidated by design (no ISW equivalent).
 
 ## Top 5 next moves (value order)
 
-1. **twitterapi.io adapter** — `X_API_KEY` is present and smoke-tested; wiring the adapter
-   for 166 recently-ISW-cited accounts directly attacks the coverage number, which is the
-   product's public proof.
-2. **Point bnow.net at the app + migrate Postmark sender** — brand-correct URL and
-   email before any outreach (partner motion in PARTNER-STRATEGY.md depends on it).
-3. **Majority-vote validation matching** — makes the public scoreboard reproducible;
-   credibility of the core demo asset.
-4. **OpenSanctions + Companies House keys** — turns the entity graph from
-   structure-only into compliance-grade substance (badges/ownership now render nothing
-   until real data exists).
-5. **Push to GitHub** (CI live, code off this one machine) and **start the Stripe
-   catalog** per the brief's bundle pricing (§6.5, OPEN-TASKS #12) so the first design
-   partner can pay.
+1. **Freeze packaging** (BUSINESS-PLAN §4.1 / OPEN-TASKS #12): pick bundles vs flat
+   tiers, one catalog matrix. Unblocks the Paddle AUP submission, checkout build, and any
+   priced conversation. Everything commercial queues behind this.
+2. **Decide G1** — automated analyst aid vs analyst-verified (HUMAN-SETUP-TODO §13).
+   Cascades to first hire, premium tier, Paddle category, and marketing claims.
+3. **Start partner outreach** (PARTNER-STRATEGY §6–8; unblocked since 2026-07-15): Smart +
+   Tsukerman for regional pressure-tests, Sipher for methodology review — using the honest
+   scoreboard memo (GTM-STRATEGY §1 framing).
+4. **Resolve compliance data rights**: OpenSanctions commercial license (PAYG €0.10/query
+   is the bridge; flat license is quote-based — start the sales conversation) + land the
+   Companies House key. Re-promotes the compliance ICP.
+5. **Run Paddle Phases A–C** (approval + catalog + provider-neutral foundation, ~2–3 wks
+   eng after #1) so the first design partner can pay without re-architecture. Keep beta
+   invites flowing meanwhile — the queue is the founding-subscriber list.

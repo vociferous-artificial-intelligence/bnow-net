@@ -3,6 +3,12 @@
 Strategy doc (2026-07-06). Team/org needs, market sizing & ARR model, content-protection
 strategy, and pricing-mechanism recommendation. Companion to GTM-STRATEGY.md.
 
+> **Last reconciled against CURRENT-STATE.md: 2026-08-17.** Market figures refreshed and
+> §5 (unit economics) + §6 (cash & runway) added from live operational spend data. Billing
+> direction: the 2026-07-19 Paddle plan (`docs/designs/PADDLE-BILLING-FOUNDATION-PLAN-2026-07-19.md`)
+> supersedes every earlier Stripe reference; packaging itself (bundles vs flat tiers,
+> OPEN-TASKS #12) is still an open operator decision — see §4.1.
+
 ---
 
 ## 1. Team & experts — do we need a larger team?
@@ -46,11 +52,19 @@ sales-credibility layer.
 
 ## 2. Market size & ARR projection
 
-### Market context (grounded)
-- OSINT market: **$8.7B (2024) → ~$46B (2034), ~18% CAGR** ([Exactitude](https://www.globenewswire.com/news-release/2025/05/29/3090509/0/en/Open-Source-Intelligence-OSINT-Market-to-Reach-USD-46-12-Billion-by-2034-Exhibiting-18-01-CAGR-Growth-Exactitude-Consultancy.html)).
-- Threat-intelligence market: **$11.5B (2025) → $23B (2030), ~14.7% CAGR** ([MarketsandMarkets](https://www.marketsandmarkets.com/Market-Reports/threat-intelligence-security-market-150715995.html)).
+### Market context (grounded — refreshed 2026-08-17)
+- OSINT market: estimates vary widely by scope. Current spread: **$12.7B (2025) → $133.6B
+  (2035), ~26.7% CAGR** ([Global Market Insights](https://www.gminsights.com/industry-analysis/open-source-intelligence-osint-market));
+  the 2025-era Exactitude figure ($8.7B → $46B/2034, ~18%) is now the conservative end.
+  Treat "low-teens $B today, high-teens-to-high-twenties % CAGR" as the honest range.
+- Threat-intelligence market: **$10.4B (2026) → $18.9B (2031), ~12.7% CAGR**
+  ([Mordor](https://www.mordorintelligence.com/industry-reports/threat-intelligence-market));
+  MarketsandMarkets' earlier $11.5B (2025) → $23B (2030) remains in the same band.
 - Geopolitical-risk intelligence is a fast-growing subset; incumbents price $20k–150k+/yr
-  (RANE ~$50k, Dataminr $20–100k, Kpler/Kharon enterprise).
+  (RANE ~$50k, Dataminr $20–100k, Kpler/Kharon enterprise). 2025–26 consolidation —
+  Mastercard/Recorded Future closed, Windward taken private at $271M, Kpler absorbing
+  Spire Maritime and Bridgeton on $1B of Sixth Street capital — confirms strategic
+  buyers are paying up for exactly this category (detail: COMPETITIVE-AND-DEMAND.md §1).
 
 These top-down numbers are context, not our number. We size **bottom-up** — the honest way.
 
@@ -174,13 +188,123 @@ Rationale specific to us:
 want budget predictability for a monitoring product). Use **org-tier base + usage only on
 the API layer** — the hybrid the market has converged on.
 
+### 4.1 Packaging status (2026-08-17) — one open decision, three live models
+
+Three incompatible price structures exist in the repo simultaneously and **none is
+decided** (OPEN-TASKS #12; Paddle plan §2.3 refuses to encode the mismatch):
+
+| Source | Model |
+|---|---|
+| PRODUCT-BRIEF.md §6.5/§7.3 | Regional bundles: full $2–5k/mo, standby $300–500/mo, single country ~40% of bundle, global $10–15k/mo, annual-first at 40–50% off |
+| This doc §4 / GTM-STRATEGY.md §5 | Standby $400/mo · Professional $2–4k/mo · Enterprise $50–150k/yr, per-org, geography-blind |
+| Seed data (`scripts/seed.ts`) | standby $400/mo · full_monthly $3,000/mo · full_annual $19,800/yr |
+
+The brief's bundle logic ("sell Gulf, not the Hormuz situation") is a *strategic* churn/
+crisis-decay argument the later flat-tier model dropped silently rather than rebutted —
+decide it deliberately, not by default. Freezing one catalog matrix is the gate for the
+Paddle AUP submission, checkout, and any priced outreach.
+
+**Payment provider fees (verified 2026-08-17):** Paddle as Merchant of Record at the
+published 5% + $0.50 checkout rate / 3.5% bank-transfer invoicing. Net-revenue effect at
+seed prices: $400 → ~$379.50, $3,000 → ~$2,849.50, $19,800 → ~$18,809.50 (checkout) or
+~$19,107 (invoice). Model ARR at ~0.95× gross for self-serve, ~0.965× for invoiced
+enterprise. No Stripe work should proceed — see the Paddle plan.
+
 ### Expansion levers (how ARPU rises within an account)
 Add theaters → add modules → add API/embedding rights → add the "analyst-verified" premium
 tier. Each is a price step that doesn't require counting seats.
 
 ---
 
-## 5. One-page summary
+## 5. Unit economics & cost model (NEW 2026-08-17 — from live operational data)
+
+The ARR model above had ARPU on one side and nothing on the other. This section closes
+that gap with measured production spend (sources: CURRENT-STATE.md, spend-guard ledgers,
+provider pricing verified 2026-08-17).
+
+### 5.1 Platform COGS today (fixed, serves every account)
+
+| Line | Basis | ~$/mo |
+|---|---|---|
+| LLM — digests + validation | ~$0.50/day steady (gpt-5 family via OpenAI) | ~$15 |
+| LLM — map stage | $0.076/1K docs, ~4–6K docs/day; capped $4/day | ~$12 |
+| LLM — Ask | ~$0.011/query measured; beta volume, capped $2/day guard + $10/day budget | ~$3–10 |
+| X ingestion (api.twitterapi.io) | ~$0.15/1K tweets; measured $0.74–$1.66/day (cap $2.50/day; $43.81 cumulative of $75 all-time) | ~$35 |
+| OpenSanctions enrichment | €0.10/query PAYG; July actual 780 req / $85.80; claim-linked gating (#17) cut eligible candidates 232 → 46 | ~$25–85 |
+| Neon Postgres | fixed 1 CU, ~45–46 active min/hr ≈ 550 CU-hr/mo × $0.106 (Launch rate) | ~$55–60 |
+| Vercel (crons require Pro) | 1 seat | ~$20 |
+| Postmark (magic links + digests) | 10K-email tier | ~$15 |
+| Telegram (web + MTProto), RSS, GDELT, ISW, Comtrade keyless, PostHog free tier | $0 | $0 |
+| **Total platform COGS** | | **~$190–250/mo** |
+
+The entire deployed product — 3 live theaters, hourly ingestion, 4×/day digests, public
+scoreboard, Ask — runs on **under $10/day**, with hard spend caps (SpendGuard + llm-guard)
+bounding every paid path. The 2026-07-29→08-15 map outage was a $10 all-time backstop
+firing, not runaway cost, and the recovery drained a 47K-doc Iran backlog for $1.87
+(cumulative map spend $11.64 against its dedicated $40 cap).
+
+**One Standby seat at $400/mo more than covers the entire current platform.**
+
+### 5.2 Marginal cost per account (the tier-margin question)
+
+Per-account marginal cost is Ask usage + email only — the pipeline is shared:
+
+- **Standby $400/mo:** worst-case abuse = 100 Ask queries/day × $0.011 ≈ $33/mo; realistic
+  analyst usage (~2–5 q/day) ≈ $1–2/mo. **Gross margin ≥ 91% worst-case, ~99% realistic**
+  (after Paddle ~5%: ≥ 86% / ~94% net).
+- **Professional $2–4k/mo:** same marginal profile + support time. ~99% gross before
+  people costs; the real cost of this tier is the operator/analyst attention it buys.
+- **Enterprise $50–150k/yr:** marginal cost is the API/export volume (meterable) + named-
+  analyst time — price the analyst in explicitly when G1 (verification tier) is decided.
+
+The margin risk is NOT per-query LLM cost; it is (a) fixed-cost growth as theaters are
+added (each theater adds map/digest volume roughly linearly) and (b) people. A new theater
+currently costs roughly $10–30/mo of additional LLM+ingest spend at today's doc volumes —
+the marginal-theater economics the brief promised ("country #40 is cheap") are holding.
+
+### 5.3 Metering integrity + cost-curve notes (verify before publishing margin claims)
+
+- `src/lib/llm/pricing.ts` prices gpt-5 $1.25/$10 and gpt-5-mini $0.125/$1 per MTok.
+  Two public trackers disagree on current gpt-5-mini list ($0.125/$1 vs $0.25/$2 — the
+  latter is the Aug-2025 launch price); if the meter under-prices mini 2×, true Ask cost
+  is ~$0.015–0.02/query — margins move immaterially. Confirm against
+  platform.openai.com when next in the console, then pin.
+- OpenAI's current flagship line is now the gpt-5.6 series (sol $2.50/$15 · terra $1/$6 ·
+  luna $0.10/$0.60). The deployed gpt-5/gpt-5-mini are a generation back and still served;
+  luna-class models undercut the current answerer ~10× on output — the in-flight
+  model-routing/local-model evals are the right lever if Ask volume grows 100×.
+- Paid-key upgrades not yet in COGS: Comtrade premium (verified 2026-08-17: **$2,000/yr
+  individual, $12,000/yr for-profit institutional** — budget this before promising
+  monthly-frequency mirror-trade), OpenSanctions flat internal-use license (quote-based;
+  PAYG €0.10/query is the bridge), Companies House (free), AIS (deferred until a buyer
+  signs — PARTNER-STRATEGY.md gulf-maritime row).
+
+---
+
+## 6. Cash & runway view (NEW 2026-08-17)
+
+The brief's §8.5 estimated **$600K–1.2M year-one** for a 3–5 person team. Actual state:
+**team = 1 operator, non-personnel burn ≈ $200–300/mo** (§5.1) plus one-off keys. At
+current shape the venture is operator-time-bound, not cash-bound; there is no meaningful
+cash runway constraint until the first hire.
+
+**The first material cash event is the first analyst hire** (~$120–180K/yr loaded, per §1
+sequencing), and it is gated on the G1 decision (automated aid vs analyst-verified —
+HUMAN-SETUP-TODO §13), which also gates the premium tier and the Paddle AUP category.
+Funding triggers, in order:
+
+1. **Now → first revenue:** no raise needed; burn is noise. Spend decisions are key
+   purchases (Comtrade premium, OpenSanctions license) justified by a named design partner.
+2. **G1 = analyst-verified, or first enterprise deal in motion:** fund analyst #1 —
+   from revenue if 2–3 Professional accounts exist (~$6–12k MRR covers a fractional-to-full
+   analyst), else a small pre-seed.
+3. **Base-case ARR ramp (§2) holding at ~$550k Yr-1:** seed round to add analyst #2 +
+   sales lead per the §1 sequence; the brief's $600K–1.2M figure remains the right
+   order of magnitude *for that stage*, not for today.
+
+---
+
+## 7. One-page summary
 
 - **Team:** stay lean on eng; hire ~2 regional analysts (Russia, Iran/Gulf) + 1 expert
   salesperson early — they verify AND sell; experts are the credibility that closes deals.
@@ -190,4 +314,8 @@ tier. Each is a price step that doesn't require counting seats.
   beat DRM; enforce with **licensing terms + entitlements + per-subscriber canary marking**;
   the live value is inseparable from the login.
 - **Pricing:** **per-organization site license** by tier/theaters/modules, **not per-seat**;
-  hybrid base+usage only on the API layer. Enterprise priced by value drivers.
+  hybrid base+usage only on the API layer. Enterprise priced by value drivers. Packaging
+  freeze (bundles vs flat tiers, §4.1) is the open operator decision gating Paddle/checkout.
+- **Unit economics:** platform COGS ~$200–300/mo all-in with hard caps; per-account
+  marginal cost ≈ Ask + email; ≥90% gross margin at every tier (§5). Cash-bound only
+  after the first analyst hire; G1 is the trigger (§6).

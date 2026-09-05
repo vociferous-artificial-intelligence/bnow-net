@@ -1,23 +1,29 @@
 # Human setup TODO — pending items only
 
-Verified: 2026-07-15.
+Verified: 2026-08-17 (reconciliation pass; prior verification 2026-07-15).
 
 This file contains only human setup, purchasing, account-access, and product decisions that
 remain open. Completed setup belongs in `AGENTS.md`, `docs/PROGRESS.md`, and review notes—not
 in this queue.
 
-## Executive priority
+## Executive priority (reordered 2026-08-17 — decision items first; they gate everything commercial)
 
-1. **Keep OpenAI funded and capped.** Set auto-recharge or a low-balance alert.
-2. **Finish deployment/CI administration.** Replace the expired Vercel token and Neon branch API
-   key, confirm GitHub branch protection, and confirm required CI secrets.
-3. **Resolve compliance-data rights.** Secure commercial OpenSanctions terms before charging
-   for compliance surfaces; finish Companies House access.
-4. **Choose a procurement-access path.** Approve a RU-region/residential proxy, commercial
-   zakupki mirror/API, or reachable official OpenData path.
-5. **Complete paid-launch gates.** Decide packaging, configure Stripe, and obtain legal review.
-6. **Define the human trust layer and recruit design partners.** Decide whether the product is
-   automated-only or analyst-verified, then recruit representative beta users.
+1. **Freeze packaging** (BUSINESS-PLAN §4.1 / OPEN-TASKS #12): bundles vs flat tiers, one
+   catalog matrix. Gates the Paddle AUP submission, checkout, and any priced outreach.
+2. **Decide the human trust layer (G1)** — "automated analyst aid" vs "analyst-verified"
+   (§13). Gates first hire, premium tier, Paddle category, marketing claims.
+3. **Start partner outreach** — its DNS/Postmark blocker cleared 2026-07-15; nothing has
+   been sent (PARTNER-STRATEGY.md §6–8).
+4. **Resolve compliance-data rights.** Secure commercial OpenSanctions terms before charging
+   for compliance surfaces; finish Companies House access. (§7–8)
+5. **Complete paid-launch gates.** Work the Paddle plan's §2 gates (product approval, unit
+   economics sign-off, legal/privacy review) — **not Stripe** (§11).
+6. **Keep OpenAI funded and capped**; replace the expired Vercel token; confirm branch
+   protection + CI secrets. (§1, §3–4)
+7. **Choose a procurement-access path.** RU-region/residential proxy (~$10–50/mo),
+   commercial zakupki mirror/API, or official OpenData path. (§6)
+8. **Recruit design partners** from the /access queue — commodity + consultancy first
+   while compliance rights are pending (GTM-STRATEGY §2). (§14)
 
 ## Accounts and operating setup
 
@@ -46,11 +52,12 @@ in this queue.
 ### 4. GitHub CI administration
 
 - Status: `origin/main` and local `main` are synchronized; pushes work and CI configuration
-  exists. The saved `NEON_API_KEY` currently returns 401, so disposable-branch integration
-  tests are blocked until it is renewed; production database access is unaffected.
+  exists. **Update 2026-08-17:** the saved `NEON_API_KEY` works again (disposable branches
+  created/deleted cleanly; 107 integration tests green locally) — confirm the GitHub
+  Actions secret matches the working local key.
 - Human task:
   - Confirm branch protection for `main`.
-  - Renew and confirm Actions/local secrets for disposable-Neon integration tests:
+  - Confirm Actions secrets for disposable-Neon integration tests:
     `NEON_API_KEY`, `NEON_PROJECT_ID`, and `DATABASE_URL`.
   - Add `VERCEL_TOKEN` only if CI should deploy.
   - Ensure local clones use `git config core.hooksPath .githooks`.
@@ -80,9 +87,14 @@ in this queue.
 
 ### 7. OpenSanctions commercial rights
 
-- Status: live API enrichment works under the current quota.
+- Status: live API enrichment works under the current quota. Pricing verified 2026-08-17:
+  pay-as-you-go is **€0.10/query** (July actual: 780 requests / $85.80 — consistent);
+  the flat internal-use "Screening License" and reseller/OEM tiers are **quote-based**
+  (sales conversation required). Presentation is admin-only since 2026-07-22; claim-linked
+  spend gating limits billable candidates.
 - Human task: obtain a commercial data license or pay-as-you-go agreement before charging
-  customers for sanctions/PEP/compliance surfaces.
+  customers for sanctions/PEP/compliance surfaces — start the sales conversation now; it
+  is on the critical path for the compliance ICP (GTM-STRATEGY §2).
 - Operator gates: review and explicitly approve entity cleanup #61 before `--apply`; after the
   monthly-accounting/fixed-cutoff patch is merged and deployed, authorize the paid rescore
   separately only after a fresh cleanup dry run and population/monthly-usage recount.
@@ -103,20 +115,29 @@ in this queue.
 
 ### 10. UN Comtrade subscription key — optional/P2
 
-- Status: keyless preview works but has lower limits.
-- Human task: register for `COMTRADE_API_KEY` if higher-volume or monthly-frequency pulls are
-  needed.
+- Status: keyless preview works but has lower limits. Premium pricing verified 2026-08-17
+  (shop.un.org): **$2,000/yr individual · $6,000/yr non-profit institutional ·
+  $12,000/yr for-profit institutional**.
+- Human task: buy only against a named design partner who needs monthly-frequency
+  mirror-trade — this is a real budget line, not a free key.
 
 ## Revenue, legal, and launch decisions
 
-### 11. Stripe and packaging
+### 11. Billing (Paddle) and packaging — SUPERSEDES the earlier Stripe item
 
-- Status: checkout remains disabled.
-- Human task:
-  - Decide final packaging and whether annual-first regional bundles remain the plan.
-  - Create Stripe products/prices.
-  - Add `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and selected price IDs.
-- Gate: do not enable checkout until packaging is decided.
+- Status: checkout remains disabled; there is deliberately no public purchase path.
+  **Stripe is dead as the plan of record** — direction is Paddle Billing as Merchant of
+  Record behind a provider-neutral entitlement layer
+  (`docs/designs/PADDLE-BILLING-FOUNDATION-PLAN-2026-07-19.md`). Published Paddle rates
+  (verified 2026-08-17): 5% + $0.50 checkout · 3.5% bank-transfer invoicing.
+- Human task (= the Paddle plan's §2 gates + §16 decisions):
+  - Freeze final packaging (executive priority #1; bundles-vs-tiers decided deliberately).
+  - Submit the product description for written Paddle AUP approval (checkout + invoicing).
+  - Sign off unit economics: accepted fees, gross-to-net by offer, refund exposure,
+    payout currency, reconciliation owner (BUSINESS-PLAN §4.1/§5 has the numbers).
+  - Approve grace/restriction policy, refund/chargeback policy, and whether "individual"
+    is an organization-of-one Standby or a distinct SKU.
+- Gate: do not enable checkout until packaging is frozen and Paddle approval is written.
 
 ### 12. Legal review
 
