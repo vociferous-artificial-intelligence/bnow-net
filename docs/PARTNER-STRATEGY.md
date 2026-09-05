@@ -3,6 +3,12 @@
 Strategy doc (2026-07-07). Regional partner map, qualification rubric, and recommendation
 on using existing influencer/intelligence-aligned contacts.
 
+> **Contact details and draft correspondence live in
+> `docs/OUTREACH-ROSTER-2026-08-23.md`** — full contact routes for the four named contacts
+> below (with 2026 affiliation corrections), candidates for the unfilled founding-reviewer
+> slots in §8.4, draft emails, and a suggested send sequence. This file stays the strategy;
+> that file is the operational list.
+
 ## 1. Core recommendation
 
 Use the influencer-intelligence contacts, but do **not** lead with an influencer campaign.
@@ -28,6 +34,18 @@ than reach until there is a weekly brief worth amplifying.
 | **Data partner** | Supplies hard-to-get streams: AIS, corporate registries, sanctions, local data | Maritime, compliance, trade-data vendors | Expensive feeds before a buyer commits |
 
 ## 3. Named-contact evaluation
+
+**Affiliation corrections verified 2026-08-23** (the recommendations below stand; the
+descriptions were stale): Jason Jay Smart is described by Kyiv Post's current author page
+as "a political adviser," not staff Special Correspondent — he principals The Office of
+Jason Jay Smart LLC and is active in the American Political Services team. Malcolm Nance
+is **no longer with MSNBC** and is now independent (Substack, *Black Man Spy* podcast,
+TAPSTRI); route via Chartwell Speakers. John Sipher's Atlantic Council fellowship is
+current but visibly dormant — no publication on his expert page since August 2023. Irina
+Tsukerman's Scarab Rising role is unchanged; note that the firm publicly advertises
+*offensive* information-warfare services, which is a live consideration for public naming
+under §5's conflict/reputation-risk criterion. Details and sources:
+`docs/OUTREACH-ROSTER-2026-08-23.md` §1.
 
 | Contact | Best use | Regional fit | Recommendation |
 |---|---|---|---|
@@ -103,6 +121,19 @@ size. Audience only matters after product-market proof.
 4. Recruit 3-5 founding regional reviewers: Russia/Eurasia, Iran/Gulf, sanctions
    compliance, commodity/maritime, trade/critical materials.
 5. Run one private design-partner roundtable before publishing a named-advisor list.
+
+## 9. Operational list
+
+`docs/OUTREACH-ROSTER-2026-08-23.md` carries the executable version of §6–§8: verified
+contact routes, candidates for the five founding-reviewer slots (sanctions compliance,
+Gulf maritime, trade/critical materials, Baltic/Nordic), draft correspondence for each
+wave, and the four go/no-go rulings that constrain what a first email may claim
+(`docs/GO-NO-GO-REGISTER-2026-08-23.md` A9, A12, A18, B1).
+
+Two prerequisites from §6 and §8 remain unmet and are tracked there: the 2-page evidence
+memo does not exist, and the launch-promise decision — "automated analyst aid" vs
+"analyst-verified" (`docs/HUMAN-SETUP-TODO.md` §13) — is open. Wave 1 can proceed without
+either; wave 2 cannot.
 
 Public sources checked for role fit:
 - Jason Jay Smart: https://www.gmu.edu/news/2024-04/schar-school-alum-jason-smart-welcome-guest-ukrainian-media-not-so-much-russia
