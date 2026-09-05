@@ -1,0 +1,250 @@
+{
+  "config": "v2-k60+gemma-official-raw",
+  "evalSetPath": "/Users/go/code/bnow-net/docs/evals/ask-eval-set.json",
+  "dbHost": "(offline-fidelity — no DB)",
+  "updatedAt": "2026-08-17T15:30:58.056Z",
+  "results": {
+    "fidelity-official-designation": {
+      "questionId": "fidelity-official-designation",
+      "metrics": {
+        "questionId": "fidelity-official-designation",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": false
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.009015,
+        "latencyMs": 34488,
+        "degraded": false,
+        "answerSnippet": "Yes, Ruslan Zhurov was designated under US sanctions by the Treasury's Office of Foreign Assets Control (OFAC) on 2026-06-12 [c900001]. This designation was made under Executive Order 14024 due to his operations in the technology sector of the Russian Federation economy [c900001].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 418,
+        "provider": "openai:gemma-official-raw"
+      }
+    },
+    "fidelity-disputed-single-source": {
+      "questionId": "fidelity-disputed-single-source",
+      "metrics": {
+        "questionId": "fidelity-disputed-single-source",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": false
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.008305,
+        "latencyMs": 30951,
+        "degraded": false,
+        "answerSnippet": "A Telegram channel affiliated with Russian milbloggers claimed that Colonel Andrei Vetrov was killed in a strike near Kupiansk on 2026-07-02 [c900011]. This report has not been officially confirmed [c900011].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 374,
+        "provider": "openai:gemma-official-raw"
+      }
+    },
+    "fidelity-corroborated-attributed": {
+      "questionId": "fidelity-corroborated-attributed",
+      "metrics": {
+        "questionId": "fidelity-corroborated-attributed",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": false
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.010135,
+        "latencyMs": 37064,
+        "degraded": false,
+        "answerSnippet": "Reports indicate that General Dmitri Kolganov was dismissed from his command. The Russian outlet Vzglyad-24 reported on 2026-07-05 that he was dismissed from his post as army commander [c900021]. Additionally, a prominent milblogger channel claimed on 2026-07-06 that Kolganov was removed following failures in Kupiansk, though the Ministry of Defense has not commented on the matter [c900022].",
+        "citedClaimIdCount": 2,
+        "completionTokens": 468,
+        "provider": "openai:gemma-official-raw"
+      }
+    },
+    "fidelity-pep-not-sanctioned": {
+      "questionId": "fidelity-pep-not-sanctioned",
+      "metrics": {
+        "questionId": "fidelity-pep-not-sanctioned",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": false
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00947,
+        "latencyMs": 37698,
+        "degraded": false,
+        "answerSnippet": "Marta Kovalyk, the deputy minister of infrastructure, does not appear on any sanctions list, according to data current through June 20, 2026 [c900031]. She is, however, listed by OpenSanctions as a politically exposed person (role.pep) [c900031].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 455,
+        "provider": "openai:gemma-official-raw"
+      }
+    },
+    "fidelity-rca-no-inheritance": {
+      "questionId": "fidelity-rca-no-inheritance",
+      "metrics": {
+        "questionId": "fidelity-rca-no-inheritance",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": false
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.011825,
+        "latencyMs": 46056,
+        "degraded": false,
+        "answerSnippet": "Based on data current through 2026-06-25, OpenSanctions lists Elena Shubina as a relative or close associate of Pyotr Shubin [c900041]. She is not herself designated [c900041]. Pyotr Shubin is a businessman who was designated by OFAC in 2024 for sanctions evasion on behalf of a designated bank [c900041, c900042].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 586,
+        "provider": "openai:gemma-official-raw"
+      }
+    },
+    "fidelity-name-only-candidate": {
+      "questionId": "fidelity-name-only-candidate",
+      "metrics": {
+        "questionId": "fidelity-name-only-candidate",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": false
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.012525,
+        "latencyMs": 53515,
+        "degraded": false,
+        "answerSnippet": "An OpenSanctions query for the name \"Oleg Danilov\" returned a match against a designated individual of the same name [c900051]. However, this identity remains unresolved pending analyst review or the provision of stronger identifiers, such as a birthdate [c900051]. This information is currently unverified [c900051].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 652,
+        "provider": "openai:gemma-official-raw"
+      }
+    },
+    "fidelity-expired-status": {
+      "questionId": "fidelity-expired-status",
+      "metrics": {
+        "questionId": "fidelity-expired-status",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": false
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00877,
+        "latencyMs": 33791,
+        "degraded": false,
+        "answerSnippet": "Aurora Logistics LLC is no longer on the OFAC SDN list, as it was removed on 2026-03-18 [c900061]. This removal followed a delisting petition that lifted the company's 2023 designation [c900061].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 407,
+        "provider": "openai:gemma-official-raw"
+      }
+    },
+    "fidelity-namesake-collision": {
+      "questionId": "fidelity-namesake-collision",
+      "metrics": {
+        "questionId": "fidelity-namesake-collision",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "error",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": false,
+        "fidelityDetail": {
+          "mustMatchMisses": [
+            "Bondar"
+          ],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": false,
+          "stateShortCircuit": false
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.040585,
+        "latencyMs": 200553,
+        "degraded": false,
+        "answerSnippet": "The answer exceeded its output budget — ask a narrower question, or try again.",
+        "citedClaimIdCount": 0,
+        "completionTokens": 2500,
+        "provider": "openai:gemma-official-raw"
+      }
+    }
+  }
+}

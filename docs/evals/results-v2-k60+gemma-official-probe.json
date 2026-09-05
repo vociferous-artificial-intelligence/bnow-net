@@ -1,0 +1,368 @@
+{
+  "config": "v2-k60+gemma-official-probe",
+  "evalSetPath": "docs/evals/ask-local-fixtures.json",
+  "dbHost": "(offline-fidelity — no DB)",
+  "updatedAt": "2026-08-17T18:44:24.562Z",
+  "results": {
+    "local-oa-missile-inventory": {
+      "questionId": "local-oa-missile-inventory",
+      "metrics": {
+        "questionId": "local-oa-missile-inventory",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "insufficient",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": true
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.0081,
+        "latencyMs": 39596,
+        "degraded": false,
+        "answerSnippet": "No claims in the covered data address this question. The corpus covers Russia/Ukraine/Iran (strikes, prosecutions, sanctions, trade). Try rephrasing toward a covered theater or topic.",
+        "citedClaimIdCount": 0,
+        "completionTokens": 339,
+        "provider": "openai:gemma-official-probe"
+      }
+    },
+    "local-oa-wrong-person": {
+      "questionId": "local-oa-wrong-person",
+      "metrics": {
+        "questionId": "local-oa-wrong-person",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "insufficient",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": true
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.007015,
+        "latencyMs": 22626,
+        "degraded": false,
+        "answerSnippet": "No claims in the covered data address this question. The corpus covers Russia/Ukraine/Iran (strikes, prosecutions, sanctions, trade). Try rephrasing toward a covered theater or topic.",
+        "citedClaimIdCount": 0,
+        "completionTokens": 265,
+        "provider": "openai:gemma-official-probe"
+      }
+    },
+    "local-oa-casualty-count": {
+      "questionId": "local-oa-casualty-count",
+      "metrics": {
+        "questionId": "local-oa-casualty-count",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "insufficient",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": true
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00657,
+        "latencyMs": 22129,
+        "degraded": false,
+        "answerSnippet": "No claims in the covered data address this question. The corpus covers Russia/Ukraine/Iran (strikes, prosecutions, sanctions, trade). Try rephrasing toward a covered theater or topic.",
+        "citedClaimIdCount": 0,
+        "completionTokens": 255,
+        "provider": "openai:gemma-official-probe"
+      }
+    },
+    "local-oa-weapon-type": {
+      "questionId": "local-oa-weapon-type",
+      "metrics": {
+        "questionId": "local-oa-weapon-type",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "insufficient",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": true
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.007735,
+        "latencyMs": 39994,
+        "degraded": false,
+        "answerSnippet": "No claims in the covered data address this question. The corpus covers Russia/Ukraine/Iran (strikes, prosecutions, sanctions, trade). Try rephrasing toward a covered theater or topic.",
+        "citedClaimIdCount": 0,
+        "completionTokens": 331,
+        "provider": "openai:gemma-official-probe"
+      }
+    },
+    "local-oa-absent-event": {
+      "questionId": "local-oa-absent-event",
+      "metrics": {
+        "questionId": "local-oa-absent-event",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "insufficient",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": true
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.008075,
+        "latencyMs": 36567,
+        "degraded": false,
+        "answerSnippet": "No claims in the covered data address this question. The corpus covers Russia/Ukraine/Iran (strikes, prosecutions, sanctions, trade). Try rephrasing toward a covered theater or topic.",
+        "citedClaimIdCount": 0,
+        "completionTokens": 337,
+        "provider": "openai:gemma-official-probe"
+      }
+    },
+    "local-cc-casualty-official": {
+      "questionId": "local-cc-casualty-official",
+      "metrics": {
+        "questionId": "local-cc-casualty-official",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": false
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.007705,
+        "latencyMs": 34819,
+        "degraded": false,
+        "answerSnippet": "According to Ukraine's State Emergency Service, the 2026-08-02 missile strike on a residential district of Kharkiv killed six people and wounded 14 [c911001].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 327,
+        "provider": "openai:gemma-official-probe"
+      }
+    },
+    "local-cc-strike-attribution": {
+      "questionId": "local-cc-strike-attribution",
+      "metrics": {
+        "questionId": "local-cc-strike-attribution",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": false
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00871,
+        "latencyMs": 41518,
+        "degraded": false,
+        "answerSnippet": "A Telegram channel linked to Yemeni Houthi media claimed responsibility on behalf of Houthi forces for the drone attack on the tanker Meridian Star in the Red Sea on 2026-08-05 [c911011]. This attribution has not been confirmed by an official statement [c911011].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 397,
+        "provider": "openai:gemma-official-probe"
+      }
+    },
+    "local-cc-commander-named": {
+      "questionId": "local-cc-commander-named",
+      "metrics": {
+        "questionId": "local-cc-commander-named",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": false
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.007475,
+        "latencyMs": 33814,
+        "degraded": false,
+        "answerSnippet": "Brigadier General Kaveh Rostami was appointed commander of the IRGC aerospace division on 2026-08-01, according to Iranian state media [c911021].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 318,
+        "provider": "openai:gemma-official-probe"
+      }
+    },
+    "local-cc-weapon-system": {
+      "questionId": "local-cc-weapon-system",
+      "metrics": {
+        "questionId": "local-cc-weapon-system",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": false
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00834,
+        "latencyMs": 39272,
+        "degraded": false,
+        "answerSnippet": "Ukraine's air force stated that the overnight attack on Odesa on 2026-08-03 utilized Shahed-136 one-way attack drones and two Iskander-M ballistic missiles [c911031].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 370,
+        "provider": "openai:gemma-official-probe"
+      }
+    },
+    "local-cc-sanctions-reason": {
+      "questionId": "local-cc-sanctions-reason",
+      "metrics": {
+        "questionId": "local-cc-sanctions-reason",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": false
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00852,
+        "latencyMs": 32044,
+        "degraded": false,
+        "answerSnippet": "Farhad Nazemi, a Tehran-based businessman, was designated by the US Treasury's OFAC on 2026-07-28 [c911041]. He was sanctioned for procuring UAV guidance components for Iran's drone program using front companies located in the UAE [c911041].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 386,
+        "provider": "openai:gemma-official-probe"
+      }
+    },
+    "local-cc-casualty-hedged": {
+      "questionId": "local-cc-casualty-hedged",
+      "metrics": {
+        "questionId": "local-cc-casualty-hedged",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": false
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.008405,
+        "latencyMs": 31107,
+        "degraded": false,
+        "answerSnippet": "A Russian milblogger channel claimed that approximately 40 soldiers were killed in a HIMARS strike on a training ground near Melitopol on August 6, 2026 [c911051]. The Russian Ministry of Defense has not commented on the report [c911051].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 379,
+        "provider": "openai:gemma-official-probe"
+      }
+    },
+    "local-cc-dual-use-procurement": {
+      "questionId": "local-cc-dual-use-procurement",
+      "metrics": {
+        "questionId": "local-cc-dual-use-procurement",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": false
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00892,
+        "latencyMs": 33522,
+        "degraded": false,
+        "answerSnippet": "Based on customs records reviewed by investigators, the Tehran-based company Arman Micro Trading imported 12,000 US-origin microcontrollers between April and June 2026 [c911061]. These components were reportedly procured through intermediaries in the UAE [c911061]. Additionally, identical microcontrollers have been recovered from downed Shahed-series drones [c911061].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 410,
+        "provider": "openai:gemma-official-probe"
+      }
+    }
+  }
+}

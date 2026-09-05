@@ -1915,3 +1915,35 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   Report: `docs/reviews/EVAL-VALIDATION-PARITY-2026-09-04.md`; successor plan:
   `docs/reviews/EVAL-SUCCESSOR-PLAN-2026-09-04.md`.
 
+
+- **2026-09-05 (2026-08-17 local-model Ask eval artifacts landed — DOCS ONLY; harness code
+  deliberately withheld)** The evaluation artifacts from branch
+  `claude/local-model-ask-eval-20260817` (commit `8a0ca89`, 176 commits of drift behind
+  `origin/main`) are landed VERBATIM as 19 files under `docs/designs/` and `docs/evals/`:
+  the design doc, `LOCAL-ASK-SCORECARD-2026-08-17.md`, `ask-local-fixtures.json`, the eight
+  `raw-captures-2026-08-17/*.jsonl` captures, and the eight `results-v2-k60+gemma-*.json` /
+  `results-v2-k60+gpt-5.json` result files (all credential-scanned clean). The commit's
+  `AGENTS.md` and `docs/PROGRESS.md` edits were NOT replayed — both changed substantially on
+  main since the merge-base — and remain viewable on the pushed branch; this bullet replaces
+  them. **Five source files from that commit were deliberately NOT landed:**
+  `src/lib/ask/local-fixtures.test.ts` and `src/lib/llm/openai.test.ts` (new), and
+  `src/lib/llm/openai.ts`, `scripts/ask-eval.ts`, `src/lib/llm/contracts.test.ts` (modified).
+  Reason: `src/lib/llm/openai.ts` is the production LLM provider dispatch path — the change
+  adds an explicit `OPENAI_BASE_URL` client override and a post-`guard.record`
+  `ASK_RAW_CAPTURE_PATH` JSONL dump of pre-validator model output — and a change there needs
+  its own rebased, reviewed PR rather than a ride on a docs/worktree-cleanup change; the two
+  new test files only exercise that seam and would be red or meaningless without it. All five
+  stay preserved and linkable at `claude/local-model-ask-eval-20260817` @ `8a0ca89`; landing
+  them is tracked as OPEN-TASKS #108. Scorecard headline (from the landed file, not restated
+  from the branch): the safeguard-modified Gemma shows **no safeguard-removal signature** on
+  this instrument — zero provider-level and zero textual refusals across all 72 recorded
+  answers, both variants declining all 5 over-answering probes and answering all 7
+  conflict-content probes with attribution intact; the single genuine behavioral difference is
+  official Gemma's deterministic reasoning-loop truncation on the namesake-collision fixture
+  (seed 42; it escapes at seed 43), which the modified build answers faithfully, alongside a
+  general token-efficiency gap (445 vs 732 mean completion tokens). Binding notes from that
+  work are unchanged and NOT re-litigated here: local model ids stay out of `PRICES_PER_MTOK`
+  (local-arm dollar figures in the scorecard are notional fallback), `ASK_ANSWER_MODEL` remains
+  `gpt-5` in every Vercel env, and the router's `hasScorecard` gate means nothing in these
+  offline artifacts can promote a local model. No source, scorer, fixture, dataset, prompt,
+  cap, env, migration, deploy, or paid-provider change accompanies this landing.

@@ -77,3 +77,26 @@ Dated log of missing credentials/capabilities. Each has a stub in place; nothing
   `npm run test:integration` cannot create its disposable Neon branch: the branch API returns
   401 before any test or database mutation. **Action:** issue a new Neon project API key, update
   local `.env.local` and the GitHub Actions secret, then rerun the 22-test integration suite.
+
+## 2026-08-17 (business-docs reconciliation — status sweep of the log above)
+
+Cleared since their entries were written:
+
+- **Stripe keys (2026-07-04 #4) — SUPERSEDED, not missing.** The plan of record is Paddle
+  as Merchant of Record (`docs/designs/PADDLE-BILLING-FOUNDATION-PLAN-2026-07-19.md`);
+  `src/lib/pricing/` is deleted and no Stripe flag exists in `src/`. The live blocker is
+  the **packaging freeze + Paddle AUP approval** (HUMAN-SETUP-TODO §11), not Stripe keys.
+- **NEON_API_KEY (2026-07-15) — CLEARED.** The saved key works again; disposable-branch
+  integration tests run (107/107 green as of 2026-08-16). Confirm the Actions secret.
+- **X ingestion** — `X_API_KEY` live since July; 175,842 docs; bounded auto-recovery
+  production-proven Aug 10–14. **MTProto** — `TELEGRAM_SESSION` live since 2026-07-11.
+- **bnow.net DNS + Postmark** — live since 2026-07-15 (DKIM/SPF/DMARC pass). The partner-
+  outreach motion this gated is unblocked (and unstarted — PARTNER-STRATEGY.md).
+
+Still open and accurate as written: VERCEL_TOKEN (expired; CLI session works),
+ANTHROPIC_API_KEY (optional), ACLED (optional), GDELT flakiness, zakupki egress (needs
+proxy/mirror decision), rosstat/customs unreachable (intentionally surfaced as data-dark
+signal), OpenSanctions **commercial licensing** (the binding compliance-ICP blocker;
+PAYG €0.10/query verified 2026-08-17), Companies House key (application pending),
+OpenCorporates (unevaluated), COMTRADE_API_KEY (optional — premium now priced at
+$2k/$6k/$12k per year, see HUMAN-SETUP-TODO §10), bh/kw feeds, sa fragility.

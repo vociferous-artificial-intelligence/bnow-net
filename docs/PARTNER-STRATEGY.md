@@ -3,6 +3,16 @@
 Strategy doc (2026-07-07). Regional partner map, qualification rubric, and recommendation
 on using existing influencer/intelligence-aligned contacts.
 
+> **Last reconciled: 2026-08-17.** The stated blocker on outreach — bnow.net DNS +
+> Postmark sender migration (STATUS-REPORT 2026-07-07 move #2) — **cleared 2026-07-15**
+> (bnow.net live; DKIM/SPF/DMARC pass; magic-link delivery proven). **No outreach attempt,
+> response, or deferral decision is recorded as of 2026-08-17 — the motion is unblocked
+> and unstarted.** When building the §6 evidence memo, use the honest scoreboard framing
+> in GTM-STRATEGY.md §1: +14.7h median info-lead; run-avg coverage ~17.5% (~31% nonzero-
+> day) vs the 80% roadmap target; Iran comparable-day 43.5% post-recovery (2026-08-15);
+> disclose the Jul 29–Aug 15 map-outage discontinuity. A methodology reviewer who finds
+> that framing *in* the memo is a stronger validator than one who has to ask.
+
 ## 1. Core recommendation
 
 Use the influencer-intelligence contacts, but do **not** lead with an influencer campaign.

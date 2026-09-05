@@ -4,6 +4,13 @@ Plan doc (2026-07-06). Four workstreams the user asked to plan-then-build. None 
 new paid API keys (they reuse existing infra + OpenAI, already live). Build order and
 rationale at the end.
 
+> **Status 2026-08-17: all four workstreams SHIPPED** — critical-materials tracker (live
+> page + monthly cron), Ask (now the v2 pipeline, ~$0.011/query), ISW Middle East
+> registry + Iran validation (citations current through 2026-08-14 after the 08-15
+> recovery), i18n (en+uk full; de/ar/ja/pl/fr offered). Historical plan preserved below.
+> The follow-on ladder items still open: saved filters/watchlists, custom agents
+> (1B features 2–3), per-view content translation.
+
 ## 1A — ISW Middle East expansion + comparison page
 
 **Goal:** extend the Russia model (ISW ROCA → source registry → comparison page) to the

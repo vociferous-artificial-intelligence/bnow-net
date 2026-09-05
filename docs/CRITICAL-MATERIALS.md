@@ -3,6 +3,11 @@
 Doc (2026-07-06). Should we build a critical-materials / supply-chain dependency tracker?
 Research, competitive gap, GTM case, and build design.
 
+> **Status 2026-08-17: BUILT.** `/critical-materials` is live (11 US import dependencies
+> tracked, monthly cron day-3). The build-case below is preserved as written. Remaining
+> upside: per-nation lens, event-fusion as Asia coverage grows, threshold alerting —
+> and monthly-frequency data via Comtrade premium ($2k/$12k per year, HUMAN-SETUP-TODO §10).
+
 ## The idea
 
 Track US (and, later, other nations') **structural trade dependencies** — the choke points
