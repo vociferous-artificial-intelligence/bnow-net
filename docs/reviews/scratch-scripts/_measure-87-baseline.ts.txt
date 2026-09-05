@@ -1,0 +1,103 @@
+// UNCOMMITTED measurement scaffold for #87a (legacy digest doc-line Unicode
+// truncation). Read-only SELECTs, zero writes, zero provider calls. Run:
+//   DATABASE_URL=... npx tsx scripts/_measure-87-baseline.ts
+import { neon } from "@neondatabase/serverless";
+
+const sql = neon(process.env.DATABASE_URL!);
+
+// EXACT old transformation from openai-provider.ts:148-154 (content part).
+const oldLine = (title: string | null, content: string) =>
+  ((title ? title + ". " : "") + content).replace(/\s+/g, " ").slice(0, 400);
+function dropIso(s: string): string {
+  if (!/[\uD800-\uDFFF]/.test(s)) return s;
+  let out = "";
+  let keepFrom = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 0xd800 || c > 0xdfff) continue;
+    if (c <= 0xdbff && i + 1 < s.length) {
+      const next = s.charCodeAt(i + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        i++;
+        continue;
+      }
+    }
+    out += s.slice(keepFrom, i);
+    keepFrom = i + 1;
+  }
+  return keepFrom === 0 ? s : out + s.slice(keepFrom);
+}
+const hasIso = (s: string) => dropIso(s) !== s;
+const wfs = (s: string, limit: number) => dropIso(s.length > limit ? s.slice(0, limit) : s);
+const newLine = (title: string | null, content: string) =>
+  wfs(((title ? title + ". " : "") + content).replace(/\s+/g, " "), 400);
+
+async function main() {
+  // Day bucket = the digest corpus predicate's own bucket. 14-day window.
+  const astralClass = `[` + String.fromCodePoint(0x10000) + `-` + String.fromCodePoint(0x10ffff) + `]`;
+  const agg = (await sql.query(
+    `SELECT count(*)::int AS docs,
+            count(*) FILTER (WHERE content ~ $1 OR title ~ $1)::int AS astral_docs,
+            count(*) FILTER (WHERE char_length(coalesce(title,'') || content) > 380)::int AS near_or_over_400_cp
+     FROM raw_documents
+     WHERE COALESCE(published_at, fetched_at) > now() - interval '14 days'
+       AND content NOT LIKE '[STUB FIXTURE]%'`,
+    [astralClass],
+  )) as unknown as Array<Record<string, number>>;
+  console.log(`window universe: ${JSON.stringify(agg[0])}`);
+
+  const cand = (await sql.query(
+    `SELECT id, country_iso2, title, left(content, 4000) AS content,
+            (COALESCE(published_at, fetched_at))::date::text AS day
+     FROM raw_documents
+     WHERE COALESCE(published_at, fetched_at) > now() - interval '14 days'
+       AND content NOT LIKE '[STUB FIXTURE]%'
+       AND (content ~ $1 OR title ~ $1)`,
+    [astralClass],
+  )) as unknown as Array<{
+    id: number;
+    country_iso2: string | null;
+    title: string | null;
+    content: string;
+    day: string;
+  }>;
+  console.log(`astral candidates pulled: ${cand.length} (content capped at 4000 chars — sufficient unless >3600 leading whitespace units)`);
+
+  let truncated = 0;
+  let malformed = 0;
+  let diff = 0;
+  const byDay = new Map<string, number>();
+  const byTheater = new Map<string, number>();
+  const examples: number[] = [];
+  for (const r of cand) {
+    const o = oldLine(r.title, r.content);
+    const n = newLine(r.title, r.content);
+    const norm = ((r.title ? r.title + ". " : "") + r.content).replace(/\s+/g, " ");
+    if (norm.length > 400) truncated++;
+    if (hasIso(o)) {
+      malformed++;
+      byDay.set(r.day, (byDay.get(r.day) ?? 0) + 1);
+      byTheater.set(r.country_iso2 ?? "?", (byTheater.get(r.country_iso2 ?? "?") ?? 0) + 1);
+      if (examples.length < 10) examples.push(r.id);
+    }
+    if (o !== n) diff++;
+  }
+  console.log(
+    JSON.stringify(
+      {
+        astralDocsTruncatedAt400: truncated,
+        oldLineMalformed: malformed,
+        oldVsNewDiff: diff,
+        malformedByDay: Object.fromEntries([...byDay.entries()].sort()),
+        malformedByTheater: Object.fromEntries(byTheater),
+        exampleDocIds: examples,
+      },
+      null,
+      2,
+    ),
+  );
+}
+main().then(() => process.exit(0)).catch((e) => {
+  console.error(e?.message ?? e);
+  process.exit(1);
+});

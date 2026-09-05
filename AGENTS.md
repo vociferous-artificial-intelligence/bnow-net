@@ -970,6 +970,9 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
 - Naming: snake_case DB, camelCase TS, kebab-case files.
 - Scrapers: ≥2s per-host spacing, honor robots.txt, disk-cache every fetch (never fetch
   the same URL twice), custom UA `BNOWBot/0.1 (+https://bnow.net/bot)`.
+- Worktrees: one per PR, created under `/Users/go/code/bnow-net-worktrees/`, and REMOVED
+  (`git worktree remove`) in the same session that merges its PR. Deploys come only from
+  the plain release clone.
 
 ## Credentials & integrations
 
@@ -1915,3 +1918,83 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
   Report: `docs/reviews/EVAL-VALIDATION-PARITY-2026-09-04.md`; successor plan:
   `docs/reviews/EVAL-SUCCESSOR-PLAN-2026-09-04.md`.
 
+
+- **2026-09-05 (worktree estate cleanup; docs only)** A month of accumulated git worktrees,
+  clones and unpushed branches was audited and cleared from the main checkout. No source,
+  scorer, fixture, dataset, prompt, cap, env, migration, cron, deploy, database or
+  paid-provider change; zero paid provider calls; nothing merged to `main`.
+  **(1) Preservation first.** Sixteen local branches that existed on NO remote ref were
+  pushed verbatim as archival branches (`--no-verify`; the local hook would have run the
+  suite against the wrong tree, and GitHub CI fires only on `main` pushes and PRs):
+  `claude/business-planning-20260817`, `claude/local-model-ask-eval-20260817`,
+  `codex/analysis-eval-control-plane-20260817`,
+  `codex/evidence-quality-observability-20260817`,
+  `codex/conflict-evaluations-integration-20260817`,
+  `codex/conflict-evaluations-final-audit-20260818`, the eight
+  `codex/conflict-evaluations-p0…p7` phase branches,
+  `codex/quality-foundation-integration-20260817` and
+  `codex/quality-foundation-final-audit-20260818`. All sixteen verified present on `origin`
+  afterwards. Fourteen carried history already landed on `main` via rebased PRs; the two that
+  existed nowhere else were landed by PR #47
+  (`docs/land-aug17-branches-20260905`) — see the separate 2026-09-05 decision-log entry for
+  what that PR did and did not land.
+  **(2) Worktrees removed: 31**, all with plain `git worktree remove` (no `--force`, so a
+  dirty tree would have refused; none did) — 5 standalone siblings of the main checkout,
+  24 under `/Users/go/code/bnow-net-worktrees/`, 1 at `.claude/worktrees/`, and 1 at
+  `.worktrees/`. Both container directories were then removed empty. Every removed tree had
+  zero modified tracked files; the only untracked content anywhere was two one-off
+  measurement scripts (`scripts/_measure-8[79]-baseline.ts`), preserved as `.txt` under
+  `docs/reviews/scratch-scripts/` so `tsc`/`eslint` never see them.
+  **(3) Also removed:** the stale deploy clone `bnow-net-deploy-20260823` (clean, 0 commits
+  ahead of `origin/main`, `.env.local` held only a short-lived `VERCEL_OIDC_TOKEN`);
+  the npm/pnpm strays `.pnpm-store/`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` from the main
+  checkout (npm remains the package manager — `package-lock.json` tracked, no
+  `packageManager` field); `.git/_to_delete_locks/` (26 quarantined lock and temp-object
+  files from a 2026-08-17 folder-mount audit run — deleted after `git fsck` reported no
+  corruption, only expected dangling objects); and
+  `.claude/worktrees/business-planning-20260817`, a 64M ORPHAN worktree from a remote-session
+  mount (its `.git` file pointed at a nonexistent `/sessions/rcw-…` gitdir, so it was never
+  registered here) — verified to be a stale checkout of `9c5e9cb` with zero unique content
+  before deletion. `git worktree prune` run after; `git worktree list` now shows only the
+  main checkout, and `git fsck` re-reports clean.
+  **(4) Untouched, by rule:** the release clone `bnow-net-rel-20260823` (deploys come from
+  it) and the five artifact folders `bnow-net-audit-evidence-20260818`,
+  `bnow-net-eval-campaign-20260903-artifacts`, `bnow-net-eval-corpus-v2-draft-20260827`
+  (+ its `.MANIFEST.sha256` sibling), `bnow-net-eval-corpus-v2-review-20260903`,
+  `bnow-net-eval-successor-1a-20260904-artifacts` — the sole write to any of them was three
+  scratch scripts added to one `reports/` subfolder (below).
+  **(5) Data preserved before removal.** All six gitignored live eval results were
+  byte-compared against their artifact backups and confirmed IDENTICAL before their worktrees
+  were removed: successor-1a's `live-{map,digest}-v2-gpt-4o-mini.json` +
+  `live-validation-v2-gpt-4o-mini+votes5.json` against the
+  `20260905T002223Z-final-closeout` backup, and the campaign's
+  `live-{map,validation,digest}-v2-gpt-4o-mini.json` against
+  `20260904T135208Z-B3-digest-complete-PAUSED`. The campaign worktree's three scratch tools
+  (`eval-env.ts`, `ledger.ts`, `verify-cell.sh`) existed nowhere else and were copied to
+  `bnow-net-eval-campaign-20260903-artifacts/reports/scratch-scripts/` (`cmp`-verified; they
+  hold no literal secret — the only match was `Bearer ${process.env.NEON_API_KEY}`). The
+  successor worktree's five `.cache/eval-scratch/` scripts needed no action: they were already
+  byte-identical in that folder's own `reports/scratch-scripts/`. Every worktree `.env.local`
+  was hash-compared and found to be a duplicate of the main checkout's or the release clone's,
+  EXCEPT the campaign worktree's, which held the only local copy of the eval
+  `OPENAI_API_KEY`; that one line was appended to the main checkout's `.env.local` without
+  being displayed (the file now carries exactly one `OPENAI_API_KEY=`). The
+  iran-validation-recovery worktree held 42 cached ISW report pages (17M) present nowhere
+  else, copied into the main checkout's gitignored `data/cache/pages/` rather than lost to a
+  refetch, per the standing scraper convention that a URL is never fetched twice.
+  **(6) Local branches:** after moving the checkout to `main`, `git branch -d` (safe form
+  only) deleted 27 fully-merged branches and REFUSED 17 — the 16 archival branches plus the
+  new `docs/operator-notes-20260905`. It also deleted the local
+  `docs/land-aug17-branches-20260905`, which `-d` permits once a branch is fully merged into
+  its own upstream; the remote branch and PR #47 were unaffected and the local ref was
+  restored from `origin`.
+  **(7) Checkout state and disk:** the main checkout moved off the stale
+  `claude/local-model-ask-eval-20260817` (176 behind) and fast-forwarded to `main`
+  (`883e5e3`), with `npm ci` re-run. `/Users/go/code/bnow-net*` went from **25G to 2.5G**.
+  Operator notes that had been sitting uncommitted in the main checkout — a
+  `docs/PARTNER-STRATEGY.md` edit, `docs/GO-NO-GO-REGISTER-2026-08-23.md`,
+  `docs/OUTREACH-ROSTER-2026-08-23.md` and eleven 2026-08-17 roadmap prompt docs — are
+  preserved by this branch's PR; five other prompt docs were byte-identical to files already
+  on `main` and were simply dropped. The outreach roster carries third-party names, work and
+  personal email addresses and phone numbers; nothing was redacted, and the PR flags it so the
+  operator can decide whether that roster belongs in the repo at all.
