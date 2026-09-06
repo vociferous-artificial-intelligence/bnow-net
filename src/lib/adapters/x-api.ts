@@ -193,12 +193,25 @@ export function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
+/** Steady hourly poller's guard.
+ *
+ *  Cap reconciliation (OPEN-TASKS #44, 2026-09-06): the 1.5 literal below is the
+ *  code default that applies ONLY when X_DAILY_USD_CAP is unset. PRODUCTION does
+ *  set it — $4/day since the operator's 2026-09-03 raise (X_SPRINT_USD_CAP=150,
+ *  X_DAILY_USD_CAP=4 in Production, Preview and Development) — so the live daily
+ *  brake is $4, not $1.50, and the same is true of the auto-catch-up guard below.
+ *  The default is deliberately NOT raised to match: raising it would change
+ *  behaviour for any environment that leaves the variable unset. Note also that
+ *  envNum here is FAIL-OPEN (unset falls back to the default), unlike envCap on
+ *  the line above and unlike every LLM guard's cap read; aligning the two is a
+ *  behaviour change and an open decision, not a comment fix.
+ */
 export function xGuardFromEnv(): SpendGuard {
   return new SpendGuard(
     {
       provider: X_PROVIDER,
       totalCapUsd: envCap("X_SPRINT_USD_CAP"),
-      dailyUsdCap: envNum("X_DAILY_USD_CAP", 1.5),
+      dailyUsdCap: envNum("X_DAILY_USD_CAP", 1.5), // production sets 4; see the note above
       dailyRequestCap: envNum("X_DAILY_REQUEST_CAP", 4000),
       runRequestCap: envNum("X_RUN_REQUEST_CAP", 200),
     },
@@ -220,7 +233,7 @@ export function xAutoCatchupGuardFromEnv(): SpendGuard {
     {
       provider: X_PROVIDER,
       totalCapUsd: envCap("X_SPRINT_USD_CAP"),
-      dailyUsdCap: envNum("X_DAILY_USD_CAP", 1.5),
+      dailyUsdCap: envNum("X_DAILY_USD_CAP", 1.5), // production sets 4; see xGuardFromEnv
       dailyRequestCap: envNum("X_DAILY_REQUEST_CAP", 4000),
       runRequestCap: autoLimit,
     },
