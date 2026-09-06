@@ -33,6 +33,9 @@ export const CONFLICT_DOMAIN_ERROR_CODES = [
   "invalid_oracle_table",
   "invalid_score_request",
   "unpersistable_result",
+  // Durable persistence (migration 0028) — additive codes only
+  "edition_url_conflict",
+  "edition_write_contention",
 ] as const;
 
 export type ConflictDomainErrorCode = (typeof CONFLICT_DOMAIN_ERROR_CODES)[number];

@@ -1,28 +1,34 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Pool } from "@neondatabase/serverless";
 
-// Real-Postgres proof of the Phase 2 reference-report repository against the
-// DISPOSABLE DDL in src/integration/sql/conflict-benchmark-reports.sql (NO
-// numbered migration — the tables are created here and dropped in afterAll;
-// the branch itself is a throwaway Neon fork). Proves: multi-edition
-// insert/select determinism, idempotent replay/repair semantics identical to
-// the in-memory backend (both route through the one merge authority), day
-// statuses (confirmed gap vs probe failure, cleared by an arriving edition),
-// the two-unique-index isw_reports trap being SIDESTEPPED (two same-date
-// editions coexist while isw_reports keeps one anchor row), and
-// citation-registry non-interference (identical counts before/after).
-// Recorded limitation: final migration uniqueness/idempotency proof REMAINS
-// the later integration gate — this disposable DDL cannot certify it.
+// Real-Postgres proof of the reference-report repository against the DURABLE
+// tables of migration 0028, applied here by the repo's own migration runner
+// (scripts/migrations-lib.ts runMigrations — the integration harness does not
+// apply migrations) on a throwaway Neon fork of production. Proves:
+// multi-edition insert/select determinism, idempotent replay/repair semantics
+// identical to the in-memory backend (both route through the one merge
+// authority), day statuses (confirmed gap vs probe failure, cleared by an
+// arriving edition), the two-unique-index isw_reports trap being SIDESTEPPED
+// (two same-date editions coexist while isw_reports keeps one anchor row),
+// citation-registry non-interference (identical counts before/after), and the
+// design §5 hardening this migration carries: one-statement insert+clear,
+// typed canonical_url conflicts, the anchor-change journal, and concurrent
+// writers converging instead of overwriting.
+//
+// The tables are MIGRATED, never dropped here: dropping them would leave every
+// later itest in the same fork running against a schema whose _migrations
+// marker says 0028 was applied. Cleanup deletes only this test's synthetic
+// far-future rows.
 
 const URL_ENV = process.env.INTEGRATION_DATABASE_URL;
 if (!URL_ENV) throw new Error("INTEGRATION_DATABASE_URL not set — run via npm run test:integration");
 process.env.DATABASE_URL = URL_ENV;
 
-const { SqlReferenceReportRepository, DAY_STATUS_UPSERT_SQL } = await import(
+const { runMigrations } = await import("../../scripts/migrations-lib");
+const { SqlReferenceReportRepository, DAY_STATUS_UPSERT_SQL, EDITION_UPSERT_SQL } = await import(
   "@/lib/conflicts/reference-repo-sql"
 );
+const { ConflictDomainError } = await import("@/lib/conflicts/errors");
 const { InMemoryReferenceReportRepository } = await import("@/lib/conflicts/reference-repo");
 const { parseEditionRecord, selectDailyFinal } = await import("@/lib/conflicts/editions");
 const { serializeReferenceReportIdentity } = await import("@/lib/conflicts/serialization");
@@ -84,15 +90,17 @@ async function registryCounts(): Promise<Record<string, number>> {
   return Object.fromEntries(Object.entries(row).map(([k, v]) => [k, Number(v)]));
 }
 
+// every date this test writes is far-future and synthetic, so the sweep can be
+// date-scoped and cannot touch a real discovered edition on a production fork
+async function clearSyntheticRows() {
+  await query(`DELETE FROM benchmark_report_editions WHERE report_date >= DATE '2027-01-01'`);
+  await query(`DELETE FROM benchmark_series_days WHERE report_date >= DATE '2027-01-01'`);
+}
+
 beforeAll(async () => {
+  await runMigrations(URL_ENV!); // applies 0028 additively on the disposable fork
   pool = new Pool({ connectionString: URL_ENV });
-  await query(`DROP TABLE IF EXISTS benchmark_report_editions`);
-  await query(`DROP TABLE IF EXISTS benchmark_series_days`);
-  const ddl = readFileSync(
-    join(process.cwd(), "src/integration/sql/conflict-benchmark-reports.sql"),
-    "utf8",
-  );
-  await query(ddl); // simple-query protocol: the whole file in one round trip
+  await clearSyntheticRows();
   await query(`DELETE FROM isw_reports WHERE url = $1`, [ANCHOR_URL]);
   const rows = await query(
     `INSERT INTO isw_reports (url, theater, report_date, parse_status)
@@ -105,13 +113,12 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await query(`DROP TABLE IF EXISTS benchmark_report_editions`);
-  await query(`DROP TABLE IF EXISTS benchmark_series_days`);
+  await clearSyntheticRows();
   await query(`DELETE FROM isw_reports WHERE id = $1`, [anchorId]);
   await pool.end();
 });
 
-describe("conflict reference-report repository (disposable SQL)", () => {
+describe("conflict reference-report repository (migration 0028, real Postgres)", () => {
   it("stores two same-date editions and returns them in the deterministic finality order", async () => {
     const repo = new SqlReferenceReportRepository(query);
     // insert LEAST-final first so any rows[0]-of-insert-order bug would show
@@ -264,11 +271,12 @@ describe("conflict reference-report repository (disposable SQL)", () => {
 
     // the D2 insert FAILS on the canonical_url partial unique index (a
     // different edition_key, so ON CONFLICT (edition_key) does not absorb
-    // it) — the error surfaces as a raw driver error from the disposable
-    // backend (typing it is a recorded durable-backend deferral) ...
-    await expect(repo.upsertEdition(parseEditionRecord(d2Edition))).rejects.toThrow(
-      /benchmark_report_editions_url_idx/,
-    );
+    // it) — the durable backend maps it to the typed domain error, keeping the
+    // index name in the message as evidence of WHICH constraint refused ...
+    const urlErr = await repo.upsertEdition(parseEditionRecord(d2Edition)).catch((e) => e);
+    expect(urlErr).toBeInstanceOf(ConflictDomainError);
+    expect((urlErr as InstanceType<typeof ConflictDomainError>).code).toBe("edition_url_conflict");
+    expect((urlErr as Error).message).toMatch(/benchmark_report_editions_url_idx/);
     // ... and the stored discovery record SURVIVES: the failed insert must
     // not have cleared it (regression: the first backend deleted the day
     // row BEFORE the insert, so this exact failure erased probe_failed)
@@ -411,6 +419,161 @@ describe("conflict reference-report repository (disposable SQL)", () => {
         [DAY_A],
       ),
     ).rejects.toThrow(/benchmark_report_editions_published_consistent/);
+  });
+
+  it("the tables come from migration 0028, not from test DDL", async () => {
+    // the durable-wiring gate the design recorded as deferred: these tables now
+    // exist because runMigrations applied the numbered file, and re-running it
+    // is a no-op (the marker is present exactly once)
+    const [reg] = await query(
+      `SELECT to_regclass('benchmark_report_editions')::text AS editions,
+              to_regclass('benchmark_series_days')::text AS days`,
+    );
+    expect(reg).toEqual({ editions: "benchmark_report_editions", days: "benchmark_series_days" });
+    const markers = await query(
+      `SELECT name FROM _migrations WHERE name LIKE '0028\\_%' ORDER BY name`,
+    );
+    expect(markers.length).toBe(1);
+    await runMigrations(URL_ENV!); // idempotent re-apply
+    const after = await query(`SELECT name FROM _migrations WHERE name LIKE '0028\\_%'`);
+    expect(after).toEqual(markers);
+    // the additive audit columns exist with their defaults
+    const cols = await query(
+      `SELECT column_name, column_default, is_nullable FROM information_schema.columns
+        WHERE table_name = 'benchmark_report_editions'
+          AND column_name IN ('created_at', 'anchor_journal') ORDER BY column_name`,
+    );
+    expect(cols.map((c) => c.column_name)).toEqual(["anchor_journal", "created_at"]);
+    expect(cols.every((c) => c.is_nullable === "NO")).toBe(true);
+  });
+
+  it("insert + day-row clear are ONE statement: a rolled-back insert clears nothing", async () => {
+    const D6 = "2027-07-17";
+    const repo = new SqlReferenceReportRepository(query);
+    // seed a probe_failed record, then issue the DEPLOYED upsert statement
+    // directly with a row that violates the label-shape CHECK
+    expect(await repo.recordDayStatus("iran_update", D6, "probe_failed")).toEqual({
+      status: "probe_failed",
+      action: "set",
+    });
+    await expect(
+      query(EDITION_UPSERT_SQL, [
+        "iran_update",
+        "isw",
+        `iran_update:${D6}:BAD`,
+        "BAD",
+        D6,
+        "https://understandingwar.org/research/middle-east/iran-update-atomic-probe/",
+        "isw-edition-norm-v1",
+        "iran-update-scope-v1",
+        null,
+        null,
+        "missing",
+        "missing",
+        null,
+        "pending",
+        null,
+      ]),
+    ).rejects.toThrow(/benchmark_report_editions_label_shape/);
+    // the DELETE half of the CTE rolled back with the INSERT half
+    expect(await repo.dayStatus("iran_update", D6)).toBe("probe_failed");
+  });
+
+  it("a moved anchor leaves a journal entry instead of destroying the old instant", async () => {
+    const D7 = "2027-07-18";
+    const AT = "2027-08-01T00:00:00.000Z";
+    const repo = new SqlReferenceReportRepository(query, { now: () => new Date(AT) });
+    const withCutoff = (iso: string) =>
+      parseEditionRecord(
+        editionRaw("plain", {
+          identity: {
+            editionKey: `iran_update:${D7}:plain`,
+            reportDate: D7,
+            cutoffAt: iso,
+            publishedAt: null,
+          },
+          canonicalUrl:
+            "https://understandingwar.org/research/middle-east/iran-update-july-18-2027/",
+          cutoffTreatment: "present",
+        }),
+      );
+    expect((await repo.upsertEdition(withCutoff(`${D7}T18:00:00Z`))).action).toBe("inserted");
+    const moved = await repo.upsertEdition(withCutoff(`${D7}T19:30:00Z`));
+    expect(moved.action).toBe("repaired");
+    expect(moved.anchorChanged).toBe(true);
+    expect(await repo.anchorJournal(`iran_update:${D7}:plain`)).toEqual([
+      { at: AT, field: "cutoff", from: `${D7}T18:00:00.000Z`, to: `${D7}T19:30:00.000Z` },
+    ]);
+    // a fill-in is a repair, not a move: it journals nothing
+    const filled = await repo.upsertEdition(
+      parseEditionRecord(
+        editionRaw("plain", {
+          identity: {
+            editionKey: `iran_update:${D7}:plain`,
+            reportDate: D7,
+            cutoffAt: `${D7}T19:30:00Z`,
+            publishedAt: `${D7}T23:00:00Z`,
+          },
+          canonicalUrl:
+            "https://understandingwar.org/research/middle-east/iran-update-july-18-2027/",
+          cutoffTreatment: "present",
+          publishedTreatment: "present",
+        }),
+      ),
+    );
+    expect(filled.repairedFields).toEqual(["published"]);
+    expect(filled.anchorChanged).toBe(false);
+    expect((await repo.anchorJournal(`iran_update:${D7}:plain`)).length).toBe(1);
+  });
+
+  it("concurrent writers on one edition converge to the union of their repairs", async () => {
+    // two SEPARATE clients, as two cron invocations would be: the read-merge-
+    // write path is compare-and-swap, so a lost race re-reads and re-merges
+    // rather than overwriting the winner's repair
+    const D8 = "2027-07-19";
+    const url = "https://understandingwar.org/research/middle-east/iran-update-july-19-2027/";
+    const poolA = new Pool({ connectionString: URL_ENV });
+    const poolB = new Pool({ connectionString: URL_ENV });
+    const q = (p: Pool) => (sql: string, params?: unknown[]) =>
+      p.query(sql, params).then((r) => r.rows as Array<Record<string, unknown>>);
+    try {
+      const seed = new SqlReferenceReportRepository(query);
+      const base = (over: Record<string, unknown>) =>
+        parseEditionRecord(
+          editionRaw("plain", {
+            identity: { editionKey: `iran_update:${D8}:plain`, reportDate: D8, ...(over.identity as object) },
+            canonicalUrl: url,
+            ...Object.fromEntries(Object.entries(over).filter(([k]) => k !== "identity")),
+          }),
+        );
+      expect((await seed.upsertEdition(base({}))).action).toBe("inserted");
+
+      const [a, b] = await Promise.all([
+        new SqlReferenceReportRepository(q(poolA)).upsertEdition(
+          base({ identity: { cutoffAt: `${D8}T18:00:00Z` }, cutoffTreatment: "present" }),
+        ),
+        new SqlReferenceReportRepository(q(poolB)).upsertEdition(
+          base({
+            identity: { publishedAt: `${D8}T23:00:00Z` },
+            publishedTreatment: "present",
+            parseStatus: "parsed",
+          }),
+        ),
+      ]);
+      expect([a.action, b.action]).toEqual(["repaired", "repaired"]);
+      const merged = await seed.getEdition(`iran_update:${D8}:plain`);
+      expect(merged!.identity.cutoffAt).toBe(`${D8}T18:00:00.000Z`);
+      expect(merged!.identity.publishedAt).toBe(`${D8}T23:00:00.000Z`);
+      expect(merged!.parseStatus).toBe("parsed");
+      const [n] = await query(
+        `SELECT count(*)::int AS n FROM benchmark_report_editions WHERE report_date = $1`,
+        [D8],
+      );
+      expect(Number(n.n)).toBe(1);
+    } finally {
+      await poolA.end();
+      await poolB.end();
+    }
   });
 
   it("citation registry is UNTOUCHED by every repository operation", async () => {

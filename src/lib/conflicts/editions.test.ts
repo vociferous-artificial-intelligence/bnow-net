@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   DAILY_FINAL_POLICY,
+  canonicalizeIswUrl,
   EDITION_FINALITY_RANK,
   EDITION_NORMALIZATION_VERSION,
   FIXTURE_FINAL_LABEL,
@@ -400,5 +401,60 @@ describe("day status (gaps are never fabricated)", () => {
     expect(dayUnavailableReason("probe_failed")).toBeNull();
     expect(dayUnavailableReason("unknown")).toBeNull();
     expect(dayUnavailableReason("published")).toBeNull();
+  });
+});
+
+describe("canonicalizeIswUrl (ONE storage form, design §5)", () => {
+  const CANONICAL =
+    "https://understandingwar.org/research/middle-east/iran-update-evening-special-report-july-10-2027/";
+
+  it("collapses scheme, www, case and trailing-slash variants of one edition to one string", () => {
+    for (const variant of [
+      CANONICAL,
+      CANONICAL.replace(/\/$/, ""),
+      CANONICAL.replace("https://", "http://"),
+      CANONICAL.replace("https://", "https://www."),
+      CANONICAL.replace("https://", "HTTPS://WWW.").replace("/research", "/RESEARCH"),
+      `${CANONICAL}?utm_source=x#endnotes`,
+      CANONICAL.replace(/\/$/, "///"),
+    ]) {
+      expect(canonicalizeIswUrl(variant)).toBe(CANONICAL);
+    }
+  });
+
+  it("is idempotent", () => {
+    expect(canonicalizeIswUrl(canonicalizeIswUrl(CANONICAL))).toBe(CANONICAL);
+  });
+
+  it("agrees with the normalization table: a canonicalized URL keeps its edition key", () => {
+    // canonicalization must never move a URL out of (or into) a normalized
+    // shape — the identity a stored row claims comes from normalizeIswEditionUrl
+    for (const variant of [CANONICAL.replace(/\/$/, ""), CANONICAL.replace("https://", "http://www.")]) {
+      expect(normalizeIswEditionUrl(canonicalizeIswUrl(variant)).editionKey).toBe(
+        normalizeIswEditionUrl(variant).editionKey,
+      );
+    }
+  });
+
+  it("refuses what it cannot canonicalize, typed and fail-closed", () => {
+    for (const bad of [
+      "not a url",
+      "ftp://understandingwar.org/research/",
+      "https://evil.example/research/middle-east/iran-update-july-10-2027/",
+      "https://understandingwar.org.evil.example/research/",
+    ]) {
+      expect(() => canonicalizeIswUrl(bad)).toThrow(ConflictDomainError);
+      try {
+        canonicalizeIswUrl(bad);
+      } catch (e) {
+        expect((e as ConflictDomainError).code).toBe("invalid_edition_url");
+      }
+    }
+  });
+
+  it("does NOT vouch for path shape — that stays normalizeIswEditionUrl's job", () => {
+    const unknownShape = "https://understandingwar.org/research/middle-east/iran-update-weekly-july-10-2027/";
+    expect(canonicalizeIswUrl(unknownShape)).toBe(unknownShape);
+    expect(() => normalizeIswEditionUrl(unknownShape)).toThrow(ConflictDomainError);
   });
 });

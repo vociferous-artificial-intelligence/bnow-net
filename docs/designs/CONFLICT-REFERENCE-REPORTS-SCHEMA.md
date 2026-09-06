@@ -4,9 +4,24 @@ Conflict-evaluations workstream, Phase 2 (2026-08-17). Binding inputs:
 `docs/designs/CONFLICT-REGION-EVALUATION.md` §9 (reference series, editions,
 discovery), §5 (evaluation-window ladder), §12 (migration posture); prompt
 §10; decision register #1–#10. This document records the reviewed schema
-choice and the EXACT later migration operations. **This workstream ships NO
-numbered Drizzle migration**: the only SQL is disposable test DDL
-(`src/integration/sql/`, see its README), and durable DB wiring is
+choice and the EXACT later migration operations.
+
+> **Status update 2026-09-06 (WS-3.1, step 13 of the 48h program).** The
+> deferral below is CLOSED for the reference-report half: option 3 was promoted
+> into `src/db/schema.ts` and **migration 0028**, and the disposable DDL
+> `src/integration/sql/conflict-benchmark-reports.sql` was deleted (the
+> integration test applies the real migrations with `runMigrations()`). The
+> two additive audit columns §4's last paragraph left to the operator —
+> `created_at` and `anchor_journal` — are included. §5's deferred items are
+> annotated below: five closed, one closed differently than proposed
+> (compare-and-swap instead of `SELECT … FOR UPDATE`, because the repository's
+> transport is a transaction-less `QueryFn`), three still open. The paragraphs
+> beneath are left as the reviewed record and are NOT rewritten.
+> Record: `docs/reviews/WS-3-1-PERSISTENCE-2026-09-06.md`.
+
+**This workstream shipped NO
+numbered Drizzle migration** (superseded 2026-09-06 — see above): the only SQL was disposable test DDL
+(`src/integration/sql/`, see its README), and durable DB wiring was
 **DEFERRED to the operator-selected integration phase**.
 
 ## 1. The constraint that forces a design
@@ -173,19 +188,19 @@ them (additive, default `now()` — DB-side provenance, not domain input).
 
 ## 5. Deferred to the later integration gate (recorded honestly)
 
-- **Final migration uniqueness/idempotency proof.** The disposable DDL
+- **[CLOSED 2026-09-06 — migration 0028; the itest applies it with `runMigrations()` and re-applies it as a no-op.]** **Final migration uniqueness/idempotency proof.** The disposable DDL
   (`CREATE TABLE IF NOT EXISTS` on a throwaway fork) CANNOT certify the
   real migration's apply-once/reapply-safe behavior under
   `scripts/migrate` semantics; that proof happens when the numbered
   migration exists, on the integration base.
-- **Concurrent-writer hardening.** The SQL backend is read-merge-write with
+- **[CLOSED DIFFERENTLY 2026-09-06 — compare-and-swap, not `FOR UPDATE`: the repository's `QueryFn` is one autocommit statement per call, so a row lock would be released at statement end. The guarded UPDATE + bounded retry keeps `mergeEditionRecords` the only semantics and makes two writers' repairs converge to their union.]** **Concurrent-writer hardening.** The SQL backend is read-merge-write with
   an `ON CONFLICT DO NOTHING` insert guard — correct for single-writer
   discovery and integration tests, NOT proven under concurrent upserts.
   The durable path should either wrap upserts in a transaction with
   `SELECT … FOR UPDATE` or move the merge rules into a CASE-guarded
   `ON CONFLICT DO UPDATE`; either must stay semantically identical to
   `mergeEditionRecords` (the tests to reuse are already written).
-- **Upsert atomicity + typed constraint errors.** The first disposable
+- **[CLOSED 2026-09-06 — insert + day-clear are ONE data-modifying CTE (`EDITION_UPSERT_SQL`); a canonical_url partial-unique violation maps to the typed `edition_url_conflict`.]** **Upsert atomicity + typed constraint errors.** The first disposable
   backend cleared the `benchmark_series_days` row BEFORE the edition
   insert, so a failed insert (e.g. a `canonical_url` duplicated from
   another day hitting the partial unique index, or a transient DB error)
@@ -197,7 +212,7 @@ them (additive, default `now()` — DB-side provenance, not domain input).
   `canonical_url` violations currently surface as raw driver errors from
   the disposable backend; the durable backend should map them to typed
   domain errors.
-- **Backend divergence on cross-key `canonical_url` uniqueness.** URL
+- **[OPEN 2026-09-06 — unchanged: the divergence is still asserted honestly in the integration test.]** **Backend divergence on cross-key `canonical_url` uniqueness.** URL
   uniqueness across DIFFERENT edition keys is a DB-level constraint only
   (the partial unique index): the SQL backend refuses a second edition
   claiming another edition's URL, while the in-memory backend ACCEPTS the
@@ -206,30 +221,30 @@ them (additive, default `now()` — DB-side provenance, not domain input).
   honestly in the integration test; the app-layer URL↔key cross-validation
   in `validateEditionRecord` narrows it for current-normVersion records,
   and the durable backend keeps the index as the authority.
-- **Anchor-change journaling.** `anchorChanged` is currently a returned —
+- **[CLOSED 2026-09-06 — the dedicated `anchor_journal` column: append-only `{at, field, from, to}` instants, length-bounded, refused fail-closed on read if it holds anything else.]** **Anchor-change journaling.** `anchorChanged` is currently a returned —
   and droppable — flag: a present→present anchor move overwrites the old
   value, which is then destroyed. Durable wiring must persist an
   anchor-change journal (the `derived` jsonb or a dedicated audit column
   is the natural home) so a moved cutoff/published instant leaves a
   queryable trace, not only a transient return value.
-- **URL canonicalization before storage.** Merge equality for
+- **[CLOSED 2026-09-06 — `canonicalizeIswUrl` runs at the storage boundary; the in-memory backend deliberately still stores raw URLs.]** **URL canonicalization before storage.** Merge equality for
   `canonicalUrl` is BYTE-level, so a trailing-slash/`www`/scheme variant
   replay of the SAME edition throws `edition_merge_conflict` — fail-closed
   and honest, but avoidable: the future discovery adapter should
   canonicalize URLs to one form before storage.
-- **Durable monotone day-status rule.** The disposable backend's day-status
+- **[CLOSED 2026-09-06 — `DAY_STATUS_UPSERT_SQL` is unchanged and still the SQL-level authority.]** **Durable monotone day-status rule.** The disposable backend's day-status
   upsert carries the monotone `nextStoredDayStatus` rule in the statement
   itself (CASE-guarded `ON CONFLICT DO UPDATE`, exported as
   `DAY_STATUS_UPSERT_SQL` and integration-proven); the durable
   integration-phase backend must KEEP that SQL-level guard, not regress to
   last-writer-wins.
-- **Discovery/sync seam.** Wiring the validation cron's discovered URLs
+- **[OPEN 2026-09-06 — step 14 of the 48h program (PLAN-WS-3 §3.2a).]** **Discovery/sync seam.** Wiring the validation cron's discovered URLs
   into edition rows (and linking `isw_report_id`) is integration-phase
   work; the frozen validation stack is not edited by this phase. A
   feed/index-backed discovery source (preferred by §9 over
   date-to-one-slug construction) plugs in as a future provider adapter
   producing the same `ReferenceEditionRecord`s.
-- **Multi-edition aggregation policy beyond designated-final.** The
+- **[OPEN 2026-09-06 — decision C4.]** **Multi-edition aggregation policy beyond designated-final.** The
   implemented policy is `designated-final-v1` (select ONE edition). The
   contract's alternative (score each edition separately) is representable
   (each edition is one observation) but no aggregate-dedup method is

@@ -1045,3 +1045,129 @@ export const claimEmbeddings = pgTable(
     index("claim_embeddings_hnsw_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
   ],
 );
+
+// ---------------------------------------------------------------------------
+// Conflict benchmark reference reports (migration 0028)
+// ---------------------------------------------------------------------------
+//
+// Schema option 3 of docs/designs/CONFLICT-REFERENCE-REPORTS-SCHEMA.md §2: a
+// provider-neutral reference-report EDITION table keyed by the domain
+// editionKey, plus a small day-status table. `isw_reports` keeps its two unique
+// indexes and stays the citation anchor — it is only ever REFERENCED here
+// (nullable FK), never changed, so `source_citations` and both loaders are
+// untouched (design §4 item 7). Options 1 (relax the isw_reports unique key)
+// and 2 (child table FK'd to isw_reports) were rejected there.
+//
+// LEGAL (standing ruling 1): no prose column exists here and none may be added.
+// Stored strings are URLs, keys, dates, enum values, version identifiers and
+// instants only; `derived` holds unit signatures/hashes only (the same rule as
+// isw_reports.derived) and `anchor_journal` holds instants + field names only.
+export const benchmarkReportEditions = pgTable(
+  "benchmark_report_editions",
+  {
+    id: serial("id").primaryKey(),
+    series: text("series").notNull(),
+    // 'isw' | 'fixture' (src/lib/conflicts/editions.ts EDITION_PROVIDERS); plain
+    // text, not a pg enum, so a future provider stays an additive change
+    provider: text("provider").notNull(),
+    // the domain identity: `<series>:<report_date>:<edition_label>`
+    editionKey: text("edition_key").notNull(),
+    editionLabel: text("edition_label").notNull(),
+    reportDate: date("report_date").notNull(),
+    canonicalUrl: text("canonical_url"),
+    normVersion: text("norm_version"),
+    scopeVersion: text("scope_version").notNull(),
+    cutoffAt: timestamp("cutoff_at", { withTimezone: true }),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    // present | missing | malformed_treated_as_missing
+    cutoffTreatment: text("cutoff_treatment").notNull(),
+    publishedTreatment: text("published_treatment").notNull(),
+    designatedFinal: boolean("designated_final"),
+    parseStatus: text("parse_status").notNull().default("pending"),
+    // the ISW adapter link to the citation anchor. The FK deliberately keeps the
+    // DEFAULT ON DELETE NO ACTION: deleting an anchor row an edition still
+    // references must be BLOCKED and visible, never cascaded into silent edition
+    // loss nor nulled into a silently unlinked edition (design §4 item 1).
+    iswReportId: integer("isw_report_id").references(() => iswReports.id),
+    derived: jsonb("derived").notNull().default({}),
+    // additive audit columns the design left to the integration phase (§4 last
+    // paragraph): DB-side provenance, never domain input.
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // append-only anchor-change journal, entries {at, field: cutoff|published,
+    // from, to} — instants and field names ONLY (design §5 "Anchor-change
+    // journaling"): a present -> present anchor move used to overwrite the old
+    // value with no queryable trace.
+    anchorJournal: jsonb("anchor_journal").notNull().default([]),
+  },
+  (t) => [
+    // the edition key IS series:report_date:label; the check makes a drifted
+    // triple unrepresentable at the DB layer too
+    check(
+      "benchmark_report_editions_key_shape",
+      sql`${t.editionKey} = ${t.series} || ':' || to_char(${t.reportDate}, 'YYYY-MM-DD') || ':' || ${t.editionLabel}`,
+    ),
+    // treatment/anchor consistency mirrors the app-layer validator
+    check(
+      "benchmark_report_editions_cutoff_consistent",
+      sql`(${t.cutoffTreatment} = 'present') = (${t.cutoffAt} IS NOT NULL)`,
+    ),
+    check(
+      "benchmark_report_editions_published_consistent",
+      sql`(${t.publishedTreatment} = 'present') = (${t.publishedAt} IS NOT NULL)`,
+    ),
+    // labels are lowercase slug words: blocks empty and colon-bearing labels
+    // that would still satisfy the concatenation check above
+    check("benchmark_report_editions_label_shape", sql`${t.editionLabel} ~ '^[a-z0-9][a-z0-9-]*$'`),
+    // a provider edition always carries its canonical URL (mirrors the app-layer
+    // rule); a NULL canonical_url is fixture-only
+    check(
+      "benchmark_report_editions_isw_url",
+      sql`${t.provider} <> 'isw' OR ${t.canonicalUrl} IS NOT NULL`,
+    ),
+    check(
+      "benchmark_report_editions_cutoff_treatment_check",
+      sql`${t.cutoffTreatment} IN ('present', 'missing', 'malformed_treated_as_missing')`,
+    ),
+    check(
+      "benchmark_report_editions_published_treatment_check",
+      sql`${t.publishedTreatment} IN ('present', 'missing', 'malformed_treated_as_missing')`,
+    ),
+    check(
+      "benchmark_report_editions_parse_status_check",
+      sql`${t.parseStatus} IN ('pending', 'parsed', 'failed')`,
+    ),
+    uniqueIndex("benchmark_report_editions_key_idx").on(t.editionKey),
+    // partial: fixture rows carry NULL
+    uniqueIndex("benchmark_report_editions_url_idx")
+      .on(t.canonicalUrl)
+      .where(sql`canonical_url IS NOT NULL`),
+    index("benchmark_report_editions_series_date_idx").on(t.series, t.reportDate),
+    // at most ONE designated-final edition per series/day at the persistence
+    // layer too (the DB twin of selectDailyFinal's contradictory-designation
+    // refusal — the app throws, and the table cannot hold the contradiction)
+    uniqueIndex("benchmark_report_editions_final_idx")
+      .on(t.series, t.reportDate)
+      .where(sql`designated_final`),
+  ],
+);
+
+// Day-status rows exist ONLY for days with no edition: a CONFIRMED publication
+// gap or a failed discovery probe (the two must never blur — the 2026-08-15
+// recovery found six "gaps" that were transient probe failures). `published` is
+// always DERIVED from edition existence and is deliberately unrepresentable
+// here; the repository deletes a day row when an edition arrives.
+export const benchmarkSeriesDays = pgTable(
+  "benchmark_series_days",
+  {
+    series: text("series").notNull(),
+    reportDate: date("report_date").notNull(),
+    status: text("status").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.series, t.reportDate] }),
+    check(
+      "benchmark_series_days_status_check",
+      sql`${t.status} IN ('publication_gap', 'probe_failed')`,
+    ),
+  ],
+);
