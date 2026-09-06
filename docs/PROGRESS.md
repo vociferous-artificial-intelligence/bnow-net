@@ -3871,3 +3871,34 @@ Execution (same block):
 6. Gates (typecheck/lint/unit + two fork itests), adversarial self-review, PR 1.
 7. Hold PR 2 (migration 0029) — C6 is unanswered; write the exact shape into the report's
    Handoff so the follow-up session can build it cold.
+
+Execution (same block):
+
+- Base `origin/main` `29db301`; the lane branch was fast-forwarded `2203150 → 29db301`
+  before the step branch was cut. That base's program-log entry says "No CP1 decision was
+  answered or inferred by this pass", so **C1, C4 and C6 are unanswered** and the step's own
+  contingency applied: **migration 0028 built, migration 0029 HELD**.
+- 0028 (`benchmark_report_editions` + `benchmark_series_days`) is generated entirely from
+  `schema.ts` — a second `db:generate` prints "No schema changes, nothing to migrate", so no
+  statement is hand-authored. `9999_claim_source_trigger.sql` untouched and still last;
+  `git diff --stat drizzle/` is 0028 + meta only; `git diff src/db/schema.ts` has zero
+  removed lines.
+- The design §5 deferrals close with the durable backend: insert + day-row clear in ONE
+  data-modifying CTE; compare-and-swap read-merge-write with a bounded retry (NOT
+  `FOR UPDATE` — the repository's `QueryFn` is autocommit-per-statement, so a row lock would
+  release at statement end), which makes two writers' repairs converge to their union;
+  typed `edition_url_conflict`; an `{at, field, from, to}` anchor-change journal with
+  fail-closed reads; `canonicalizeIswUrl` at the storage boundary for `provider: "isw"`.
+- The disposable DDL file was DELETED (CLAUDE.md scoped exception) and its README reduced to
+  a pointer; the itest now applies the real migrations with `runMigrations()`, which is also
+  the apply-once/reapply-safe proof the design had recorded as a later gate.
+- `isw_reports`, `source_citations`, `sources`, `source_theater_stats`, `validation_runs`:
+  no change of any kind — asserted statically in `migrations.test.ts` and dynamically on a
+  fork by identical registry counts plus a byte-comparison of the anchor row's tuple.
+- Adversarial self-review narrowed the canonicalizer to `provider: "isw"` (applying an
+  ISW-host rule to every provider would have made the provider-neutral table ISW-only), and
+  added a drift pin tying `EDITION_URL_INDEX` to the literal the migration creates.
+- Gates: typecheck clean · lint 0 errors · unit 3,723 → 3,746 (255 files) ·
+  `conflict-reference-repo.itest.ts` 12/12 on fork `br-misty-night-at6upzs6` ·
+  `migrations-atomic.itest.ts` 3/3 on fork `br-silent-hill-atmu00nh`. Zero paid calls, no
+  production write, no env change, no deploy. Spend $0.
