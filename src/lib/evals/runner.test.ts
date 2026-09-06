@@ -223,6 +223,63 @@ describe("resume semantics + MAJOR-3 identity assertion", () => {
     expect(() => mergeEvalResults(rf, editedReference, [], ZERO_METER)).toThrow(/identity changed/);
   });
 
+  it("an OFFLINE header resumes cleanly across a registry-version bump (PLAN-WS-2 §5.2)", () => {
+    // offline fixture runs dispatch nothing, so no approval decided any of
+    // their bytes: bumping ANALYSIS_ROUTING_REGISTRY_VERSION must not refuse
+    // their resume, or the bump PR would have to rewrite committed results
+    // files whose content it did not affect
+    const header = mkHeader(REDUCE_DS);
+    expect(header.identity.provider).toBe("stub"); // the offline convention
+    const older = mkHeader(REDUCE_DS, {
+      identity: { ...header.identity, registryVersion: "analysis-reg-v0" },
+    });
+    expect(resumeIdentityMismatch(older, header)).toBeNull();
+    expect(resumeIdentityMismatch(header, older)).toBeNull();
+    // and the file still merges rather than throwing
+    const rf = mergeEvalResults(null, older, [], ZERO_METER);
+    expect(() => mergeEvalResults(rf, header, [], ZERO_METER)).not.toThrow();
+  });
+
+  it("a LIVE header still REFUSES a resume across a registry-version bump", () => {
+    // live dispatches WERE authorized by a specific registry state, so a bump
+    // makes the resume a different run — the skip must not widen to them
+    const header = mkHeader(REDUCE_DS, {
+      configKey: "gpt-4o-mini",
+      identity: { ...offlineIdentity(REDUCE_DS), provider: "openai", model: "gpt-4o-mini" },
+    });
+    const bumped = mkHeader(REDUCE_DS, {
+      configKey: "gpt-4o-mini",
+      identity: {
+        ...offlineIdentity(REDUCE_DS),
+        provider: "openai",
+        model: "gpt-4o-mini",
+        registryVersion: "analysis-reg-v2",
+      },
+    });
+    expect(resumeIdentityMismatch(header, bumped)).toContain("registryVersion:");
+    expect(() => mergeEvalResults(mergeEvalResults(null, header, [], ZERO_METER), bumped, [], ZERO_METER)).toThrow(
+      /identity changed/,
+    );
+    // the skip is scoped to the version alone: everything else about a live
+    // header is still compared strictly
+    const modelDrift = mkHeader(REDUCE_DS, {
+      configKey: "gpt-4o-mini",
+      identity: { ...bumped.identity, model: "gpt-5-nano" },
+    });
+    expect(resumeIdentityMismatch(header, modelDrift)).toContain("model:");
+  });
+
+  it("a stub->live transition is caught by provider, not silently version-skipped", () => {
+    const offline = mkHeader(REDUCE_DS);
+    const live = mkHeader(REDUCE_DS, {
+      identity: { ...offline.identity, provider: "openai", registryVersion: "analysis-reg-v2" },
+    });
+    const mismatch = resumeIdentityMismatch(offline, live);
+    expect(mismatch).toContain("provider:");
+    // one side being live is enough to compare the version strictly
+    expect(mismatch).toContain("registryVersion:");
+  });
+
   it("REFUSES a resume under different env knobs or repetitions; scope merges by rule", () => {
     const header = mkHeader(REDUCE_DS);
     const rf = mergeEvalResults(null, header, [], ZERO_METER);
