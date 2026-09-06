@@ -3923,3 +3923,23 @@ Execution (same block):
    insert + sweep + bad-signature-no-data.
 5. `.env.example` entries; gates; adversarial self-review; PRs; closing report
    `docs/reviews/LOG-DRAIN-2026-09-06.md`.
+## 2026-09-06 ~19:00Z — WS-2.3 #33 remap runbook + estimate-mode dry run (planned block)
+
+1. Verify the step 04 corrections against `scripts/map-remap.ts` on the current base
+   (no `--estimate`/`--resume`/`--dry-run`/`--base`; estimate is the default mode;
+   `MAP_BACKFILL_BASE` is the only route-target input; checkpoint implicit under
+   `data/remap-state/`).
+2. PR-2.3-1: `--base-ack` fail-closed guard in `scripts/map-remap.ts` — a non-loopback
+   `MAP_BACKFILL_BASE` refuses before any route call unless the operator acknowledges the
+   exact host; loopback needs none. Pure `assertBaseAck` + a source-scan pin that the CLI
+   calls it before `driveMapRemap`. Fix the stale `--base` comment; the banner prints
+   `MAP_BACKFILL_BASE=<base>`.
+3. Write `docs/reviews/MAP-REMAP-RUNBOOK-2026-09-06.md` — executable cold: fork, fork-bound
+   `next build && next start` env posture (COMMON §4.8), R4 (a) `MAP_CONTENT_CHARS` basis
+   bump, estimate mode, per-1k formula, measured-run arithmetic (D7 only), abort/rollback,
+   decision-log contents, ruling 13 / ruling 7 gates for any future candidate run.
+4. Execute the runbook through the estimate on a real disposable Neon fork; paste the
+   output; delete the fork. `AWAITING AUTHORIZATION: D7` — no measured run.
+5. Lock-replacement design note (no code): what "registry-approved + remap-complete" gating
+   would need.
+6. Gates green; report is the runbook; PROGRESS execution bullets.
