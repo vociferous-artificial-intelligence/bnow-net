@@ -31,10 +31,14 @@ operator may do in Wave 2, in what order, and what evidence each action leaves.
    run; `--capture-reconcile`; append the ledger entry; do not read the results file for
    verdicts (scope `dev` cannot verdict) — record counts only. Decision-log entry.
 4. **Neon key** — if the Wave-0 probe was skipped, do it now; tell step 25 the result.
-5. **PR #48** — if D1 = remove: on the PR branch, `git rm docs/OUTREACH-ROSTER-2026-08-23.md`,
-   amend the PR description, merge. The file's content stays in the branch history only
-   until the branch is deleted; say in the log entry that the roster now lives in operator
-   notes outside git.
+5. **PR #48** — D1 = remove. A `git rm` on the PR branch is NOT enough: a normal merge
+   carries the branch's add-commit (`7a6d629`) into `main`'s history. Re-land the PR as ONE
+   commit on top of `main` without the file (`git merge --squash origin/docs/operator-notes-20260905`
+   in a scratch worktree, `git rm` the roster, commit, `--force-with-lease` onto the PR branch,
+   then `gh pr merge 48 --merge`, then delete the branch locally and on origin). The roster
+   never enters `main`; the original commits become unreferenced (GitHub keeps unreferenced
+   objects for a while — a support request purges them if wanted). Say in the log entry that
+   the roster now lives in operator notes outside git.
 6. Append the Checkpoint-1 program-log line (INDEX §10).
 
 Evidence expected by step 25: the two decision-log entries, the ledger entry, and the counts.
