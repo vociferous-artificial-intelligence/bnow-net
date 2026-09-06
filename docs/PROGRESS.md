@@ -3923,3 +3923,59 @@ Execution (same block):
    insert + sweep + bad-signature-no-data.
 5. `.env.example` entries; gates; adversarial self-review; PRs; closing report
    `docs/reviews/LOG-DRAIN-2026-09-06.md`.
+## 2026-09-06 ~19:00Z — WS-2.3 #33 remap runbook + estimate-mode dry run (planned block)
+
+1. Verify the step 04 corrections against `scripts/map-remap.ts` on the current base
+   (no `--estimate`/`--resume`/`--dry-run`/`--base`; estimate is the default mode;
+   `MAP_BACKFILL_BASE` is the only route-target input; checkpoint implicit under
+   `data/remap-state/`).
+2. PR-2.3-1: `--base-ack` fail-closed guard in `scripts/map-remap.ts` — a non-loopback
+   `MAP_BACKFILL_BASE` refuses before any route call unless the operator acknowledges the
+   exact host; loopback needs none. Pure `assertBaseAck` + a source-scan pin that the CLI
+   calls it before `driveMapRemap`. Fix the stale `--base` comment; the banner prints
+   `MAP_BACKFILL_BASE=<base>`.
+3. Write `docs/reviews/MAP-REMAP-RUNBOOK-2026-09-06.md` — executable cold: fork, fork-bound
+   `next build && next start` env posture (COMMON §4.8), R4 (a) `MAP_CONTENT_CHARS` basis
+   bump, estimate mode, per-1k formula, measured-run arithmetic (D7 only), abort/rollback,
+   decision-log contents, ruling 13 / ruling 7 gates for any future candidate run.
+4. Execute the runbook through the estimate on a real disposable Neon fork; paste the
+   output; delete the fork. `AWAITING AUTHORIZATION: D7` — no measured run.
+5. Lock-replacement design note (no code): what "registry-approved + remap-complete" gating
+   would need.
+6. Gates green; report is the runbook; PROGRESS execution bullets.
+
+Execution (same block):
+- Verified every step-04 correction against `scripts/map-remap.ts` at base `2203150`. Two of the
+  prompt's own line cites had moved (`:641` → `:694`, `:168` → `:170`), and PLAN-WS-2's `:314`
+  banner cite → `:366-369`; the map-lock cite `model-config.ts:156-159` is `:155-162`. All
+  corrected in the report's Citations table.
+- PR-2.3-1 (`699ea26`): `assertBaseAck` + `remapBaseHost` refuse an unacknowledged non-loopback
+  `MAP_BACKFILL_BASE` at the CLI boundary — before the driver is constructed, so before any route
+  call, estimate runs included. Loopback needs no ack; an unparseable base fails closed. Stale
+  `--base` comment fixed; the banner now prints `MAP_BACKFILL_BASE=<base>`. +8 tests
+  (3,723 → 3,731, 255 files); three mutations raised and all killed (deleted CLI call → 1 failure;
+  every host loopback → 4; ack compared to the base URL → 2).
+- Dry run executed cold on disposable Neon fork `br-wispy-frog-at07iym7`: `next build && next start`
+  with every paid key blank, `LLM_DISABLE=1`, `MAP_CONTENT_CHARS=1499` (R4 option (a)),
+  `MAP_BACKFILL_BASE=http://localhost:3000`. **432 dry route calls, $0**, zero writes (fork
+  `cron_runs` unchanged, zero `map:remap` rows, zero new-version `doc_map_state` rows).
+- R4 (a) works exactly as PLAN-WS-2 predicted: four NEW extractor versions, zero code change,
+  baseline model preserved, `estDispatchBlocked` null on all 432 calls, and the env-absent basis
+  still reproducing the four pinned deployed-corpus versions.
+- **First cost figure #33 has ever had:** 339,669 pending doc-track pairs over 471,438 eligible
+  documents (MAP_EPOCH → 2026-09-06, six live theater×track pairs) = **$35.96 modelled, $0.1059
+  per 1k doc-track pairs**, stable 0.102–0.121 across every pair and reproduced on an independent
+  one-week window. Driver `ELIGIBLE … docs` totals re-derived by independent SQL — exact match.
+  Ledger cross-check on the fork's copied `openai_map` ($23.0763 / 343,439 current-version
+  `doc_map_state` rows = $0.067/1k) says the estimator is conservative by ≈1.6×, so $36 is an
+  upper band.
+- `AWAITING AUTHORIZATION: D7` — no `--execute`, no paid call. Phase 2 (sweep drain, lease,
+  completion proof, no-rebill) remains test-proven only; the report recommends $1.00 on a fork
+  ledger for one ir/military day.
+- Lock-replacement design note written (no code): durable `map_remap_complete` marker, the
+  reading-path problem (`resolveWorkloadModel` is synchronous and never-throws by contract), and
+  the activation authorization entry — plus rulings 13 and 7 as explicit gates for any future
+  candidate run. New decisions R14/R15 raised.
+- Fork deleted 2026-09-06T22:47:11Z; server killed; `next-env.d.ts` verified byte-unchanged.
+- Gates: typecheck/lint clean · unit 3,731/3,731 (255 files). No production write, no env change,
+  no deploy, no migration, no edit to `model-config.ts` or `MAP_BASELINE`. Spend $0.

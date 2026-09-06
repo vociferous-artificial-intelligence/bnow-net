@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { msToNextUtcDay, type MapCallResult } from "./map-backfill";
 import { parseCountFlag, parseUsdFlag } from "./map-backfill";
+import { readFileSync } from "node:fs";
 import {
   MAX_CONSECUTIVE_SKIPS,
   MAX_SWEEPS,
   REMAP_THEATERS,
+  assertBaseAck,
   driveMapRemap,
   memoryCheckpointStore,
+  remapBaseHost,
   remapTargetId,
   type RemapDriveOpts,
 } from "./map-remap";
@@ -886,5 +889,86 @@ describe("an impossible scope is a typo, not a drained corpus (re-review MINOR-D
     const out = lines.join("\n");
     expect(out).toMatch(/REMAP COMPLETE — pairs attempted 2/);
     expect(out).not.toMatch(/nothing was eligible/);
+  });
+});
+
+describe("non-loopback route targets need an explicit acknowledgement", () => {
+  // There is no --base flag: MAP_BACKFILL_BASE is the only target input and its
+  // default is PRODUCTION, so a forgotten export silently aims a remap at the
+  // live corpus. Loopback (a `next start` bound to a disposable Neon branch) is
+  // the designed rehearsal target and needs no ack.
+  const PROD = "https://bnow-net.vercel.app";
+
+  it("a loopback base passes with no ack at all", () => {
+    for (const base of [
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      "http://[::1]:3000",
+      "http://LocalHost:3000/",
+    ]) {
+      expect(() => assertBaseAck(base, undefined)).not.toThrow();
+    }
+  });
+
+  it("the DEFAULT target — production — is refused when unacknowledged", () => {
+    expect(() => assertBaseAck(PROD, undefined)).toThrow(
+      /base "bnow-net\.vercel\.app" is not loopback/,
+    );
+    expect(() => assertBaseAck(PROD, undefined)).toThrow(
+      /pass --base-ack bnow-net\.vercel\.app to target a deployed route/,
+    );
+    expect(() => assertBaseAck(PROD, undefined)).toThrow(
+      /production is the default target; a checkpoint is bound to the target/,
+    );
+  });
+
+  it("naming the exact host is consent; naming a different one is not", () => {
+    expect(() => assertBaseAck(PROD, "bnow-net.vercel.app")).not.toThrow();
+    expect(() => assertBaseAck(PROD, "bnow.net")).toThrow(/is not loopback/);
+    expect(() => assertBaseAck(PROD, "")).toThrow(/is not loopback/);
+    expect(() => assertBaseAck(PROD, "localhost")).toThrow(/is not loopback/);
+  });
+
+  it("the ack tolerates an operator's case and whitespace habit", () => {
+    expect(() => assertBaseAck(PROD, "  BNOW-NET.Vercel.App ")).not.toThrow();
+  });
+
+  it("the ack is matched against the HOST, not the whole base URL", () => {
+    // a paste of the full base is a plausible operator move and must not pass:
+    // the message tells them exactly what to type
+    expect(() => assertBaseAck(PROD, PROD)).toThrow(/is not loopback/);
+    expect(() => assertBaseAck(`${PROD}/`, "bnow-net.vercel.app")).not.toThrow();
+    expect(() => assertBaseAck(`${PROD}:443`, "bnow-net.vercel.app")).not.toThrow();
+  });
+
+  it("an unparseable base fails CLOSED rather than reading as 'not production'", () => {
+    expect(() => assertBaseAck("bnow-net.vercel.app", undefined)).toThrow(/is not loopback/);
+    expect(() => assertBaseAck("", undefined)).toThrow(/is not loopback/);
+    expect(() => assertBaseAck("   ", undefined)).toThrow(/is not loopback/);
+  });
+
+  it("remapBaseHost strips userinfo, port, query and fragment and never keeps a credential", () => {
+    expect(remapBaseHost("https://user:pw@bnow-net.vercel.app:443/x?y=1#z")).toBe(
+      "bnow-net.vercel.app",
+    );
+    expect(remapBaseHost("https://user:pw@bnow-net.vercel.app")).not.toContain("pw");
+    expect(remapBaseHost("http://127.0.0.1:3000")).toBe("127.0.0.1");
+  });
+
+  it("the CLI calls the guard BEFORE constructing the driver (source pin)", () => {
+    // assertBaseAck is a pure function; what makes it a safety property is
+    // WHERE the CLI calls it. A refactor that moves the call after
+    // driveMapRemap — or drops it — would let the first route call go out
+    // against an unacknowledged deployment, which no unit test above can see.
+    const src = readFileSync(new URL("./map-remap.ts", import.meta.url), "utf8");
+    const main = src.slice(src.indexOf("async function main()"));
+    const ack = main.indexOf("assertBaseAck(base, argVal(\"--base-ack\"))");
+    const drive = main.indexOf("await driveMapRemap({");
+    expect(ack).toBeGreaterThan(-1);
+    expect(drive).toBeGreaterThan(-1);
+    expect(ack).toBeLessThan(drive);
+    // ...and the target still comes from MAP_BACKFILL_BASE only
+    expect(main).toMatch(/const base = process\.env\.MAP_BACKFILL_BASE \?\? "https:\/\/bnow-net\.vercel\.app"/);
+    expect(src).not.toMatch(/argVal\("--base"\)/);
   });
 });
