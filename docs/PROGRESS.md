@@ -3492,3 +3492,30 @@ Execution (same block):
 - Gates: typecheck/lint clean · unit 3,608/3,608 (247 files). Zero paid calls, no
   DB/production access, no deploy.
 
+## 2026-09-06 ~20:26Z — val-typ-005 semantic adjudication memo (planned block)
+
+1. In `48h/ws1-adjudication-20260905-val-typ-005-memo`, based on fetched
+   `origin/main` `dff58f25009da8e3dd8f759c4a5b563c2bb4dc96`, verify #105,
+   the production match rule, and the semantic-label/majority-fixture separation.
+   Inspect only development case `val-typ-005-majority` through a filtered command;
+   do not seek its heldout twin.
+2. Write the one-page Step 08 memo arguing both labels, recommending a semantic
+   reading, and providing an UNSIGNED E4 decision-log entry for the operator.
+   Change only #105's status line in OPEN-TASKS; preserve all dataset bytes.
+3. Self-review scope and citations; run typecheck, lint, and unit tests; record
+   $0 spend, exposure limits, and the WS-1.3 handoff; commit and open a docs-only PR.
+
+Execution (same block):
+
+- Wrote `docs/reviews/EVAL-VAL-TYP-005-ADJUDICATION-2026-09-05.md`: both semantic
+  readings, recommendation to retain null for the unsupported increase, unchanged
+  mechanism pin, and an UNSIGNED E4 entry. Corrected the short case ID to
+  `val-typ-005-majority`; the prompt has no explicit weaker-strength rule.
+- Updated only #105's status line. E4 remains for operator signature; WS-1.3
+  owns admission and step 25 owns the signed log entry. No heldout twin sought
+  or read, no forbidden artifacts opened, no dataset/code/AGENTS changes.
+- Gates: unit 3,612/247 before and after (tests/files); typecheck PASS; lint
+  0 errors / 3 existing warnings. Dataset diff empty; no new dataset files.
+  Self-review checked citations, scope, immutability, and absence of secrets.
+  Spend $0; no DB access, paid calls, env changes, or deploy. Pre-existing
+  package-lock change preserved byte-for-byte and excluded from the commit.

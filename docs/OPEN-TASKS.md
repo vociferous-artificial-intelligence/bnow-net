@@ -1654,6 +1654,7 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     validation-v3 admission, keep `expectMajority` as the offline mechanism pin
     either way, and note the heldout twin (same match-set signature) which
     cannot be read without authorization A3. Filed 2026-09-04.
+    **Status:** memo written; operator ruling pending.
 
 106. **[Tier 2 — eval safety] Prompt-injection heldout finding stays an
     UNRESOLVED evaluation safety finding.** One heldout adversarial map case
