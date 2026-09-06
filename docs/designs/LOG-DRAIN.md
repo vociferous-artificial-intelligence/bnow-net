@@ -356,7 +356,12 @@ Three mitigations, in order of strength:
 1. **Drop at insert (implemented, always on).** Any entry whose `request_path`
    is the drain route itself is discarded before the insert and counted in the
    response's `dropped`. The table therefore never contains the loop, even if
-   the loop is running. This costs the request, not the storage.
+   the loop is running. This costs the request, not the storage. *Residual,
+   stated:* the filter keys on `path`/`proxy.path`, so a self-generated entry
+   carrying **no** path field would not be recognised. That is why requirement 2
+   is a requirement and not a preference — with a log-silent handler the only
+   self-entries are the platform's own per-invocation request/report lines,
+   which do carry a path.
 2. **Log-silent handler (implemented, always on).** No `console.*` anywhere in
    the route or its library, so the loop's per-delivery cost stays constant.
 3. **A 0% sampling rule at registration (recommended, operator action —
@@ -536,3 +541,7 @@ was swept.
   log delivery fails.
 - **`request_path` loses the cron discriminator** (`?which=fast` etc.) to the
   query-string strip. Recover it from `cron_runs.job`.
+- **The self-ingestion filter is path-keyed**, so it depends on the handler
+  staying log-silent (§7 residual). A future contributor adding a `console.warn`
+  to the route would not fail any test — it would slowly fill the table with the
+  receiver's own noise. Worth a lint rule if the file ever grows.

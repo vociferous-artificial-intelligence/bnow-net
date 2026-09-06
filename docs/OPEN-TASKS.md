@@ -1228,7 +1228,12 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md §9)
     the stored/never-stored field list, bounds the self-ingestion loop the receiver creates,
     and gives the operator registration runbook with its secret-before-deploy ordering. The
     task stays OPEN until the receiver is deployed and a drain is registered in the Vercel
-    dashboard (decision O1 sub-items in the design's §2).
+    dashboard (decision O1 sub-items in the design's §2). **Receiver landed 2026-09-06** and
+    ships INERT: `src/app/api/logs/drain/route.ts` + `src/lib/logs/drain.ts` + migration 0030
+    (`runtime_logs`). With `LOG_DRAIN_SECRET` unset the route answers 503, reads no body and
+    writes nothing, and no drain exists in the Vercel project, so merging and deploying it
+    changes no behaviour. Enabling it = set the secret in Production, deploy from the release
+    clone, then register the drain (runbook: design §8).
 94. **[CLOSED 2026-09-03] The expired `MAP_USD_CAP_DAILY_OVERRIDE_USD` / `_UNTIL` pair
     was removed from Production in the operator's 2026-09-03 configuration-only release**
     (with the X cap raise; see that decision-log entry). It had expired
