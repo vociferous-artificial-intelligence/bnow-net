@@ -5,7 +5,8 @@ this file is **not append-only**: correct it in place whenever live product, ope
 deployment, test, credential, or repository state changes. Historical narrative belongs in
 `PROGRESS.md`, review notes, and `DECISIONS.md`.
 
-## Current state — snapshot (verified through 2026-09-03; correct in place when it changes)
+## Current state — snapshot (verified through 2026-09-03 for production, 2026-09-05 for
+`main`; correct in place when it changes)
 
 Live at **https://bnow.net** (Vercel project `bnow-net`, team `vociferous`;
 deployment URLs are SSO-walled — always use the project domain). History/narrative:
@@ -22,10 +23,19 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   `_UNTIL` pair removed from Production (#94 closed; no runtime behavior change —
   the override had been expired-by-code since 2026-08-17T13:00Z). Code is a
   lineage carry-forward: only the 2026-09-01 docs-only commits sit atop the
-  previously deployed `a4ed5cb`, so `main` == production holds. No migration, no
-  flag, no cron, no other env change. Verification limits recorded in the
-  2026-09-03 decision-log entry (Production/Preview sprint values are
-  sensitive-type secrets the CLI cannot read back).
+  previously deployed `a4ed5cb`, so `main` == production held at deploy time. No
+  migration, no flag, no cron, no other env change. Verification limits recorded in
+  the 2026-09-03 decision-log entry (Production/Preview sprint values are
+  sensitive-type secrets the CLI cannot read back). **`main` has since moved to
+  `883e5e3` (2026-09-04, corrected 2026-09-05): PR #45 `9854626` (eval opt-in
+  capture + interrupted-attempt accounting) then PR #46 merge `883e5e3`
+  (validation live-evaluation five-vote parity) — both are eval-plane-only
+  (`src/lib/evals/`, the eval CLI, and a pure extraction in
+  `src/lib/validation/llm-match.ts` that production's own `llmMatchTakeaways`
+  now also calls, behavior-unchanged and test-pinned), reachable from no
+  scheduled route. `main` != production as of 2026-09-05; no redeploy has
+  occurred or is scheduled for these PRs. PRs #47/#48 are open on top of
+  `883e5e3`, pending decision D1 (the #48 outreach-roster disposition).**
 
 - **2026-08-31/09-01 map-flood incident response + #97 embed/validate release
   (previous release, carried forward):** production was **`dpl_Bya68YX6a3GaDQe1LnYyMo1YhHkh`**
@@ -641,7 +651,12 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   2026-08-24 release train (`143964a`, eleven PRs #12–#22 + docs, per
   `docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md`). As of 2026-09-03: zero open
   PRs; `origin/main` is `8a19ade` (the 2026-09-01 docs-only closeout merge atop
-  `a4ed5cb`) = the deployed production commit; the
+  `a4ed5cb`) = the deployed production commit. **Corrected 2026-09-05: `origin/main`
+  has since advanced to `883e5e3`** via PR #45 (`9854626`, eval capture/accounting)
+  and PR #46 (merge `883e5e3`, validation eval five-vote parity) — both eval-plane-only,
+  neither deployed; PRs #47 and #48 are open on top of it (docs-only branch landings +
+  operator notes, pending the D1 outreach-roster decision). `origin/main` no longer
+  equals the deployed production commit as of 2026-09-05. The
   parked audit/integration branches (`codex/quality-foundation-*`,
   `codex/conflict-evaluations-*`, p0–p7) remain retained provenance contained in
   `main`; the one unmerged remote branch is `codex/paddle-onboarding-page` (a

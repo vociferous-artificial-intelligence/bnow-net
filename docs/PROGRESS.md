@@ -3492,3 +3492,36 @@ Execution (same block):
 - Gates: typecheck/lint clean · unit 3,608/3,608 (247 files). Zero paid calls, no
   DB/production access, no deploy.
 
+## 2026-09-05 ~14:15Z — 48h program step 01: reconcile standing docs with main (planned block)
+
+1. Read COMMON, INDEX (full), AGENTS.md standing rulings/protocol, CURRENT-STATE.md,
+   OPEN-TASKS.md, BLOCKERS.md, HUMAN-SETUP-TODO.md, SETUP-NEXT-WEEK.md, PROGRESS.md
+   (tail), the CTO roadmap handoff §1/§5; re-verify every cited file:line.
+2. Correct AGENTS.md snapshot: production identity unchanged (`8a19ade`) but `main`
+   has moved to `883e5e3` (PR #45 `9854626` + PR #46 merge `883e5e3`, both
+   eval-plane-only); PRs #47/#48 open. Fix the two "main == production" lines.
+3. Draft (not append) the PR #46 merge-record decision-log entry.
+4. Correct BLOCKERS.md / HUMAN-SETUP-TODO.md / SETUP-NEXT-WEEK.md credential lines
+   (NEON_API_KEY works; Anthropic is not a safe drop-in today — #83).
+5. Fix stale OPEN-TASKS.md headers (#89, #92, #100, #102, #103) in place without
+   renumbering; cross-link #81 to the handoff; note the "#108" locator under #100.
+6. Add the missing directory-map lines to AGENTS.md (conflicts/evals/embeddings/
+   scoreboard/registry/analyst/analytics/cron, docs/prompts, docs/evals); fix the
+   drizzle/ range.
+7. Draft unsigned decision-log entries (PR #46, step-1A per the successor plan, one
+   per H0 decision already answered in INDEX §2, and the program-authorization
+   entry) into `docs/reviews/DECISION-ENTRIES-DRAFT-2026-09-05.md`.
+8. Add a "Corrections (2026-09-05)" block to the top of the CTO roadmap handoff
+   (DECISIONS.md not DECISION-LOG.md; Neon key; WS-3.1 Option 3; #108 locator; #44
+   rescope; step-1 authorization location; docs/evals/README.md identity).
+9. Gates, self-review, commit, closing report
+   `docs/reviews/STANDING-DOCS-RECONCILIATION-2026-09-05.md`.
+
+Execution (same block):
+
+- See the closing report for the full account; AGENTS.md/CURRENT-STATE.md/
+  OPEN-TASKS.md/BLOCKERS.md/HUMAN-SETUP-TODO.md/SETUP-NEXT-WEEK.md corrected in
+  place; decision-entry drafts and the handoff corrections block added; no
+  decision-log entry edited or appended (append-only preserved); gates green;
+  zero paid calls, zero production access, no deploy.
+

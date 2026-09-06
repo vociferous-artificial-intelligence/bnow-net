@@ -84,6 +84,17 @@ src/lib/text/       well-formed UTF-16 truncation primitives (the #86 repair —
                     shared destination for #97-family sites; map+reduce+digest adopted)
 src/lib/validation/ ISW scoreboard: keyword gazetteer + majority-vote LLM matcher
 src/lib/usage/      SpendGuard, llm-guard (caps + kill-switch), cron-run bookkeeping
+src/lib/conflicts/  conflict/region validation domain library (71 files, pure — no DB/
+                    provider/env; CONFLICT_REGISTRY, lanes, scorer, match-contract);
+                    imported by nothing in production (design docs in docs/designs/)
+src/lib/evals/      analysis-eval control plane: eval-guard (fail-closed caps), capture,
+                    corpus admission, live-runner/CLI support (docs/evals/analysis/)
+src/lib/embeddings/ embeddings client (validation/search vector retrieval)
+src/lib/scoreboard/ validation scoreboard read models feeding /scoreboard
+src/lib/registry/   source-registry read/view-policy helpers behind /registry
+src/lib/analyst/    analyst-facing presentation helpers (signals, digests trust surface)
+src/lib/analytics/  PostHog client + consent-gated event allowlist
+src/lib/cron/       shared cron-route plumbing (withCronRun bookkeeping, ruling 10)
 src/lib/…           ask (incl. intent.ts: one-shot home→/ask handoff contract), entities,
                     enrich, datadark, trade (incl. partners.ts M49 names),
                     materials, profiles, email, access (beta-request validation),
@@ -96,22 +107,35 @@ scripts/            local runners (idempotent + resumable): backfills, seed, dig
 fixtures/           saved HTML/JSON for tests
 docs/               CURRENT-STATE (detailed living snapshot), PRODUCT-BRIEF, PROGRESS,
                     OPEN-TASKS, BLOCKERS, SETUP-NEXT-WEEK, DECISIONS (log archive),
-                    STATUS-REPORT, TIME-MODEL, strategy docs,
+                    STATUS-REPORT, TIME-MODEL, strategy docs, prompts/ (dated agent-session
+                    prompt docs, e.g. the 2026-09-05 48h execution program),
+                    evals/ (Ask + analysis eval datasets/results/scorecards — see the two
+                    README.md files: docs/evals/README.md is the Ask eval README,
+                    docs/evals/analysis/README.md is the analysis-eval one),
                     reviews/, designs/
-drizzle/            migrations 0000–00NN + 9999_claim_source_trigger.sql (applies last)
+drizzle/            migrations 0000–0027 + 9999_claim_source_trigger.sql (applies last)
 data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails)
 ```
 
-## Current state — compact snapshot (verified 2026-09-03; correct in place)
+## Current state — compact snapshot (verified 2026-09-03 for production, 2026-09-05 for
+`main`; correct in place)
 
 Detailed operational/product state lives in `docs/CURRENT-STATE.md` and is corrected in
 place whenever reality changes. Historical narrative: `docs/PROGRESS.md` + `docs/reviews/`;
 debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
 
 - **Live/repository:** https://bnow.net · Vercel `bnow-net` / team `vociferous`; production
-  is **`dpl_6RN34UVHefQsvTfC2HM8Si5QnNmT` / `main` tip `8a19ade`** — the 2026-09-03
+  is **`dpl_6RN34UVHefQsvTfC2HM8Si5QnNmT`, built from commit `8a19ade`** — the 2026-09-03
   configuration-only release (X cap raise + #94 override removal; same code lineage,
-  now including the 2026-09-01 docs-only commits atop `a4ed5cb`). The prior release
+  now including the 2026-09-01 docs-only commits atop `a4ed5cb`). **`main` has since
+  moved to `883e5e3`** (2026-09-04: PR #45 `9854626` — eval opt-in capture +
+  interrupted-attempt accounting — then PR #46 merge `883e5e3` — validation live
+  evaluation five-vote parity; both touch only `src/lib/evals/`, the eval CLI, and
+  `src/lib/validation/llm-match.ts`'s pure extraction, none of it reachable from any
+  scheduled route), so **`main` is code-ahead of production by these two eval-plane-only
+  PRs** — no redeploy has happened or is scheduled for them. PRs #47 (lands two preserved
+  2026-08-17 branches, docs-only) and #48 (operator notes + cleanup record) are open on
+  top of `883e5e3`, pending the D1 roster decision (§ Decision log below). The prior release
   in this lineage was the 2026-08-31
   four-PR stack deployed as three serialized releases during the map-flood OOM
   incident response: PR #38 (`52ea272`, #102 map flood bounds), PR #39 (`c0aa788`,
@@ -139,7 +163,9 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   remains carried forward unchanged inside the current lineage. `/health` 200
   stamping **`8a19ade`** with matching `data-dpl-id`, DB OK; anonymous
   bare+`RSC: 1` bodies re-verified clean on the 2026-08-31 release this
-  configuration redeploy carries forward. **`main` == production.** The 2026-08-29 deploy carried the previously dormant PRs #31 (capacity-profile
+  configuration redeploy carries forward. **`main` was == production at this deploy
+  (2026-09-03); it no longer is — see the `883e5e3` correction above (2026-09-05).**
+  The 2026-08-29 deploy carried the previously dormant PRs #31 (capacity-profile
   eval harness), #32 (QF-C hardening) and #33 (conflict soak instruments) into the
   production artifact for the first time; they remain INERT (no `EVAL_*` env exists,
   `CONFLICTS_UI` absent everywhere, conflict surfaces live-verified fail-closed 404

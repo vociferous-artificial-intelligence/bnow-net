@@ -1,5 +1,44 @@
 # BNOW.NET technical roadmap — CTO handoff for planning sessions (2026-09-05)
 
+## Corrections (2026-09-05, program index §1)
+
+The 48-hour execution program's step 01 found this handoff stale/wrong in these places
+(index details: `docs/prompts/2026-09-05-48h-00-INDEX.md` §1). The body below is
+UNCHANGED — read it with these corrections in mind:
+
+- **The append-only decision-log archive is `docs/DECISIONS.md`, not `docs/DECISION-LOG.md`**
+  (§3's WS-6.2 row and §4.6's WS-6.2 brief both name the latter). `docs/DECISIONS.md` already
+  exists (1,480+ lines; named by AGENTS.md and OPEN-TASKS #92); WS-6.2 targets it.
+- **`NEON_API_KEY` is not expired.** §1, §3 (WS-2.3), and §4.2 (WS-2.3) all say "BLOCKERS says
+  expired — verify". It works: `docs/BLOCKERS.md`'s 2026-07-15 entry closed the same day
+  (`docs/PROGRESS.md:1502`), and disposable Neon branches ran cleanly for the 2026-09-03/04
+  eval PRs. Only the GitHub Actions secret is genuinely absent (CI clean-skips; not evidence).
+- **WS-3.1 as written (§4.3) contradicts the reviewed schema design.** Adding `series`/`edition`
+  directly onto `isw_reports` with a relaxed unique key is Option 1, which
+  `docs/designs/CONFLICT-REFERENCE-REPORTS-SCHEMA.md` §2 rejected in favor of **Option 3** (new
+  `benchmark_report_editions` + `benchmark_series_days` tables, `isw_reports` untouched;
+  disposable DDL and `SqlReferenceReportRepository` already exist for it).
+- **`#108` does not exist** (§1 line "No local/OpenAI-compatible endpoint path exists on `main`
+  (#108 holds the withheld harness)"; §4.2 WS-2.2 "land #108's tests as reference"). OPEN-TASKS
+  ends at #107. The most plausible referent is the parked branch
+  `claude/local-model-ask-eval-20260817`
+  (`docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md:90-96`; related debt tracked as
+  OPEN-TASKS #100) — name it explicitly if a WS-2 plan needs to cite it.
+- **`#44` is not an Ask item** (§4.2 WS-2.1: "close roadmap-01 residue #44"). It is the
+  `X_DAILY_USD_CAP` code-default reconciliation (`src/lib/adapters/x-api.ts:201,223`, now $4 in
+  prod vs a 1.5 code default) — hygiene, closed by the program's step 11, not WS-2.1/Ask parity.
+- **Step-1 authorization is not recorded anywhere in the repository.** §1's "Step 1A ... executed
+  2026-09-05" describes work as already authorized, but no decision-log entry records that
+  authorization — the successor plan only PROPOSES it
+  (`docs/reviews/EVAL-SUCCESSOR-PLAN-2026-09-04.md:59-67`). Step 01 of the 48-hour program drafts
+  that entry (unsigned) in `docs/reviews/DECISION-ENTRIES-DRAFT-2026-09-05.md`; it still needs an
+  operator signature to become a standing record.
+- **`docs/evals/README.md` is the Ask-eval README**, not the analysis one — the analysis eval
+  suite's README is `docs/evals/analysis/README.md`. Neither is named in this handoff today; note
+  it here so a planning session citing either path cites the right one.
+
+---
+
 Status of this document: a formalized big picture plus per-workstream briefs, written for a NEW
 Claude Code session whose job is to produce detailed, executable plans for each step — not to
 execute them. Everything factual below was verified against `origin/main` @ `883e5e3` (2026-09-04)

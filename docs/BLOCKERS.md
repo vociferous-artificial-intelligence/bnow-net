@@ -77,3 +77,18 @@ Dated log of missing credentials/capabilities. Each has a stub in place; nothing
   `npm run test:integration` cannot create its disposable Neon branch: the branch API returns
   401 before any test or database mutation. **Action:** issue a new Neon project API key, update
   local `.env.local` and the GitHub Actions secret, then rerun the 22-test integration suite.
+
+## 2026-09-05
+
+- **CLOSED (was: 2026-07-15 above).** The saved `NEON_API_KEY` works and has worked since the
+  same day it was filed: `docs/PROGRESS.md:1502` records the key cleared same-day
+  ("the saved `NEON_API_KEY` works again ... the earlier 401 is cleared"); AGENTS.md:978 has
+  said WORKS since; disposable Neon branches were created/run/deleted cleanly for the
+  2026-09-03 corpus-v2 admission (160/160 integration tests, 25 files) and the 2026-09-04
+  eval-methodology PRs. The Mac `.env.local` carries the key locally. What remains genuinely
+  absent is the **GitHub Actions secret** — CI's `integration` job clean-skips for want of it,
+  which is not evidence either way; every PR instead reports its own local disposable-fork
+  integration numbers. The 48-hour program's Wave-0 create/delete probe
+  (`npx tsx scripts/neon-branch.ts create` then `delete`) was not re-run by this session —
+  operator to confirm the exact Wave-0 result, though the evidence above already establishes
+  the key is live.
