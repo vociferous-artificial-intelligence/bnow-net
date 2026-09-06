@@ -3492,3 +3492,49 @@ Execution (same block):
 - Gates: typecheck/lint clean · unit 3,608/3,608 (247 files). Zero paid calls, no
   DB/production access, no deploy.
 
+
+## 2026-09-06 ~20:15Z — Anthropic seam hardening (step 09, planned block)
+
+1. Verify the worktree/branch, base SHA and every citation in the step prompt
+   (`docs/prompts/2026-09-05-48h-09-anthropic-seam-hardening.md`), correcting any
+   that moved or that the tree contradicts.
+2. `getProvider()`: drop the "only an Anthropic key exists" auto-selection branch and
+   make `ANALYSIS_PROVIDER=anthropic` a typed fail-closed refusal thrown BEFORE the
+   provider module is imported, the key is read, or any guard is touched.
+3. `anthropic-provider.ts`: well-formed doc-line clip (#97a), call-time model
+   resolution, typed missing-key refusal before any `fetch`, kill-switch honoured
+   ahead of both, and a header comment naming the wiring activation requires.
+4. Tests: refusal-before-fetch/before-`tryReserve` pins, stub-not-Anthropic
+   selection pin, clip pins mirroring `map-request-wellformed.test.ts` (differential
+   old-vs-new against an independent strict-JSON oracle), call-time model pin.
+5. Gates (`typecheck`, `lint`, `npm test`), adversarial self-review, OPEN-TASKS #83/#97
+   status lines, `docs/SETUP-NEXT-WEEK.md` correction, closing report, PR.
+
+- Execution (same block):
+  - Base `origin/main` `dff58f2` (has `883e5e3` as ancestor); step branch
+    `48h/ws2-provider-20260905-anthropic-seam-hardening` cut from the lane branch.
+  - `getProvider()`: the "Anthropic key alone" auto-selection branch DELETED (an
+    Anthropic key alone now selects the stub) and `ANALYSIS_PROVIDER=anthropic`
+    made a typed `AnalysisProviderError` thrown before the provider module is
+    imported, before the key is read and before any guard exists; the message is
+    exported as `ANTHROPIC_NOT_REGISTERED` so the #83 wiring must replace it.
+  - `anthropic-provider.ts`: `anthropicDocLine` through `wellFormedSlice` +
+    `dropIsolatedSurrogates` at the same 400-code-unit ceiling (#97(a) repaired,
+    test-pinned byte-equal to `digestDocLine`); model resolved at call time;
+    missing/blank key throws typed before any `fetch`; kill-switch asserted ahead
+    of both; header comment naming the wiring activation requires. No metering
+    added, by instruction; nothing under `src/lib/llm/` changed.
+  - 19 new pins in `src/lib/analysis/anthropic-seam.test.ts`; five mutations
+    killed (either selection branch restored, the clip reverted, the model
+    snapshotted at import, the kill-switch deleted).
+  - Gates: typecheck clean · lint 0 errors (3 pre-existing warnings) · unit
+    3,631/3,631 (248 files), from 3,612/247. No integration test applies — none
+    run. Zero paid calls, zero production access, no env change, no deploy.
+  - Corrected in place: OPEN-TASKS #83/#97, SETUP-NEXT-WEEK, BLOCKERS,
+    HUMAN-SETUP-TODO, CURRENT-STATE — all four operator-facing docs had told the
+    operator an Anthropic key was a working fallback. AGENTS.md left alone
+    (write-lock); its corrections are in the report for step 25.
+  - Recorded corrections to the governing prompts: the step prompt's and COMMON
+    §4.8's claim that the Anthropic path does not honour `LLM_DISABLE` is wrong —
+    `assertLlmEnabled` was already its first statement (a `git grep LLM_DISABLE`
+    artifact). Report: `docs/reviews/ANTHROPIC-SEAM-HARDENING-2026-09-05.md`.

@@ -26,9 +26,15 @@ Adding any env var to production: `npx vercel env add <NAME> production` then re
 
 The account died once mid-weekend and everything silently degraded to the extractive
 stub. Check the balance; set an auto-recharge or a billing alert.
-**Alternative now supported:** put `ANTHROPIC_API_KEY` (console.anthropic.com) in prod —
-the provider seam auto-uses Claude (`claude-sonnet-5` default, `ANTHROPIC_MODEL` to
-override) when no OpenAI key exists, or force it with `ANALYSIS_PROVIDER=anthropic`.
+**NOT an alternative — corrected 2026-09-06 (step 09, OPEN-TASKS #83):** an
+`ANTHROPIC_API_KEY` does NOT give you a working fallback. Earlier text here said the seam
+auto-uses Claude when no OpenAI key exists, or on `ANALYSIS_PROVIDER=anthropic`; both
+selection paths were removed because that provider is unmetered and unregistered — it
+passes no `workloadDispatchConfig()` gate and takes no `SpendGuard` reservation. Today
+`ANALYSIS_PROVIDER=anthropic` is a typed refusal, and an Anthropic key with no OpenAI key
+falls back to the deterministic STUB (degraded digests, no spend). Setting an Anthropic key
+in a Vercel environment buys nothing until the #83 wiring lands. Keep the OpenAI balance
+funded; that is still the single dependency.
 
 ## 2. Fresh VERCEL_TOKEN — $0, 5 min
 

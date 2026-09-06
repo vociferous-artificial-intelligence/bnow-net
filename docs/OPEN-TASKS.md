@@ -843,12 +843,23 @@ docs/reviews/CLOUD-MODEL-ROUTING-SEAMS-2026-08-17.md §12.11)
     scan and can still retry a billed call without a matching reservation. Out of scope for
     PR #5; fix by routing it through the guarded client seam or documenting it as
     operator-only tooling that must not run unattended.
-83. **[Tier 3 — blocked] The Anthropic provider seam remains unmetered and inactive.**
-    `ANTHROPIC_API_KEY` is absent everywhere and the seam is auto-selected only when an
-    Anthropic key exists and no OpenAI key does, so nothing dispatches through it today —
-    but it is not wired through `model-config.ts`, the analysis registry, or the pricing
-    table, so activating it would bypass all three gates. Wiring it is its own follow-up
-    and a prerequisite to ever setting an Anthropic key.
+83. **[Tier 3 — blocked] The Anthropic provider seam remains unmetered and inactive —
+    ACTIVATION BYPASS CLOSED 2026-09-06; WIRING STILL REQUIRED.** The seam is not wired
+    through `model-config.ts`, the analysis registry, or the pricing table, so selecting it
+    would bypass all three gates plus `SpendGuard.tryReserve()` (rulings 4 and 8). Until
+    2026-09-06 `getProvider()` selected it anyway — on `ANALYSIS_PROVIDER=anthropic` with a
+    key, and, worse, automatically whenever an Anthropic key existed and an OpenAI key did
+    not. That second branch stopped being latent when `ANTHROPIC_API_KEY` landed in the
+    operator's `.env.local`: one variable was then enough to route analysis around every
+    gate. Step 09 (`docs/reviews/ANTHROPIC-SEAM-HARDENING-2026-09-05.md`) removed the
+    key-alone branch and made `ANALYSIS_PROVIDER=anthropic` a typed `AnalysisProviderError`
+    refusal thrown before the provider module is imported, before the key is read and
+    before any guard exists; an Anthropic key alone now selects the STUB. What remains is
+    the wiring itself — routing through `model-config.ts`, an `analysis-reg-v1` entry with
+    its own promotion scorecard, prices in `pricing.ts`, and a metered `anthropic_digest`
+    provider row — which must REPLACE the refusal (`ANTHROPIC_NOT_REGISTERED` in
+    `src/lib/analysis/provider.ts`), never route around it. Still a prerequisite to ever
+    setting an Anthropic key in a Vercel environment.
 84. **[Tier 1 — deploy gate] Re-confirm `ASK_USD_CAP_DAILY` headroom under the corrected
     gpt-5-mini price before deploying PR #5.** The correction ($0.125/$1 → $0.25/$2 per 1M
     tokens) doubles the Ask rerank reservation and recorded estimate at deploy —
@@ -1394,11 +1405,15 @@ docs/reviews/MAP-UNICODE-BATCH-REPAIR-2026-08-23.md)
     voteRounds 5 on all three theaters == 15 `llm_match` requests; keyword
     fallback dispatches zero, so ok=true is not doing the proving). Observation
     window CLOSED PASS 2026-09-01T13:32Z. Record:
-    `docs/reviews/EMBED-VALIDATE-RELEASE-2026-08-31.md`. THE UMBRELLA STAYS
-    OPEN — remaining: (a) `anthropic-provider.ts:70`, a DORMANT defect (key
-    absence is not a repair); activation prerequisites: `wellFormedSlice` on the
-    doc-line clip + the #83 wiring (model-config, analysis registry, pricing) +
-    its own promotion scorecard; (b) the flag-off ASK_SESSIONS residuals
+    `docs/reviews/EMBED-VALIDATE-RELEASE-2026-08-31.md`. **STATUS 2026-09-06 —
+    (a) IS REPAIRED** (step 09, `docs/reviews/ANTHROPIC-SEAM-HARDENING-2026-09-05.md`):
+    the Anthropic doc-line clip is well-formed and the seam is refused at
+    selection; the REMAINING Anthropic activation prerequisites are the #83
+    wiring (model-config, analysis registry, pricing, a metered
+    `anthropic_digest` row) and its own promotion scorecard — neither is a #97
+    item. The repair is offline-proven only: the provider is dormant, so no
+    natural traversal exists or is expected. THE UMBRELLA STAYS
+    OPEN — remaining: (b) the flag-off ASK_SESSIONS residuals
     (session-entry normalization, §7.7 cache-deletion join, pre-fix-row
     idempotency comparison) — close before `ASK_SESSIONS` ships.
 

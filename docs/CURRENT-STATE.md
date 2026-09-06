@@ -113,8 +113,10 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   OPEN-TASKS entries hold the residuals (shed/refusal paths not yet naturally
   fired; watchdog detection proof still synthetic). #97 remains OPEN with the Ask
   family AND the embeddings/validation sites now SHIPPED and naturally proven —
-  remaining: the dormant Anthropic doc-line clip (repair + #83 wiring + scorecard
-  before any activation) and the ASK_SESSIONS-gated residuals. Still-open
+  remaining: the ASK_SESSIONS-gated residuals. The dormant Anthropic doc-line clip
+  was repaired 2026-09-06 (step 09) and the seam's key-alone activation bypass closed
+  with it; the #83 wiring + a promotion scorecard remain prerequisites to any
+  Anthropic activation, but they are #83 items, not #97 ones. Still-open
   observations: the first NATURAL degraded-run flip, the first natural
   ISW-not-published benign validate return, the first live paid Ask through the
   2026-08-29 normalizer, and the watchdog's first real pre-completion-death
