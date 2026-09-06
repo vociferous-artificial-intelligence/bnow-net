@@ -80,6 +80,45 @@ function slugDate(monthName: string, day: string, year: string): string | null {
   return isIsoDay(iso) ? iso : null;
 }
 
+/** ONE storage form for a provider report URL: `https`, lowercase host without
+ *  `www.`, lowercase path with a single trailing slash, no query and no
+ *  fragment. Merge equality for `canonicalUrl` is BYTE-level, so a
+ *  trailing-slash / `www.` / scheme variant replay of the SAME edition threw
+ *  `edition_merge_conflict` — fail-closed and honest, but avoidable
+ *  (docs/designs/CONFLICT-REFERENCE-REPORTS-SCHEMA.md §5 "URL canonicalization
+ *  before storage"). Idempotent: canonicalize(canonicalize(u)) === canonicalize(u).
+ *
+ *  Deliberately NOT a normalization-table lookup: it refuses only what it
+ *  cannot canonicalize (an unparseable URL, a non-ISW host, a non-http(s)
+ *  scheme). Path SHAPE stays `normalizeIswEditionUrl`'s job, so a URL this
+ *  function accepts may still be refused there. Query strings and fragments
+ *  are dropped: no ISW report URL the discovery builders emit carries either,
+ *  and keeping them would reintroduce byte-inequality between two spellings of
+ *  one edition. */
+export function canonicalizeIswUrl(rawUrl: string): string {
+  let u: URL;
+  try {
+    u = new URL(rawUrl);
+  } catch {
+    throw new ConflictDomainError("invalid_edition_url", `not a URL: ${JSON.stringify(rawUrl)}`);
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") {
+    throw new ConflictDomainError(
+      "invalid_edition_url",
+      `not an http(s) URL: ${JSON.stringify(rawUrl)}`,
+    );
+  }
+  const host = u.host.toLowerCase().replace(/^www\./, "");
+  if (host !== "understandingwar.org") {
+    throw new ConflictDomainError(
+      "invalid_edition_url",
+      `not an ISW report host: ${JSON.stringify(rawUrl)}`,
+    );
+  }
+  const path = u.pathname.toLowerCase().replace(/\/+$/, "");
+  return `https://${host}${path}/`;
+}
+
 /** Normalize a provider report URL to its series/date/edition-label identity.
  *  Throws typed on anything outside the versioned table — an unknown host,
  *  path shape, or impossible slug date is REFUSED, never silently accepted

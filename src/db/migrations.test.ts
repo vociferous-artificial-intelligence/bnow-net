@@ -79,3 +79,51 @@ describe("migration 0027 — billing policy/eligibility metadata (release harden
     expect(file! < "9999_claim_source_trigger.sql").toBe(true);
   });
 });
+
+describe("migration 0028 — benchmark report editions + series days (conflict reference reports)", () => {
+  it("exists, is purely additive (new tables/indexes only), and keeps 9999 last", () => {
+    const file = readdirSync(DIR).find((f) => f.startsWith("0028_"));
+    expect(file).toBeTruthy();
+    const sql = readFileSync(join(DIR, file!), "utf8");
+    const statements = sql.split("--> statement-breakpoint").map((s) => s.trim()).filter(Boolean);
+    expect(statements.length).toBeGreaterThan(0);
+    for (const stmt of statements) {
+      // only three shapes may appear: CREATE TABLE for the two NEW tables,
+      // CREATE [UNIQUE] INDEX on them, and the ADD CONSTRAINT that attaches the
+      // isw_reports FK to the NEW table
+      expect(stmt).toMatch(
+        /^(CREATE TABLE "benchmark_(report_editions|series_days)"|CREATE (UNIQUE )?INDEX "benchmark_report_editions_[a-z_]+_idx" ON "benchmark_report_editions"|ALTER TABLE "benchmark_report_editions" ADD CONSTRAINT)/,
+      );
+      // drizzle-kit spells the FK's default referential actions as
+      // "ON DELETE no action ON UPDATE no action" — that clause is the ONLY
+      // place those words may appear, so strip it before the destructive scan
+      const scanned = stmt.replace(/ON DELETE no action ON UPDATE no action/g, "");
+      expect(scanned).not.toMatch(/\bDROP\b|\bDELETE\b|\bTRUNCATE\b|\bUPDATE\b|\bINSERT\b/i);
+    }
+    // the two tables and the four indexes the design specifies (§4 items 1-6)
+    expect(sql).toContain(`CREATE TABLE "benchmark_report_editions"`);
+    expect(sql).toContain(`CREATE TABLE "benchmark_series_days"`);
+    for (const idx of ["key_idx", "url_idx", "series_date_idx", "final_idx"]) {
+      expect(sql).toContain(`"benchmark_report_editions_${idx}"`);
+    }
+    // the two partial indexes are what let same-date editions coexist while at
+    // most one is designated final
+    expect(sql).toContain(`("canonical_url") WHERE canonical_url IS NOT NULL`);
+    expect(sql).toContain(`("series","report_date") WHERE designated_final`);
+    // ruling 1: no prose column — the only free-text-ish columns are URLs, keys,
+    // enums, versions and the two bounded jsonb audit columns
+    expect(sql).not.toMatch(/"(title|text|summary|body|prose|takeaway)"/);
+    // the frozen registry tables are not touched at all (design §4 item 7)
+    for (const table of [
+      "isw_reports",
+      "source_citations",
+      "sources",
+      "source_theater_stats",
+      "validation_runs",
+    ]) {
+      expect(sql).not.toMatch(new RegExp(`(ALTER|DROP) TABLE "${table}"`));
+    }
+    // filename ordering keeps 9999 last
+    expect(file! < "9999_claim_source_trigger.sql").toBe(true);
+  });
+});
