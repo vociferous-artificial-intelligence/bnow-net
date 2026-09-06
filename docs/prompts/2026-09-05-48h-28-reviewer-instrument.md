@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Model / effort / mode | Opus / high / **native Mac session with the operator present** (the inputs live outside the repo next to forbidden files) |
-| Lane / worktree | none for code (fold-back script lands in `scripts/` via lane E); the workbooks are operator artifacts outside git |
+| Worktree | none for code (fold-back script lands in `scripts/` via the `48h-ws1-injection` worktree); the workbooks are operator artifacts outside git |
 | Window | whenever the operator has 3 hours; not gated by any checkpoint |
 | Depends on | operator copies ONLY the three blinded files into a fresh folder first |
 | Decisions | none; the analyst-subset selection is an operator action using the key — the agent never sees the key |

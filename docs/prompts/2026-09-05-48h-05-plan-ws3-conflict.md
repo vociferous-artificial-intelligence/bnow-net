@@ -1,11 +1,11 @@
-# Step 05 — WS-3.0 decision memo + PLAN-WS-3: validation by conflict (Wave 1, lane C)
+# Step 05 — WS-3.0 decision memo + PLAN-WS-3: validation by conflict (Wave 1)
 
 | | |
 |---|---|
 | Model / effort / mode | **Fable / xhigh / plan mode** — planning only |
-| Lane / worktree | C — `/Users/go/code/bnow-net-worktrees/48h-conflict-20260905` |
+| Worktree | `/Users/go/code/bnow-net-worktrees/48h-ws3-conflict-20260905` |
 | Window | H0 → H4 |
-| Depends on | — (step 06 runs in parallel in the separate `48h-conflict2` worktree; it is decision-independent) |
+| Depends on | — (step 06 runs in parallel in the separate `48h-ws3-gazetteer` worktree; it is decision-independent) |
 | Decisions | D3, D4 (C1–C14 below) — list with recommendations, never decide |
 | Spend | $0. No DB. |
 | Closing report | `docs/reviews/CONFLICT-VALIDATION-DECISION-MEMO-2026-09-05.md` + `docs/reviews/PLAN-WS-3-validation-by-conflict-2026-09-05.md` |

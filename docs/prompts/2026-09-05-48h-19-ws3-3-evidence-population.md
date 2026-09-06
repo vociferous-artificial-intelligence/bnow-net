@@ -1,9 +1,9 @@
-# Step 19 — WS-3.3 evidence population + live observation pipeline (inert) — SKETCH (Wave 3, lane C)
+# Step 19 — WS-3.3 evidence population + live observation pipeline (inert) — SKETCH (Wave 3)
 
 | | |
 |---|---|
 | Model / effort / mode | Opus / high / plain session with a 20-minute plan-mode preamble |
-| Lane / worktree | C — `48h-conflict-20260905`, step branches `…/db-claim-sources`, `…/live-observation` |
+| Worktree | `48h-ws3-conflict-20260905`, step branches `…/db-claim-sources`, `…/live-observation` |
 | Window | H22 → H32 |
 | Depends on | 13 and 14 merged (tables + discovery API); 06 merged (gazetteer); decisions C2, C3, C8, C12, C13 |
 | Rewrite from | PLAN-WS-3 §3.3a/3.3b, the 13/14 reports' Handoff sections (table names, discovery API), the 06 report (gazetteer API) |

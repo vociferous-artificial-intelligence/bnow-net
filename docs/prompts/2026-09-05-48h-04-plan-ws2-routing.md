@@ -1,9 +1,9 @@
-# Step 04 — PLAN-WS-2: the per-stage model routing matrix (Wave 1, lane R)
+# Step 04 — PLAN-WS-2: the per-stage model routing matrix (Wave 1)
 
 | | |
 |---|---|
 | Model / effort / mode | **Fable / xhigh / plan mode** — planning only; the deliverable is documents |
-| Lane / worktree | R — `/Users/go/code/bnow-net-worktrees/48h-routing-20260905` |
+| Worktree | `/Users/go/code/bnow-net-worktrees/48h-ws2-routing-20260905` |
 | Window | H0 → H4 |
 | Depends on | — |
 | Decisions | **Answered 2026-09-06 (INDEX §2, operator column):** D2 = B — Anthropic is IN SCOPE for execution (key already in `.env.local`; same budget; step 20b builds the B PRs); C is provisionally yes but deferred beyond this round — design the seam so C is cheap later, plan no C PR now. R5 = the parked branch `claude/local-model-ask-eval-20260817`. Still open: R1, R2, R3, R4 — list, recommend, do not decide. |

@@ -1,9 +1,9 @@
-# Step 03 — Release checklist (#39/#78/#84) + #79 drain runbook (Wave 1, lane G)
+# Step 03 — Release checklist (#39/#78/#84) + #79 drain runbook (Wave 1)
 
 | | |
 |---|---|
 | Model / effort / mode | Sonnet / medium / plain session (continues from step 02) |
-| Lane / worktree | G — `/Users/go/code/bnow-net-worktrees/48h-gov2-20260905` |
+| Worktree | `/Users/go/code/bnow-net-worktrees/48h-gov2-20260905` |
 | Window | H3 → H5 |
 | Depends on | 02 (same session; separate PR) |
 | Decisions | O2 (operator authorizes the #79 production-write run — you only write the runbook) |

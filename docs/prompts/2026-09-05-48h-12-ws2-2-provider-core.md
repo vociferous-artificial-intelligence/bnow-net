@@ -1,9 +1,9 @@
-# Step 12 — WS-2.2 core: provider dimension, registry key, offline-identity decoupling (Wave 2, lane R2)
+# Step 12 — WS-2.2 core: provider dimension, registry key, offline-identity decoupling (Wave 2)
 
 | | |
 |---|---|
 | Model / effort / mode | Opus / high / plain session with a 15-minute plan-mode preamble |
-| Lane / worktree | R2 — `/Users/go/code/bnow-net-worktrees/48h-routing2-20260905`, step branches `…/provider-dimension`, `…/eval-identity-decouple` |
+| Worktree | `/Users/go/code/bnow-net-worktrees/48h-ws2-provider-20260905`, step branches `…/provider-dimension`, `…/eval-identity-decouple` |
 | Window | H8 → H16 |
 | Depends on | 04 (PLAN-WS-2), 09 merged (build on top of the hardened seam) |
 | Decisions | D2 (if unanswered: build exactly the option-independent PRs below; allowlist stays `{openai}`), R2 (INDEX recommends: decouple only, no `analysis-reg-v2` bump in this window) |

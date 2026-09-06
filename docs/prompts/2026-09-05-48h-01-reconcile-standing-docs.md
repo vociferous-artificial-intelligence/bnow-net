@@ -1,9 +1,9 @@
-# Step 01 — Reconcile standing docs with `main` (Wave 1, lane G)
+# Step 01 — Reconcile standing docs with `main` (Wave 1)
 
 | | |
 |---|---|
 | Model / effort / mode | Sonnet / medium / plain session |
-| Lane / worktree | G — `/Users/go/code/bnow-net-worktrees/48h-gov-20260905` |
+| Worktree | `/Users/go/code/bnow-net-worktrees/48h-gov-20260905` |
 | Window | H0 → H2 |
 | Depends on | — (first PR of the program; merges before 02, 03, 15) |
 | Decisions | D11 (may correct AGENTS.md standing text now — INDEX recommends yes) |

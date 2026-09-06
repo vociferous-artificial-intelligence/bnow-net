@@ -1,9 +1,9 @@
-# Step 23 — Remediate the audit findings (steps 17, 18) — SKETCH (Wave 4, lanes R and C)
+# Step 23 — Remediate the audit findings (steps 17, 18) — SKETCH (Wave 4)
 
 | | |
 |---|---|
 | Model / effort / mode | Opus / high / plain session — one session per lane, or one session if both registers are small |
-| Lane / worktree | R (`48h-routing-20260905`) and C (`48h-conflict-20260905`), step branches `…/remediate-<register-id>` |
+| Worktree | R (`48h-ws2-routing-20260905`) and C (`48h-ws3-conflict-20260905`), step branches `…/remediate-<register-id>` |
 | Window | H34 → H40 |
 | Depends on | 17, 18 registers; operator decisions on which findings to accept as debt |
 | Rewrite from | `WS-2-AUDIT-FINDING-REGISTER-2026-09-06.md`, `WS-3-AUDIT-FINDING-REGISTER-2026-09-06.md` — paste the finding ids, severities and exact remediations here, plus the operator's accept/defer marks |

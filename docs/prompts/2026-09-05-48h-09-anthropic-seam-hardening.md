@@ -1,9 +1,9 @@
-# Step 09 — Anthropic seam hardening: close the key-alone activation bypass, fix #97(a) (Wave 1, lane R)
+# Step 09 — Anthropic seam hardening: close the key-alone activation bypass, fix #97(a) (Wave 1)
 
 | | |
 |---|---|
 | Model / effort / mode | Opus / high / plain session |
-| Lane / worktree | R — `/Users/go/code/bnow-net-worktrees/48h-routing2-20260905`, step branch `…/anthropic-seam-hardening` (step 04 plans concurrently in `48h-routing`) |
+| Worktree | `/Users/go/code/bnow-net-worktrees/48h-ws2-provider-20260905`, step branch `…/anthropic-seam-hardening` (step 04 plans concurrently in `48h-ws2-routing`) |
 | Window | H0 → H3 — **run this first in Wave 1**: as of 2026-09-06 `.env.local` carries an `ANTHROPIC_API_KEY` (D2 = B), so the bypass below is no longer latent on the operator's machine |
 | Depends on | — (option-independent; step 04's plan must not duplicate it; step 12 builds on it) |
 | Decisions | none — this is hygiene every D2 option needs |

@@ -1,9 +1,9 @@
-# Step 16 — WS-4.1 Vercel log drain: design + Neon receiver (`runtime_logs`) (Wave 2, lane O)
+# Step 16 — WS-4.1 Vercel log drain: design + Neon receiver (`runtime_logs`) (Wave 2)
 
 | | |
 |---|---|
 | Model / effort / mode | Opus / high / plain session |
-| Lane / worktree | O — `/Users/go/code/bnow-net-worktrees/48h-ops-20260905`, step branches `…/log-drain-design`, `…/log-drain-receiver` |
+| Worktree | `/Users/go/code/bnow-net-worktrees/48h-ws4-ops-20260905`, step branches `…/log-drain-design`, `…/log-drain-receiver` |
 | Window | H8 → H16 |
 | Depends on | — for the design; decision O1 for the receiver (if unanswered, ship the design PR and build the receiver on its branch, held) |
 | Decisions | O1 — partly answered 2026-09-06: the Vercel plan DOES support log drains. The operator also noted "Neon does not support drains on the Launch plan" — that concerns a Neon-side feature the design does NOT use: the receiver is our own Vercel route inserting into our own Postgres tables, which needs nothing from Neon beyond ordinary writes. State this plainly in the design doc and confirm with the operator before PR 2; sink/retention/registration otherwise per the recommendation. |

@@ -1,9 +1,9 @@
-# Step 22 — WS-2.3 #33 remap: runbook + `--estimate` dry run against a local `next start` on a Neon branch (Wave 2, lane R3)
+# Step 22 — WS-2.3 #33 remap: runbook + `--estimate` dry run against a local `next start` on a Neon branch (Wave 2)
 
 | | |
 |---|---|
 | Model / effort / mode | Opus / high / plain session |
-| Lane / worktree | `48h-routing3-20260905`, step branch `…/map-remap-runbook` (step 12 runs concurrently in `48h-routing2`) |
+| Worktree | `48h-ws2-remap-20260905`, step branch `…/map-remap-runbook` (step 12 runs concurrently in `48h-ws2-provider`) |
 | Window | H12 → H20 (runbook + `--estimate`); the measured run only when D7 is answered |
 | Depends on | 02 merged (reworded driver header); decision R4 (measurement path); D7 (spend) — until D7 is answered, `--estimate` only. Independent of step 12. |
 | Rewrite from | PLAN-WS-2 §WS-2.3 (paste its WS-2.3 section here at CP1); R4's answer |

@@ -1,9 +1,9 @@
-# Step 15 — AGENTS.md compaction into `docs/DECISIONS.md` (#92, WS-6.2) (Wave 2, lane G)
+# Step 15 — AGENTS.md compaction into `docs/DECISIONS.md` (#92, WS-6.2) (Wave 2)
 
 | | |
 |---|---|
 | Model / effort / mode | Sonnet / medium / plain session — mechanical move with a byte-identity check script |
-| Lane / worktree | G — `/Users/go/code/bnow-net-worktrees/48h-gov-20260905`, step branch `…/agents-md-compaction` |
+| Worktree | `/Users/go/code/bnow-net-worktrees/48h-gov-20260905`, step branch `…/agents-md-compaction` |
 | Window | H10 → H13, after step 01 (and the signed decision entries from step 10) are on `main` |
 | Depends on | 01 merged; 10 done (so the entries you move are complete) |
 | Decisions | D5 — approve; inline window (INDEX recommends 7 days); restore strict date order (recommended). If D5 is unanswered: print `AWAITING AUTHORIZATION: D5`, write only the check script, and stop. |

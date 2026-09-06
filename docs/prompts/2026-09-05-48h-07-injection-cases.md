@@ -1,9 +1,9 @@
-# Step 07 — Exposure ledger + six development-split injection cases + offline proof (WS-1.1) (Wave 1, lane E)
+# Step 07 — Exposure ledger + six development-split injection cases + offline proof (WS-1.1) (Wave 1)
 
 | | |
 |---|---|
 | Model / effort / mode | **Fresh session of the model the operator designates as "Astra" (D9, answered 2026-09-06: a different model family via the OpenAI key), or Opus** / high — a session that has never opened the forbid list. The prompt is model-agnostic; the exposure ledger names the model and session. |
-| Lane / worktree | E — `/Users/go/code/bnow-net-worktrees/48h-eval-20260905`, step branch `…/injection-cases` |
+| Worktree | `/Users/go/code/bnow-net-worktrees/48h-ws1-injection-20260905`, step branch `…/injection-cases` |
 | Window | H0 → H5 |
 | Depends on | — |
 | Decisions | E1 (an explicit written yes naming the file is REQUIRED before the PR can merge — build on the branch, mark HELD if blank), E3 (ledger home). E2 (sub-label) is deferred to WS-1.3 and NOT built here. |

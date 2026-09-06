@@ -1,9 +1,9 @@
-# Step 21 — WS-4.2 reliability proofs on a Neon fork (#102 shed/refusal, #103 watchdog) — SKETCH (Wave 3, lane O)
+# Step 21 — WS-4.2 reliability proofs on a Neon fork (#102 shed/refusal, #103 watchdog) — SKETCH (Wave 3)
 
 | | |
 |---|---|
 | Model / effort / mode | Opus / high / plain session |
-| Lane / worktree | O — `48h-ops-20260905`, step branch `…/reliability-proofs` |
+| Worktree | `48h-ws4-ops-20260905`, step branch `…/reliability-proofs` |
 | Window | H22 → H30 |
 | Depends on | — (independent of other lanes; decision O3 on what counts as the proof) |
 | Rewrite from | decision O3 at CP2; the step-16 report only if the drain lands first (then the proof records drain rows too) |

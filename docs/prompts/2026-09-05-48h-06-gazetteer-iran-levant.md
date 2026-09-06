@@ -1,9 +1,9 @@
-# Step 06 — Iran/Levant gazetteer `iran-levant-v1` + `insufficient_data` diagnostic (WS-3.4a) (Wave 1, lane C)
+# Step 06 — Iran/Levant gazetteer `iran-levant-v1` + `insufficient_data` diagnostic (WS-3.4a) (Wave 1)
 
 | | |
 |---|---|
 | Model / effort / mode | Opus / high / plain session (15-minute plan-mode preamble, then execute) |
-| Lane / worktree | C — `/Users/go/code/bnow-net-worktrees/48h-conflict2-20260905`, step branch `48h/conflict2-20260905/gazetteer-iran-levant` (step 05 plans concurrently in `48h-conflict`) |
+| Worktree | `/Users/go/code/bnow-net-worktrees/48h-ws3-gazetteer-20260905`, step branch `48h/ws3-gazetteer-20260905-gazetteer-iran-levant` (step 05 plans concurrently in `48h-ws3-conflict`) |
 | Window | H0 → H4 |
 | Depends on | — (decision-independent; step 05's C7 may ask for a follow-up, not a redo) |
 | Decisions | none blocking. C7 (module layout) — build the layout below as a PROVISIONAL default and list C7 in the report; the memo may relocate it |

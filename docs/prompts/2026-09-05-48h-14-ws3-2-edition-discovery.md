@@ -1,9 +1,9 @@
-# Step 14 — WS-3.2 series/edition-aware reference discovery + report-only cron entrypoint (Wave 2, lane C2)
+# Step 14 — WS-3.2 series/edition-aware reference discovery + report-only cron entrypoint (Wave 2)
 
 | | |
 |---|---|
 | Model / effort / mode | Opus / high / plain session |
-| Lane / worktree | C2 — `/Users/go/code/bnow-net-worktrees/48h-conflict2-20260905`, step branches `…/edition-discovery`, `…/conflict-validate-route` |
+| Worktree | `/Users/go/code/bnow-net-worktrees/48h-ws3-gazetteer-20260905`, step branches `…/edition-discovery`, `…/conflict-validate-route` |
 | Window | H10 → H18 (start once step 13's table names are fixed — they may be in its PR before merge) |
 | Depends on | 05; 13's schema (rebase onto 13 before merge); decisions C4, C5 |
 | Decisions | C2 (unit of validation — the route iterates `CONFLICT_DEFINITIONS`), C4 (edition policy), C5 (citation anchoring on multi-edition days) |
