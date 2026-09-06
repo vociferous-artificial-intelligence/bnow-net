@@ -3902,3 +3902,24 @@ Execution (same block):
   `conflict-reference-repo.itest.ts` 12/12 on fork `br-misty-night-at6upzs6` ·
   `migrations-atomic.itest.ts` 3/3 on fork `br-silent-hill-atmu00nh`. Zero paid calls, no
   production write, no env change, no deploy. Spend $0.
+## 2026-09-06 ~22:35Z — WS-4.1 log drain: design + Neon receiver (step 16, planned block)
+
+1. Verify worktree/base; read OPEN-TASKS #93, `vercel.json`, `cron-run.ts` start/sweep
+   semantics, `ask/retention.ts`, `schema.ts` `cron_runs`, the cron-route secret-header
+   pattern, and the Vercel Drains docs (payload schema, `x-vercel-signature`, registration).
+2. PR 1 — `docs/designs/LOG-DRAIN.md`: three sink options with cost/retention, recommend the
+   Neon `runtime_logs` receiver at 14-day retention; kept vs never-stored fields; rate
+   bounding; the self-ingestion loop; ruling-21 note (route, not page); the operator
+   registration runbook with ruling-4-style ordering (secret in Production BEFORE deploy);
+   the WS-3.6 soak query. Record the O1 correction: Neon's own drain support is irrelevant —
+   the receiver is our route writing our tables.
+3. PR 2 — migration `runtime_logs` (next free number at rebase; INDEX §4 intends 0030) +
+   `src/app/api/logs/drain/route.ts`: constant-time HMAC-SHA1 over the raw body, unset secret
+   → 503 fail-closed, NDJSON/JSON-array/concatenated parsing, one batched INSERT, per-request
+   caps, self-ingestion filter, log-silent handler, bounded once-per-hour retention sweep
+   inside the route only.
+4. Tests: signature accept/reject/missing-secret, batch cap, retention arithmetic, parser
+   shapes, self-ingestion drop; fork itest applying the migration and exercising
+   insert + sweep + bad-signature-no-data.
+5. `.env.example` entries; gates; adversarial self-review; PRs; closing report
+   `docs/reviews/LOG-DRAIN-2026-09-06.md`.
