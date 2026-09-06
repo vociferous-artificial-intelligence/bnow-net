@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Model / effort / mode | Opus / high / plain session with a 20-minute plan-mode preamble |
-| Worktree | `48h-ws3-gazetteer-20260905`, step branches `…/conflict-observations-view`, `…/soak-prep` (step 19/23-C use `48h-ws3-conflict`) |
+| Worktree | `48h-ws3-gazetteer-20260905`, step branches `…/conflict-observations-view`, `…/soak-prep` (steps 19 and 23 use `48h-ws3-conflict`) |
 | Window | H34 → H42 |
 | Depends on | 19 merged; decisions C10 (scoreboard public vs gated; relabel copy), C11 (no interim target) |
 | Rewrite from | PLAN-WS-3 §3.5a and §3.6-prep; the 19 report's Handoff (observation read API); the memo's C10/C11 answers |
