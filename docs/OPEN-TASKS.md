@@ -368,9 +368,17 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     snapshot to `docs/CURRENT-STATE.md`, and returned AGENTS.md from 1,514 to 281 lines at the
     archive point (296 after this pass's current live decisions). Standing sections remain compact and
     correct-in-place; the archive remains append-only.
-44. **[maintenance] `X_DAILY_USD_CAP` prod value is above the 1.5 code default.** 07-07 billed $1.877
+44. **[maintenance — RECONCILED 2026-09-06 (comment-only); default deliberately unchanged]
+    `X_DAILY_USD_CAP` prod value is above the 1.5 code default.** 07-07 billed $1.877
     in one day without the daily guard stopping it, so prod is raised above the default. Reconcile the
-    code default/comment (`x-api.ts:166`) with the actual prod cap so the ledger is not misleading.
+    code default/comment with the actual prod cap so the ledger is not misleading. **Both call sites
+    are now documented** (`x-api.ts:196-213` — the cite was stale at `:166`; the reads are
+    `xGuardFromEnv` :214 and `xAutoCatchupGuardFromEnv` :236): the live daily brake is the
+    operator's 2026-09-03 `X_DAILY_USD_CAP=4`, and the 1.5 literal applies only when the
+    variable is unset. The default was NOT raised — that would change behaviour for any
+    environment leaving the variable unset. What remains open is the `envNum` (fail-open) vs
+    `envCap` (fail-closed, every LLM guard) asymmetry, carried as decision **R10** in
+    `docs/reviews/PLAN-WS-2-routing-matrix-2026-09-05.md`.
 45. ~~**[Tier 2] "unsupported-claim rate" KPI is a thin-sourced proxy mislabeled as literal.**~~
     ✅ **CLOSED 2026-07-16 at the product boundary:** `scoreDigest*` calls it
     `thinSourcedRate`, comments define `docCount<2 AND hedging∈{claimed,unverified}`, and every
