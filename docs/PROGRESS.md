@@ -3571,3 +3571,33 @@ enumerated findings) catalogued honestly in the closing report's Debt section ra
 than silently swept. Merge-order flag: #50 depends on #49 (step 01) merging first —
 both touch AGENTS.md/CLAUDE.md. Report: `docs/reviews/PORT-HYGIENE-MACOS-2026-09-05.md`.
 
+## 2026-09-06 ~19:20Z — 48h program step 03: release checklist + #79 runbook (planned block, written same-session as execution)
+
+Same worktree/session as step 02 (per the lane table); branch
+`48h/gov2-20260905-step03-release-checklist`, cut from step 02's already-pushed tip
+(not the bare lane branch), since the checklist cross-links the deploy line step 02
+rewrote in CLAUDE.md/README.md. Plan per
+`docs/prompts/2026-09-05-48h-03-release-checklist.md`:
+
+1. Write `docs/RELEASE-CHECKLIST.md` — 11 numbered steps faithful to the recorded
+   sequence in `docs/reviews/ASK-FAMILY-RELEASE-2026-08-29.md` §1–§7, the 2026-08-27/28
+   AGENTS.md queue entry, and the 2026-07-21/2026-08-15 migration/backup precedents.
+   Mark #84's headroom check as may-not-skip.
+2. Write `docs/reviews/RUNBOOK-79-RU-CITATION-DRAIN-2026-09-05.md` for the operator to
+   run at step 10 under O2 (unsigned as of this session — write only, run nothing).
+3. Cross-link from CLAUDE.md/README.md's deploy lines and OPEN-TASKS #39/#78 status;
+   add the CI clean-skip comment to `.github/workflows/ci.yml`.
+
+**Execution (same block):** all three done in one commit, docs-only. Verified
+`scripts/isw-refresh.ts` and `scripts/registry-materialize.ts` import no LLM module
+(read the import lines) and `scripts/neon-branch.ts` always names branches
+`itest-<ts>` (no custom-name option, unlike the Iran recovery's manually-named backup
+branch — noted honestly in the runbook rather than glossed over). Confirmed
+`scripts/sqlq.ts` has no read-only guard. Corrected two line-number citations that had
+drifted from the prompt (#78/#79/#80 in `docs/OPEN-TASKS.md`, off by ~3 lines from
+intervening edits) — recorded in the closing report. Gates: typecheck/lint clean, unit
+3,612/3,612 (247 files) unchanged. Zero paid calls, zero production access (not even a
+read — the prompt gated even the read-only preflight SELECT behind operator say-so, so
+the runbook documents the command for the operator to run rather than running it here).
+Report: `docs/reviews/RELEASE-CHECKLIST-AND-79-RUNBOOK-2026-09-05.md`.
+

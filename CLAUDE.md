@@ -34,7 +34,7 @@ vars there when you add them to Vercel).
 - Deploy: from the plain release clone `/Users/go/code/bnow-net-rel-20260823` (never a
   worktree — OPEN-TASKS #78), `npx vercel@latest deploy --prod --yes` (machine CLI
   session — `VERCEL_TOKEN` is expired; deployment URLs are SSO-walled, check
-  https://bnow-net.vercel.app)
+  https://bnow-net.vercel.app). Full sequence: `docs/RELEASE-CHECKLIST.md`.
 - The Mac reaches `api.openai.com` and `vercel.com`/`vercel.app` directly — no DNS pin
   needed for local single-call LLM debugging (`scripts/pin-dns.cjs` is a WSL2 relic; do
   not prescribe it in new docs). Bulk LLM work still runs via the deployed Vercel routes,
