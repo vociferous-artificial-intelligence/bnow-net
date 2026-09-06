@@ -4044,3 +4044,32 @@ Execution (same block):
 5. Gates on each branch: typecheck + lint + `npm test` with counts. $0, no env change,
    no paid call, no DB access.
 6. Closing report `docs/reviews/WS-2-2-PROVIDER-CORE-2026-09-06.md` per COMMON §5.
+
+- Execution (same block): base `2203150`; `origin/main` advanced to `29db301` mid-session (another
+  lane's docs-only program-log push) and both branches were rebased onto it and re-gated there.
+  **PR #60** (`llm: provider dimension on analysis dispatch`) — new `src/lib/llm/providers.ts`
+  (vocabulary `openai|anthropic|openai_compatible`, per-workload allowlist all `{openai}`,
+  `analysisReasoningCapable`, `AnalysisWorkload` moved + re-exported), `<W>_PROVIDER` in
+  `WORKLOAD_ENV`, provider checks FIRST in `resolveWorkloadModel`, `pricedFor(provider, model)`,
+  `provider` on config/identity/approval, `analysisApproval(workload, provider, model, effort)`,
+  inspector column, `.env.example` block, `llm-guard.ts` naming-hazard comment, #83 status line.
+  Nothing activated: no allowlist widened, no price row, no approval added, no env named.
+  **PR #61** (`evals: decouple offline results identity from the live registry constant`) —
+  `resumeIdentityMismatch` compares `registryVersion` only for LIVE headers; `analysis-reg-v1`
+  unchanged (R2); `git diff --stat docs/evals/analysis/` empty.
+- Refuse-before-reserve pinned with spies at all five dispatch sites (map, reduce, digest,
+  validation, entity_audit) — two new test files for the two sites that had no harness. Eight
+  mutants raised and all killed; the allowlist mutation initially SURVIVED at the validation site
+  (the test asserted the outcome, which a later refusal rung also produces), so that pin now
+  asserts the reason too.
+- One real defect found in this branch's own code and fixed (ruling 13): blanking the resolved
+  model for any non-OpenAI provider meant a REFUSED `MAP_PROVIDER` would still shift all four map
+  extractor versions and strand every doc_claims consumer. Blanking is now scoped to an ALLOWED
+  provider; the lock predicate, `MAP_BASELINE` and `map-prompts.ts` are untouched.
+- PR #61 proven end to end: with the registry constant temporarily at `analysis-reg-v99` both
+  committed offline resumes exit 0 with zero refusals and byte-identical files; the
+  counterfactual (comparison restored) exits 2 with `REFUSED: results-file identity changed`.
+- Gates: typecheck/lint clean (0 errors, 3 pre-existing warnings in untouched files) · unit
+  3,769/3,769 (258 files, from 3,723/255). Zero paid calls, zero DB access, no migration, no env
+  change, no deploy. Spend $0. Report:
+  `docs/reviews/WS-2-2-PROVIDER-CORE-2026-09-06.md`.
