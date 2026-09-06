@@ -1068,7 +1068,7 @@ start). Planning only: no code, tests, registry edits, env changes, DB access or
 
 ## Built
 
-- This document, `docs/reviews/PLAN-WS-2-routing-matrix-2026-09-05.md`.
+- This document, `docs/reviews/PLAN-WS-2-routing-matrix-2026-09-05.md` — PR [#54](https://github.com/vociferous-artificial-intelligence/bnow-net/pull/54).
 - `docs/PROGRESS.md` plan block (2026-09-06 ~20:51Z) + execution bullets.
 - No source, test, migration, AGENTS.md or OPEN-TASKS change.
 

@@ -3531,4 +3531,6 @@ need no provider key; `anthropic-provider.ts:62` already honours `LLM_DISABLE`; 
 parity test does not constrain `PRICES_PER_MTOK`; `MAP_CONTENT_CHARS` is an env-only way to
 create remap work). Nothing under `docs/evals/analysis/` opened (names and counts only). No
 code, tests, AGENTS.md or OPEN-TASKS edits; the pre-existing unrelated `package-lock.json` diff
-left unstaged. Spend $0; no DB access.
+left unstaged. Spend $0; no DB access. Pre-push gate green on push (typecheck, lint, unit
+3,612/3,612 over 247 files); PR
+[#54](https://github.com/vociferous-artificial-intelligence/bnow-net/pull/54).
