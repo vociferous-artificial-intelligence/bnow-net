@@ -59,12 +59,23 @@ function variantSource(variant: string): string {
 }
 
 function compileTable(table: Readonly<Record<string, readonly string[]>>): [string, RegExp][] {
-  return Object.entries(table).map(([canon, variants]) => [
-    canon,
+  return Object.entries(table).map(([canon, variants]) => {
+    // FAIL CLOSED on a variant that would compile to an empty alternation
+    // branch: `new RegExp("aden|")` matches EVERY string, so one stray empty
+    // entry would silently tag every text with that canonical. Refusing here
+    // beats discovering it as a corpus-wide false positive.
+    if (variants.length === 0) {
+      throw new Error(`gazetteer: canonical ${JSON.stringify(canon)} declares no variants`);
+    }
+    for (const v of variants) {
+      if (v.length === 0 || v === "*") {
+        throw new Error(`gazetteer: canonical ${JSON.stringify(canon)} declares an empty variant`);
+      }
+    }
     // one alternation per canonical: a single test per canonical, and the
     // alternation is inert to ordering because we only ask "did anything hit"
-    new RegExp(variants.map(variantSource).join("|")),
-  ]);
+    return [canon, new RegExp(variants.map(variantSource).join("|"))];
+  });
 }
 
 function compileFor(gaz: Gazetteer): CompiledGazetteer {
@@ -119,7 +130,9 @@ export function expandToponymsWith(gaz: Gazetteer, toponyms: Set<string>): Set<s
 export function classifyTheaterWith(gaz: Gazetteer, toponyms: readonly string[]): string {
   const seen = new Set<string>();
   for (const t of toponyms) {
-    const tag = gaz.theaterOf[t];
+    // own-property lookup: a bare index would resolve "toString"/"__proto__"
+    // against Object.prototype and treat an inherited function as a tag
+    const tag = Object.hasOwn(gaz.theaterOf, t) ? gaz.theaterOf[t] : undefined;
     if (tag === undefined) continue;
     if (tag === "both") return "both";
     seen.add(tag);

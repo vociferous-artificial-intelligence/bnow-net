@@ -62,13 +62,18 @@ export class UnknownGazetteerError extends Error {
 /** The gazetteer for a reference series, conflict id, or version id.
  *  Fail-closed: throws on anything else. */
 export function gazetteerFor(key: string): Gazetteer {
-  const version = GAZETTEER_KEYS[key];
-  if (version === undefined) throw new UnknownGazetteerError(key);
-  return GAZETTEERS[version];
+  const gaz = tryGazetteerFor(key);
+  if (gaz === null) throw new UnknownGazetteerError(key);
+  return gaz;
 }
 
 /** Non-throwing form for callers that legitimately probe. */
 export function tryGazetteerFor(key: string): Gazetteer | null {
+  // own-property lookups only: a bare `GAZETTEER_KEYS[key]` resolves
+  // "toString" / "__proto__" / "constructor" against Object.prototype, and the
+  // inherited value is truthy — which would walk straight past the
+  // fail-closed check and hand back `undefined` typed as a Gazetteer.
+  if (!Object.hasOwn(GAZETTEER_KEYS, key)) return null;
   const version = GAZETTEER_KEYS[key];
-  return version === undefined ? null : GAZETTEERS[version];
+  return Object.hasOwn(GAZETTEERS, version) ? GAZETTEERS[version] : null;
 }

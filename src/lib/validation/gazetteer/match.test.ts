@@ -120,3 +120,28 @@ describe("matchScore is gazetteer-free and unchanged", () => {
     expect(matchScore(e, e)).toBe(0);
   });
 });
+
+describe("compilation fails closed rather than matching everything", () => {
+  it("refuses an empty variant — `new RegExp(\"aden|\")` would tag every text", () => {
+    const bad: Gazetteer = {
+      ...IRAN_LEVANT_V1,
+      toponyms: { ...IRAN_LEVANT_V1.toponyms, broken: ["aden", ""] },
+    };
+    expect(() => extractSignatureWith(bad, "completely unrelated text")).toThrow(
+      /declares an empty variant/,
+    );
+  });
+
+  it("refuses a canonical with no variants at all", () => {
+    const bad: Gazetteer = {
+      ...IRAN_LEVANT_V1,
+      actions: { ...IRAN_LEVANT_V1.actions, broken: [] },
+    };
+    expect(() => extractSignatureWith(bad, "anything")).toThrow(/declares no variants/);
+  });
+
+  it("classifyTheaterWith ignores inherited Object keys instead of treating them as tags", () => {
+    expect(classifyTheaterWith(IRAN_LEVANT_V1, ["toString", "__proto__", "doha"])).toBe("qa");
+    expect(classifyTheaterWith(IRAN_LEVANT_V1, ["constructor"])).toBe("both");
+  });
+});

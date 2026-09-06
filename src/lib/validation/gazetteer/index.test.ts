@@ -21,8 +21,13 @@ describe("gazetteerFor", () => {
     expect(gazetteerFor("iran-levant-v1")).toBe(IRAN_LEVANT_V1);
   });
 
-  it("is FAIL-CLOSED on anything else — including theater codes, which are not a gazetteer key", () => {
-    for (const key of ["", "ir", "ua", "ROCA", "iran", "unknown"]) {
+  it("is FAIL-CLOSED on anything else — including theater codes, which are not a gazetteer key, and inherited Object keys", () => {
+    for (const key of [
+      "", "ir", "ua", "ROCA", "iran", "unknown",
+      // a bare index would resolve these against Object.prototype and return a
+      // truthy inherited value, walking straight past the fail-closed check
+      "toString", "constructor", "__proto__", "hasOwnProperty", "valueOf",
+    ]) {
       expect(() => gazetteerFor(key), key).toThrow(UnknownGazetteerError);
       expect(() => gazetteerFor(key), key).toThrow(/unknown gazetteer key/);
       expect(tryGazetteerFor(key), key).toBeNull();
