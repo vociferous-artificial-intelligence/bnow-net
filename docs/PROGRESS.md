@@ -3806,3 +3806,20 @@ Execution (same block):
 5. PR-2.1-3 (Auto scorecard gate) and PR-2.1-4 (attribution column): HELD on R3/R1.
 6. Gates per PR (typecheck/lint/unit) and the closing report
    `docs/reviews/WS-2-1-ASK-PARITY-2026-09-06.md`.
+
+- Execution (same block): PR #57 `ask: per-model attribution report over ask_usage
+  (read-only)` — pure `attributeAskUsage`/`attributionCoverage` + SELECT-only
+  `scripts/ask-model-attribution.ts` (UTC day computed in Postgres, not from a driver
+  timestamp), with HYG-44 (comment-only `X_DAILY_USD_CAP` reconciliation; default
+  deliberately not raised) and HYG-82/#100 (`ask-eval-harvest` onto `analysisOpenAiClient()`,
+  isolation exemption deleted) as separate commits. PR #59 `embeddings: model-aware pricing;
+  unpriced embed model refused before reservation` — embed price table in `pricing.ts`, typed
+  refusal after the stub check and before both SDK construction and `tryReserve`, spy-pinned
+  and mutation-proven; default-model ceiling and metering bit-identical.
+- PR-2.1-3 (Auto scorecard gate) HELD on R3 and PR-2.1-4 (attribution column) HELD on R1 —
+  both blank in the INDEX decision sheet. §4.4's finding stands regardless: `provider_usage`
+  is UNIQUE on (provider, day), so a `model` column there stamps only the day's last model.
+- Gates: typecheck/lint clean · unit 3,723/255 (base) → 3,735 (#57), 3,738 (#59), 3,750/257
+  with both merged. Three mutations raised and killed. Zero paid calls, zero DB access, zero
+  env changes, no migration, no deploy. Spend $0. Report:
+  `docs/reviews/WS-2-1-ASK-PARITY-2026-09-06.md`.
