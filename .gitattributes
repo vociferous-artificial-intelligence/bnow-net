@@ -1,0 +1,5 @@
+# Append-only logs: several parallel sessions add blocks at the end. On a rebase or
+# local merge, keep both sides instead of raising a conflict (GitHub still reports
+# the conflict; the local rebase then resolves it without hand-editing).
+docs/PROGRESS.md merge=union
+docs/BLOCKERS.md merge=union
