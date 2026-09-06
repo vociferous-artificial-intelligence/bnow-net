@@ -3556,3 +3556,18 @@ Acceptance: `npm run typecheck && npm run lint && npm test` green; report residu
 docs outside the enumerated findings list are left untouched, as they were outside the
 INDEX §8 scan). Depends on nothing; rebase onto step 01 before merge (01 merges first).
 
+**Execution (same block):** all nine findings done in one commit, PR
+[#50](https://github.com/vociferous-artificial-intelligence/bnow-net/pull/50). Branch-naming
+collision (COMMON's `lane/step` slash pattern collides with the lane-branch ref
+INDEX §4 already created) hit independently on both step 01 and step 02 — same
+workaround, dash instead of slash. Gates: typecheck/lint clean, unit 3,612/3,612
+(247 files) unchanged before → after. `npm run dev` served `GET /` 200 in ~5s with
+no `ERR_INVALID_HTTP_RESPONSE` (OPEN-TASKS #74 recorded, closure left to operator).
+Two incidental auto-generated diffs (`next-env.d.ts`, `package-lock.json`) reverted
+before commit — out of scope, no dependency change. Residual `WSL2`/`/home/go` grep
+hits (archives, the two living-runbook macOS annotations, the governing 48h program
+docs, and ~20 historical dated docs/prompts+designs+evals files outside the
+enumerated findings) catalogued honestly in the closing report's Debt section rather
+than silently swept. Merge-order flag: #50 depends on #49 (step 01) merging first —
+both touch AGENTS.md/CLAUDE.md. Report: `docs/reviews/PORT-HYGIENE-MACOS-2026-09-05.md`.
+
