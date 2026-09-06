@@ -857,13 +857,25 @@ docs/reviews/CLOUD-MODEL-ROUTING-SEAMS-2026-08-17.md §12.11)
     (`docs/reviews/CLOUD-MODEL-ROUTING-SEAMS-2026-08-17.md` §9) and the same registry-PR
     mechanism; WS-1.5 is gated on WS-1.4 (heldout admission) and WS-2.2 (provider
     abstraction), neither of which is authorized by this entry.
-82. **[Tier 2 — spend hygiene] `scripts/ask-eval-harvest.ts` still constructs an
+82. **[Tier 2 — spend hygiene — RETRY HALF CLOSED 2026-09-06; the guard is still
+    open] `scripts/ask-eval-harvest.ts` still constructs an
     unguarded, default-retry OpenAI client.** The routing hardening put every ANALYSIS
     dispatch behind `analysisOpenAiClient()` (`maxRetries: 0`, one reservation per physical
     dispatch, source-scan test-pinned), but this Ask eval-tooling script is outside that
     scan and can still retry a billed call without a matching reservation. Out of scope for
     PR #5; fix by routing it through the guarded client seam or documenting it as
     operator-only tooling that must not run unattended.
+    **2026-09-06 (WS-2.1 HYG-82):** the `--generate` pass now builds its client through
+    `analysisOpenAiClient()` (`maxRetries: 0`), so a 429/5xx can no longer re-bill a batch
+    invisibly — it fails that batch, which the loop logs and skips. The hard-coded
+    `isolation.test.ts` exemption was deleted with it, so the scripts SDK scan now covers
+    every script with no name-keyed hole (that closes **#100**'s untracked-exemption half).
+    **What remains open here:** the pass still has NO `SpendGuard` — its only brakes are the
+    $1 pre-flight estimate gate and the cumulative-spend stop. Wiring one needs a provider
+    row and a cap-env decision (**R9** in
+    `docs/reviews/PLAN-WS-2-routing-matrix-2026-09-05.md`: `openai_ask` pollutes the product
+    ledger; a local-only `openai_ask_eval` row on `ASK_EVAL_USD_CAP_DAILY` fails closed
+    until the operator sets it; or keep it operator-only tooling).
 83. **[Tier 3 — blocked] The Anthropic provider seam remains unmetered and inactive —
     ACTIVATION BYPASS CLOSED 2026-09-06; WIRING STILL REQUIRED.** The seam is not wired
     through `model-config.ts`, the analysis registry, or the pricing table, so selecting it
@@ -1506,9 +1518,14 @@ docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-RELEASE-2026-08-24.md)
 ### New (from the 2026-08-24 QF-C landing,
 docs/reviews/QF-C-ANALYSIS-EVAL-RELEASE-2026-08-24.md)
 
-100. **[Tier 3 — eval-plane provenance, header corrected 2026-09-05 — LIVE DEBT, not
-    dormant] The `scripts/ask-eval-harvest.ts` isolation exemption is untracked (QF audit
-    G6/A10-1), and the exempted file itself is now ON `main`.** `src/lib/evals/isolation.test.ts`
+100. **[Tier 3 — eval-plane provenance — CLOSED 2026-09-06 by removing the exemption]
+    The `scripts/ask-eval-harvest.ts` isolation exemption is untracked (QF audit
+    G6/A10-1), and the exempted file itself is now ON `main`.**
+    **CLOSED 2026-09-06 (WS-2.1 HYG-82):** rather than authorize the exemption, the script
+    moved onto `analysisOpenAiClient()` and the name-keyed `continue` in
+    `src/lib/evals/isolation.test.ts` was deleted; the scan now applies uniformly to every
+    file in `scripts/`. The residual spend-guard question is tracked under #82 (decision R9).
+    Historical detail follows. `src/lib/evals/isolation.test.ts`
     exempts that filename from the bare-`new OpenAI()` scan by hard-coded name, citing no
     authorizing document. **Corrected 2026-09-05: `scripts/ask-eval-harvest.ts` IS present
     on `origin/main` with an unguarded `new OpenAI()` at line 190** — the original filing

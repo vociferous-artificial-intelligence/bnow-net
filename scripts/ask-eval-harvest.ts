@@ -186,8 +186,18 @@ async function modeGenerate(force: boolean): Promise<void> {
     process.exit(2);
   }
 
-  const { default: OpenAI } = await import("openai");
-  const client = new OpenAI();
+  // OPEN-TASKS #82/#100: this paid generation pass used to construct the SDK
+  // client directly, with the SDK's default maxRetries: 2, so one estimate-gated
+  // batch could become up to three billed physical dispatches invisibly. It now
+  // goes through the ONE analysis client factory (maxRetries: 0), which is the
+  // same seam every analysis dispatch uses. A transient 429/5xx therefore fails
+  // its batch loudly (the loop below logs and skips it) instead of re-billing
+  // silently. This path still has NO SpendGuard — the $1 estimate gate plus the
+  // cumulative-spend stop below are its only brakes; wiring a guard needs a
+  // provider row and a cap env decision (PLAN-WS-2 R9) and is deliberately not
+  // done here.
+  const { analysisOpenAiClient } = await import("../src/lib/analysis/openai-client");
+  const client = analysisOpenAiClient();
 
   const batches: HarvestClaimRow[][] = [];
   for (let i = 0; i < sample.length; i += GENERATION_BATCH_SIZE) {

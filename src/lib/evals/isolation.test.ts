@@ -134,11 +134,11 @@ describe("eval-library isolation", () => {
       if (rel === "lib/evals/live-runner.ts") continue;
       checkNoSdk(rel, readFileSync(join(REPO_SRC, rel), "utf8"));
     }
-    // scripts: the eval CLI must never touch the SDK. ask-eval-harvest.ts is
-    // the PRE-EXISTING Ask harvest paid tool (its own supervisor-run
-    // authorization, outside this control plane) and is deliberately excluded.
+    // scripts: NO script may touch the SDK directly. The former
+    // ask-eval-harvest.ts exemption (untracked, OPEN-TASKS #100) was removed on
+    // 2026-09-06 when that script moved onto analysisOpenAiClient() — the scan
+    // now covers every script with no name-keyed hole.
     for (const f of scriptFiles) {
-      if (f === "ask-eval-harvest.ts") continue;
       checkNoSdk(`scripts/${f}`, readFileSync(join(SCRIPTS_DIR, f), "utf8"));
     }
   });
