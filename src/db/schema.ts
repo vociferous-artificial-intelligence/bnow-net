@@ -881,6 +881,48 @@ export const cronRuns = pgTable(
   (t) => [index("cron_runs_job_started_idx").on(t.job, t.startedAt)],
 );
 
+// Runtime log lines delivered by the Vercel log drain (OPEN-TASKS #93,
+// docs/designs/LOG-DRAIN.md). Written ONLY by src/app/api/logs/drain/route.ts,
+// which is a receiver, not a cron: it opens no cron_runs row (ruling 10 is
+// untouched) and the drain signature is its whole authorization.
+//
+// Every soak verdict before this table rested on cron_runs — a job's own
+// self-report — plus a `vercel logs` tail that had already expired by closeout.
+// This is the independent in-window narrative: what the process said, and
+// whether it crashed without answering (status_code = -1).
+//
+// `id` is Vercel's log-entry id and the PRIMARY KEY, so a retried delivery is
+// idempotent (ON CONFLICT DO NOTHING). The column set is a deliberate
+// PROJECTION of the v1 log schema, not a copy: an unlisted field is never
+// stored, so a future Vercel schema addition cannot start silently landing
+// here. Never stored, by design: headers, bodies, proxy.clientIp,
+// proxy.userAgent, proxy.referer, ja3/ja4 digests, and query strings
+// (request_path is truncated at the first '?' — /ask?q=<user question> must not
+// become a second copy of Ask content outside its own retention).
+export const runtimeLogs = pgTable(
+  "runtime_logs",
+  {
+    id: text("id").primaryKey(), // Vercel log-entry id
+    receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+    loggedAt: timestamp("logged_at", { withTimezone: true }).notNull(), // Vercel `timestamp` (ms)
+    deploymentId: text("deployment_id"),
+    source: text("source"), // lambda | edge | build | static | external | firewall | redirect
+    level: text("level"), // info | warning | error | fatal
+    type: text("type"), // stdout | stderr | report | fatal | ...
+    environment: text("environment"), // production | preview
+    requestPath: text("request_path"), // query string stripped
+    requestId: text("request_id"), // correlates every line of one invocation
+    statusCode: integer("status_code"), // -1 = crashed with no response (the OOM signature)
+    message: text("message"), // redacted, then wellFormedSlice'd to 2000 code units
+    messageSha256: text("message_sha256"), // over the pre-truncation redacted message
+  },
+  (t) => [
+    index("runtime_logs_received_idx").on(t.receivedAt), // retention sweep
+    index("runtime_logs_deployment_received_idx").on(t.deploymentId, t.receivedAt),
+    index("runtime_logs_logged_idx").on(t.loggedAt), // soak windows are logged_at ranges
+  ],
+);
+
 // Tiny per-provider state (poll watermarks etc.) so incremental fetchers survive
 // serverless restarts without refetching (and re-paying for) covered windows.
 export const providerState = pgTable("provider_state", {
