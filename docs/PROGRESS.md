@@ -3492,3 +3492,45 @@ Execution (same block):
 - Gates: typecheck/lint clean · unit 3,608/3,608 (247 files). Zero paid calls, no
   DB/production access, no deploy.
 
+
+## 2026-09-06 ~20:51Z — 48h program step 04: PLAN-WS-2 routing matrix (planned block)
+
+Worktree `bnow-net-worktrees/48h-ws2-routing-20260905`, branch
+`48h/ws2-routing-20260905-step04-plan-ws2`, base `origin/main` `dff58f2`. Plan per
+`docs/prompts/2026-09-05-48h-04-plan-ws2-routing.md` (plan mode; planning only; $0; no DB):
+
+1. Prove the worktree (`git rev-parse --show-toplevel`, branch); fetch; record the base SHA; read
+   COMMON, INDEX §1/§2, the handoff §0/§4.2, the step 09/11/12/20/22 prompts, and every file:line on
+   the step's reading list.
+2. Re-verify every citation at `dff58f2` with three read-only explorer passes (routing core;
+   spend/Ask/Anthropic seams; eval plane + remap) — never opening `docs/evals/analysis/` content
+   (`ls` and `git grep -c` counts only).
+3. Design WS-2.2 (the option-independent provider dimension; offline-identity decoupling with the
+   `analysis-reg-v2` bump PLANNED not executed; option B on top of step 09; option C seam note),
+   WS-2.1, WS-2.3 (R4 options, runbook outline, lock-replacement note) and WS-2.4 — PR by PR, each
+   with files, signatures, refusal strings, tests, acceptance, rulings, env/cap ordering, hours.
+4. Write `docs/reviews/PLAN-WS-2-routing-matrix-2026-09-05.md` (handoff §0 item 2 template, then
+   the COMMON §5 closing sections incl. the step 11/12/20/22 rewrite text and the decisions list).
+5. Commit on the step branch; push; open the PR. No AGENTS.md or OPEN-TASKS edit (write-lock);
+   the unrelated pre-existing `package-lock.json` diff in this worktree stays unstaged.
+
+**Execution (same block):** worktree and branch proven (`git rev-parse --show-toplevel` = the
+worktree; step branch cut with the dash form); base `origin/main` `dff58f2` recorded
+(`883e5e3..dff58f2` = 31 files under `docs/prompts/` only, so every code citation is exact).
+Three read-only explorer passes re-verified every file:line on the reading list (routing core;
+spend/Ask/Anthropic seams; eval plane + remap) and two design passes drafted the PR specs; the
+parent session read the Ask registry parity test, the map-worker dry block, `mapContentChars()`
+and the remap driver's flags directly to settle the four facts the design hinges on. Written:
+`docs/reviews/PLAN-WS-2-routing-matrix-2026-09-05.md` (13 PRs across WS-2.1–2.4 with files,
+signatures, refusal strings, tests, acceptance, rulings, hours; the `analysis-reg-v2` bump
+inventory; the option C seam note; the remap runbook outline with the R4 options; the decisions
+table R1–R4, D7 + new R6–R13; the step 09/11/12/17/20/22/25 handoff text; proposed AGENTS.md
+changes). Prompt facts corrected by verification are listed in the report's "Citations
+re-verified" section (remap driver has no `--estimate`/`--resume`/`--base` flags; dry estimates
+need no provider key; `anthropic-provider.ts:62` already honours `LLM_DISABLE`; the Ask registry
+parity test does not constrain `PRICES_PER_MTOK`; `MAP_CONTENT_CHARS` is an env-only way to
+create remap work). Nothing under `docs/evals/analysis/` opened (names and counts only). No
+code, tests, AGENTS.md or OPEN-TASKS edits; the pre-existing unrelated `package-lock.json` diff
+left unstaged. Spend $0; no DB access. Pre-push gate green on push (typecheck, lint, unit
+3,612/3,612 over 247 files); PR
+[#54](https://github.com/vociferous-artificial-intelligence/bnow-net/pull/54).
