@@ -3492,3 +3492,29 @@ Execution (same block):
 - Gates: typecheck/lint clean · unit 3,608/3,608 (247 files). Zero paid calls, no
   DB/production access, no deploy.
 
+
+## 2026-09-06 ~20:53Z — step 05: WS-3.0 decision memo + PLAN-WS-3 (planned block)
+
+1. Prove the worktree (`48h-ws3-conflict-20260905`, base `origin/main` `dff58f2`); read
+   COMMON, INDEX §1/§2/§4, the handoff §4.3/§6, the three conflict designs, the landing
+   report §6, the decision register #11–#13, and every file:line in the step-05 reading list.
+2. Re-verify each citation against the tree (record corrections in the reports).
+3. Write `docs/reviews/CONFLICT-VALIDATION-DECISION-MEMO-2026-09-05.md`: C1–C14 with
+   options, evidence, recommendation, what changes; new decisions N1–N3; decision→PR matrix.
+4. Write `docs/reviews/PLAN-WS-3-validation-by-conflict-2026-09-05.md`: PR-by-PR for
+   3.1a/3.1b/3.2a/3.2b/3.3a/3.3b/3.4b/3.5a/3.6-prep with files, tests, rulings, fork itests,
+   inert status, blocking decisions; migrations 0028/0029 per INDEX §4; acceptance restated
+   with the INDEX §1.12 keyword-rung wording; Handoff rewrites for steps 13, 14, 19, 24.
+5. Both documents end with the COMMON §5 sections. No code, no DB, $0, no AGENTS.md edit
+   (write-lock; proposed changes in the reports). Commit on
+   `48h/ws3-conflict-20260905-step05-ws3-plan`, push, open the docs-only PR.
+
+Execution (same block):
+- Worktree proven (`48h-ws3-conflict-20260905`, branch `48h/ws3-conflict-20260905-step05-ws3-plan`,
+  base `origin/main` `dff58f2`); every reading-list citation re-read; AGENTS.md line drift
+  recorded (ROUTES obligation :1557; flag coupling :1534-1535).
+- Wrote `docs/reviews/CONFLICT-VALIDATION-DECISION-MEMO-2026-09-05.md` (C1–C13 with
+  recommendations, C14 recorded as answered by D3, N1–N3, blocking matrix) and
+  `docs/reviews/PLAN-WS-3-validation-by-conflict-2026-09-05.md` (nine PRs, migrations
+  0028/0029 column contracts, env ordering, deploy path, acceptance, step 13/14/19/24 rewrites).
+- No code, no DB, no env, $0; AGENTS.md untouched (proposed changes in both reports).
