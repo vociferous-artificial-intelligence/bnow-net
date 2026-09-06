@@ -15,7 +15,11 @@ operator may do in Wave 2, in what order, and what evidence each action leaves.
    `docs/reviews/DECISION-ENTRIES-DRAFT-2026-09-05.md` (step 01) into AGENTS.md's decision log
    (append at end of file until step 15 lands). At minimum: PR #46 merge record; step-1A
    execution + step-1 authorization; D1, D2, D5, D6, D8, D9, D11, D12, E1, E3, R5; the program
-   entry.
+   entry — plus the Checkpoint-1 entries in section (e) of the same file: D3, D4 (C1–C14 with
+   its C13 "no v0 number leaves the internal view" and C12 env-ordering conditions), N1, N2,
+   N3, E4, E5, R1, R2, R3, O1, O2, D10, T1, T2, T3-approach, and the D6 addendum naming the
+   exact `LLM_SPRINT_USD_CAP` value. Section (c)'s O1 paragraph is superseded by (e10) — do
+   not sign both.
 2. **#79 RU citation drain** — follow `docs/reviews/RUNBOOK-79-RU-CITATION-DRAIN-2026-09-05.md`
    exactly: preflight SELECT → Neon backup branch → `--dry` → drain → `--retry-failed` if
    needed → `registry-materialize` → verify → decision-log entry with counts. Keep the backup
