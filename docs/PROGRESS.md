@@ -3854,3 +3854,20 @@ Execution (same block):
   with both merged. Three mutations raised and killed. Zero paid calls, zero DB access, zero
   env changes, no migration, no deploy. Spend $0. Report:
   `docs/reviews/WS-2-1-ASK-PARITY-2026-09-06.md`.
+## 2026-09-06 ~23:00Z — WS-3.1 persistence: migration 0028 benchmark report editions (planned block)
+
+1. Verify worktree/base; read COMMON, the WS-3.0 memo (C1/C4/C6) and PLAN-WS-3 §3.1a/3.1b;
+   record that no CP1 decision is answered on `main` (INDEX §10, 18:30 ET entry).
+2. Promote `src/integration/sql/conflict-benchmark-reports.sql` into `src/db/schema.ts` as
+   `benchmark_report_editions` + `benchmark_series_days` (design option 3), plus the two
+   additive audit columns the plan names (`created_at`, `anchor_journal`).
+3. Generate migration 0028 with `npm run db:generate`; pin it additive in `migrations.test.ts`
+   and keep `9999_claim_source_trigger.sql` last.
+4. Carry the design §5 hardening into `SqlReferenceReportRepository`: one-statement
+   insert+day-clear, compare-and-swap read-merge-write, typed `edition_url_conflict`,
+   anchor-change journal, URL canonicalization before storage.
+5. Retarget `conflict-reference-repo.itest.ts` at the migrated tables (`runMigrations`), add
+   the concurrency and journal proofs; delete the disposable DDL and repoint its README.
+6. Gates (typecheck/lint/unit + two fork itests), adversarial self-review, PR 1.
+7. Hold PR 2 (migration 0029) — C6 is unanswered; write the exact shape into the report's
+   Handoff so the follow-up session can build it cold.
