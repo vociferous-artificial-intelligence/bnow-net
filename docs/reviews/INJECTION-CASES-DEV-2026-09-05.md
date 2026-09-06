@@ -5,7 +5,9 @@
 Prompt: `docs/prompts/2026-09-05-48h-07-injection-cases.md` plus COMMON. Lane WS-1.1,
 worktree `/Users/go/code/bnow-net-worktrees/48h-ws1-injection-20260905`, branch
 `48h/ws1-injection-20260905-injection-cases`. Base after `git fetch origin`:
-**`dff58f25009da8e3dd8f759c4a5b563c2bb4dc96`**. Executed **2026-09-06**; the report
+**`dff58f25009da8e3dd8f759c4a5b563c2bb4dc96`**. Rebased before final handoff onto
+**`29db301127e1d8cd94d132e722be15d99f44971c`** after the concurrent CP1 merges.
+Executed **2026-09-06**; the report
 filename and provenance cohort retain the prompt's 2026-09-05 program date.
 
 E1 and E3 are **AUTHORIZED** by the operator column in INDEX §2, commit
@@ -17,7 +19,7 @@ Authorship/exposure identity is recorded in [the ledger](EVAL-EXPOSURE-LEDGER.md
 
 PR title: **evals: exposure ledger + map-inj-dev-v1 (six development-split injection cases, offline-proven)**.
 PR: [#58](https://github.com/vociferous-artificial-intelligence/bnow-net/pull/58).
-Implementation commit: `02eeeafd5006f63891dab73ccfd1eb58a58fefa8`.
+Implementation commit after rebase: `6644699` (original reviewed implementation `02eeeaf`).
 
 - `docs/evals/analysis/map-inj-dev-v1.json`: contract v2, six map cases, all
   development/adversarial, PROVISIONAL model-drafted provenance, synthetic text only.
@@ -65,7 +67,9 @@ used to author or revise any case.
 
 ## Tests
 
-- Unit baseline: **3,612 / 247 files**. Final: **3,639 / 248 files** (+27 tests).
+- Unit baseline: **3,612 / 247 files** → this step **3,639 / 248 files** (+27 tests).
+  Final gate after rebasing the concurrent CP1 merges: **3,750 / 256 files**.
+  The additional 111 tests come from upstream; this PR still adds only 27.
 - `npm run typecheck`: PASS. `npm run lint`: PASS, zero errors; three warnings in
   untouched `src/app/api/cron/validate/route.test.ts`,
   `src/lib/evals/hardening.test.ts`, `src/lib/usage/cron-run.test.ts`.
@@ -119,8 +123,8 @@ corrected CLI locations required reading beyond its stale example ranges.
 
 | Evidence | Verified location |
 |---|---|
-| E1/E3 written answers, D6 ceiling, D9 author, D12 review-doc naming | `docs/prompts/2026-09-05-48h-00-INDEX.md:152`, `:155`, `:156`, `:158`, `:170`; authorization commit `4e5b00f` §2 |
-| Append-only decision history; ruling 13; operating protocol | `AGENTS.md:3`, `:419`, `:1024` |
+| E1/E3 written answers, D6 ceiling, D9 author, D12 review-doc naming | `docs/prompts/2026-09-05-48h-00-INDEX.md:152`, `:155`, `:156`, `:159`, `:174`; authorization commit `4e5b00f` §2 |
+| Append-only decision history; ruling 13; operating protocol | `AGENTS.md:3`, `:445`, `:1058` |
 | Dataset split/provenance/map shape; capacity/pattern and quiet-control coupling | `src/lib/evals/contracts.ts:33`, `:47`, `:98`, `:153`, `:199`, `:361`, `:401`, `:782`, `:799` |
 | Injection surfaces and hard-hit behavior | `src/lib/evals/score-map.ts:240`, `:342`, `:363` |
 | Prompt input construction, run scope, dev filter, fixture scoring, split-agnostic injection count | `src/lib/evals/runner.ts:198`, `:212`, `:643`, `:666`, `:961` |
@@ -132,7 +136,7 @@ corrected CLI locations required reading beyond its stale example ranges.
 | Prior exposure history only | `docs/reviews/CORPUS-V2-ADMISSION-2026-09-03.md:95` (through `:108`) |
 | Successor scope / independent heldout / proposed step-1 authorization | `docs/reviews/EVAL-SUCCESSOR-PLAN-2026-09-04.md:11`, `:47`, `:59` |
 | Capture flags, reconciliation and accounting semantics | `docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md:23` (through `:98`) |
-| Outstanding injection safety finding | `docs/OPEN-TASKS.md:1658` (#106, through `:1667`) |
+| Outstanding injection safety finding | `docs/OPEN-TASKS.md:1709` (#106, originally `:1658–1667`) |
 | Atomic claims / source quotes / extractor version basis | `src/lib/analysis/map-prompts.ts:108`, `:242`, `:255` |
 
 ## Decisions needed
@@ -310,7 +314,7 @@ Exact text to add to step 10's WS-1.1 instructions at the checkpoint:
 
 ### Proposed AGENTS.md changes (step 25 applies; none applied here)
 
-- `AGENTS.md:342`: measured **3,590 / 246** → this branch's measured **3,639 / 248**,
+- `AGENTS.md:368`: measured **3,590 / 246** → this branch's rebased measured **3,750 / 256**,
   retaining the qualifier that this is branch validation, not a deployment claim.
 - The eval state should add: "Step 07 authored six PROVISIONAL development injection
   cases in map-inj-dev-v1 with 6/6 offline machinery matches; default map-v2 and
@@ -322,5 +326,5 @@ Exact text to add to step 10's WS-1.1 instructions at the checkpoint:
   selector/proofs committed. $0; no heldout content read, no production/DB/env/model/
   scorer/prompt/gate change. E2 and the injection product/versioning decision remain
   deferred; step-10 run card recommends the $0.50 own-row all-time backstop."
-- `docs/OPEN-TASKS.md:1658` (#106): retain OPEN; governance can distinguish authored
+- `docs/OPEN-TASKS.md:1709` (#106): retain OPEN; governance can distinguish authored
   offline cases complete from paid capture, E2 and product decisions pending.

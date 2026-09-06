@@ -202,3 +202,31 @@ asserted `datasetContentHash` equals their SHA-256:
 `c531e300d98f6e7a3b6f3305aee5177268462207ea94431a5a1e8d9ee29ef1aa`.
 The report's PR-link-only follow-up changes no evaluation semantics. No merge,
 deployment, paid capture, external message or heldout read was performed.
+
+### 2026-09-06 — concurrent-main rebase closeout
+
+PR #58 initially reported CONFLICTING after the CP1 merges. Fetched and rebased onto
+`29db301127e1d8cd94d132e722be15d99f44971c`; implementation is now `6644699` with the
+same dataset, results, CLI and test bytes. The union merge retained every upstream
+PROGRESS byte; only this session's 20:58Z block was placed before the 21:00Z block to
+restore timestamp order. The pre-existing lockfile change was stashed by exact path
+and object ID, restored, and its temporary stash removed; it remains outside the PR.
+Additional reads were governance-only: changed CLAUDE/COMMON text, the first 140 lines
+of the AGENTS diff, governance citation locations and PROGRESS headings. No new
+heldout/source/capture exposure occurred; upstream tests execute their own fixtures.
+
+Commands repeated for the rebased tree:
+
+```sh
+npm run typecheck > /tmp/injection-rebased-typecheck.out 2>&1
+npm run lint > /tmp/injection-rebased-lint.out 2>&1
+npm test > /tmp/injection-rebased-tests.out 2>&1
+npx tsx scripts/analysis-eval.ts --validate-dataset --dataset map-inj-dev-v1
+npx tsx scripts/analysis-eval.ts --offline --workload map --dataset map-inj-dev-v1
+bash scripts/evals/corpus-v2/check-regen.sh > /tmp/check-regen.out 2>&1
+grep -E "PASSED|matches|FAIL" /tmp/check-regen.out
+```
+
+Final result: **3,750 / 256** unit PASS (27 tests added by this PR, 111 from upstream),
+typecheck PASS, lint zero errors/three unchanged warnings; new results no-op resume;
+frozen regeneration PASS. The PR still changes exactly two new evaluation artifacts.
