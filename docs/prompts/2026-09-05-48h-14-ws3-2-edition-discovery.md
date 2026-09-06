@@ -5,7 +5,7 @@
 | Model / effort / mode | Opus / high / plain session |
 | Worktree | `/Users/go/code/bnow-net-worktrees/48h-ws3-gazetteer-20260905`, step branches `…/edition-discovery`, `…/conflict-validate-route` |
 | Window | H10 → H18 (start once step 13's table names are fixed — they may be in its PR before merge) |
-| Depends on | 05; 13's schema (rebase onto 13 before merge); decisions C4, C5 |
+| Depends on | 05; #63 on `main` (step 13's 0028 — read `docs/reviews/WS-3-1-PERSISTENCE-2026-09-06.md` Handoff first: the table, column, index and repository names there are FINAL; the observation table arrives with step 13b and is not needed here); D4 signed (C4 = (a) store every edition, score the daily-final winner; C5 link-only anchoring) |
 | Decisions | C2 (unit of validation — the route iterates `CONFLICT_DEFINITIONS`), C4 (edition policy), C5 (citation anchoring on multi-edition days) |
 | Spend | $0. Network to understandingwar.org only in tests that are fixture-backed (use `fixtures/isw/*`; never fetch live in unit tests). |
 | Closing report | `docs/reviews/WS-3-2-EDITION-DISCOVERY-2026-09-06.md` |

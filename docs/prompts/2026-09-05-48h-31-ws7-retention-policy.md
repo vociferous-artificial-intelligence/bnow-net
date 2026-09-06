@@ -5,7 +5,7 @@
 | Model / effort / mode | Sonnet / medium / plain session (continues in the same session as step 30, second PR) |
 | Worktree | `/Users/go/code/bnow-net-worktrees/48h-ws7-docs-20260905`, step branch `48h/ws7-docs-20260905-step31-retention` |
 | Window | H16 → H18 |
-| Depends on | 30 (same session) |
+| Depends on | 30 (same session); PLAN-WS-7 §9.8 "Rewrite — step 31" binds |
 | Decisions | none |
 | Spend | $0 |
 | Closing report | `docs/reviews/WS-7-6-RETENTION-2026-09-06.md` |
