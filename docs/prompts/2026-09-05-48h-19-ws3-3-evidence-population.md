@@ -13,6 +13,16 @@
 Read `docs/prompts/2026-09-05-48h-COMMON.md` first, then the memo, PLAN-WS-3 §3.3, and the
 three upstream reports.
 
+**Carried from step 06 (2026-09-06):** step 06 landed `insufficientData` + `gazetteerVersion`
+on `ConflictMatchOutcome` (the keyword rung) only. The scorer-level per-unit
+`insufficient_data` diagnostic (the landing doc's "denominator-unchanged third class") is THIS
+step's work: thread it into `ConflictResultV1`, regenerate the one affected golden
+(`cc-matcher-failclosed-013b#B-zero-valid-rounds`, `UPDATE_CONFLICT_GOLDENS=1`), and — only
+with decision E5 signed — regenerate `docs/evals/analysis/results/conflict-{roca,iran}-v1-offline-fixtures.json`
+and the conflict scorecard via `--offline --profile conflict --fresh --fresh-ack`
+(deterministic, $0), with an exposure note in the report. If E5 is unsigned, keep the scorer
+change on its own held branch so `hardening-cli.test.ts` stays green on the PR you open.
+
 ## Prompt shape (fill in at CP2)
 
 PR 1 — `conflicts: DB-backed claim sources (corpus recall + published retention)`: implement

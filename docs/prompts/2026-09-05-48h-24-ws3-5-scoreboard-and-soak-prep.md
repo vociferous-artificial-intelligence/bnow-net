@@ -16,6 +16,15 @@ Read `docs/prompts/2026-09-05-48h-COMMON.md` first, then the memo, PLAN-WS-3, th
 (ROUTES table), `src/integration/conflict-feature-off.itest.ts`, `docs/designs/CONFLICT-SHADOW-SOAK.md`
 §7-§8, `docs/reviews/CONFLICT-EVALUATOR-LANDING-2026-08-24.md` §6.
 
+**Correction carried from step 05's plan (2026-09-06):** the ROUTES-row obligation for the
+conflict view is discharged by extending `src/integration/conflict-feature-off.itest.ts`
+(flag-on server, seeded observation, body assertions), NOT by adding a row to the
+`authz-page-gate.itest.ts` ROUTES table — that harness runs flag-absent and its positive
+control cannot pass (AGENTS.md ≈1557; `authz-page-gate.itest.ts:79-84`). The conflict view
+reuses the existing `/conflicts/**` routes with a DB-backed provider; the teaser tier is
+public when the flag is on, the evidence tier keeps `requireAcceptedUser` then
+`requireConflictsUi`.
+
 ## Prompt shape (fill in at CP3)
 
 PR 1 — `scoreboard: conflict observations view (real rows only) + evidence-lens relabel`:
