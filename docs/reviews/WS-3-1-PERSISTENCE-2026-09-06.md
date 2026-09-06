@@ -6,7 +6,7 @@
 |---|---|
 | Prompt | `docs/prompts/2026-09-05-48h-13-ws3-1-persistence.md` (step 13 of the 48h program), plus the Handoff rewrite in `docs/reviews/PLAN-WS-3-validation-by-conflict-2026-09-05.md` §"Handoff" (COMMON §2.5 makes that text part of the prompt) |
 | Lane / worktree | `ws3-conflict` · `/Users/go/code/bnow-net-worktrees/48h-ws3-conflict-20260905` |
-| Branch | `48h/ws3-conflict-20260905-mig-0028-benchmark-editions` (PR 1). **PR 2 was not built — see "Decisions needed".** |
+| Branch | `48h/ws3-conflict-20260905-mig-0028-benchmark-editions` (PR 1 = **#63**). **PR 2 was not built — see "Decisions needed".** |
 | Base SHA | `origin/main` `29db301127e1d8cd94d132e722be15d99f44971c` (2026-09-06 18:30 ET, "48h program log — CP1 merge queue #50-#56 landed, Wave 2 launched"). The lane branch was fast-forwarded `2203150 → 29db301` before the step branch was cut. |
 | Model / effort / mode | Opus / high / plain session with a plan-mode preamble |
 | Spend | **$0.** No paid provider call, no production write, no deploy, no env change. Three disposable Neon forks, created and deleted by `scripts/test-integration.sh`. |
@@ -25,7 +25,7 @@ sign-off is still owed and is listed below.
 ## Built
 
 **PR 1 — `db: migration 0028 — benchmark_report_editions + benchmark_series_days`**
-(commit `2a37772`; branch pushed, PR opened as noted in "Handoff").
+(commit `2a37772`; branch pushed; **PR #63** — https://github.com/vociferous-artificial-intelligence/bnow-net/pull/63).
 
 | File | Change |
 |---|---|
