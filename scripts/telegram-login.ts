@@ -151,7 +151,7 @@ async function main() {
     throw new Error(
       "This login is interactive and stdin is not a terminal — every prompt would read EOF " +
         "and loop. Run it in a real terminal:\n" +
-        "  cd /home/go/code/bnow.net && npx tsx scripts/telegram-login.ts",
+        "  cd /Users/go/code/bnow-net && npx tsx scripts/telegram-login.ts",
     );
   }
 

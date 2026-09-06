@@ -31,12 +31,18 @@ vars there when you add them to Vercel).
 - Typecheck: `npm run typecheck` · Lint: `npm run lint` · Dev server: `npm run dev`
 - Integration tests (disposable Neon branch, fork→test→delete): `npm run test:integration`
 - Migrations: `npm run db:generate`, apply with `npm run db:migrate`
-- Deploy: `npx vercel@latest deploy --prod --yes` (machine CLI session — `VERCEL_TOKEN`
-  is expired; deployment URLs are SSO-walled, check https://bnow-net.vercel.app)
-- Local LLM/Vercel calls on this WSL2 box need the DNS pin:
-  `NODE_OPTIONS="--require ./scripts/pin-dns.cjs" npx tsx scripts/<script>.ts`
-  — use it for single-call LLM debugging; bulk LLM work runs via the deployed Vercel
-  routes (prod env + metering). Slow/flaky github.com DNS: give git ~30s+ or retry.
+- Deploy: from the plain release clone `/Users/go/code/bnow-net-rel-20260823` (never a
+  worktree — OPEN-TASKS #78), `npx vercel@latest deploy --prod --yes` (machine CLI
+  session — `VERCEL_TOKEN` is expired; deployment URLs are SSO-walled, check
+  https://bnow-net.vercel.app)
+- The Mac reaches `api.openai.com` and `vercel.com`/`vercel.app` directly — no DNS pin
+  needed for local single-call LLM debugging (`scripts/pin-dns.cjs` is a WSL2 relic; do
+  not prescribe it in new docs). Bulk LLM work still runs via the deployed Vercel routes,
+  because production env vars and metering live there, not for network reachability.
+  Slow/flaky github.com DNS: give git ~30s+ or retry.
+- Worktrees are created only from a native session on the Mac, never through a
+  Cowork/remote mount — a remote-mount worktree writes `/sessions/…` gitdir paths git
+  cannot resolve later.
 
 ## Commit hygiene
 

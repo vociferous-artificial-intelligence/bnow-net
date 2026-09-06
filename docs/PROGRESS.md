@@ -3525,3 +3525,34 @@ Execution (same block):
   decision-log entry edited or appended (append-only preserved); gates green;
   zero paid calls, zero production access, no deploy.
 
+## 2026-09-06 ~18:35Z — 48h program step 02: port hygiene, WSL2 → macOS (planned block)
+
+Worktree `bnow-net-worktrees/48h-gov2-20260905`, branch
+`48h/gov2-20260905-step02-port-hygiene`, base `origin/main` `4e5b00f`. Plan per
+`docs/prompts/2026-09-05-48h-02-port-hygiene.md` findings 1–9:
+
+1. Delete `scripts/llm-redigest.sh` (dead, hard-codes `/home/go/code/bnow.net`, GNU `date -d`).
+2. Rewrite `scripts/pin-dns.cjs` header as a documented WSL2 relic; remove the "needs the
+   DNS pin" instruction from CLAUDE.md, CURRENT-STATE.md, the two named living runbooks
+   (one-line macOS annotation), `opensanctions-rescore.ts`, `ab-mapreduce.ts`, and the two
+   named prompt docs.
+3. Fix `/home/go` paths in `scripts/telegram-login.ts`, `docs/SETUP-NEXT-WEEK.md:170`; add
+   a dated note to `docs/BLOCKERS.md` (do not edit the 2026-07-04 line); delete
+   `docs/NEXT-SESSION-PROMPT.md` after confirming no real inbound links.
+4. Swap GNU `date -d` for BSD `date -v-1d` in `docs/SETUP-NEXT-WEEK.md`.
+5. Reword the "this box cannot reach api.openai.com" comments in `map-remap.ts`,
+   `map-backfill.ts`, `telegram-getme.ts`, `isw-refresh.ts` to state the real reason
+   (production metering/env) and note a local `next start` on a disposable Neon branch is
+   now a valid non-production target.
+6. Re-test `npm run dev` on the Mac for OPEN-TASKS #74; record the result, leave closure
+   to the operator.
+7. Pin Node: `engines.node >=22` in `package.json` + `.nvmrc` (22).
+8. Add the worktree/deploy-clone conventions to CLAUDE.md and AGENTS.md § Conventions;
+   correct CLAUDE.md:34-35 and README.md:41-42 to name the plain release clone.
+9. `tsconfig.json`: add explicit `forceConsistentCasingInFileNames: true`.
+
+Acceptance: `npm run typecheck && npm run lint && npm test` green; report residual
+`git grep -n "WSL2"` / `"/home/go"` hits honestly (archives + historical prompt/design/eval
+docs outside the enumerated findings list are left untouched, as they were outside the
+INDEX §8 scan). Depends on nothing; rebase onto step 01 before merge (01 merges first).
+

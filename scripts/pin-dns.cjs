@@ -1,8 +1,10 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- NODE_OPTIONS --require preloads must be CommonJS */
-// Preload: route vercel.com / vercel.app / openai.com DNS through 1.1.1.1.
-// The WSL2 NAT resolver (10.255.255.254) times out on these domains while
-// public resolvers answer instantly — this is the "local host cannot reach
-// OpenAI/Vercel" quirk. Everything else uses the normal resolver.
+// WSL2 relic. This preload pins vercel.com / vercel.app / openai.com DNS
+// through 1.1.1.1 because the WSL2 NAT resolver (10.255.255.254) timed out on
+// those domains while public resolvers answered instantly. The Mac reaches all
+// three directly through the system resolver, so this file is unneeded there —
+// it is harmless if loaded (it only intercepts the pinned domains) but new
+// docs should NOT prescribe it. Kept for anyone still on a WSL2/similar box.
 //   NODE_OPTIONS="--require ./scripts/pin-dns.cjs" npx vercel@latest deploy --prod
 //   NODE_OPTIONS="--require ./scripts/pin-dns.cjs" npx tsx scripts/backtest-validate-only.ts ...
 const dns = require("node:dns");
