@@ -6,10 +6,16 @@ import type { SpendGuard } from "../usage/spend-guard";
 process.env.DATABASE_URL ??= "postgres://test:test@localhost:5432/test";
 
 // Mock the OpenAI SDK: capture every embeddings.create call, never hit the network.
-const { embeddingsCreate } = vi.hoisted(() => ({ embeddingsCreate: vi.fn() }));
+const { embeddingsCreate, openaiCtor } = vi.hoisted(() => ({
+  embeddingsCreate: vi.fn(),
+  openaiCtor: vi.fn(),
+}));
 vi.mock("openai", () => ({
   default: class MockOpenAI {
     embeddings = { create: embeddingsCreate };
+    constructor(...args: unknown[]) {
+      openaiCtor(...args);
+    }
   },
 }));
 
@@ -23,6 +29,8 @@ const {
   EMBED_MAX_INPUTS_PER_REQUEST,
   EMBED_STUB_PROVIDER,
   EMBED_DIMS,
+  EMBED_USD_PER_TOKEN,
+  EmbedModelUnpricedError,
 } = await import("./client");
 
 /** OpenAI-style embeddings response. */
@@ -50,6 +58,7 @@ function fakeGuard(reserveOk: boolean) {
 
 beforeEach(() => {
   embeddingsCreate.mockReset();
+  openaiCtor.mockReset();
   process.env.OPENAI_API_KEY = "sk-test";
   delete process.env.ANALYSIS_PROVIDER;
   delete process.env.LLM_DISABLE;
@@ -97,8 +106,11 @@ describe("embedTexts — live (mocked OpenAI)", () => {
     expect(sent).toHaveLength(EMBED_MAX_INPUT_CHARS);
   });
 
-  it("uses ASK_EMBED_MODEL when set", async () => {
-    process.env.ASK_EMBED_MODEL = "text-embedding-3-large";
+  it("uses ASK_EMBED_MODEL when set — for a model that HAS a price row", async () => {
+    // the default is the only priced model today, so this pins the plumbing by
+    // setting the env explicitly to it (the swap path itself needs a price row —
+    // see the refusal test below)
+    process.env.ASK_EMBED_MODEL = "text-embedding-3-small";
     embeddingsCreate.mockImplementation(async ({ input }: { input: string[] }) =>
       resp(
         input.map(() => [1]),
@@ -107,9 +119,50 @@ describe("embedTexts — live (mocked OpenAI)", () => {
     );
     const out = await embedTexts(["a"]);
     expect((embeddingsCreate.mock.calls[0][0] as { model: string }).model).toBe(
-      "text-embedding-3-large",
+      "text-embedding-3-small",
     );
-    expect(out.provider).toBe("openai:text-embedding-3-large");
+    expect(out.provider).toBe("openai:text-embedding-3-small");
+  });
+});
+
+// WS-2.1 PR-2.1-2. This suite REPLACES the former "uses ASK_EMBED_MODEL when
+// set" pin that dispatched text-embedding-3-large: that model has no
+// operator-verified price, so dispatching it would have metered a real call at
+// the 3-small rate. Adding a price row for it is decision R8.
+describe("embedTexts — unpriced model refusal (ruling 4)", () => {
+  it("refuses BEFORE constructing the SDK and BEFORE reserving", async () => {
+    process.env.ASK_EMBED_MODEL = "text-embedding-3-large";
+    const { guard, calls } = fakeGuard(true);
+    await expect(embedTexts(["a"], { guard })).rejects.toBeInstanceOf(EmbedModelUnpricedError);
+    expect(openaiCtor).not.toHaveBeenCalled();
+    expect(embeddingsCreate).not.toHaveBeenCalled();
+    expect(calls).toEqual([]); // no reserve, no record
+  });
+
+  it("names the model, the env var and the price table in the refusal", async () => {
+    process.env.ASK_EMBED_MODEL = "text-embedding-3-large";
+    await expect(embedTexts(["a"])).rejects.toThrow(
+      /ASK_EMBED_MODEL="text-embedding-3-large"[\s\S]*EMBED_PRICES_PER_MTOK[\s\S]*refusing to dispatch unpriced/,
+    );
+  });
+
+  it("still takes the free stub path offline — the kill-switch outranks the price check", async () => {
+    process.env.ASK_EMBED_MODEL = "text-embedding-3-large";
+    process.env.LLM_DISABLE = "1";
+    const out = await embedTexts(["a"]);
+    expect(out.provider).toBe(EMBED_STUB_PROVIDER);
+    expect(out.costUsd).toBe(0);
+    expect(openaiCtor).not.toHaveBeenCalled();
+  });
+
+  it("meters a priced model at its own rate; embedCostUsd refuses an unpriced one", () => {
+    expect(embedCostUsd(42)).toBe(42 * EMBED_USD_PER_TOKEN);
+    expect(embedCostUsd(42, "text-embedding-3-small")).toBe(42 * EMBED_USD_PER_TOKEN);
+    expect(() => embedCostUsd(42, "text-embedding-3-large")).toThrow(EmbedModelUnpricedError);
+  });
+
+  it("keeps the compatibility constant equal to the table's default-model price", () => {
+    expect(EMBED_USD_PER_TOKEN).toBe(0.02 / 1e6);
   });
 });
 
