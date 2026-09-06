@@ -38,9 +38,14 @@ step 01)"), touching:
   decision already answered in the program index, and the program's own authorization.
 - `docs/PROGRESS.md` — a plan block + execution summary for this session.
 
-No PR opened; the branch has not been pushed (see Handoff — pushing requires pushing local
-`main`'s three unpushed prerequisite commits first, which is outside this step's scope and
-flagged for the operator rather than done unilaterally).
+**Update:** the operator chose "push main, then push the step branch and open the PR." Local
+`main`'s three prerequisite commits (`afeef2b`, `a912c7a`, `4e5b00f`) were pushed to
+`origin/main` as a clean fast-forward (`883e5e3..4e5b00f`, pre-push gate green), then this
+branch was pushed and opened as
+[PR #49](https://github.com/vociferous-artificial-intelligence/bnow-net/pull/49) against
+`main`. `origin/main` now carries the 48-hour program's own founding docs, so every other
+lane's worktree (created per INDEX §4 `git worktree add ... origin/main`) sees them without
+needing the local-`main` workaround this step used.
 
 ## Tests
 
@@ -124,7 +129,8 @@ drafting that the operator should look at directly rather than have this session
   reasoning is the point," which reads as a distinct provider, not an OpenAI-hosted model.
   Step 07 (injection-case authorship) should confirm the concrete model/deployment this
   resolves to before proceeding, rather than assume.
-- **Whether to push this branch / open a PR now.** See Handoff.
+- ~~Whether to push this branch / open a PR now.~~ **Resolved** — operator chose to push
+  `main` first; PR #49 is open (see Handoff).
 
 ## Debt and risks
 
@@ -172,17 +178,14 @@ drafting that the operator should look at directly rather than have this session
   decision-log format, ready to copy into AGENTS.md's `## Decision log` (append at the
   file's end, per the standing convention until step 15 lands). This session did not
   append any of them itself.
-- **This branch is committed but NOT pushed and NOT opened as a PR.** Reason: `origin/main`
-  is `883e5e3`, but this branch was cut from local `main` (`4e5b00f`), which carries three
-  commits `origin/main` does not have yet (`afeef2b`, `a912c7a`, `4e5b00f` — the program's
-  own founding docs). Pushing this step's branch alone would either fail (missing history)
-  or require force-pushing/rebasing onto `origin/main` in a way that could silently drop
-  the local-only program docs. Rather than choose a remote-history strategy unilaterally, I
-  am flagging this for the user: **should this session push local `main`'s three commits to
-  `origin/main` first, then push and open a PR for this step branch — or does the operator
-  want to push `main` separately/manually?** No push or PR action was taken pending that
-  answer.
+- **Pushed and opened.** `origin/main` fast-forwarded to `4e5b00f` (`883e5e3..4e5b00f`,
+  pre-push gate green, no force push), then this branch was pushed and
+  [PR #49](https://github.com/vociferous-artificial-intelligence/bnow-net/pull/49) opened
+  against `main`. `origin/main` now carries the program's own founding docs (handoff, INDEX,
+  COMMON, 28 step prompts, the operator's decision-sheet comments), so every other lane's
+  worktree (`git worktree add ... origin/main` per INDEX §4) sees them directly — the
+  local-`main` workaround this step needed no longer applies to later steps.
 - **Next prompt to rewrite:** none — step 01 needed no SKETCH rewrite. Steps 02/03 (same
-  worktree family, `48h-gov2`) can proceed independently once their own worktree is created
-  from a base that includes this step's commit (or from `origin/main` plus this branch,
-  once pushed) so they see the corrected AGENTS.md rather than the stale one.
+  worktree family, `48h-gov2`) can proceed once their worktree is cut from `origin/main`
+  (now current) and PR #49 is merged, so they see the corrected AGENTS.md rather than the
+  stale one.
