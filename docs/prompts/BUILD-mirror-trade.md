@@ -15,8 +15,9 @@ UN Comtrade API: `https://comtradeapi.un.org/public/v1/preview/C/M/HS?...`
 - Russia partnerCode/reporterCode = 643. Flows: X (export) / M (import).
 - Free preview tier is rate-limited; `COMTRADE_API_KEY` (register at comtradeplus.un.org)
   raises limits — treat as keyed adapter + fixture stub (project convention), key optional.
-- Local WSL2 host is blocked from many hosts — verify Comtrade locally; if blocked, run
-  the fetch via a Vercel cron route like the other external pulls.
+- Verify Comtrade is reachable locally (the Mac reaches external hosts directly — no DNS
+  pin needed); if a host is blocked, run the fetch via a Vercel cron route like the other
+  external pulls.
 
 ## Build steps
 1. Migration (additive): `trade_flows` table — {reporter_code, partner_code, flow, hs_code,

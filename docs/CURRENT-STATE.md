@@ -637,13 +637,14 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   (`VERCEL_TOKEN` is expired; regen is an operator task, SETUP-NEXT-WEEK #2). Note: a CLI
   deploy from a git WORKTREE ships no git metadata (`.git` is a file there) and renders an
   EMPTY `/health` commit stamp — verify those via `data-dpl-id` (OPEN-TASKS #78).
-- **This WSL2 box:** the NAT resolver times out on some domains — a DNS quirk, NOT a
-  TCP block. `NODE_OPTIONS="--require ./scripts/pin-dns.cjs"` pins vercel/openai/
-  understandingwar DNS to public resolvers, making local single-call LLM debugging
-  work; bulk LLM work still runs via deployed Vercel routes (prod env + metering).
-  github.com resolves slowly/flakily: pushes work, but short-timeout git commands can
-  fail — retry or wait ~30s+. api.gdeltproject.org DNS still fails locally (not
-  pinned). TASS/RIA/Lenta RSS unreachable → covered via their Telegram channels.
+- **This Mac (the WSL2 box is history):** no DNS pin needed — `api.openai.com`,
+  vercel.com/app, and understandingwar.org all resolve and connect directly through the
+  system resolver (the 2026-09-03/05 local eval runs made paid OpenAI calls straight from
+  this machine, which proves it); `scripts/pin-dns.cjs` is kept only as a documented WSL2
+  relic. github.com DNS is not flaky here either — pushes and fetches complete promptly.
+  api.gdeltproject.org DNS still fails locally (a separate, unrelated flakiness — not a
+  resolver-pinning question). TASS/RIA/Lenta RSS unreachable → covered via their Telegram
+  channels.
 - **Git:** the last application-code releases are the **2026-08-31 map-flood
   incident stack** (PRs #38/#39/#40 + #37, final merge `a4ed5cb`); before that the
   2026-08-29 #97 Ask-family release (PR #35, `6ba72b5`), the 2026-08-28 reliability

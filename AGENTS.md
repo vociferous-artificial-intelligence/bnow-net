@@ -996,6 +996,14 @@ rulings above. New entries append at the BOTTOM (the archive runs oldest → new
 - Naming: snake_case DB, camelCase TS, kebab-case files.
 - Scrapers: ≥2s per-host spacing, honor robots.txt, disk-cache every fetch (never fetch
   the same URL twice), custom UA `BNOWBot/0.1 (+https://bnow.net/bot)`.
+- Worktrees are created only from a native session on the Mac; a worktree created through
+  a Cowork/remote mount writes `/sessions/…` gitdir paths git cannot resolve later (the
+  2026-09-05 cleanup found one such orphan — `docs/prompts/2026-09-05-cto-roadmap-handoff.md`
+  §4.6).
+- Deploys come only from the plain release clone `/Users/go/code/bnow-net-rel-20260823`
+  (never a worktree — a CLI deploy from a worktree ships no git metadata and renders a
+  blank `/health` commit stamp, OPEN-TASKS #78), via
+  `npx vercel@latest deploy --prod --yes`.
 
 ## Credentials & integrations
 

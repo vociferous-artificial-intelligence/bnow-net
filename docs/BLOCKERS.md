@@ -92,3 +92,10 @@ Dated log of missing credentials/capabilities. Each has a stub in place; nothing
   (`npx tsx scripts/neon-branch.ts create` then `delete`) was not re-run by this session —
   operator to confirm the exact Wave-0 result, though the evidence above already establishes
   the key is live.
+
+## 2026-09-06 (WSL2 → macOS port hygiene pass)
+
+- Item 1's `~/code/scenefiend/.env.local` path (2026-07-04, above) needed no change during
+  the port: `~` still resolves to the current user's home directory on the Mac
+  (`/Users/go/code/scenefiend/.env.local`), and that project checkout exists there
+  unchanged. Not touching the 2026-07-04 line itself.

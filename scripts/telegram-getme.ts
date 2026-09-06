@@ -11,8 +11,9 @@
  * Prints timings; NEVER prints the session (fingerprint only, same as login).
  *
  * Usage: npx tsx scripts/telegram-getme.ts [--wss]
- *   (MTProto TCP dials DC IPs directly, so the WSL2 DNS pin is not needed;
- *    WSS resolves *.web.telegram.org and may need it.)
+ *   (MTProto TCP dials DC IPs directly, bypassing DNS entirely; WSS resolves
+ *    *.web.telegram.org, which the Mac's system resolver handles fine — no
+ *    DNS pin needed either way. `scripts/pin-dns.cjs` is a WSL2 relic.)
  */
 
 import { readFileSync } from "node:fs";

@@ -697,13 +697,16 @@ docs/reviews/PRIVATE-BETA-READINESS-NOTE-2026-07-13.md)
     both themes. Deployment stamp, nine hrefs, signed-out/no-Ask gating and mobile-menu hydration
     passed; zero console/page errors or page overflow. The already-passing private-beta badge was
     unchanged. Details: `docs/reviews/SIGNED-OUT-LANDING-CONTRAST-2026-07-16.md`.
-74. **[env/tooling] Dev-mode React never hydrates on this WSL2 box.** `npm run dev` serves
-    and server-renders fine, but the `_next/webpack-hmr` WebSocket handshake fails with
-    `net::ERR_INVALID_HTTP_RESPONSE` and no React control responds to input — the header
-    language menu, the mobile hamburger, everything. Native `<details>` still works, which
-    masks it. `next build` + `next start` hydrates correctly. **Verify React UI against a
-    production build until this is fixed**; a dev-server click test proves nothing here.
-    Not an application defect (reproduced on untouched components).
+74. **[env/tooling] Dev-mode React never hydrates on the (retired) WSL2 box.** `npm run dev`
+    served and server-rendered fine there, but the `_next/webpack-hmr` WebSocket handshake
+    failed with `net::ERR_INVALID_HTTP_RESPONSE` and no React control responded to input —
+    the header language menu, the mobile hamburger, everything. Native `<details>` still
+    worked, which masked it. `next build` + `next start` hydrated correctly there. Not an
+    application defect (reproduced on untouched components). **Retest on macOS
+    (2026-09-06):** `npm run dev` served `GET /` 200 with full HTML in ~5s and no
+    `ERR_INVALID_HTTP_RESPONSE` in the server log — **hydration works on macOS — re-test in
+    browser** (this was a curl smoke test, not a client-side interaction check). Closure
+    left to the operator.
 75. **[CLOSED 2026-08-03 — won't-fix by operator decision; no third-party exposure]** The
     clickwrap was bypassable on `/search`, `/entities` and `/digests` for the same
     layout-only-gate reason. `requireAcceptedUser()` redirects a signed-in-but-unaccepted

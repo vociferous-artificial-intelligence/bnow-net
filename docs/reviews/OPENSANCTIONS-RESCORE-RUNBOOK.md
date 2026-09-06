@@ -90,12 +90,12 @@ Confirms the endpoint URL and pacing. Makes no network call.
 ## Step 3 — drive the rescore serially (paid; operator only)
 
 Run ONE driver at a time (the guard snapshot is per invocation; concurrent runs
-could each reserve up to the remaining monthly quota). On this WSL2 box the
-vercel.app route needs the DNS pin:
+could each reserve up to the remaining monthly quota). (macOS: no DNS pin needed — the
+vercel.app route resolves directly; a WSL2 box needs `NODE_OPTIONS="--require
+./scripts/pin-dns.cjs"` prepended to the command below.)
 
 ```
-CRON_SECRET=… NODE_OPTIONS="--require ./scripts/pin-dns.cjs" \
-  npx tsx scripts/opensanctions-rescore.ts --before "$BEFORE" --run
+CRON_SECRET=… npx tsx scripts/opensanctions-rescore.ts --before "$BEFORE" --run
 ```
 
 The driver prints each batch (`checked / matched / sanctioned / failed / remaining /

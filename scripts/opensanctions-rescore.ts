@@ -32,9 +32,8 @@ import "./env";
 //   # dry run (safe, no calls):
 //   npx tsx scripts/opensanctions-rescore.ts --before "$BEFORE"
 //
-//   # real run (operator only; this box needs the DNS pin for vercel.app):
-//   CRON_SECRET=... NODE_OPTIONS="--require ./scripts/pin-dns.cjs" \
-//     npx tsx scripts/opensanctions-rescore.ts --before "$BEFORE" --run
+//   # real run (operator only):
+//   CRON_SECRET=... npx tsx scripts/opensanctions-rescore.ts --before "$BEFORE" --run
 //
 // Options: --base <url> (default https://bnow-net.vercel.app), --limit <n>
 //          (default 120, <= run cap), --max-batches <n> (positive int, default 40

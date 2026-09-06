@@ -10,7 +10,6 @@
 // whole point is measuring roll-to-roll variance).
 //
 // Usage (env recipe in docs/reviews/MR3-CHECKPOINT.md):
-//   NODE_OPTIONS="--require ./scripts/pin-dns.cjs" \
 //   AB_DATABASE_URL=<branch connection string> LLM_SPRINT_USD_CAP=12 \
 //   npx tsx scripts/ab-mapreduce.ts [--from 2026-06-29] [--to 2026-07-08]
 

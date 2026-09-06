@@ -38,7 +38,8 @@ Key scripts (all idempotent/resumable): `isw-fetch` → `isw-parse` → `isw-loa
 
 ## Operations
 
-- Deploy: `npx vercel@latest deploy --prod --yes` (main must be green: `npm test`).
+- Deploy: from the plain release clone, never a worktree (`npx vercel@latest deploy --prod
+  --yes`; main must be green: `npm test`).
 - Crons (vercel.json): ingest */15, telegram hourly, digest 21:30 UTC, validate 07:00 UTC.
 - Docs: `AGENTS.md` (state + decisions), `docs/BLOCKERS.md` (missing credentials),
   `docs/SETUP-NEXT-WEEK.md` (operator checklist), `docs/reviews/` (stage gates).
