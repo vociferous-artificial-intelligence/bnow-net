@@ -6,7 +6,7 @@
 | Lane / worktree | R — `/Users/go/code/bnow-net-worktrees/48h-routing-20260905` |
 | Window | H0 → H4 |
 | Depends on | — |
-| Decisions | D2 (provider ambition) may be unanswered: plan all three options with the shared first PR; R1, R2, R3, R4, R5 — list, recommend, do not decide |
+| Decisions | **Answered 2026-09-06 (INDEX §2, operator column):** D2 = B — Anthropic is IN SCOPE for execution (key already in `.env.local`; same budget; step 20b builds the B PRs); C is provisionally yes but deferred beyond this round — design the seam so C is cheap later, plan no C PR now. R5 = the parked branch `claude/local-model-ask-eval-20260817`. Still open: R1, R2, R3, R4 — list, recommend, do not decide. |
 | Spend | $0. No DB. |
 | Closing report | `docs/reviews/PLAN-WS-2-routing-matrix-2026-09-05.md` (the plan IS the report) |
 
@@ -78,6 +78,18 @@ WS-2.4. Steps 11, 12, 20, 22 execute from it; write each PR so an Opus session c
   `workloadDispatchConfig('map')` so the lock is NOT relaxed; default target is production);
   `docs/OPEN-TASKS.md` #33 (:167-187), #83, #84, #44 (:369-371 — it is the `X_DAILY_USD_CAP`
   code default at `src/lib/adapters/x-api.ts:201,223`, not an Ask item).
+
+## Two facts that arrived after this prompt was written (fold them in)
+
+- `.env.local` on the Mac now holds `ANTHROPIC_API_KEY`. `getProvider()` (`provider.ts:76-96`)
+  selects the unguarded `AnthropicProvider` whenever `OPENAI_API_KEY` is blank, and that
+  provider honours neither `SpendGuard` nor `LLM_DISABLE` — step 09 closes this and is now
+  the first PR of WS-2; plan every B PR on top of step 09's refusal (replace it, never bypass
+  it), and make "Anthropic path honours `LLM_DISABLE` with a typed `LlmDisabledError`
+  (ruling 9)" an explicit acceptance line of the B wiring PR.
+- Every B PR is still $0 in this window: mocked fetch, order pins reserve < fetch < record
+  < parse; the first real Anthropic call is a step-4 evaluation-program action with its own
+  authorization, never a test.
 
 ## Plan content the operator expects (beyond the §0 template)
 

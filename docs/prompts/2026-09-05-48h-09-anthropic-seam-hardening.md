@@ -4,7 +4,7 @@
 |---|---|
 | Model / effort / mode | Opus / high / plain session |
 | Lane / worktree | R — `/Users/go/code/bnow-net-worktrees/48h-routing2-20260905`, step branch `…/anthropic-seam-hardening` (step 04 plans concurrently in `48h-routing`) |
-| Window | H0 → H3 |
+| Window | H0 → H3 — **run this first in Wave 1**: as of 2026-09-06 `.env.local` carries an `ANTHROPIC_API_KEY` (D2 = B), so the bypass below is no longer latent on the operator's machine |
 | Depends on | — (option-independent; step 04's plan must not duplicate it; step 12 builds on it) |
 | Decisions | none — this is hygiene every D2 option needs |
 | Spend | $0. The provider is dormant (no key anywhere). |
@@ -39,7 +39,10 @@ are activation prerequisites).
    `ANALYSIS_PROVIDER=anthropic` throw a typed `ModelConfigError`-class refusal ("provider
    anthropic is not registered/metered — see OPEN-TASKS #83") BEFORE constructing the provider
    or reading the key. Ruling 9 semantics stay: digest sites throw typed errors; nothing here
-   touches llm-match or /ask.
+   touches llm-match or /ask. Also make the Anthropic path honour `LLM_DISABLE=1` with the
+   same typed `LlmDisabledError` the OpenAI digest path throws (today `anthropic-provider.ts`
+   and `provider.ts` contain no `LLM_DISABLE` check at all — verify with `git grep`), so the
+   kill-switch covers it once option B wires it in.
 2. `anthropic-provider.ts`: doc-line clip through the same well-formed shape as
    `digestDocLine` (astral boundary at 400, isolated surrogates dropped, ASCII lines
    byte-identical); model read at call time; missing key throws a typed error before any

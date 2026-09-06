@@ -56,7 +56,10 @@ PR (OPEN-TASKS #92 says so); never ride it on a release.
 
 ## Acceptance
 
-`bash scripts/check-decision-log-move.sh` passes and its output is pasted into the report
+AGENTS.md is **≤ 150,000 characters** after the move (D5 addendum, 2026-09-06: the file is
+156.8k today and trips a tooling limit; the 7-day window lands near 780 lines / ≈65k chars —
+report `wc -c AGENTS.md` before and after); `bash scripts/check-decision-log-move.sh` passes
+and its output is pasted into the report
 (and `bash -n` of the script succeeds under `/bin/bash` 3.2); the DECISIONS.md preamble's
 "last archived entry" date is verified against the actual last entry after the move;
 `wc -l AGENTS.md` before/after; `git grep -c "decision log" docs/ src/` unchanged; a grep for

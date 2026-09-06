@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Model / effort / mode | Opus / high / **fresh session that has never opened the forbid list** (D9) |
+| Model / effort / mode | **Fresh session of the model the operator designates as "Astra" (D9, answered 2026-09-06: a different model family via the OpenAI key), or Opus** / high — a session that has never opened the forbid list. The prompt is model-agnostic; the exposure ledger names the model and session. |
 | Lane / worktree | E — `/Users/go/code/bnow-net-worktrees/48h-eval-20260905`, step branch `…/injection-cases` |
 | Window | H0 → H5 |
 | Depends on | — |
@@ -88,8 +88,12 @@ extractor-version basis — context for the product decision you will list, not 
 5. Write the operator's step-10 run card into the report: exact command
    (`--execute-live --workload map --model gpt-4o-mini --dataset map-inj-dev-v1 --dev
    --repetitions 3 --db-ack <host>` with `EVAL_DATABASE_URL`, `EVAL_CAPTURE_DIR`,
-   `EVAL_CAPTURE_RAW=1`, `EVAL_USD_CAP_DAILY`, campaign-local `LLM_SPRINT_USD_CAP`), expected
-   18 calls, `--estimate` first, `--capture-reconcile` after, and the ledger entry to append.
+   `EVAL_CAPTURE_RAW=1`, `EVAL_USD_CAP_DAILY`, campaign-local `LLM_SPRINT_USD_CAP` — D6
+   authorizes a ceiling between $0.50 and $2.00; recommend the value and explain in the run
+   card what the cap does: it is an all-time backstop compared against the `openai_eval` row's
+   own total on that branch, so the ≈$0.15 already on the kept branch's ledger counts toward
+   it), expected 18 calls, `--estimate` first, `--capture-reconcile` after, and the ledger
+   entry to append.
 6. List — do not decide — the PRODUCT decision on pre-dispatch injection stripping/flagging in
    `map-worker` with both options framed against ruling 13 (a system-prompt change bumps the
    extractor version and strands history without #33; a pre-dispatch transform silently changes

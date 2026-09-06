@@ -23,7 +23,7 @@ operator may do in Wave 2, in what order, and what evidence each action leaves.
 3. **WS-1.1 ×3 capture run** — the run card in `docs/reviews/INJECTION-CASES-DEV-2026-09-05.md`:
    `--estimate` first; `EVAL_DATABASE_URL` = the kept disposable branch (never production;
    `--db-ack` its host); `EVAL_CAPTURE_DIR` outside the repo, `EVAL_CAPTURE_RAW=1`
-   (development split only; heldout raw stays off); campaign-local `LLM_SPRINT_USD_CAP` per D6;
+   (development split only; heldout raw stays off); campaign-local `LLM_SPRINT_USD_CAP` per D6 ($0.50–$2.00 authorized; the run card recommends the value and the closeout explains its effect — the kept branch's `openai_eval` ledger already holds ≈$0.15 that counts against it);
    run; `--capture-reconcile`; append the ledger entry; do not read the results file for
    verdicts (scope `dev` cannot verdict) — record counts only. Decision-log entry.
 4. **Neon key** — if the Wave-0 probe was skipped, do it now; tell step 25 the result.
