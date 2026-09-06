@@ -3979,3 +3979,48 @@ Execution (same block):
 - Fork deleted 2026-09-06T22:47:11Z; server killed; `next-env.d.ts` verified byte-unchanged.
 - Gates: typecheck/lint clean · unit 3,731/3,731 (255 files). No production write, no env change,
   no deploy, no migration, no edit to `model-config.ts` or `MAP_BASELINE`. Spend $0.
+## 2026-09-06 ~22:50Z — PLAN-WS-7 tradecraft legibility (ICD 203 / ICD 206 / ICS 206-01) (planned block)
+
+1. Read COMMON, the step-29 prompt, the WS-7 addendum in full, the INDEX §1/§2 decision
+   sheet and the handoff §0 template.
+2. Re-verify at the branch base every file:line the addendum cites (it was verified at
+   `883e5e3`): the two claim-copy models, both registry pages and `view-policy.ts`, the
+   digest claim query, the schema ranges, `publication-guard.ts`, `map-prompts.ts:72`.
+3. Draft `ESTIMATIVE_MAP_V1` (hedging × corroboration → ICD 203 band + range + confidence)
+   and the 1–6 AJP-2.1 information-credibility table as DATA with a per-cell rationale,
+   honouring the T3 constraint; never ship them.
+4. Design WS-7.5 as its own deferred additive migration (program ruling 1: it does NOT ride
+   WS-3.1) and settle whether `digests.source_summary` is persisted or computed at render.
+5. Write `docs/reviews/PLAN-WS-7-tradecraft-legibility-2026-09-06.md` — PR-by-PR for
+   WS-7.1/7.2/7.3/7.4/7.6, `/methodology` gate posture, deploy path, exposure note, session
+   estimates, the T decisions with recommendations, and Handoff rewrite text for steps 30–34.
+6. Gates (docs-only: counts must be unchanged), adversarial self-review, commit, PR.
+
+Execution (same block):
+
+- Base: the lane branch had zero unique commits and was fast-forwarded to `origin/main`
+  `29db301` (Wave-2 CP1 merge queue), so every citation was re-verified there rather than at
+  the addendum's `883e5e3`. Step branch `…-step29-plan-ws7` cut from it.
+- Nine verified corrections to the addendum drive the plan. The three that change what gets
+  built: `claims` has no relational path to `doc_claims`, so the ICS 206-01 AI-tool disclosure
+  is digest-scoped and must never assert a prompt hash (`schema.ts:257-285,291-305,932`);
+  `claims.confidence` is the mean of `sources.reliability_score`
+  (`digest-persist.ts:244-252`), the exact quantity #14 gates, so `ESTIMATIVE_MAP_V1` reads it
+  nowhere and the addendum's signature loses that parameter; and `/registry` is admin-only
+  (`registry/page.tsx:25`), so descriptors need a customer-visible render target too.
+- Two more: the claim-surface reliability gate is `showScores` (caller-passed, `false` on
+  signals), not `registryView.showReliability`; and a persisted per-digest source summary needs
+  no migration at all — `structured.stats` is already append-merged at
+  `digest-persist.ts:153-161` (the `evidenceRecency` precedent), so `digests.source_summary` is
+  dropped from the WS-7.5 design and V1 computes at render at zero extra query cost.
+- T3 drafted as data: 5 hedging × 4 corroboration tiers with a per-cell rationale and six
+  pinned invariants, plus a 1–6 AJP-2.1 credibility table derived from it. Bands below
+  "roughly even chance", "almost certain", and AJP-2.1 levels 4/5 are never machine-assigned —
+  BNOW has no refutation mechanism, so it must not export a negative judgment. The addendum's
+  draft (4 = "doubtful" for a single `claimed` document) is corrected on that basis.
+- Two new decisions raised, not decided: T4 (the disclosure reverses the 2026-07-16
+  provider-hiding note at `page.tsx:187-189`) and T5 (the public `/methodology` page must not
+  print the `showWeightConstants`-gated hedging weights).
+- Gates: typecheck/lint clean · unit 3,723/3,723 (255 files), identical to the base — the diff
+  is two files under `docs/`. Zero paid calls, zero DB access, no migration, no env change, no
+  deploy, nothing under `docs/evals/` opened. Spend $0.
