@@ -313,7 +313,9 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
 39. **[Tier 1] No git→Vercel deploy integration.** `git push` does not deploy — after the 07-09
     auth fix, prod served the stale build ~20 min (`AUTH-EMAIL-2026-07-09.md`). Wire the Vercel Git
     integration, or codify "push then `npx vercel@latest deploy --prod`" in a release checklist so a
-    pushed fix is not assumed live.
+    pushed fix is not assumed live. **STATUS 2026-09-06: checklist codified**
+    (`docs/RELEASE-CHECKLIST.md`) — Git integration itself is still absent (the Vercel
+    project has no connected repository).
 40. ~~**[Tier 1 — operator decision made] Magic-link login is not usable
     after the link's first open.** The single-use token is consumed
     by the first open (phone prefetch/scanner), so reopening on a second device →
@@ -810,7 +812,9 @@ docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md)
     deploy time, or render a fallback stamp baked at build. Also add a pre-deploy
     clean-tree check to the release checklist (this release briefly had one uncommitted
     reviewed fix in the uploaded tree; committed immediately after as `70b2aa9`, tree
-    byte-identical to the deploy).
+    byte-identical to the deploy). **STATUS 2026-09-06: checklist codified**
+    (`docs/RELEASE-CHECKLIST.md` step 4/8: deploy from the plain clone only, clean-tree
+    check included) — the underlying CLI limitation itself is unfixed.
 79. **[Tier 2] RU ROCA citation registry has the same historical staleness Iran had.**
     36 ru reports (2026-07-04→08-14) are `pending` with zero citations; newest parsed ru
     report is 2026-07-03. The 2026-08-15 validation hook refreshes citations for every

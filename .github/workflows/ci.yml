@@ -21,6 +21,8 @@ jobs:
 
   # DB integration tests on a disposable Neon branch. Runs only when the Neon
   # secrets are configured in the repo; skips cleanly otherwise.
+  # Green here is NOT evidence — this job clean-skips when NEON_API_KEY is absent
+  # (no repo Actions secret is configured); PRs report local disposable-fork runs instead.
   integration:
     runs-on: ubuntu-latest
     env:
