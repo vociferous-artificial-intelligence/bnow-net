@@ -9,8 +9,12 @@ Dated log of missing credentials/capabilities. Each has a stub in place; nothing
    **Action: generate a fresh token at vercel.com/account/tokens → `VERCEL_TOKEN` (needed for
    CI, not for local CLI deploys).**
 2. **No ANTHROPIC_API_KEY.** `OPENAI_API_KEY` is present and is used as the live
-   `AnalysisProvider` (≤$25 cap). **Action (optional): add `ANTHROPIC_API_KEY` at
-   console.anthropic.com → flips provider per env config.**
+   `AnalysisProvider` (≤$25 cap). ~~Action (optional): add `ANTHROPIC_API_KEY` →
+   flips provider per env config.~~ **CORRECTED 2026-09-06 (step 09, OPEN-TASKS #83):
+   adding an Anthropic key flips nothing. The seam is unmetered and unregistered, so
+   both selection paths were removed — `ANALYSIS_PROVIDER=anthropic` is now a typed
+   refusal and an Anthropic-only key falls back to the deterministic stub. No action
+   until the #83 wiring lands.**
 3. **No ACLED key.** Adapter stubbed with fixtures. **Action: acleddata.com/register →
    `ACLED_API_KEY`, `ACLED_EMAIL`.**
 4. **No Stripe keys.** Checkout remains disabled pending packaging and payment setup.
