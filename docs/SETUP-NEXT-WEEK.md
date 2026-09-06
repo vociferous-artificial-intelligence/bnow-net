@@ -172,7 +172,7 @@ job: `NEON_API_KEY`, `NEON_PROJECT_ID`, `DATABASE_URL`. Local clones: run
 ## The 10-minute smoke test (run after EACH key you add)
 
 ```bash
-cd ~/code/bnow.net && set -a && source .env.local && set +a
+cd /Users/go/code/bnow-net && set -a && source .env.local && set +a
 BASE=https://bnow-net.vercel.app   # or https://bnow.net after step 3
 
 # 1. app up + public pages render
@@ -190,8 +190,9 @@ npx tsx scripts/sqlq.ts "SELECT adapter, count(*) FROM raw_documents WHERE fetch
 npx tsx scripts/sqlq.ts "SELECT c.iso2, d.track, d.digest_date, d.provider FROM digests d JOIN countries c ON c.id=d.country_id WHERE d.digest_date >= (now() - interval '1 day')::date ORDER BY 3 DESC, 1"
 
 # 5. after an LLM key change: force one digest+validation and eyeball it
-curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/digest?country=ua&date=$(date -u -d yesterday +%F)" | head -c 400; echo
-curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/validate?date=$(date -u -d yesterday +%F)&country=ua" | head -c 400; echo
+# (BSD date, e.g. macOS; GNU date users: swap "-v-1d" for "-d yesterday")
+curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/digest?country=ua&date=$(date -u -v-1d +%F)" | head -c 400; echo
+curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/validate?date=$(date -u -v-1d +%F)&country=ua" | head -c 400; echo
 
 # 6. OpenSanctions: ordinary gap fill only. Monthly accounting + fixed-cutoff
 #    rescore are deployed, but cleanup #61 + recount + separate spend authorization

@@ -1,9 +1,11 @@
 import "./env";
 
 // Map-stage backfill driver (MR sprint 2, TASK 4; stop-classification +
-// --theater added 2026-08-15). Drives the DEPLOYED /api/cron/map route — this
-// box cannot reach api.openai.com (AGENTS.md), so all LLM work runs on Vercel;
-// this script only sequences days and reads counters back.
+// --theater added 2026-08-15). Drives the DEPLOYED /api/cron/map route —
+// production env vars and LLM spend metering live on Vercel, so all LLM work
+// runs there; this script only sequences days and reads counters back. (A
+// local `next start` bound to a disposable Neon branch is also a valid
+// non-production target now that the Mac reaches api.openai.com directly.)
 //
 // Budget gate: phase 1 dry-runs every day (no LLM, no writes) and prints the
 // modelled cost. Phase 2 (--apply) runs only if the estimate is under budget,

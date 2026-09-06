@@ -80,8 +80,9 @@ claimed it was ignored; it was not).
 ## Operator runbook
 
 Every command below runs from the repo root on a box with `.env.local` (DB) — paid steps also
-need `X_API_KEY` and X cap envs (see step 3). twitterapi.io DNS from this WSL2 box is untested;
-if it fails, add `api.twitterapi.io` to `scripts/pin-dns.cjs` or run from a clean-DNS box.
+need `X_API_KEY` and X cap envs (see step 3). (macOS: no DNS pin needed — twitterapi.io
+resolves directly.) On a box with DNS trouble, add `api.twitterapi.io` to
+`scripts/pin-dns.cjs` or run from a clean-DNS box.
 
 **Step 0 — immediately before any paid call (never rely on historical figures):**
 
@@ -184,7 +185,8 @@ minutes each). Review `result.md`: overwrite/publication-guard refusals are deli
 
 - **Roster drift**: the registry roster is a rolling 90-day window (383 → 364 accounts already);
   a mid-recovery drift refuses resume by design. Finish the recovery in one sitting if possible.
-- **twitterapi.io DNS from this box** is untested (pin-dns does not cover it yet).
+- **twitterapi.io DNS** has not been specifically verified on macOS (pin-dns does not
+  cover this host); if a future run hits DNS trouble, verify locally first.
 - Recovery bills already-ingested tweets again (returned = billed); the July-9/13 edges are
   dense, so expect meaningful duplicate spend — the budget bounds it.
 - `advanced_search` result completeness is the provider's guarantee; cursor exhaustion proves we
@@ -213,8 +215,9 @@ Everything below is measured, not planned. Operator ceilings: $50 X / $10 map / 
    **$3.9164**, checkpoint complete=true, watermark untouched. Balance delta 391,635 credits
    = $3.91635 = script total exactly; provider_usage day delta identical. Gap days
    07-10/11/12: 31/18/27 → 4,559/4,134/5,587 docs (Σ +16,007 exact).
-5. **Rescore:** needs `NODE_OPTIONS="--require ./scripts/pin-dns.cjs"` on this box (the
-   unpinned first attempt died pre-spend on the vercel.app fetch). Map modelled $0.7894 /
+5. **Rescore:** needed `NODE_OPTIONS="--require ./scripts/pin-dns.cjs"` on that WSL2 box
+   (the unpinned first attempt died pre-spend on the vercel.app fetch — a WSL2 DNS fact;
+   macOS reaches vercel.app directly and needs no pin). Map modelled $0.7894 /
    actual **$0.4963**; digests **28/30 regenerated**, thin-regen refusals kept priors for
    07-12 ru/elite_politics + 07-12 ir/military (ruling 17, deliberate); reduce **$0.2382**;
    validation **15/15, 0 pending**. Coverage mixed (12 re-scored cells mean 42.3→33.9 —

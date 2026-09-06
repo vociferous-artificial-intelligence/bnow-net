@@ -37,8 +37,10 @@ const DRY = args.includes("--dry");
 const RETRY_FAILED = args.includes("--retry-failed");
 const LIMIT = Number(argVal("--limit") ?? 500);
 
-// NOTE: deliberately DATABASE_URL (the pooled DSN works for plain statements;
-// .env.local's DATABASE_URL_UNPOOLED currently carries stale credentials)
+// NOTE: deliberately DATABASE_URL, not DATABASE_URL_UNPOOLED (this was a
+// stale-credential fact in one WSL2 .env.local, not a code portability issue;
+// the Mac .env.local holds both URL names — re-verify UNPOOLED's credentials
+// before switching this to it)
 const sql = neon(process.env.DATABASE_URL!);
 const query: QueryFn = (text, params) => sql.query(text, params) as Promise<Array<Record<string, unknown>>>;
 

@@ -1,9 +1,11 @@
 import "./env";
 
 // Version-aware map REMAP driver (OPEN-TASKS #33). Drives the DEPLOYED
-// /api/cron/map route in remap mode — this box cannot reach api.openai.com
-// (AGENTS.md), so all LLM work runs on Vercel; this script only sequences
-// days, threads the scan cursor, and reads counters back.
+// /api/cron/map route in remap mode — production env vars and LLM spend
+// metering live on Vercel, so all LLM work runs there; this script only
+// sequences days, threads the scan cursor, and reads counters back. (A local
+// `next start` bound to a disposable Neon branch is also a valid non-production
+// target now that the Mac reaches api.openai.com directly.)
 //
 // What remap mode does (src/lib/analysis/map-worker.ts): eligibility IGNORES
 // raw_documents.processed and instead anti-joins doc_map_state against the
