@@ -73,23 +73,58 @@ export interface AnalysisProvider {
   ): Promise<DigestAnalysis>;
 }
 
+/** The one refusal message the Anthropic seam raises today, exported so the
+ *  eventual wiring (OPEN-TASKS #83) has to REPLACE this constant rather than
+ *  route around it, and so tests pin the exact operator-facing wording. */
+export const ANTHROPIC_NOT_REGISTERED =
+  "provider anthropic is not registered/metered — see OPEN-TASKS #83: it passes no " +
+  "workloadDispatchConfig() gate (no priced model, no analysis-registry approval) and " +
+  "no SpendGuard reservation, so selecting it would bypass standing rulings 4 and 8";
+
+/** Thrown when ANALYSIS_PROVIDER names a provider that exists in the tree but is
+ *  not admissible. Typed and fail-closed in the same class as ModelConfigError:
+ *  raised BEFORE the provider module is imported, before its key is read, and
+ *  before any reservation or provider client exists. Carries no "truncated", so
+ *  digest.ts's ladder rethrows it immediately instead of burning smaller rungs. */
+export class AnalysisProviderError extends Error {
+  readonly code = "ANALYSIS_PROVIDER";
+  constructor(
+    readonly provider: string,
+    reason: string,
+  ) {
+    super(`analysis-provider: ${provider} — ${reason}`);
+    this.name = "AnalysisProviderError";
+  }
+}
+
+/** Select the analysis provider.
+ *
+ *  Selection order and what it deliberately does NOT do (2026-09-06, step 09):
+ *  - `ANALYSIS_PROVIDER=stub` always wins — the deterministic extractive path.
+ *  - `ANALYSIS_PROVIDER=anthropic` is REFUSED, key or no key. The seam is
+ *    implemented but unmetered and unregistered, so honouring it would have
+ *    dispatched a billed call with no `workloadDispatchConfig()` gate, no
+ *    `SpendGuard.tryReserve()` and no dispatch identity.
+ *  - There is NO "only an Anthropic key exists" branch any more. It used to
+ *    select the same unmetered seam silently, which made a single environment
+ *    variable — one now present in the operator's `.env.local` — enough to route
+ *    production analysis around both rulings. Absent an OpenAI key the stub is
+ *    the correct fallback: it spends nothing and invents nothing.
+ *  Restoring Anthropic means wiring it through `src/lib/llm/model-config.ts`, the
+ *  analysis registry and `pricing.ts` with its own metered `anthropic_digest`
+ *  provider row — i.e. replacing the refusal, not removing it. */
 export async function getProvider(): Promise<AnalysisProvider> {
   const forced = process.env.ANALYSIS_PROVIDER;
   if (forced === "stub") {
     const { StubProvider } = await import("./stub-provider");
     return new StubProvider();
   }
-  if (forced === "anthropic" && process.env.ANTHROPIC_API_KEY) {
-    const { AnthropicProvider } = await import("./anthropic-provider");
-    return new AnthropicProvider();
+  if (forced === "anthropic") {
+    throw new AnalysisProviderError("anthropic", ANTHROPIC_NOT_REGISTERED);
   }
   if (process.env.OPENAI_API_KEY) {
     const { OpenAiProvider } = await import("./openai-provider");
     return new OpenAiProvider();
-  }
-  if (process.env.ANTHROPIC_API_KEY) {
-    const { AnthropicProvider } = await import("./anthropic-provider");
-    return new AnthropicProvider();
   }
   const { StubProvider } = await import("./stub-provider");
   return new StubProvider();
