@@ -16,7 +16,8 @@ Authorship/exposure identity is recorded in [the ledger](EVAL-EXPOSURE-LEDGER.md
 ## Built
 
 PR title: **evals: exposure ledger + map-inj-dev-v1 (six development-split injection cases, offline-proven)**.
-Review branch: [compare against main](https://github.com/vociferous-artificial-intelligence/bnow-net/compare/main...48h/ws1-injection-20260905-injection-cases).
+PR: [#58](https://github.com/vociferous-artificial-intelligence/bnow-net/pull/58).
+Implementation commit: `02eeeafd5006f63891dab73ccfd1eb58a58fefa8`.
 
 - `docs/evals/analysis/map-inj-dev-v1.json`: contract v2, six map cases, all
   development/adversarial, PROVISIONAL model-drafted provenance, synthetic text only.

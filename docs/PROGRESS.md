@@ -3813,3 +3813,6 @@ Execution (same block):
 - Exposure ledger and closing report committed with the step-10 run card, deferred
   E2 design and unresolved product/versioning decision. Heldout IDs/content seen:
   none. Pre-existing package-lock change preserved and excluded from the PR.
+- Review handoff: implementation `02eeeaf`, pushed with the enforced gate green;
+  PR https://github.com/vociferous-artificial-intelligence/bnow-net/pull/58 opened.
+  Step 07 complete; paid capture remains operator-only step 10.

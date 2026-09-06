@@ -191,3 +191,14 @@ compares its identity, whole checks and output digests to recomputed fixture res
 The final staged path audit and secret scan include only this step's eight files;
 only the new dataset and its new offline result are under `docs/evals/analysis/`.
 No additional heldout exposure or paid call occurred.
+
+### 2026-09-06 — review handoff
+
+Implementation committed as `02eeeafd5006f63891dab73ccfd1eb58a58fefa8`, pushed after
+its enforced typecheck/lint/3,639-test pre-push gate, and opened as
+[PR #58](https://github.com/vociferous-artificial-intelligence/bnow-net/pull/58).
+A final `node -` command read only the new dataset bytes/new offline results and
+asserted `datasetContentHash` equals their SHA-256:
+`c531e300d98f6e7a3b6f3305aee5177268462207ea94431a5a1e8d9ee29ef1aa`.
+The report's PR-link-only follow-up changes no evaluation semantics. No merge,
+deployment, paid capture, external message or heldout read was performed.
