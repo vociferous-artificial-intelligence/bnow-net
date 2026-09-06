@@ -1208,13 +1208,18 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md §9)
     which leaves Conventions / Credentials / Next steps / Operating protocol wedged
     mid-log. New entries deliberately keep following the file-end convention so the log
     stays chronological until both are repaired in one deliberate pass.
-93. **[Tier 2 — observability] No Vercel log drain, so no runtime-log coverage of any soak
-    window.** `vercel logs` caps at 100 records and retention is short: the QF-B formal
+93. **[Tier 2 — observability; DESIGNED 2026-09-06, not yet registered] No Vercel log drain,
+    so no runtime-log coverage of any soak window.** `vercel logs` caps at 100 records and retention is short: the QF-B formal
     window 2026-08-22T02:00Z→2026-08-23T02:00Z had ZERO runtime-log coverage by the time it
     was closed, and the verdict had to rest entirely on `cron_runs` plus four independent
     durable stores plus out-of-band alert email. Configure a drain (or extend retention)
     before the next formal observation window so a self-reported counts payload is not the
-    only in-window narrative.
+    only in-window narrative. **Design landed 2026-09-06:** `docs/designs/LOG-DRAIN.md`
+    recommends a Neon `runtime_logs` receiver at 14-day retention (option a of three), fixes
+    the stored/never-stored field list, bounds the self-ingestion loop the receiver creates,
+    and gives the operator registration runbook with its secret-before-deploy ordering. The
+    task stays OPEN until the receiver is deployed and a drain is registered in the Vercel
+    dashboard (decision O1 sub-items in the design's §2).
 94. **[CLOSED 2026-09-03] The expired `MAP_USD_CAP_DAILY_OVERRIDE_USD` / `_UNTIL` pair
     was removed from Production in the operator's 2026-09-03 configuration-only release**
     (with the X cap raise; see that decision-log entry). It had expired
