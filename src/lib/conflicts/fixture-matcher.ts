@@ -189,6 +189,8 @@ export class FixtureOracleMatcher implements ConflictMatcher {
       votesK: null,
       votes: null,
       keywordUnmatchable: null,
+      insufficientData: null,
+      gazetteerVersion: null,
       model: null,
     };
   }

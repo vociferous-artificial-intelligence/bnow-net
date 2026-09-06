@@ -3525,3 +3525,50 @@ Execution (same block):
   decision-log entry edited or appended (append-only preserved); gates green;
   zero paid calls, zero production access, no deploy.
 
+
+## 2026-09-06 ~21:00Z — Iran/Levant gazetteer `iran-levant-v1` + `insufficient_data` (48h step 06, planned block)
+
+1. Branch `48h/ws3-gazetteer-20260905-gazetteer-iran-levant` off `48h/ws3-gazetteer-20260905`
+   (base `origin/main` `dff58f2`); baseline unit 3,612/247 green.
+2. Pin the RU/UA signature snapshot FIRST, with the pre-refactor `keywords.ts` still in the
+   tree, so the byte-identity proof is the commit graph and not an assertion.
+3. Split `src/lib/validation/keywords.ts` into `gazetteer/{types,ru-ua-v1,match,index}.ts`,
+   moving the RU/UA tables verbatim; `keywords.ts` becomes a re-export shim so every current
+   import site and every current behaviour is unchanged (`run.ts` diff must be empty).
+4. Add `gazetteer/iran-levant-v1.ts`: English canonical toponyms + transliteration variants
+   grouped by geography, theater-tagged to the `iran_regional` contributor theaters, plus the
+   nuclear/militia/maritime action deltas. Word-boundary match mode (RU/UA stays substring).
+5. Add `insufficientData` + `gazetteerVersion` to `ConflictMatchOutcome` and the keyword rung;
+   `keywordUnmatchable` stays exactly its frozen register #8 M1 count. `scorer.ts` untouched.
+6. Per-lane probe fixtures for `iran-lanes-v1` (≥2 positive / ≥1 negative per lane) through the
+   keyword rung, outside `fixtures/conflicts/` so no conflict dataset identity moves.
+7. Gates, adversarial self-review, PR, closing report
+   `docs/reviews/GAZETTEER-IRAN-LEVANT-V1-2026-09-05.md`.
+
+Execution (same block):
+
+- Base `origin/main` `dff58f2`; `origin/main` advanced to `8cb0e9e` mid-session (step 01
+  landing) and the branch was rebased onto it, keeping BOTH sides of the PROGRESS.md
+  conflict verbatim in timestamp order.
+- Snapshot pinned first from the pre-split `keywords.ts`, then the split: the moved region
+  is byte-identical, the snapshot and its test have an EMPTY diff across the refactor
+  commit, and no consumer file changed (`run.ts` diff empty, `backtest-matrix.ts:94`
+  untouched so its purity pin holds). An independent legacy-oracle differential pins the
+  algorithm separately from the snapshot.
+- `iran-levant-v1`: 106 canonical toponyms / 164 variants across six geography groups with
+  `iran_regional` contributor-theater tags, nine action classes. Word-boundary match mode,
+  pinned in both directions (`aden` inside "bin Laden", `arak` inside "Karak", `gaza` inside
+  "Gazans" under substring mode); `ru-ua-v1` stays substring, which is also the only correct
+  mode for Cyrillic.
+- `insufficientData` + `gazetteerVersion` on `ConflictMatchOutcome`;
+  `keywordUnmatchable === insufficientData.length` so register #8 M1 and the denominator are
+  unchanged. All seven `iran-lanes-v1` lanes score both positives with zero flagged; the same
+  probes score nothing under the default gazetteer, reproducing the blocker.
+- Scorer emission deliberately NOT taken: decision E5 (INDEX §2) — the golden change would
+  flip `conflictDatasetContentHash` and fail `hardening-cli.test.ts:192` until the committed
+  conflict offline results are refreshed under `docs/evals/analysis/`. Step 19 owns it.
+- Adversarial self-review found and fixed two fail-OPEN holes in this branch's own new code
+  (empty-variant regex matching everything; `Object.prototype` keys walking past the
+  fail-closed registry lookup). Seven mutants raised and all killed.
+- Gates: typecheck/lint clean · unit 3,704/3,704 (254 files, from 3,612/247). Zero paid
+  calls, zero DB access, no migration, no env change, no deploy. Spend $0.
