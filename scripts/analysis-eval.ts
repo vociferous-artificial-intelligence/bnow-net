@@ -10,6 +10,11 @@ import "./env";
 //
 // Modes (mutually exclusive; default --offline):
 //
+//   --dataset <name> selects a named dataset and its own results basename.
+//       Defaults stay unchanged. A selection pins one workload (inferred if
+//       omitted); live selections require --dev. Development-only datasets
+//       always write scope=dev and can never produce a full verdict.
+//
 //   --validate-dataset [--workload X]
 //       Validate every dataset file against the contract validators. Pure: no
 //       DB, no provider, no client construction. Exit 2 on any violation.
@@ -201,6 +206,59 @@ const DATASETS: Record<AnalysisEvalWorkload, { file: string; resultsBase: string
   validation: { file: "validation-v2.json", resultsBase: "validation-v2" },
 };
 
+interface DatasetSelection {
+  workload: AnalysisEvalWorkload;
+  file: string;
+  resultsBase: string;
+  developmentOnly?: boolean;
+}
+const NAMED_DATASETS: Record<string, DatasetSelection> = {
+  "map-v2": { workload: "map", ...DATASETS.map },
+  "reduce-v1": { workload: "reduce", ...DATASETS.reduce },
+  "digest-v2": { workload: "digest", ...DATASETS.digest },
+  "validation-v2": { workload: "validation", ...DATASETS.validation },
+  "map-inj-dev-v1": {
+    workload: "map", file: "map-inj-dev-v1.json", resultsBase: "map-inj-dev-v1", developmentOnly: true,
+  },
+};
+let selectedDataset: DatasetSelection | null = null;
+
+function datasetFor(workload: AnalysisEvalWorkload): DatasetSelection {
+  return selectedDataset ?? { workload, ...DATASETS[workload] };
+}
+
+function selectDataset(): void {
+  if (!hasFlag("dataset")) return;
+  const name = flagValue("dataset");
+  if (!name || name.startsWith("-")) {
+    console.error("--dataset needs a name");
+    process.exit(2);
+  }
+  if (process.argv.filter((a) => a === "--dataset").length !== 1) {
+    console.error("--dataset may be specified only once");
+    process.exit(2);
+  }
+  if (!Object.hasOwn(NAMED_DATASETS, name)) {
+    console.error(`--dataset: unknown name "${name}" (valid: ${Object.keys(NAMED_DATASETS).join(", ")})`);
+    process.exit(2);
+  }
+  if (hasFlag("profile") || hasFlag("capacity-matrix") || hasFlag("capture-inspect")) {
+    console.error("--dataset is not applicable to --profile, --capacity-matrix or --capture-inspect");
+    process.exit(2);
+  }
+  if (hasFlag("execute-live") && !hasFlag("dev")) {
+    console.error("--dataset with --execute-live requires --dev (before any client construction)");
+    process.exit(2);
+  }
+  selectedDataset = NAMED_DATASETS[name];
+  // Validate an explicit workload before any mode can ignore the selection.
+  parseWorkloads(false);
+}
+
+function datasetRunScope(onlyIds: string[] | null, devOnly: boolean): ResultsFileHeader["scope"] {
+  return selectedDataset?.developmentOnly ? "dev" : runScopeFor(onlyIds, devOnly);
+}
+
 // ---- CLI args -----------------------------------------------------------------
 
 function flagValue(name: string): string | undefined {
@@ -214,6 +272,7 @@ function hasFlag(name: string): boolean {
 function parseWorkloads(required: boolean): AnalysisEvalWorkload[] {
   const raw = flagValue("workload");
   if (!raw) {
+    if (selectedDataset) return [selectedDataset.workload];
     if (required) {
       console.error(`--workload is required for this mode (one of: ${ANALYSIS_EVAL_WORKLOADS.join(", ")})`);
       process.exit(2);
@@ -224,6 +283,10 @@ function parseWorkloads(required: boolean): AnalysisEvalWorkload[] {
   const bad = picked.filter((w) => !(ANALYSIS_EVAL_WORKLOADS as readonly string[]).includes(w));
   if (bad.length > 0) {
     console.error(`--workload: unknown workload(s): ${bad.join(", ")} (valid: ${ANALYSIS_EVAL_WORKLOADS.join(", ")})`);
+    process.exit(2);
+  }
+  if (selectedDataset && (picked.length !== 1 || picked[0] !== selectedDataset.workload)) {
+    console.error(`--dataset ${selectedDataset.resultsBase} requires exactly the ${selectedDataset.workload} workload`);
     process.exit(2);
   }
   return picked as AnalysisEvalWorkload[];
@@ -255,7 +318,8 @@ interface LoadedDataset {
 }
 
 function loadDataset(workload: AnalysisEvalWorkload): LoadedDataset {
-  const p = path.join(EVALS_DIR, DATASETS[workload].file);
+  const selection = datasetFor(workload);
+  const p = path.join(EVALS_DIR, selection.file);
   if (!existsSync(p)) {
     console.error(`missing dataset: ${p}`);
     process.exit(2);
@@ -263,6 +327,9 @@ function loadDataset(workload: AnalysisEvalWorkload): LoadedDataset {
   const bytes = readFileSync(p);
   const ds = JSON.parse(bytes.toString("utf8")) as AnalysisEvalDataset;
   const errs = validateAnalysisEvalDataset(ds, workload);
+  if (selectedDataset?.developmentOnly && ds.cases.some((c) => c.split !== "development")) {
+    errs.push("development-only dataset contains a non-development case");
+  }
   if (errs.length > 0) {
     console.error(`dataset ${p} is INVALID:\n  ${errs.join("\n  ")}`);
     process.exit(2);
@@ -274,7 +341,7 @@ function resultsPath(workload: AnalysisEvalWorkload, configKey: string): string 
   // offline keys (incl. capacity-profiled "offline-fixtures+<profile>") carry
   // no prefix; everything else is a live run artifact
   const prefix = configKey.startsWith(OFFLINE_CONFIG_KEY) ? "" : "live-";
-  return path.join(RESULTS_DIR, `${prefix}${DATASETS[workload].resultsBase}-${configKey}.json`);
+  return path.join(RESULTS_DIR, `${prefix}${datasetFor(workload).resultsBase}-${configKey}.json`);
 }
 
 // The capacity profile active for this invocation (--capacity; default
@@ -357,12 +424,12 @@ function saveResults(rf: EvalResultsFile): void {
 
 // ---- --validate-dataset --------------------------------------------------------
 
-/** every committed dataset for a workload: the ACTIVE file the runner loads
- *  plus the frozen historical v1 file where the active one superseded it —
- *  both must stay valid forever */
+/** Without a selector, validate defaults, frozen v1 files and supplements.
+ *  With a selector, read only that dataset. */
 function committedDatasetFiles(w: AnalysisEvalWorkload): string[] {
+  if (selectedDataset) return [selectedDataset.file];
   const v1 = `${w}-v1.json`;
-  return DATASETS[w].file === v1 ? [v1] : [DATASETS[w].file, v1];
+  return [...new Set([DATASETS[w].file, v1, ...Object.values(NAMED_DATASETS).filter((d) => d.workload === w).map((d) => d.file)])];
 }
 
 function modeValidate(workloads: AnalysisEvalWorkload[]): void {
@@ -461,7 +528,7 @@ function modeOffline(
       datasetContentHash: contentHash,
       identity: offlineIdentity(ds),
       requestedRepetitions: 1,
-      scope: runScopeFor(opts.onlyIds, opts.devOnly),
+      scope: datasetRunScope(opts.onlyIds, opts.devOnly),
       envKnobs: offlineEnvKnobs(),
     };
     const existing = loadResults(w, profiledKey(OFFLINE_CONFIG_KEY));
@@ -523,7 +590,7 @@ function discoverConfigs(workload: AnalysisEvalWorkload): string[] {
   const configs = new Set<string>();
   if (existsSync(resultsPath(workload, OFFLINE_CONFIG_KEY))) configs.add(OFFLINE_CONFIG_KEY);
   if (existsSync(RESULTS_DIR)) {
-    const base = DATASETS[workload].resultsBase;
+    const base = datasetFor(workload).resultsBase;
     for (const f of readdirSync(RESULTS_DIR)) {
       const m = f.match(new RegExp(`^live-${base}-(.+)\\.json$`));
       if (m) configs.add(m[1]);
@@ -880,7 +947,7 @@ async function modeLive(opts: {
     datasetContentHash: contentHash,
     identity: live.liveIdentity(ds, cfg),
     requestedRepetitions: opts.repetitions,
-    scope: runScopeFor(opts.onlyIds, opts.devOnly),
+    scope: datasetRunScope(opts.onlyIds, opts.devOnly),
     envKnobs: currentEnvKnobs(),
   };
   if (!opts.devOnly && opts.repetitions < MIN_LIVE_REPETITIONS) {
@@ -1049,11 +1116,12 @@ function modeCaptureReconcile(workload: AnalysisEvalWorkload, model: string, eff
   const files = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(".jsonl")).sort() : [];
   const parsed = files
     .map((f) => parseCaptureFile(f, readFileSync(path.join(dir, f), "utf8")))
-    // only runs for THIS workload/configKey; other cells' files are reported, never mixed in
-    .filter((p) => p.run !== null && p.run.workload === workload && p.run.configKey === configKey);
+    // Dataset is part of the cell: different corpora can share a configKey.
+    .filter((p) => p.run !== null && p.run.workload === workload && p.run.configKey === configKey &&
+      p.run.datasetVersion === datasetFor(workload).file.replace(/\.json$/, ""));
   const skipped = files.length - parsed.length;
   const rec = reconcileCapture(parsed, rf);
-  if (skipped > 0) rec.notes.unshift(`${skipped} capture file(s) in ${dir} belong to other workload/configKey cells (or lack a run line) and were not reconciled here`);
+  if (skipped > 0) rec.notes.unshift(`${skipped} capture file(s) in ${dir} belong to other workload/configKey/dataset cells (or lack a run line) and were not reconciled here`);
   const md = renderCaptureReconciliation(rec, `${workload}/${configKey} (results ${rf ? path.basename(rfPath) : "absent"}, capture ${dir})`);
   if (outPath) {
     writeFileSync(outPath, md);
@@ -1196,7 +1264,8 @@ async function main(): Promise<void> {
     console.error("--fresh and --only are mutually exclusive (--only is already a forced rerun of its ids)");
     process.exit(2);
   }
-  const devOnly = hasFlag("dev");
+  selectDataset();
+  const devOnly = hasFlag("dev") || selectedDataset?.developmentOnly === true;
 
   const profile = flagValue("profile");
   if (profile !== undefined && profile !== "conflict") {
