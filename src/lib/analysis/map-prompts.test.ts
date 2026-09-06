@@ -216,7 +216,7 @@ describe("mapExtractorVersion", () => {
     // repair changes the TRUNCATION ALGORITHM only, and the version basis is
     // (model, system prompt, frame rev, content budget) — none of which moves.
     // If this test fails, the change is NOT a same-version repair.
-    for (const k of ["MAP_MODEL", "OPENAI_MODEL", "MAP_REASONING_EFFORT", "MAP_CONTENT_CHARS"])
+    for (const k of ["MAP_MODEL", "OPENAI_MODEL", "MAP_REASONING_EFFORT", "MAP_CONTENT_CHARS", "MAP_PROVIDER"])
       delete process.env[k];
     expect(mapExtractorVersion("military", "ru")).toBe("gpt-4o-mini:d73cc83ed8df");
     expect(mapExtractorVersion("military", "ua")).toBe("gpt-4o-mini:d73cc83ed8df");
@@ -224,6 +224,36 @@ describe("mapExtractorVersion", () => {
     expect(mapExtractorVersion("elite_politics", "ru")).toBe("gpt-4o-mini:15a6078371bd");
     expect(mapExtractorVersion("elite_politics", "ir")).toBe("gpt-4o-mini:15a6078371bd");
     expect(mapExtractorVersion("nuclear", "ir")).toBe("gpt-4o-mini:19c06260f149");
+  });
+
+  it("the provider dimension is NOT part of the version basis (ruling 13)", () => {
+    // MAP_PROVIDER=openai is the resolved default with the env absent, so
+    // setting it explicitly cannot move a single extractor version — and a
+    // REFUSED provider (unknown, or known but outside the map allowlist)
+    // must not move it either. That is not cosmetic: mapExtractorVersion is a
+    // READ-side consumer that never throws, so a version shifted by a
+    // configuration that can never dispatch would strand every doc_claims
+    // consumer on zero current-version rows while the worker itself merely
+    // refused. model-config.ts keeps the historical OpenAI-shaped resolution
+    // for any refused provider precisely to hold this pin.
+    for (const k of ["MAP_MODEL", "OPENAI_MODEL", "MAP_REASONING_EFFORT", "MAP_CONTENT_CHARS", "MAP_PROVIDER"])
+      delete process.env[k];
+    const base = [
+      mapExtractorVersion("military", "ru"),
+      mapExtractorVersion("military", "ir"),
+      mapExtractorVersion("elite_politics", "ru"),
+      mapExtractorVersion("nuclear", "ir"),
+    ];
+    for (const v of ["openai", "anthropic", "openai_compatible", "nonsense"]) {
+      process.env.MAP_PROVIDER = v;
+      expect([
+        mapExtractorVersion("military", "ru"),
+        mapExtractorVersion("military", "ir"),
+        mapExtractorVersion("elite_politics", "ru"),
+        mapExtractorVersion("nuclear", "ir"),
+      ]).toEqual(base);
+    }
+    delete process.env.MAP_PROVIDER;
   });
 
   it("an effort that cannot dispatch (invalid / non-reasoning model) never shifts the version", () => {

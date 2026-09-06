@@ -158,7 +158,10 @@ export function evalDispatchConfig(
   // production configuration's). Only a status-"baseline" registry verdict
   // resolves here; a future "evaluated_candidate" registry entry still takes
   // the bypass stamp — its eval artifacts describe candidate dispatches.
-  const verdict = analysisApproval(workload, model, reasoningEffort);
+  // The eval plane is OpenAI-only in this release (the `--provider` flag and a
+  // provider-qualified eval identity are PLAN-WS-2 §7.1 / PR-2.4-1); the
+  // literal keeps the registry lookup honest rather than provider-agnostic.
+  const verdict = analysisApproval(workload, "openai", model, reasoningEffort);
   const approval: EvalCandidateDispatchConfig["approval"] =
     verdict.approved && verdict.status === "baseline" ? "baseline" : "evaluation_candidate";
   return { workload, model, reasoningCapable, reasoningEffort, approval };

@@ -63,6 +63,7 @@ const ENV_KEYS = [
   "LLM_SPRINT_USD_CAP",
   "DIGEST_MODEL",
   "DIGEST_REASONING_EFFORT",
+  "DIGEST_PROVIDER",
   "OPENAI_MODEL",
 ] as const;
 const SAVED = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
@@ -90,6 +91,7 @@ describe("OpenAiProvider dispatch (baseline)", () => {
     expect(res.provider).toBe("openai:gpt-4o-mini");
     expect(res.dispatch).toEqual({
       workload: "digest",
+      provider: "openai",
       model: "gpt-4o-mini",
       reasoningEffort: null,
       registryVersion: "analysis-reg-v1",
@@ -115,6 +117,15 @@ describe("OpenAiProvider dispatch (baseline)", () => {
     expect(ctorSpy).not.toHaveBeenCalled(); // no provider client ever existed
     expect(createSpy).not.toHaveBeenCalled(); // no dispatch
     expect(querySpy).not.toHaveBeenCalled(); // no guard init/reserve — failed before reservation
+  });
+
+  it("a non-allowlisted DIGEST_PROVIDER fails BEFORE reservation and BEFORE client construction", async () => {
+    process.env.DIGEST_PROVIDER = "anthropic";
+    const p = new OpenAiProvider();
+    await expect(p.analyze("ua", "2026-08-17", DOCS)).rejects.toThrow(/not allowed for workload "digest"/);
+    expect(ctorSpy).not.toHaveBeenCalled();
+    expect(createSpy).not.toHaveBeenCalled();
+    expect(querySpy).not.toHaveBeenCalled();
   });
 
   it("a truncated response is METERED before being discarded (ruling 8)", async () => {

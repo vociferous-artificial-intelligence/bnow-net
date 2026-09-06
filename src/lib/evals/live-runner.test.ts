@@ -107,7 +107,7 @@ describe("evalDispatchConfig (baseline via registry; candidates via the ONE regi
     // approval for every live workload — its eval identity must record the
     // registry-backed production configuration, never evaluation_candidate.
     for (const workload of ["map", "digest", "validation"] as const) {
-      const verdict = analysisApproval(workload, "gpt-4o-mini", null);
+      const verdict = analysisApproval(workload, "openai", "gpt-4o-mini", null);
       expect(verdict).toMatchObject({ approved: true, status: "baseline" });
       expect(evalDispatchConfig(workload, "gpt-4o-mini", null)).toEqual({
         workload,

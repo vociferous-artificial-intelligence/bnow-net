@@ -893,6 +893,15 @@ docs/reviews/CLOUD-MODEL-ROUTING-SEAMS-2026-08-17.md §12.11)
     provider row — which must REPLACE the refusal (`ANTHROPIC_NOT_REGISTERED` in
     `src/lib/analysis/provider.ts`), never route around it. Still a prerequisite to ever
     setting an Anthropic key in a Vercel environment.
+    **STATUS 2026-09-06 (step 12, PLAN-WS-2 §5.1):** the routing seam now carries a
+    PROVIDER dimension — `<WORKLOAD>_PROVIDER`, the `anthropic` id is NAMEABLE in
+    `src/lib/llm/providers.ts`, and `provider` is a required field on every approval,
+    dispatch config and persisted dispatch identity. Nothing is activated by this: every
+    workload's allowlist is `{openai}`, so `DIGEST_PROVIDER=anthropic` is refused inside
+    `resolveWorkloadModel` before any reservation or client construction, and no price row
+    or registry approval exists for any non-OpenAI provider. The wiring listed above is
+    unchanged as the remaining work; what changed is that it now has a typed, gated place
+    to land (PLAN-WS-2 §5.4, step 20b) instead of needing a new seam.
 84. **[Tier 1 — deploy gate] Re-confirm `ASK_USD_CAP_DAILY` headroom under the corrected
     gpt-5-mini price before deploying PR #5.** The correction ($0.125/$1 → $0.25/$2 per 1M
     tokens) doubles the Ask rerank reservation and recorded estimate at deploy —

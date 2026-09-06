@@ -1,8 +1,9 @@
 // Workload-scoped cloud-model routing for the ANALYSIS pipelines: map, reduce
 // (mapreduce digest synthesis), legacy digest extraction, ISW validation
 // matching, and the entity audit. This module is the ONE authority for "which
-// model does this workload dispatch, at what reasoning effort" — call sites
-// must not read OPENAI_MODEL / *_MODEL / *_REASONING_EFFORT directly.
+// PROVIDER and model does this workload dispatch, at what reasoning effort" —
+// call sites must not read OPENAI_MODEL / *_MODEL / *_REASONING_EFFORT /
+// *_PROVIDER directly.
 //
 // The ASK pipeline is deliberately NOT routed here: ASK_ANSWER_MODEL /
 // ASK_RERANK_MODEL stay in src/lib/ask/config.ts and Ask's per-model parameter
@@ -14,15 +15,22 @@
 // - Resolution happens at CALL time. Nothing here snapshots the environment at
 //   module import (the pre-existing `MAP_MODEL = process.env… ?? …` const did,
 //   which froze test/config changes and hid the reduce stage's coupling).
-// - Precedence per workload: <WORKLOAD>_MODEL → OPENAI_MODEL → gpt-4o-mini.
-//   Values are trimmed; blank/whitespace-only values are ABSENT.
+// - Provider per workload: <WORKLOAD>_PROVIDER, default openai, validated
+//   against the per-workload allowlist in providers.ts BEFORE anything else is
+//   interpreted (every allowlist is {openai} today, so this is a refusal
+//   surface, not a routing surface). ANALYSIS_PROVIDER is NOT read here — it
+//   keeps its own stub/anthropic meaning in src/lib/analysis/provider.ts.
+// - Precedence per workload: <WORKLOAD>_MODEL → OPENAI_MODEL → gpt-4o-mini,
+//   for provider openai ONLY; any other provider requires an explicit
+//   <WORKLOAD>_MODEL. Values are trimmed; blank/whitespace-only are ABSENT.
 // - Reasoning effort per workload: <WORKLOAD>_REASONING_EFFORT, validated
 //   against the documented allowlist (minimal|low|medium|high). Absent = no
 //   reasoning_effort parameter is ever added — existing payloads are preserved
 //   exactly. Invalid values FAIL CLOSED at workloadDispatchConfig(), before any
 //   provider dispatch.
 // - Unpriced models FAIL CLOSED: a model with no entry in the metering price
-//   table (src/lib/llm/pricing.ts PRICES_PER_MTOK) must not dispatch, because
+//   table (src/lib/llm/pricing.ts PRICES_PER_MTOK) FOR THE RESOLVED PROVIDER
+//   must not dispatch, because
 //   its spend could only be estimated by the conservative unknown-model
 //   ceiling — good enough as defense-in-depth, not good enough to knowingly
 //   run a pipeline on (standing ruling 4's fail-closed spirit). Activating a
@@ -39,9 +47,21 @@ import {
   analysisApproval,
   type AnalysisApprovalStatus,
 } from "./analysis-registry";
-import { PRICES_PER_MTOK } from "./pricing";
+import { pricedFor } from "./pricing";
+import {
+  ANALYSIS_DEFAULT_PROVIDER,
+  ANALYSIS_PROVIDER_IDS,
+  WORKLOAD_PROVIDER_ALLOWLIST,
+  analysisReasoningCapable,
+  isAnalysisProviderId,
+  type AnalysisProviderId,
+  type AnalysisWorkload,
+} from "./providers";
 
-export type AnalysisWorkload = "map" | "reduce" | "digest" | "validation" | "entity_audit";
+// AnalysisWorkload moved to providers.ts (the leaf module the price table, the
+// approval registry and this file can all import without a cycle). Re-exported
+// here so every historical `from "./model-config"` import keeps working.
+export type { AnalysisWorkload, AnalysisProviderId };
 
 export const ANALYSIS_DEFAULT_MODEL = "gpt-4o-mini";
 
@@ -49,20 +69,18 @@ export const ANALYSIS_DEFAULT_MODEL = "gpt-4o-mini";
 export const REASONING_EFFORT_VALUES = ["minimal", "low", "medium", "high"] as const;
 export type AnalysisReasoningEffort = (typeof REASONING_EFFORT_VALUES)[number];
 
-const WORKLOAD_ENV: Record<AnalysisWorkload, { model: string; effort: string }> = {
-  map: { model: "MAP_MODEL", effort: "MAP_REASONING_EFFORT" },
-  reduce: { model: "REDUCE_MODEL", effort: "REDUCE_REASONING_EFFORT" },
-  digest: { model: "DIGEST_MODEL", effort: "DIGEST_REASONING_EFFORT" },
-  validation: { model: "VALIDATION_MODEL", effort: "VALIDATION_REASONING_EFFORT" },
-  entity_audit: { model: "ENTITY_AUDIT_MODEL", effort: "ENTITY_AUDIT_REASONING_EFFORT" },
+const WORKLOAD_ENV: Record<
+  AnalysisWorkload,
+  { model: string; effort: string; provider: string }
+> = {
+  map: { model: "MAP_MODEL", effort: "MAP_REASONING_EFFORT", provider: "MAP_PROVIDER" },
+  reduce: { model: "REDUCE_MODEL", effort: "REDUCE_REASONING_EFFORT", provider: "REDUCE_PROVIDER" },
+  digest: { model: "DIGEST_MODEL", effort: "DIGEST_REASONING_EFFORT", provider: "DIGEST_PROVIDER" },
+  validation: { model: "VALIDATION_MODEL", effort: "VALIDATION_REASONING_EFFORT", provider: "VALIDATION_PROVIDER" },
+  entity_audit: { model: "ENTITY_AUDIT_MODEL", effort: "ENTITY_AUDIT_REASONING_EFFORT", provider: "ENTITY_AUDIT_PROVIDER" },
 };
 
 export const ANALYSIS_WORKLOADS = Object.keys(WORKLOAD_ENV) as AnalysisWorkload[];
-
-/** Models that reject a non-default `temperature` and accept `reasoning_effort`.
- *  Mirrors the Ask gateway's GPT5_FAMILY split (src/lib/ask/llm-params.ts) and
- *  adds the o-series defensively; unpriced models cannot dispatch regardless. */
-const REASONING_MODEL = /^(gpt-5|o\d)/;
 
 /** HARD MAP ACTIVATION LOCK (release hardening 2026-08-17). The map production
  *  route may dispatch ONLY this baseline: changing MAP_MODEL or a validated
@@ -87,11 +105,18 @@ function envStr(name: string): string | null {
 
 export interface WorkloadModelConfig {
   workload: AnalysisWorkload;
+  /** the vendor that WOULD dispatch for this workload */
+  provider: AnalysisProviderId;
+  providerSource: "workload" | "default";
+  providerEnvVar: string;
+  /** trimmed raw provider env value (null when absent) — kept for diagnostics */
+  providerRaw: string | null;
   /** the model that WOULD dispatch for this workload */
   model: string;
   modelSource: "workload" | "openai_model" | "default";
   modelEnvVar: string;
-  /** model has an exact entry in the metering price table (pricing.ts) */
+  /** model has an exact entry in the metering price table (pricing.ts) FOR
+   *  the resolved provider */
   priced: boolean;
   /** model accepts reasoning_effort / rejects temperature */
   reasoningCapable: boolean;
@@ -100,7 +125,7 @@ export interface WorkloadModelConfig {
   /** trimmed raw effort env value (null when absent) — kept for diagnostics */
   effortRaw: string | null;
   effortEnvVar: string;
-  /** (workload, model, effort) has an analysis-registry approval */
+  /** (workload, provider, model, effort) has an analysis-registry approval */
   approved: boolean;
   /** approval status when approved; null otherwise */
   approvalStatus: AnalysisApprovalStatus | null;
@@ -124,19 +149,61 @@ export class ModelConfigError extends Error {
   }
 }
 
-/** Resolve one workload's model + effort. NEVER throws — safe for read-side
- *  consumers (extractor versioning, provider tags, the dry-run inspector).
- *  Dispatch paths must go through workloadDispatchConfig() instead. */
-export function resolveWorkloadModel(workload: AnalysisWorkload): WorkloadModelConfig {
+/** Resolve one workload's provider + model + effort. NEVER throws — safe for
+ *  read-side consumers (extractor versioning, provider tags, the dry-run
+ *  inspector). Dispatch paths must go through workloadDispatchConfig() instead.
+ *
+ *  `allowlist` is injectable for TESTS ONLY, on the same footing as
+ *  analysisApproval()'s `registry` parameter: it lets the post-widening
+ *  refusal branches (which the shipped {openai}-everywhere allowlist makes
+ *  unreachable) be exercised before a widening PR relies on them. It is
+ *  deliberately NOT threaded through workloadDispatchConfig(), so no dispatch
+ *  site can widen its own allowlist — pinned in model-config.test.ts. */
+export function resolveWorkloadModel(
+  workload: AnalysisWorkload,
+  allowlist: Record<
+    AnalysisWorkload,
+    ReadonlySet<AnalysisProviderId>
+  > = WORKLOAD_PROVIDER_ALLOWLIST,
+): WorkloadModelConfig {
   const env = WORKLOAD_ENV[workload];
+
+  // PROVIDER first. Everything downstream — which price table row applies,
+  // whether a reasoning effort is even a thing, which registry row can approve
+  // the dispatch — is provider-relative, so an unknown or disallowed vendor is
+  // refused before any of it is interpreted.
+  const providerRaw = envStr(env.provider);
+  const providerKnown = providerRaw === null || isAnalysisProviderId(providerRaw);
+  const provider: AnalysisProviderId = providerKnown
+    ? ((providerRaw ?? ANALYSIS_DEFAULT_PROVIDER) as AnalysisProviderId)
+    : ANALYSIS_DEFAULT_PROVIDER; // placeholder only: dispatchBlocked is set below
+  const providerAllowed = providerKnown && allowlist[workload].has(provider);
+  const providerSource: WorkloadModelConfig["providerSource"] =
+    providerRaw !== null ? "workload" : "default";
+
   const workloadModel = envStr(env.model);
   const globalModel = envStr("OPENAI_MODEL");
-  const model = workloadModel ?? globalModel ?? ANALYSIS_DEFAULT_MODEL;
+  // OPENAI_MODEL and the gpt-4o-mini default are OPENAI defaults and must not
+  // silently name a model on another vendor; a non-OpenAI provider therefore
+  // requires its own explicit <WORKLOAD>_MODEL (refused below when absent).
+  //
+  // Scoped to an ALLOWED provider on purpose (ruling 13). This function never
+  // throws and read-side consumers use it — above all mapExtractorVersion(),
+  // whose basis is `cfg.model`. If a REFUSED provider blanked the model, then
+  // `MAP_PROVIDER=anthropic` — which cannot dispatch anything — would still
+  // shift every map extractor version, and every doc_claims consumer would
+  // silently see zero current-version rows. A refused configuration therefore
+  // keeps the historical OpenAI-shaped resolution; it is dispatchBlocked below
+  // regardless, so nothing can act on it.
+  const model =
+    provider === "openai" || !providerAllowed
+      ? (workloadModel ?? globalModel ?? ANALYSIS_DEFAULT_MODEL)
+      : (workloadModel ?? "");
   const modelSource: WorkloadModelConfig["modelSource"] =
     workloadModel !== null ? "workload" : globalModel !== null ? "openai_model" : "default";
 
-  const priced = Object.prototype.hasOwnProperty.call(PRICES_PER_MTOK, model);
-  const reasoningCapable = REASONING_MODEL.test(model);
+  const priced = model !== "" && pricedFor(provider, model);
+  const reasoningCapable = analysisReasoningCapable(provider, model);
 
   const effortRaw = envStr(env.effort);
   const effortValid =
@@ -146,13 +213,24 @@ export function resolveWorkloadModel(workload: AnalysisWorkload): WorkloadModelC
     ? (effortRaw!.toLowerCase() as AnalysisReasoningEffort)
     : null;
 
-  const approval = analysisApproval(workload, model, reasoningEffort);
+  const approval = analysisApproval(workload, provider, model, reasoningEffort);
 
   let dispatchBlocked: string | null = null;
-  if (effortRaw !== null && !effortValid) {
+  if (providerRaw === "stub") {
+    dispatchBlocked = `${env.provider}=stub is not a dispatch provider (ANALYSIS_PROVIDER=stub is the offline switch) — failing closed`;
+  } else if (!providerKnown) {
+    dispatchBlocked = `${env.provider}="${providerRaw}" is not a known provider (known: ${ANALYSIS_PROVIDER_IDS.join("|")}) — failing closed`;
+  } else if (!providerAllowed) {
+    dispatchBlocked = `provider "${provider}" is not allowed for workload "${workload}" (allowed: ${[...allowlist[workload]].join("|")}) — failing closed`;
+  } else if (provider !== "openai" && workloadModel === null) {
+    dispatchBlocked = `${env.provider}=${provider} requires an explicit ${env.model} (OPENAI_MODEL and the default model apply to provider openai only) — failing closed`;
+  } else if (effortRaw !== null && !effortValid) {
     dispatchBlocked = `invalid ${env.effort}="${effortRaw}" (allowed: ${REASONING_EFFORT_VALUES.join("|")}) — failing closed`;
   } else if (reasoningEffort !== null && !reasoningCapable) {
-    dispatchBlocked = `${env.effort}=${reasoningEffort} set for non-reasoning model "${model}" — failing closed`;
+    dispatchBlocked =
+      provider === "openai"
+        ? `${env.effort}=${reasoningEffort} set for non-reasoning model "${model}" — failing closed`
+        : `${env.effort}=${reasoningEffort} set for provider "${provider}", which accepts no reasoning effort in this release — failing closed`;
   } else if (
     workload === "map" &&
     (model !== MAP_BASELINE.model || reasoningEffort !== MAP_BASELINE.reasoningEffort)
@@ -162,13 +240,20 @@ export function resolveWorkloadModel(workload: AnalysisWorkload): WorkloadModelC
     // version-aware remap path exists and activation is explicitly authorized
     dispatchBlocked = `MAP ACTIVATION BLOCKED: map may dispatch only the baseline (${MAP_BASELINE.model}, no reasoning effort). A non-baseline map model/effort changes mapExtractorVersion() WITHOUT remapping historical documents (map-worker selects processed=false only) — a version-aware remap implementation (OPEN-TASKS #33) and explicit operator activation authorization are required first; pricing or scorecard approval alone does not unlock this`;
   } else if (!priced) {
-    dispatchBlocked = `model "${model}" has no entry in the metering price table (src/lib/llm/pricing.ts) — refusing to dispatch unpriced`;
+    dispatchBlocked =
+      provider === "openai"
+        ? `model "${model}" has no entry in the metering price table (src/lib/llm/pricing.ts) — refusing to dispatch unpriced`
+        : `model "${model}" is not priced for provider "${provider}" in the metering price table (src/lib/llm/pricing.ts) — refusing to dispatch unpriced`;
   } else if (!approval.approved) {
     dispatchBlocked = approval.reason;
   }
 
   return {
     workload,
+    provider,
+    providerSource,
+    providerEnvVar: env.provider,
+    providerRaw,
     model,
     modelSource,
     modelEnvVar: env.model,
@@ -188,6 +273,7 @@ export function resolveWorkloadModel(workload: AnalysisWorkload): WorkloadModelC
  *  that authorized it (persisted with every output — see dispatchIdentity). */
 export interface AnalysisDispatchConfig {
   workload: AnalysisWorkload;
+  provider: AnalysisProviderId;
   model: string;
   reasoningCapable: boolean;
   reasoningEffort: AnalysisReasoningEffort | null;
@@ -196,15 +282,17 @@ export interface AnalysisDispatchConfig {
 }
 
 /** Resolve for DISPATCH: throws ModelConfigError (fail closed, BEFORE any
- *  reservation and BEFORE any provider client construction) when the
- *  configuration is invalid, unpriced, quality-unapproved for this exact
- *  (workload, model, effort), or blocked by the map activation lock. Call
- *  this before building any provider request. */
+ *  reservation and BEFORE any provider client construction) when the provider
+ *  is unknown or outside this workload's allowlist, the configuration is
+ *  invalid, the model is unpriced FOR THAT PROVIDER, the exact (workload,
+ *  provider, model, effort) is quality-unapproved, or the map activation lock
+ *  applies. Call this before building any provider request. */
 export function workloadDispatchConfig(workload: AnalysisWorkload): AnalysisDispatchConfig {
   const cfg = resolveWorkloadModel(workload);
   if (cfg.dispatchBlocked !== null) throw new ModelConfigError(workload, cfg.dispatchBlocked);
   return {
     workload,
+    provider: cfg.provider,
     model: cfg.model,
     reasoningCapable: cfg.reasoningCapable,
     reasoningEffort: cfg.reasoningEffort,
@@ -223,6 +311,7 @@ export function workloadDispatchConfig(workload: AnalysisWorkload): AnalysisDisp
  *  answers the effort question. Contains no secret and no prompt content. */
 export interface AnalysisDispatchIdentity {
   workload: AnalysisWorkload;
+  provider: AnalysisProviderId;
   model: string;
   reasoningEffort: AnalysisReasoningEffort | null;
   registryVersion: string;
@@ -232,6 +321,7 @@ export interface AnalysisDispatchIdentity {
 export function dispatchIdentity(cfg: AnalysisDispatchConfig): AnalysisDispatchIdentity {
   return {
     workload: cfg.workload,
+    provider: cfg.provider,
     model: cfg.model,
     reasoningEffort: cfg.reasoningEffort,
     registryVersion: cfg.registryVersion,
@@ -272,5 +362,7 @@ export function analysisChatParams(
 /** The full resolved matrix — the dry-run inspector's data source
  *  (scripts/model-routing-inspect.ts). Read-only; no provider contact. */
 export function workloadModelMatrix(): WorkloadModelConfig[] {
-  return ANALYSIS_WORKLOADS.map(resolveWorkloadModel);
+  // explicit arity: Array.map passes (value, index, array), and
+  // resolveWorkloadModel's second parameter is the test-only allowlist
+  return ANALYSIS_WORKLOADS.map((w) => resolveWorkloadModel(w));
 }

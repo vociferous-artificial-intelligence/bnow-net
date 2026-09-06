@@ -7,6 +7,14 @@
 
 import { SpendGuard, envCap, envNum, pgUsageStore, type ReserveCode } from "./spend-guard";
 
+// NAMING HAZARD (2026-09-06): the *_PROVIDER constants below are
+// provider_usage ROW KEYS — the ledger row a call's spend lands in. They are
+// unrelated to the <WORKLOAD>_PROVIDER routing ENVs added by the provider
+// dimension (MAP_PROVIDER, REDUCE_PROVIDER, DIGEST_PROVIDER,
+// VALIDATION_PROVIDER, ENTITY_AUDIT_PROVIDER — src/lib/llm/model-config.ts),
+// which name a VENDOR. Same words, different namespaces; nothing here reads
+// process.env.
+
 /** provider_usage.provider for the digest extract call (audit Site A). */
 export const DIGEST_PROVIDER = "openai_digest";
 
