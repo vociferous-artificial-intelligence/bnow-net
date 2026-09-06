@@ -26,14 +26,15 @@ Adding any env var to production: `npx vercel env add <NAME> production` then re
 
 The account died once mid-weekend and everything silently degraded to the extractive
 stub. Check the balance; set an auto-recharge or a billing alert.
-**Anthropic is NOT a safe drop-in today (corrected 2026-09-05 — OPEN-TASKS #83).** The
-seam auto-selects `AnthropicProvider` (`claude-sonnet-5` default, `ANTHROPIC_MODEL` to
-override) whenever an `ANTHROPIC_API_KEY` exists and no OpenAI key does, or when forced
-with `ANALYSIS_PROVIDER=anthropic` — but that path is unmetered and unregistered: it
-bypasses `model-config.ts`'s dispatch gate, the `analysis-reg-v1` approval registry, and
-`pricing.ts` entirely (a ruling-4 hazard). Do not set `ANTHROPIC_API_KEY` in any Vercel
-environment as a casual OpenAI-outage fallback until the wiring repair lands (planned as
-the 48-hour program's step 09).
+**NOT an alternative — corrected 2026-09-06 (step 09, OPEN-TASKS #83):** an
+`ANTHROPIC_API_KEY` does NOT give you a working fallback. Earlier text here said the seam
+auto-uses Claude when no OpenAI key exists, or on `ANALYSIS_PROVIDER=anthropic`; both
+selection paths were removed because that provider is unmetered and unregistered — it
+passes no `workloadDispatchConfig()` gate and takes no `SpendGuard` reservation. Today
+`ANALYSIS_PROVIDER=anthropic` is a typed refusal, and an Anthropic key with no OpenAI key
+falls back to the deterministic STUB (degraded digests, no spend). Setting an Anthropic key
+in a Vercel environment buys nothing until the #83 wiring lands. Keep the OpenAI balance
+funded; that is still the single dependency.
 
 ## 2. Fresh VERCEL_TOKEN — $0, 5 min
 
@@ -172,7 +173,7 @@ job: `NEON_API_KEY`, `NEON_PROJECT_ID`, `DATABASE_URL`. Local clones: run
 ## The 10-minute smoke test (run after EACH key you add)
 
 ```bash
-cd /Users/go/code/bnow-net && set -a && source .env.local && set +a
+cd ~/code/bnow.net && set -a && source .env.local && set +a
 BASE=https://bnow-net.vercel.app   # or https://bnow.net after step 3
 
 # 1. app up + public pages render
@@ -190,9 +191,8 @@ npx tsx scripts/sqlq.ts "SELECT adapter, count(*) FROM raw_documents WHERE fetch
 npx tsx scripts/sqlq.ts "SELECT c.iso2, d.track, d.digest_date, d.provider FROM digests d JOIN countries c ON c.id=d.country_id WHERE d.digest_date >= (now() - interval '1 day')::date ORDER BY 3 DESC, 1"
 
 # 5. after an LLM key change: force one digest+validation and eyeball it
-# (BSD date, e.g. macOS; GNU date users: swap "-v-1d" for "-d yesterday")
-curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/digest?country=ua&date=$(date -u -v-1d +%F)" | head -c 400; echo
-curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/validate?date=$(date -u -v-1d +%F)&country=ua" | head -c 400; echo
+curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/digest?country=ua&date=$(date -u -d yesterday +%F)" | head -c 400; echo
+curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/validate?date=$(date -u -d yesterday +%F)&country=ua" | head -c 400; echo
 
 # 6. OpenSanctions: ordinary gap fill only. Monthly accounting + fixed-cutoff
 #    rescore are deployed, but cleanup #61 + recount + separate spend authorization

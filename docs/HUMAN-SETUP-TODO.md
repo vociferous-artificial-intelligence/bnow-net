@@ -30,10 +30,16 @@ in this queue.
 
 ### 2. Anthropic fallback key — optional
 
-- Status: provider support exists, but no `ANTHROPIC_API_KEY` is configured.
-- Human task: add a key only if provider redundancy or a quality comparison is desired;
-  optionally set `ANTHROPIC_MODEL`.
-- Priority: useful fallback, not a launch blocker while OpenAI is healthy.
+- Status (corrected 2026-09-06, step 09 / OPEN-TASKS #83): the provider CLASS exists but
+  is UNSELECTABLE. It is unmetered and unregistered — no `workloadDispatchConfig()` gate,
+  no `SpendGuard` reservation, no dispatch identity — so `getProvider()` refuses
+  `ANALYSIS_PROVIDER=anthropic` outright and an Anthropic-only key falls back to the
+  deterministic stub, not to Claude.
+- Human task: NONE. Setting `ANTHROPIC_API_KEY` (or `ANTHROPIC_MODEL`) buys no redundancy
+  today; it is not a fallback. The engineering prerequisite is the #83 wiring
+  (model-config routing, an `analysis-reg-v1` entry with its promotion scorecard, prices in
+  `pricing.ts`, a metered `anthropic_digest` row), which must replace the refusal.
+- Priority: not a launch blocker; there is no fallback to lose while OpenAI is healthy.
 
 ### 3. Vercel automation token
 
