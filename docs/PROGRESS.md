@@ -3789,3 +3789,20 @@ Execution (same block):
   fail-closed registry lookup). Seven mutants raised and all killed.
 - Gates: typecheck/lint clean · unit 3,704/3,704 (254 files, from 3,612/247). Zero paid
   calls, zero DB access, no migration, no env change, no deploy. Spend $0.
+
+## 2026-09-06 ~22:40Z — WS-2.1 Ask metering granularity + gate parity (step 11, planned block)
+
+1. Verify worktree/base and that PLAN-WS-2 §4 is on `main`; read the plan's step-11 rewrite
+   text (COMMON §2.5) and check R1/R3 in the INDEX decision sheet.
+2. PR-2.1-1 `ask: per-model attribution report over ask_usage (read-only)` — pure
+   `src/lib/ask/attribution.ts` + tests + `scripts/ask-model-attribution.ts`, SELECT-only
+   source-scan pin.
+3. HYG-44 (comment-only `X_DAILY_USD_CAP` reconciliation) and HYG-82 (route
+   `scripts/ask-eval-harvest.ts` through `analysisOpenAiClient()`, drop the
+   `isolation.test.ts` exemption) as separate commits on the same branch.
+4. PR-2.1-2 `embeddings: model-aware pricing; unpriced embed model refused before
+   reservation` — embed price table in `pricing.ts`, refusal before SDK construction and
+   before `tryReserve`, spy pins, 3-small byte-parity.
+5. PR-2.1-3 (Auto scorecard gate) and PR-2.1-4 (attribution column): HELD on R3/R1.
+6. Gates per PR (typecheck/lint/unit) and the closing report
+   `docs/reviews/WS-2-1-ASK-PARITY-2026-09-06.md`.
