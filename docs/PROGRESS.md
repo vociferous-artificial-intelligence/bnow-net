@@ -3789,3 +3789,27 @@ Execution (same block):
   fail-closed registry lookup). Seven mutants raised and all killed.
 - Gates: typecheck/lint clean · unit 3,704/3,704 (254 files, from 3,612/247). Zero paid
   calls, zero DB access, no migration, no env change, no deploy. Spend $0.
+
+## 2026-09-06 ~20:58Z — Development injection cases and exposure ledger (planned block)
+
+1. Verify E1/E3 written authorization at `4e5b00f` and preserve the non-exposed author boundary; log allowed dataset commands.
+2. Author six synthetic development cases in `map-inj-dev-v1.json`; add an isolated CLI selector and dataset/freeze/refusal pins.
+3. Prove offline machinery, frozen-corpus regeneration, typecheck, lint and the unit suite with zero paid calls.
+4. Commit the exposure ledger and closing report with the step-10 run card, deferred E2 design and product decision; push a review PR.
+
+Execution (same block):
+
+- E1/E3 verified at `4e5b00f` and accepted under the user's explicit confirmation;
+  work stayed on `48h/ws1-injection-20260905-injection-cases` from `dff58f2`.
+- Authored six PROVISIONAL development/adversarial cases, eight synthetic documents,
+  two quiet controls, three following/three resisting fixtures; 6/6 offline machinery
+  matches. Separate dataset/results and selector always keep the supplement dev-scoped.
+- Added whole-case freeze pins, selector/refusal/isolation tests, committed-results
+  identity/checks proof, and a real prompt-builder test showing the deep-tail payload
+  is clipped at baseline and delivered at full depth. No scorer or production change.
+- Gates: 3,612/247 → 3,639/248 unit tests, typecheck PASS, lint zero errors (three
+  warnings in untouched files); frozen corpus regeneration PASS; only two new files
+  under docs/evals/analysis. No DB/integration run required. Spend $0.
+- Exposure ledger and closing report committed with the step-10 run card, deferred
+  E2 design and unresolved product/versioning decision. Heldout IDs/content seen:
+  none. Pre-existing package-lock change preserved and excluded from the PR.

@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -23,6 +24,8 @@ const ACTIVE_FILES = {
   digest: "digest-v2.json",
   validation: "validation-v2.json",
 } as const;
+/** Explicitly selected development supplements; never replace a default. */
+const SUPPLEMENTAL_FILES = { map: ["map-inj-dev-v1.json"] } as const;
 const DATASET_FILES = V1_FILES;
 
 function loadFile(file: string): AnalysisEvalDataset {
@@ -339,6 +342,9 @@ describe("committed datasets", () => {
       expect(validateAnalysisEvalDataset(loadFile(V1_FILES[w]), w), `${w} v1`).toEqual([]);
       expect(validateAnalysisEvalDataset(loadFile(ACTIVE_FILES[w]), w), `${w} active`).toEqual([]);
     }
+    for (const file of SUPPLEMENTAL_FILES.map) {
+      expect(validateAnalysisEvalDataset(loadFile(file), "map"), file).toEqual([]);
+    }
   });
 
   it("every case is hand-authored (no model-generated provenance) and every partition has heldout coverage", () => {
@@ -401,5 +407,29 @@ describe("committed datasets", () => {
         expect(JSON.stringify(in2), `${w}/${c.id} frozen (whole case)`).toBe(JSON.stringify(c));
       }
     }
+  });
+
+  it("freezes all six supplemental cases whole, without adding them to the default map union", () => {
+    const ds = loadFile(SUPPLEMENTAL_FILES.map[0]);
+    expect(ds.datasetVersion).toBe("map-inj-dev-v1");
+    expect(ds.contractVersion).toBe(2);
+    expect(ds.cases).toHaveLength(6);
+    const defaultIds = new Set(loadFile(ACTIVE_FILES.map).cases.map((c) => c.id));
+    for (const c of ds.cases) {
+      expect(c.split).toBe("development");
+      expect(c.partition).toBe("adversarial");
+      expect(c.provenance).toContain("PROVISIONAL");
+      expect(defaultIds.has(c.id)).toBe(false);
+    }
+    expect(Object.fromEntries(ds.cases.map((c) => [
+      c.id, createHash("sha256").update(JSON.stringify(c)).digest("hex"),
+    ]))).toEqual({
+      "map-inj-dev-001-paragraph-output": "e4050e44a4cd8da0151af0537214d871ec14d460648449fe4a9fa3dd52b63d0a",
+      "map-inj-dev-002-paragraph-priority": "7be6cf3b520cd1d6be7b774986336c6dcca23bffc960178e5396db81aa43fdb8",
+      "map-inj-dev-003-quoted-official": "cdb38c5cf2d27e5cf02927cfaa1601c2c27d2e277d41747fb5a37473057a3cd2",
+      "map-inj-dev-004-title-entity": "6efa5a6a7264dff22f3b0440ea616a6639a7f239fe9d9ab0f8ba087cb219930f",
+      "map-inj-dev-005-deep-tail": "d88e98f9c86e9193bf5af609ccd703ff81de58c2c9f9ed00d99136b60ad47353",
+      "map-inj-dev-006-reported-instruction": "a74b9efb4e582d3410aa1451b0e86d0d1de98caac880fdaf54f1cfdfea16ef1d",
+    });
   });
 });
