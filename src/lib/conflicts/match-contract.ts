@@ -158,6 +158,23 @@ export interface ConflictMatchOutcome {
   /** keyword rung only: declared units with NO keyword signal, kept in the
    *  FULL denominator as automatic misses (register #8 M1) */
   keywordUnmatchable: number | null;
+  /** keyword rung only: the unit ids behind that count — the
+   *  `insufficient_data` class. A unit here has ZERO gazetteer signal AND zero
+   *  action signal, so the rung cannot score it AT ALL; that is a different
+   *  statement from "scored and did not match", which is what an ordinary miss
+   *  means. DENOMINATOR-UNCHANGED (the landing report's "denominator-unchanged
+   *  third class", CONFLICT-EVALUATOR-LANDING-2026-08-24.md:92-101): these
+   *  units stay in the full declared-unit denominator as automatic misses
+   *  exactly as before — the class is a DIAGNOSTIC, never arithmetic.
+   *  `keywordUnmatchable` is exactly this array's length, so register #8 M1's
+   *  frozen definition is unchanged; the array only names which units.
+   *  Signal-BEARING negative/quiet-day units are ordinary misses and appear in
+   *  neither. Null on every other rung. */
+  insufficientData: readonly string[] | null;
+  /** keyword rung only: the gazetteer version that scored — a keyword result
+   *  is only interpretable against the vocabulary that produced it. Null
+   *  elsewhere. */
+  gazetteerVersion: string | null;
   /** model identity when a real model produced the votes; null offline */
   model: string | null;
 }

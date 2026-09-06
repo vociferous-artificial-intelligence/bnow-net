@@ -1,0 +1,113 @@
+{
+  "synthetic": true,
+  "provenance": "authored-2026-09-06",
+  "disclaimer": "Synthetic, repo-authored probe text. NOT ISW/CTP prose and not derived from any reference report or ingested document (ruling 1). Places and organizations only; no real person is named (ruling 20). These are keyword-rung probes for the iran-levant-v1 gazetteer, deliberately kept OUTSIDE fixtures/conflicts/ so they can never enter CONFLICT_FIXTURE_FILES (fixture-corpus.ts) or conflictDatasetSourceFiles (evals/conflict-validation-profile.ts) and move a conflict dataset identity.",
+  "fixtureVersion": 1,
+  "gazetteerVersion": "iran-levant-v1",
+  "laneTaxonomyVersion": "iran-lanes-v1",
+  "notes": "Per lane: two POSITIVE units, each with the claim it must pair with (shared toponym AND shared action class - the conflict rung's divergence 4 requires both), and one NEGATIVE unit that carries real keyword signal but shares no toponym with any claim in its lane, so it must be an ordinary MISS and must NOT be reported as insufficient_data. The signalLess block is the third class: units the rung cannot score at all.",
+  "lanes": [
+    {
+      "lane": "direct_kinetic",
+      "claims": [
+        { "claimId": 9001, "text": "A strike on an air defense site near Kermanshah was reported overnight.", "hedging": "claimed" },
+        { "claimId": 9002, "text": "Ballistic missiles reportedly hit the Nevatim airbase area.", "hedging": "claimed" }
+      ],
+      "positive": [
+        { "unitId": "u0", "text": "Israeli aircraft struck an air defense position near Kermanshah.", "claimId": 9001 },
+        { "unitId": "u1", "text": "Iranian ballistic missiles were fired toward Nevatim.", "claimId": 9002 }
+      ],
+      "negative": [
+        { "unitId": "u2", "text": "Air defense units near Isfahan engaged an incoming drone.", "why": "signal-bearing (isfahan + air_defense/strike) but no lane claim names Isfahan" }
+      ]
+    },
+    {
+      "lane": "proxy_partner",
+      "claims": [
+        { "claimId": 9011, "text": "A drone attack on Ain al-Asad was claimed by an Iraqi militia.", "hedging": "claimed" },
+        { "claimId": 9012, "text": "Rocket fire from south Lebanon was attributed to Hezbollah.", "hedging": "claimed" }
+      ],
+      "positive": [
+        { "unitId": "u0", "text": "Kataib Hezbollah claimed a drone attack on Ain al-Asad.", "claimId": 9011 },
+        { "unitId": "u1", "text": "Hezbollah fired rockets from south Lebanon toward northern positions.", "claimId": 9012 }
+      ],
+      "negative": [
+        { "unitId": "u2", "text": "An Iraqi militia claimed rocket fire near Kirkuk.", "why": "signal-bearing (kirkuk + militia/strike) but no lane claim names Kirkuk" }
+      ]
+    },
+    {
+      "lane": "maritime",
+      "claims": [
+        { "claimId": 9021, "text": "Crew reported a vessel boarding close to the Strait of Hormuz.", "hedging": "claimed" },
+        { "claimId": 9022, "text": "Merchant ship traffic avoided the Red Sea corridor.", "hedging": "reported" }
+      ],
+      "positive": [
+        { "unitId": "u0", "text": "A tanker reported a boarding near the Strait of Hormuz.", "claimId": 9021 },
+        { "unitId": "u1", "text": "Commercial shipping rerouted away from the Red Sea.", "claimId": 9022 }
+      ],
+      "negative": [
+        { "unitId": "u2", "text": "A naval escort accompanied a convoy through the Gulf of Oman.", "why": "signal-bearing (gulf_of_oman + maritime) but no lane claim names the Gulf of Oman" }
+      ]
+    },
+    {
+      "lane": "nuclear_diplomacy",
+      "claims": [
+        { "claimId": 9031, "text": "Access to the Natanz enrichment site was reportedly refused to inspectors.", "hedging": "claimed" },
+        { "claimId": 9032, "text": "New centrifuges were reportedly installed at Fordow.", "hedging": "claimed" }
+      ],
+      "positive": [
+        { "unitId": "u0", "text": "IAEA inspectors were denied access to the enrichment hall at Natanz.", "claimId": 9031 },
+        { "unitId": "u1", "text": "Centrifuge installation continued at Fordow.", "claimId": 9032 }
+      ],
+      "negative": [
+        { "unitId": "u2", "text": "Heavy water production continued at Arak.", "why": "signal-bearing (arak + nuclear) but no lane claim names Arak" }
+      ]
+    },
+    {
+      "lane": "domestic_security",
+      "claims": [
+        { "claimId": 9041, "text": "Arrests by security forces were reported in Zahedan.", "hedging": "claimed" },
+        { "claimId": 9042, "text": "A crackdown followed protests in Ahvaz.", "hedging": "claimed" }
+      ],
+      "positive": [
+        { "unitId": "u0", "text": "Security forces conducted arrests in Zahedan.", "claimId": 9041 },
+        { "unitId": "u1", "text": "Protests spread in Ahvaz after a crackdown.", "claimId": 9042 }
+      ],
+      "negative": [
+        { "unitId": "u2", "text": "Security forces detained several people in Tabriz.", "why": "signal-bearing (tabriz + domestic) but no lane claim names Tabriz" }
+      ]
+    },
+    {
+      "lane": "regional_effects",
+      "claims": [
+        { "claimId": 9051, "text": "Sanctions negotiations continued in Muscat.", "hedging": "reported" },
+        { "claimId": 9052, "text": "A regional summit convened in Doha with diplomats attending.", "hedging": "reported" }
+      ],
+      "positive": [
+        { "unitId": "u0", "text": "Mediators in Muscat continued sanctions talks.", "claimId": 9051 },
+        { "unitId": "u1", "text": "Diplomats met in Doha for a regional summit.", "claimId": 9052 }
+      ],
+      "negative": [
+        { "unitId": "u2", "text": "Diplomats convened a summit in Manama.", "why": "signal-bearing (manama + political) but no lane claim names Manama" }
+      ]
+    },
+    {
+      "lane": "other_in_scope",
+      "claims": [
+        { "claimId": 9061, "text": "Infrastructure near Abqaiq was reportedly damaged in a drone attack.", "hedging": "claimed" },
+        { "claimId": 9062, "text": "A UAV was intercepted over Dubai.", "hedging": "reported" }
+      ],
+      "positive": [
+        { "unitId": "u0", "text": "A drone attack damaged infrastructure near Abqaiq.", "claimId": 9061 },
+        { "unitId": "u1", "text": "Air defense units intercepted a UAV over Dubai.", "claimId": 9062 }
+      ],
+      "negative": [
+        { "unitId": "u2", "text": "A drone was intercepted over Kuwait City.", "why": "signal-bearing (kuwait_city + air_defense/strike) but no lane claim names Kuwait City" }
+      ]
+    }
+  ],
+  "signalLess": [
+    { "unitId": "s0", "lane": "other_in_scope", "text": "Senior interlocutors continued consultations on the broader framework understanding." },
+    { "unitId": "s1", "lane": "regional_effects", "text": "Officials reiterated long-standing positions without offering further specifics." }
+  ]
+}

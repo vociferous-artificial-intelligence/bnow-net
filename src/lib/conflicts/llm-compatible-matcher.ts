@@ -133,6 +133,8 @@ export class LlmCompatibleMatcher implements ConflictMatcher {
       votesK: this.config.votesK,
       votes: resolution.votes,
       keywordUnmatchable: null,
+      insufficientData: null,
+      gazetteerVersion: null,
       model: this.config.model,
     };
   }
