@@ -81,7 +81,15 @@ import "./env";
 // --budget USD (required with --execute) · --cap docs/call (default 400) ·
 // --limit max doc-track pairs to attempt this invocation (bounded total;
 // resumable) · --state <file> checkpoint path (default
-// data/remap-state/<key>.json, gitignored) · --wait-daily · --execute.
+// data/remap-state/<key>.json, gitignored) · --base-ack <host> ·
+// --wait-daily · --execute.
+//
+// ROUTE TARGET: MAP_BACKFILL_BASE is the ONLY input (there is no --base flag)
+// and its default is PRODUCTION. A non-loopback target therefore has to be
+// acknowledged explicitly: assertBaseAck() refuses at the CLI boundary, before
+// the driver is constructed and before a single route call, unless
+// --base-ack <host> names that exact host. A loopback target (a local
+// `next start` bound to a disposable Neon branch) needs no acknowledgement.
 //
 // EVERY numeric flag is parsed FAIL-CLOSED (parseUsdFlag/parseCountFlag in
 // map-backfill.ts): non-numeric, empty, non-finite, zero, negative — and, for
@@ -167,9 +175,51 @@ export function remapTargetId(base: string): string {
     return `${u.protocol}//${u.host}${u.pathname.replace(/\/+$/, "")}`.toLowerCase();
   } catch {
     // not a parseable URL: still normalize, still no secret (this is the
-    // operator's own --base/MAP_BACKFILL_BASE value)
+    // operator's own MAP_BACKFILL_BASE value)
     return base.trim().replace(/\/+$/, "").toLowerCase();
   }
+}
+
+/** Hosts a remap driver may target without an explicit acknowledgement: a
+ *  local `next start` bound to a disposable Neon branch. Everything else is
+ *  somebody's deployment — and the DEFAULT target is production. */
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+
+/** The host `MAP_BACKFILL_BASE` points at, lowercased and without userinfo,
+ *  port, query or fragment. An unparseable base yields the trimmed raw string,
+ *  which can never be in LOOPBACK_HOSTS — so garbage fails closed rather than
+ *  passing as "not production". */
+export function remapBaseHost(base: string): string {
+  try {
+    return new URL(base).hostname.toLowerCase();
+  } catch {
+    return base.trim().toLowerCase();
+  }
+}
+
+/** Fail closed on a non-loopback route target that the operator did not name.
+ *
+ *  There is no `--base` flag: the target comes from MAP_BACKFILL_BASE alone and
+ *  its default is `https://bnow-net.vercel.app` — PRODUCTION. A forgotten env
+ *  export therefore silently points a remap at the live corpus, where an
+ *  `--execute` run bills the production `openai_map` ledger, competes with the
+ *  hourly :40 cron for the same daily envelope, and writes a checkpoint bound
+ *  to the production target. Requiring the operator to type the exact host back
+ *  makes "which deployment am I about to remap?" an answered question rather
+ *  than an assumed one. Loopback needs no ack: a fork-bound local server is the
+ *  designed rehearsal target.
+ *
+ *  Called at the CLI boundary BEFORE driveMapRemap is constructed, so it
+ *  refuses before a single route call — estimate runs included, because a dry
+ *  estimate against production is still a production route call. */
+export function assertBaseAck(base: string, ack: string | undefined): void {
+  const host = remapBaseHost(base);
+  if (LOOPBACK_HOSTS.has(host)) return;
+  if (ack !== undefined && ack.trim().toLowerCase() === host) return;
+  throw new Error(
+    `map-remap: base "${host}" is not loopback — pass --base-ack ${host} to target a ` +
+      `deployed route (production is the default target; a checkpoint is bound to the target)`,
+  );
 }
 
 export interface RemapCheckpointStore {
@@ -314,7 +364,7 @@ export async function driveMapRemap(opts: RemapDriveOpts): Promise<RemapDriveRes
   // -- phase 1: estimate (dry remap runs — no LLM, no writes, no lease) -------
   log(
     `map remap — ${days[0]} … ${days[days.length - 1]} theater=${theater}` +
-      `${opts.track ? ` track=${opts.track}` : ""} via ${opts.base}`,
+      `${opts.track ? ` track=${opts.track}` : ""} via MAP_BACKFILL_BASE=${opts.base}`,
   );
   log(`\n== phase 1: estimate (dry runs — no LLM calls, no writes) ==`);
   let estTotal = 0;
@@ -639,8 +689,12 @@ async function main() {
   const limit = parseCountFlag("--limit", argVal("--limit"));
 
   const stateDir = argVal("--state") ?? path.join(__dirname, "..", "data", "remap-state");
+  // the route target is MAP_BACKFILL_BASE and its default is PRODUCTION —
+  // refuse an unacknowledged non-loopback target before the driver exists
+  const base = process.env.MAP_BACKFILL_BASE ?? "https://bnow-net.vercel.app";
+  assertBaseAck(base, argVal("--base-ack"));
   const result = await driveMapRemap({
-    base: process.env.MAP_BACKFILL_BASE ?? "https://bnow-net.vercel.app",
+    base,
     secret,
     theater,
     track,
