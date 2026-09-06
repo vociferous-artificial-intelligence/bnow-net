@@ -4024,3 +4024,23 @@ Execution (same block):
 - Gates: typecheck/lint clean · unit 3,723/3,723 (255 files), identical to the base — the diff
   is two files under `docs/`. Zero paid calls, zero DB access, no migration, no env change, no
   deploy, nothing under `docs/evals/` opened. Spend $0.
+## 2026-09-06 ~18:35Z — WS-2.2 core: provider dimension + eval identity decoupling (planned block)
+
+1. Verify the worktree, base SHA and PLAN-WS-2 §5.1/§5.2 citations against `2203150`
+   (the plan was written at `dff58f2`; PR #52's anthropic-seam hardening landed after).
+2. PR 1 (`48h/ws2-provider-20260905-provider-dimension`): new `src/lib/llm/providers.ts`
+   (provider vocabulary, per-workload allowlist `{openai}`, reasoning-capability probe,
+   `AnalysisWorkload` moved + re-exported); `<W>_PROVIDER` in `WORKLOAD_ENV`; provider
+   refusals FIRST in `resolveWorkloadModel`; `pricedFor(provider, model)`; `provider` on
+   `WorkloadModelConfig` / `AnalysisDispatchConfig` / `AnalysisDispatchIdentity` /
+   `AnalysisApproval`; `analysisApproval(workload, provider, model, effort)`; inspector
+   column; `.env.example` block; `llm-guard.ts` naming-hazard comment.
+3. PR 1 tests: refusal matrix per workload; refuse-before-reserve at all five dispatch
+   sites; `openai:` string-tag byte pins; extractor-version literals unchanged;
+   import-graph + base-URL seam pins; inspector subprocess smoke.
+4. PR 2 (`48h/ws2-provider-20260905-eval-identity-decouple`): `resumeIdentityMismatch`
+   compares `registryVersion` for LIVE headers only; three runner pins; committed offline
+   results byte-untouched.
+5. Gates on each branch: typecheck + lint + `npm test` with counts. $0, no env change,
+   no paid call, no DB access.
+6. Closing report `docs/reviews/WS-2-2-PROVIDER-CORE-2026-09-06.md` per COMMON §5.
