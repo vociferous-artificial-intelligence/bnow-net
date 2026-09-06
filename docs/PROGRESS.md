@@ -3525,3 +3525,22 @@ Execution (same block):
   decision-log entry edited or appended (append-only preserved); gates green;
   zero paid calls, zero production access, no deploy.
 
+
+## 2026-09-06 ~21:00Z — Iran/Levant gazetteer `iran-levant-v1` + `insufficient_data` (48h step 06, planned block)
+
+1. Branch `48h/ws3-gazetteer-20260905-gazetteer-iran-levant` off `48h/ws3-gazetteer-20260905`
+   (base `origin/main` `dff58f2`); baseline unit 3,612/247 green.
+2. Pin the RU/UA signature snapshot FIRST, with the pre-refactor `keywords.ts` still in the
+   tree, so the byte-identity proof is the commit graph and not an assertion.
+3. Split `src/lib/validation/keywords.ts` into `gazetteer/{types,ru-ua-v1,match,index}.ts`,
+   moving the RU/UA tables verbatim; `keywords.ts` becomes a re-export shim so every current
+   import site and every current behaviour is unchanged (`run.ts` diff must be empty).
+4. Add `gazetteer/iran-levant-v1.ts`: English canonical toponyms + transliteration variants
+   grouped by geography, theater-tagged to the `iran_regional` contributor theaters, plus the
+   nuclear/militia/maritime action deltas. Word-boundary match mode (RU/UA stays substring).
+5. Add `insufficientData` + `gazetteerVersion` to `ConflictMatchOutcome` and the keyword rung;
+   `keywordUnmatchable` stays exactly its frozen register #8 M1 count. `scorer.ts` untouched.
+6. Per-lane probe fixtures for `iran-lanes-v1` (≥2 positive / ≥1 negative per lane) through the
+   keyword rung, outside `fixtures/conflicts/` so no conflict dataset identity moves.
+7. Gates, adversarial self-review, PR, closing report
+   `docs/reviews/GAZETTEER-IRAN-LEVANT-V1-2026-09-05.md`.
