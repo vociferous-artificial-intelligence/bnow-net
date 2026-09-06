@@ -8,12 +8,13 @@
 import { envCap, envNum } from "../usage/spend-guard";
 import { askDailyUsdCap, ASK_PROVIDER } from "../usage/llm-guard";
 import { embedDailyUsdCap, EMBED_PROVIDER } from "../embeddings/guard";
-import { EMBED_USD_PER_TOKEN } from "../embeddings/client";
+import { embedModel } from "../embeddings/client";
 import {
   AtomicReservationGuard,
   type ReservationCaps,
   type StageGuard,
 } from "../usage/reservations";
+import { estimateEmbedCostUsd } from "../llm/pricing";
 import { estimateCostUsd } from "./limits";
 import { askAnswerModel, askRerankModel } from "./config";
 import { ANSWER_MAX_OUTPUT_TOKENS } from "./answer";
@@ -45,8 +46,12 @@ export function rerankCeilingUsd(): number {
   return estimateCostUsd(askRerankModel(), RERANK_INPUT_EST_TOKENS, RERANK_MAX_OUTPUT_TOKENS);
 }
 
+/** Model-aware since 2026-09-06: an unpriced model resolves to the conservative
+ *  EMBED_UNKNOWN_PRICE_PER_MTOK fallback, so the ceiling can only ever be too
+ *  generous, never too tight. (Such a model is refused at dispatch anyway.) The
+ *  default model's value is unchanged. */
 export function embedCeilingUsd(): number {
-  return EMBED_INPUT_EST_TOKENS * EMBED_USD_PER_TOKEN;
+  return estimateEmbedCostUsd(embedModel(), EMBED_INPUT_EST_TOKENS);
 }
 
 /** Same cap envs the legacy askGuardFromEnv reads — the atomic guard changes

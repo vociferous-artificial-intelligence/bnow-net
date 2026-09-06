@@ -10,6 +10,11 @@
 
 import { wellFormedSlice } from "../text/well-formed-slice";
 import { openaiEmbedBatches } from "../llm/openai";
+import {
+  EMBED_PRICES_PER_MTOK,
+  embedPriced,
+  estimateEmbedCostUsd,
+} from "../llm/pricing";
 import type { StageGuard } from "../usage/reservations";
 
 /** ASK_EMBED_MODEL default. 1536-dim, matches the claim_embeddings vector width. */
@@ -20,9 +25,12 @@ export const EMBED_DIMS = 1536;
 export const EMBED_MAX_INPUTS_PER_REQUEST = 128;
 /** Per-text input-size guard. Claims are <=500 chars already; this is a backstop. */
 export const EMBED_MAX_INPUT_CHARS = 2000;
-/** text-embedding-3-small list price, VERIFIED 2026-07-11: $0.02 per 1M input tokens. */
-export const EMBED_USD_PER_1M_TOKENS = 0.02;
-export const EMBED_USD_PER_TOKEN = EMBED_USD_PER_1M_TOKENS / 1e6;
+/** Per-token price of the DEFAULT model. Compatibility export only (2026-09-06):
+ *  prices now live in src/lib/llm/pricing.ts, the one price authority, and every
+ *  live call site resolves the price from the model it is actually going to
+ *  send. Kept — and test-pinned against the table — so the historical constant
+ *  and the table can never silently disagree. */
+export const EMBED_USD_PER_TOKEN = EMBED_PRICES_PER_MTOK[EMBED_MODEL_DEFAULT] / 1e6;
 /** provider string returned (and stored) when a real embedding was computed. */
 export const EMBED_STUB_PROVIDER = "stub";
 
@@ -39,9 +47,27 @@ export function embedModel(): string {
   return v && v.trim() ? v.trim() : EMBED_MODEL_DEFAULT;
 }
 
-/** Cost of `tokens` input tokens at the embedding list price. */
-export function embedCostUsd(tokens: number): number {
-  return tokens * EMBED_USD_PER_TOKEN;
+/** Thrown when the configured embedding model has no price row, so no honest
+ *  metering is possible. The dispatch path refuses on it BEFORE reserving and
+ *  before the SDK is constructed; Ask's vector arm catches it and degrades to
+ *  lexical-only (ruling 9), the backfill script exits non-zero. */
+export class EmbedModelUnpricedError extends Error {
+  readonly code = "EMBED_MODEL_UNPRICED";
+  constructor(model: string) {
+    super(
+      `embeddings: ASK_EMBED_MODEL="${model}" has no entry in EMBED_PRICES_PER_MTOK ` +
+        `(src/lib/llm/pricing.ts) — refusing to dispatch unpriced`,
+    );
+    this.name = "EmbedModelUnpricedError";
+  }
+}
+
+/** MEASURED cost of `tokens` input tokens for `model`. Unlike the estimator in
+ *  pricing.ts this refuses an unpriced model instead of falling back: a fallback
+ *  price on the metering path would record a number OpenAI never billed. */
+export function embedCostUsd(tokens: number, model = embedModel()): number {
+  if (!embedPriced(model)) throw new EmbedModelUnpricedError(model);
+  return estimateEmbedCostUsd(model, tokens);
 }
 
 /** Non-null reason string when the client must take the offline stub path;
@@ -129,6 +155,13 @@ export async function embedTexts(
   }
 
   const model = embedModel();
+  // Fail closed on an UNPRICED model — before openaiEmbedBatches, which is where
+  // the SDK client is constructed (llm/openai.ts:142) and where the reservation
+  // is taken (:160). Dispatching a model we cannot price would meter the call at
+  // a made-up rate, so it is refused instead (ruling 4). Placed AFTER the stub
+  // check above, so an offline environment still returns stub vectors at $0.
+  if (!embedPriced(model)) throw new EmbedModelUnpricedError(model);
+
   // Phase 5: the batched guarded dispatch (per-batch reserve → request →
   // record, retry, index-order defense) moved VERBATIM into the OpenAI
   // adapter; this stage keeps the stub path, truncation, price constant, and
@@ -137,7 +170,7 @@ export async function embedTexts(
     model,
     inputs,
     batchSize: EMBED_MAX_INPUTS_PER_REQUEST,
-    costPerToken: EMBED_USD_PER_TOKEN,
+    costPerToken: embedCostUsd(1, model),
     guard: opts?.guard,
   });
 

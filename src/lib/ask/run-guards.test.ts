@@ -35,6 +35,20 @@ describe("per-stage ceilings", () => {
     expect(answerCeilingUsd()).toBeGreaterThan(0); // price-table fallback {in:5,out:15}
   });
 
+  it("the embed ceiling is unchanged by the move to model-aware pricing (WS-2.1)", () => {
+    // 2,000 estimated input tokens at the verified $0.02/1M — the exact value the
+    // pre-2026-09-06 EMBED_USD_PER_TOKEN constant produced
+    expect(embedCeilingUsd()).toBe(2_000 * (0.02 / 1e6));
+    vi.stubEnv("ASK_EMBED_MODEL", "text-embedding-3-small");
+    expect(embedCeilingUsd()).toBe(2_000 * (0.02 / 1e6));
+  });
+
+  it("an unpriced embed model raises the ceiling, never lowers it", () => {
+    const base = embedCeilingUsd();
+    vi.stubEnv("ASK_EMBED_MODEL", "text-embedding-3-large"); // no price row (refused at dispatch)
+    expect(embedCeilingUsd()).toBeGreaterThanOrEqual(base);
+  });
+
   it("ceilings dominate realistic per-call cost (never starve a legitimate call)", () => {
     // observed mean answer cost ≈ $0.011; the ceiling must sit well above it
     expect(answerCeilingUsd()).toBeGreaterThan(0.011);

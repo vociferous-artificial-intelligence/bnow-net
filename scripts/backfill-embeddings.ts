@@ -39,8 +39,9 @@ async function main() {
   const checkpointPath = flagValue("--checkpoint") ?? DEFAULT_CHECKPOINT;
 
   const { Pool } = await import("@neondatabase/serverless");
-  const { embedModel, embedStubReason, EMBED_USD_PER_TOKEN } = await import(
-    "../src/lib/embeddings/client"
+  const { embedModel, embedStubReason } = await import("../src/lib/embeddings/client");
+  const { embedPriced, embedPricePerMtok, estimateEmbedCostUsd } = await import(
+    "../src/lib/llm/pricing"
   );
   const { embedAndStoreClaims } = await import("../src/lib/embeddings/persist");
   const { embedGuardFromEnv } = await import("../src/lib/embeddings/guard");
@@ -71,7 +72,7 @@ async function main() {
     const missing: number = est[0].n;
     const chars = Number(est[0].chars);
     const estTokens = Math.ceil(chars / 4); // ~4 chars/token for English claim text
-    const estUsd = estTokens * EMBED_USD_PER_TOKEN;
+    const estUsd = estimateEmbedCostUsd(model, estTokens);
 
     console.log(`model: ${model}`);
     console.log(
@@ -80,7 +81,8 @@ async function main() {
     );
     console.log(
       `ESTIMATE: ~${estTokens} input tokens -> ~$${estUsd.toFixed(4)} ` +
-        `at $${(EMBED_USD_PER_TOKEN * 1e6).toFixed(2)}/1M`,
+        `at $${embedPricePerMtok(model).toFixed(2)}/1M` +
+        (embedPriced(model) ? "" : " (UNPRICED model — conservative fallback rate)"),
     );
 
     // Refuse when the client would take the offline stub path — stub vectors are
@@ -90,6 +92,16 @@ async function main() {
       console.error(
         `embed client would take the STUB path (${stub}) — refusing. ` +
           `Set OPENAI_API_KEY and clear LLM_DISABLE / ANALYSIS_PROVIDER=stub to backfill.`,
+      );
+      process.exit(2);
+    }
+    // Fail closed on an unpriced model, for the same reason the client refuses
+    // to dispatch one: an --apply would either be refused mid-run or, worse,
+    // metered at a rate nobody verified (ruling 4).
+    if (!embedPriced(model)) {
+      console.error(
+        `embedding model "${model}" has no entry in EMBED_PRICES_PER_MTOK ` +
+          `(src/lib/llm/pricing.ts) — refusing. Add an operator-verified price row first.`,
       );
       process.exit(2);
     }

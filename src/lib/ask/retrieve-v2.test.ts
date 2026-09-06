@@ -15,7 +15,10 @@ vi.mock("@neondatabase/serverless", () => ({
   },
 }));
 
-vi.mock("../embeddings/client", () => ({
+// importOriginal keeps the module's real exports (notably EmbedModelUnpricedError)
+// while stubbing the two functions this suite drives.
+vi.mock("../embeddings/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../embeddings/client")>()),
   embedTexts: embedTextsMock,
   embedModel: () => "text-embedding-3-small",
 }));
@@ -182,6 +185,25 @@ describe("retrieveV2 — vector arm disabled -> v2-lexical-only, no embed call",
     expect(r.mode).toBe("v2-lexical-only");
     expect(r.embedUsage).toBeUndefined();
     expect(r.claims.map((c) => c.claimId)).toEqual([5]); // lexical evidence still returned
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("an UNPRICED embedding model degrades to lexical-only with zero reservations (WS-2.1)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { EmbedModelUnpricedError } = await import("../embeddings/client");
+    embedTextsMock.mockRejectedValueOnce(new EmbedModelUnpricedError("text-embedding-3-large"));
+    setupPool({ lexCount: 2, lexical: [lrow(9)] });
+
+    const r = await retrieveV2("oil sanctions", { now: NOW });
+
+    // the guard is built and init()ed (one DB read) but embedTexts throws before
+    // it can reserve — the no-reservation half is pinned directly, against the
+    // real client, in src/lib/embeddings/client.test.ts
+    expect(guardInitMock).toHaveBeenCalled();
+    expect(r.mode).toBe("v2-lexical-only");
+    expect(r.embedUsage).toBeUndefined();
+    expect(r.claims.map((c) => c.claimId)).toEqual([9]);
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });
