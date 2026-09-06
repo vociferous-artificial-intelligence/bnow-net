@@ -1,14 +1,25 @@
-# Step 22 — WS-2.3 #33 remap: runbook + `--estimate` dry run against a local `next start` on a Neon branch (Wave 2)
+# Step 22 — WS-2.3 #33 remap: runbook + estimate-mode dry run against a local `next start` on a Neon branch (Wave 2)
 
 | | |
 |---|---|
 | Model / effort / mode | Opus / high / plain session |
 | Worktree | `48h-ws2-remap-20260905`, step branch `…/map-remap-runbook` (step 12 runs concurrently in `48h-ws2-provider`) |
-| Window | H12 → H20 (runbook + `--estimate`); the measured run only when D7 is answered |
+| Window | H12 → H20 (runbook + estimate-mode dry run); the measured run only when D7 is answered |
 | Depends on | 02 merged (reworded driver header); decision R4 (measurement path); D7 (spend) — until D7 is answered, `--estimate` only. Independent of step 12. |
 | Rewrite from | PLAN-WS-2 §WS-2.3 (paste its WS-2.3 section here at CP1); R4's answer |
 | Spend | $0 unless D7 authorizes the measured run (then the authorized ceiling, on the branch's own `openai_map` ledger, campaign-local caps). |
 | Closing report | `docs/reviews/MAP-REMAP-RUNBOOK-2026-09-06.md` (the runbook IS the report) |
+
+**Corrections from step 04's plan (2026-09-06; verified against `scripts/map-remap.ts`):** the
+driver has NO `--estimate`, `--resume`, `--dry-run` or `--base` flags. Estimate is its DEFAULT
+mode; `--execute` (with a required `--budget`) is the paid mode; the checkpoint under
+`data/remap-state/` is implicit; the route target comes only from the `MAP_BACKFILL_BASE`
+env (`:641`; the `:168` comment is stale). Flags: `--theater` (required), `--track`, `--from`,
+`--to`, `--budget`, `--cap`, `--limit`, `--state`, `--wait-daily`, `--execute`. A dry run needs
+only `DATABASE_URL` (the fork) and `CRON_SECRET`, with every paid key blank and `LLM_DISABLE=1`.
+PLAN-WS-2 §WS-2.3 is the specification, including its recommended R4 path (`MAP_CONTENT_CHARS`
+on the fork-bound server only, which bumps the extractor-version basis with zero code change)
+and the copied-ledger cap arithmetic for any measured run.
 
 Read `docs/prompts/2026-09-05-48h-COMMON.md` first, then PLAN-WS-2 §WS-2.3, `scripts/map-remap.ts`
 (all; note :22-27 — the driver dispatches through `workloadDispatchConfig('map')`, so the
@@ -28,19 +39,20 @@ pattern), OPEN-TASKS #33 (:167-187), AGENTS.md 2026-08-22 entry (≈1079-1139) a
    `scripts/map-remap.ts` (a non-loopback base requires an explicit ack; loopback needs none;
    unit test) as a small companion PR, with its proposed decision-log entry in the report's
    "Proposed AGENTS.md changes" block (step 25 applies it);
-   per R4 how pending work exists on the fork (prompt-hash bump on the branch only — the
-   production lock predicate `model-config.ts:156-159` is never edited); `--estimate` first
-   (docs per day, calls, USD by `pricing.ts`); `--resume` semantics and checkpoint location
-   (`data/remap-state/` gitignored); per-1k-document cost formula; abort/rollback (delete the
+   per R4 how pending work exists on the fork (PLAN-WS-2's recommendation; the production
+   lock predicate `model-config.ts:156-159` is never edited); estimate mode first (docs per
+   day, calls, USD by `pricing.ts`, `estDispatchBlocked` must be null); the implicit
+   checkpoint (`data/remap-state/` gitignored); per-1k-document cost formula; abort/rollback (delete the
    fork); what the decision-log entry records; ruling 13 (consumers filter to
    `mapExtractorVersion()`) and ruling 7 (a new map model is re-measured for under-fill) as
    explicit runbook gates for any FUTURE candidate run.
-2. **Dry run ($0):** execute the runbook up to and including `--estimate` on a real fork and
-   paste the output. Only if a SIGNED D7 decision-log entry names a ceiling (COMMON §3 — the
+2. **Dry run ($0):** execute the runbook up to and including the estimate-mode run on a real
+   fork and paste the output. Only if a SIGNED D7 decision-log entry names a ceiling (COMMON §3 — the
    one paid exception this program grants an agent): execute over the smallest window that
    yields a per-1k figure (e.g. one day), on the fork only, with `LLM_SPRINT_USD_CAP` and
    `MAP_USD_CAP_DAILY` set to that ceiling, the operator present, record the ledger row, then
    delete the fork. Otherwise print `AWAITING AUTHORIZATION: D7` and stop after the estimate.
+   The measured run uses `--execute --budget <C> --limit …` — never `--execute` without both.
 3. **Lock-replacement design note** (no code): what "registry-approved + remap-complete"
    gating would need (a durable remap-complete marker per extractor version; the predicate
    reading it; activation authorization entry) — for the operator's DECISION after step 4 of
