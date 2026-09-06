@@ -1,0 +1,1116 @@
+{
+  "snapshotVersion": 1,
+  "gazetteer": "ru-ua-v1",
+  "note": "derived signatures only - no ISW prose, no corpus prose (ruling 1)",
+  "matchThreshold": 0.6,
+  "corpusSha256": "ad4d8e39bfd6c501d49b0e148ee0f4ee97cf9b66b749d801842e8144e6a75e3d",
+  "corpus": [
+    {
+      "id": "c001",
+      "toponyms": [
+        "pokrovsk"
+      ],
+      "actions": [
+        "advance"
+      ],
+      "theater": "ua",
+      "expanded": [
+        "pokrovsk"
+      ]
+    },
+    {
+      "id": "c002",
+      "toponyms": [
+        "pokrovsk"
+      ],
+      "actions": [
+        "advance"
+      ],
+      "theater": "ua",
+      "expanded": [
+        "pokrovsk"
+      ]
+    },
+    {
+      "id": "c003",
+      "toponyms": [
+        "kupyansk"
+      ],
+      "actions": [],
+      "theater": "ua",
+      "expanded": [
+        "kupyansk"
+      ]
+    },
+    {
+      "id": "c004",
+      "toponyms": [
+        "toretsk"
+      ],
+      "actions": [],
+      "theater": "ua",
+      "expanded": [
+        "toretsk"
+      ]
+    },
+    {
+      "id": "c005",
+      "toponyms": [
+        "chasiv_yar"
+      ],
+      "actions": [],
+      "theater": "ua",
+      "expanded": [
+        "chasiv_yar"
+      ]
+    },
+    {
+      "id": "c006",
+      "toponyms": [
+        "kostyantynivka"
+      ],
+      "actions": [],
+      "theater": "ua",
+      "expanded": [
+        "kostyantynivka"
+      ]
+    },
+    {
+      "id": "c007",
+      "toponyms": [
+        "lyman",
+        "siversk"
+      ],
+      "actions": [],
+      "theater": "ua",
+      "expanded": [
+        "lyman",
+        "siversk"
+      ]
+    },
+    {
+      "id": "c008",
+      "toponyms": [
+        "lyman"
+      ],
+      "actions": [],
+      "theater": "ua",
+      "expanded": [
+        "lyman"
+      ]
+    },
+    {
+      "id": "c009",
+      "toponyms": [
+        "sloviansk",
+        "kramatorsk"
+      ],
+      "actions": [],
+      "theater": "ua",
+      "expanded": [
+        "sloviansk",
+        "kramatorsk"
+      ]
+    },
+    {
+      "id": "c010",
+      "toponyms": [
+        "vovchansk"
+      ],
+      "actions": [
+        "advance"
+      ],
+      "theater": "ua",
+      "expanded": [
+        "vovchansk"
+      ]
+    },
+    {
+      "id": "c011",
+      "toponyms": [
+        "kharkiv"
+      ],
+      "actions": [
+        "strike"
+      ],
+      "theater": "ua",
+      "expanded": [
+        "kharkiv",
+        "kupyansk",
+        "vovchansk",
+        "velykyi_burluk"
+      ]
+    },
+    {
+      "id": "c012",
+      "toponyms": [
+        "sumy"
+      ],
+      "actions": [],
+      "theater": "ua",
+      "expanded": [
+        "sumy"
+      ]
+    },
+    {
+      "id": "c013",
+      "toponyms": [
+        "zaporizhzhia"
+      ],
+      "actions": [],
+      "theater": "ua",
+      "expanded": [
+        "zaporizhzhia",
+        "hulyaipole"
+      ]
+    },
+    {
+      "id": "c014",
+      "toponyms": [
+        "kherson"
+      ],
+      "actions": [],
+      "theater": "ua",
+      "expanded": [
+        "kherson"
+      ]
+    },
+    {
+      "id": "c015",
+      "toponyms": [
+        "donetsk",
+        "luhansk"
+      ],
+      "actions": [],
+      "theater": "ua",
+      "expanded": [
+        "donetsk",
+        "luhansk",
+        "pokrovsk",
+        "toretsk",
+        "chasiv_yar",
+        "kostyantynivka",
+        "lyman",
+        "siversk",
+        "sloviansk",
+        "kramatorsk",
+        "velyka_novosilka",
+        "novopavlivka"
+      ]
+    },
+    {
+      "id": "c016",
+      "toponyms": [
+        "velykyi_burluk"
+      ],
+      "actions": [],
+      "theater": "ua",
+      "expanded": [
+        "velykyi_burluk"
+      ]
+    },
+    {
+      "id": "c017",
+      "toponyms": [
+        "novopavlivka",
+        "velyka_novosilka"
+      ],
+      "actions": [],
+      "theater": "ua",
+      "expanded": [
+        "novopavlivka",
+        "velyka_novosilka"
+      ]
+    },
+    {
+      "id": "c018",
+      "toponyms": [
+        "hulyaipole"
+      ],
+      "actions": [],
+      "theater": "ua",
+      "expanded": [
+        "hulyaipole"
+      ]
+    },
+    {
+      "id": "c019",
+      "toponyms": [
+        "kyiv"
+      ],
+      "actions": [
+        "strike",
+        "air_defense"
+      ],
+      "theater": "ua",
+      "expanded": [
+        "kyiv"
+      ]
+    },
+    {
+      "id": "c020",
+      "toponyms": [
+        "odesa"
+      ],
+      "actions": [],
+      "theater": "ua",
+      "expanded": [
+        "odesa"
+      ]
+    },
+    {
+      "id": "c021",
+      "toponyms": [
+        "dnipro"
+      ],
+      "actions": [
+        "strike"
+      ],
+      "theater": "ua",
+      "expanded": [
+        "dnipro"
+      ]
+    },
+    {
+      "id": "c022",
+      "toponyms": [
+        "crimea"
+      ],
+      "actions": [],
+      "theater": "both",
+      "expanded": [
+        "crimea"
+      ]
+    },
+    {
+      "id": "c023",
+      "toponyms": [
+        "moscow"
+      ],
+      "actions": [],
+      "theater": "ru",
+      "expanded": [
+        "moscow"
+      ]
+    },
+    {
+      "id": "c024",
+      "toponyms": [
+        "belgorod",
+        "kursk",
+        "bryansk"
+      ],
+      "actions": [],
+      "theater": "ru",
+      "expanded": [
+        "belgorod",
+        "kursk",
+        "bryansk"
+      ]
+    },
+    {
+      "id": "c025",
+      "toponyms": [
+        "rostov"
+      ],
+      "actions": [],
+      "theater": "ru",
+      "expanded": [
+        "rostov"
+      ]
+    },
+    {
+      "id": "c026",
+      "toponyms": [
+        "ryazan"
+      ],
+      "actions": [],
+      "theater": "ru",
+      "expanded": [
+        "ryazan"
+      ]
+    },
+    {
+      "id": "c027",
+      "toponyms": [
+        "tatarstan"
+      ],
+      "actions": [
+        "strike"
+      ],
+      "theater": "ru",
+      "expanded": [
+        "tatarstan"
+      ]
+    },
+    {
+      "id": "c028",
+      "toponyms": [
+        "st_petersburg"
+      ],
+      "actions": [],
+      "theater": "ru",
+      "expanded": [
+        "st_petersburg"
+      ]
+    },
+    {
+      "id": "c029",
+      "toponyms": [
+        "dubna"
+      ],
+      "actions": [],
+      "theater": "ru",
+      "expanded": [
+        "dubna"
+      ]
+    },
+    {
+      "id": "c030",
+      "toponyms": [
+        "north_korea"
+      ],
+      "actions": [],
+      "theater": "both",
+      "expanded": [
+        "north_korea"
+      ]
+    },
+    {
+      "id": "c031",
+      "toponyms": [],
+      "actions": [
+        "strike"
+      ],
+      "theater": "both",
+      "expanded": []
+    },
+    {
+      "id": "c032",
+      "toponyms": [],
+      "actions": [
+        "advance"
+      ],
+      "theater": "both",
+      "expanded": []
+    },
+    {
+      "id": "c033",
+      "toponyms": [],
+      "actions": [
+        "strike",
+        "air_defense"
+      ],
+      "theater": "both",
+      "expanded": []
+    },
+    {
+      "id": "c034",
+      "toponyms": [],
+      "actions": [
+        "political"
+      ],
+      "theater": "both",
+      "expanded": []
+    },
+    {
+      "id": "c035",
+      "toponyms": [],
+      "actions": [
+        "casualties"
+      ],
+      "theater": "both",
+      "expanded": []
+    },
+    {
+      "id": "c036",
+      "toponyms": [],
+      "actions": [
+        "strike"
+      ],
+      "theater": "both",
+      "expanded": []
+    },
+    {
+      "id": "c037",
+      "toponyms": [],
+      "actions": [
+        "advance"
+      ],
+      "theater": "both",
+      "expanded": []
+    },
+    {
+      "id": "c038",
+      "toponyms": [],
+      "actions": [
+        "strike"
+      ],
+      "theater": "both",
+      "expanded": []
+    },
+    {
+      "id": "c039",
+      "toponyms": [],
+      "actions": [],
+      "theater": "both",
+      "expanded": []
+    },
+    {
+      "id": "c040",
+      "toponyms": [],
+      "actions": [],
+      "theater": "both",
+      "expanded": []
+    },
+    {
+      "id": "c041",
+      "toponyms": [
+        "pokrovsk",
+        "toretsk",
+        "kupyansk"
+      ],
+      "actions": [],
+      "theater": "ua",
+      "expanded": [
+        "pokrovsk",
+        "toretsk",
+        "kupyansk"
+      ]
+    },
+    {
+      "id": "c042",
+      "toponyms": [
+        "pokrovsk"
+      ],
+      "actions": [],
+      "theater": "ua",
+      "expanded": [
+        "pokrovsk"
+      ]
+    },
+    {
+      "id": "c043",
+      "toponyms": [],
+      "actions": [],
+      "theater": "both",
+      "expanded": []
+    },
+    {
+      "id": "c044",
+      "toponyms": [],
+      "actions": [],
+      "theater": "both",
+      "expanded": []
+    },
+    {
+      "id": "c045",
+      "toponyms": [],
+      "actions": [
+        "strike"
+      ],
+      "theater": "both",
+      "expanded": []
+    },
+    {
+      "id": "c046",
+      "toponyms": [],
+      "actions": [],
+      "theater": "both",
+      "expanded": []
+    },
+    {
+      "id": "c047",
+      "toponyms": [],
+      "actions": [],
+      "theater": "both",
+      "expanded": []
+    },
+    {
+      "id": "c048",
+      "toponyms": [],
+      "actions": [],
+      "theater": "both",
+      "expanded": []
+    },
+    {
+      "id": "c049",
+      "toponyms": [],
+      "actions": [
+        "strike"
+      ],
+      "theater": "both",
+      "expanded": []
+    },
+    {
+      "id": "c050",
+      "toponyms": [],
+      "actions": [],
+      "theater": "both",
+      "expanded": []
+    },
+    {
+      "id": "c051",
+      "toponyms": [],
+      "actions": [
+        "strike"
+      ],
+      "theater": "both",
+      "expanded": []
+    }
+  ],
+  "pairs": [
+    {
+      "a": "c001",
+      "b": "c002",
+      "score": 0.875,
+      "matches": true
+    },
+    {
+      "a": "c001",
+      "b": "c010",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c001",
+      "b": "c032",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c001",
+      "b": "c037",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c001",
+      "b": "c041",
+      "score": 0.625,
+      "matches": true
+    },
+    {
+      "a": "c001",
+      "b": "c042",
+      "score": 0.625,
+      "matches": true
+    },
+    {
+      "a": "c002",
+      "b": "c010",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c002",
+      "b": "c032",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c002",
+      "b": "c037",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c002",
+      "b": "c041",
+      "score": 0.625,
+      "matches": true
+    },
+    {
+      "a": "c002",
+      "b": "c042",
+      "score": 0.625,
+      "matches": true
+    },
+    {
+      "a": "c003",
+      "b": "c041",
+      "score": 0.625,
+      "matches": true
+    },
+    {
+      "a": "c004",
+      "b": "c041",
+      "score": 0.625,
+      "matches": true
+    },
+    {
+      "a": "c007",
+      "b": "c008",
+      "score": 0.625,
+      "matches": true
+    },
+    {
+      "a": "c010",
+      "b": "c032",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c010",
+      "b": "c037",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c011",
+      "b": "c019",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c011",
+      "b": "c021",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c011",
+      "b": "c027",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c011",
+      "b": "c031",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c011",
+      "b": "c033",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c011",
+      "b": "c036",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c011",
+      "b": "c038",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c011",
+      "b": "c045",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c011",
+      "b": "c049",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c011",
+      "b": "c051",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c019",
+      "b": "c021",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c019",
+      "b": "c027",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c019",
+      "b": "c031",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c019",
+      "b": "c033",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c019",
+      "b": "c036",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c019",
+      "b": "c038",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c019",
+      "b": "c045",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c019",
+      "b": "c049",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c019",
+      "b": "c051",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c021",
+      "b": "c027",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c021",
+      "b": "c031",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c021",
+      "b": "c033",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c021",
+      "b": "c036",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c021",
+      "b": "c038",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c021",
+      "b": "c045",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c021",
+      "b": "c049",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c021",
+      "b": "c051",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c027",
+      "b": "c031",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c027",
+      "b": "c033",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c027",
+      "b": "c036",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c027",
+      "b": "c038",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c027",
+      "b": "c045",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c027",
+      "b": "c049",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c027",
+      "b": "c051",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c031",
+      "b": "c033",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c031",
+      "b": "c036",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c031",
+      "b": "c038",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c031",
+      "b": "c045",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c031",
+      "b": "c049",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c031",
+      "b": "c051",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c032",
+      "b": "c037",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c033",
+      "b": "c036",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c033",
+      "b": "c038",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c033",
+      "b": "c045",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c033",
+      "b": "c049",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c033",
+      "b": "c051",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c036",
+      "b": "c038",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c036",
+      "b": "c045",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c036",
+      "b": "c049",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c036",
+      "b": "c051",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c038",
+      "b": "c045",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c038",
+      "b": "c049",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c038",
+      "b": "c051",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c041",
+      "b": "c042",
+      "score": 0.625,
+      "matches": true
+    },
+    {
+      "a": "c045",
+      "b": "c049",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c045",
+      "b": "c051",
+      "score": 0.25,
+      "matches": false
+    },
+    {
+      "a": "c049",
+      "b": "c051",
+      "score": 0.25,
+      "matches": false
+    }
+  ],
+  "iswFixtures": [
+    {
+      "path": "fixtures/isw/roca-2026-06-30.html",
+      "sha256": "236346829a83b38f9369a745946de8c0fff6a9b0e0b7b0c738ebbaa975477f55",
+      "takeaways": [
+        {
+          "index": 0,
+          "toponyms": [
+            "donetsk"
+          ],
+          "actions": [
+            "advance",
+            "political"
+          ],
+          "chars": 163,
+          "theater": "ua",
+          "expanded": [
+            "donetsk",
+            "pokrovsk",
+            "toretsk",
+            "chasiv_yar",
+            "kostyantynivka",
+            "lyman",
+            "siversk",
+            "sloviansk",
+            "kramatorsk",
+            "velyka_novosilka",
+            "novopavlivka"
+          ]
+        },
+        {
+          "index": 1,
+          "toponyms": [],
+          "actions": [],
+          "chars": 126,
+          "theater": "both",
+          "expanded": []
+        },
+        {
+          "index": 2,
+          "toponyms": [],
+          "actions": [
+            "strike"
+          ],
+          "chars": 194,
+          "theater": "both",
+          "expanded": []
+        },
+        {
+          "index": 3,
+          "toponyms": [],
+          "actions": [
+            "advance"
+          ],
+          "chars": 72,
+          "theater": "both",
+          "expanded": []
+        }
+      ]
+    },
+    {
+      "path": "fixtures/isw/iran-update-2026-07-24.html",
+      "sha256": "2caba0b79e6b360a3d5136e42b9ebd3e3aaed4f60ee95b58a4bf991919aac92f",
+      "takeaways": [
+        {
+          "index": 0,
+          "toponyms": [],
+          "actions": [
+            "political"
+          ],
+          "chars": 360,
+          "theater": "both",
+          "expanded": []
+        },
+        {
+          "index": 1,
+          "toponyms": [],
+          "actions": [
+            "strike",
+            "casualties"
+          ],
+          "chars": 509,
+          "theater": "both",
+          "expanded": []
+        },
+        {
+          "index": 2,
+          "toponyms": [],
+          "actions": [],
+          "chars": 389,
+          "theater": "both",
+          "expanded": []
+        },
+        {
+          "index": 3,
+          "toponyms": [],
+          "actions": [
+            "strike"
+          ],
+          "chars": 498,
+          "theater": "both",
+          "expanded": []
+        },
+        {
+          "index": 4,
+          "toponyms": [],
+          "actions": [],
+          "chars": 329,
+          "theater": "both",
+          "expanded": []
+        }
+      ]
+    }
+  ]
+}
