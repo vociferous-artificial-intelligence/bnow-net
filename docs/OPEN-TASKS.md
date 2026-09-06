@@ -836,6 +836,12 @@ docs/reviews/CLOUD-MODEL-ROUTING-SEAMS-2026-08-17.md §12.11)
     the 11-item hardening list is closed, and the pre-registered gates stand
     unchanged; only the operator decisions remain
     (`docs/reviews/PAID-EVAL-OPERATOR-PACKET-2026-09-03.md`).
+    **Cross-link (2026-09-05):** the 48-hour execution program's WS-1.5 (step 4, "baseline +
+    candidates") is this task's gate item — `docs/prompts/2026-09-05-cto-roadmap-handoff.md`
+    §4.1 WS-1.5 and §3's sequencing table name the same activation checklist
+    (`docs/reviews/CLOUD-MODEL-ROUTING-SEAMS-2026-08-17.md` §9) and the same registry-PR
+    mechanism; WS-1.5 is gated on WS-1.4 (heldout admission) and WS-2.2 (provider
+    abstraction), neither of which is authorized by this entry.
 82. **[Tier 2 — spend hygiene] `scripts/ask-eval-harvest.ts` still constructs an
     unguarded, default-retry OpenAI client.** The routing hardening put every ANALYSIS
     dispatch behind `analysisOpenAiClient()` (`maxRetries: 0`, one reservation per physical
@@ -1101,8 +1107,9 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     freshness staleness (`MAP_STALE_DAYS=2`), not a digest-engine alert. Consequence for
     #97: the reduce-path truncation sites are LIVE again (see there). Evidence:
     `docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md` §5.
-89. **[Tier 3 — correctness, latent] The map dedup gate's reference-side exact-md5 index is
-    dead.** `map-worker.ts` casts the reference rows `as DedupDoc[]` while the SQL aliases
+89. **[CLOSED 2026-08-31, incidentally, by #102's alias repair — Tier 3 — correctness,
+    latent] The map dedup gate's reference-side exact-md5 index is dead.** `map-worker.ts`
+    casts the reference rows `as DedupDoc[]` while the SQL aliases
     the column `content_md5`, so `ref.contentMd5` is `undefined` and every reference doc is
     indexed under the key `undefined`. Exact-match mirror detection against the persisted
     canonical window therefore never fires; only the minhash path and candidate-vs-candidate
@@ -1110,6 +1117,11 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
     PRE-EXISTING and byte-identical on `origin/main` — the 2026-08-21 map-lease release
     neither introduced nor changed it. Fix is one line, but it will change mirror rates, so
     it wants its own before/after measurement rather than a ride-along.
+    **Header corrected 2026-09-05: this exact alias bug was fixed, not as its own PR, but as
+    item (4) of #102's fix** (`docs/OPEN-TASKS.md` #102 body, and the 2026-08-31 map-flood
+    decision-log entry) — "reviving it is a deliberate BEHAVIOR repair, not relabeling" —
+    deployed with PR #38 / `52ea272` and pinned by both a SQL-alias unit test and a
+    fetched-reference integration test. No further action needed.
 90. **[Tier 3 — latent, fail-silent] A `map_lease` row carrying a token but a broken
     `expiresAt` wedges the map stage permanently while reporting `ok=true`.** The acquire
     CAS takes over only when `state->>'token' IS NULL OR (state->>'expiresAt')::timestamptz
@@ -1146,8 +1158,10 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
 ### New (from the QF-B lease-soak closeout — 2026-08-23,
 docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md §9)
 
-92. **[Tier 3 — documentation maintenance] AGENTS.md is ~1,040 lines against its ~300-line
-    guideline, and the newest decision-log entries sit BELOW `## Operating protocol`.** The
+92. **[Tier 3 — documentation maintenance, header corrected 2026-09-05] AGENTS.md is 1,917
+    lines against its ~300-line guideline (not ~1,040 — the file has grown considerably since
+    this was filed), with 20 decision-log bullets appended BELOW `## Operating protocol`.**
+    The
     maintenance rule's sanctioned remedy is to move the log's OLDEST entries **verbatim** to
     `docs/DECISIONS.md` (moving preserves history; editing or summarising it is forbidden).
     That is a bulk edit and must not ride along with a release closeout, so it is filed here
@@ -1462,16 +1476,26 @@ docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-RELEASE-2026-08-24.md)
 ### New (from the 2026-08-24 QF-C landing,
 docs/reviews/QF-C-ANALYSIS-EVAL-RELEASE-2026-08-24.md)
 
-100. **[Tier 3 — eval-plane provenance] The `scripts/ask-eval-harvest.ts` isolation
-    exemption is untracked (QF audit G6/A10-1).** `src/lib/evals/isolation.test.ts`
+100. **[Tier 3 — eval-plane provenance, header corrected 2026-09-05 — LIVE DEBT, not
+    dormant] The `scripts/ask-eval-harvest.ts` isolation exemption is untracked (QF audit
+    G6/A10-1), and the exempted file itself is now ON `main`.** `src/lib/evals/isolation.test.ts`
     exempts that filename from the bare-`new OpenAI()` scan by hard-coded name, citing no
-    authorizing document; the file itself lives on the parked
-    `claude/local-model-ask-eval-20260817` branch (not on `main`), so today the exemption
-    is a dormant allowlist entry. The audit classed it an owned prerequisite: when the Ask
+    authorizing document. **Corrected 2026-09-05: `scripts/ask-eval-harvest.ts` IS present
+    on `origin/main` with an unguarded `new OpenAI()` at line 190** — the original filing
+    said it "lives on the parked `claude/local-model-ask-eval-20260817` branch (not on
+    `main`)", which stopped being true at some merge between this filing and 2026-09-05.
+    That makes **OPEN-TASKS #82** (the same script's unguarded default-retry client) live,
+    reachable debt today, not theoretical. The audit classed the isolation exemption an
+    owned prerequisite: when the Ask
     eval CLI's reconciliation with the repository-owned control plane is adjudicated
     (adjudication plan §5.5 — explicitly outside the 2026-08-24 release train), either the
     exemption gains an authorizing record or it is removed. Do not modify Ask behavior in
     QF scope.
+    **Note (2026-09-05):** the CTO roadmap handoff's "`#108` holds the withheld harness"
+    line has no matching task — OPEN-TASKS ends at #107. The most plausible referent is
+    this same parked branch, `claude/local-model-ask-eval-20260817`, per
+    `docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md:90-96` ("stays OUT per plan
+    §5.5 ... related debt now tracked: OPEN-TASKS #100"). There is no OPEN-TASKS #108.
 
 ### New (from the 2026-08-27 QF-A/#88 closeout,
 docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md)
@@ -1508,7 +1532,9 @@ docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md)
 
 ### New (from the 2026-08-31 map OOM incident)
 
-102. **[Tier 1 — reliability incident, fix in review] Steady map selection had no day-span
+102. **[Tier 1 — reliability incident, DEPLOYED 2026-08-31 / OBSERVED HEALTHY — header
+    corrected 2026-09-05; residual: shed/refusal paths remain unit/itest-proven only, not
+    naturally fired] Steady map selection had no day-span
     bound and the dedup reference window had no materialization bound.** On 2026-08-31 the
     07:03Z MTProto long-park catch-up inserted 447 documents whose `published_at` reached
     back to 2026-06-14 (t.me/kharkivnapriamok 211, t.me/pushilindenis 192, t.me/sladkov_plus
@@ -1585,7 +1611,9 @@ docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md)
     they remain unit/itest-pinned only. Incident record:
     `docs/reviews/MAP-FLOOD-OOM-INCIDENT-2026-08-31.md`.
 
-103. **[Tier 1 — monitoring blind spot] Nothing alerts when map runs die BEFORE their own
+103. **[Tier 1 — monitoring blind spot, DEPLOYED 2026-09-01 (PR #39 + hotfix PR #40) —
+    header corrected 2026-09-05; residual: detection proof remains SYNTHETIC only, no
+    natural pre-completion death observed yet] Nothing alerts when map runs die BEFORE their own
     health evaluation.** Proven live by #102: eleven consecutive OOM-killed hourly runs
     (07:40→17:40Z on 2026-08-31) produced #98-swept `ok=false` rows, a frozen
     `doc_claims`, and ZERO operator email — `runScheduledMapHealth` executes only inside

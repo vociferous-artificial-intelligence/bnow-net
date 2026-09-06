@@ -45,13 +45,18 @@ in this queue.
 
 ### 4. GitHub CI administration
 
-- Status: `origin/main` and local `main` are synchronized; pushes work and CI configuration
-  exists. The saved `NEON_API_KEY` currently returns 401, so disposable-branch integration
-  tests are blocked until it is renewed; production database access is unaffected.
+- Status (corrected 2026-09-05 — the 401 cleared the same day it was filed, per
+  `docs/BLOCKERS.md`'s 2026-07-15 entry and its 2026-09-05 closure note): `origin/main`
+  and local `main` are synchronized; pushes work and CI configuration exists. The saved
+  `NEON_API_KEY` works locally — disposable Neon branches ran cleanly for the
+  2026-09-03/2026-09-04 eval PRs (160+/25+ integration tests each) — but it is **not**
+  present as a GitHub Actions secret, so CI's `integration` job clean-skips (not evidence
+  either way); every PR instead reports local disposable-fork integration numbers.
+  Production database access is unaffected either way.
 - Human task:
   - Confirm branch protection for `main`.
-  - Renew and confirm Actions/local secrets for disposable-Neon integration tests:
-    `NEON_API_KEY`, `NEON_PROJECT_ID`, and `DATABASE_URL`.
+  - Add `NEON_API_KEY`, `NEON_PROJECT_ID`, and `DATABASE_URL` as GitHub Actions secrets so
+    CI's integration job stops clean-skipping (the key itself needs no renewal).
   - Add `VERCEL_TOKEN` only if CI should deploy.
   - Ensure local clones use `git config core.hooksPath .githooks`.
 
