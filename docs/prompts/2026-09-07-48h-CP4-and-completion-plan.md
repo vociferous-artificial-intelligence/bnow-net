@@ -160,9 +160,11 @@ authorized". The operative reading — consistent with how T1–T3 ran in Wave 2
 log-entry wording, and copying it into `AGENTS.md` is record-keeping owed at **step 25**
 (901078a says so explicitly: "nothing is copied into AGENTS.md, which step 25 still owns").
 A session that halts on an f-batch decision cites the §2.2 row and the (f) section and
-proceeds; it does not wait for step 25. Cheaper option, if the operator prefers zero ambiguity:
-sign (f1)–(f15) in one ~10-minute pass during §5.2 (the new append convention applies — end of
-`## Decision log`, date order) and step 25 has nothing left to sign.
+proceeds; it does not wait for step 25. One disagreement makes this concrete rather than
+theoretical: the **signed** R7 entry still says "Sonnet 5 held", and §2.1 makes the log
+authoritative where sheet and log disagree — so §5.2 item 1 signs the batch in one ~10-minute
+pass (new append convention — end of `## Decision log`, date order) **before step 20 launches**,
+and step 25 has nothing left to sign.
 
 **Still outstanding in step 10:** the **#79 RU citation drain** (O2 signed; runbook merged,
 never run — no execution entry in the log), the **WS-1.1 ×3 capture run** (the exposure ledger
@@ -273,9 +275,14 @@ finding and (f2)). Commit, push.
 Items 1–2 of the original stage — sign the CP1 batch, answer the open decisions — were done
 2026-09-07 (`a5caeb7`, `901078a`; §3.1). What remains:
 
-1. *(optional, ~10 min, recommended)* **Sign (f1)–(f15)** into `AGENTS.md`'s log — end of
-   `## Decision log`, date order — so the "unsigned = not authorized" rule and the record
-   agree without the §3.1 reading. Otherwise step 25 signs.
+1. *(~10 min — do before step 20 launches)* **Sign (f1)–(f15)** into `AGENTS.md`'s log —
+   end of `## Decision log`, date order. Not just hygiene: the **signed R7 entry still says
+   "Sonnet 5 held"** pending console-billing confirmation, while the $2/$10 resolution and the
+   `claude-sonnet-5` id live only in unsigned (f1)/(f12) — and §2.1 makes the log authoritative
+   where sheet and log disagree, so a literal-minded step-20b session would refuse the Sonnet
+   row. (f1) states why the console-billing standard is relaxed; signing it closes the trap and
+   the rest of the batch rides along. If skipped anyway, step 20's prompt must say "read
+   (f1)/(f12) over the signed R7 entry", and step 25 signs.
 2. **#79 RU citation drain** per `RUNBOOK-79-RU-CITATION-DRAIN-2026-09-05.md` (O2 signed):
    preflight SELECT → Neon backup branch → `--dry` → drain → `registry-materialize` → verify →
    decision-log entry with counts → delete the backup branch and say so.
@@ -326,7 +333,7 @@ Launch order matters only through the dependencies; everything on the same row i
 
 | Order | Steps | Worktree | Ready when | Notes |
 |---|---|---|---|---|
-| A | **20** WS-2.4 eval parity | `ws2-routing` | now | #60/#61 on `main`; R2 = no registry bump; do not collide with #67's `unscorecarded` literal. **20b is fully unblocked** — R6 (reuse caps, no new env), R7/R7-b rows: `claude-haiku-4-5-20251001` $1/$5, `claude-sonnet-5` $2/$10 (alias-repoint rider: re-verify at first invoice) — **but the provider-blind `mapreduceProviderTag()` must be fixed BEFORE the Anthropic digest path is enabled** ((f13); else a Claude-synthesized digest is durably stamped `openai:…`) |
+| A | **20** WS-2.4 eval parity | `ws2-routing` | now | #60/#61 on `main`; R2 = no registry bump; do not collide with #67's `unscorecarded` literal. **20b is fully unblocked** — R6 (reuse caps, no new env), R7/R7-b rows: `claude-haiku-4-5-20251001` $1/$5, `claude-sonnet-5` $2/$10 (alias-repoint rider: re-verify at first invoice; **sign (f1)/(f12) first — the signed R7 entry still reads "Sonnet held"**, §5.2 item 1) — **but the provider-blind `mapreduceProviderTag()` must be fixed BEFORE the Anthropic digest path is enabled** ((f13); else a Claude-synthesized digest is durably stamped `openai:…`) |
 | A | **32** WS-7.2 citation mode | `ws7-tradecraft` | now (T2, T4, T4-b answered) | 29 + 30 merged. **Spec changed by T4/T4-b ((f6)/(f13))**: citation mode itself ships with T2's access date; the AI-tool disclosure is **BUILT and DARK on every surface**, gated by a policy function on the `view-policy.ts` pattern (never a constant), structured **per stage** — `synthesis` from the dispatch identity, `extraction` renders "not recorded for this digest", never back-filled; output carries a `tool disclosure withheld` marker; a test pins the disclosure OFF for every resolvable role |
 | A | **33** WS-7.3 source descriptors | `ws7-docs` | now | 29 + 30 merged |
 | A | **21** WS-4.2 reliability proofs | `ws4-ops` | now — **O3 answered** ((f5); fork proofs accepted, drill logged as follow-up) | $0; refusal fires before dispatch; cite (f5)/§2.2 instead of halting |
