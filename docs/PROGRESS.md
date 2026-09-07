@@ -4073,3 +4073,40 @@ Execution (same block):
   3,769/3,769 (258 files, from 3,723/255). Zero paid calls, zero DB access, no migration, no env
   change, no deploy. Spend $0. Report:
   `docs/reviews/WS-2-2-PROVIDER-CORE-2026-09-06.md`.
+
+Execution (same block):
+
+- Base `origin/main` `2203150` (unchanged for the whole session). Two stacked step branches:
+  `…-log-drain-design` (PR 1) and `…-log-drain-receiver` (PR 2 on top of it).
+- Design `docs/designs/LOG-DRAIN.md`: three sinks costed (Neon receiver / hosted / Vercel
+  retention), Neon receiver recommended at 14-day retention — the deciding argument is
+  correlation with `cron_runs` in one JOIN, at ~$0.04–0.08/month of drain volume ($0.50/GB)
+  and ~20–45 MB of Neon storage. O1 correction recorded: the operator's "Neon does not
+  support drains on the Launch plan" concerns a Neon-side feature this design does not use;
+  the receiver is our route writing our table and Neon sees ordinary writes.
+- Receiver ships INERT: `LOG_DRAIN_SECRET` is set in no environment, so the route answers
+  503 and writes nothing, and no drain exists in the Vercel project. `git diff origin/main --
+  vercel.json` is empty (drains are project settings, not a vercel.json key).
+- Migration numbered 0030 to hold the INDEX §4 reservation (0028/0029 = step 13). The idx
+  gap is inert — `migrations-lib.ts` applies by filename sort — and `db:generate` reproduces
+  the SQL from `schema.ts` with "No schema changes" on a second run.
+- Stored columns are a deliberate projection: no headers/bodies/clientIp/userAgent/referer/
+  ja3/ja4, and query strings stripped so `/ask?q=<question>` cannot become a second copy of
+  Ask content. Messages redacted → hashed → clipped 2,000 units with `wellFormedSlice` (a
+  bare `.slice()` here would be the #86 defect in a new place; pinned by an astral-boundary
+  test).
+- Self-ingestion loop stated rather than hidden: dropped at insert, handler log-silent on
+  every path including errors (so the loop stays constant, not amplifying), and the operator
+  0% sampling rule kills it at the producer. Residual recorded: the filter is path-keyed, so
+  it depends on the handler staying log-silent.
+- Retention lives inside the drain route (≤hourly, after the insert, ctid-bounded) and
+  deliberately NOT in `withCronRun`/`startRun`, which already carries the #98 sweep and the
+  #103 watchdog and runs at every cron start.
+- Gates: typecheck clean · lint 0 errors (3 pre-existing warnings) · unit 3,783/3,783
+  (257 files, from 3,723/255, baseline re-measured on this tree) · integration 175/175
+  (26 files, from 160/25) on disposable forks `br-odd-sky-atadlbcv` (targeted) and
+  `br-empty-darkness-at1co2v5` (full). Zero paid calls, zero production writes, zero env
+  changes, no deploy. Spend $0.
+- CP2b rebase: the runtime_logs migration was REGENERATED as 0029 on top of 0028 (the
+  branch's 0030 snapshot forked from 0027 and did not know 0028's benchmark tables); the
+  generated SQL is byte-identical to the original, chain 0028 → 0029, and 13b takes 0030.
