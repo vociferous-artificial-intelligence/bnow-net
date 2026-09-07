@@ -62,6 +62,7 @@ export const JOB_MAX_DURATION_SEC: Record<string, number> = {
   digest: 800,
   map: 800,
   validate: 300,
+  "conflict-validate": 300,
   enrich: 300,
   datadark: 300,
   trade: 300,
