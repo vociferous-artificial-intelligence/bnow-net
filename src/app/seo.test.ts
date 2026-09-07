@@ -24,7 +24,8 @@ afterEach(() => {
 
 // The public marketing/teaser surface that must stay crawlable + in the sitemap.
 // /pricing is deliberately absent: it only 308-redirects to /access now.
-const PUBLIC = ["/", "/countries", "/scoreboard", "/access", "/signals", "/trade", "/critical-materials", "/datadark", "/privacy", "/terms"];
+// /methodology is the public tradecraft crosswalk (WS-7.1): ungated, DB-free, indexable.
+const PUBLIC = ["/", "/countries", "/scoreboard", "/access", "/signals", "/trade", "/critical-materials", "/datadark", "/privacy", "/terms", "/methodology"];
 // Routes that must be disallowed AND never appear in the sitemap.
 const GATED = ["/api/", "/admin/", "/account", "/signin", "/welcome/", "/digests/", "/ask", "/search", "/entities/", "/registry", "/middle-east", "/health"];
 
@@ -73,7 +74,7 @@ describe("robots.txt policy", () => {
     const disallow = rules().disallow as string[];
     // /signals is public teaser; /countries, /scoreboard, /access are marketing; the legal
     // documents (/privacy, /terms) are public and indexable.
-    for (const p of ["/signals", "/countries", "/scoreboard", "/access", "/privacy", "/terms"]) {
+    for (const p of ["/signals", "/countries", "/scoreboard", "/access", "/privacy", "/terms", "/methodology"]) {
       expect(disallow).not.toContain(p);
     }
   });
