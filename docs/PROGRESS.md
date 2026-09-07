@@ -4345,3 +4345,40 @@ Execution (same block):
   `98294c5` → `a821695` and added `9978801` (a correct narrowing of the page's
   reliability-visibility sentence — `showScores` is false on `/signals`). Verified, kept, moved
   onto PR 2's branch; step 30's report amended for the new base SHA and the correction.
+## 2026-09-06 ~21:15Z — 48h program step 17: adversarial audit of the WS-2 + WS-4 code landed at CP2/CP2b (planned block)
+
+Prompt `docs/prompts/2026-09-05-48h-17-audit-ws2.md` (full version, `a821695`), read after COMMON.
+Worktree `48h-audit-ws2-20260905` at the audited SHA `98294c5`; register branch
+`48h/audit-ws2-20260905-finding-register`. Read-only audit; no code changes; $0; no DB; no fork.
+
+1. Prove the worktree, reset to `98294c5`, restore the lockfile churn, run the baseline
+   `npm test` (3,914 / 263 files green) and build the evidence pack: one diff per merge
+   (#52 `d74d588`, #57 `8ac41d2`, #59 `8a00ea2`, #60 `fed1d03`, #61 `ef0bba8`, #62 `c75bd99`,
+   #64 `1e06112`, #65 `7f267bd`) plus PR #67's branch diff (`697aea4`, the ninth item).
+2. Fan out one finder per lens (1 ruling 4 · 2 rulings 8/9 · 3 ruling 13 + `--base-ack` ·
+   4 identity · 5 eval-plane isolation · 6 tests-as-evidence, mutate-and-run in detached
+   scratch worktrees so the audit tree is never edited · 7 log-drain attack surface ·
+   8 secrets/env/docs truth), plus a dedicated #67 finder.
+3. Three independent refuters per finding; a finding survives with ≥2 non-refutations and a
+   file:line re-verified at `98294c5`.
+4. Completeness critic over the lens list; second finder round on any gap; refute again.
+5. Write `docs/reviews/WS-2-AUDIT-FINDING-REGISTER-2026-09-06.md` (register, per-PR verdicts,
+   stale standing text for step 25, mutation log, COMMON §5 sections); commit on the register
+   branch; open the PR; remove the scratch worktrees.
+
+Execution (same block):
+- Worktree proven; HEAD already `98294c5`; register branch cut; lockfile churn restored; baseline
+  `npm test` 3,914 / 263 green. Full prompt taken from `origin/main` `a821695` (worktree copy was
+  the sketch). PR #67 open at `697aea4` → audited as the ninth item.
+- Evidence pack built (one diff per merge + #67 branch diff); 12 detached scratch worktrees for
+  finders/mutations so nothing ran in the audit tree (it carries a trimmed `.env.local` — disclosed
+  in the handoff; no DB connection was possible from the one baseline run that preceded the
+  discovery).
+- Workflow `wf_d653ae1a-f22`: 13 lens finders complete (81 raw findings) → dedup 71 distinct
+  (8 major / 25 minor / 38 note); 13 of 213 refuter votes complete (all non-refuted) when the
+  operator STOPPED the run for budget (≈$30 at 27 of 227 agents). Critic + round 2 not started.
+- Work preserved: `docs/reviews/WS-2-AUDIT-HANDOFF-2026-09-06.md` (state, what changed, exact next
+  steps, restart recipe, drafted register sections, condensed findings + votes) and
+  `docs/reviews/WS-2-AUDIT-ROUND1-RAW-2026-09-06.json` (every agent's full structured result;
+  secret-scanned). All scratch worktrees removed; `git worktree prune` run. No code changed; $0.
+- Register NOT written; PR NOT opened. Resume per the handoff §4.
