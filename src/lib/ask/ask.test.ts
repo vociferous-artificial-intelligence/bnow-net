@@ -1434,3 +1434,97 @@ describe("Auto money path — baseline dispatch/reservation pin (no env override
     expect(res.answerModel).toBe("gpt-5");
   });
 });
+
+// The gate itself (R3): an unscorecarded ASK_ANSWER_MODEL never reaches the
+// guard or the provider. Paired with the baseline block above — deleting the
+// gate turns every assertion here into the baseline's behaviour, which is
+// exactly the mutation step 17 should try.
+describe("Auto money path — hasScorecard() gate (R3)", () => {
+  const pool = [candidate({ claimId: 1, text: "claim one" }), candidate({ claimId: 2, text: "claim two" })];
+
+  it("gpt-5-nano: deterministic answer, provider 'unscorecarded', ZERO reservations, ZERO provider calls", async () => {
+    envPaidV2();
+    vi.stubEnv("ASK_ANSWER_MODEL", "gpt-5-nano"); // the Fast candidate: no scorecard of any suite
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const res = await answerFromEvidence("q", retrievalV2({ claims: pool }), ranked({ claims: pool }));
+
+      expect(res.provider).toBe("unscorecarded"); // NOT "stub" — offline must stay distinguishable
+      expect(res.state).toBe("answered");
+      expect(res.answerModel).toBeUndefined(); // no paid call, so nothing to attribute
+      expect(res.usage).toBeUndefined();
+      // refused BEFORE the guard and before the SDK: nothing reserved, nothing called
+      expect(mocks.guard.init).not.toHaveBeenCalled();
+      expect(mocks.guard.tryReserve).not.toHaveBeenCalled();
+      expect(mocks.guard.record).not.toHaveBeenCalled();
+      expect(mocks.createMock).not.toHaveBeenCalled();
+      // the answer is the real deterministic cited-claims payload, not an error
+      expect(res.answer).toContain("claim one");
+      expect(res.citedClaimIds).toEqual([1, 2]);
+      // pin the REASON, not just the outcome: the budget stop also returns a
+      // deterministic answer with zero calls, so outcome alone would survive
+      // deleting the gate and letting a cap refusal do the same job
+      expect(warn.mock.calls.flat().join(" ")).toMatch(
+        /ASK_ANSWER_MODEL="gpt-5-nano" has no "v2-k60" scorecard/,
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("gpt-5-mini as the ANSWER model is refused although it is scorecarded for RERANK (suites are not interchangeable)", async () => {
+    envPaidV2();
+    vi.stubEnv("ASK_ANSWER_MODEL", "gpt-5-mini");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const res = await answerFromEvidence("q", retrievalV2({ claims: pool }), ranked({ claims: pool }));
+      expect(res.provider).toBe("unscorecarded");
+      expect(mocks.createMock).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("the streaming twin is gated too: streamAnswer is never even entered", async () => {
+    envPaidV2();
+    vi.stubEnv("ASK_ANSWER_MODEL", "gpt-5-nano");
+    vi.stubEnv("ASK_RUNS_ENFORCE", "1");
+    vi.stubEnv("ASK_CONTENT_RETENTION_DAYS", "30");
+    vi.stubEnv("ASK_PROGRESSIVE", "1");
+    vi.stubEnv("ASK_STREAM_ANSWER", "1");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const res = await answerFromEvidence("q", retrievalV2({ claims: pool }), ranked({ claims: pool }), {
+        sink: fakeSink(),
+      });
+      expect(p3.streamAnswerMock).not.toHaveBeenCalled();
+      expect(res.provider).toBe("unscorecarded");
+      expect(res.answerModel).toBeUndefined();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("the OFFLINE short-circuit still wins: no key means provider 'stub', not 'unscorecarded'", async () => {
+    // Ordering pin: answerOffline() is checked before the gate, so an offline
+    // environment keeps its historical $0 stub payload even with an override.
+    vi.stubEnv("ASK_PIPELINE", "v2");
+    vi.stubEnv("OPENAI_API_KEY", "");
+    vi.stubEnv("ASK_ANSWER_MODEL", "gpt-5-nano");
+    const res = await answerFromEvidence("q", retrievalV2({ claims: pool }), ranked({ claims: pool }));
+    expect(res.provider).toBe("stub");
+  });
+
+  it("the relevance boundary still wins: a none-relevant rerank stops before the gate ever runs", async () => {
+    envPaidV2();
+    vi.stubEnv("ASK_ANSWER_MODEL", "gpt-5-nano");
+    const res = await answerFromEvidence(
+      "q",
+      retrievalV2({ claims: pool }),
+      ranked({ claims: pool, rerankUsed: true, relevantCount: 0 }),
+    );
+    expect(res.state).toBe("insufficient");
+    expect(res.provider).not.toBe("unscorecarded");
+    expect(mocks.createMock).not.toHaveBeenCalled();
+  });
+});

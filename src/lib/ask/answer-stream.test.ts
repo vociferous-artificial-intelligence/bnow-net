@@ -422,3 +422,45 @@ describe("streamAnswer — baseline pin (scorecarded production model)", () => {
     expect(outcome.usage.promptTokens).toBe(900);
   });
 });
+
+// The streaming twin of the R3 gate: refused BEFORE the guard is built, so the
+// reservation this module takes at its top can never be reached by an
+// unscorecarded model. Paired with the baseline pin above.
+describe("streamAnswer — hasScorecard() gate (R3)", () => {
+  it("an unscorecarded model throws before the guard exists — no init, no reservation, no stream", async () => {
+    const { UnscorecardedModelError } = await import("./answer-stream");
+    const streamFactory = vi.fn();
+    await expect(
+      streamAnswer({ ...BASE, model: "gpt-5-nano", sink: sinkSpy(), streamFactory }),
+    ).rejects.toBeInstanceOf(UnscorecardedModelError);
+
+    expect(h.guard.init).not.toHaveBeenCalled();
+    expect(h.guard.tryReserve).not.toHaveBeenCalled();
+    expect(h.guard.record).not.toHaveBeenCalled();
+    expect(streamFactory).not.toHaveBeenCalled();
+  });
+
+  it("the thrown error names the model, the suite and the registry — and carries a machine code", async () => {
+    const { UnscorecardedModelError } = await import("./answer-stream");
+    const err = await streamAnswer({ ...BASE, model: "gpt-5-mini", sink: sinkSpy() }).catch((e) => e);
+    expect(err).toBeInstanceOf(UnscorecardedModelError);
+    expect(err.code).toBe("ASK_MODEL_UNSCORECARDED");
+    expect(err.model).toBe("gpt-5-mini"); // scorecarded for rerank, not for the answer suite
+    expect(err.suite).toBe("v2-k60");
+    expect(String(err.message)).toContain("src/lib/ask/registry.ts");
+  });
+
+  it("an injected run guard is not consulted either (the refusal precedes every guard source)", async () => {
+    const injected = { init: vi.fn(), tryReserve: vi.fn(), record: vi.fn() };
+    await expect(
+      streamAnswer({
+        ...BASE,
+        model: "gpt-5-nano",
+        sink: sinkSpy(),
+        guards: { answer: injected } as never,
+      }),
+    ).rejects.toThrow(/no "v2-k60" scorecard/);
+    expect(injected.init).not.toHaveBeenCalled();
+    expect(injected.tryReserve).not.toHaveBeenCalled();
+  });
+});

@@ -4,6 +4,7 @@ import type { CandidateClaim, RankedEvidence, StageUsage } from "./types";
 import { askEvidenceK, askRerankModel } from "./config";
 import { isLlmDisabled, askGuardFromEnv, LlmBudgetError } from "../usage/llm-guard";
 import type { StageGuard } from "../usage/reservations";
+import { ASK_RERANK_SUITE, hasScorecard } from "./registry";
 
 // ASK Tier-2+ rerank stage (workstream C). A single listwise LLM pass that
 // reorders the composite-ranked candidate pool by question relevance, keeping the
@@ -202,6 +203,21 @@ export async function rerankCandidates(
   }
 
   const model = askRerankModel();
+
+  // Quality gate (R3, 2026-09-06): ASK_RERANK_MODEL is a plain env lever, and
+  // an unmeasured reranker silently decides which evidence the paid answer
+  // stage — and the user — ever sees. Refused here, after model resolution and
+  // BEFORE the guard is built below, so nothing is reserved and no SDK client
+  // is constructed (ruling 4). The composite fallback is the same deterministic
+  // order the offline and budget-refusal paths return: rerankUsed false, no
+  // usage, nothing billed.
+  if (!hasScorecard(model, ASK_RERANK_SUITE)) {
+    console.warn(
+      `ask rerank: ASK_RERANK_MODEL="${model}" has no "${ASK_RERANK_SUITE}" scorecard (src/lib/ask/registry.ts) — refusing to dispatch; composite fallback`,
+    );
+    return compositeFallback(candidates, k);
+  }
+
   const cap = Math.min(k, candidates.length);
   const minValid = Math.ceil(k / 2);
   let rerankUsage: StageUsage | undefined;

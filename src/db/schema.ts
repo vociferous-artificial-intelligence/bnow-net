@@ -612,7 +612,11 @@ export const askUsage = pgTable(
     id: serial("id").primaryKey(),
     userEmail: text("user_email").notNull(), // 'anonymous' only when the auth gate is off
     question: text("question").notNull(),
-    provider: text("provider"), // openai:<model>|stub|none|error
+    // openai:<model> = a real paid exchange; every other value is a degraded or
+    // non-pipeline outcome: stub (offline/kill-switch), budget (our own cap),
+    // unscorecarded (the R3 quality gate refused an unmeasured ASK_ANSWER_MODEL
+    // before any reservation), cancelled, cache:exact, limit, none, error.
+    provider: text("provider"),
     promptTokens: integer("prompt_tokens"), // ANSWER-stage prompt tokens (historical meaning kept)
     completionTokens: integer("completion_tokens"), // ANSWER-stage completion tokens (historical meaning kept)
     costUsd: doublePrecision("cost_usd").notNull().default(0), // TOTAL cost across ALL stages (embed+rerank+answer)

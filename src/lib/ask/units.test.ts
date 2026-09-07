@@ -52,6 +52,7 @@ describe("analysisUnits — the §9.5 unit policy, table-tested", () => {
     ["replayed cache-ish payload", result({ replayed: true, cacheStatus: "exact" }), 0],
     ["stub offline answer (kill-switch — NO provider exchange)", result({ state: "answered", provider: "stub" }), 0],
     ["budget-degraded answer (BNOW's own cap refused the call)", result({ state: "answered", provider: "budget" }), 0],
+    ["unscorecarded answer (R3 quality gate refused an unmeasured model)", result({ state: "answered", provider: "unscorecarded" }), 0],
     ["cancelled run (beta decision: 0 — re-decide before live billing)", result({ state: "error", provider: "cancelled" }), 0],
   ])("%s → %i units", (_label, r, expected) => {
     expect(analysisUnits(r)).toBe(expected);
@@ -191,6 +192,7 @@ describe("billingEligibility — nothing becomes invoice-eligible by accident", 
     ["exact cache hit", result({ cacheStatus: "exact" })],
     ["stub-degraded", result({ provider: "stub" })],
     ["budget-degraded", result({ provider: "budget" })],
+    ["unscorecarded", result({ provider: "unscorecarded" })],
     ["cancelled", result({ state: "error", provider: "cancelled" })],
     ["limit refusal", result({ state: "limit", provider: "limit" })],
     ["error refusal", result({ state: "error", provider: "error" })],

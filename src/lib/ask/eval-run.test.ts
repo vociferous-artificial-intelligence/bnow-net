@@ -194,6 +194,13 @@ describe("isDegradedResult", () => {
     expect(isDegradedResult({ retrievalMode: "v2", provider: "budget", openaiKeySet: true })).toBe(true);
   });
 
+  it("R3: key set + unscorecarded provider -> degraded (a gated run is the BASELINE fallback, not the candidate)", () => {
+    // The scorecard gate returns a deterministic claim list. Scoring it would
+    // credit the refused model with the deterministic path's numbers — and,
+    // worse, a sweep meant to PRODUCE a scorecard would silently record one.
+    expect(isDegradedResult({ retrievalMode: "v2", provider: "unscorecarded", openaiKeySet: true })).toBe(true);
+  });
+
   it("key set + real provider + real retrieval mode -> not degraded", () => {
     expect(isDegradedResult({ retrievalMode: "v2", provider: "openai:gpt-5", openaiKeySet: true })).toBe(false);
     expect(isDegradedResult({ retrievalMode: "legacy", provider: "openai:gpt-4o-mini", openaiKeySet: true })).toBe(

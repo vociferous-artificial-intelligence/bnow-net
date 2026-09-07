@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { route, routePolicyString, ROUTE_POLICY_VERSION, type RoutePolicy } from "./router";
+import { autoPolicyReason, route, routePolicyString, ROUTE_POLICY_VERSION, type RoutePolicy } from "./router";
+import { ASK_ANSWER_SUITE, hasScorecard } from "./registry";
 import { askAnswerModel, askCandidates, askEvidenceK, askRerankModel } from "./config";
 import { ANSWER_MAX_OUTPUT_TOKENS } from "./answer";
 
@@ -43,8 +44,36 @@ describe("router — Auto ≡ today's pipeline constants (behavior-identity pin)
 
   it("G4: an env-overridden answer model is distinguishable in the recorded reason", () => {
     expect((route({ mode: "auto" }) as RoutePolicy).reason).toBe("auto_baseline");
+    // R3 (2026-09-06): gpt-4o carries no answer-suite scorecard, so since the
+    // money-path gate landed the consequential fact is that this model will not
+    // dispatch at all — the recorded reason says so instead of describing a
+    // paid run that never happens. The env-override branch itself is pinned
+    // directly below, on the pure function, so this change moved the coverage
+    // rather than dropping it.
     vi.stubEnv("ASK_ANSWER_MODEL", "gpt-4o");
-    expect((route({ mode: "auto" }) as RoutePolicy).reason).toBe("auto_env_override");
+    expect((route({ mode: "auto" }) as RoutePolicy).reason).toBe("auto_scorecard_missing");
+  });
+
+  it("R3: the recorded reason is scorecard-aware, and all three branches stay covered", () => {
+    // baseline + scorecarded: unchanged
+    expect(autoPolicyReason("gpt-5", true)).toBe("auto_baseline");
+    // a scorecarded NON-baseline model still records the override — unreachable
+    // through route() only because gpt-5 is currently the sole v2-k60 entry
+    expect(autoPolicyReason("gpt-4o", true)).toBe("auto_env_override");
+    // the gate outranks both
+    expect(autoPolicyReason("gpt-4o", false)).toBe("auto_scorecard_missing");
+    expect(autoPolicyReason("gpt-5", false)).toBe("auto_scorecard_missing");
+  });
+
+  it("R3: the router reads the SAME suite the money path gates on (no drift)", () => {
+    // gpt-5-mini is scorecarded for RERANK only — using it as the answer model
+    // must record the gate, which is exactly what answer.ts does with it.
+    expect(hasScorecard("gpt-5-mini", ASK_ANSWER_SUITE)).toBe(false);
+    vi.stubEnv("ASK_ANSWER_MODEL", "gpt-5-mini");
+    expect((route({ mode: "auto" }) as RoutePolicy).reason).toBe("auto_scorecard_missing");
+    // ...and the policy still RECORDS the model the operator set (telemetry,
+    // not behaviour — ASK_ROUTER stays default-off either way)
+    expect((route({ mode: "auto" }) as RoutePolicy).answerModel).toBe("gpt-5-mini");
   });
 });
 

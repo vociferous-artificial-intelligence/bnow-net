@@ -1067,3 +1067,51 @@ describe("ask_usage row shape — baseline (paid, scorecarded Auto answer)", () 
     expect(h.cacheStoreMock).toHaveBeenCalledTimes(1);
   });
 });
+
+// The gated row (R3): what ask_usage records when the scorecard gate refused.
+// Paired with the baseline row-shape block above — the difference between the
+// two IS the gate's whole persisted footprint.
+describe("ask_usage row shape — gated (unscorecarded answer model)", () => {
+  const GATED = () =>
+    v2Full({
+      provider: "unscorecarded",
+      state: "answered",
+      answer: "Top matching evidence:\n• claim [c1]",
+      rerankModel: undefined,
+      answerModel: undefined,
+      rerankUsed: false,
+      usage: undefined,
+      usageByStage: undefined,
+    });
+
+  it("writes provider 'unscorecarded' with NULL answer_model and no per-stage answer spend", async () => {
+    h.askMock.mockResolvedValue(GATED());
+    await askWithLimits("q", "u@x.com");
+
+    const p = insertParams()!;
+    expect(p[COL.provider]).toBe("unscorecarded"); // distinguishable from "stub"
+    expect(p[COL.state]).toBe("answered");
+    expect(p[COL.answerModel]).toBeNull();
+    expect(p[COL.rerankModel]).toBeNull();
+    expect(p[COL.rerankUsed]).toBe(false);
+    expect(p[COL.answerPromptTokens]).toBeNull();
+    expect(p[COL.answerCompletionTokens]).toBeNull();
+    expect(p[COL.answerCostUsd]).toBeNull();
+    expect(p[COL.costUsd]).toBe(0);
+  });
+
+  it("the exact cache REFUSES it (limits.ts:733 admits only openai providers — truth-in-UI)", async () => {
+    process.env.ASK_RUNS_ENFORCE = "1";
+    process.env.ASK_CONTENT_RETENTION_DAYS = "30";
+    process.env.ASK_PROGRESSIVE = "1";
+    process.env.ASK_CACHE_TTL_DAYS = "7";
+    vi.stubEnv("ASK_EXACT_CACHE", "1");
+    h.corpusVersionMock.mockResolvedValue("100:50");
+    h.cacheKeyMock.mockReturnValue("key-abc");
+    h.cacheLookupMock.mockResolvedValue(null);
+    h.askMock.mockResolvedValue(GATED());
+
+    await askWithLimits("q", "u@x.com");
+    expect(h.cacheStoreMock).not.toHaveBeenCalled();
+  });
+});
