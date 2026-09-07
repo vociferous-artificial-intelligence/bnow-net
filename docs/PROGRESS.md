@@ -4229,3 +4229,25 @@ Execution (same block):
 - Hazard hit and recorded: another session checked out the lane branch in this worktree
   mid-step, replacing the working tree. Nothing was lost (the work was committed and pushed);
   every asserted grep and count was re-verified on the correct branch afterwards.
+## 2026-09-07 ~00:55Z — WS-7.1 tradecraft crosswalk + public /methodology (step 30, planned block)
+
+1. Verify worktree/branch, fast-forward to `origin/main`, cut
+   `48h/ws7-docs-20260905-step30-crosswalk`; record the base SHA.
+2. Re-verify every file:line the addendum and PLAN-WS-7 §2.1 cite at that base; correct the
+   moved ones in the report (the addendum's `openai-provider.ts:146` and `map-prompts.ts:255`
+   are the two the plan already flags).
+3. PR 1 — `docs/METHODOLOGY-TRADECRAFT.md`: per standard → requirement → BNOW mechanism →
+   enforcing file:line → status BUILT/PARTIAL/GAP → which WS-7 step closes it. Carry the two
+   corrections (ICD 208's title; the one-year rule is ICS 206-01). State the two things BNOW
+   does beyond the standards: DB-enforced citation (ruling 2) and the external ISW benchmark
+   loop (`validation_runs`). Include the reviewer/partner one-page insert as a section.
+   "Coverage" keeps its contract name — never "accuracy".
+4. PR 2 — public `/methodology` page rendered from a shared data module
+   (`src/lib/tradecraft/crosswalk.ts`), following `src/app/privacy/page.tsx`; add the route to
+   `sitemap.ts` `STATIC_PATHS` and to `seo.test.ts`'s PUBLIC list. No gate (ruling 21 posture
+   stated), no ROUTES row, no env, nav link deferred.
+5. Tests: page render (jsdom, no session/DB), a drift test tying the doc's fenced crosswalk
+   table to the module's rows, and a moat test (T5 = (a)) asserting the rendered page carries
+   none of the five hedging weight constants and no reliability score.
+6. `npm run typecheck && npm run lint && npm test` green with before → after counts; adversarial
+   self-review; closing report `docs/reviews/WS-7-1-CROSSWALK-2026-09-06.md`.
