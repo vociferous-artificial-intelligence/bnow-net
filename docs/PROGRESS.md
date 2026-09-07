@@ -4107,3 +4107,6 @@ Execution (same block):
   (26 files, from 160/25) on disposable forks `br-odd-sky-atadlbcv` (targeted) and
   `br-empty-darkness-at1co2v5` (full). Zero paid calls, zero production writes, zero env
   changes, no deploy. Spend $0.
+- CP2b rebase: the runtime_logs migration was REGENERATED as 0029 on top of 0028 (the
+  branch's 0030 snapshot forked from 0027 and did not know 0028's benchmark tables); the
+  generated SQL is byte-identical to the original, chain 0028 → 0029, and 13b takes 0030.

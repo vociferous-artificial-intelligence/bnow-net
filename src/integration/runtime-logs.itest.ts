@@ -4,7 +4,7 @@ import { Pool } from "@neondatabase/serverless";
 import { NextRequest } from "next/server";
 import type { SqlExec } from "@/lib/logs/drain";
 
-// Log-drain receiver on REAL Postgres (OPEN-TASKS #93, migration 0030,
+// Log-drain receiver on REAL Postgres (OPEN-TASKS #93, migration 0029,
 // docs/designs/LOG-DRAIN.md): the migration applies additively, the primary
 // key makes a redelivery idempotent, the retention sweep deletes on
 // received_at and only up to its bound, and a badly signed request writes
@@ -60,7 +60,7 @@ async function cleanup() {
 }
 
 beforeAll(async () => {
-  await runMigrations(URL!); // applies 0030 additively on the disposable fork
+  await runMigrations(URL!); // applies 0029 additively on the disposable fork
   pool = new Pool({ connectionString: URL });
   await cleanup();
 });
@@ -75,7 +75,7 @@ beforeEach(async () => {
   resetDrainSweepThrottle();
 });
 
-describe("migration 0030: runtime_logs on real Postgres", () => {
+describe("migration 0029: runtime_logs on real Postgres", () => {
   it("creates the table with the projected columns and no others", async () => {
     const { rows } = await pool.query<{ column_name: string; data_type: string }>(
       `SELECT column_name, data_type FROM information_schema.columns
