@@ -1796,3 +1796,37 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     in the CTO handoff had **no matching task** — the file ended at #107 — and decision R5
     resolved that phantom referent to the parked branch `claude/local-model-ask-eval-20260817`.
     This #108 is a new, unrelated task and must not be read as that referent.
+
+109. **[Tier 3 — cost, DESIGN ONLY] Batch APIs are unused; the eval and soak
+    workloads are the ones they were built for.** All three vendors bill batch
+    submissions at **50% of standard rates** — Anthropic's Message Batches API
+    (most batches complete inside an hour, 24h ceiling, 100k requests or 256MB
+    per batch, all active models, results retained 29 days, and expired/errored/
+    canceled requests are NOT billed), and equivalent Batch offerings from OpenAI
+    and Google Gemini. Nothing in `src/` submits a batch today; every call is
+    synchronous.
+    **Where it fits, best to worst:** (1) eval campaigns — five-vote validation is
+    ~85 calls per case per repetition run ×3, and nothing waits on the result;
+    (2) the conflict shadow soak — explicitly shadow, capped 300/day and 200/run,
+    graded on variance across repeated runs, so latency is irrelevant; (3) digest
+    and entity-audit crons — workable only if submission runs far enough ahead of
+    the 02:00Z finalize to absorb the 24h worst case; (4) Ask — **disqualified**,
+    it is interactive.
+    **Why it is not a config flag.** `spend-guard.ts:122` performs a threshold
+    check BEFORE dispatch against the row's cumulative lifetime total, but batch
+    inverts the cost timeline: true cost is known only at retrieval. A batch path
+    must therefore reserve at a CEILING, which the repo already does for
+    embeddings (`EMBED_UNKNOWN_PRICE_PER_MTOK` is documented as exactly that — "a
+    reservation ceiling must never understate an unknown model"), so the pattern
+    exists and does not need inventing. The genuinely new work is submit → poll →
+    retrieve as a job table across multiple invocations, because a Vercel cron
+    function cannot sit and wait. Batch's not-billed-on-expiry semantics are a
+    clean fit for the fail-closed posture.
+    **Sequencing note:** the eval-side version is materially cheaper to build than
+    the cron-side one, because the eval library is deliberately isolated from cron
+    routes (decision D4/C12 — a cron route importing `src/lib/evals/*` breaks the
+    isolation contract), so a batch runner there is a CLI change touching no route.
+    **Not a PR in this window,** and worth sizing honestly before it becomes one:
+    the `openai_eval` row holds ≈$0.15 against $2 caps, so 50% of current volume is
+    negligible. The case becomes real when the shadow soak runs at volume. Filed
+    2026-09-07.
