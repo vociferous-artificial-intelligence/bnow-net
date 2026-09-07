@@ -38,6 +38,7 @@
 
 import type { QueryFn } from "../isw/load";
 import {
+  canonicalEditionDerived,
   canonicalizeIswUrl,
   nextStoredDayStatus,
   orderEditionsByFinality,
@@ -116,19 +117,24 @@ function rowToRecord(row: Row): ReferenceEditionRecord {
     publishedTreatment: String(row.published_treatment) as ReferenceEditionRecord["publishedTreatment"],
     parseStatus: String(row.parse_status) as ReferenceEditionRecord["parseStatus"],
     citationAnchorId: row.isw_report_id === null ? null : Number(row.isw_report_id),
+    // jsonb arrives as a parsed object from both drivers; a text-mode read is
+    // parsed here so the canonical projection sees the same shape either way
+    derived: canonicalEditionDerived(
+      typeof row.derived === "string" ? safeJsonParse(row.derived) : row.derived,
+    ),
   });
 }
 
 const EDITION_COLUMNS = `series, provider, edition_key, edition_label, report_date, canonical_url,
    norm_version, scope_version, cutoff_at, published_at, cutoff_treatment, published_treatment,
-   designated_final, parse_status, isw_report_id`;
+   designated_final, parse_status, isw_report_id, derived`;
 
 // SELECT list for reads: report_date is cast to text so the driver hands back
 // the literal yyyy-mm-dd (a bare `date` column becomes a host-local-midnight
 // JS Date — see toIsoDay)
 export const EDITION_SELECT = `series, provider, edition_key, report_date::text AS report_date, canonical_url,
    norm_version, scope_version, cutoff_at, published_at, cutoff_treatment, published_treatment,
-   designated_final, parse_status, isw_report_id`;
+   designated_final, parse_status, isw_report_id, derived`;
 
 /** the merge path additionally reads the stored audit journal so the appended
  *  entry is computed (and length-bounded) in one place */
@@ -146,7 +152,7 @@ export const EDITION_MERGE_SELECT = `${EDITION_SELECT}, anchor_journal`;
  *  proves the deployed statement, not a copy of it. */
 export const EDITION_UPSERT_SQL = `WITH ins AS (
      INSERT INTO benchmark_report_editions (${EDITION_COLUMNS})
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb)
      ON CONFLICT (edition_key) DO NOTHING
      RETURNING id
    ), cleared AS (
@@ -173,6 +179,7 @@ function recordParams(r: ReferenceEditionRecord): unknown[] {
     r.designatedFinal,
     r.parseStatus,
     r.citationAnchorId,
+    JSON.stringify(r.derived ?? {}),
   ];
 }
 
@@ -373,17 +380,19 @@ export class SqlReferenceReportRepository implements ReferenceReportRepository {
         `UPDATE benchmark_report_editions SET
            canonical_url = $2, norm_version = $3, cutoff_at = $4, published_at = $5,
            cutoff_treatment = $6, published_treatment = $7, designated_final = $8,
-           parse_status = $9, isw_report_id = $10, anchor_journal = $11::jsonb
+           parse_status = $9, isw_report_id = $10, anchor_journal = $11::jsonb,
+           derived = $12::jsonb
          WHERE edition_key = $1
-           AND canonical_url IS NOT DISTINCT FROM $12
-           AND norm_version IS NOT DISTINCT FROM $13
-           AND cutoff_at IS NOT DISTINCT FROM $14
-           AND published_at IS NOT DISTINCT FROM $15
-           AND cutoff_treatment = $16
-           AND published_treatment = $17
-           AND designated_final IS NOT DISTINCT FROM $18
-           AND parse_status = $19
-           AND isw_report_id IS NOT DISTINCT FROM $20
+           AND canonical_url IS NOT DISTINCT FROM $13
+           AND norm_version IS NOT DISTINCT FROM $14
+           AND cutoff_at IS NOT DISTINCT FROM $15
+           AND published_at IS NOT DISTINCT FROM $16
+           AND cutoff_treatment = $17
+           AND published_treatment = $18
+           AND designated_final IS NOT DISTINCT FROM $19
+           AND parse_status = $20
+           AND isw_report_id IS NOT DISTINCT FROM $21
+           AND derived IS NOT DISTINCT FROM $22::jsonb
          RETURNING id`,
         [
           key,
@@ -397,6 +406,7 @@ export class SqlReferenceReportRepository implements ReferenceReportRepository {
           merged.parseStatus,
           merged.citationAnchorId,
           JSON.stringify(journal),
+          JSON.stringify(merged.derived ?? {}),
           existing.canonicalUrl,
           existing.normVersion,
           existing.identity.cutoffAt,
@@ -406,6 +416,7 @@ export class SqlReferenceReportRepository implements ReferenceReportRepository {
           existing.designatedFinal,
           existing.parseStatus,
           existing.citationAnchorId,
+          JSON.stringify(existing.derived ?? {}),
         ],
       ).catch(rethrowTyped);
       if (updated.length > 0) {

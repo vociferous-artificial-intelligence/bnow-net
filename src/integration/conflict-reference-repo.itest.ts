@@ -473,6 +473,7 @@ describe("conflict reference-report repository (migration 0028, real Postgres)",
         null,
         "pending",
         null,
+        "{}",
       ]),
     ).rejects.toThrow(/benchmark_report_editions_label_shape/);
     // the DELETE half of the CTE rolled back with the INSERT half
