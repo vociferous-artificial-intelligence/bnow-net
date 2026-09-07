@@ -4307,3 +4307,41 @@ Execution (same block):
 6. OPEN-TASKS: one numbered design-only entry for Wayback-style archival, claiming the next free
    number and noting the INDEX §1.7 phantom-#108 record.
 7. Gates green; closing report `docs/reviews/WS-7-6-RETENTION-2026-09-06.md`.
+
+- Execution (same block): base `a821695` (step 30 was built and gated on `98294c5` and rebased
+  mid-session; see the report's last section). `docs/RETENTION-AND-PRESERVATION.md` + the
+  `src/lib/ingest/no-delete.test.ts` source scan landed as one PR, stacked on step 30's PR 2.
+- Two enforcements, not one sentence: `claim_sources`' FK to `raw_documents` is `ON DELETE no
+  action` (`drizzle/0000_superb_ultimates.sql`), so a CITED document cannot be deleted at all
+  while its citation exists — a finding neither the addendum nor PLAN-WS-7 records — and the scan
+  covers every `.ts` under `src/` and `scripts/` for `DELETE FROM raw_documents`,
+  `.delete(rawDocuments)` and a `TRUNCATE` naming the table.
+- Exemptions by path AND by name: the eight `*.itest.ts` seed teardowns (disposable Neon forks)
+  are pinned individually, so a ninth fails the gate rather than passing on the pattern; and
+  `scripts/cleanup-stub-data.ts:60`, whose `STUB_LIKE` guard and transaction the test also pins,
+  because the exemption was granted for a ruling-3 cleanup and must not outlive it.
+- Four caveats stated rather than glossed: claims ARE replaced on regeneration
+  (`digest-persist.ts:177`, `:181-185`; fresh ids per `schema.ts:1057-1060`) so a citation
+  preserves the DOCUMENT, never the claim row id; `content_hash` covers `content.slice(0,4000)`
+  of a body stored to 8,000, a dedup key and not an integrity seal; a Telegram capture is a
+  snapshot of the t.me preview; X retrieval depends on third-party terms. Fifth gap — no
+  third-party archival snapshot anywhere in `src/lib/ingest/` — filed as OPEN-TASKS #108, design
+  only, with the INDEX §1.7 phantom-#108 note.
+- Crosswalk's two preservation rows flipped PARTIAL → BUILT in the document and the data module
+  in the same commit — the first live exercise of step 30's drift test, which worked as designed.
+  Totals 5/12/7 → 7 BUILT / 10 PARTIAL / 7 GAP.
+- Three PLAN-WS-7 citations corrected: the claim-id record is `schema.ts:1057-1060` (its
+  `:1015-1020` is `doc_dedup`), the event sweep runs `digest-persist.ts:181-185`, and there are
+  eight itest deleter FILES with ten statements, not "nine deleters".
+- Mutation-proven twice: a `DELETE FROM raw_documents` added to `ingest/run.ts` fails 2 cases; a
+  NEW `*.itest.ts` deleter fails the pinned-list case — the one the pattern exemption alone would
+  have let through. Two test-construction defects fixed: `/\bDELETE\b/i` false-positived on
+  `delete process.env[k]`, and the document/test count comparison was prose the test could not
+  derive.
+- Gates: typecheck clean · lint 0 errors (3 pre-existing warnings) · unit 3,939/3,939 (265 files)
+  → 3,949/3,949 (266 files). No itest applies (static source scan, no migration, no runtime
+  path). Nothing deleted, nothing under `docs/evals/` touched. Spend $0.
+- A second session was active in this worktree at 21:07Z: it rebased the three step branches
+  `98294c5` → `a821695` and added `9978801` (a correct narrowing of the page's
+  reliability-visibility sentence — `showScores` is false on `/signals`). Verified, kept, moved
+  onto PR 2's branch; step 30's report amended for the new base SHA and the correction.
