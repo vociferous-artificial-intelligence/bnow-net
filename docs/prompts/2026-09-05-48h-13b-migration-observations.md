@@ -3,11 +3,11 @@
 | | |
 |---|---|
 | Model / effort / mode | Opus / high / plain session (15-minute plan-mode preamble, then execute) |
-| Worktree | `/Users/go/code/bnow-net-worktrees/48h-ws3-conflict-20260905`, step branch `48h/ws3-conflict-20260905-mig-observations` cut from `origin/main` after CP2 (#63 merged) |
-| Window | after CP2 |
-| Depends on | #63 on `main`; D4 signed "all 14" (commit `c50721a`) = the memo's recommendations: C1 Option 3, C6 **(b) append-only**, C4 (a), C3/C7/C13 columns as the memo; step 13's report Handoff "For the session that builds 0029" |
+| Worktree | `/Users/go/code/bnow-net-worktrees/48h-ws3-conflict-20260905`, step branch `48h/ws3-conflict-20260905-mig-observations` cut from `origin/main` after CP2b (#63 and #64 merged) |
+| Window | after CP2b |
+| Depends on | #63 AND #64 on `main` (CP2b done — `ls drizzle` shows 0029_runtime_logs.sql); D4 signed "all 14" (commit `c50721a`) = the memo's recommendations: C1 Option 3, C6 **(b) append-only**, C4 (a), C3/C7/C13 columns as the memo; step 13's report Handoff "For the session that builds 0029" |
 | Decisions | none open |
-| Migration number | claim the **next free number on `main` at branch time** (0031 if step 16's 0030 landed at CP2) — the file name is the only thing that changes; say which in the report. `9999_claim_source_trigger.sql` stays last. Never edit 0028. |
+| Migration number | **0030**, generated with `npx drizzle-kit generate --name conflict_observations` on a base that already has `0029_runtime_logs` (PR #64, merged at CP2b) — so the snapshot chain reads 0028 → 0029 → 0030 (`node -e` check: `0030_snapshot.json`.prevId === `0029_snapshot.json`.id). If `drizzle-kit` proposes any number other than 0030, or the generated SQL touches anything but the new observation table, stop and report. `9999_claim_source_trigger.sql` stays last. Never edit 0028 or 0029. |
 | Spend | $0 beyond one disposable Neon fork for the itests (`scripts/test-integration.sh` creates and deletes it). This worktree's `.env.local` is the TRIMMED copy (COMMON §4.10) — confirm with `grep -c API_KEY .env.local` → only `NEON_API_KEY`. |
 | Closing report | `docs/reviews/WS-3-1-OBSERVATIONS-2026-09-06.md` |
 
