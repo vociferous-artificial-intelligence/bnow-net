@@ -113,7 +113,7 @@ docs/               CURRENT-STATE (detailed living snapshot), PRODUCT-BRIEF, PRO
                     README.md files: docs/evals/README.md is the Ask eval README,
                     docs/evals/analysis/README.md is the analysis-eval one),
                     reviews/, designs/
-drizzle/            migrations 0000–0028 + 9999_claim_source_trigger.sql (applies last)
+drizzle/            migrations 0000–0030 + 9999_claim_source_trigger.sql (applies last)
 data/               gitignored: cache/ (fetched pages), outbox/ (rendered emails)
 ```
 
