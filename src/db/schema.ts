@@ -1213,3 +1213,113 @@ export const benchmarkSeriesDays = pgTable(
     ),
   ],
 );
+
+// ---------------------------------------------------------------------------
+// Conflict validation observations (migration 0030)
+// ---------------------------------------------------------------------------
+//
+// One row per (conflict, reference edition, cron invocation) — the durable home
+// of the conflict evaluator's scored ConflictResultV1
+// (docs/reviews/PLAN-WS-3-validation-by-conflict-2026-09-05.md §3.1b).
+//
+// APPEND-ONLY BY CONSTRUCTION (decision C6 = (b), memo
+// docs/reviews/CONFLICT-VALIDATION-DECISION-MEMO-2026-09-05.md:218-244). There
+// is deliberately NO unique key on (conflict_id, reference_edition_id) and no
+// overwrite path anywhere: the shadow soak grades verdict FLIPS across >=3
+// independent runs of the same days, and an overwrite key would destroy exactly
+// the variance instrument `run_group_key` exists to group. The "current"
+// headline for a day is DERIVED at read time (the latest row per edition, whose
+// edition is the day's current daily-final winner), never by mutating an older
+// row. The one unique key present is a partial defensive duplicate guard: one
+// observation per edition per cron invocation, inert for rows written outside a
+// cron (cron_run_id NULL).
+//
+// LEGAL (standing ruling 1): no prose column exists here and none may be added.
+// Stored strings are ids, keys, dates, enum values, version identifiers and
+// instants; `result` holds a persistable ConflictResultV1 whose only free-ish
+// strings are the fixed headline label and the two bounded raw time anchors —
+// enforced fail-closed BEFORE any write by src/lib/conflicts/observation-store.ts.
+export const conflictValidationObservations = pgTable(
+  "conflict_validation_observations",
+  {
+    id: serial("id").primaryKey(),
+    conflictId: text("conflict_id").notNull(),
+    // the edition IS the identity of what was scored; the FK keeps the default
+    // ON DELETE NO ACTION so deleting a scored edition is BLOCKED and visible,
+    // never cascaded into silent observation loss
+    referenceEditionId: integer("reference_edition_id")
+      .notNull()
+      .references(() => benchmarkReportEditions.id),
+    // denormalized for reads (the FK above is the identity)
+    series: text("series").notNull(),
+    reportDate: date("report_date").notNull(),
+    editionKey: text("edition_key").notNull(),
+    evaluationKind: text("evaluation_kind").notNull(),
+    contributingDigestIds: integer("contributing_digest_ids").array().notNull().default([]),
+    // the persistable ConflictResultV1 and nothing else
+    result: jsonb("result").notNull(),
+    // memo C3: unitId -> contributor-theater attribution. RECORDED beside the
+    // result, never a filter and never inside the frozen ConflictResultV1.
+    unitAttribution: jsonb("unit_attribution").notNull().default({}),
+    // llm-majority | llm | keyword. `fixture-oracle` is excluded on purpose:
+    // the live path can never mint one, so the DB cannot hold one either.
+    matcherRung: text("matcher_rung").notNull(),
+    matcherModel: text("matcher_model"),
+    votesK: integer("votes_k"),
+    // model/effort/registry/approval identity of the paid rung; NULL on keyword
+    dispatch: jsonb("dispatch"),
+    methodologyEpoch: text("methodology_epoch").notNull(),
+    laneTaxonomyVersion: text("lane_taxonomy_version").notNull(),
+    evidencePolicyVersion: text("evidence_policy_version").notNull(),
+    laneClassifierVersion: text("lane_classifier_version").notNull(),
+    actorRosterVersion: text("actor_roster_version").notNull(),
+    scopeVersion: text("scope_version").notNull(),
+    // memo C7: the versioned toponym gazetteer the keyword rung scored with
+    gazetteerVersion: text("gazetteer_version").notNull(),
+    // memo C13: the compound/negative derivation version. Observations under
+    // `unit-flags-v0` are never comparable with `compound-v1` ones, so the read
+    // view GROUPS by this column and labels v0 rows not soak-eligible.
+    unitFlagsVersion: text("unit_flags_version").notNull(),
+    editionNormVersion: text("edition_norm_version").notNull(),
+    dailyFinalPolicy: text("daily_final_policy").notNull(),
+    extractorVersions: text("extractor_versions").array().notNull().default([]),
+    registryVersion: text("registry_version").notNull(),
+    windowEndSource: text("window_end_source").notNull(),
+    // repeated-run/variance grouping key (scorer.ts runGroupKey): identical
+    // inputs + matcher config share a key across repeated runs
+    runGroupKey: text("run_group_key").notNull(),
+    // ruling 10: binds the observation to the cron_runs row that produced it.
+    // Nullable because a non-cron caller (a backfill, a test) has no run row.
+    cronRunId: integer("cron_run_id").references(() => cronRuns.id),
+    observedAt: timestamp("observed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      "conflict_validation_observations_conflict_id_check",
+      sql`${t.conflictId} ~ '^[a-z_]+$'`,
+    ),
+    check(
+      "conflict_validation_observations_evaluation_kind_check",
+      sql`${t.evaluationKind} IN ('operational_cutoff', 'at_publication', 'finalized', 'retrospective')`,
+    ),
+    check(
+      "conflict_validation_observations_matcher_rung_check",
+      sql`${t.matcherRung} IN ('llm-majority', 'llm', 'keyword')`,
+    ),
+    check(
+      "conflict_validation_observations_window_end_source_check",
+      sql`${t.windowEndSource} IN ('cutoff', 'published', 'report_day')`,
+    ),
+    // the ONLY unique key: one observation per edition per cron invocation.
+    // Partial, so append-only rows written outside a cron are unconstrained.
+    uniqueIndex("conflict_validation_observations_run_idx")
+      .on(t.conflictId, t.referenceEditionId, t.cronRunId)
+      .where(sql`cron_run_id IS NOT NULL`),
+    index("conflict_validation_observations_conflict_day_idx").on(
+      t.conflictId,
+      t.reportDate.desc(),
+      t.observedAt.desc(),
+    ),
+    index("conflict_validation_observations_run_group_idx").on(t.runGroupKey),
+  ],
+);
