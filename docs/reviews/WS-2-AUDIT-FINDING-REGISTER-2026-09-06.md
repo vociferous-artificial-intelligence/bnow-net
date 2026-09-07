@@ -260,7 +260,7 @@ Recorded observations, each sanity-checked once for factual accuracy and duplica
 | #62 | 1 | 1 | 2 | **fix-before-deploy** (documentation) | The design's enablement sequence omits the manual migration step (WS2-F04) and its deciding argument for the Neon sink — one `JOIN` on `request_path` — does not hold for the ingest family (WS2-F02). Both are corrections to text an operator will follow at step 27, so they should land before the deploy that carries the receiver. |
 | #64 | 1 | 9 | 9 | **fix-before-deploy** (documentation); the CODE is merge-stands | The receiver is inert while `LOG_DRAIN_SECRET` is unset in every environment, so merging and deploying it changes no behaviour — the hazard is at REGISTRATION. Before the drain is registered: apply migration 0029 by hand (WS2-F04), and prefer landing the NUL/int4 hardening (WS2-F03) and the row-cap clamp (WS2-F26) first, because both turn a legitimate signed delivery into a permanent 500-and-retry. |
 | #65 | 0 | 3 | 6 | **merge-stands** | The `--base-ack` guard works end to end and refuses the production default before the driver is constructed. Its only pin is a source scan that a commented-out call would pass (WS2-F05); the fix is a subprocess pin, and every unpinned host variant found errs toward refusing. |
-| #67 (open) | 2 | 3 | 7 | **fix-before-merge** | The gate itself is correct and the baseline pin is honest (written against the unmodified tree, and both defaults are scorecarded, so production behaviour is unchanged). Two majors: the new exact-cache pin is vacuous and so is the pre-existing one it copied (WS2-F07) — a two-line test fix; and the report's disclosure of the ungated legacy path understates it (WS2-F06), which is a pre-existing defect needing its own task, not a change to this PR. |
+| #67 (merged after this audit — see the correction below) | 2 | 3 | 7 | **fix-before-deploy** | The gate itself is correct and the baseline pin is honest (written against the unmodified tree, and both defaults are scorecarded, so production behaviour is unchanged). Two majors: the new exact-cache pin is vacuous and so is the pre-existing one it copied (WS2-F07) — a two-line test fix; and the report's disclosure of the ungated legacy path understates it (WS2-F06), which is a pre-existing defect needing its own task, not a change to this PR. |
 
 **No blocker was found, and no PR is recommended for revert.** The two verdicts that are not
 "merge-stands" both turn on documentation an operator follows and on test evidence, not on shipped
@@ -274,6 +274,27 @@ literally ("a spend hazard reachable from a documented configuration") and is ra
 because production leaves `ASK_PIPELINE` unset, the path is bounded by a fail-open $10/day
 `ask_usage` gate, and no audited PR widened it. It needs an OPEN-TASKS entry and its own fix
 (decision A1).
+
+### Correction — 2026-09-07: PR #67 merged while this audit was running
+
+The audit read #67 at its open branch tip `697aea4`, as the prompt's conditional directs. It has
+since merged to `main` as **`6b52c2c`** ("Merge PR #67: Auto scorecard gate on the Ask money
+path"), inside the CP3 merge queue. **The merged tree is byte-identical to the tree audited** —
+`git diff 697aea4 6b52c2c -- src/lib/ask .env.example` is empty, and the `src/db/schema.ts`
+difference between the two is entirely PR #73's conflict-observations block — so every finding,
+mutation count and verdict above transfers unchanged. Two consequences:
+
+- **#67's verdict changes from "fix-before-merge" to "fix-before-deploy".** WS2-F07's vacuous
+  cache pin is now a test fix on `main` rather than a merge condition. It is still a two-line
+  change and it should land before step 27 deploys, because that pin is the only evidence that a
+  degraded provider is never cached — a ruling-3 claim.
+- **WS2-F06 is on `main` in exactly the sense it always was.** The unguarded `ASK_PIPELINE=legacy`
+  path predates #67 and is unchanged by it; decision A1 still stands, and it is still not #67's
+  defect to answer for.
+
+Nothing else in the audited range moved: the eight merged PRs remain ancestors of `98294c5`, and
+this register's base SHA is unchanged.
+
 
 ## What this audit established, and what it did not
 
