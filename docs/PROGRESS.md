@@ -4402,3 +4402,27 @@ Execution (resumed 2026-09-07 ~00:05Z — audit finished):
   naming what the audit did NOT establish (no DB, no Vercel read, no tree-wide build, three merges
   out of scope, merge fidelity unchecked). Raw agent output preserved in the two
   `WS-2-AUDIT-ROUND*-RAW-*.json` bundles. $0; no code changed.
+## 2026-09-07 ~01:10Z — WS-3.2 series/edition-aware discovery + report-only cron entrypoint (planned block)
+
+1. Read COMMON, the step-14 prompt, PLAN-WS-3 §3.2a/3.2b (its Handoff rewrite is part of the
+   prompt), the WS-3.0 memo C2/C4/C5, and the WS-3.1 persistence Handoff (0028 names are FINAL).
+   Base `origin/main` `a821695`; D4 signed (C4 = store every edition, score the daily-final
+   winner; C5 = link-only anchoring by URL equality).
+2. PR 1 `48h/ws3-gazetteer-20260905-edition-discovery` — `src/lib/isw/edition-discovery.ts`:
+   probe ALL shapes per (series, date), never `break`; record EVERY edition through
+   `SqlReferenceReportRepository`; `derived.units = [{ordinal, sha256, toponyms, actions, chars}]`
+   (ruling 1 — signatures and hashes only); link-only `isw_report_id` by canonical-URL equality;
+   monotone day status with two-run `publication_gap` confirmation. Writes ONLY the 0028 tables.
+3. Carry `derived` through the ONE merge authority (record + in-memory + SQL backends) so the
+   0028 column the WS-3.1 PR left unwritten has a writer that cannot drift between backends.
+4. `scripts/isw-refresh.ts` gains `--series roca|iran_update --from A --to B [--dry]` as the
+   FIRST branch of `main()`; the `--theater` path stays byte-identical (pinned two ways).
+5. PR 2 `48h/ws3-gazetteer-20260905-conflict-validate-route` —
+   `src/app/api/cron/conflict-validate/route.ts`: `CRON_SECRET` auth, `withCronRun` (ruling 10),
+   iterates `CONFLICT_DEFINITIONS` (C2), `?date` / `?lookback` / `?conflict`, counts summary only.
+   NOT added to `vercel.json`.
+6. Tests: per-shape fixture probes, day-status monotonicity, morning+evening, unknown shape
+   refused, politeFetch call counts, derived prose-freedom, route accounting; one fork itest.
+7. Gates: typecheck + lint + `npm test` with counts; `git diff src/lib/validation/run.ts` EMPTY;
+   `vercel.json` unchanged. $0, no paid call, no production write, no deploy.
+8. Closing report `docs/reviews/WS-3-2-EDITION-DISCOVERY-2026-09-06.md` per COMMON §5.
