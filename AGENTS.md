@@ -1465,6 +1465,52 @@ mid-log, was retired by the eighth archive pass on 2026-09-07; OPEN-TASKS #92.)
   §2.3. The runbook's two are **renumbered R16 and R17**, with a dated correction note appended
   to that file. The decisions are unchanged; only the labels move.
 
+- **2026-09-07 (OPEN-TASKS #79 — RU ROCA citation registry drain — EXECUTED)** Ran the
+  O2-authorized backfill for the 36 historical `ru` ISW reports left `parse_status='pending'`
+  since before the 2026-08-15 citation-refresh hook existed. Window 17:18–17:21 EDT.
+  Preflight (`isw_reports`, theater `ru`): **pending 36** (newest 2026-08-14), parsed 1,562
+  (newest 2026-09-06), failed 26 (newest 2024-03-30) — the pending count matches the figure
+  recorded 2026-08-15 exactly; no drift. Backup branch **`br-wispy-silence-atgxus3y`**
+  (`scripts/neon-branch.ts create`, copy-on-write fork of production) taken before any write,
+  deleted at 17:XX EDT after this entry was written.
+  Dry run (`--theater ru --dry`, zero writes): **36/36 `parseOk=true`, zero `fetch-failed`
+  lines**; 2,564 endnotes and 6,896 citations staged across 2026-07-04 → 2026-08-14
+  (117–307 citations/report).
+  Drain (`npx tsx scripts/isw-refresh.ts --theater ru`): all 36 parsed, **5,421 citations
+  inserted** (6,896 staged − 1,475 absorbed by the unique keys as already-known
+  source/citation pairs), **98 new sources**, 2,440 per-report stats rows.
+  `ru` **pending 36 → 0**; parsed **1,562 → 1,598** (+36, exactly the drained set); failed
+  unchanged at 26. Newest cited `ru` report date after the drain: **2026-09-06**. The hole
+  closed was the interior gap 2026-07-04 → 2026-08-14, not the head of the corpus — the
+  going-forward hook had been parsing new `ru` reports since 2026-08-15, so `parsed`'s max was
+  already 2026-09-06 before this run. (The runbook's "newest fully-parsed `ru` report is
+  2026-07-03" describes the state as of 2026-08-15, not the pre-drain state today.)
+  `registry-materialize.ts`: `source_theater_stats` for `ru` **7,068 rows / avg reliability
+  0.571 → 7,174 rows / 0.572** (+106 rows; 4,808 decayed). Global pass materialized 10,224
+  sources; 10,855 theater-stats rows total (`ir` 3,681 / 0.490, untouched by this run);
+  **cited-but-zero-count sources remaining: 0**.
+  **Finding — the 26 `failed` `ru` reports are a separate, older problem, unchanged by this
+  run.** They date 2022-04-27 → 2024-03-30, long predating #79's window. A
+  `--retry-failed` pass was run (not required — the dry run showed no fetch failures) and
+  every one of the 26 came back `failed endnotes=0 citations=0 inserted=0`; the count is 26
+  before and after. Nothing was downgraded — a parse failure never downgrades an
+  already-parsed report. These are almost certainly legacy page shapes or dead slugs and
+  deserve their own OPEN-TASKS item; they are **not** in scope for #79 and #79 is complete
+  without them.
+  **Operational finding (OPEN-TASKS #80, correction).** `registry-materialize.ts` first died
+  with `password authentication failed for user 'neondb_owner'`. The runbook says a stale
+  `DATABASE_URL_UNPOOLED` falls through to the pooled DSN via `||`; it does not. `||` falls
+  through only on an EMPTY value, and #80's failure mode is a SET-but-stale credential, which
+  is truthy and is used. `DATABASE_URL_UNPOOLED= npx tsx scripts/registry-materialize.ts`
+  succeeded immediately. Nothing was written by the failed attempt — it dies at DSN
+  construction (`scripts/registry-materialize.ts:25`), before the transaction.
+  Cost: **$0** — neither `isw-refresh.ts` nor `registry-materialize.ts` imports any LLM or
+  OpenAI module (verified by reading the import lines before running); network egress to
+  understandingwar.org only, via disk-cached `politeFetch` at ~2.1 s/host. No migration, no env
+  change, no code change — data only. This is registry data, not validation: `validation_runs`
+  is untouched and the public scoreboard's historical scores are unaffected.
+  Rollback: the backup branch above, retained until this entry was written.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).

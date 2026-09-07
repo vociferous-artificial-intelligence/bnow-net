@@ -129,6 +129,11 @@ session may do it — but `AGENTS.md` is under COMMON §4.7's write-lock for eve
 `scripts/sqlq.ts` has **no read-only guard** — it runs whatever SQL string it is handed. Only
 the two `SELECT`s below go through it during this item.
 
+**Run state, 2026-09-07 (update this line as you go).** §2.1–§2.6 **DONE** (drain 17:18–17:21
+EDT). Pending 36 → **0**; parsed 1,562 → **1,598**; `registry-materialize` succeeded on the
+`DATABASE_URL_UNPOOLED=` re-run. **Remaining: §2.7 — write the entry, then delete backup branch
+`br-wispy-silence-atgxus3y`, which is still live.**
+
 ### 2.1 Preflight (read-only)
 
 ```bash
@@ -176,6 +181,17 @@ Oldest-first, `--limit` defaults to 500 (well above ~36, so one invocation clear
 Both are safe to re-run: unique keys absorb replays and a parse failure never downgrades an
 already-parsed report.
 
+**Confirm the drain landed before going on.** `--dry` and the real run print nearly identical
+per-report lines; the only reliable difference is the absence of the `DRY ` token and the row
+counts in the database. Do not infer success from the dry run:
+
+```bash
+npx tsx scripts/sqlq.ts "SELECT parse_status, count(*)::int FROM isw_reports WHERE theater='ru' GROUP BY 1"
+```
+
+`pending` must have dropped from 36 toward 0. If it still reads 36, the drain did not run —
+go back and run it before touching §2.5.
+
 ### 2.5 Materialize
 
 ```bash
@@ -184,9 +200,30 @@ npx tsx scripts/registry-materialize.ts
 
 Pure SQL, idempotent, two phases: rebuilds `source_theater_stats` (DELETE + rebuild inside one
 transaction, so readers never see an empty window), then updates `sources`' global aggregates.
-It reads `DATABASE_URL_UNPOOLED || DATABASE_URL`; per OPEN-TASKS #80 the Mac's unpooled DSN may
-be stale or unset, in which case the `||` falls through to the pooled DSN on its own — **no
-action needed**, and the script does not print which DSN it chose, so this stays inference.
+It reads `DATABASE_URL_UNPOOLED || DATABASE_URL`, and the script does not print which DSN it
+chose, so this stays inference.
+
+**The runbook's OPEN-TASKS #80 note is wrong in the case that actually occurs, and this cost a
+run on 2026-09-07.** `||` falls through only on an **empty or unset** value. A *set but stale*
+`DATABASE_URL_UNPOOLED` — wrong password, which is the #80 failure mode — is truthy, so it is
+used, and the script dies:
+
+```
+NeonDbError: password authentication failed for user 'neondb_owner'
+    at async main (scripts/registry-materialize.ts:25:23)
+```
+
+This is not a drain failure and not a data problem: `sqlq.ts` (pooled DSN) works fine either
+side of it. Force the fallback the comment intends by emptying the variable for this one
+invocation:
+
+```bash
+DATABASE_URL_UNPOOLED= npx tsx scripts/registry-materialize.ts
+```
+
+(Empty string, not `unset` — either works, but `env -u DATABASE_URL_UNPOOLED npx tsx …` is the
+explicit form if you prefer it.) Fixing `.env.local`'s unpooled credential properly is
+OPEN-TASKS #80's own job; do not sink the drain window into it.
 
 ### 2.6 Verify
 
@@ -201,10 +238,68 @@ historical scores do not move. Do not go looking for a scoreboard change; its ab
 
 ### 2.7 Record, then delete the backup
 
-The runbook §7 carries the entry template. Fill the blanks from your own output — before/after
-pending counts, before/after newest cited report date, the branchId, the dry-run failure count,
-`source_theater_stats` rows and avg reliability, and `Cost: $0`. Append it to `AGENTS.md`'s
-`## Decision log` under the same end-of-section convention as item 1.
+The runbook §7 carries the entry template. Below it is **filled from the 2026-09-07 run's actual
+output**; the only blank left is the deletion time of the backup branch. Append it to `AGENTS.md`'s `## Decision log` under the same
+end-of-section convention as item 1.
+
+```
+- **2026-09-07 (OPEN-TASKS #79 — RU ROCA citation registry drain — EXECUTED)** Ran the
+  O2-authorized backfill for the 36 historical `ru` ISW reports left `parse_status='pending'`
+  since before the 2026-08-15 citation-refresh hook existed. Window 17:18–17:21 EDT.
+  Preflight (`isw_reports`, theater `ru`): **pending 36** (newest 2026-08-14), parsed 1,562
+  (newest 2026-09-06), failed 26 (newest 2024-03-30) — the pending count matches the figure
+  recorded 2026-08-15 exactly; no drift. Backup branch **`br-wispy-silence-atgxus3y`**
+  (`scripts/neon-branch.ts create`, copy-on-write fork of production) taken before any write,
+  deleted at <time> after this entry was written.
+  Dry run (`--theater ru --dry`, zero writes): **36/36 `parseOk=true`, zero `fetch-failed`
+  lines**; 2,564 endnotes and 6,896 citations staged across 2026-07-04 → 2026-08-14
+  (117–307 citations/report).
+  Drain (`npx tsx scripts/isw-refresh.ts --theater ru`): all 36 parsed, **5,421 citations
+  inserted** (6,896 staged − 1,475 absorbed by the unique keys as already-known
+  source/citation pairs), **98 new sources**, 2,440 per-report stats rows.
+  `ru` **pending 36 → 0**; parsed **1,562 → 1,598** (+36, exactly the drained set); failed
+  unchanged at 26. Newest cited `ru` report date after the drain: **2026-09-06**. The hole
+  closed was the interior gap 2026-07-04 → 2026-08-14, not the head of the corpus — the
+  going-forward hook had been parsing new `ru` reports since 2026-08-15, so `parsed`'s max was
+  already 2026-09-06 before this run. (The runbook's "newest fully-parsed `ru` report is
+  2026-07-03" describes the state as of 2026-08-15, not the pre-drain state today.)
+  `registry-materialize.ts`: `source_theater_stats` for `ru` **7,068 rows / avg reliability
+  0.571 → 7,174 rows / 0.572** (+106 rows; 4,808 decayed). Global pass materialized 10,224
+  sources; 10,855 theater-stats rows total (`ir` 3,681 / 0.490, untouched by this run);
+  **cited-but-zero-count sources remaining: 0**.
+  **Finding — the 26 `failed` `ru` reports are a separate, older problem, unchanged by this
+  run.** They date 2022-04-27 → 2024-03-30, long predating #79's window. A
+  `--retry-failed` pass was run (not required — the dry run showed no fetch failures) and
+  every one of the 26 came back `failed endnotes=0 citations=0 inserted=0`; the count is 26
+  before and after. Nothing was downgraded — a parse failure never downgrades an
+  already-parsed report. These are almost certainly legacy page shapes or dead slugs and
+  deserve their own OPEN-TASKS item; they are **not** in scope for #79 and #79 is complete
+  without them.
+  **Operational finding (OPEN-TASKS #80, correction).** `registry-materialize.ts` first died
+  with `password authentication failed for user 'neondb_owner'`. The runbook says a stale
+  `DATABASE_URL_UNPOOLED` falls through to the pooled DSN via `||`; it does not. `||` falls
+  through only on an EMPTY value, and #80's failure mode is a SET-but-stale credential, which
+  is truthy and is used. `DATABASE_URL_UNPOOLED= npx tsx scripts/registry-materialize.ts`
+  succeeded immediately. Nothing was written by the failed attempt — it dies at DSN
+  construction (`scripts/registry-materialize.ts:25`), before the transaction.
+  Cost: **$0** — neither `isw-refresh.ts` nor `registry-materialize.ts` imports any LLM or
+  OpenAI module (verified by reading the import lines before running); network egress to
+  understandingwar.org only, via disk-cached `politeFetch` at ~2.1 s/host. No migration, no env
+  change, no code change — data only. This is registry data, not validation: `validation_runs`
+  is untouched and the public scoreboard's historical scores are unaffected.
+  Rollback: the backup branch above, retained until this entry was written.
+```
+
+Two corrections to carry back out of this entry:
+
+- **`docs/reviews/RUNBOOK-79-RU-CITATION-DRAIN-2026-09-05.md` §5** states the `||` fallback
+  handles a stale unpooled DSN "no action needed". Amend it to the `DATABASE_URL_UNPOOLED=`
+  form above, so the next runbook reader does not lose the same ten minutes.
+- **`docs/OPEN-TASKS.md` #80** gains the same one-liner: set-but-stale is the failure mode the
+  `||` does not cover.
+- **A new `docs/OPEN-TASKS.md` item** for the 26 legacy `failed` `ru` reports (2022-04-27 →
+  2024-03-30, `--retry-failed` recovers none of them). #79 closes without them; they should not
+  be left implicit in a `failed` count that future readers mistake for #79 residue.
 
 **This entry appends regardless of whether item 1 was done** — it is an execution record, not a
 decision, and the CP4 gate names it explicitly.
@@ -212,10 +307,10 @@ decision, and the CP4 gate names it explicitly.
 Then, and only then:
 
 ```bash
-npx tsx scripts/neon-branch.ts delete <branchId>
+npx tsx scripts/neon-branch.ts delete br-wispy-silence-atgxus3y
 ```
 
-…and **say so in the entry** ("backup branch `itest-<ts>` (`<branchId>`) deleted at <time>").
+…and **say so in the entry** ("backup branch `br-wispy-silence-atgxus3y` deleted at <time>").
 An entry that does not account for the branch leaves an undeleted fork of production behind.
 
 ```bash
