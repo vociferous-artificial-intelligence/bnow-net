@@ -36,6 +36,11 @@ export const CONFLICT_DOMAIN_ERROR_CODES = [
   // Durable persistence (migration 0028) — additive codes only
   "edition_url_conflict",
   "edition_write_contention",
+  // Conflict observations (migration 0030) — additive codes only. Result-level
+  // refusals keep using `unpersistable_result`; this code is for the OBSERVATION
+  // ROW's own inputs (edition/cron ids, version stamps, attribution, dispatch)
+  // and for a stored row that fails the fail-closed read.
+  "invalid_observation_row",
 ] as const;
 
 export type ConflictDomainErrorCode = (typeof CONFLICT_DOMAIN_ERROR_CODES)[number];

@@ -11,7 +11,9 @@ vi.mock("@/db", () => ({ rawSql: { query: querySpy } }));
 process.env.DATABASE_URL ??= "postgres://test:test@localhost:5432/test";
 const { cronJobName, markDegraded, withCronRun } = await import("./cron-run");
 
-beforeEach(() => querySpy.mockClear());
+// mockReset (not mockClear) so a test that swaps the implementation cannot
+// leak it into the next one — the reset restores the vi.fn(impl) above
+beforeEach(() => querySpy.mockReset());
 
 function finishArgs(): unknown[] {
   // the parameterless #98 sweep is also an UPDATE cron_runs — the finish
@@ -38,6 +40,46 @@ describe("cronJobName", () => {
     expect(cronJobName("validate")).toBe("validate");
     expect(cronJobName("enrich", null)).toBe("enrich");
     expect(cronJobName("materials", undefined)).toBe("materials");
+  });
+});
+
+describe("withCronRun run id (the observation binding, PLAN-WS-3 §3.1b)", () => {
+  it("hands the STARTED row's id to the callback as an additive second argument", async () => {
+    let seen: unknown = "not-called";
+    await withCronRun("job", async (_counts, runId) => {
+      seen = runId;
+    });
+    // 42 is the id the mocked INSERT INTO cron_runs returns
+    expect(seen).toBe(42);
+  });
+
+  it("is null when the bookkeeping row could not be opened — never an error", async () => {
+    // startRun sweeps timed-out rows BEFORE inserting, so fail the INSERT
+    // specifically rather than the next statement of any kind
+    querySpy.mockImplementation(async (sql: string) => {
+      if (/INSERT INTO cron_runs/.test(sql)) throw new Error("cron_runs unavailable");
+      return [];
+    });
+    let seen: unknown = "not-called";
+    const out = await withCronRun("job", async (_counts, runId) => {
+      seen = runId;
+      return "work-still-done";
+    });
+    expect(seen).toBeNull();
+    expect(out).toBe("work-still-done"); // bookkeeping never breaks the job
+  });
+
+  it("leaves a one-argument callback byte-identical in behaviour", async () => {
+    const out = await withCronRun("job", async (counts) => {
+      counts.widgets = 1;
+      return "ok";
+    });
+    expect(out).toBe("ok");
+    const [id, ok, error, counts] = finishArgs();
+    expect(id).toBe(42);
+    expect(ok).toBe(true);
+    expect(error).toBeNull();
+    expect(JSON.parse(counts as string)).toEqual({ widgets: 1 });
   });
 });
 
