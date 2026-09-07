@@ -4197,3 +4197,35 @@ branch `48h/ws3-conflict-20260905-mig-observations` from `origin/main` `a821695`
    `git diff src/lib/llm/analysis-registry.ts` is empty.
 8. Closing report `docs/reviews/WS-2-1-AUTO-GATE-2026-09-06.md` per COMMON §5, with an
    "attack these first" list for step 17 that starts with the baseline pin.
+
+Execution (same block):
+
+- Base `origin/main` `98294c5` (after CP2 #57/#59 and CP2b #60/#61/#64). One PR: **#67**,
+  branch `48h/ws2-routing-20260905-auto-scorecard-gate`, three commits.
+- The baseline pin is a SEPARATE commit (`b602ff0`) containing test files only —
+  `git diff 98294c5 b602ff0 -- src ':!*.test.ts' .env.example` is empty, so it demonstrably
+  records the ungated tree rather than the gate's leftovers. It stayed green when the gate
+  landed; the only pre-existing test the gate broke was the router's G4 reason case, which
+  was extended (the `auto_env_override` branch moved onto a pure exported function) rather
+  than deleted.
+- Gate placement re-verified at base and honoured: `answer.ts:573` (after model resolution,
+  before the guard, so the streaming branch at `:575` is covered too), `answer-stream.ts`
+  between `:124` and `:125` (the reservation is at `:127` — step 11's correction),
+  `rerank.ts:204`. PLAN §4.3's `autoPolicy()` cite `:73-84` is `:73-86` at this base.
+- Plan gap closed and stated: `units.ts:34` holds a SECOND `DEGRADED_PROVIDERS` set the plan
+  did not name. Without `"unscorecarded"` there, a gated deterministic answer would have
+  billed a full unit and become invoice-eligible after a future cutover.
+- Nine mutations recorded, including the two that kill the baseline pin: the gate firing
+  unconditionally (34 failures) and gpt-5's registry scorecard deleted (55) — so the pin is
+  proven non-vacuous from both the code side and the data side.
+- New decision R14 raised, not decided: the gate also blocks the paid answer-model matrix
+  that would produce a scorecard (`scripts/ask-eval.ts` aborts on `provider=unscorecarded`).
+  The recommendation is an eval-only, route-unreachable opt-in in whichever PR schedules that
+  matrix — never an env kill-switch, which would re-open the hole this PR closed.
+- Gates: typecheck clean · lint 0 errors (3 pre-existing warnings) · unit **3,940/3,940
+  (263 files, from 3,914/263 measured on this tree)**. No fork itest — no DB, schema column
+  or migration change. Zero paid calls, zero database access, zero env changes, no deploy.
+  Spend $0. `git diff origin/main -- src/lib/llm/analysis-registry.ts` empty.
+- Hazard hit and recorded: another session checked out the lane branch in this worktree
+  mid-step, replacing the working tree. Nothing was lost (the work was committed and pushed);
+  every asserted grep and count was re-verified on the correct branch afterwards.
