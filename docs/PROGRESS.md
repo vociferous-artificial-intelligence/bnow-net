@@ -4382,3 +4382,23 @@ Execution (same block):
   `docs/reviews/WS-2-AUDIT-ROUND1-RAW-2026-09-06.json` (every agent's full structured result;
   secret-scanned). All scratch worktrees removed; `git worktree prune` run. No code changed; $0.
 - Register NOT written; PR NOT opened. Resume per the handoff §4.
+
+Execution (resumed 2026-09-07 ~00:05Z — audit finished):
+- Bounded resume after the budget stop: 20 agents (11 independent refuters completing the majors'
+  three-vote coverage, 5 batch verifiers over the 25 minors, 3 over the 38 notes, 1 completeness
+  critic) instead of the 213-agent refutation the prompt's shape implies. 19 detached scratch
+  worktrees; the audit tree was never executed against.
+- Result: 71 findings, **none refuted**; final 3 major / 29 minor / 39 note (six downgraded on
+  refutation, one minor→note). 151 mutations, all restored. 255 verified-clean report claims.
+- Majors: #64/#62 enablement order omits applying migration 0029 (WS2-F04); the pre-existing
+  unguarded `ASK_PIPELINE=legacy` money path, whose #67 disclosure understates it (WS2-F06); #67's
+  exact-cache pin passes for the wrong reason, as does the pre-existing pin it copied (WS2-F07).
+- Per-PR verdicts: #52 #57 #59 #60 #61 #65 merge-stands; #62 and #64 fix-before-deploy on
+  documentation (the receiver is inert without `LOG_DRAIN_SECRET`, so the hazard is registration,
+  not the merge); #67 fix-before-merge on the vacuous pin. No blocker; nothing recommended for
+  revert.
+- Register committed: `docs/reviews/WS-2-AUDIT-FINDING-REGISTER-2026-09-06.md`, with the step-25
+  stale-standing-text list (22 items, overlaps named), the mutation log, and a coverage statement
+  naming what the audit did NOT establish (no DB, no Vercel read, no tree-wide build, three merges
+  out of scope, merge fidelity unchecked). Raw agent output preserved in the two
+  `WS-2-AUDIT-ROUND*-RAW-*.json` bundles. $0; no code changed.

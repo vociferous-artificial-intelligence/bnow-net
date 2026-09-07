@@ -1,5 +1,12 @@
 # Step 17 — WS-2 + WS-4 adversarial audit: HANDOFF (paused for budget)
 
+> **SUPERSEDED 2026-09-07 — the audit was finished.** The register is
+> `docs/reviews/WS-2-AUDIT-FINDING-REGISTER-2026-09-06.md`: 71 findings, none refuted, 3 major /
+> 29 minor / 39 note, per-PR verdicts, and an honest coverage statement. This document is kept as
+> the record of the pause and of what was preserved across it; its §4 "exact next steps" were
+> executed as Path C-plus (three refuters for every major, one batched verification for every
+> minor and note, plus a completeness critic — 20 agents).
+
 **Written 2026-09-06 22:31 EDT (2026-09-07T02:31Z).** Session: 48-hour program step 17 (Fable / xhigh / ultracode),
 worktree `/Users/go/code/bnow-net-worktrees/48h-audit-ws2-20260905`, branch
 `48h/audit-ws2-20260905-finding-register`, audited SHA **`98294c5`** (main after CP2b), PR #67 at
