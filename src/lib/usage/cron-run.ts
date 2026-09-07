@@ -176,12 +176,22 @@ function msg(e: unknown): string {
  *  whatever it holds when `fn` settles is persisted, so a job that throws halfway
  *  still records the work it had done. Errors propagate unchanged. A run whose
  *  route marked `counts.degraded` (see markDegraded) resolves normally but is
- *  recorded `ok=false` with `error` NULL. */
-export async function withCronRun<T>(job: string, fn: (counts: CronCounts) => Promise<T>): Promise<T> {
+ *  recorded `ok=false` with `error` NULL.
+ *
+ *  `fn` optionally receives the STARTED row's id as a second argument, so a job
+ *  can bind the rows it writes to its own ruling-10 bookkeeping row (the
+ *  conflict observation's `cron_run_id`). It is `null` when the row could not be
+ *  opened — bookkeeping never breaks the job it measures, so a caller must treat
+ *  a null run id as "unattributed", never as an error. Existing callers taking
+ *  only `counts` are unaffected. */
+export async function withCronRun<T>(
+  job: string,
+  fn: (counts: CronCounts, runId: number | null) => Promise<T>,
+): Promise<T> {
   const counts: CronCounts = {};
   const id = await startRun(job);
   try {
-    const out = await fn(counts);
+    const out = await fn(counts, id);
     await finishRun(id, counts.degraded == null, null, counts);
     return out;
   } catch (e) {
