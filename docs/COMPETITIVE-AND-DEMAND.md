@@ -6,17 +6,38 @@ and the mirror-trade opportunity. Companion to RUSSIA-DATA-ROADMAP.md.
 
 ## 1. Competitive landscape — who sells what, our gaps, our edge
 
-Segments (they rarely overlap; nobody does all of it):
+*(§1 refreshed 2026-09-07 — added Oxford Analytica, Eurasia Group, Verisk Maplecroft,
+Control Risks/Seerist, S-RM; regrouped from one flat table into three by how close each
+vendor's actual delivery mechanism sits to ours. Full teardowns of the risk/geopolitical
+set — taxonomy detail, sourcing methodology, package structure — live in the "BNOW's
+Comparables" and "Source to Judgment" write-ups; this section is the working summary.)*
+
+### 1a. Closest analogs — structured, API-deliverable, or event/claim-based products
+
+| Vendor | What they sell | Price band | Their edge | Their gap (our opening) |
+|---|---|---|---|---|
+| **RANE** | API Solutions: Core / Geo / Threat Intelligence tiers — tagged OSINT, daily ratings/forecasts, geocoordinate threat incidents ([API](https://www.ranenetwork.com/solutions/api)); retail arm is the rebranded Stratfor Worldview | Worldview retail: <$8/wk Basic, $31/wk+ Essential; enterprise API tiers custom-quoted (one federal deal on record at $250k/yr, USAspending.gov) | 3-tier taxonomy (risk domain / category / incident subtype), near-real-time push, built for Bloomberg/Silobreaker embedding | Calls its OSINT "verified" as a label — no per-item citation trail or public accuracy benchmark disclosed |
+| **Control Risks (Seerist)** | Seerist platform — AI-flagged events (category/location/severity/sentiment/reliability/source/timestamp), ~15-min refresh, dashboard + API ([Seerist](https://seerist.com/platform)) | Enterprise, custom-quoted | Rich per-event schema (we're missing severity + sentiment as fields); 24/7 ops-center backend | Provenance is a UI field, not schema-enforced like our trigger; no public self-benchmark |
+| **Verisk Maplecroft** | GRiD Country Risk API + Industry Risk API — ~190 named indices, 198 countries, coordinate/site-level bulk scoring ([Maplecroft](https://www.maplecroft.com/data/country-risk-data/)) | Enterprise, custom-quoted | Genuine REST API, huge standardized index breadth, coordinate-level scoring we don't offer | Quarterly/annual refresh, not live; methodology gated behind sales; no citation trail per datapoint |
+| **Kpler / Windward** | maritime + commodity flow intel; shadow-fleet vessel scoring ([Kpler](https://www.kpler.com/blog/assessing-the-impact-of-sanctions-on-russias-shadow-fleet), [Windward](https://windward.ai/blog/enforcement-shock-accelerates-russias-dark-fleet-reflagging/)) | $$$–$$$$ | AIS/vessel behavioral models; 302 high-risk vessels flagged Oct 2025 | narrow to maritime; no political/factional layer; no ISW-style validation |
+| **Kharon / Sayari** | sanctions networks, layered ownership, evasion facilitators ([Kharon](https://www.kharon.com/brief/russia-news-2025-sanctions-rosneft-lukoil-shadow-fleet)) | $$$$ (Sayari raised $40M Series C 2021, ~200 enterprise customers, valuation undisclosed) | deep entity-network graphs, compliance-grade | slow (investigations, not daily); no frontline event feed |
+| **Janes** | defense/military OSINT, orbats, equipment; 14+ product lines incl. an Open Source Defence Intelligence Data System and "Ask Janes" AI query layer | $$$$ | authoritative mil reference | not real-time; ministries not desks; no reliability scoring exposed |
+| **Dataminr** | real-time event detection from social/news, AI ([overview](https://regionalert.com/blog/best-security-intelligence-platforms-2026.html)) | $20k–$100k+/yr | speed, breadth, alerting | black-box relevance; no reliability ratings; no analytical synthesis |
+
+### 1b. Narrative/advisory houses — the commercial category we most resemble, built differently
+
+| Vendor | What they sell | Price band | Their edge | Their gap (our opening) |
+|---|---|---|---|---|
+| **Oxford Analytica** | Global Risk Monitor — impact×likelihood dashboard, ~10 macro risks, forward time-slider, named-analyst-per-risk, change-log "History" tab ([GRM](https://www.oxan.com/services/global-risk-monitor/)) | Subscription, gated (price not public) | Forward-looking time-slider; transparent rationale-for-change pattern worth copying for any composite score we ship | Closed-door, ~1,500-person analyst network sourced — no machine sourcing or citation trail at all |
+| **Eurasia Group** | Political Risk Advisory (bespoke briefings, consulting-led); legacy Global Political Risk Index (0–100 composite across 24 EMs, appears dormant) | Advisory retainer, custom | Simple composite scoring; strong brand/analyst bench | No live structured product currently found; historically "hundreds of sources," undisclosed |
+| **S-RM** | Global Security Insight — 9 threat streams (war, crime, terrorism, civil unrest, kidnapping, etc.) scored per country, personalized daily digest ([S-RM](https://www.s-rminform.com/technology-and-innovation/global-security-insight)) | Enterprise subscription, custom-quoted | Clean per-country threat-stream taxonomy, personalized saved-filter digests | Sourcing and scoring mechanics fully undisclosed; no public API for GSI itself (their adjacent Perspecta Diligence product does have one, for KYC) |
+
+### 1c. Adjacent — different category, occasional overlap
 
 | Vendor | What they sell | Price band | Their edge | Their gap (our opening) |
 |---|---|---|---|---|
 | **Bloomberg / Refinitiv** | terminal: prices, filings, some news/geo | $$$$ ($30k+/seat) | market data depth, distribution | conflict OSINT is thin; no source-reliability transparency; no Telegram/mil-blogger layer |
-| **Kpler / Windward** | maritime + commodity flow intel; shadow-fleet vessel scoring ([Kpler](https://www.kpler.com/blog/assessing-the-impact-of-sanctions-on-russias-shadow-fleet), [Windward](https://windward.ai/blog/enforcement-shock-accelerates-russias-dark-fleet-reflagging/)) | $$$–$$$$ | AIS/vessel behavioral models; 302 high-risk vessels flagged Oct 2025 | narrow to maritime; no political/factional layer; no ISW-style validation |
-| **Kharon / Sayari** | sanctions networks, layered ownership, evasion facilitators ([Kharon](https://www.kharon.com/brief/russia-news-2025-sanctions-rosneft-lukoil-shadow-fleet)) | $$$$ | deep entity-network graphs, compliance-grade | slow (investigations, not daily); no frontline event feed |
-| **Janes** | defense/military OSINT, orbats, equipment | $$$$ | authoritative mil reference | not real-time; ministries not desks; no reliability scoring exposed |
-| **RANE / Stratfor** | analyst-written geo forecasts, weekly/quarterly ([RANE](https://www.ranenetwork.com/platform/products/geopolitical-intelligence)) | $50k+/yr enterprise; $31/wk individual | human analytical narrative | no raw data/provenance; "trust us" not "here's the source"; no live feed |
-| **Dataminr** | real-time event detection from social/news, AI ([overview](https://regionalert.com/blog/best-security-intelligence-platforms-2026.html)) | $20k–$100k+/yr | speed, breadth, alerting | black-box relevance; no reliability ratings; no analytical synthesis |
-| **Recorded Future** | cyber threat intel, dark web | $$$$ | cyber depth | not geopolitical/conflict analysis |
+| **Recorded Future** | cyber threat intel, dark web | $$$$ (crossed $250M ARR 2022; acquired by Mastercard for $2.65B, 2025 — the ceiling of this market, not a near-term comp) | cyber depth, market-leader scale | not geopolitical/conflict analysis |
 | **ISW / think tanks** | free daily expert assessment | free | authority, method | not a data product; not queryable; one theater cadence; no API |
 
 **What everyone is missing that we have:**
@@ -25,12 +46,18 @@ Segments (they rarely overlap; nobody does all of it):
    Dataminr, RANE all present conclusions; we present the evidence chain with a trust score.
 2. **Claim→source traceability enforced at the database level** — every claim clicks
    through to raw documents. RANE says "we assess"; we say "here are the 3 sources, rated."
+   None of the 1a or 1b vendors above disclose anything schema-enforced like this — Seerist
+   attaches provenance as a UI field, Maplecroft and S-RM disclose nothing per-datapoint.
 3. **Public daily validation vs an expert benchmark** (ISW scoreboard, +14h median lead).
    No competitor publishes their own accuracy. This is a *trust* differentiator and a
    *marketing* asset simultaneously.
 4. **Cross-layer fusion in one product**: frontline + elite politics + regional/ethnic +
    courts + data-transparency — Kpler is maritime-only, Kharon is sanctions-only, Janes
    is military-only. We span them at desk speed.
+5. **Published pricing at any tier** — every 1a/1b vendor except RANE's retail Worldview
+   line gates its price behind a demo call. If we keep a transparent price list even at
+   the enterprise tier, that's a real, low-cost differentiator against the entire
+   narrative-house segment.
 
 **What competitors have that we lack (the honest gap list → build backlog):**
 - **Maritime/AIS** (Kpler/Windward): shadow-fleet + Hormuz tanker tracking. High value
@@ -39,11 +66,21 @@ Segments (they rarely overlap; nobody does all of it):
   corporate-registry depth. OpenSanctions (shipped) + UK Companies House + OpenCorporates
   closes part of it cheaply.
 - **Financial-market data** (Bloomberg): not our game; integrate, don't rebuild.
-- **Analyst-written narrative** (RANE): we generate structured claims, not prose essays.
-  A thin "analyst layer" on top (see §2) captures some of this without becoming a
-  consultancy.
+- **Analyst-written narrative** (RANE, Oxford Analytica, Eurasia Group, S-RM): we generate
+  structured claims, not prose essays. A thin "analyst layer" on top (see §2) captures
+  some of this without becoming a consultancy.
 - **Scale of curated sources**: Intel Desk runs ~199 sources for Iran alone; we run ~70
   for RU/UA. Closeable via the registry flywheel.
+- **Richer per-event fields** (Seerist/Control Risks): severity and sentiment, alongside
+  our existing hedging classification and confidence score — cheap to add, no infra gap.
+- **Audit-trail-of-score-change UI** (Oxford Analytica's GRM "History" tab): if we ship
+  any composite/rollup score, pair it with an explicit "why did this move" log so it
+  isn't a black-box number.
+- **Tiered API packaging** (RANE Core → Geo → Threat): a template for productizing our
+  claims/events/digests split as an upsell ladder instead of one flat subscription.
+- **Coordinate/site-level scoring** (Verisk Maplecroft's bulk lat/long API): serves an
+  insurance/underwriting/site-selection buyer we don't currently address — later-stage,
+  not near-term.
 
 ## 2. Buyer demand — what raises analytical value, segmented
 
