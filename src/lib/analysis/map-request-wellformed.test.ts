@@ -73,6 +73,7 @@ const ROCKET_LO = "\uDE80"; // U+1F680 ROCKET, as its two UTF-16 halves
 
 const DISPATCH: AnalysisDispatchConfig = {
   workload: "map",
+  provider: "openai",
   model: "gpt-4o-mini",
   reasoningCapable: false,
   reasoningEffort: null,

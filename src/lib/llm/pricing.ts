@@ -4,6 +4,20 @@
 // and src/lib/ask/registry.ts's parity test keeps pinning these numbers
 // against the model registry.
 
+import type { AnalysisProviderId } from "./providers";
+
+/** A price row. `provider` is ABSENT on every row today and means "openai" —
+ *  the whole table predates the provider dimension. It is written out only for
+ *  a non-OpenAI vendor, so a same-named model on two vendors can never share
+ *  one price by accident (see pricedFor). */
+export interface ModelPrice {
+  in: number;
+  out: number;
+  provider?: AnalysisProviderId;
+}
+
+export type PriceTable = Record<string, ModelPrice>;
+
 /** List price per 1M tokens. gpt-5 family for the Tier-2+ ASK pipeline;
  *  gpt-4o entries retained; unknown models fall back to a conservative
  *  over-estimate.
@@ -14,7 +28,7 @@
  *  numbers UNDERSTATED spend 2×: Ask's measured/reserved rerank cost rises
  *  ~2× from this correction even though the provider's actual billing never
  *  changed — the application had been under-metering it. */
-export const PRICES_PER_MTOK: Record<string, { in: number; out: number }> = {
+export const PRICES_PER_MTOK: PriceTable = {
   "gpt-4o-mini": { in: 0.15, out: 0.6 },
   "gpt-4o": { in: 2.5, out: 10 },
   "gpt-5": { in: 1.25, out: 10 },
@@ -70,4 +84,20 @@ export function embedPricePerMtok(model: string): number {
  *  the default model's numbers are bit-identical to the old ones. */
 export function estimateEmbedCostUsd(model: string, tokens: number): number {
   return tokens * (embedPricePerMtok(model) / 1_000_000);
+}
+
+/** Is `model` priced FOR THIS PROVIDER? A row with no `provider` field is an
+ *  OpenAI row (the whole table predates the provider dimension), so an absent
+ *  field must read as "openai", never as "any provider" — otherwise the first
+ *  non-OpenAI wiring would inherit OpenAI's price table wholesale and meter a
+ *  different vendor's tokens at OpenAI rates.
+ *
+ *  `table` is injectable for TESTS only; production callers use the default. */
+export function pricedFor(
+  provider: AnalysisProviderId,
+  model: string,
+  table: PriceTable = PRICES_PER_MTOK,
+): boolean {
+  if (!Object.prototype.hasOwnProperty.call(table, model)) return false;
+  return (table[model].provider ?? "openai") === provider;
 }

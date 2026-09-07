@@ -1,8 +1,8 @@
 // Analysis-workload QUALITY registry (release hardening 2026-08-17): the
 // scorecard/approval gate for the analysis routing seam. Pricing alone is not
 // quality approval — an entry in PRICES_PER_MTOK says a model can be METERED,
-// an entry HERE says a specific (workload, model, effort) combination is
-// approved to serve production. Production analysis dispatch requires BOTH
+// an entry HERE says a specific (workload, provider, model, effort)
+// combination is approved to serve production. Production dispatch requires BOTH
 // (enforced in model-config.ts workloadDispatchConfig(), which fails closed
 // BEFORE any SpendGuard reservation or provider construction).
 //
@@ -13,8 +13,10 @@
 // merge the two.
 //
 // Approval semantics (all test-pinned):
-// - approval is per (workload, model): a model approved for one workload is
-//   NOT approved for another;
+// - approval is per (workload, provider, model): a model approved for one
+//   workload is NOT approved for another, and an approval for one vendor never
+//   carries to a same-named model on another vendor (2026-09-06 provider
+//   dimension — the allowlist in providers.ts is a separate, earlier gate);
 // - allowed efforts are per approval: an effort approved for one
 //   (workload, model) never authorizes another effort — `null` in the list
 //   means "absent effort" (no reasoning_effort parameter), which is the only
@@ -28,7 +30,8 @@
 //   unevaluated candidates (a future evaluation harness dispatches candidates
 //   outside production routes under its own authorization).
 
-import type { AnalysisReasoningEffort, AnalysisWorkload } from "./model-config";
+import type { AnalysisReasoningEffort } from "./model-config";
+import type { AnalysisProviderId, AnalysisWorkload } from "./providers";
 
 /** Bump on ANY approval change — persisted with every dispatch identity so an
  *  output row can be traced to the registry state that authorized it. */
@@ -38,6 +41,8 @@ export type AnalysisApprovalStatus = "baseline" | "evaluated_candidate";
 
 export interface AnalysisApproval {
   workload: AnalysisWorkload;
+  /** the vendor this approval covers — an approval never crosses providers */
+  provider: AnalysisProviderId;
   /** exact model id/snapshot string as dispatched */
   model: string;
   /** efforts this approval covers; null = absent (no reasoning_effort param) */
@@ -54,6 +59,7 @@ export interface AnalysisApproval {
 export const ANALYSIS_APPROVALS: readonly AnalysisApproval[] = [
   {
     workload: "map",
+    provider: "openai",
     model: "gpt-4o-mini",
     allowedEfforts: [null],
     status: "baseline",
@@ -65,6 +71,7 @@ export const ANALYSIS_APPROVALS: readonly AnalysisApproval[] = [
   },
   {
     workload: "reduce",
+    provider: "openai",
     model: "gpt-4o-mini",
     allowedEfforts: [null],
     status: "baseline",
@@ -76,6 +83,7 @@ export const ANALYSIS_APPROVALS: readonly AnalysisApproval[] = [
   },
   {
     workload: "digest",
+    provider: "openai",
     model: "gpt-4o-mini",
     allowedEfforts: [null],
     status: "baseline",
@@ -87,6 +95,7 @@ export const ANALYSIS_APPROVALS: readonly AnalysisApproval[] = [
   },
   {
     workload: "validation",
+    provider: "openai",
     model: "gpt-4o-mini",
     allowedEfforts: [null],
     status: "baseline",
@@ -98,6 +107,7 @@ export const ANALYSIS_APPROVALS: readonly AnalysisApproval[] = [
   },
   {
     workload: "entity_audit",
+    provider: "openai",
     model: "gpt-4o-mini",
     allowedEfforts: [null],
     status: "baseline",
@@ -113,20 +123,23 @@ export type ApprovalVerdict =
   | { approved: true; status: AnalysisApprovalStatus; evidenceRef: string }
   | { approved: false; reason: string };
 
-/** Is (workload, model, effort) approved to dispatch in production?
+/** Is (workload, provider, model, effort) approved to dispatch in production?
  *  `registry` is injectable for tests ONLY — production callers always use
  *  the checked-in ANALYSIS_APPROVALS default. */
 export function analysisApproval(
   workload: AnalysisWorkload,
+  provider: AnalysisProviderId,
   model: string,
   effort: AnalysisReasoningEffort | null,
   registry: readonly AnalysisApproval[] = ANALYSIS_APPROVALS,
 ): ApprovalVerdict {
-  const entry = registry.find((a) => a.workload === workload && a.model === model);
+  const entry = registry.find(
+    (a) => a.workload === workload && a.provider === provider && a.model === model,
+  );
   if (!entry) {
     return {
       approved: false,
-      reason: `model "${model}" has no ${ANALYSIS_ROUTING_REGISTRY_VERSION} approval for workload "${workload}" — pricing alone is not quality approval; run the activation checklist (evaluation + registry entry) first`,
+      reason: `(${provider}, ${model}) has no ${ANALYSIS_ROUTING_REGISTRY_VERSION} approval for workload "${workload}" — pricing alone is not quality approval; run the activation checklist (evaluation + registry entry) first`,
     };
   }
   if (!entry.allowedEfforts.includes(effort)) {

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
@@ -57,5 +57,30 @@ describe("analysis dispatch modules construct clients only via the factory", () 
   it("the factory itself pins maxRetries: 0 in source", () => {
     const src = readFileSync(join(REPO_SRC, "lib/analysis/openai-client.ts"), "utf8");
     expect(src).toContain("new OpenAI({ maxRetries: 0 })");
+  });
+
+  it("no module opens a SECOND base-URL seam (2026-09-06 provider dimension)", () => {
+    // `openai_compatible` is a NAMEABLE provider id but routes to nothing: the
+    // day it does, it will be addressed by a base URL. Until then no module may
+    // read OPENAI_BASE_URL or pass a `baseURL` to the SDK, or a
+    // second, unreviewed endpoint seam could appear without touching
+    // model-config.ts at all. (The SDK honours the env implicitly; only the
+    // map-batch-error itest sets it, deliberately, at an unroutable sink.)
+    const offenders: string[] = [];
+    const walkAll = (dir: string): string[] => {
+      const out: string[] = [];
+      for (const name of readdirSync(dir)) {
+        const p = join(dir, name);
+        if (statSync(p).isDirectory()) out.push(...walkAll(p));
+        else if (/\.(ts|tsx)$/.test(name) && !/\.(test|itest)\.tsx?$/.test(name)) out.push(p);
+      }
+      return out;
+    };
+    for (const file of walkAll(REPO_SRC)) {
+      const rel = file.slice(REPO_SRC.length + 1).replace(/\\/g, "/");
+      const src = readFileSync(file, "utf8");
+      if (/OPENAI_BASE_URL/.test(src) || /\bbaseURL\s*:/.test(src)) offenders.push(rel);
+    }
+    expect(offenders).toEqual([]);
   });
 });

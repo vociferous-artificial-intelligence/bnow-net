@@ -70,6 +70,7 @@ const ENV_KEYS = [
   "MATCH_VOTES",
   "VALIDATION_MODEL",
   "VALIDATION_REASONING_EFFORT",
+  "VALIDATION_PROVIDER",
   "OPENAI_MODEL",
 ] as const;
 const SAVED = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
@@ -111,6 +112,7 @@ describe("llm-match SpendGuard coverage (every dispatch reserved + recorded)", (
     // durable dispatch identity rides the outcome for validation_runs.details
     expect(out?.dispatch).toEqual({
       workload: "validation",
+      provider: "openai",
       model: "gpt-4o-mini",
       reasoningEffort: null,
       registryVersion: "analysis-reg-v1",
@@ -118,6 +120,38 @@ describe("llm-match SpendGuard coverage (every dispatch reserved + recorded)", (
     });
     // the analysis client is constructed with SDK retries disabled
     expect(ctorSpy).toHaveBeenCalledWith({ maxRetries: 0 });
+  });
+
+  it("a non-allowlisted VALIDATION_PROVIDER degrades to keywords with ZERO spend (ruling 9 + 4)", async () => {
+    // the provider refusal is a ModelConfigError raised inside
+    // workloadDispatchConfig, i.e. BEFORE the client is constructed and BEFORE
+    // guard.init()/tryReserve — llm-match catches it and degrades, exactly as
+    // it does for an unpriced model, so validation still scores the day
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      process.env.VALIDATION_PROVIDER = "anthropic";
+      expect(await llmMatchTakeaways(TAKEAWAYS, CLAIMS)).toBeNull();
+      expect(ctorSpy).not.toHaveBeenCalled();
+      expect(createSpy).not.toHaveBeenCalled();
+      expect(querySpy).not.toHaveBeenCalled(); // no guard init, no reservation
+      expect(dbState.records).toHaveLength(0);
+      // pin the REASON, not just the outcome: a later rung (the
+      // needs-an-explicit-model refusal) would also degrade to null here, so
+      // asserting only "null and no spend" would survive deleting the
+      // allowlist check entirely
+      expect(warn.mock.calls.flat().join(" ")).toMatch(
+        /not allowed for workload "validation" \(allowed: openai\)/,
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("an unknown VALIDATION_PROVIDER degrades the same way", async () => {
+    process.env.VALIDATION_PROVIDER = "not-a-vendor";
+    expect(await llmMatchTakeaways(TAKEAWAYS, CLAIMS)).toBeNull();
+    expect(createSpy).not.toHaveBeenCalled();
+    expect(querySpy).not.toHaveBeenCalled();
   });
 
   it("cap UNSET fails closed: keyword fallback, ZERO provider calls, nothing metered", async () => {

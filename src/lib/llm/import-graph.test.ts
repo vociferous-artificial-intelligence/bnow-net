@@ -51,6 +51,35 @@ describe("import-graph: no vendor SDK in the Ask product path", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("no vendor SDK is added alongside it: the tree imports no @anthropic-ai/* package", () => {
+    // The provider dimension (2026-09-06) makes "anthropic" a NAMEABLE
+    // provider id. Naming it must not smuggle a second SDK into the tree: the
+    // Anthropic seam is deliberately fetch-based (OPEN-TASKS #83), and
+    // matcher-import-hygiene.test.ts / backtest-matrix.test.ts already ban the
+    // import in their own scopes. This bans the DEPENDENCY itself.
+    const pkg = JSON.parse(
+      readFileSync(join(REPO_SRC, "..", "package.json"), "utf8"),
+    ) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+    const named = [
+      ...Object.keys(pkg.dependencies ?? {}),
+      ...Object.keys(pkg.devDependencies ?? {}),
+    ].filter((d) => d.startsWith("@anthropic-ai/"));
+    expect(named).toEqual([]);
+  });
+
+  it("no module imports an @anthropic-ai/* specifier either", () => {
+    const offenders: string[] = [];
+    for (const dir of [...COVERED, "lib/llm", "lib/analysis", "lib/validation", "lib/evals"]) {
+      for (const file of walk(join(REPO_SRC, dir))) {
+        const src = readFileSync(file, "utf8");
+        if (/(?:from\s+|require\(\s*|import\(\s*)["']@anthropic-ai(?:\/[^"']*)?["']/.test(src)) {
+          offenders.push(file.slice(REPO_SRC.length + 1).replace(/\\/g, "/"));
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
   it("the retrieval/orchestration layer never imports the adapter's SDK types directly either", () => {
     // belt-and-braces: the raw string "openai" as a MODULE specifier must not
     // appear in retrieve/composite/limits/runs/router/cache (provider strings

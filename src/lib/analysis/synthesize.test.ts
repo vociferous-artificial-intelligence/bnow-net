@@ -487,7 +487,7 @@ describe("synthesis prompt carries the attribution hard rules", () => {
 });
 
 describe("mapreduceProviderTag", () => {
-  const KEYS = ["MAP_MODEL", "REDUCE_MODEL", "OPENAI_MODEL"] as const;
+  const KEYS = ["MAP_MODEL", "REDUCE_MODEL", "OPENAI_MODEL", "MAP_PROVIDER", "REDUCE_PROVIDER"] as const;
   const saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
   afterEach(() => {
     for (const k of KEYS) {
@@ -509,6 +509,19 @@ describe("mapreduceProviderTag", () => {
 
   it("a diverging REDUCE_MODEL is recorded explicitly (actual dispatched models)", () => {
     for (const k of KEYS) delete process.env[k];
+    process.env.REDUCE_MODEL = "gpt-5-mini";
+    expect(mapreduceProviderTag()).toBe("openai:gpt-4o-mini+mapreduce+reduce=gpt-5-mini");
+  });
+
+  it("the provider dimension does not move the persisted STRING tag (byte pin)", () => {
+    // digests.provider is parsed downstream by prefix (src/lib/ask/limits.ts's
+    // startsWith("openai")), so the 2026-09-06 provider dimension is additive
+    // in the identity OBJECT only: with the provider set explicitly to its
+    // default the tag is byte-identical to the historical one.
+    for (const k of KEYS) delete process.env[k];
+    process.env.MAP_PROVIDER = "openai";
+    process.env.REDUCE_PROVIDER = "openai";
+    expect(mapreduceProviderTag()).toBe("openai:gpt-4o-mini+mapreduce");
     process.env.REDUCE_MODEL = "gpt-5-mini";
     expect(mapreduceProviderTag()).toBe("openai:gpt-4o-mini+mapreduce+reduce=gpt-5-mini");
   });

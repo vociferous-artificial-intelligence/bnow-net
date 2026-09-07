@@ -202,6 +202,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   delete process.env.MAP_MODEL;
+  delete process.env.MAP_PROVIDER;
 });
 
 // ---------------------------------------------------------------------------
@@ -579,6 +580,32 @@ describe("lease hard boundaries", () => {
     ).rejects.toThrow(/MAP ACTIVATION BLOCKED/);
     expect(h.reservations).toBe(0);
     expect(h.openaiConstructed).toBe(0);
+    expect(writes()).toHaveLength(0);
+  });
+
+  it("a non-allowlisted MAP_PROVIDER refuses before any spend, client or write", async () => {
+    // the provider allowlist branch precedes the map activation lock, so the
+    // refusal names the allowlist — and, like the lock, it fires inside
+    // workloadDispatchConfig before guard.init/tryReserve and before the
+    // OpenAI client exists (rulings 4 and 13)
+    oneBatchFixture();
+    process.env.MAP_PROVIDER = "anthropic";
+    await expect(
+      runMapCycle({ theaters: ["ru"], leaseDriver: leaseDriver() }),
+    ).rejects.toThrow(/not allowed for workload "map"/);
+    expect(h.reservations).toBe(0);
+    expect(h.openaiConstructed).toBe(0);
+    expect(h.openaiCalls).toBe(0);
+    expect(writes()).toHaveLength(0);
+  });
+
+  it("a dry run REPORTS the provider refusal rather than promising a dispatch", async () => {
+    oneBatchFixture();
+    process.env.MAP_PROVIDER = "openai_compatible";
+    const counts = await runMapCycle({ theaters: ["ru"], dryRun: true, leaseDriver: leaseDriver() });
+    expect(counts.estDispatchBlocked).toMatch(/not allowed for workload "map"/);
+    expect(counts.estDispatchBlocked).not.toMatch(/MAP ACTIVATION BLOCKED/);
+    expect(h.openaiCalls).toBe(0);
     expect(writes()).toHaveLength(0);
   });
 

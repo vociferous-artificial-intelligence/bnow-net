@@ -15,6 +15,7 @@ import type { AnalysisDispatchConfig } from "../llm/model-config";
 
 const DISPATCH: AnalysisDispatchConfig = {
   workload: "map",
+  provider: "openai",
   model: "gpt-4o-mini",
   reasoningCapable: false,
   reasoningEffort: null,

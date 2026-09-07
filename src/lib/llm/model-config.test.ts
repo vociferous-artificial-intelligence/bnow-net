@@ -9,7 +9,9 @@ import {
   workloadModelMatrix,
   type AnalysisWorkload,
 } from "./model-config";
-import { PRICES_PER_MTOK, estimateCostUsd } from "./pricing";
+import { PRICES_PER_MTOK, estimateCostUsd, pricedFor, type PriceTable } from "./pricing";
+import { WORKLOAD_PROVIDER_ALLOWLIST, type AnalysisProviderId } from "./providers";
+import { analysisApproval } from "./analysis-registry";
 
 const ENV_VARS = [
   "OPENAI_MODEL",
@@ -23,6 +25,11 @@ const ENV_VARS = [
   "VALIDATION_REASONING_EFFORT",
   "ENTITY_AUDIT_MODEL",
   "ENTITY_AUDIT_REASONING_EFFORT",
+  "MAP_PROVIDER",
+  "REDUCE_PROVIDER",
+  "DIGEST_PROVIDER",
+  "VALIDATION_PROVIDER",
+  "ENTITY_AUDIT_PROVIDER",
 ] as const;
 
 const SAVED = Object.fromEntries(ENV_VARS.map((k) => [k, process.env[k]]));
@@ -42,6 +49,14 @@ const WORKLOAD_MODEL_ENV: Record<AnalysisWorkload, string> = {
   digest: "DIGEST_MODEL",
   validation: "VALIDATION_MODEL",
   entity_audit: "ENTITY_AUDIT_MODEL",
+};
+
+const WORKLOAD_PROVIDER_ENV: Record<AnalysisWorkload, string> = {
+  map: "MAP_PROVIDER",
+  reduce: "REDUCE_PROVIDER",
+  digest: "DIGEST_PROVIDER",
+  validation: "VALIDATION_PROVIDER",
+  entity_audit: "ENTITY_AUDIT_PROVIDER",
 };
 
 describe("resolveWorkloadModel — precedence", () => {
@@ -367,6 +382,7 @@ describe("dispatchIdentity", () => {
     const id = dispatchIdentity(d);
     expect(id).toEqual({
       workload: "reduce",
+      provider: "openai",
       model: "gpt-4o-mini",
       reasoningEffort: null, // explicit null = absent, always answerable
       registryVersion: "analysis-reg-v1",
@@ -389,5 +405,236 @@ describe("workloadModelMatrix", () => {
     ]);
     expect(rows.find((r) => r.workload === "validation")!.model).toBe("gpt-5-mini");
     expect(rows.find((r) => r.workload === "map")!.model).toBe("gpt-4o-mini");
+  });
+});
+
+describe("provider dimension (2026-09-06) — allowlist {openai}, refused first", () => {
+  it("absent <W>_PROVIDER resolves to openai from the default source, dispatchable", () => {
+    clearAll();
+    for (const w of ANALYSIS_WORKLOADS) {
+      const c = resolveWorkloadModel(w);
+      expect(c.provider).toBe("openai");
+      expect(c.providerSource).toBe("default");
+      expect(c.providerRaw).toBeNull();
+      expect(c.providerEnvVar).toBe(WORKLOAD_PROVIDER_ENV[w]);
+      expect(c.dispatchBlocked).toBeNull();
+    }
+  });
+
+  it("a KNOWN but not-allowed provider is refused for every workload", () => {
+    clearAll();
+    for (const w of ANALYSIS_WORKLOADS) {
+      process.env[WORKLOAD_PROVIDER_ENV[w]] = "anthropic";
+      const c = resolveWorkloadModel(w);
+      expect(c.dispatchBlocked).toMatch(/not allowed for workload/);
+      expect(c.dispatchBlocked).toContain(`provider "anthropic"`);
+      expect(c.dispatchBlocked).toContain("allowed: openai");
+      expect(() => workloadDispatchConfig(w)).toThrow(ModelConfigError);
+      delete process.env[WORKLOAD_PROVIDER_ENV[w]];
+    }
+  });
+
+  it("openai_compatible is NAMEABLE but not allowed anywhere (vocabulary is not permission)", () => {
+    clearAll();
+    for (const w of ANALYSIS_WORKLOADS) {
+      process.env[WORKLOAD_PROVIDER_ENV[w]] = "openai_compatible";
+      expect(resolveWorkloadModel(w).dispatchBlocked).toMatch(/not allowed for workload/);
+      delete process.env[WORKLOAD_PROVIDER_ENV[w]];
+    }
+  });
+
+  it("MAP_PROVIDER=anthropic is refused by the ALLOWLIST, not by the map lock", () => {
+    // ordering pin: the allowlist branch precedes the hard activation lock, so
+    // a non-OpenAI map provider can never reach (or be masked by) the lock's
+    // message — and the lock predicate itself is untouched (ruling 13).
+    clearAll();
+    process.env.MAP_PROVIDER = "anthropic";
+    const c = resolveWorkloadModel("map");
+    expect(c.dispatchBlocked).toMatch(/not allowed for workload "map"/);
+    expect(c.dispatchBlocked).not.toContain("MAP ACTIVATION BLOCKED");
+    expect(() => workloadDispatchConfig("map")).toThrow(/not allowed for workload/);
+    // and the lock still fires on its own terms with the provider absent
+    delete process.env.MAP_PROVIDER;
+    process.env.MAP_MODEL = "gpt-5";
+    expect(() => workloadDispatchConfig("map")).toThrow(/MAP ACTIVATION BLOCKED/);
+  });
+
+  it("<W>_PROVIDER=stub is refused with the offline-switch explanation", () => {
+    clearAll();
+    for (const w of ANALYSIS_WORKLOADS) {
+      process.env[WORKLOAD_PROVIDER_ENV[w]] = "stub";
+      const c = resolveWorkloadModel(w);
+      expect(c.dispatchBlocked).toMatch(/not a dispatch provider/);
+      expect(c.dispatchBlocked).toMatch(/ANALYSIS_PROVIDER=stub is the offline switch/);
+      expect(() => workloadDispatchConfig(w)).toThrow(ModelConfigError);
+      delete process.env[WORKLOAD_PROVIDER_ENV[w]];
+    }
+  });
+
+  it("an UNKNOWN provider id is refused and the message lists the known ids", () => {
+    clearAll();
+    process.env.DIGEST_PROVIDER = "foo";
+    const c = resolveWorkloadModel("digest");
+    expect(c.dispatchBlocked).toMatch(/is not a known provider/);
+    expect(c.dispatchBlocked).toContain("known: openai|anthropic|openai_compatible");
+    expect(() => workloadDispatchConfig("digest")).toThrow(ModelConfigError);
+  });
+
+  it("the provider value is trimmed; a padded 'openai' resolves identically but from the env", () => {
+    clearAll();
+    const bare = resolveWorkloadModel("digest");
+    process.env.DIGEST_PROVIDER = "  openai  ";
+    const padded = resolveWorkloadModel("digest");
+    expect(padded.provider).toBe("openai");
+    expect(padded.dispatchBlocked).toBeNull();
+    expect(padded.model).toBe(bare.model);
+    expect(padded.providerSource).toBe("workload");
+    expect(padded.providerRaw).toBe("openai");
+    // blank/whitespace-only is ABSENT, exactly like the model envs
+    process.env.DIGEST_PROVIDER = "   ";
+    expect(resolveWorkloadModel("digest").providerSource).toBe("default");
+  });
+
+  it("pricedFor treats an ABSENT provider field as openai, never as 'any provider'", () => {
+    expect(pricedFor("openai", "gpt-4o-mini")).toBe(true);
+    expect(pricedFor("anthropic", "gpt-4o-mini")).toBe(false);
+    expect(pricedFor("openai_compatible", "gpt-4o-mini")).toBe(false);
+    expect(pricedFor("openai", "definitely-unknown-model")).toBe(false);
+    const table: PriceTable = {
+      "claude-x": { in: 1, out: 5, provider: "anthropic" },
+      "gpt-4o-mini": { in: 0.15, out: 0.6 },
+    };
+    expect(pricedFor("anthropic", "claude-x", table)).toBe(true);
+    expect(pricedFor("openai", "claude-x", table)).toBe(false);
+    expect(pricedFor("openai", "gpt-4o-mini", table)).toBe(true);
+    expect(pricedFor("anthropic", "gpt-4o-mini", table)).toBe(false);
+  });
+
+  it("every shipped price row is an OpenAI row (the table predates the dimension)", () => {
+    for (const model of Object.keys(PRICES_PER_MTOK)) {
+      expect(pricedFor("openai", model)).toBe(true);
+      expect(pricedFor("anthropic", model)).toBe(false);
+    }
+  });
+
+  it("the dispatch config and the durable identity both carry the provider", () => {
+    clearAll();
+    for (const w of ANALYSIS_WORKLOADS) {
+      expect(workloadDispatchConfig(w).provider).toBe("openai");
+      expect(dispatchIdentity(workloadDispatchConfig(w)).provider).toBe("openai");
+    }
+  });
+
+  it("workloadModelMatrix reports the provider and its source per row (and never leaks the map index into the allowlist parameter)", () => {
+    clearAll();
+    process.env.VALIDATION_PROVIDER = "openai";
+    const rows = workloadModelMatrix();
+    expect(rows.find((r) => r.workload === "validation")!.providerSource).toBe("workload");
+    expect(rows.find((r) => r.workload === "map")!.providerSource).toBe("default");
+    expect(rows.every((r) => r.provider === "openai")).toBe(true);
+    expect(rows.every((r) => r.dispatchBlocked === null || r.workload === "validation")).toBe(true);
+  });
+
+  it("a REFUSED provider never changes the resolved model (ruling 13 read-side safety)", () => {
+    // resolveWorkloadModel never throws and mapExtractorVersion's basis reads
+    // cfg.model, so a provider that can never dispatch must not move the model
+    // — otherwise a single unusable env would strand every doc_claims consumer
+    clearAll();
+    const baseline = Object.fromEntries(
+      ANALYSIS_WORKLOADS.map((w) => [w, resolveWorkloadModel(w).model]),
+    );
+    for (const bad of ["anthropic", "openai_compatible", "stub", "nonsense"]) {
+      for (const w of ANALYSIS_WORKLOADS) {
+        process.env[WORKLOAD_PROVIDER_ENV[w]] = bad;
+        const c = resolveWorkloadModel(w);
+        expect(c.model).toBe(baseline[w]);
+        expect(c.dispatchBlocked).not.toBeNull();
+        delete process.env[WORKLOAD_PROVIDER_ENV[w]];
+      }
+    }
+  });
+
+  it("the shipped allowlist is exactly {openai} for every workload", () => {
+    for (const w of ANALYSIS_WORKLOADS) {
+      expect([...WORKLOAD_PROVIDER_ALLOWLIST[w]]).toEqual(["openai"]);
+    }
+  });
+});
+
+// The branches below are UNREACHABLE through the shipped {openai}-everywhere
+// allowlist — the not-allowed refusal fires first. They are exercised against a
+// WIDENED allowlist injected into resolveWorkloadModel (tests only, the same
+// footing as analysisApproval's injected registry), so a future widening PR
+// inherits a proven fail-closed ladder instead of untested code.
+describe("provider dimension — post-widening ladder (injected allowlist, tests only)", () => {
+  const WIDENED = {
+    ...WORKLOAD_PROVIDER_ALLOWLIST,
+    reduce: new Set<AnalysisProviderId>(["openai", "anthropic"]),
+  };
+
+  it("a non-openai provider requires its own <W>_MODEL — before pricing or approval", () => {
+    clearAll();
+    process.env.REDUCE_PROVIDER = "anthropic";
+    const c = resolveWorkloadModel("reduce", WIDENED);
+    expect(c.provider).toBe("anthropic");
+    expect(c.model).toBe(""); // never the gpt-4o-mini default
+    expect(c.dispatchBlocked).toMatch(/requires an explicit REDUCE_MODEL/);
+    expect(c.dispatchBlocked).not.toMatch(/price table|approval/);
+  });
+
+  it("OPENAI_MODEL never names a model on another vendor", () => {
+    clearAll();
+    process.env.OPENAI_MODEL = "gpt-4o";
+    process.env.REDUCE_PROVIDER = "anthropic";
+    const c = resolveWorkloadModel("reduce", WIDENED);
+    expect(c.model).toBe("");
+    expect(c.dispatchBlocked).toMatch(/requires an explicit REDUCE_MODEL/);
+  });
+
+  it("a reasoning effort under a non-openai provider is refused with the provider wording", () => {
+    clearAll();
+    process.env.REDUCE_PROVIDER = "anthropic";
+    process.env.REDUCE_MODEL = "claude-whatever";
+    process.env.REDUCE_REASONING_EFFORT = "low";
+    const c = resolveWorkloadModel("reduce", WIDENED);
+    expect(c.reasoningCapable).toBe(false);
+    expect(c.dispatchBlocked).toMatch(/accepts no reasoning effort in this release/);
+    expect(c.dispatchBlocked).not.toMatch(/non-reasoning model/);
+  });
+
+  it("an OpenAI-priced model does NOT become priced by moving the provider", () => {
+    clearAll();
+    process.env.REDUCE_PROVIDER = "anthropic";
+    process.env.REDUCE_MODEL = "gpt-4o-mini"; // priced for openai only
+    const c = resolveWorkloadModel("reduce", WIDENED);
+    expect(c.priced).toBe(false);
+    expect(c.dispatchBlocked).toMatch(/is not priced for provider "anthropic"/);
+  });
+
+  it("widening the allowlist alone dispatches NOTHING: pricing and approval still gate", () => {
+    clearAll();
+    process.env.REDUCE_PROVIDER = "anthropic";
+    process.env.REDUCE_MODEL = "claude-priced";
+    // priced FOR anthropic only in a hypothetical injected table...
+    const table: PriceTable = { "claude-priced": { in: 1, out: 5, provider: "anthropic" } };
+    expect(pricedFor("anthropic", "claude-priced", table)).toBe(true);
+    // ...but the SHIPPED table has no such row, so the ladder still refuses
+    expect(resolveWorkloadModel("reduce", WIDENED).dispatchBlocked).toMatch(
+      /is not priced for provider "anthropic"/,
+    );
+    // and the registry holds no anthropic approval for any workload
+    for (const w of ANALYSIS_WORKLOADS) {
+      expect(analysisApproval(w, "anthropic", "gpt-4o-mini", null).approved).toBe(false);
+    }
+  });
+
+  it("widening is NOT reachable from a dispatch site: workloadDispatchConfig takes one argument", () => {
+    // the injection point is deliberately absent from the dispatch entry point,
+    // so no call site can widen its own allowlist (ruling 4 fail-closed)
+    expect(workloadDispatchConfig.length).toBe(1);
+    clearAll();
+    process.env.REDUCE_PROVIDER = "anthropic";
+    process.env.REDUCE_MODEL = "claude-whatever";
+    expect(() => workloadDispatchConfig("reduce")).toThrow(/not allowed for workload/);
   });
 });
