@@ -85,12 +85,12 @@ is deliberately absent from the public page.
 | ICD 206 | Source Reference Citation for every disseminated claim | A deferrable constraint trigger raises and fails the whole transaction if any claim commits without at least one source-document link; the application layer writes the claim and its links in one transaction; a migration test guards the trigger against regeneration | `drizzle/9999_claim_source_trigger.sql`; `src/db/schema.ts:291-305`; `src/db/migrations.test.ts` | BUILT | — |
 | ICD 206 | Source descriptors conveying reliability, bias and limitations | The inputs are held per source and per theater — platform, status, citation count, first and last cited dates, and the five hedging counts — but no descriptor is generated or rendered anywhere | `src/db/schema.ts:74-103,109-131` | GAP | WS-7.3 |
 | ICD 206 | Source summary statement for the product as a whole | The inputs are held — the claim-to-document join, the source and platform mix cap with its cap events, and same-theater dedup — but no per-digest summary statement is generated | `src/db/schema.ts:291-305`; `src/lib/conflicts/evidence-selection.ts:46,98-103` | GAP | WS-7.3 |
-| ICD 206 | Sources preserved and retrievable for the life of the product | Every document is stored with its URL, body, fetch timestamp and content hash, and no production code path deletes one — but the property is met by default rather than stated as policy or asserted by a test | `src/db/schema.ts:178-212`; `src/lib/ingest/run.ts` | PARTIAL | WS-7.6 |
+| ICD 206 | Sources preserved and retrievable for the life of the product | Every document is stored with its URL, body, fetch timestamp and content hash; no production code path deletes one, and a cited document cannot be removed at all because the citation link's foreign key declines to cascade — the property is now a written policy and a test that fails if it lapses | `src/db/schema.ts:178-212`; `drizzle/0000_superb_ultimates.sql` (`claim_sources_raw_document_id_raw_documents_id_fk`, ON DELETE no action); `docs/RETENTION-AND-PRESERVATION.md`; `src/lib/ingest/no-delete.test.ts` | BUILT | — |
 | ICS 206-01 | Citation elements per source: author, title, URL, publication date, access date, source type | URL, title, publication date, adapter and platform are held and plumbed to every claim's evidence payload; the access date is retained but deliberately not presented, and no single standard-conformant citation string is emitted | `src/db/schema.ts:184-192`; `src/components/claim-evidence-model.ts:1-21` | PARTIAL | WS-7.2 |
 | ICS 206-01 | A brief narrative quality descriptor per source | Not generated. The citation-volume and hedging-profile inputs exist per theater | `src/db/schema.ts:109-131` | GAP | WS-7.3 |
 | ICS 206-01 | Disclosure of AI or ML tooling: system name, model version, relevant parameters | Every extraction row carries a versioned extractor stamp, every synthesized digest carries a provider tag and a durable dispatch identity, and the routing registry version is recorded with it — none of which reaches a reader or the clipboard | `src/lib/analysis/map-prompts.ts:254-266`; `src/lib/analysis/synthesize.ts:443-449,701`; `src/lib/analysis/openai-provider.ts:147`; `src/lib/llm/model-config.ts:133,267`; `src/lib/llm/analysis-registry.ts:38` | PARTIAL | WS-7.2 |
 | ICS 206-01 | Consistent PAI / CAI / OSINT vocabulary | Every live adapter ingests publicly available information; the distinction is not yet stated in product vocabulary or in any citation output | `src/lib/adapters/` | GAP | WS-7.2 |
-| ICS 206-01 | Dynamic sources preserved at least one year from product issuance | Source documents are retained indefinitely in practice and nothing deletes them, but no written retention statement exists that a buyer could be shown, and no archival snapshot of a changing page is taken | `src/db/schema.ts:178-212`; `src/lib/ingest/run.ts` | PARTIAL | WS-7.6 |
+| ICS 206-01 | Dynamic sources preserved at least one year from product issuance | Stated as policy: source documents are retained indefinitely and never for less than one year from any product citing them, with the four honest caveats — regeneration replaces claim rows, the content hash covers a prefix, a Telegram capture is a snapshot of the preview, and no third-party archival snapshot is taken | `docs/RETENTION-AND-PRESERVATION.md`; `src/lib/ingest/no-delete.test.ts` | BUILT | — |
 | ICD 208 | Key judgments first — BLUF ordering | Digests lead with events and their supporting claims; the validation scoreboard leads with the benchmark result | `src/app/digests/`; `src/app/scoreboard/` | BUILT | — |
 | ICD 208 | Consistent, predictable product structure | One product shape per theater and track, dated, archived and addressable at a stable URL | `src/db/schema.ts:237-255`; the digest archive | BUILT | — |
 | ICD 208 | Output a customer can reuse in their own product | Per-claim copy actions exist for report, link, evidence and text; no standard-conformant citation mode and no public API | `src/components/claim-copy-model.ts:16` | PARTIAL | WS-7.2 |
@@ -111,6 +111,13 @@ trigger on `claims` that raises and rolls the transaction back if the committing
   only when absent, so a future schema regeneration cannot silently drop it — the file's own header
   records why there is deliberately no `DROP TRIGGER … ; CREATE TRIGGER …` pair.
 - It is guarded by a test (`src/db/migrations.test.ts`), so removing it fails the pre-push gate.
+
+The same link carries a preservation consequence worth stating here and not only in the
+retention policy: `claim_sources`' foreign key to `raw_documents` is declared `ON DELETE no
+action` (`drizzle/0000_superb_ultimates.sql`), so a **cited source document cannot be deleted at
+all** while the citation exists — the attempt raises. Preservation of the evidence behind a
+published claim is therefore a database constraint, not only an absence of delete statements.
+See `docs/RETENTION-AND-PRESERVATION.md` §1.2.
 
 This is standing ruling 2 in `AGENTS.md`, and it is the one mechanism in this document that cannot
 be bypassed by any code path, including a manual script.
@@ -206,8 +213,9 @@ assessment on a public scoreboard.
 4. **What is missing?** The `GAP` rows in the crosswalk above: narrative source descriptors, a
    per-product source summary statement, ICD 203 estimative language with a separate analytic
    confidence level, PAI/CAI/OSINT vocabulary in the citation output, analysis of alternatives, and
-   an explicit statement of change between editions. Each names the workstream step that closes it,
-   or says plainly that none does. A reviewer who wants to be useful should push on the `PARTIAL`
+   an explicit statement of change between editions. On preservation, press on the four caveats in
+   `docs/RETENTION-AND-PRESERVATION.md` §3 rather than on the retention claim itself. Each names the
+   workstream step that closes it, or says plainly that none does. A reviewer who wants to be useful should push on the `PARTIAL`
    rows, not the `BUILT` ones.
 
 **What we ask a methodology validator to do.** Attack the crosswalk. Specifically: tell us where a
@@ -217,9 +225,10 @@ would put in front of your own clients.
 
 ## 8. Related documents
 
-- `docs/RETENTION-AND-PRESERVATION.md` *(WS-7.6)* — what is retained, for how long, what is not
-  retained, and what a preservation gap looks like (ICD 206 mechanism 4; the ICS 206-01 one-year
-  rule).
+- `docs/RETENTION-AND-PRESERVATION.md` — what is retained, for how long, what is not retained,
+  and what a preservation gap looks like (ICD 206 mechanism 4; the ICS 206-01 one-year rule).
+  It is what this document's two preservation rows point at, and it is asserted by
+  `src/lib/ingest/no-delete.test.ts`.
 - `docs/designs/SOURCE-RELIABILITY-CALIBRATION.md` — why the reliability score is not presented as
   calibrated, and the gates that would change that.
 - `docs/PRODUCT-BRIEF.md` — the product's own account of the ISW citation corpus.
