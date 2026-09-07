@@ -10,9 +10,13 @@
 - **Branches:** `48h/ws7-docs-20260905-step30-crosswalk` (PR 1) and
   `48h/ws7-docs-20260905-step30-methodology-page` (PR 2, stacked on PR 1 — the drift test in
   PR 2 reads the document PR 1 adds, so the two cannot be reviewed independently).
-- **Base SHA:** `98294c5c57dd808886ea40747ce8bbd50d14d37c` (`origin/main`, 2026-09-06 —
-  "docs: 48h program log — CP2b: #60, #61, #64 landed"). The lane branch was at `1e06112` and
-  was fast-forwarded to it; no unique lane commits were lost.
+- **Base SHA:** `a821695f8d02254bc74114ac5d0b4007b9fb431f` (`origin/main`, 2026-09-06 —
+  "docs: steps 17 and 18 written in full…"). The work was **built and gated on
+  `98294c5c57dd808886ea40747ce8bbd50d14d37c`** (the lane branch was at `1e06112` and was
+  fast-forwarded to it; no unique lane commits were lost), then rebased onto `a821695` — a
+  docs-only commit touching `docs/prompts/*` only, with no conflict and no effect on any
+  citation or count in this report. Both SHAs are recorded because every file:line below was
+  verified at `98294c5`; they were re-verified unchanged at `a821695`.
 - **Mode:** attended, plain session. Docs and render only. No DB access, no provider call, no
   env change, no deploy, no migration. **Spend $0.**
 
@@ -128,6 +132,17 @@ then restored and re-run green:
 2. Replacing the page's qualitative ordering sentence with the admin legend's actual constants
    → **three** moat cases fail (the five-constant check, the bare-decimal check, and the
    qualitative-sentence check), 3 failed / 12 passed.
+
+**One copy correction landed after the report's first draft**, and it is recorded rather than
+absorbed: `page.tsx` §6 said the reliability rating "is shown in context wherever a source is
+cited inside a product", which overclaims. The claim-surface gate is `showScores`
+(`src/components/claim-copy-model.ts:27`, applied `:213,227`), and it is **`false` on
+`/signals`** (`src/app/signals/page.tsx:187,206`) while `true` on the digest
+(`digests/[country]/[date]/page.tsx:505`), search (`search/page.tsx:216`), entities and ask
+evidence panels. The sentence now scopes itself to a digest and says the rating is never a
+standalone ranking, matching the house string `registry.reduced.methodology`
+(`src/i18n/dictionaries.ts:312`). All 25 tests on the two files still pass. Found by a second
+session working in the same worktree; its commit is carried in PR 2.
 
 One test-construction defect found and fixed during the work, recorded because it is a live
 trap for any future source-scan test over rendered output: `container.textContent` concatenates
