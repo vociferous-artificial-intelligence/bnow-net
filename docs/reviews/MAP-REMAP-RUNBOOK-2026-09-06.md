@@ -709,8 +709,8 @@ Neither check goes through the code path it is checking.
 |---|---|---|---|
 | **D7** (CP2, open) | Authorize the measured remap run | (a) defer — the modelled figure in §10.4 stands as the answer to "what does a remap cost"; (b) authorize a ceiling `C` on the fork's own `openai_map` ledger, one day, `--limit 1000`, per §8 | **(b) with `C = $1.00`.** One ir/military day is ~700 pairs ≈ $0.075 modelled and ≈ $0.05 actual by the §10.4 cross-check, so $1.00 buys the measurement several times over and still bounds a runaway. The value it adds over the estimate is not the price — it is the first-ever proof that the drain loop, the lease, the sweep-completion proof and the no-rebill property behave on real data. That is what #33 has never had. |
 | **R4** (CP2, unsigned) | Measurement path | (a) `MAP_CONTENT_CHARS` on the fork-bound server; (b) prompt-hash bump on a branch; (c) lock relaxation | **(a)** — executed on the prompt's instruction that PLAN-WS-2 §WS-2.3 is the specification. Needs a decision-log line to become a signed answer; nothing about (a) changed code or touched production, so this is record-keeping, not a re-run. |
-| **R14** (new; after eval step 4) | Where the map activation gate lives once the lock is replaced | keep it in `resolveWorkloadModel` with a process-start cached marker read / move it into `runMapCycle` before the first reservation, leaving `model-config.ts` a pure config refusal | **move it** (§11 (2)) — it keeps `resolveWorkloadModel`'s synchronous, never-throws contract, but it moves a ruling-4 refusal out of the single routing authority, so it needs its own decision-log entry and `estDispatchBlocked` has to learn about it or the operator's dry-run decision surface stops telling the truth. |
-| **R15** (new; with any real remap) | Whether the version bump goes live before or after the remap completes | flip the version, then remap (the corpus is split and only the new half is visible to reduce/reports until it drains) / remap on a shadow version first | **operator fact-finding needed.** Ruling 13 makes the interim state a silent coverage regression, not an error, and there is currently no shadow-version mechanism. This is the real cost of a map model change and it is not in the $36. |
+| **R16** (new; after eval step 4) | Where the map activation gate lives once the lock is replaced | keep it in `resolveWorkloadModel` with a process-start cached marker read / move it into `runMapCycle` before the first reservation, leaving `model-config.ts` a pure config refusal | **move it** (§11 (2)) — it keeps `resolveWorkloadModel`'s synchronous, never-throws contract, but it moves a ruling-4 refusal out of the single routing authority, so it needs its own decision-log entry and `estDispatchBlocked` has to learn about it or the operator's dry-run decision surface stops telling the truth. |
+| **R17** (new; with any real remap) | Whether the version bump goes live before or after the remap completes | flip the version, then remap (the corpus is split and only the new half is visible to reduce/reports until it drains) / remap on a shadow version first | **operator fact-finding needed.** Ruling 13 makes the interim state a silent coverage regression, not an error, and there is currently no shadow-version mechanism. This is the real cost of a map model change and it is not in the $36. |
 
 ---
 
@@ -822,3 +822,12 @@ this session did not edit the file):
 > zero writes. First cost figure: **339,669 pending doc-track pairs / $0.1059 per 1k modelled
 > (≈$36 for the whole epoch range)**, ledger cross-check ≈$0.067/1k. Phase 2 (the paid drain) is
 > still unexercised — it is what D7 buys. Runbook: `docs/reviews/MAP-REMAP-RUNBOOK-2026-09-06.md`.
+
+---
+
+**ID correction, 2026-09-07 (operator).** The two decisions in §15 were originally minted as
+**R14** and **R15**. Both identifiers were already in use elsewhere in the 48-hour program —
+R14 is the Ask scorecard-gate escape hatch (INDEX §2.1, from step 11b / PR #67) and R15 is the
+unscorecarded embed+rerank spend note (INDEX §2.3). They are **renumbered here to R16 and R17**;
+the decisions themselves are unchanged. Cite the map activation gate as **R16** and the
+version-bump-vs-remap ordering as **R17**.
