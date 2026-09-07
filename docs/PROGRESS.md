@@ -4283,3 +4283,27 @@ Execution (same block):
   files) → 3,939/3,939 (265 files), baseline measured on this tree by removing the two new test
   files and re-running. No itest applies (no migration, no schema, no DB path, no gated route).
   Zero paid calls, zero production writes, no env change, no deploy. Spend $0.
+
+## 2026-09-07 ~01:20Z — WS-7.6 preservation policy + no-delete assertion (step 31, planned block)
+
+1. Cut `48h/ws7-docs-20260905-step31-retention` from step 30's page branch (the policy
+   cross-links the crosswalk and flips its two preservation rows, so it stacks rather than
+   forks).
+2. Inventory, at the base commit: every production module that mentions `raw_documents`; every
+   `DELETE FROM raw_documents` / `.delete(rawDocuments)` / `TRUNCATE` in `src/` and `scripts/`;
+   the `drizzle/` migrations; what of ISW is stored (`isw_reports`, `source_citations`) versus
+   what is never stored; the X adapter's terms note; whether any archival step exists in
+   `src/lib/ingest/`.
+3. `docs/RETENTION-AND-PRESERVATION.md` per addendum §4.6 and PLAN-WS-7 §4 WS-7.6: what is
+   retained and how, for how long, what is NOT retained (ruling 1), and what a preservation gap
+   looks like — with the three honest caveats the plan requires (claims are replaced on
+   regeneration; `content_hash` is a dedup key over a prefix, not an integrity seal; a Telegram
+   capture is a snapshot of the preview and X citations depend on `x_api` terms).
+4. `src/lib/ingest/no-delete.test.ts` — source scan in the `isolation.test.ts` shape over `src/`
+   and `scripts/`, with `*.itest.ts` and `scripts/cleanup-stub-data.ts` exempt by path AND the
+   current deleters pinned by name, so a new one fails until acknowledged. Mutation-prove it.
+5. Flip the crosswalk's two preservation rows to BUILT in the document and the module together
+   (the drift test enforces the pairing) and cross-link the policy.
+6. OPEN-TASKS: one numbered design-only entry for Wayback-style archival, claiming the next free
+   number and noting the INDEX §1.7 phantom-#108 record.
+7. Gates green; closing report `docs/reviews/WS-7-6-RETENTION-2026-09-06.md`.
