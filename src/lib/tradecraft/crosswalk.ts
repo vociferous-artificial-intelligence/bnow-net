@@ -192,9 +192,9 @@ export const CROSSWALK_ROWS: readonly CrosswalkRow[] = [
     standard: "ICD 206",
     requirement: "Sources preserved and retrievable for the life of the product",
     mechanism:
-      "Every document is stored with its URL, body, fetch timestamp and content hash, and no production code path deletes one — but the property is met by default rather than stated as policy or asserted by a test",
-    status: "PARTIAL",
-    closedBy: "WS-7.6",
+      "Every document is stored with its URL, body, fetch timestamp and content hash; no production code path deletes one, and a cited document cannot be removed at all because the citation link's foreign key declines to cascade — the property is now a written policy and a test that fails if it lapses",
+    status: "BUILT",
+    closedBy: null,
   },
   {
     standard: "ICS 206-01",
@@ -232,9 +232,9 @@ export const CROSSWALK_ROWS: readonly CrosswalkRow[] = [
     standard: "ICS 206-01",
     requirement: "Dynamic sources preserved at least one year from product issuance",
     mechanism:
-      "Source documents are retained indefinitely in practice and nothing deletes them, but no written retention statement exists that a buyer could be shown, and no archival snapshot of a changing page is taken",
-    status: "PARTIAL",
-    closedBy: "WS-7.6",
+      "Stated as policy: source documents are retained indefinitely and never for less than one year from any product citing them, with the four honest caveats — regeneration replaces claim rows, the content hash covers a prefix, a Telegram capture is a snapshot of the preview, and no third-party archival snapshot is taken",
+    status: "BUILT",
+    closedBy: null,
   },
   {
     standard: "ICD 208",

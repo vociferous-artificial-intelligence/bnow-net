@@ -1769,3 +1769,30 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     would let the comparison be scripted; it needs its own authorization because
     it touches a database. Filed 2026-09-04.
 
+108. **[Tier 3 — preservation, DESIGN ONLY] No independent archival snapshot of a cited
+    source exists.** BNOW preserves its OWN extracted copy of every source document
+    (`raw_documents.content`, with `url`, `content_hash` and `fetched_at`), and nothing in
+    production deletes one — `docs/RETENTION-AND-PRESERVATION.md`, asserted by
+    `src/lib/ingest/no-delete.test.ts`. What is missing is a third-party-attested capture:
+    there is no Wayback-style archival step anywhere in `src/lib/ingest/` (the directory holds
+    only `config.ts`, `run.ts`, `theater.ts`). The consequence is stated in the policy §4: if a
+    cited page is edited or deleted, BNOW can show what it retrieved and when, but cannot show
+    an independent capture of the original, and a reader cannot verify our extraction against
+    anything but our own row. Also unaddressed by any snapshot today: attached media is never
+    retrieved (§4 item 2), and the content hash covers only the first 4,000 characters
+    (`src/lib/ingest/run.ts:29-33`), so it is a dedup key rather than an integrity seal over
+    the stored 8,000.
+    **Design questions, none decided here:** which sources warrant a snapshot (every cited
+    document is expensive and mostly wasted; "documents cited by a published claim" is a
+    smaller, higher-value set); Wayback `save` API versus a self-hosted WARC; what to store
+    (the returned archive URL is one nullable column, no migration pressure); rate limits and
+    robots posture against the house scraper rules (≥2s per-host spacing, honour robots.txt);
+    and whether a snapshot of a `t.me/s/` preview is worth taking at all, given §3.3 — it would
+    attest the preview, not the post. Cost and terms need checking before any of this is a PR.
+    **Not a PR in this window**, and deliberately not a blocker on the ICS 206-01 claim: the
+    one-year floor is about retention, which is met, not about third-party attestation, which
+    the standard does not require. Filed 2026-09-07 by WS-7.6 (48h step 31).
+    *Numbering note:* `docs/prompts/2026-09-05-48h-00-INDEX.md` §1.7 records that a "#108" cited
+    in the CTO handoff had **no matching task** — the file ended at #107 — and decision R5
+    resolved that phantom referent to the parked branch `claude/local-model-ask-eval-20260817`.
+    This #108 is a new, unrelated task and must not be read as that referent.
