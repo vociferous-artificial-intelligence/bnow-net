@@ -1150,6 +1150,321 @@ mid-log, was retired by the eighth archive pass on 2026-09-07; OPEN-TASKS #92.)
   model promotes without its own paid scorecard. Related debt stays tracked as OPEN-TASKS #100
   (the untracked `ask-eval-harvest.ts` isolation exemption).
 
+- **2026-09-07 (R7 addendum — Claude Sonnet 5 priced at $2.00 / $10.00; the $3/$15 increase was
+  cancelled)** The 2026-09-06/07 R7 entry held Sonnet 5 out of `PRICES_PER_MTOK` because the
+  operator's list said **$3.00 / $15.00** while the vendor's pricing page showed **$2.00 /
+  $10.00**, and the 2026-08-20 gpt-5-mini precedent forbids guessing. The vendor's pricing page
+  resolves it directly: the $2/$10 rate announced at launch as introductory pricing through
+  **2026-08-31 is now the standard price**, and *"the previously scheduled increase to $3/$15
+  per million input/output tokens on September 1, 2026 will not occur."* The operator's figure
+  was therefore the announced-but-cancelled increase, not a stale page — the two sources never
+  disagreed about the current rate, only about whether a scheduled change happened. **Sonnet 5
+  is priced at $2.00 in / $10.00 out per 1M tokens**, entered as its own row with
+  `ModelPrice.provider` set explicitly, per the R7 rule that the table is per-model rows keyed
+  by the exact API identifier. **Two riders.** (1) The R7 entry's own standard was confirmation
+  against *actual console billing*, on the ground that a documentation page is not ground
+  truth. That standard is relaxed here because the vendor statement does something a console
+  spot-check cannot: it names the exact contradicting figure and cancels it, explaining the
+  discrepancy rather than sampling around it. A one-invoice spot-check at the first real
+  Anthropic spend is still cheap and is recommended, not required. (2) **The exact API
+  identifier is still needed** — Haiku went in as `claude-haiku-4-5-20251001`; the Sonnet row
+  needs its dated equivalent before the PR body is written. Unblocks the remainder of PR-2.2-B2
+  (step 20b).
+
+- **2026-09-07 (R7-b — the Sonnet 5 pricing row is keyed to `claude-sonnet-5`)** The Sonnet 5
+  pricing row is keyed to **`claude-sonnet-5`**, the operator's decision: it is the correct
+  identifier for direct Anthropic API access, and it is what the vendor's own model table
+  lists. Rate **$2.00 in / $10.00 out**, re-verified against the pricing page on 2026-09-07.
+  `ModelPrice.provider` is set explicitly, per R7. **Residual risk, recorded not blocking:**
+  `claude-sonnet-5` is an ALIAS, where Haiku's `claude-haiku-4-5-20251001` is a dated snapshot.
+  An alias repoints to a new snapshot without the id changing, so if Anthropic ever ships a
+  Sonnet 5 snapshot at a different rate, this row keeps metering at the old price and silently
+  under-meters — the 2026-08-20 gpt-5-mini failure mode, arriving by a different door.
+  Mitigation, cheap and sufficient: **re-verify the Sonnet rate whenever the Anthropic digest
+  path is next touched, and at the first real invoice.** A dated snapshot id may be substituted
+  later without a new decision — it is the same decision, more precisely expressed.
+
+- **2026-09-07 (A1 — the unguarded `ASK_PIPELINE=legacy` rollback path is filed, not
+  hot-fixed)** Step 17's register found (WS2-F06) that the documented `ASK_PIPELINE=legacy`
+  rollback dispatches a paid completion with **no SpendGuard at all**. It is pre-existing since
+  `cea8cac` (2026-07-11), is not caused by any PR in this window, and is not #67's to fix. It
+  is filed as an OPEN-TASKS entry and fixed in **step 23**. Scoping a pre-existing money-path
+  hole into an unrelated PR's review would break that PR's envelope and hide the fix from its
+  own review. **Action, not yet done at the time of signing:** no OPEN-TASKS entry for WS2-F06
+  exists (`grep` for `WS2-F06` returns nothing in `docs/OPEN-TASKS.md`). Filing it is the first
+  half of this decision; step 23 is the second. Until it is filed, this entry is the only
+  record.
+
+- **2026-09-07 (A2 — option (b): the drain runbook is corrected before the drain is registered,
+  not before the code deploys)** Step 17's WS2-F04 found that the enablement runbook's order
+  (secret → deploy → register → verify) has nothing applying migrations on deploy, so followed
+  literally the drain is registered against a database with no `runtime_logs` table and every
+  signed delivery 500s and is retried. Deploying #64's code is harmless; **registering** the
+  drain against an unmigrated database is not. The runbook correction is therefore a gate on
+  registration, not on deploy. **Interaction with O1, which is already signed:** O1 puts the
+  operator personally at the Vercel dashboard for the registration step. The corrected order
+  must be in front of the operator *before* that step, or A2's protection is advisory only.
+
+- **2026-09-07 (A3 — bounded verification accepted for step 17, with its limits on the
+  record)** PR #74's register (71 findings, 0 refuted, 3 major / 29 minor / 39 note, no
+  blocker, 151 mutations run and reverted) is accepted as step 17's deliverable. Accepted
+  **with its own stated limits**, which are part of what is being signed: nothing ran against a
+  database; no Vercel or Neon environment was read; tree-wide `lint` and `build` were never
+  run; three merges in range (#63, #58, #66) were out of scope; merge fidelity was never
+  checked; minors and notes carry one verification each, not three; and **fifteen coverage gaps
+  G2–G16 stand open, two rated blocker-if-real.** **This acceptance is of a deliverable, not a
+  deploy clearance.** The per-PR verdict column (`#52 #57 #59 #60 #61 #65` merge-stands; `#62
+  #64 #67` fix-before-deploy) must not be read as one, and CP4 §5.4 still has to place every
+  one of G2–G16. The register's own "For step 27" bullet — still asserting "the only PR whose
+  verdict is not merge-stands is #64" — is overruled by its own verdict table and its
+  2026-09-07 #67 correction, and is corrected when #74 merges.
+
+- **2026-09-07 (O3 — fork proofs accepted for this window; the preview-deployment drill is
+  follow-up)** The #102/#103 "live proof" obligation is satisfied by the fork-based
+  integration-test proofs for this window. A preview-deployment drill is logged as follow-up
+  work and is not performed here. **Step 21 may launch** — it no longer prints `AWAITING
+  AUTHORIZATION: O3` and no longer holds.
+
+- **2026-09-07 (T4 — ICS 206-01 tool disclosure: capability built, display withheld on every
+  surface, pending a market signal)** The operator's answer is option (a) — disclose in
+  citation mode only — **restricted further to paying customers**, with an explicit fallback:
+  *"if this is too complex right now hold and do not display… we can add the capability now if
+  easily done, but hold on the public display or display for login users at this point in
+  time."* The stated ground is commercial, not technical: there is no strong market signal that
+  full tool disclosure is demanded yet. **The fallback is the operative branch, because the
+  paying-customer gate does not exist.** Verified at signing: `src/lib/ask/access-context.ts`
+  is an explicit BETA STUB whose own header states the real entitlements module
+  (`src/lib/billing/entitlements.ts`, `resolveAccessContext()`) **"DOES NOT EXIST yet"**;
+  `tier` is hard-coded `"beta"`, and live entitlement integration is ENABLEMENT-BLOCKED on the
+  billing workstream's frozen contract plus the Gate 7 joint boundary review. The `plans` and
+  `subscriptions` tables exist in the schema but Stripe is flagged off. The only gate that
+  works today is the role-based one in `src/lib/registry/view-policy.ts` (admin/analyst vs
+  signed-in user vs anon), and the operator ruled that out in the same sentence — the hold
+  covers signed-in users too. **Therefore: WS-7.2 builds the disclosure capability and ships it
+  dark.** No surface — public page, signed-in view, or citation mode — renders the AI-tool
+  disclosure in this window. When the billing entitlement lands, enabling it for the paid tier
+  is a configuration change rather than a rebuild, which is the whole reason for building it
+  now. **Two consequences that must be recorded so no later session "fixes" them.** (1) The
+  2026-07-16 decision to hide the digest provider (`digests/[country]/[date]/page.tsx:187-189`)
+  **STANDS UNREVERSED**; PLAN-WS-7 §3 C9 is not exercised. (2) PLAN-WS-7 §7 states that
+  withholding the disclosure makes BNOW's citation mode **non-conformant with ICS 206-01**, and
+  that option (c) should be taken only as a deliberate choice. **It is now that deliberate
+  choice**, taken on market-signal grounds and revisitable the moment a customer asks. WS-7.2
+  must carry a test pinning the disclosure OFF on every surface — the same shape as T5's moat
+  test — so a capability that exists in code cannot leak on by default. **Open, to confirm
+  before step 32 builds:** T2 is already signed and puts `fetched_at` labeled "Accessed (BNOW
+  ingest)" *in citation mode*. T2's access date and T4's tool disclosure are different fields.
+  The reading taken here is that **citation mode still ships with T2's access date, and only
+  the tool disclosure goes dark.** If the operator meant citation mode itself to be held, T2
+  needs a superseding entry.
+
+- **2026-09-07 (T5 — hedging weight constants stay withheld from the public methodology page)**
+  Option (a): `/methodology` describes the hedging weight ordering **qualitatively** and does
+  NOT print the constants (`confirmed 1.0 · assessed .75 · unknown .5 · claimed .4 · unverified
+  .15`). This matches the existing posture — the constants are withheld from every non-admin
+  product surface by `showWeightConstants` (`registry/[id]/page.tsx:135-142`), and
+  `view-policy.ts` names them a moat field decided in exactly one place — and it matches
+  `registry.detail.weighting_qualitative` / `dictionaries.ts:312-313`. The repo document
+  `docs/METHODOLOGY-TRADECRAFT.md` may state them; they are already in
+  `SOURCE-RELIABILITY-CALIBRATION.md:22-28`. **This ratifies what already shipped rather than
+  changing it.** Step 30 built to recommendation (a) and merged (PR #69, `a485c80`), so the
+  signature confirms the live page. The step-30 source-scan moat test is what enforces it;
+  verify that test pins (a) and not merely "some wording", since it was written to enforce
+  whichever answer landed.
+
+- **2026-09-07 (C5-m — read-only multi-edition probe authorized; the operator runs it)** The C5
+  measurement — how often the citation anchor differs from the daily-final edition on
+  multi-edition days — is authorized as a READ-ONLY probe of production: `npx tsx
+  scripts/isw-refresh.ts --series iran_update --from 2026-08-01 --to 2026-08-31 --dry` and the
+  ROCA equivalent, behind the write-refusing repository decorator. Envelope: ~4 probes/day,
+  roughly 4.5 minutes of politeFetch spacing per series, **zero writes and zero spend**. The
+  **OPERATOR** runs it (step 10 item 7) and pastes both outputs into step 24's prompt. **Scope
+  limit:** this authorizes the measurement only. It is WS-3.7's *evidence* for whether
+  production's probe order should change; the change itself remains a separate decision and is
+  not authorized here.
+
+- **2026-09-07 (T3 — PLAN-WS-7 §6.1–6.3 signed as drafted, with T3-a and T3-b)** The operator
+  has read the tables and signs them as drafted: **§6.1** the five corroboration tiers (`none`
+  / C0 / C1 / C2 / C3) computed from `summarizeClaimEvidence` as a total function; **§6.2**
+  `ESTIMATIVE_MAP_V1`, the 5 × 4 hedging × corroboration grid plus the `none` row, with its
+  per-cell rationale; **§6.3** the 1–6 AJP-2.1 information-credibility table, derived from
+  §6.2's output and **export-only**. **The two sub-items are signed explicitly, because both
+  deviate from the addendum.** **T3-a** — the tables read **no `claims.confidence` and no
+  source reliability**. This changes the addendum's stated signature and is accepted:
+  `confidence` is the uncalibrated mean of `sources.reliability_score` (plan §3 C2), which is
+  the exact quantity #14 gates and which `page.tsx:476-480` already refuses to render. **T3-b**
+  — `almost certain` (95–99), the three sub-even bands (`almost no chance`, `very unlikely`,
+  `unlikely`) and **AJP-2.1 levels 4 and 5 are never machine-assigned**. The pipeline has no
+  refutation or contradiction mechanism, so it must never assert that a claim is less likely
+  than even odds, and `almost certain` is reserved for a future analyst-verified tier. **What
+  the signature binds** — the six invariants pinned by the exhaustive test: (1) C0 never
+  exceeds `likely` and never exceeds `moderate`; (2) `high` confidence occurs in exactly one
+  cell, `confirmed` × C3; (3) no cell is below `roughly even chance` and none is `almost
+  certain`; (4) within every hedging row the band is monotone non-decreasing across C0 → C1 →
+  C2 → C3; (5) at any tier no hedging class exceeds `confirmed`'s band — hedging sets the
+  ceiling, corroboration lifts within it; (6) an out-of-enum hedging value resolves as
+  `unknown`, matching the existing `status()` fallback. The operator constraint "nothing above
+  likely/moderate from a single uncorroborated document" is invariant 1 and holds in every
+  cell. **Versioning.** The table ships as `ESTIMATIVE_MAP_V1`. Any change to any cell is a
+  **new version**, never an edit to V1 — a shipped estimative label must stay reconstructible.
+  **Step 34 is unblocked** and no longer prints `AWAITING AUTHORIZATION: T3`.
+
+- **2026-09-07 (D7 — measured WS-2.3 remap run authorized on a disposable fork)** The operator
+  authorizes the measured run with a **$10 ceiling**, asking whether that is sufficient. **It
+  is far more than sufficient**, and two corrections to how the number is applied are part of
+  this entry. **1. What the run actually costs.** One ir/military day is roughly 700 doc-track
+  pairs. At the runbook's measured unit cost — **$0.1059 per 1,000 pairs modelled** (§10.4,
+  stable at 0.102–0.121 across all six live pairs and reproduced on an independent week) and
+  **$0.067 per 1,000 actually billed** on the fork's copied ledger, i.e. the estimator is
+  conservative by ≈1.6× — that is **≈$0.075 modelled and ≈$0.05 actual**. `--limit 1000`
+  independently bounds the run to ~1,000 pairs ≈ **$0.11 modelled**, so any ceiling above about
+  $1 never binds at all. **2. `$10` is `C`, the `--budget` value — it is NOT what goes in the
+  environment caps.** The fork carries **production's copied `openai_map` history**, and both
+  map caps are compared against *cumulative* totals, so setting a cap to `C` alone would refuse
+  the very first reservation. Per runbook §8 step 2 the caps are computed on the day from the
+  fork's own ledger: `MAP_SPRINT_USD_CAP = T + C` and `MAP_USD_CAP_DAILY = D + C`, where `T =
+  SELECT sum(est_usd) FROM provider_usage WHERE provider = 'openai_map'` and `D` is that
+  provider's `CURRENT_DATE` row. **T stood at $23.0763 over 44 day-rows when the fork was read
+  on 2026-09-06** — so a literal `MAP_SPRINT_USD_CAP=10` is *below* the copied total and kills
+  the run at zero calls. T must be re-read on the day; the 2026-09-06 figure is illustrative,
+  not a constant. Deleting the fork's `openai_map` rows would give cleaner arithmetic but the
+  fork would stop being an honest copy — not recommended. **3. `LLM_SPRINT_USD_CAP` is not the
+  lever.** Map reads `MAP_SPRINT_USD_CAP` first and falls back to the shared backstop only when
+  it is unset (`src/lib/usage/llm-guard.ts:167-170`). **4. Operative value.** `C = $1.00` for
+  the run, per the runbook's own D7 recommendation — 20× the actual cost, and a tight runaway
+  bound. **The operator's $10 is recorded as the authorized outer bound**, so a second pass, or
+  a second (theater, track) day, needs no further approval. *If the operator prefers $10 as the
+  working `--budget`, strike this paragraph and say so before step 22 runs.* **5. Threshold
+  semantics, stated as the runbook requires.** `tryReserve` refuses when `already-spent +
+  this-run >= cap` (`src/lib/usage/spend-guard.ts:121-140`, `>=`) — it is a threshold test, not
+  a predictive one, so **terminal spend can exceed `C` by up to one batch's cost**. **6. Bounds
+  and cleanup.** Never `--execute` without **both** `--budget` and `--limit`; both aborts are
+  resumable and neither can re-bill, because `doc_map_state` — not the checkpoint file — is the
+  no-rebill authority. Record the driver's final `REMAP …` line, the fork's `openai_map` row
+  before and after, the `doc_map_state` rows created at the new version, and the claims count.
+  Then **delete the fork** (§9): the ledger row dies with it and production's is untouched.
+  **What the money actually buys.** Not the price — the modelled figure already answers "what
+  does a remap cost". It is the first proof on real data that the sweep drain, the map lease,
+  the completion proof and the no-rebill property behave as designed. Phase 2 has never been
+  entered; that is what #33 has never had.
+
+- **2026-09-07 (R4 — `MAP_CONTENT_CHARS=1499` on the fork-bound local server)** Path **(a)** is
+  approved: set `MAP_CONTENT_CHARS=1499` on the fork-bound local server to bump the
+  extractor-version basis and generate remap-pending work **with zero code change**, rather
+  than (b) a prompt-hash code bump on an unmerged branch or (c) relaxing the lock. **The hazard
+  is binding, not advisory.** `MAP_CONTENT_CHARS` is part of the extractor-version basis
+  (`src/lib/analysis/map-prompts.ts:260`) — which is precisely why `1499` produces pending work
+  for free, and precisely why it is dangerous. **If that variable ever reaches a Vercel
+  environment, the hourly worker's version hash changes and it silently re-maps the entire
+  corpus at production spend.** The runbook must verify the variable is **ABSENT from all three
+  Vercel environments both before and after** the measurement, and the closing report must show
+  both checks. **Second guard, already built.** `MAP_BACKFILL_BASE` is the driver's only target
+  input and its **default is PRODUCTION**; the companion PR's fail-closed `--base-ack` guard
+  refuses a non-loopback target at the CLI boundary — before the driver is constructed and
+  before any route call — unless the operator names the exact host. Loopback needs no
+  acknowledgement. This is what keeps a fork-bound measurement from addressing production by
+  omission.
+
+- **2026-09-07 (T4-b — build shape for the withheld AI-tool disclosure)** **Citation mode
+  itself ships.** T2's access date ("Accessed (BNOW ingest)") renders in the per-document
+  citation fields as signed. Only the **AI-tool disclosure** — the engine and provider identity
+  in the per-claim disclosure block — is withheld. The two live in different parts of WS-7.2's
+  output and move independently. **The gate is a POLICY FUNCTION, not a boolean constant.** It
+  resolves from the viewer, in one module, on the `src/lib/registry/view-policy.ts` pattern —
+  the file that already states the reduced view is decided in exactly one place. A constant
+  would have to be torn out and replaced when billing entitlements land; a policy function
+  makes "paying customers only" — what the operator actually asked for — a change to one
+  function body in one security-reviewable place. A test pins the disclosure OFF for every role
+  currently resolvable, so a built-but-dark capability cannot leak on by default.
+  **Labelling.** While the disclosure is withheld the output carries a `tool disclosure
+  withheld` marker rather than silently omitting it, and the copy action is not labelled a
+  conformant "ICS 206-01 citation" without that marker. This is the standard's own escape hatch
+  (PLAN-WS-7 §7 option (c)); it costs nothing and keeps the artifact honest. **The multi-model
+  question, answered.** The operator asked whether the disclosure field is merely "the last
+  model used", given that different models run at different pipeline stages. It is not — but
+  the concern is correct in a narrower and more important way. *What is already provable, both
+  digest-scoped:* (1) `digests.provider`, written by `mapreduceProviderTag()`
+  (`synthesize.ts:443-449`), which resolves **both** workloads at call time and emits
+  `openai:<map>+mapreduce`, or `openai:<map>+mapreduce+reduce=<reduce>` when the reduce model
+  diverges — its own docstring says this exists "so a digest row never misattributes its
+  synthesis model to the extraction model", and five tests pin it; (2) the full dispatch
+  identity `{workload, model, reasoningEffort, registryVersion, approval}` at
+  `digests.structured.stats.reduce.dispatch` (`synthesize.ts:701`) or `…stats.llmDispatch`
+  (`digest.ts:218`). *What is NOT provable (plan §3 C1):* `extractor_version` lives only on
+  `doc_claims` (`schema.ts:932`) and `doc_map_state` (`schema.ts:1003`); the `claims` table has
+  **no** model/extractor/provider column and `claim_sources` is a bare join table. So the tag
+  names the map model **configured when the digest ran**, not the model that actually
+  **extracted each cited claim**. Those diverge whenever a remap has occurred — which is
+  precisely what WS-2.3 / step 22 does. The disclosure is therefore **digest-scoped, not
+  claim-scoped**, and must never assert a per-claim prompt hash. **Consequent build rules for
+  WS-7.2:** 1. The disclosure block is **structured per stage**, not one string: an
+  `extraction` entry and a `synthesis` entry. 2. `synthesis` is populated from the dispatch
+  identity as the plan specifies. 3. `extraction` renders **"not recorded for this digest"**
+  explicitly — never silently omitted, and never back-filled with the digest-run map model,
+  which would be a false provenance claim. 4. It becomes real when PLAN-WS-7 §9.7 debt item 1
+  lands: collect the contributing `doc_claims.extractor_version` values at reduce time into
+  `digests.structured.stats` — **additive jsonb, no migration**, the `evidenceRecency`
+  precedent. **NEW DEFECT found while answering this, and it is an ordering item for step
+  20b.** `mapreduceProviderTag()` hard-codes the literal `openai:` prefix — it returns ``
+  `openai:${map}+mapreduce` `` unconditionally, taking only the model *names* from
+  `resolveWorkloadModel`. It is provider-blind. Under D2 = B, once the Anthropic digest path is
+  enabled (R6's `anthropic_digest` row, R7's `claude-sonnet-5` / Haiku rows), a digest
+  synthesized by Claude over claims extracted by `gpt-4o-mini` would be stamped **`openai:…`**
+  — a false provider attribution, written durably to `digests.provider`, in the exact field an
+  AI-tool disclosure would later read. **The tag must take its provider from the resolved
+  dispatch before the Anthropic path is enabled, not after.** Today it is latent, because that
+  path is dormant. **Note the timing dividend:** because T4 holds the disclosure dark, none of
+  this is customer-visible yet, so the per-stage shape and the provider-tag fix can be got
+  right before anyone reads one.
+
+- **2026-09-07 (C15 — `publication_gap` two-run confirmation accepted as shipped, with the
+  observation that reopens it written down)** Option **(a+)**. **The rule and why it exists.**
+  `publication_gap` asserts that the reference publisher genuinely did not publish on a given
+  day — a strong claim. It is written only when EVERY probe shape returned a clean 404 **and**
+  a `probe_failed` row from an earlier run already exists; the monotone `probe_failed →
+  publication_gap` transition (`editions.ts:504-527`) is the confirmation mechanism, so a gap
+  is never asserted from a single run. That is the 2026-08-15 lesson: from one run, a transient
+  outage and a real gap are indistinguishable. **The defect.** `benchmark_series_days` carries
+  **no timestamp column**, so the design's "from a run ≥24 h earlier" is not verifiable — the
+  row proves a `probe_failed` exists, not when it was written. It shipped as a proxy: "an
+  earlier run stored `probe_failed` AND the day is ≥48 h old", substituting the *report date's*
+  age for *run separation*. Those are not the same quantity. **The residual, accepted.** The
+  report date's age constrains nothing about how far apart the two runs were. Two runs minutes
+  apart during a single transient outage, over a window already ≥48 h old — i.e. any backfill —
+  can still confirm a `publication_gap`. Blast radius is one row in an internal benchmark
+  table: not a customer surface, but a corrupted validation input, because a fabricated gap day
+  is scored differently from a genuine one. **The named trigger — this is what (a+) adds over
+  (a).** The residual is not left to be noticed. It is reopened, and `first_observed_at
+  timestamptz` scheduled as a nullable-additive migration, the first time this specific
+  observation is made: **any `publication_gap` row whose confirming `probe_failed` row was
+  written by the same backfill run.** WS-3.6's soak is where that would surface. Until then no
+  column is added and no migration enters the D10 sequence.
+
+- **2026-09-07 (R14 — the only acceptable escape hatch for the paid answer-model matrix is a
+  route-unreachable code parameter; `ASK_SCORECARD_GATE=0` is forbidden)** Option **(b)**: the
+  shape is decided now, no code is written now. **The problem.** PR #67's scorecard gate makes
+  `answerFromEvidence` abort with `ABORT: degraded result … provider=unscorecarded`.
+  `scripts/ask-eval.ts` drives its answer stage through that same function, so the paid
+  answer-model matrix — the run that would PRODUCE a scorecard for a candidate model — aborts
+  on question 1. The gate closes the only door to the thing that opens it. The failure is
+  **safe and loud**: it can never yield a bad scorecard. But the matrix cannot be run at all as
+  things stand. **The decision.** When the paid matrix is eventually scheduled, its escape
+  hatch is an **eval-only, route-unreachable in-code opt-in** — e.g. `opts.evalUngated` on
+  `answerFromEvidence`, set solely by `scripts/ask-eval.ts` — whose route-unreachability is
+  proven by a source scan on the `isolation.test.ts` precedent. **`ASK_SCORECARD_GATE=0`, or
+  any environment switch of that shape, is FORBIDDEN.** It would reopen the exact hole PR #67
+  closed, in the same shape: one variable, one environment, no audit. A parameter no route can
+  reach is mechanically auditable; an env var is not. **Timing.** The hatch is built in the PR
+  that actually schedules the paid matrix, **not before**. Until then the gate is correctly
+  closed and the matrix is operator-blocked on spend anyway. The value of deciding now is that
+  whoever meets the abort under time pressure finds the answer already written, instead of
+  reaching for the env switch. **ID hygiene, decided at the same time.**
+  `MAP-REMAP-RUNBOOK-2026-09-06.md` §15 independently minted its own **R14** (where the map
+  activation gate lives once the lock is replaced) and its own **R15** (version bump before or
+  after a remap), both colliding with program IDs already in use — R14 here, and R15 in INDEX
+  §2.3. The runbook's two are **renumbered R16 and R17**, with a dated correction note appended
+  to that file. The decisions are unchanged; only the labels move.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).
