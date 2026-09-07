@@ -562,11 +562,21 @@ This audit ran no test of its own beyond verification. Measured, not quoted:
   overlaps named so exactly one proposal is applied per line. Two items are not optional: the
   drizzle range at `AGENTS.md:116` is wrong the moment 0029 is on `main`, and the Live/repository
   bullet's "main is code-ahead of production by two eval-plane-only PRs" is wrong by twenty PRs.
-- **For step 27 (deploy).** Read the per-PR verdict column above. The only PR whose verdict is not
-  "merge-stands" is #64, and its hazard is in the *enablement* sequence rather than the code: the
-  receiver is inert until `LOG_DRAIN_SECRET` exists, and migration 0029 must be applied by hand
-  (`npm run db:migrate` from the release clone, backup branch first) **before** any drain is
-  registered.
+- **For step 27 (deploy).** Read the per-PR verdict column above. Three PRs carry a verdict that is
+  not "merge-stands" — **#62, #64 and #67** — and none of the three turns on shipped behaviour:
+  - **#64** — its hazard is in the *enablement* sequence rather than the code: the
+    receiver is inert until `LOG_DRAIN_SECRET` exists, and migration 0029 must be applied by hand
+    (`npm run db:migrate` from the release clone, backup branch first) **before** any drain is
+    registered.
+  - **#62** — documentation: the design's enablement sequence omits that same manual migration step
+    (WS2-F04), and its deciding argument for the Neon sink — one `JOIN` on `request_path` — does not
+    hold for the ingest family (WS2-F02). Both are corrections to text an operator will follow at
+    step 27, so they should land before the deploy that carries the receiver.
+  - **#67** — WS2-F07: the new exact-cache pin is vacuous, and so is the pre-existing pin it copied.
+    The two-line test fix should land before step 27 deploys, because that pin is the only evidence
+    that a degraded provider is never cached — a ruling-3 claim. (WS2-F06, the ungated
+    `ASK_PIPELINE=legacy` path, is pre-existing, is not #67's to answer for, and needs its own
+    OPEN-TASKS entry — decision A1.)
 - **For step 26 (final audit).** Everything this audit verified once rather than three times is
   marked in the register. The raw round-1 material — every finder's `verified_clean` list (255
   items), `mutation_log` (151 entries) and `coverage_notes` — is committed at
