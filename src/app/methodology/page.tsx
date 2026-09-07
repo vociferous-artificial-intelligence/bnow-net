@@ -232,8 +232,9 @@ export default function MethodologyPage() {
               weights confirmed reporting above assessed, claimed, and unverified reporting. The
               numeric rating, the reliability-ranked ordering of the registry, and the exact
               weighting that would let the rating be reconstructed are an analyst privilege and are
-              withheld from this page and from every non-privileged surface. Reliability is shown in
-              context wherever a source is cited inside a product.
+              withheld from this page and from every non-privileged surface. Where a rating is
+              shown at all, it is shown in context beside a cited source inside a digest, never
+              as a standalone ranking.
             </LegalP>
             <LegalP>
               One honesty note about that rating. When a source is cited without any hedging
