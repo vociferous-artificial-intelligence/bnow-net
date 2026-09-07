@@ -14,8 +14,9 @@
 
 ## Built
 
-Five commits on the step branch; PR title
-**`db: migration 0030 — conflict_validation_observations (append-only, C6 = (b))`**.
+Six commits on the step branch; **PR #73** —
+https://github.com/vociferous-artificial-intelligence/bnow-net/pull/73 —
+`db: migration 0030 — conflict_validation_observations (append-only, C6 = (b))`.
 
 | Commit | File | Change |
 |---|---|---|
