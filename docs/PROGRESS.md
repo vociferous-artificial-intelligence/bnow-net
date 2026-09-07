@@ -4426,3 +4426,36 @@ Execution (resumed 2026-09-07 ~00:05Z — audit finished):
 7. Gates: typecheck + lint + `npm test` with counts; `git diff src/lib/validation/run.ts` EMPTY;
    `vercel.json` unchanged. $0, no paid call, no production write, no deploy.
 8. Closing report `docs/reviews/WS-3-2-EDITION-DISCOVERY-2026-09-06.md` per COMMON §5.
+
+- Execution (same block): base `origin/main` `a821695` (the session opened on `ef0bba8`; main advanced
+  twice mid-session and both branches were rebased and re-gated on `a821695`). **PR #70**
+  (`isw: series-aware edition discovery recording every edition (no collapse)`) — new
+  `src/lib/isw/edition-discovery.ts`: probes ALL shapes per (series, date) and never `break`s (C4),
+  records every hit through `SqlReferenceReportRepository` (the ONE merge authority), sets
+  `isw_report_id` by link-only canonical-URL equality (C5), and confirms a `publication_gap` only on a
+  second run of an all-clean-404 day that is ≥48 h old. Writes ONLY the 0028 tables — `isw_reports` and
+  `source_citations` are read-only to it and `refreshReportCitations` is never called.
+- The 0028 `derived` column gains its first writer, carried through the same merge authority as every
+  other field: `{units: [{ordinal, sha256, toponyms, actions, chars}], unitsVersion}` with a CLOSED
+  fail-closed shape, so ruling 1 is structural (a prose field is unrepresentable) rather than a matter of
+  caller discipline. `scripts/isw-refresh.ts` gains `--series … [--dry]` as the FIRST branch of `main()`;
+  `--dry` runs through a new write-refusing repository decorator so the C5 measurement over production
+  makes zero writes. That measurement is an operator action and was NOT taken.
+- **PR #71** (`cron: conflict-validate route (report-only entrypoint, unscheduled)`) — iterates
+  `CONFLICT_DEFINITIONS` (C2), `CRON_SECRET` auth, `withCronRun` (ruling 10), `?date`/`?lookback`
+  (1..3, default 2)/`?conflict` all validated BEFORE the run row is opened, counts summary only, and only
+  a THROWN cell degrades the run (#87 discipline). Deliberately NOT in `vercel.json`.
+- Two prompt-citation corrections recorded: the step-14 prompt transposes `run.ts:21`
+  (`iranUpdateUrlForDate`) and `:31` (`iranUpdateUrlCandidatesForDate`), and three `editions.ts` line
+  references have moved. PLAN-WS-3 §3.2b's `withCronRun(job, (counts, runId) => …)` is not available yet
+  (that argument rides step 13b), so the route uses the current single-argument signature.
+- Process incident recorded in the report: this worktree's HEAD moved from the step branch to the lane
+  branch mid-session without this session issuing the checkout, which dropped the plan-block commit and
+  put the first work commit on the lane branch. Repaired before pushing (plan block re-created,
+  `rebase --onto`, step branches repointed, lane branch reset to `a821695`); no work lost.
+- Gates: typecheck clean · lint 0 errors (3 pre-existing warnings in untouched files) · unit
+  **3,914 → 3,981 (266 files)** · fork itests **17/17** (`conflict-edition-discovery` 5/5 +
+  `conflict-reference-repo` 12/12) on `br-long-rain-at2q7t3b` · `git diff origin/main` empty for
+  `src/lib/validation/run.ts`, `vercel.json`, `drizzle/` and `src/db/schema.ts`. Zero paid calls, zero
+  production writes, no migration, no env change, no deploy. Spend $0. Report:
+  `docs/reviews/WS-3-2-EDITION-DISCOVERY-2026-09-06.md`.
