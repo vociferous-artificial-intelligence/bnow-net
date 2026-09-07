@@ -1205,18 +1205,22 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
 ### New (from the QF-B lease-soak closeout — 2026-08-23,
 docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md §9)
 
-92. **[Tier 3 — documentation maintenance, header corrected 2026-09-05] AGENTS.md is 1,917
-    lines against its ~300-line guideline (not ~1,040 — the file has grown considerably since
-    this was filed), with 20 decision-log bullets appended BELOW `## Operating protocol`.**
-    The
-    maintenance rule's sanctioned remedy is to move the log's OLDEST entries **verbatim** to
-    `docs/DECISIONS.md` (moving preserves history; editing or summarising it is forbidden).
-    That is a bulk edit and must not ride along with a release closeout, so it is filed here
-    instead of performed. Separately: the 2026-08-21, 2026-08-22 and 2026-08-23 entries were
-    appended at the END OF FILE rather than at the end of the `## Decision log` section,
-    which leaves Conventions / Credentials / Next steps / Operating protocol wedged
-    mid-log. New entries deliberately keep following the file-end convention so the log
-    stays chronological until both are repaired in one deliberate pass.
+92. ~~**[Tier 3 — documentation maintenance] AGENTS.md is 2,317 lines against its ~300-line
+    guideline, with 52 decision-log bullets appended BELOW `## Operating protocol`.**~~
+    ✅ **CLOSED 2026-09-07 by the eighth archive pass (48h step 15).** Both halves repaired in
+    one deliberate pass, as filed. (1) The 29 entries dated before 2026-08-31 moved
+    **verbatim** to `docs/DECISIONS.md`, which now holds 145 entries in ascending date order;
+    AGENTS.md keeps the rolling 7-day inline window set by D5 — 38 entries — and went from
+    **189,651 to 98,038 characters**, clearing D5's 150,000-character ceiling. (2) The two
+    blocks are reunified under `## Decision log`, so Conventions / Credentials / Next steps /
+    Operating protocol are no longer wedged mid-log, and the end-of-file append convention is
+    retired: **new entries append at the end of the `## Decision log` section, in date order.**
+    The move is asserted mechanically by `scripts/check-decision-log-move.sh` — every entry
+    body byte-identical, in exactly one file, no duplicates, date-ascending in both files,
+    AGENTS.md under the ceiling. That script is kept as the acceptance test for every future
+    pass. One pre-existing out-of-order 2026-07-14 entry in the archive was moved into date
+    position at the same time (reordering is sanctioned by the fifth-pass precedent; editing
+    is not).
 93. **[Tier 2 — observability; DESIGNED 2026-09-06, not yet registered] No Vercel log drain,
     so no runtime-log coverage of any soak window.** `vercel logs` caps at 100 records and retention is short: the QF-B formal
     window 2026-08-22T02:00Z→2026-08-23T02:00Z had ZERO runtime-log coverage by the time it
