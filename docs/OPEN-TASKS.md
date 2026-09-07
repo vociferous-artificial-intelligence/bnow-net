@@ -1834,3 +1834,37 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     the `openai_eval` row holds ≈$0.15 against $2 caps, so 50% of current volume is
     negligible. The case becomes real when the shadow soak runs at volume. Filed
     2026-09-07.
+
+110. **[Tier 1 — spend safety] The documented `ASK_PIPELINE=legacy` Ask rollback
+    dispatches a paid OpenAI completion with NO SpendGuard at all.** Step 17's
+    register finding **WS2-F06**
+    (`docs/reviews/WS-2-AUDIT-FINDING-REGISTER-2026-09-06.md`, major, 3/3
+    non-refuting votes) — filed here under decision **(f2)/A1**
+    (`docs/reviews/DECISION-ENTRIES-DRAFT-2026-09-05.md:488`), whose first half is
+    this entry and whose second half is the fix.
+    **What.** `legacyAnswer` reaches `openaiLegacyChatCompletion` with no
+    `askGuardFromEnv()`, no `init()`, no `tryReserve()`, no `record()` and no
+    `provider_usage` row (`src/lib/ask/answer.ts:202-214`,
+    `src/lib/llm/openai.ts:104-120`). It therefore does **not** fail closed when
+    `LLM_SPRINT_USD_CAP` / `ASK_USD_CAP_DAILY` are unset, which ruling 4 requires
+    of every paid-provider call. Its only brakes are the fail-**open** $10/day
+    `ASK_GLOBAL_DAILY_BUDGET_USD` first gate (`src/lib/ask/limits.ts:53-56`, a
+    read-then-act `ask_usage` SUM) and 100 questions/user/day.
+    **The standing text is wrong about it.** `limits.ts:34-36` and `:705-707`
+    claim every paid stage is SpendGuard-backstopped; that is false for this path.
+    **Scope, so blame lands correctly.** Pre-existing since `cea8cac`
+    (2026-07-11) and byte-identical at `98294c5` and `697aea4` — **no PR in this
+    window caused or widened it**, and production leaves `ASK_PIPELINE` unset (the
+    v2 pipeline, which *is* guarded). It is not #67's defect: scoping a
+    pre-existing money-path hole into an unrelated PR's review would break that
+    PR's envelope and hide the fix from its own review ((f2)).
+    **Owner: step 23**, carrying forward the register's two remediation options —
+    (a) reserve and meter inside `legacyAnswer` (guard before the call, refusal
+    returns the deterministic cited-claims fallback with provider `"budget"`,
+    `record()` after the call and before any body interpretation per ruling 8,
+    request payload byte-identical, pinned in `ask.test.ts`), or (b) if the
+    operator rules the rollback stays guard-free, a ruling-4 exception in
+    AGENTS.md plus corrections to `limits.ts:34-36`/`:705-707` and an
+    `ASK_PIPELINE` line in `.env.example`. Whichever is taken, #67's report's
+    legacy bullet is amended to say the path is also unreserved and unmetered.
+    Filed 2026-09-07 at CP4.
