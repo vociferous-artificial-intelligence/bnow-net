@@ -5,6 +5,7 @@ import { estimateCostUsd } from "./limits";
 import type { AskStageGuards } from "./run-guards";
 import type { RunEventSink } from "./events";
 import { fidelityFallbackEnabled, SectionReleaser, type FidelityEvidence } from "./validator";
+import { ASK_ANSWER_SUITE, hasScorecard } from "./registry";
 import type { CandidateClaim, RankedEvidence, StageUsage } from "./types";
 
 // AI Search Phase 3 Increment B: the STREAMING answer stage — buffered
@@ -68,6 +69,22 @@ export class StreamDispatchError extends Error {
   }
 }
 
+/** Thrown BEFORE the guard is built when the resolved answer model carries no
+ *  passing scorecard for the answer suite (R3). Nothing was reserved and no
+ *  request left the process. */
+export class UnscorecardedModelError extends Error {
+  readonly code = "ASK_MODEL_UNSCORECARDED";
+  constructor(
+    public readonly model: string,
+    public readonly suite: string,
+  ) {
+    super(
+      `ask answer stream: ASK_ANSWER_MODEL="${model}" has no "${suite}" scorecard (src/lib/ask/registry.ts) — refusing to dispatch`,
+    );
+    this.name = "UnscorecardedModelError";
+  }
+}
+
 /** Watch the run's cancel marker (the Phase 2 stub route becomes LIVE here):
  *  polls ask_run_events for a cancel_requested row and fires onCancel once.
  *  Fail-soft: a watch error never cancels or fails a run. Returns the stop fn. */
@@ -122,6 +139,16 @@ export async function streamAnswer(opts: {
   }) => Promise<AsyncIterable<AnswerStreamChunk>>;
 }): Promise<StreamOutcome> {
   const { model } = opts;
+  // Quality gate (R3, 2026-09-06) — the streaming twin of answer.ts's check,
+  // placed BEFORE the guard is built and reserved below, so an unscorecarded
+  // model can reach neither a reservation nor the provider (ruling 4). This
+  // module is not the user surface, so it THROWS rather than degrading: the
+  // only production caller (answer.ts) gates first and never gets here, and a
+  // direct caller must not receive a fabricated StreamOutcome. It is a pre-call
+  // throw, the one class this function's contract already allows.
+  if (!hasScorecard(model, ASK_ANSWER_SUITE)) {
+    throw new UnscorecardedModelError(model, ASK_ANSWER_SUITE);
+  }
   const guard = opts.guards?.answer ?? askGuardFromEnv();
   await guard.init();
   const reserve = await guard.tryReserve();

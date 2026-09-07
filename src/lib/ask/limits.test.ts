@@ -1012,3 +1012,106 @@ describe("askWithLimits — durability verdict (release hardening)", () => {
     expect(h.finalizeRunMock).not.toHaveBeenCalled();
   });
 });
+
+// WS-2.1 PR-2.1-3 baseline pin, first run against the UNGATED tree: the
+// ask_usage row a paid, scorecarded Auto answer writes today. The gate added on
+// top must leave every one of these columns as-is; the gated path's row shape is
+// pinned separately beside it.
+describe("ask_usage row shape — baseline (paid, scorecarded Auto answer)", () => {
+  const BASELINE = () =>
+    v2Full({
+      provider: "openai:gpt-5",
+      state: "answered",
+      rerankModel: "gpt-5-mini",
+      answerModel: "gpt-5",
+      rerankUsed: true,
+    });
+
+  it("stamps the paid provider, both stage models and every per-stage cost column", async () => {
+    h.askMock.mockResolvedValue(BASELINE());
+    await askWithLimits("q", "u@x.com");
+
+    const p = insertParams()!;
+    expect(p[COL.provider]).toBe("openai:gpt-5");
+    expect(p[COL.state]).toBe("answered");
+    expect(p[COL.answerModel]).toBe("gpt-5");
+    expect(p[COL.rerankModel]).toBe("gpt-5-mini");
+    expect(p[COL.rerankUsed]).toBe(true);
+    expect(p[COL.answerPromptTokens]).toBe(900);
+    expect(p[COL.answerCompletionTokens]).toBe(120);
+    expect(p[COL.answerCostUsd]).toBe(0.005);
+    expect(p[COL.rerankCostUsd]).toBe(0.002);
+    expect(p[COL.embedCostUsd]).toBe(0.0006);
+    expect(p[COL.costUsd]).toBeGreaterThan(0);
+  });
+
+  it("the exact cache accepts it (the openai-provider gate at limits.ts:733)", async () => {
+    process.env.ASK_RUNS_ENFORCE = "1";
+    process.env.ASK_CONTENT_RETENTION_DAYS = "30";
+    process.env.ASK_PROGRESSIVE = "1";
+    process.env.ASK_CACHE_TTL_DAYS = "7";
+    vi.stubEnv("ASK_EXACT_CACHE", "1");
+    h.corpusVersionMock.mockResolvedValue("100:50");
+    h.cacheKeyMock.mockReturnValue("key-abc");
+    h.cacheLookupMock.mockResolvedValue(null);
+    h.askMock.mockResolvedValue(BASELINE());
+    h.queryMock.mockImplementation(async (sql: string) => {
+      if (String(sql).includes("INSERT INTO ask_usage")) return { rows: [] };
+      if (String(sql).includes("evidence_snapshot")) {
+        return { rows: [{ evidence_snapshot: { version: 1, candidates: [], selectedClaimIds: [] } }] };
+      }
+      return { rows: [{ user_count: 0, global_cost: 0 }] };
+    });
+
+    await askWithLimits("q", "u@x.com");
+    expect(h.cacheStoreMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// The gated row (R3): what ask_usage records when the scorecard gate refused.
+// Paired with the baseline row-shape block above — the difference between the
+// two IS the gate's whole persisted footprint.
+describe("ask_usage row shape — gated (unscorecarded answer model)", () => {
+  const GATED = () =>
+    v2Full({
+      provider: "unscorecarded",
+      state: "answered",
+      answer: "Top matching evidence:\n• claim [c1]",
+      rerankModel: undefined,
+      answerModel: undefined,
+      rerankUsed: false,
+      usage: undefined,
+      usageByStage: undefined,
+    });
+
+  it("writes provider 'unscorecarded' with NULL answer_model and no per-stage answer spend", async () => {
+    h.askMock.mockResolvedValue(GATED());
+    await askWithLimits("q", "u@x.com");
+
+    const p = insertParams()!;
+    expect(p[COL.provider]).toBe("unscorecarded"); // distinguishable from "stub"
+    expect(p[COL.state]).toBe("answered");
+    expect(p[COL.answerModel]).toBeNull();
+    expect(p[COL.rerankModel]).toBeNull();
+    expect(p[COL.rerankUsed]).toBe(false);
+    expect(p[COL.answerPromptTokens]).toBeNull();
+    expect(p[COL.answerCompletionTokens]).toBeNull();
+    expect(p[COL.answerCostUsd]).toBeNull();
+    expect(p[COL.costUsd]).toBe(0);
+  });
+
+  it("the exact cache REFUSES it (limits.ts:733 admits only openai providers — truth-in-UI)", async () => {
+    process.env.ASK_RUNS_ENFORCE = "1";
+    process.env.ASK_CONTENT_RETENTION_DAYS = "30";
+    process.env.ASK_PROGRESSIVE = "1";
+    process.env.ASK_CACHE_TTL_DAYS = "7";
+    vi.stubEnv("ASK_EXACT_CACHE", "1");
+    h.corpusVersionMock.mockResolvedValue("100:50");
+    h.cacheKeyMock.mockReturnValue("key-abc");
+    h.cacheLookupMock.mockResolvedValue(null);
+    h.askMock.mockResolvedValue(GATED());
+
+    await askWithLimits("q", "u@x.com");
+    expect(h.cacheStoreMock).not.toHaveBeenCalled();
+  });
+});

@@ -16,6 +16,7 @@ import {
   askRerankModel,
 } from "./config";
 import { effectiveAskFeatures } from "./features";
+import { ASK_ANSWER_SUITE, hasScorecard } from "./registry";
 // Phase 3 Increment A: every deterministic answer check lives in the shared
 // pure validator (citation filter, denial prefix, insufficient copy, terminal
 // classification, the ruling-20 source-fidelity matrix) so the streaming and
@@ -571,6 +572,26 @@ export async function answerFromEvidence(
   }
 
   const model = askAnswerModel();
+
+  // ---- Quality gate (R3, 2026-09-06): scorecard before money ----------------
+  // ASK_ANSWER_MODEL is a plain env lever. Without this check one variable in
+  // one environment serves an UNMEASURED model to paying users, with only the
+  // default-off router recording the fact. The check sits after model
+  // resolution and BEFORE the guard is built, so nothing is reserved and no SDK
+  // client is constructed (ruling 4); the answer degrades to the deterministic
+  // cited-claims path rather than throwing, exactly as the budget stop does
+  // (ruling 9). Provider "unscorecarded" is deliberately NOT "stub": stub means
+  // offline/kill-switch, and the two must stay distinguishable in ask_usage.
+  // It carries no answerModel and no usage — no paid call happened. The
+  // streaming twin repeats the check before its own reservation
+  // (answer-stream.ts), so neither entry can be reached ungated.
+  if (!hasScorecard(model, ASK_ANSWER_SUITE)) {
+    console.warn(
+      `ask answer: ASK_ANSWER_MODEL="${model}" has no "${ASK_ANSWER_SUITE}" scorecard (src/lib/ask/registry.ts) — refusing to dispatch; deterministic answer`,
+    );
+    const det = deterministicAnswer(ranked.claims, retrieval.entities);
+    return assembleV2(retrieval, ranked, det.answer, det.citedClaimIds, "unscorecarded", "answered", undefined, undefined, currency);
+  }
 
   // ---- Phase 3 Increment B: streaming variant (flagged, progressive-only) ----
   // Reserve/metering live INSIDE streamAnswer (one reservation, settled exactly

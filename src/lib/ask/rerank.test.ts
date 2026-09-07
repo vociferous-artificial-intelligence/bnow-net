@@ -451,3 +451,81 @@ describe("rerankCandidates — failure falls back, never throws", () => {
     expect(recordMock).not.toHaveBeenCalled();
   });
 });
+
+// WS-2.1 PR-2.1-3 baseline pin, first run against the UNGATED tree: with no
+// ASK_RERANK_MODEL override the rerank stage still makes its one guarded paid
+// call and reports rerankUsed. The scorecard gate added on top must leave this
+// untouched.
+describe("rerankCandidates — baseline pin (no ASK_RERANK_MODEL override)", () => {
+  it("the default rerank model dispatches once, guarded, and reranks", async () => {
+    expect(process.env.ASK_RERANK_MODEL).toBeUndefined();
+    completionResult = idsResponse([8, 6, 4, 2]);
+
+    const res = await rerankCandidates("q", pool([1, 2, 3, 4, 5, 6, 7, 8]), 4);
+
+    expect(ids(res)).toEqual([8, 6, 4, 2]);
+    expect(res.rerankUsed).toBe(true);
+    expect(order).toEqual(["init", "reserve", "create", "record"]);
+    expect(firstCreateArg().model).toBe("gpt-5-mini");
+    expect(recordMock).toHaveBeenCalledWith(1, 1050, estimateCostUsd("gpt-5-mini", 1000, 50));
+  });
+});
+
+// The gate itself (R3). Paired with the baseline pin above: deleting the check
+// turns every assertion here into the baseline's behaviour.
+describe("rerankCandidates — hasScorecard() gate (R3)", () => {
+  it("an unscorecarded rerank model returns the composite fallback with NO guard and NO call", async () => {
+    process.env.ASK_RERANK_MODEL = "gpt-5-nano"; // no scorecard of any suite
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const res = await rerankCandidates("q", pool([1, 2, 3, 4, 5, 6, 7, 8]), 4);
+
+      expect(ids(res)).toEqual([1, 2, 3, 4]); // composite order prefix
+      expect(res.rerankUsed).toBe(false);
+      expect(res.rerankUsage).toBeUndefined();
+      // refused before the guard exists at all — not even init()
+      expect(guardFactoryMock).not.toHaveBeenCalled();
+      expect(initMock).not.toHaveBeenCalled();
+      expect(reserveMock).not.toHaveBeenCalled();
+      expect(createMock).not.toHaveBeenCalled();
+      expect(recordMock).not.toHaveBeenCalled();
+      expect(order).toEqual([]);
+      // pin the reason: the budget refusal above produces the same claims, so
+      // the outcome alone would not discriminate
+      expect(warn.mock.calls.flat().join(" ")).toMatch(
+        /ASK_RERANK_MODEL="gpt-5-nano" has no "v2-k60-rerank" scorecard/,
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("gpt-5 as the RERANK model is refused although it is scorecarded for the ANSWER stage", async () => {
+    process.env.ASK_RERANK_MODEL = "gpt-5";
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const res = await rerankCandidates("q", pool([1, 2, 3, 4, 5, 6, 7, 8]), 4);
+      expect(res.rerankUsed).toBe(false);
+      expect(createMock).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("the earlier short-circuits still win: a pool that fits, and an offline stage, never reach the gate", async () => {
+    process.env.ASK_RERANK_MODEL = "gpt-5-nano";
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      // pool fits k → returns before model resolution, so no gate warning
+      const fits = await rerankCandidates("q", pool([1, 2, 3, 4]), 4);
+      expect(ids(fits)).toEqual([1, 2, 3, 4]);
+      // offline → the pre-existing offline fallback, also before the gate
+      process.env.LLM_DISABLE = "1";
+      const offline = await rerankCandidates("q", pool([1, 2, 3, 4, 5, 6, 7, 8]), 4);
+      expect(offline.rerankUsed).toBe(false);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});

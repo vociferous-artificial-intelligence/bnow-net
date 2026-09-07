@@ -4172,3 +4172,60 @@ branch `48h/ws3-conflict-20260905-mig-observations` from `origin/main` `a821695`
   step 25 with updated proposed text.
 - Decisions: none open. Two items recorded for step 19: `registry_version` has no producing
   constant yet, and the `unit_attribution` value enum is deliberately left open.
+## 2026-09-07 ~00:55Z — WS-2.1 PR-2.1-3: hasScorecard() gate on the Auto money path (step 11b, planned block)
+
+1. Prove the worktree, cut `48h/ws2-routing-20260905-auto-scorecard-gate` from `origin/main`
+   after CP2/CP2b, and re-verify every citation the prompt names at that base
+   (`answer.ts:573`, `answer-stream.ts:125`, `rerank.ts:204`, `router.ts:65-126`,
+   `run-guards.ts:86-99`, `limits.ts:445-451`, `config.ts:101-103`).
+2. Baseline pin FIRST, against the unmodified code: with no env override the answer stage
+   still dispatches to the paid model (`provider` `openai:<model>`, one reservation, one
+   physical call, `answer_model` present) and the rerank stage still reranks. Run it, watch
+   it pass, record the SHA it passed against.
+3. Add the gate: `answer.ts` after model resolution and `answer-stream.ts` before the guard
+   is built at :125 (the step-11 correction — the reservation is taken at :127), `rerank.ts`
+   after :204. Every refusal precedes `guard.init()`/`tryReserve()` and SDK construction.
+4. Degrade, never throw, on the user path: an unscorecarded answer model returns the
+   deterministic cited-claims answer with `provider = "unscorecarded"`, zero reservations,
+   `answer_model` NULL; an unscorecarded rerank model returns `compositeFallback`.
+5. `"unscorecarded"` joins the degraded-provider sets in `eval-run.ts` AND `units.ts` (the
+   plan named only the first — a degraded answer must never bill a unit either).
+6. Router: `autoPolicy()` reason becomes scorecard-aware (`auto_scorecard_missing`);
+   `ASK_ROUTER` stays default-off and telemetry-only.
+7. Re-run the baseline pin with the gate in place, add the gated-path pins, then
+   `npm run typecheck && npm run lint && npm test`; confirm
+   `git diff src/lib/llm/analysis-registry.ts` is empty.
+8. Closing report `docs/reviews/WS-2-1-AUTO-GATE-2026-09-06.md` per COMMON §5, with an
+   "attack these first" list for step 17 that starts with the baseline pin.
+
+Execution (same block):
+
+- Base `origin/main` `98294c5` (after CP2 #57/#59 and CP2b #60/#61/#64). One PR: **#67**,
+  branch `48h/ws2-routing-20260905-auto-scorecard-gate`, three commits.
+- The baseline pin is a SEPARATE commit (`b602ff0`) containing test files only —
+  `git diff 98294c5 b602ff0 -- src ':!*.test.ts' .env.example` is empty, so it demonstrably
+  records the ungated tree rather than the gate's leftovers. It stayed green when the gate
+  landed; the only pre-existing test the gate broke was the router's G4 reason case, which
+  was extended (the `auto_env_override` branch moved onto a pure exported function) rather
+  than deleted.
+- Gate placement re-verified at base and honoured: `answer.ts:573` (after model resolution,
+  before the guard, so the streaming branch at `:575` is covered too), `answer-stream.ts`
+  between `:124` and `:125` (the reservation is at `:127` — step 11's correction),
+  `rerank.ts:204`. PLAN §4.3's `autoPolicy()` cite `:73-84` is `:73-86` at this base.
+- Plan gap closed and stated: `units.ts:34` holds a SECOND `DEGRADED_PROVIDERS` set the plan
+  did not name. Without `"unscorecarded"` there, a gated deterministic answer would have
+  billed a full unit and become invoice-eligible after a future cutover.
+- Nine mutations recorded, including the two that kill the baseline pin: the gate firing
+  unconditionally (34 failures) and gpt-5's registry scorecard deleted (55) — so the pin is
+  proven non-vacuous from both the code side and the data side.
+- New decision R14 raised, not decided: the gate also blocks the paid answer-model matrix
+  that would produce a scorecard (`scripts/ask-eval.ts` aborts on `provider=unscorecarded`).
+  The recommendation is an eval-only, route-unreachable opt-in in whichever PR schedules that
+  matrix — never an env kill-switch, which would re-open the hole this PR closed.
+- Gates: typecheck clean · lint 0 errors (3 pre-existing warnings) · unit **3,940/3,940
+  (263 files, from 3,914/263 measured on this tree)**. No fork itest — no DB, schema column
+  or migration change. Zero paid calls, zero database access, zero env changes, no deploy.
+  Spend $0. `git diff origin/main -- src/lib/llm/analysis-registry.ts` empty.
+- Hazard hit and recorded: another session checked out the lane branch in this worktree
+  mid-step, replacing the working tree. Nothing was lost (the work was committed and pushed);
+  every asserted grep and count was re-verified on the correct branch afterwards.

@@ -205,8 +205,11 @@ export function resolveQuestionGold(
 // ============================================================================
 
 /** Providers that mean "no real LLM call happened" — recording metrics from
- *  these would silently grade a degraded pipeline as if it were live. */
-const DEGRADED_PROVIDERS = new Set(["stub", "budget"]);
+ *  these would silently grade a degraded pipeline as if it were live.
+ *  "unscorecarded" (R3, 2026-09-06) is the scorecard gate refusing an
+ *  unmeasured ASK_ANSWER_MODEL: the payload is a deterministic claim list, so
+ *  grading it would attribute the baseline's own fallback to the candidate. */
+const DEGRADED_PROVIDERS = new Set(["stub", "budget", "unscorecarded"]);
 
 export interface DegradedCheckInput {
   retrievalMode: RetrievalMode;

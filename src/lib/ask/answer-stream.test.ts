@@ -397,3 +397,70 @@ describe("watchCancelMarker", () => {
     expect(onCancel).not.toHaveBeenCalled();
   });
 });
+
+// WS-2.1 PR-2.1-3 baseline pin, first run against the UNGATED tree: the
+// scorecarded production answer model still reserves before the stream and
+// settles once. The gate added ahead of the guard must not touch this path.
+describe("streamAnswer — baseline pin (scorecarded production model)", () => {
+  it("gpt-5 initialises the guard, reserves, dispatches and settles exactly once", async () => {
+    const sink = sinkSpy();
+    const outcome = await streamAnswer({
+      ...BASE,
+      sink,
+      streamFactory: async () =>
+        chunks([
+          { choices: [{ delta: { content: FILLER + "Strikes hit the depot [c1]. " } }] },
+          { choices: [{ finish_reason: "stop" }], usage: { prompt_tokens: 900, completion_tokens: 100 } },
+        ]),
+    });
+
+    expect(BASE.model).toBe("gpt-5");
+    expect(h.guard.init).toHaveBeenCalledTimes(1);
+    expect(h.guard.tryReserve).toHaveBeenCalledTimes(1);
+    expect(h.guard.record).toHaveBeenCalledTimes(1);
+    expect(outcome.finishReason).toBe("stop");
+    expect(outcome.usage.promptTokens).toBe(900);
+  });
+});
+
+// The streaming twin of the R3 gate: refused BEFORE the guard is built, so the
+// reservation this module takes at its top can never be reached by an
+// unscorecarded model. Paired with the baseline pin above.
+describe("streamAnswer — hasScorecard() gate (R3)", () => {
+  it("an unscorecarded model throws before the guard exists — no init, no reservation, no stream", async () => {
+    const { UnscorecardedModelError } = await import("./answer-stream");
+    const streamFactory = vi.fn();
+    await expect(
+      streamAnswer({ ...BASE, model: "gpt-5-nano", sink: sinkSpy(), streamFactory }),
+    ).rejects.toBeInstanceOf(UnscorecardedModelError);
+
+    expect(h.guard.init).not.toHaveBeenCalled();
+    expect(h.guard.tryReserve).not.toHaveBeenCalled();
+    expect(h.guard.record).not.toHaveBeenCalled();
+    expect(streamFactory).not.toHaveBeenCalled();
+  });
+
+  it("the thrown error names the model, the suite and the registry — and carries a machine code", async () => {
+    const { UnscorecardedModelError } = await import("./answer-stream");
+    const err = await streamAnswer({ ...BASE, model: "gpt-5-mini", sink: sinkSpy() }).catch((e) => e);
+    expect(err).toBeInstanceOf(UnscorecardedModelError);
+    expect(err.code).toBe("ASK_MODEL_UNSCORECARDED");
+    expect(err.model).toBe("gpt-5-mini"); // scorecarded for rerank, not for the answer suite
+    expect(err.suite).toBe("v2-k60");
+    expect(String(err.message)).toContain("src/lib/ask/registry.ts");
+  });
+
+  it("an injected run guard is not consulted either (the refusal precedes every guard source)", async () => {
+    const injected = { init: vi.fn(), tryReserve: vi.fn(), record: vi.fn() };
+    await expect(
+      streamAnswer({
+        ...BASE,
+        model: "gpt-5-nano",
+        sink: sinkSpy(),
+        guards: { answer: injected } as never,
+      }),
+    ).rejects.toThrow(/no "v2-k60" scorecard/);
+    expect(injected.init).not.toHaveBeenCalled();
+    expect(injected.tryReserve).not.toHaveBeenCalled();
+  });
+});

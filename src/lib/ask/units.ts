@@ -28,10 +28,11 @@ export const UNITS_DEEP = 3; // unservable today (no Deep route can pass the sco
 
 /** Providers that mark a DEGRADED answer — no real provider exchange
  *  happened (stub = offline/kill-switch; budget = BNOW's own cap refused the
- *  call). Billing a full unit for a deterministic claim list during a
- *  degraded window would charge for the thing the product says it is not
- *  (Gate 7 high finding). */
-const DEGRADED_PROVIDERS = new Set(["stub", "budget"]);
+ *  call; unscorecarded = the R3 scorecard gate refused an unmeasured
+ *  ASK_ANSWER_MODEL before any reservation). Billing a full unit for a
+ *  deterministic claim list during a degraded window would charge for the thing
+ *  the product says it is not (Gate 7 high finding). */
+const DEGRADED_PROVIDERS = new Set(["stub", "budget", "unscorecarded"]);
 
 /** Pure unit computation for a terminal payload. Registered beta decisions
  *  (re-decide before LIVE billing — decision register): cancelled runs bill

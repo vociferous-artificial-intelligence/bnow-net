@@ -14,7 +14,7 @@
 // route (post-scorecard) so flag-on stays literally behavior-identical today.
 
 import { askAnswerModel, askCandidates, askEvidenceK, askRerankModel } from "./config";
-import { hasScorecard } from "./registry";
+import { ASK_ANSWER_SUITE, hasScorecard } from "./registry";
 
 /** Mirrors answer.ts ANSWER_MAX_OUTPUT_TOKENS — NOT imported (the router must
  *  stay free of the answer module's provider graph); router.test.ts pins the
@@ -65,11 +65,28 @@ function answerMaxOutputTokens(): number {
 /** The scorecarded production baseline answer model (registry). */
 const BASELINE_ANSWER_MODEL = "gpt-5";
 
+/** The recorded reason for an Auto policy. Pure and exported so both branches
+ *  stay covered: `auto_env_override` is unreachable through route() while gpt-5
+ *  is the only model carrying the answer suite (every possible override is
+ *  therefore unscorecarded), and becomes reachable again the moment a second
+ *  model is scorecarded — testing it through env alone would have deleted that
+ *  coverage instead of keeping it.
+ *
+ *  Precedence is deliberate: `auto_scorecard_missing` outranks the
+ *  baseline/override distinction because it is the consequential fact — since
+ *  2026-09-06 the pipeline will NOT dispatch that model (answer.ts /
+ *  answer-stream.ts refuse before any reservation), so a recorded
+ *  `auto_env_override` would describe a paid run that never happens. */
+export function autoPolicyReason(answerModel: string, scorecarded: boolean): string {
+  if (!scorecarded) return "auto_scorecard_missing";
+  return answerModel === BASELINE_ANSWER_MODEL ? "auto_baseline" : "auto_env_override";
+}
+
 /** The one policy that may serve today: Auto ≡ the production constants.
- *  An env-overridden answer model is still served (the pre-existing env lever;
- *  the router is recording-only) but the reason marks it distinguishable —
- *  when models route THROUGH the policy, autoPolicy must verify the scorecard
- *  instead (Gate 4 latent-gap note). */
+ *  An env-overridden answer model is RECORDED here but no longer served: the
+ *  money path gates on the same scorecard (R3, 2026-09-06), so the reason below
+ *  now reports the gate. The router itself stays recording-only — behaviour
+ *  flows from the pipeline's own check, never from this function. */
 function autoPolicy(): RoutePolicy {
   const answerModel = askAnswerModel();
   return {
@@ -81,7 +98,7 @@ function autoPolicy(): RoutePolicy {
     candidatesCap: askCandidates(),
     maxOutputTokens: answerMaxOutputTokens(),
     reasoningEffort: "low",
-    reason: answerModel === BASELINE_ANSWER_MODEL ? "auto_baseline" : "auto_env_override",
+    reason: autoPolicyReason(answerModel, hasScorecard(answerModel, ASK_ANSWER_SUITE)),
   };
 }
 

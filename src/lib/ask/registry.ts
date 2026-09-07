@@ -6,6 +6,15 @@
 // production baseline (validated by the checked-in 2026-07-11 eval) carries
 // one.
 //
+// ENFORCED on the money path since 2026-09-06 (decision R3): the Auto answer
+// and rerank stages call hasScorecard() on the model they resolved, BEFORE the
+// spend guard is built and before any reservation. An unscorecarded model does
+// not dispatch — /ask degrades to the deterministic cited-claims answer with
+// provider "unscorecarded" (ruling 9: a user surface degrades, never throws).
+// Before that date the ASK_ANSWER_MODEL/ASK_RERANK_MODEL env levers could serve
+// an unmeasured model to paying users and only the (default-off) router
+// recorded the fact.
+//
 // Pricing NOTE: the metering price table lives in the GATEWAY layer
 // (src/lib/llm/pricing.ts — the Phase 5 consolidation; limits.ts re-exports
 // estimateCostUsd from it). This registry mirrors those numbers EXACTLY
@@ -68,6 +77,14 @@ export const UNKNOWN_MODEL_PRICE = { in: 5, out: 15 };
 export function modelEntry(model: string): ModelEntry | null {
   return MODEL_REGISTRY[model] ?? null;
 }
+
+/** Suite names the ENFORCED Auto money path gates on (2026-09-06, R3). Named
+ *  once here so answer.ts, answer-stream.ts, rerank.ts and router.ts cannot
+ *  drift on a typo — a misspelled suite would silently make hasScorecard()
+ *  false everywhere and degrade every answer. registry.test.ts pins each
+ *  constant against the entry that actually carries the suite. */
+export const ASK_ANSWER_SUITE = "v2-k60";
+export const ASK_RERANK_SUITE = "v2-k60-rerank";
 
 /** Has this model a recorded passing scorecard covering the given suite? */
 export function hasScorecard(model: string, suite: string): boolean {
