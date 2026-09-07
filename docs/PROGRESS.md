@@ -4251,3 +4251,35 @@ Execution (same block):
    none of the five hedging weight constants and no reliability score.
 6. `npm run typecheck && npm run lint && npm test` green with before → after counts; adversarial
    self-review; closing report `docs/reviews/WS-7-1-CROSSWALK-2026-09-06.md`.
+
+- Execution (same block): base `98294c5` (lane branch fast-forwarded from `1e06112`). PR 1
+  `docs/METHODOLOGY-TRADECRAFT.md` — 24 requirements (ICD 203 ×12, ICD 206 ×4, ICS 206-01 ×5,
+  ICD 208 ×3), 5 BUILT / 12 PARTIAL / 7 GAP, each with its enforcing file:line and the WS-7
+  step that closes it; both corrections carried (ICD 208's title; the one-year rule is
+  ICS 206-01's); §4 states DB-enforced citation and the ISW benchmark loop with the latter's
+  three honest limits; §7 is the reviewer/partner insert.
+- PR 2 `src/lib/tradecraft/crosswalk.ts` + `src/app/methodology/page.tsx` + sitemap/seo-test
+  entries. The module was GENERATED from the document's fenced table, so the two agree by
+  construction and thereafter by the drift test. Page is public, DB-free, session-free — no
+  gate, no ROUTES row (the authz harness's positive control asserts an admin-only token a
+  public page fails by construction), no env, nav link deferred (seven i18n catalogs).
+- T5 unanswered → built as (a): the page states the reliability ordering qualitatively and
+  prints no weight constant, no score and no ordering. Enforced by a moat test, mutation-proven
+  (printing the constants fails 3 cases); the drift test is mutation-proven too (a status
+  changed in the doc alone fails it).
+- Two addendum citations were wrong and are corrected in the report: the digest provider name
+  is `src/lib/analysis/openai-provider.ts:147` (not `src/lib/llm/`, not :146) and
+  `mapExtractorVersion` opens at `map-prompts.ts:254`. Three more moved: `synthesize.ts:443-449`
+  + `:701`, `model-config.ts:133,267`, `analysis-registry.ts:38`, `isw/load.ts:38-46`.
+- Deliberate deviation from PLAN-WS-7 §2.1's seed: both preservation rows ship PARTIAL → WS-7.6,
+  not BUILT, because the policy doc and the no-delete test do not exist at PR 1's base commit
+  and the acceptance criterion is that every cited mechanism resolves at that commit. Step 31
+  flips them, which also exercises the drift test.
+- Test-construction trap recorded: `container.textContent` concatenates sibling blocks with no
+  separator, so "…across users." + "5. Where the machine…" manufactured the substring `.5` and
+  failed the moat test on a constant the page never printed. Moat assertions now read a
+  block-joined form.
+- Gates: typecheck clean · lint 0 errors (3 pre-existing warnings) · unit 3,914/3,914 (263
+  files) → 3,939/3,939 (265 files), baseline measured on this tree by removing the two new test
+  files and re-running. No itest applies (no migration, no schema, no DB path, no gated route).
+  Zero paid calls, zero production writes, no env change, no deploy. Spend $0.
