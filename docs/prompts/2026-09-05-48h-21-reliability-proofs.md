@@ -1,12 +1,12 @@
-# Step 21 — WS-4.2 reliability proofs on a Neon fork (#102 shed/refusal, #103 watchdog) — SKETCH (Wave 3)
+# Step 21 — WS-4.2 reliability proofs on a Neon fork (#102 shed/refusal, #103 watchdog) (Wave 4)
 
 | | |
 |---|---|
 | Model / effort / mode | Opus / high / plain session |
-| Worktree | `48h-ws4-ops-20260905`, step branch `…/reliability-proofs` |
+| Worktree | `/Users/go/code/bnow-net-worktrees/48h-ws4-ops-20260905` (idle after 16 — check per COMMON §4.11; its `.env.local` is the trimmed copy), step branch `48h/ws4-ops-20260905-reliability-proofs` cut from `origin/main` |
 | Window | H22 → H30 |
-| Depends on | — (independent of other lanes; decision O3 on what counts as the proof) |
-| Rewrite from | decision O3 at CP2; the step-16 report only if the drain lands first (then the proof records drain rows too) |
+| Depends on | **O3 signed** (INDEX §2.1 — if blank, print `AWAITING AUTHORIZATION: O3` and stop before building); #64 on `main` (the `runtime_logs` table exists but no drain is registered — the proof records that the table is EMPTY and says why, per LOG-DRAIN Handoff "For step 21") |
+| Rewrite from | O3's answer; `docs/reviews/LOG-DRAIN-2026-09-06.md` Handoff ("For step 21": a runtime-log column in `scripts/audit-cron.ts` must tolerate an empty `runtime_logs` without changing verdicts); OPEN-TASKS #102, #103 |
 | Spend | $0 — refusal fires BEFORE dispatch, so the flood proof runs with `LLM_DISABLE=1` or a blank `OPENAI_API_KEY` on the fork; the watchdog proof injects deps. |
 | Closing report | `docs/reviews/RELIABILITY-PROOFS-2026-09-06.md` |
 

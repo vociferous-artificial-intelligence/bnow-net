@@ -1,12 +1,12 @@
-# Step 19 — WS-3.3 evidence population + live observation pipeline (inert) — SKETCH (Wave 3)
+# Step 19 — WS-3.3 evidence population + live observation pipeline (inert) (Wave 4, after CP3)
 
 | | |
 |---|---|
 | Model / effort / mode | Opus / high / plain session with a 20-minute plan-mode preamble |
-| Worktree | `48h-ws3-conflict-20260905`, step branches `…/db-claim-sources`, `…/live-observation` |
+| Worktree | `/Users/go/code/bnow-net-worktrees/48h-ws3-conflict-20260905` (idle after 13b — check per COMMON §4.11), step branches `48h/ws3-conflict-20260905-db-claim-sources`, `48h/ws3-conflict-20260905-live-observation` cut from `origin/main` after CP3 |
 | Window | H22 → H32 |
-| Depends on | 13 and 14 merged (tables + discovery API); 06 merged (gazetteer); decisions C2, C3, C8, C12, C13 |
-| Rewrite from | PLAN-WS-3 §3.3a/3.3b, the 13/14 reports' Handoff sections (table names, discovery API), the 06 report (gazetteer API) |
+| Depends on | #63, #73 (0028, 0030), #70, #71 on `main`; #56 gazetteer; D4 signed (C2, C3, C8, C12, C13 = the memo); E5 authorizes the one `docs/evals/analysis/` conflict-results refresh for THIS step only |
+| Rewrite from | PLAN-WS-3 §3.3a/3.3b; `docs/reviews/WS-3-1-OBSERVATIONS-2026-09-06.md` Handoff (observation table, `withCronRun(job, (counts, runId) => …)`, one observation per (conflict, winner edition, run)); `WS-3-2-EDITION-DISCOVERY-2026-09-06.md` Handoff (discovery API, `derived.units`, C5 link-only anchoring); `WS-3-1-PERSISTENCE-2026-09-06.md` Handoff (0028 names); `GAZETTEER-IRAN-LEVANT-V1-2026-09-05.md` Handoff (`gazetteerFor`, version strings, `insufficient_data`). COMMON §2.5: their "Prompt rewrites" sections bind. |
 | Spend | $0. The matcher's paid path stays unreachable until the route is scheduled AND the spend row (C12) exists — pin it. |
 | Closing report | `docs/reviews/WS-3-3-EVIDENCE-POPULATION-2026-09-06.md` |
 
