@@ -3,6 +3,8 @@ import { neon } from "@neondatabase/serverless";
 import { parseReport } from "../src/lib/isw/parse";
 import { loadParsedReportById, refreshSourceStats, type QueryFn } from "../src/lib/isw/load";
 import { iranUpdateUrlCandidatesForDate, iswUrlForDate } from "../src/lib/validation/run";
+import { parseSeriesDiscoveryArgs, runSeriesDiscovery } from "../src/lib/isw/edition-discovery";
+import { SqlReferenceReportRepository } from "../src/lib/conflicts/reference-repo-sql";
 import { politeFetch } from "../src/lib/fetch-cache";
 import { utcDayRange } from "../src/lib/time/day-boundary";
 
@@ -23,6 +25,14 @@ import { utcDayRange } from "../src/lib/time/day-boundary";
 //   npx tsx scripts/isw-refresh.ts --theater ir                  # drain pending
 //   npx tsx scripts/isw-refresh.ts --theater ir --dry            # report only
 //   npx tsx scripts/isw-refresh.ts --theater ir --discover --from 2026-07-04 --to 2026-08-15
+//
+//   3. --series roca|iran_update --from A --to B [--dry]: WS-3.2 edition
+//      discovery. Probes EVERY known slug shape per day (no break at the first
+//      hit) and records each edition in the migration-0028 benchmark tables.
+//      It never writes isw_reports or source_citations; --dry writes nothing.
+//      Reports the C5 measurement: days with >1 edition, anchor != daily-final.
+//
+//   npx tsx scripts/isw-refresh.ts --series iran_update --from 2026-08-01 --to 2026-08-31 --dry
 //
 // ISW prose never persists: only URLs, canonical source identities, hedging
 // enums, ≤60-char hedging cues, and counts reach the database (ruling 1).
@@ -62,6 +72,26 @@ async function refreshOne(reportId: number, url: string): Promise<string> {
 }
 
 async function main() {
+  // --series: WS-3.2 edition discovery. Its own branch, FIRST, returning before
+  // any of the historical code below — so the --theater path (pending drain and
+  // --discover) is byte-identical and cannot be reached by a --series
+  // invocation. It writes ONLY the migration-0028 benchmark tables; isw_reports
+  // and source_citations are read-only to it. With --dry it writes nothing at
+  // all, which is what makes a measurement pass over production safe.
+  //   npx tsx scripts/isw-refresh.ts --series iran_update --from 2026-08-01 --to 2026-08-31 --dry
+  const seriesPlan = parseSeriesDiscoveryArgs(args);
+  if (seriesPlan) {
+    console.log(
+      `isw-refresh series=${seriesPlan.series} from=${seriesPlan.from} to=${seriesPlan.to} dry=${seriesPlan.dry}`,
+    );
+    const summary = await runSeriesDiscovery(seriesPlan, {
+      repo: new SqlReferenceReportRepository(query),
+      query,
+    });
+    console.log("series discovery summary:", JSON.stringify(summary));
+    return;
+  }
+
   console.log(`isw-refresh theater=${THEATER} dry=${DRY}`);
   const touched: number[] = [];
 

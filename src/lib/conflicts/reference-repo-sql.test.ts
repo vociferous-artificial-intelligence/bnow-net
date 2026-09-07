@@ -102,7 +102,7 @@ class FakeEditionTables {
   };
 
   private upsert(params: unknown[]): Row[] {
-    const [series, provider, key, label, reportDate, url, norm, scope, cutoff, published, ct, pt, df, ps, isw] =
+    const [series, provider, key, label, reportDate, url, norm, scope, cutoff, published, ct, pt, df, ps, isw, derived] =
       params;
     let inserted = 0;
     if (!this.rows.has(String(key))) {
@@ -129,6 +129,7 @@ class FakeEditionTables {
         designated_final: df,
         parse_status: ps,
         isw_report_id: isw,
+        derived: JSON.parse(String(derived)),
         anchor_journal: [],
       });
       inserted = 1;
@@ -144,19 +145,23 @@ class FakeEditionTables {
     const row = this.rows.get(key);
     if (row === undefined) return [];
     const guards: [string, unknown][] = [
-      ["canonical_url", params[11]],
-      ["norm_version", params[12]],
-      ["cutoff_at", params[13]],
-      ["published_at", params[14]],
-      ["cutoff_treatment", params[15]],
-      ["published_treatment", params[16]],
-      ["designated_final", params[17]],
-      ["parse_status", params[18]],
-      ["isw_report_id", params[19]],
+      ["canonical_url", params[12]],
+      ["norm_version", params[13]],
+      ["cutoff_at", params[14]],
+      ["published_at", params[15]],
+      ["cutoff_treatment", params[16]],
+      ["published_treatment", params[17]],
+      ["designated_final", params[18]],
+      ["parse_status", params[19]],
+      ["isw_report_id", params[20]],
     ];
     for (const [col, expected] of guards) {
       if ((row[col] ?? null) !== (expected ?? null)) return []; // lost the race
     }
+    // jsonb guard: semantic equality over the canonical projection both sides
+    // serialize (the deployed statement compares `derived IS NOT DISTINCT FROM
+    // $22::jsonb`)
+    if (JSON.stringify(row.derived ?? {}) !== String(params[21])) return [];
     Object.assign(row, {
       canonical_url: params[1],
       norm_version: params[2],
@@ -168,6 +173,7 @@ class FakeEditionTables {
       parse_status: params[8],
       isw_report_id: params[9],
       anchor_journal: JSON.parse(String(params[10])),
+      derived: JSON.parse(String(params[11])),
     });
     return [{ id: 1 }];
   }
@@ -318,9 +324,12 @@ describe("SqlReferenceReportRepository — compare-and-swap merge", () => {
     await repo.upsertEdition(edition());
     await repo.upsertEdition(parsedCutoff);
     const update = db.calls.find((c) => c.sql.startsWith("UPDATE"))!;
-    expect(update.sql).toContain("IS NOT DISTINCT FROM $14"); // cutoff_at guard
-    expect(update.params[13]).toBeNull(); // the value the merge was computed from
+    expect(update.sql).toContain("cutoff_at IS NOT DISTINCT FROM $15"); // cutoff_at guard
+    expect(update.params[14]).toBeNull(); // the value the merge was computed from
     expect(update.params[3]).toBe(`${DAY}T18:00:00.000Z`); // the value being written
+    // the derived payload is guarded too, so a concurrent unit-signature write
+    // is a lost race rather than a silent overwrite
+    expect(update.sql).toContain("derived IS NOT DISTINCT FROM $22::jsonb");
   });
 
   it("refuses with edition_write_contention when the attempt budget is exhausted", async () => {
@@ -342,6 +351,37 @@ describe("SqlReferenceReportRepository — compare-and-swap merge", () => {
   it("MERGE_ATTEMPT_LIMIT is a bounded budget, never unlimited", () => {
     expect(MERGE_ATTEMPT_LIMIT).toBeGreaterThan(1);
     expect(Number.isFinite(MERGE_ATTEMPT_LIMIT)).toBe(true);
+  });
+});
+
+describe("derived unit signatures round-trip through the SQL backend", () => {
+  const payload = {
+    units: [{ ordinal: 0, sha256: "b".repeat(64), toponyms: ["pokrovsk"], actions: ["strike"], chars: 190 }],
+    unitsVersion: "isw-unit-sig-v1",
+  };
+
+  it("is written by the insert and read back through the canonical projection", async () => {
+    const db = new FakeEditionTables();
+    const repo = new SqlReferenceReportRepository(db.query);
+    await repo.upsertEdition(edition({ derived: payload }));
+    expect(db.rows.get(`iran_update:${DAY}:evening`)!.derived).toEqual(payload);
+    expect((await repo.getEdition(`iran_update:${DAY}:evening`))!.derived).toEqual(payload);
+  });
+
+  it("is carried in the write list AND the CAS guard (the deployed statement)", () => {
+    expect(EDITION_UPSERT_SQL).toContain("isw_report_id, derived");
+    expect(EDITION_SELECT).toContain("isw_report_id, derived");
+    expect(EDITION_UPSERT_SQL).toContain("$16::jsonb");
+  });
+
+  it("a later parse repairs the stored payload under the compare-and-swap", async () => {
+    const db = new FakeEditionTables();
+    const repo = new SqlReferenceReportRepository(db.query);
+    await repo.upsertEdition(edition());
+    const out = await repo.upsertEdition(edition({ derived: payload }));
+    expect(out.action).toBe("repaired");
+    expect(out.repairedFields).toEqual(["derived"]);
+    expect(db.rows.get(`iran_update:${DAY}:evening`)!.derived).toEqual(payload);
   });
 });
 

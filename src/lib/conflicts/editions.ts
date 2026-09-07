@@ -203,6 +203,146 @@ export interface ReferenceEditionRecord {
   /** optional link to the citation-registry anchor row (isw_reports.id) —
    *  the ISW adapter seam; null when unlinked or in fixture mode */
   citationAnchorId: number | null;
+  /** DERIVED unit signatures only (ruling 1, the same rule as
+   *  isw_reports.derived): ordinal + content hash + keyword-class signature.
+   *  Absent (`{}`) on every record that has not been parsed from a real page.
+   *  The shape is CLOSED — see validateEditionDerived — so a free-text field
+   *  cannot be smuggled into the column. */
+  derived: EditionDerived;
+}
+
+// ---------------------------------------------------------------------------
+// derived: unit signatures + hashes ONLY (standing ruling 1)
+// ---------------------------------------------------------------------------
+
+/** One declared reference unit (an ISW Key Takeaway), reduced to what may be
+ *  stored: its position, a content hash that gives it a stable identity across
+ *  runs, its keyword-class signature, and a length bucket. The unit TEXT is
+ *  never part of this — the hash is the only link back to it. */
+export interface EditionUnitSignature {
+  /** 0-based declared order within the report */
+  ordinal: number;
+  /** 64 lowercase hex — sha256 of the whitespace-normalized unit text */
+  sha256: string;
+  /** canonical gazetteer keys (lowercase ascii/underscore), never surface text */
+  toponyms: readonly string[];
+  /** canonical action-class keys, never surface text */
+  actions: readonly string[];
+  /** length bucket for parse-quality debugging, not content */
+  chars: number;
+}
+
+/** The CLOSED derived payload. `units` and its version stamp are the only keys
+ *  v1 accepts; an unknown key is refused rather than stored, so the column
+ *  cannot quietly grow a prose field. */
+export interface EditionDerived {
+  units?: readonly EditionUnitSignature[];
+  /** the versioned derivation that produced `units` (hash normalization +
+   *  signature source). Required whenever `units` is present so two
+   *  derivations' unit sets are never silently compared. */
+  unitsVersion?: string;
+}
+
+/** The only keys `derived` may carry. */
+export const EDITION_DERIVED_KEYS = deepFreeze(["units", "unitsVersion"] as const);
+
+/** Version-identifier shape (lowercase ascii words joined by '-'). */
+export const EDITION_DERIVED_VERSION_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** Canonical gazetteer key shape (src/lib/validation/gazetteer/ru-ua-v1.ts
+ *  TOPONYMS/ACTIONS keys): lowercase ascii words joined by underscores. A
+ *  signature token that does not match is REFUSED — that is what keeps prose
+ *  structurally out of the column rather than merely out of the caller. */
+export const EDITION_SIGNATURE_TOKEN_RE = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
+
+const SHA256_HEX_RE = /^[0-9a-f]{64}$/;
+
+/** Bound on how many units one edition may record. ISW reports carry a
+ *  single-digit-to-teens Key Takeaway list; a payload an order of magnitude
+ *  larger means the extractor grabbed the wrong block. */
+export const EDITION_DERIVED_UNIT_LIMIT = 200;
+
+function validateSignatureTokens(field: string, value: unknown, out: string[]): void {
+  if (!Array.isArray(value)) {
+    out.push(`${field}: must be an array of canonical keys`);
+    return;
+  }
+  for (const [i, token] of value.entries()) {
+    if (typeof token !== "string" || !EDITION_SIGNATURE_TOKEN_RE.test(token)) {
+      out.push(`${field}[${i}]: not a canonical signature key ${JSON.stringify(token)}`);
+    }
+  }
+}
+
+/** Precise structural validation of the derived payload. [] = valid. */
+export function validateEditionDerived(raw: unknown): string[] {
+  if (raw === undefined) return [];
+  if (!isRecord(raw)) return ["derived: must be an object"];
+  const errs: string[] = [];
+  for (const key of Object.keys(raw)) {
+    if (!(EDITION_DERIVED_KEYS as readonly string[]).includes(key)) {
+      errs.push(`derived: unknown key ${JSON.stringify(key)}`);
+    }
+  }
+  if (raw.unitsVersion !== undefined) {
+    if (typeof raw.unitsVersion !== "string" || !EDITION_DERIVED_VERSION_RE.test(raw.unitsVersion)) {
+      errs.push(`derived.unitsVersion: not a version identifier ${JSON.stringify(raw.unitsVersion)}`);
+    }
+    if (raw.units === undefined) errs.push("derived.unitsVersion: present without derived.units");
+  }
+  if (raw.units !== undefined) {
+    if (raw.unitsVersion === undefined) errs.push("derived.units: requires derived.unitsVersion");
+    if (!Array.isArray(raw.units)) {
+      errs.push("derived.units: must be an array");
+    } else if (raw.units.length > EDITION_DERIVED_UNIT_LIMIT) {
+      errs.push(`derived.units: ${raw.units.length} units exceeds ${EDITION_DERIVED_UNIT_LIMIT}`);
+    } else {
+      for (const [i, unit] of raw.units.entries()) {
+        if (!isRecord(unit)) {
+          errs.push(`derived.units[${i}]: not an object`);
+          continue;
+        }
+        const keys = Object.keys(unit).sort().join(",");
+        if (keys !== "actions,chars,ordinal,sha256,toponyms") {
+          errs.push(
+            `derived.units[${i}]: must hold exactly {ordinal, sha256, toponyms, actions, chars}, got {${keys}}`,
+          );
+          continue;
+        }
+        if (!Number.isInteger(unit.ordinal) || (unit.ordinal as number) < 0) {
+          errs.push(`derived.units[${i}].ordinal: must be a non-negative integer`);
+        }
+        if (typeof unit.sha256 !== "string" || !SHA256_HEX_RE.test(unit.sha256)) {
+          errs.push(`derived.units[${i}].sha256: must be 64 lowercase hex characters`);
+        }
+        validateSignatureTokens(`derived.units[${i}].toponyms`, unit.toponyms, errs);
+        validateSignatureTokens(`derived.units[${i}].actions`, unit.actions, errs);
+        if (!Number.isInteger(unit.chars) || (unit.chars as number) < 0) {
+          errs.push(`derived.units[${i}].chars: must be a non-negative integer`);
+        }
+      }
+    }
+  }
+  return errs;
+}
+
+/** Canonical projection: an absent/empty payload is `{}`, never `{units: []}`
+ *  (so "no units recorded" and "parsed zero units" cannot drift apart in the
+ *  column, and merge equality stays byte-stable). */
+export function canonicalEditionDerived(raw: unknown): EditionDerived {
+  if (raw === undefined || raw === null) return {};
+  const r = raw as EditionDerived;
+  if (r.units === undefined) return {};
+  return {
+    units: r.units.map((u) => ({
+      ordinal: u.ordinal,
+      sha256: u.sha256,
+      toponyms: [...u.toponyms],
+      actions: [...u.actions],
+      chars: u.chars,
+    })),
+    unitsVersion: r.unitsVersion,
+  };
 }
 
 /** The editionKey's label segment. Identity validation guarantees shape. */
@@ -241,6 +381,7 @@ export function validateEditionRecord(raw: unknown): string[] {
   if (r.citationAnchorId !== null && !Number.isInteger(r.citationAnchorId)) {
     errs.push("citationAnchorId: must be an integer id or null");
   }
+  errs.push(...validateEditionDerived(r.derived));
 
   // label discipline (no silent acceptance): a provider edition must carry a
   // label its versioned normalization table can produce; the reserved
@@ -335,6 +476,7 @@ export function parseEditionRecord(raw: unknown): ReferenceEditionRecord {
     publishedTreatment: r.publishedTreatment,
     parseStatus: r.parseStatus,
     citationAnchorId: r.citationAnchorId,
+    derived: canonicalEditionDerived(r.derived),
   });
 }
 
@@ -373,6 +515,7 @@ export function editionRecordFromFixtureReport(raw: unknown): ReferenceEditionRe
     publishedTreatment: published.treatment,
     parseStatus: "parsed",
     citationAnchorId: null,
+    derived: {},
   });
 }
 

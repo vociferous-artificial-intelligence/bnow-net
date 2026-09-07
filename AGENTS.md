@@ -82,7 +82,9 @@ src/lib/llm/        analysis-model routing + money authorities: model-config.ts 
                     per-workload model/effort resolver + fail-closed dispatch gate),
                     analysis-registry.ts (analysis-reg-v1 quality approvals — baseline
                     only), pricing.ts (the single analysis metering price table)
-src/lib/isw/        crawler, endnote parser, hedging classifier, registry materializer
+src/lib/isw/        crawler, endnote parser, hedging classifier, registry materializer,
+                    edition-discovery (series/edition-aware reference discovery writing
+                    only the 0028 benchmark tables — dormant, unscheduled)
 src/lib/text/       well-formed UTF-16 truncation primitives (the #86 repair — the
                     shared destination for #97-family sites; map+reduce+digest adopted)
 src/lib/validation/ ISW scoreboard: keyword gazetteer + majority-vote LLM matcher

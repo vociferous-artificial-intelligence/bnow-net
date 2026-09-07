@@ -47,6 +47,46 @@ function codeOf(fn: () => unknown): string | null {
   }
 }
 
+describe("mergeEditionRecords — derived unit signatures", () => {
+  const HASH = (c: string) => c.repeat(64);
+  const payload = (sha: string) => ({
+    units: [{ ordinal: 0, sha256: sha, toponyms: ["pokrovsk"], actions: ["strike"], chars: 200 }],
+    unitsVersion: "isw-unit-sig-v1",
+  });
+
+  it("fills in on a first parse and reports the repair", () => {
+    const { merged, repairedFields } = mergeEditionRecords(base(), base({ derived: payload(HASH("a")) }));
+    expect(merged.derived).toEqual(payload(HASH("a")));
+    expect(repairedFields).toEqual(["derived"]);
+  });
+
+  it("an identical re-parse is `unchanged` (byte equality over the canonical projection)", () => {
+    const stored = base({ derived: payload(HASH("a")) });
+    expect(mergeEditionRecords(stored, base({ derived: payload(HASH("a")) })).repairedFields).toEqual([]);
+  });
+
+  it("a CHANGED payload wins — the page was re-parsed and the units moved", () => {
+    const stored = base({ derived: payload(HASH("a")) });
+    const { merged, repairedFields } = mergeEditionRecords(stored, base({ derived: payload(HASH("b")) }));
+    expect(merged.derived).toEqual(payload(HASH("b")));
+    expect(repairedFields).toEqual(["derived"]);
+  });
+
+  it("an EMPTY payload never erases a stored one (the parse_status never-downgrade rule)", () => {
+    const stored = base({ derived: payload(HASH("a")), parseStatus: "parsed" });
+    const { merged, repairedFields } = mergeEditionRecords(stored, base({ parseStatus: "failed" }));
+    expect(merged.derived).toEqual(payload(HASH("a")));
+    expect(merged.parseStatus).toBe("parsed");
+    expect(repairedFields).toEqual([]);
+  });
+
+  it("stays idempotent: merge(merge(a, b), b) === merge(a, b)", () => {
+    const b = base({ derived: payload(HASH("c")) });
+    const once = mergeEditionRecords(base(), b).merged;
+    expect(mergeEditionRecords(once, b).merged).toEqual(once);
+  });
+});
+
 describe("mergeEditionRecords (the one write authority)", () => {
   it("replays repair: a later parse fills in anchors and upgrades parse status", () => {
     const richer = base({

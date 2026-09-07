@@ -17,6 +17,10 @@ import {
   orderEditionsByFinality,
   parseEditionRecord,
   selectDailyFinal,
+  EDITION_DERIVED_UNIT_LIMIT,
+  EDITION_SIGNATURE_TOKEN_RE,
+  canonicalEditionDerived,
+  validateEditionDerived,
   type ReferenceEditionRecord,
 } from "./editions";
 import { ConflictDomainError } from "./errors";
@@ -401,6 +405,88 @@ describe("day status (gaps are never fabricated)", () => {
     expect(dayUnavailableReason("probe_failed")).toBeNull();
     expect(dayUnavailableReason("unknown")).toBeNull();
     expect(dayUnavailableReason("published")).toBeNull();
+  });
+});
+
+describe("derived: unit signatures and hashes ONLY (ruling 1, CLOSED shape)", () => {
+  const HASH = "a".repeat(64);
+  const units = [{ ordinal: 0, sha256: HASH, toponyms: ["pokrovsk"], actions: ["strike"], chars: 210 }];
+  const derived = (over: Record<string, unknown> = {}) => ({
+    units,
+    unitsVersion: "isw-unit-sig-v1",
+    ...over,
+  });
+
+  it("defaults to {} so every pre-existing record shape stays valid", () => {
+    expect(record().derived).toEqual({});
+    expect(validateEditionDerived(undefined)).toEqual([]);
+  });
+
+  it("accepts a well-formed payload and freezes the canonical projection", () => {
+    const r = record({ derived: derived() });
+    expect(r.derived.units).toEqual(units);
+    expect(r.derived.unitsVersion).toBe("isw-unit-sig-v1");
+    expect(Object.isFrozen(r.derived)).toBe(true);
+  });
+
+  it("REFUSES an unknown key — a prose field cannot be smuggled into the column", () => {
+    expect(validateEditionDerived({ ...derived(), summary: "ISW assessed that…" })).toEqual([
+      'derived: unknown key "summary"',
+    ]);
+    expect(code(() => record({ derived: { note: "text" } }))).toBe("invalid_edition_record");
+  });
+
+  it("REFUSES a unit carrying anything but the five allowed fields", () => {
+    expect(
+      validateEditionDerived(
+        derived({ units: [{ ...units[0], text: "the raw takeaway" }] }),
+      ),
+    ).toEqual([
+      "derived.units[0]: must hold exactly {ordinal, sha256, toponyms, actions, chars}, got {actions,chars,ordinal,sha256,text,toponyms}",
+    ]);
+  });
+
+  it("REFUSES a signature token that is not a canonical gazetteer key", () => {
+    expect(validateEditionDerived(derived({ units: [{ ...units[0], toponyms: ["Pokrovsk city"] }] }))).toEqual([
+      'derived.units[0].toponyms[0]: not a canonical signature key "Pokrovsk city"',
+    ]);
+    expect(EDITION_SIGNATURE_TOKEN_RE.test("air_defense")).toBe(true);
+    expect(EDITION_SIGNATURE_TOKEN_RE.test("a sentence")).toBe(false);
+  });
+
+  it("REFUSES a non-sha256 hash, a negative ordinal and a non-integer length", () => {
+    expect(validateEditionDerived(derived({ units: [{ ...units[0], sha256: "deadbeef" }] }))).toEqual([
+      "derived.units[0].sha256: must be 64 lowercase hex characters",
+    ]);
+    expect(validateEditionDerived(derived({ units: [{ ...units[0], ordinal: -1 }] }))).toEqual([
+      "derived.units[0].ordinal: must be a non-negative integer",
+    ]);
+    expect(validateEditionDerived(derived({ units: [{ ...units[0], chars: 1.5 }] }))).toEqual([
+      "derived.units[0].chars: must be a non-negative integer",
+    ]);
+  });
+
+  it("binds units to their derivation version in both directions", () => {
+    expect(validateEditionDerived({ units })).toEqual(["derived.units: requires derived.unitsVersion"]);
+    expect(validateEditionDerived({ unitsVersion: "isw-unit-sig-v1" })).toEqual([
+      "derived.unitsVersion: present without derived.units",
+    ]);
+    expect(validateEditionDerived(derived({ unitsVersion: "v 1" }))).toEqual([
+      'derived.unitsVersion: not a version identifier "v 1"',
+    ]);
+  });
+
+  it("bounds the payload length", () => {
+    const many = Array.from({ length: EDITION_DERIVED_UNIT_LIMIT + 1 }, (_, i) => ({ ...units[0], ordinal: i }));
+    expect(validateEditionDerived(derived({ units: many }))).toEqual([
+      `derived.units: ${EDITION_DERIVED_UNIT_LIMIT + 1} units exceeds ${EDITION_DERIVED_UNIT_LIMIT}`,
+    ]);
+  });
+
+  it("canonicalizes an empty payload to {} so 'unrecorded' and 'zero units' cannot drift", () => {
+    expect(canonicalEditionDerived({})).toEqual({});
+    expect(canonicalEditionDerived(null)).toEqual({});
+    expect(canonicalEditionDerived(derived())).toEqual(derived());
   });
 });
 

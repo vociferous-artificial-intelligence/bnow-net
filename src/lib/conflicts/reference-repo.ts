@@ -41,6 +41,7 @@ export const EDITION_REPAIRED_FIELDS = [
   "norm_version",
   "designated_final",
   "citation_anchor",
+  "derived",
 ] as const;
 export type EditionRepairedField = (typeof EDITION_REPAIRED_FIELDS)[number];
 
@@ -152,6 +153,15 @@ export function mergeEditionRecords(
   const designatedFinal = incoming.designatedFinal ?? existing.designatedFinal;
   if (designatedFinal !== existing.designatedFinal) repaired.push("designated_final");
 
+  // derived: a re-parse of the SAME page recomputes the same signatures, so a
+  // non-empty incoming payload wins (a refresh) and an EMPTY one never erases a
+  // stored one (the same never-downgrade rule parse_status follows). Equality is
+  // byte-level over the canonical projection, so a replay is `unchanged`.
+  const incomingUnits = incoming.derived?.units;
+  const derived =
+    incomingUnits === undefined || incomingUnits.length === 0 ? existing.derived : incoming.derived;
+  if (JSON.stringify(derived) !== JSON.stringify(existing.derived)) repaired.push("derived");
+
   const merged = parseEditionRecord({
     identity: {
       series: a.series,
@@ -169,6 +179,7 @@ export function mergeEditionRecords(
     publishedTreatment: published.treatment,
     parseStatus,
     citationAnchorId,
+    derived,
   } satisfies ReferenceEditionRecord);
 
   return {
@@ -291,6 +302,67 @@ export class InMemoryReferenceReportRepository implements ReferenceReportReposit
     const editions = await this.editionsForDay(series, reportDate);
     if (editions.length > 0) return "published";
     return this.dayRows.get(InMemoryReferenceReportRepository.dayKey(series, reportDate)) ?? "unknown";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Write-refusing decorator (the `--dry` measurement pass)
+// ---------------------------------------------------------------------------
+
+/** Reads delegate to the wrapped repository; writes are COMPUTED through the
+ *  same merge authority and then DISCARDED. This is what a `--dry` discovery
+ *  run uses, so measuring a real window over the production database makes
+ *  ZERO writes while still reporting exactly what a live run would have done.
+ *
+ *  It is a decorator, not a second semantics: `upsertEdition` derives its
+ *  action from `mergeEditionRecords` and `recordDayStatus` from
+ *  `nextStoredDayStatus`, both against the wrapped repository's current state. */
+export class DryRunReferenceReportRepository implements ReferenceReportRepository {
+  constructor(private readonly inner: ReferenceReportRepository) {}
+
+  async upsertEdition(record: ReferenceEditionRecord): Promise<EditionUpsertResult> {
+    const canonical = parseEditionRecord(record);
+    const { series, reportDate, editionKey } = canonical.identity;
+    const stored = await this.inner.dayStatus(series, reportDate);
+    // a live upsert would clear whatever gap/probe row the day holds
+    const dayStatusCleared = stored === "probe_failed" || stored === "publication_gap";
+    const existing = await this.inner.getEdition(editionKey);
+    if (existing === null) {
+      return { action: "inserted", repairedFields: [], anchorChanged: false, dayStatusCleared };
+    }
+    const { repairedFields, anchorChanged } = mergeEditionRecords(existing, canonical);
+    return {
+      action: repairedFields.length === 0 ? "unchanged" : "repaired",
+      repairedFields,
+      anchorChanged,
+      dayStatusCleared,
+    };
+  }
+
+  getEdition(editionKey: string): Promise<ReferenceEditionRecord | null> {
+    return this.inner.getEdition(editionKey);
+  }
+
+  editionsForDay(
+    series: ReferenceSeriesId,
+    reportDate: string,
+  ): Promise<readonly ReferenceEditionRecord[]> {
+    return this.inner.editionsForDay(series, reportDate);
+  }
+
+  async recordDayStatus(
+    series: ReferenceSeriesId,
+    reportDate: string,
+    observed: StoredDayStatus,
+  ): Promise<DayStatusResult> {
+    const current = await this.inner.dayStatus(series, reportDate);
+    if (current === "published") return { status: "published", action: "published_wins" };
+    const prior = current === "unknown" ? null : (current as StoredDayStatus);
+    return nextStoredDayStatus(prior, observed);
+  }
+
+  dayStatus(series: ReferenceSeriesId, reportDate: string): Promise<ReferenceDayStatus> {
+    return this.inner.dayStatus(series, reportDate);
   }
 }
 
