@@ -436,6 +436,14 @@ export interface CandidateDispatchIdentity {
   provider: "openai" | "stub";
   model: string;
   reasoningEffort: string | null;
+  /** the ANALYSIS_ROUTING_REGISTRY_VERSION this run was judged against. For a
+   *  LIVE run it is load-bearing identity — a specific registry state approved
+   *  the dispatch — and `resumeIdentityMismatch` compares it strictly. For an
+   *  OFFLINE run (provider "stub") nothing is dispatched and no approval
+   *  decided any byte of the output, so it is recorded as informational
+   *  provenance and is NOT compared on resume: a registry bump must never
+   *  refuse a committed offline resume or force a rewrite of files it did not
+   *  affect (PLAN-WS-2 §5.2, 2026-09-06). */
   registryVersion: string;
   /** "baseline" = the production-approved configuration: for LIVE runs it is
    *  registry-resolved (analysisApproval status "baseline"); for OFFLINE runs

@@ -503,7 +503,17 @@ export function resumeIdentityMismatch(
   cmp("reasoningEffort", existing.identity.reasoningEffort, current.identity.reasoningEffort);
   cmp("provider", existing.identity.provider, current.identity.provider);
   cmp("approval", existing.identity.approval, current.identity.approval);
-  cmp("registryVersion", existing.identity.registryVersion, current.identity.registryVersion);
+  // Offline fixture files (provider "stub") dispatch NOTHING: the registry
+  // version they record is the constant at CREATION and is informational —
+  // no approval decided any of their bytes. Comparing it would make the next
+  // ANALYSIS_ROUTING_REGISTRY_VERSION bump refuse every committed offline
+  // resume, and the only way to "fix" that would be to rewrite results files
+  // whose content the bump did not affect. LIVE files stay strict: their
+  // dispatches WERE authorized by a specific registry state, so a bump makes a
+  // resume a different run (PLAN-WS-2 §5.2).
+  if (headerIsLive(existing) || headerIsLive(current)) {
+    cmp("registryVersion", existing.identity.registryVersion, current.identity.registryVersion);
+  }
   cmp("promptHash", existing.identity.promptHash, current.identity.promptHash);
   cmp("schemaVersion", existing.identity.schemaVersion, current.identity.schemaVersion);
   cmp("extractorVersion", existing.identity.extractorVersion ?? null, current.identity.extractorVersion ?? null);
