@@ -1372,3 +1372,65 @@ describe("answerFromEvidence — ASK_STREAM_ANSWER wiring", () => {
     expect(res.answer).toBe("Non-streamed [c1].");
   });
 });
+
+// ---------------------------------------------------------------------------
+// WS-2.1 PR-2.1-3 baseline pin. Written and first run against the UNGATED tree
+// so it records what production does TODAY, before the scorecard gate exists:
+// with no ASK_ANSWER_MODEL override the answer stage dispatches the paid call,
+// takes exactly one reservation, meters it once, and stamps provider +
+// answerModel — on the non-streaming path and on the streaming twin alike.
+// A gate that ever caught the default model would fail this block first.
+describe("Auto money path — baseline dispatch/reservation pin (no env override)", () => {
+  const pool = [candidate({ claimId: 1, text: "claim one" })];
+
+  it("non-streaming: the default answer model dispatches, reserves once, meters once, is stamped", async () => {
+    envPaidV2();
+    vi.stubEnv("ASK_ANSWER_MODEL", undefined); // the production posture: unset everywhere
+    mocks.createMock.mockResolvedValue(
+      completion({ content: "Answer [c1].", promptTokens: 100, completionTokens: 20 }),
+    );
+
+    const res = await answerFromEvidence("q", retrievalV2({ claims: pool }), ranked({ claims: pool }));
+
+    expect(res.provider).toBe("openai:gpt-5");
+    expect(res.state).toBe("answered");
+    expect(res.answerModel).toBe("gpt-5");
+    expect(res.citedClaimIds).toEqual([1]);
+    expect(mocks.createMock).toHaveBeenCalledTimes(1);
+    expect(mocks.createMock.mock.calls[0][0].model).toBe("gpt-5");
+    // exactly one reservation, settled exactly once, at the list price
+    const cost = estimateCostUsd("gpt-5", 100, 20);
+    expect(mocks.guard.tryReserve).toHaveBeenCalledTimes(1);
+    expect(mocks.guard.record).toHaveBeenCalledTimes(1);
+    expect(mocks.guard.record).toHaveBeenCalledWith(1, 120, cost);
+    expect(res.usage).toEqual({ promptTokens: 100, completionTokens: 20, costUsd: cost });
+  });
+
+  it("streaming twin: the same default model reaches streamAnswer and takes the paid terminal", async () => {
+    envPaidV2();
+    vi.stubEnv("ASK_ANSWER_MODEL", undefined);
+    vi.stubEnv("ASK_RUNS_ENFORCE", "1");
+    vi.stubEnv("ASK_CONTENT_RETENTION_DAYS", "30");
+    vi.stubEnv("ASK_PROGRESSIVE", "1");
+    vi.stubEnv("ASK_STREAM_ANSWER", "1");
+    p3.streamAnswerMock.mockResolvedValue({
+      content: "Streamed [c1].",
+      refusal: "",
+      finishReason: "stop",
+      usage: { promptTokens: 500, completionTokens: 80, costUsd: 0.001 },
+      denialLed: false,
+      cancelled: false,
+      releasedCount: 1,
+    });
+
+    const res = await answerFromEvidence("q", retrievalV2({ claims: pool }), ranked({ claims: pool }), {
+      sink: fakeSink(),
+    });
+
+    expect(p3.streamAnswerMock).toHaveBeenCalledTimes(1);
+    expect(p3.streamAnswerMock.mock.calls[0][0].model).toBe("gpt-5");
+    expect(res.provider).toBe("openai:gpt-5");
+    expect(res.state).toBe("answered");
+    expect(res.answerModel).toBe("gpt-5");
+  });
+});

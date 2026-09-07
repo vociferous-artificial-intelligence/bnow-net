@@ -397,3 +397,28 @@ describe("watchCancelMarker", () => {
     expect(onCancel).not.toHaveBeenCalled();
   });
 });
+
+// WS-2.1 PR-2.1-3 baseline pin, first run against the UNGATED tree: the
+// scorecarded production answer model still reserves before the stream and
+// settles once. The gate added ahead of the guard must not touch this path.
+describe("streamAnswer — baseline pin (scorecarded production model)", () => {
+  it("gpt-5 initialises the guard, reserves, dispatches and settles exactly once", async () => {
+    const sink = sinkSpy();
+    const outcome = await streamAnswer({
+      ...BASE,
+      sink,
+      streamFactory: async () =>
+        chunks([
+          { choices: [{ delta: { content: FILLER + "Strikes hit the depot [c1]. " } }] },
+          { choices: [{ finish_reason: "stop" }], usage: { prompt_tokens: 900, completion_tokens: 100 } },
+        ]),
+    });
+
+    expect(BASE.model).toBe("gpt-5");
+    expect(h.guard.init).toHaveBeenCalledTimes(1);
+    expect(h.guard.tryReserve).toHaveBeenCalledTimes(1);
+    expect(h.guard.record).toHaveBeenCalledTimes(1);
+    expect(outcome.finishReason).toBe("stop");
+    expect(outcome.usage.promptTokens).toBe(900);
+  });
+});

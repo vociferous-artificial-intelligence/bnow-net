@@ -451,3 +451,22 @@ describe("rerankCandidates — failure falls back, never throws", () => {
     expect(recordMock).not.toHaveBeenCalled();
   });
 });
+
+// WS-2.1 PR-2.1-3 baseline pin, first run against the UNGATED tree: with no
+// ASK_RERANK_MODEL override the rerank stage still makes its one guarded paid
+// call and reports rerankUsed. The scorecard gate added on top must leave this
+// untouched.
+describe("rerankCandidates — baseline pin (no ASK_RERANK_MODEL override)", () => {
+  it("the default rerank model dispatches once, guarded, and reranks", async () => {
+    expect(process.env.ASK_RERANK_MODEL).toBeUndefined();
+    completionResult = idsResponse([8, 6, 4, 2]);
+
+    const res = await rerankCandidates("q", pool([1, 2, 3, 4, 5, 6, 7, 8]), 4);
+
+    expect(ids(res)).toEqual([8, 6, 4, 2]);
+    expect(res.rerankUsed).toBe(true);
+    expect(order).toEqual(["init", "reserve", "create", "record"]);
+    expect(firstCreateArg().model).toBe("gpt-5-mini");
+    expect(recordMock).toHaveBeenCalledWith(1, 1050, estimateCostUsd("gpt-5-mini", 1000, 50));
+  });
+});
