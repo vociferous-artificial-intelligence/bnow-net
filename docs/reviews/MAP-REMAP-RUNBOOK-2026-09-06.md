@@ -5,8 +5,10 @@ runbook (executable cold, from a clean clone); §10 is the dry run that was actu
 against a disposable Neon fork on 2026-09-06, with its verbatim output; §11 is the
 lock-replacement design note; §§12–17 are the report sections the program's COMMON §5 requires.
 
-`AWAITING AUTHORIZATION: D7` — the measured (paid) run was **not** performed. Everything below
-that involves a paid call is written as instructions, not as a record.
+**D7 DISCHARGED 2026-09-08 — see §19**, which is the record of the measured run and supersedes
+every `AWAITING AUTHORIZATION: D7` marker below. §§1–9 remain written as instructions (that is
+what makes them executable cold); §10 is the 2026-09-06 $0 dry run; **§19 is the paid run that
+was actually performed**, on fork `br-royal-resonance-atvgety1`, at a measured $0.046263.
 
 ---
 
@@ -36,9 +38,11 @@ It never resets `processed`, never deletes or rewrites a historical `doc_claims`
 append-only history — which is also the rollback: revert the version basis and every
 current-version consumer (ruling 13, `src/lib/analysis/map-versions.ts`) sees the old rows again.
 
-**The tool has still never been executed against any route** (zero `map:remap` rows in
-production `cron_runs`, per the 2026-08-23 and 2026-08-24 decision-log entries). This runbook is
-its first rehearsal, and the rehearsal target is a local server bound to a disposable Neon fork.
+**The tool has never been executed against PRODUCTION** — production `cron_runs` still holds
+zero `map:remap` rows (per the 2026-08-23 and 2026-08-24 decision-log entries, re-verified
+2026-09-08). It was rehearsed in estimate mode on a fork 2026-09-06 (§10) and **executed in
+`--execute` mode on a fork 2026-09-08** (§19: one ir/military day, 701 pairs, $0.046263). Both
+targets were a local server bound to a disposable Neon fork.
 
 ### 1.1 Flags, corrected against the source
 
@@ -287,7 +291,11 @@ double-counted or a batch was billed and discarded (lease loss), and both are wo
 
 ## 8. The measured run — **only** with a signed D7 entry naming a ceiling `C`
 
-Do not run any of this without it. `AWAITING AUTHORIZATION: D7`.
+Do not run any of this without it. **D7 was signed 2026-09-07 and this procedure was executed
+2026-09-08 — the record is §19.** The steps below stay in the imperative because they are the
+procedure for the *next* measured run (another theater/track, or the full epoch range), each of
+which needs its own authorization; D7's $10 outer bound already covers a second (theater, track)
+day without new approval.
 
 1. **Restart the server** with `OPENAI_API_KEY` set, `LLM_DISABLE` unset, `MAP_CONTENT_CHARS=1499`
    unchanged, everything else in §5 unchanged. Keep `POSTMARK_SERVER_TOKEN` blank.
@@ -653,8 +661,8 @@ Two ruling-level gates ride along and belong in the runbook for **any** future c
 
 | Ruling | How |
 |---|---|
-| **4 (fail-closed spend)** | Zero paid calls. The estimate path returns before `assertLlmEnabled` and before `workloadDispatchConfig` (`map-worker.ts:822-855` vs `:856-861`), so no reservation and no client construction happens on any path exercised here. The server ran with every paid key blanked and `LLM_DISABLE=1`. `--base-ack` adds a refusal *before* the first route call; it removes no existing refusal. §8 states the threshold (`>=`) reservation semantics rather than promising `C` is a hard ceiling. |
-| **7 (batch under-fill)** | Not exercised (no dispatch). Recorded in §11 as an explicit gate for any future candidate run. |
+| **4 (fail-closed spend)** | **§10 (2026-09-06): zero paid calls** — the estimate path returns before `assertLlmEnabled` and before `workloadDispatchConfig` (`map-worker.ts:822-855` vs `:856-861`), so no reservation and no client construction happens; the server ran with every paid key blanked and `LLM_DISABLE=1`. **§19 (2026-09-08): $0.046263 under signed D7**, metered through `SpendGuard` on the fork's own copied `openai_map` ledger, with both map caps set from that ledger as `T + C` / `D + C` (§19.1) — never a literal ceiling, which would have refused the first reservation. No budget stop of any category fired. `--base-ack` adds a refusal *before* the first route call; it removes no existing refusal. §8 states the threshold (`>=`) reservation semantics rather than promising `C` is a hard ceiling, and the run stayed at 4.6% of `C` so the semantics were never tested at the boundary. |
+| **7 (batch under-fill)** | Not exercised in §10 (no dispatch). **Exercised clean in §19**: `omitted=0` on every one of the 36+ live batches at the production batch size of 20, on the baseline model. Still recorded in §11 as an explicit gate for any future *candidate* run — a new model does not inherit this measurement. |
 | **13 (map versioning + hard lock)** | `src/lib/llm/model-config.ts` is byte-unchanged (`git diff origin/main -- src/lib/llm/model-config.ts` empty); `MAP_BASELINE` untouched. The version bump came only from an exported env on one local server, and the four literal pins still reproduce the deployed-corpus versions with the env absent (§10.1). The remap driver dispatches through `workloadDispatchConfig("map")` server-side, so the lock is not relaxed by the tool. |
 | **5 (migrations)** | None. The fork is already migrated through 0027; `db:migrate` was not run. |
 | **8, 9, 19, 21** | Not touched — no provider call, no page, no digest persist. |
@@ -670,7 +678,7 @@ Two ruling-level gates ride along and belong in the runbook for **any** future c
 | Lint | 0 errors (3 pre-existing warnings, none in changed files) |
 | Fork integration | No `*.itest.ts` run — this step's code change is a pure CLI-boundary guard. The fork was used for the dry run itself (§10). |
 | Mutation proofs | Deleting the CLI call to `assertBaseAck` fails exactly 1 test (the source-scan pin); making every host loopback fails 4; comparing the ack against the base URL instead of the host fails 2. |
-| Spend | **$0** |
+| Spend | **$0** for the step-22 PR itself (§10 dry run). **$0.046263** for the 2026-09-08 measured run (§19), on a fork ledger that was deleted with the fork. |
 
 ---
 
@@ -707,8 +715,8 @@ Neither check goes through the code path it is checking.
 
 | ID | Decision | Options | Recommendation |
 |---|---|---|---|
-| **D7** (CP2, open) | Authorize the measured remap run | (a) defer — the modelled figure in §10.4 stands as the answer to "what does a remap cost"; (b) authorize a ceiling `C` on the fork's own `openai_map` ledger, one day, `--limit 1000`, per §8 | **(b) with `C = $1.00`.** One ir/military day is ~700 pairs ≈ $0.075 modelled and ≈ $0.05 actual by the §10.4 cross-check, so $1.00 buys the measurement several times over and still bounds a runaway. The value it adds over the estimate is not the price — it is the first-ever proof that the drain loop, the lease, the sweep-completion proof and the no-rebill property behave on real data. That is what #33 has never had. |
-| **R4** (CP2, unsigned) | Measurement path | (a) `MAP_CONTENT_CHARS` on the fork-bound server; (b) prompt-hash bump on a branch; (c) lock relaxation | **(a)** — executed on the prompt's instruction that PLAN-WS-2 §WS-2.3 is the specification. Needs a decision-log line to become a signed answer; nothing about (a) changed code or touched production, so this is record-keeping, not a re-run. |
+| **D7** (CP2, **SIGNED 2026-09-07 · DISCHARGED 2026-09-08 — see §19**) | Authorize the measured remap run | (a) defer — the modelled figure in §10.4 stands as the answer to "what does a remap cost"; (b) authorize a ceiling `C` on the fork's own `openai_map` ledger, one day, `--limit 1000`, per §8 | **(b) with `C = $1.00`.** One ir/military day is ~700 pairs ≈ $0.075 modelled and ≈ $0.05 actual by the §10.4 cross-check, so $1.00 buys the measurement several times over and still bounds a runaway. The value it adds over the estimate is not the price — it is the first-ever proof that the drain loop, the lease, the sweep-completion proof and the no-rebill property behave on real data. That is what #33 has never had. |
+| **R4** (CP2, **SIGNED 2026-09-07** — hazard binding discharged in §19.8) | Measurement path | (a) `MAP_CONTENT_CHARS` on the fork-bound server; (b) prompt-hash bump on a branch; (c) lock relaxation | **(a)** — executed on the prompt's instruction that PLAN-WS-2 §WS-2.3 is the specification. Needs a decision-log line to become a signed answer; nothing about (a) changed code or touched production, so this is record-keeping, not a re-run. |
 | **R16** (new; after eval step 4) | Where the map activation gate lives once the lock is replaced | keep it in `resolveWorkloadModel` with a process-start cached marker read / move it into `runMapCycle` before the first reservation, leaving `model-config.ts` a pure config refusal | **move it** (§11 (2)) — it keeps `resolveWorkloadModel`'s synchronous, never-throws contract, but it moves a ruling-4 refusal out of the single routing authority, so it needs its own decision-log entry and `estDispatchBlocked` has to learn about it or the operator's dry-run decision surface stops telling the truth. |
 | **R17** (new; with any real remap) | Whether the version bump goes live before or after the remap completes | flip the version, then remap (the corpus is split and only the new half is visible to reduce/reports until it drains) / remap on a shadow version first | **operator fact-finding needed.** Ruling 13 makes the interim state a silent coverage regression, not an error, and there is currently no shadow-version mechanism. This is the real cost of a map model change and it is not in the $36. |
 
@@ -716,14 +724,20 @@ Neither check goes through the code path it is checking.
 
 ## 16. Debt and risks
 
-- **The measured run is still the gap.** §10.4's figures are a *model*, not a measurement:
-  `estimateCostUsd` over a chars-based token approximation (`map-worker.ts:822-841`). It has
-  never been calibrated against a real remap because a real remap has never happened. The ledger
-  cross-check narrows the band to "≈$36 modelled, probably ≈$23 real" but does not close it.
-- **The estimate models zero waste.** Truncation splits (`extractBatch` recurses twice, each
-  recursion metering its own request), transport retries, and lease-lost discards all cost money
-  the model does not count. A real run should be read against `provider_usage`, not against the
-  driver's `modelled $…`.
+- ~~**The measured run is still the gap.**~~ **CLOSED 2026-09-08 (§19)** for one
+  (theater, track, day): the chars-based model (`map-worker.ts:822-841`) is now calibrated
+  against a real remap and is conservative by **1.65×** ($0.0660/1k measured vs $0.1091/1k
+  modelled on the same day), confirming the ledger cross-check's "≈$36 modelled, probably ≈$23
+  real" — measured projection ≈$22.4. **Residual gap:** one day of one pair is calibrated; the
+  other five live (theater, track) pairs and the full epoch range remain modelled only, and
+  ir/military may not be representative (its pair yield per document, 0.178, is the lowest of
+  the three military pairs).
+- **The estimate models zero waste — now quantified.** Truncation splits (`extractBatch`
+  recurses twice, each recursion metering its own request), transport retries, and lease-lost
+  discards all cost money the model does not count. §19.5 measured it: **38 dispatches against
+  36 modelled batches, a 5.6% count overrun** — which the 1.65× cost conservatism still
+  absorbs. A real run should be read against `provider_usage`, not against the driver's
+  `modelled $…`.
 - **`--base-ack` is a CLI-boundary guard, not a driver invariant.** `driveMapRemap` itself still
   accepts any base; the existing 61 driver tests target `https://example.test` deliberately.
   Moving the check into the driver would be stronger and would cost ~50 test edits — deliberately
@@ -756,11 +770,14 @@ accurate and this step does not change it — the tool has now been *rehearsed a
 estimate mode*, which is strictly less than "executed". Step 25 may append the one-line status
 addendum in §18. #33 stays OPEN.
 
-**For the operator, at CP2.** The two questions this step can now answer with numbers:
-*"what does a full remap cost?"* → ≈$36 modelled / ≈$23 by ledger cross-check, at gpt-4o-mini
-pricing, for 339,669 doc-track pairs across the six live pairs. *"is the tool sound?"* →
-unanswered; estimate mode exercises phase 1 only. Phase 2 — the sweep drain, the lease, the
-completion proof, the no-rebill property — is what D7 buys.
+**For the operator, at CP2.** Both questions are now answered with numbers.
+*"What does a full remap cost?"* → ≈$36 modelled, and after §19's calibration **≈$22.4
+measured-rate** for 339,669 doc-track pairs across the six live pairs at gpt-4o-mini pricing.
+*"Is the tool sound?"* → **yes, for the single-holder happy path, proven on real data**
+(§19): the sweep drain completed, the confirming sweep returned `pairs=0`, the four
+reconciliation reads agree exactly, old-version rows were untouched, and no-rebill survived
+deliberate checkpoint deletion. Still unproven: contention, takeover, lease-loss and discard
+(#95), and five of the six live (theater, track) pairs.
 
 **For the prompt that follows this one.** Step 22's prompt should be rewritten as follows if it
 is ever re-run:
@@ -831,3 +848,213 @@ R14 is the Ask scorecard-gate escape hatch (INDEX §2.1, from step 11b / PR #67)
 unscorecarded embed+rerank spend note (INDEX §2.3). They are **renumbered here to R16 and R17**;
 the decisions themselves are unchanged. Cite the map activation gate as **R16** and the
 version-bump-vs-remap ordering as **R17**.
+
+---
+
+## 19. The measured run that was executed (2026-09-08) — D7 discharged
+
+**This section is the record §8 was written as instructions for.** D7 was signed 2026-09-07
+(`AGENTS.md`, "measured WS-2.3 remap run authorized on a disposable fork"): operative
+`--budget` **C = $1.00**, $10 recorded as the outer bound. R4 option (a) was signed the same
+day. The run below is the first time `scripts/map-remap.ts` has ever entered phase 2.
+
+Fork **`br-royal-resonance-atvgety1`** (created and deleted this session), local
+`next build && next start -p 3000` with the §5 env, `MAP_CONTENT_CHARS=1499`,
+`MAP_BACKFILL_BASE=http://localhost:3000` on every command. Production was never contacted.
+Pre-push gate green on the branch before the run: typecheck clean · lint clean ·
+**4,082 unit tests / 270 files**.
+
+### 19.1 Cap arithmetic, computed off the fork's copied ledger
+
+Per §8 step 2 the caps are `T + C` and `D + C`, never a literal `C`:
+
+| | read on the day | cap set on the server |
+|---|---:|---:|
+| `T` = `openai_map` all-time | $23.940010 (46 day-rows) | `MAP_SPRINT_USD_CAP=24.9400` |
+| `D` = `openai_map` today | $0.455843 (374 requests) | `MAP_USD_CAP_DAILY=1.4559` |
+
+Headroom $0.99999 and $1.00006 — C on both, as intended. `T` had moved from the 2026-09-06
+reading of $23.0763/44 rows, which is why (f10) says to re-read it rather than reuse a constant.
+
+### 19.2 Version bump reproduced §10.1 exactly
+
+Both columns of §10.1's table were recomputed locally before the run and matched
+byte-for-byte — the env-absent basis still reproduces the four deployed-corpus pins, and
+`MAP_CONTENT_CHARS=1499` still yields the four rehearsal versions. Target for this run:
+**`gpt-4o-mini:1bfad9e5e447`** (military:ir).
+
+### 19.3 Estimate phase reproduced §10.2 exactly
+
+The ir/military week 2026-08-25 → 08-31 was re-estimated on the fresh fork and returned
+**every figure identical to §10.2** — per-day eligible/pairs/batches/est and the
+`25599 docs / 4550 pairs · $0.4878` total. No
+`!! THIS CONFIGURATION WOULD BE REFUSED AT EXECUTION` line appeared, so `estDispatchBlocked`
+was null and §6's acceptance gate passed. Two days and one fork later, the estimator is
+reproducible.
+
+### 19.4 The measured run
+
+```
+npx tsx scripts/map-remap.ts --theater ir --track military \
+  --from 2026-08-25 --to 2026-08-25 --execute --budget 1.00 --limit 1000
+
+2026-08-25 DONE  claims=382  $0.0463
+
+REMAP COMPLETE — pairs attempted 701 · claims 382 · actual $0.0463 (modelled $0.0765)
+old extractor-version rows are untouched (append-only history; rollback = revert the version).
+```
+
+Twelve `s1` sweeps drained the day's 4,115 eligible documents 400 at a time; **twelve `s2`
+sweeps then returned `pairs=0` across the board** — the sweep-completion proof, exercised on
+real data for the first time. `omitted=0` on every batch (ruling 7's under-fill signature
+absent at the production batch size of 20). Of the 701 pairs, 341 produced no claims and 360
+produced 382.
+
+### 19.5 Reconciliation — driver against the database
+
+| | driver | independent DB read | agree |
+|---|---:|---:|:--:|
+| spend | $0.0463 | $0.502106 − $0.455843 = **$0.046263** | yes |
+| claims | 382 | `doc_claims` @ new version = **382** | yes |
+| pairs | 701 | `doc_map_state` @ new version = **701** | yes |
+| sweeps | 12 + 12 | `cron_runs` `job='map:remap'` = **24, all `ok`** | yes |
+
+`doc_map_state` at the **baseline** version stayed at **53,006** rows across the whole run —
+old-version history is untouched, so ruling 13's rollback (revert the version basis and every
+`map-versions.ts` consumer reads the old rows again) is now demonstrated, not just asserted.
+
+**One divergence, and it is the interesting one.** `provider_usage.requests` went
+**374 → 412 = 38 dispatches against 36 modelled batches**. The estimator models one call per
+micro-batch and zero waste; the two extra calls are the §16 "estimate models zero waste"
+caveat showing up in a real run (truncation splits recurse and meter their own request). It
+is a 5.6% count overrun that the *cost* model still over-covers, per §19.6.
+
+### 19.6 The number #33 has never had — measured, not modelled
+
+```
+measured per-1k-pairs = $0.046263 / 701 pairs × 1000 = $0.0660 per 1,000 doc-track pairs
+modelled per-1k-pairs = $0.0765   / 701 pairs × 1000 = $0.1091 per 1,000 doc-track pairs
+```
+
+**The estimator is conservative by 1.65×** ($0.0765 / $0.046263). §10.4 predicted "≈1.6×"
+from the ledger cross-check and named $0.067/1k as the real-money figure; the measured
+$0.0660/1k lands **within 1.5% of that prediction**. The two independent routes to the same
+number is the strongest evidence in this document.
+
+Against §17's handoff instruction — *"report the measured figure against $0.1059/1k modelled
+and explain any divergence above ±30%"* — the divergence is **−37.7%**, and the explanation is
+not a defect: it is the chars-based token approximation in `estimateCostUsd`
+(`map-worker.ts:822-841`) over-predicting prompt size, exactly as §10.4 anticipated. **The
+$36 corpus figure stands as an upper band; the measured rate projects the same 339,669 pairs
+at ≈$22.4.**
+
+### 19.7 No-rebill, proven the hard way
+
+The runbook claims `doc_map_state` — not the checkpoint file — is the no-rebill authority.
+That was test-proven only. Here it was proven against real data: the checkpoint
+`data/remap-state/remap_ir_military_2026-08-25_2026-08-25.json` was **deleted**, and the
+identical `--execute` command re-run:
+
+```
+REMAP COMPLETE — pairs attempted 0 · claims 0 · actual $0.0000 (modelled $0.0000)
+```
+
+Ledger unchanged at $0.502106 / 412 requests; rows unchanged at 701 / 382. A lost or deleted
+checkpoint costs a re-scan, never a re-bill.
+
+### 19.8 `MAP_CONTENT_CHARS` absence — both checks, as (f10) requires
+
+Read with `vercel env ls <env> --project bnow-net --scope vociferous`, each listing carrying a
+positive control (`MAP_SPRINT_USD_CAP`, expected present) so that a failed listing cannot be
+misread as an absence:
+
+| | rows returned | positive control | `MAP_CONTENT_CHARS` |
+|---|---:|---:|---|
+| **BEFORE** production / preview / development | 46 / 28 / 20 | 1 / 1 / 1 | **absent from all three** |
+| **AFTER** production / preview / development | 46 / 28 / 20 | 1 / 1 / 1 | **absent from all three** |
+
+The variable lived only in one shell's exported env, on one local server, bound to one
+disposable fork. Nothing in the repository, in any Vercel environment, or in production
+carries it.
+
+*Method note, worth keeping:* the first attempt at this check ran `vercel env ls` without
+`--project`/`--scope` from the worktree, which errors with "codebase isn't linked" — and a
+grep for `MAP_CONTENT_CHARS` over an error message returns zero, which reads exactly like a
+clean absence. **An absence check without a positive control is not a check.**
+
+### 19.9 What was and was not done
+
+- **Spend: $0.046263**, all of it on the fork's own copied `openai_map` ledger, which died
+  with the fork. Against C = $1.00 (4.6% of the ceiling) and far under the $10 outer bound.
+  No cap was approached; no budget stop of any category fired.
+- **Production untouched**: never contacted, no write, no env change, no deploy, no
+  migration. `/health` re-verified 200 / `DB OK` after teardown. Production still holds
+  **zero `map:remap` rows** — the 24 recorded here are the fork's.
+- **Fork `br-royal-resonance-atvgety1` deleted** (`neon-branch.ts delete` returned
+  `deleted br-royal-resonance-atvgety1`); server killed, port 3000 free, `data/remap-state/`
+  removed, `next-env.d.ts` verified byte-unchanged, `git status` clean.
+- **The map activation lock is untouched.** `src/lib/llm/model-config.ts` was not edited; the
+  run resolved to the baseline `gpt-4o-mini` with no reasoning effort throughout.
+- **Not done, still open:** contention, takeover, lease-loss and discard paths never fired
+  (single holder throughout, as in the #77 soak) — #95 stands. Phase 2 is now exercised for
+  **one theater/track/day**; the other five live pairs and the full epoch range remain
+  modelled only.
+
+### 19.10 §15 dispositions after this run
+
+- **D7 — DISCHARGED.** Recommendation (b) was authorized and executed. What the money bought,
+  as predicted: the sweep drain, the completion proof, the lease under a real remap, and the
+  no-rebill property, all confirmed on real data.
+- **R4 — SIGNED and executed.** Option (a) behaved exactly as designed; the hazard binding
+  (absence from all three Vercel environments, before and after) is discharged in §19.8.
+- **R16 / R17 — unchanged.** Both still await the operator, after eval step 4. Nothing in this
+  run bears on where the activation gate lives or on version-bump ordering; R17's interim
+  split-corpus cost remains outside the $36 and outside the $22.4.
+
+### 19.11 Proposed decision-log entry (step 25 applies it; this session edited no AGENTS.md)
+
+> - **2026-09-08 (OPEN-TASKS #33 — the remap driver EXECUTED for the first time; D7 discharged
+>   on a disposable fork; the measured cost figure)** Under the signed D7 (`C = $1.00`
+>   operative, $10 outer bound) and R4 option (a), the version-aware remap driver — deployed
+>   2026-08-21, rehearsed in estimate mode 2026-09-06, never executed — was run in `--execute`
+>   mode for the first time against a local `next start` bound to disposable Neon fork
+>   **`br-royal-resonance-atvgety1`** (created and deleted this session), `MAP_CONTENT_CHARS=1499`
+>   on the fork-bound server only, `MAP_BACKFILL_BASE=http://localhost:3000` on every command.
+>   Caps were computed off the fork's COPIED ledger as (f10) requires — `MAP_SPRINT_USD_CAP =
+>   T + C = 24.9400` against `T = $23.940010`, `MAP_USD_CAP_DAILY = D + C = 1.4559` against
+>   `D = $0.455843` — never a literal ceiling. **One ir/military day (2026-08-25), bounded twice
+>   over (`--budget 1.00 --limit 1000`): 701 doc-track pairs attempted, 382 claims, actual
+>   $0.046263 against $0.0765 modelled.** Twelve drain sweeps then twelve confirming sweeps
+>   returning `pairs=0` — the sweep-completion proof exercised on real data; `omitted=0` on
+>   every batch (ruling 7 clean at batch size 20). Reconciliation is exact on all four
+>   independent reads: ledger delta $0.046263 == driver $0.0463; `doc_claims` @
+>   `gpt-4o-mini:1bfad9e5e447` == 382; `doc_map_state` @ that version == 701; `cron_runs`
+>   `map:remap` == 24, all ok. `doc_map_state` at the BASELINE version stayed at 53,006 rows,
+>   so ruling 13's rollback is demonstrated rather than asserted. **Measured unit cost
+>   $0.0660 per 1,000 doc-track pairs — the estimator is conservative by 1.65×**, landing
+>   within 1.5% of the $0.067/1k the 2026-09-06 ledger cross-check predicted; the $36
+>   full-corpus figure is confirmed as an upper band and the measured rate projects the same
+>   339,669 pairs at ≈$22.4. **No-rebill proven the hard way:** the checkpoint file was deleted
+>   and the identical command re-run — 0 pairs, $0.0000, ledger and rows unchanged, so
+>   `doc_map_state` is the authority and a lost checkpoint costs a re-scan, never a re-bill.
+>   One honest divergence: `provider_usage.requests` 374 → 412 = 38 dispatches against 36
+>   modelled batches (truncation splits meter their own request), a 5.6% count overrun the
+>   cost model still over-covers. `MAP_CONTENT_CHARS` verified ABSENT from all three Vercel
+>   environments before AND after, each listing carrying a positive control. Production was
+>   never contacted and still holds zero `map:remap` rows; no env change, no deploy, no
+>   migration, no code change; the map activation lock is untouched. Fork deleted, server
+>   killed, `data/remap-state/` removed, tree clean. **#33's status changes from "TOOL
+>   DEPLOYED, NEVER EXECUTED" to "EXECUTED ON A FORK, one (theater, track, day)"** — the other
+>   five live pairs and the full epoch range remain modelled only, and #95 still stands (no
+>   contention, takeover, lease-loss or discard path fired). Record: §19 of
+>   `docs/reviews/MAP-REMAP-RUNBOOK-2026-09-06.md`.
+
+### 19.12 Proposed `docs/OPEN-TASKS.md` #33 status replacement (step 25 applies it)
+
+> **2026-09-08 — EXECUTED on a fork (was: TOOL DEPLOYED, NEVER EXECUTED).** One ir/military
+> day drained end to end under signed D7: 701 pairs, 382 claims, **$0.046263 actual vs $0.0765
+> modelled = $0.0660 per 1k pairs**, estimator conservative by 1.65×. Sweep-completion proof
+> and the no-rebill property (checkpoint deleted, re-run cost $0.0000) both confirmed on real
+> data; baseline-version rows untouched. Still modelled-only: the other five live (theater,
+> track) pairs and the full epoch range. #95 stands. Record: §19 of
+> `docs/reviews/MAP-REMAP-RUNBOOK-2026-09-06.md`.

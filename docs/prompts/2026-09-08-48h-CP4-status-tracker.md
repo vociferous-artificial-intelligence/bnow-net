@@ -26,16 +26,14 @@ Open PRs (operator `gh pr list`, 09:34 ET): **#48**, **#47** — nothing else.
 **Stage 2 (§5.2) is CLOSED as of 2026-09-08 13:10 ET** — all five gate boxes in §3 are ticked
 with evidence. Items 1–5 done; `gh pr list` empty; `main` = `81acadd`.
 
-**Current step: Stage 2a (§5.2a) — the D7/R4 measured remap run.** Attended, `ws2-remap`
-worktree, ≈$0.05, D7 signed (`AGENTS.md:1312`). Procedure: `MAP-REMAP-RUNBOOK-2026-09-06.md`
-§3–§9 with the (f10)/(f11) bindings in the plan §5.2a. **Before it starts, two owed items are
-cheaper done first and are listed in §4: (g) rotate the `neondb_owner` password — do it now,
-between runs, since 2a creates a fresh fork that would inherit the old one; and (a2) file the
-June-2025 slug-shape finding as OPEN-TASKS #116 (docs, $0).** Neither is Stage 2a work; both
-are Stage 2 residue and belong in the closing commit.
+**Stage 2a (§5.2a) is DONE as of 2026-09-08** — the D7/R4 measured remap run executed and its
+gate is ticked in §3a below. Actual spend **$0.046263** against C = $1.00.
 
-**Stage 3 does not start until 2a's gate (closing note in the runbook, both
-`MAP_CONTENT_CHARS` absence checks shown, fork deleted) is ticked here.**
+**Current step: Stage 3 (§5.3) — build steps 18–34.** Row A (20, 32, 33, 21) is launchable now.
+Two Stage 2 residue items remain owed and are listed in §4: (a2) file the June-2025 slug-shape
+finding as OPEN-TASKS **#116** (docs, $0), and (e) apply R.16's drafted C5-m decision-log entry.
+Item (g)'s Neon+Vercel halves are DONE (verified 2026-09-08: production `/health` authenticates,
+the local DSN does not) — **its local `.env.local` half is NOT done and is still owed**.
 
 ---
 
@@ -46,8 +44,8 @@ are Stage 2 residue and belong in the closing commit.
 | 5.0 Stage 0 — housekeeping | **DONE** | yes |
 | 5.1 Stage 1 — CP4 merge queue | **DONE** | yes |
 | 5.2 Stage 2 — operator runs | **DONE 2026-09-08** — items 1–5 | yes |
-| 5.2a Stage 2a — D7/R4 measured remap | **CURRENT** — not started; D7 signed | no |
-| 5.3 Stage 3 — build steps 18–34 | **NOT STARTED** | no |
+| 5.2a Stage 2a — D7/R4 measured remap | **DONE 2026-09-08** — executed, $0.046263 | yes |
+| 5.3 Stage 3 — build steps 18–34 | **CURRENT** — row A launchable | no |
 | 5.4 Stage 4 — review gates / four never-run checks | **NOT STARTED** (one hazard pre-filed, #112) | no |
 | 5.5 Stage 5 — freeze, final audit, deploy | **NOT STARTED** (pre-deploy facts pre-filed, #111) | no |
 | §6 detached sessions | **RESOLVED** | yes |
@@ -125,16 +123,28 @@ HUMAN-SETUP-TODO, PARTNER-STRATEGY) resolved main-wins + hand re-placement; #47'
 item renumbered 108 → **115**. `AGENTS.md` 140,195 chars. Decision-log entry appended (commit
 pending).
 
-### 5.2a Stage 2a — NOT STARTED (unblocked)
+### 5.2a Stage 2a — DONE 2026-09-08
 
-- Blocker cleared: D7 is signed (`AGENTS.md:1312`); `--base-ack` guard on `main`.
-- No closing note exists: `MAP-REMAP-RUNBOOK-2026-09-06.md` ends at §18 and contains no
-  2026-09-08 line. Fork not created. Vercel `MAP_CONTENT_CHARS` before/after checks not run.
-- Binding values when it runs: `--budget 1.00 --limit 1000`; caps `T + 1.00` / `D + 1.00` read
-  off the fork's copied ledger on the day (never a literal 10); `MAP_CONTENT_CHARS=1499` on the
-  fork-bound server only. Attended, in `48h-ws2-remap-20260905`.
+Executed attended in `48h-ws2-remap-20260905`. Closing note = **§19 of
+`docs/reviews/MAP-REMAP-RUNBOOK-2026-09-06.md`**.
 
-### 5.3 Stage 3 — NOT STARTED
+- Fork **`br-royal-resonance-atvgety1`**, created and **deleted** this session
+  (`neon-branch.ts delete` returned `deleted br-royal-resonance-atvgety1`).
+- Caps from the fork's copied ledger as (f10) requires: `T = $23.940010` →
+  `MAP_SPRINT_USD_CAP=24.9400`; `D = $0.455843` → `MAP_USD_CAP_DAILY=1.4559`. Never a literal 10.
+- `--theater ir --track military --from 2026-08-25 --to 2026-08-25 --execute --budget 1.00
+  --limit 1000`. **701 pairs, 382 claims, $0.046263 actual vs $0.0765 modelled.**
+- Reconciliation exact on four independent reads (ledger delta, `doc_claims`, `doc_map_state`,
+  `cron_runs` = 24 all-ok). Baseline-version rows untouched at 53,006.
+- **Measured unit cost $0.0660 per 1k doc-track pairs; estimator conservative by 1.65×**, within
+  1.5% of the 2026-09-06 ledger cross-check's $0.067/1k prediction.
+- No-rebill proven: checkpoint deleted, identical command re-run → 0 pairs, $0.0000.
+- `MAP_CONTENT_CHARS` verified ABSENT from all three Vercel environments **before and after**,
+  each listing carrying a positive control (§19.8).
+- Production never contacted; still zero `map:remap` rows; `/health` 200 `DB OK` after teardown.
+- Pre-push gate green before the run: typecheck + lint clean, **4,082 tests / 270 files**.
+
+### 5.3 Stage 3 — CURRENT (unblocked by 2a's gate)
 
 `docs/PROGRESS.md` carries no planned block for steps 18, 19, 20, 21, 23, 24, 25, 32, 33 or 34
 (newest block is the Stage 2 item 3 block, line 4463). No Stage 3 worktree has moved past its
@@ -174,6 +184,21 @@ Re-run `lsof -a -d cwd -c claude | grep bnow` immediately before any Stage 3 lau
 
 ---
 
+## 3a. The Stage 2a gate (plan §5.2a) — ticked with evidence
+
+```
+[x] Dated closing note appended to MAP-REMAP-RUNBOOK-2026-09-06.md with the readings
+                                          — §19 (final REMAP line, ledger before/after,
+                                            doc_map_state @ new version, claims count)
+[x] Both MAP_CONTENT_CHARS absence checks shown  — §19.8, before AND after, 46/28/20 rows
+                                                   each with a positive control
+[x] Fork deleted                          — br-royal-resonance-atvgety1, delete confirmed
+[x] Production untouched                  — never contacted; zero map:remap rows; /health 200
+[x] Tree clean, port 3000 free, next-env.d.ts byte-unchanged
+```
+
+---
+
 ## 4. Owed but unassigned — small items that must not be forgotten
 
 | # | Item | Owner | When |
@@ -184,7 +209,7 @@ Re-run `lsof -a -d cwd -c claude | grep bnow` immediately before any Stage 3 lau
 | c | Neon branch `itest-1788469162388` = `br-weathered-forest-atmfaetu`, alive since 2026-09-03. R.15 item 3 asks whether to delete it as an orphan. **Do NOT delete** until item 4 step 4.1 has checked its `provider_usage` ledger — it is the probable kept evaluation branch (A6 "keep until closeout"; D6 addendum ≈$0.15 on `openai_eval`). If 4.1 finds no `openai_eval` row, it is an orphan and may go. | operator, via item 4 | item 4 |
 | d | `roca` C5-m multi-edition figure is 0 by construction (one candidate URL) — never cite it as evidence about ISW | note only | step 24 |
 | e | R.16's drafted decision-log entry for the C5-m result — apply at end of `## Decision log` in date order | operator or step 25 | Stage 2 close / step 25 |
-| g | **Rotate the `neondb_owner` password** in the Neon console after Stage 2 (the branch connection string, which carries production's inherited password, was pasted into a chat transcript on 2026-09-08); then refresh `.env.local` and Vercel `DATABASE_URL`/`DATABASE_URL_UNPOOLED` — closes #80 as a side effect. Do it between attended runs, not mid-run. | operator | after item 5, before Stage 2a |
+| g | ~~Rotate the `neondb_owner` password~~ **PARTLY DONE.** Verified 2026-09-08 before Stage 2a: production `/health` authenticates (`DB OK`) and the local `.env.local` DSN fails with `password authentication failed for user 'neondb_owner'` — i.e. the Neon rotation and the Vercel refresh landed, **the local `.env.local` refresh did not**. Stage 2a did not need it (every read went through the fork's own API-issued connection string). **Still owed:** refresh `.env.local` `DATABASE_URL`/`DATABASE_URL_UNPOOLED` in the main checkout and in `48h-ws2-remap-20260905` — until then any script using the local DSN fails, and #80 does not close. | operator | before any local script needs production |
 | h | D6 addendum's "≈$0.15 on the branch" is stale (true pre-run total $0.2918 = campaign + step 1A); corrected in the 2026-09-08 entry, no edit to the addendum (append-only) | done | — |
 | f | §4.1 dry-path finality defect (`DiscoveredEdition` has no `identity`; `--dry` substitutes probe order, `edition-discovery.ts:502-503`) — latent here (pass 0 = pass 1 on all 23 days), still a step 18 register / step 23 fix item | session | Stage 3 rows B/C |
 
