@@ -4613,3 +4613,19 @@ Execution (same block):
 - 23 mutations in a detached scratch worktree, all reverted: 21 caught; 2 survived (route gate ORDER unpinned → WS3-F09; 403 in `isCleanNotFound` unpinned → WS3-F01). Two scratch reproductions pass at HEAD: the `--dry` finality substitution miscounts in both directions (WS3-F02, major) and a >10 KB non-report body becomes a published edition that outranks the real one (WS3-F03, minor).
 - Measurements: 54-probe prose recall → 15 misses (WS3-F06); 171 cached ISW pages sampled read-only for spellings (ISW writes "Bab-al-Mandeb", missed); golden walk 719 strings → only `headlineLabel` ×13 and `window.cutoffAtRaw` ×1 non-token (13b claim confirmed); real Iran page `derived.units` toponyms 0 under `ru-ua-v1` vs 8 under `iran-levant-v1` (WS3-F05).
 - Register written: `docs/reviews/WS-3-AUDIT-FINDING-REGISTER-2026-09-06.md` — 21 findings (2 major WS3-F01/F02, 9 minor, 10 note), 0 blocker, 0 revert; per-PR verdicts all merge-stands (#70 with a scheduling precondition; #73 with WS3-F04 before step 19 writes); six decisions listed for the operator; stale AGENTS.md lines listed for step 25. Disclosures: Fable 5.1 ran this step (prompt reserved it for 26); `.env.local` created by the session; cache read-only sample; no forbidden file opened. $0.
+## 2026-09-08 ~21:00Z — WS-4.2 reliability proofs on a Neon fork (#102/#103, G5) (planned block)
+
+1. Extend `src/integration/map-flood-bounds.itest.ts` with a reference-mass describe that drives
+   the three #102 overflow paths against the REAL `MAP_REF_ROW_CAP = 75_000` — no test-only cap
+   seam, no env override: shed-and-proceed, hard-cap refusal, shed exhaustion.
+2. Extend `src/integration/map-watch-signals.itest.ts` with an end-to-end `runMapWatchCheck` case
+   on real Postgres: detection → real slot throttle → cooldown dedup → recovery notice, with an
+   explicit `MapWatchConfig` isolating `map_timeouts`.
+3. Close register gap G5: run `runtime-logs.itest.ts` on the fork and add three CHARACTERIZATION
+   probes for WS2-F03 (NUL) and WS2-F26 (int4 overflow, 65,535-parameter bind cap) — measure the
+   documented failures, do not fix them (step 23 flips them).
+4. Discharge the LOG-DRAIN handoff: a runtime-log column in `scripts/audit-cron.ts` guarded on
+   `to_regclass('public.runtime_logs')` and tolerating an EMPTY table without changing verdicts.
+5. Run the three itest files in one `npm run test:integration` so they share a single fork;
+   typecheck + lint + unit suite green.
+6. Write `docs/reviews/RELIABILITY-PROOFS-2026-09-06.md` and update #102/#103/#93 status lines.
