@@ -2009,3 +2009,29 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     labelling change inside the module step 14 owns; (c) changes fetch volume against a
     third-party host and deserves its own decision.
     **Owner: step 23**, alongside the §4.1 dry-path finality fix in the same module.
+
+### New (from the 2026-09-05 worktree cleanup)
+
+115. **[Tier 4 — eval tooling] The 2026-08-17 local-model Ask eval HARNESS code
+    was never landed; only its artifacts were.** The 2026-09-05 cleanup landed
+    the 19 documentation/result files from
+    `claude/local-model-ask-eval-20260817` @ `8a0ca89` but deliberately withheld
+    the five source files that commit also carried:
+    `src/lib/ask/local-fixtures.test.ts` and `src/lib/llm/openai.test.ts` (new),
+    plus `src/lib/llm/openai.ts`, `scripts/ask-eval.ts` and
+    `src/lib/llm/contracts.test.ts` (modified). The substance is an explicit
+    `OPENAI_BASE_URL` override in the gateway client (redirecting dispatch to an
+    OpenAI-compatible endpoint such as Ollama), an env-gated
+    `ASK_RAW_CAPTURE_PATH` JSONL capture of pre-validator model output placed
+    AFTER `guard.record`, and `scripts/ask-eval.ts --offline-fidelity` (a DB-free
+    fidelity sweep with an in-memory StageGuard). `src/lib/llm/openai.ts` is the
+    production provider dispatch path, so this cannot ride on a docs change: if
+    offline local-model evaluation is revisited, land it as its own PR rebased
+    onto current `main`, with the spend-guard/metering ordering re-reviewed
+    against today's code and the two test files restored alongside it (they only
+    exercise this seam and are red or meaningless without it). Nothing is lost
+    meanwhile — the branch is pushed and the commit is linkable. Note the two
+    harness miscalibrations the scorecard already adjudicated and left unpatched
+    (namesake `mustNotMatch` firing on faithful long-apposition negations; the
+    denial-prefix override converting deny-then-resolve into over-suppression),
+    which that PR should fix rather than inherit. Filed 2026-09-05.

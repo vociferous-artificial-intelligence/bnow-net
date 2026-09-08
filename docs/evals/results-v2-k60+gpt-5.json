@@ -1,0 +1,253 @@
+{
+  "config": "v2-k60+gpt-5",
+  "evalSetPath": "/Users/go/code/bnow-net/docs/evals/ask-eval-set.json",
+  "dbHost": "(offline-fidelity — no DB)",
+  "updatedAt": "2026-08-17T15:16:52.624Z",
+  "results": {
+    "fidelity-official-designation": {
+      "questionId": "fidelity-official-designation",
+      "metrics": {
+        "questionId": "fidelity-official-designation",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": false
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.003895,
+        "latencyMs": 6089,
+        "degraded": false,
+        "answerSnippet": "Yes. The U.S. Treasury’s Office of Foreign Assets Control designated Ruslan Zhurov under Executive Order 14024 on 2026-06-12 for operating in Russia’s technology sector [c900001]. This OFAC designation places him under U.S. sanctions [c900001].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 326,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "fidelity-disputed-single-source": {
+      "questionId": "fidelity-disputed-single-source",
+      "metrics": {
+        "questionId": "fidelity-disputed-single-source",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": false
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.0039875,
+        "latencyMs": 5860,
+        "degraded": false,
+        "answerSnippet": "A Telegram channel affiliated with Russian milbloggers claimed that Colonel Andrei Vetrov was killed in a strike near Kupiansk on 2026-07-02. [c900011]\n\nThere has been no official confirmation, and the claim is assessed with low reliability (0.35), so the report remains unverified. [c900011]",
+        "citedClaimIdCount": 1,
+        "completionTokens": 336,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "fidelity-corroborated-attributed": {
+      "questionId": "fidelity-corroborated-attributed",
+      "metrics": {
+        "questionId": "fidelity-corroborated-attributed",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": false
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00708625,
+        "latencyMs": 12000,
+        "degraded": false,
+        "answerSnippet": "- Russian outlet Vzglyad-24 reported on 2026-07-05 that General Dmitri Kolganov was dismissed as an army commander. [c900021]\n- A prominent milblogger claimed on 2026-07-06 that he was removed following the Kupiansk failures. [c900022]\n- The Ministry of Defense has not commented, so these reports remain unconfirmed. [c900022]\n\nBottom line: He was reportedly dismissed, but there is no official conf",
+        "citedClaimIdCount": 2,
+        "completionTokens": 637,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "fidelity-pep-not-sanctioned": {
+      "questionId": "fidelity-pep-not-sanctioned",
+      "metrics": {
+        "questionId": "fidelity-pep-not-sanctioned",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": false
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00380125,
+        "latencyMs": 6563,
+        "degraded": false,
+        "answerSnippet": "No. OpenSanctions lists Marta Kovalyk as a politically exposed person (PEP) and indicates she appears on no sanctions list [c900031]. Reportedly, she is the deputy minister of infrastructure, but not sanctioned according to that source [c900031].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 319,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "fidelity-rca-no-inheritance": {
+      "questionId": "fidelity-rca-no-inheritance",
+      "metrics": {
+        "questionId": "fidelity-rca-no-inheritance",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": false
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.00377125,
+        "latencyMs": 15712,
+        "degraded": false,
+        "answerSnippet": "- OpenSanctions lists Elena Shubina as a relative or close associate (role.rca) of the designated businessman Pyotr Shubin; she is not herself designated [c900041].  \n- The linkage matters because OFAC designated Pyotr Shubin in 2024 for sanctions evasion on behalf of a designated bank [c900042].  \n- The association with Shubin is reported by OpenSanctions (assessed), while Shubin’s OFAC designati",
+        "citedClaimIdCount": 2,
+        "completionTokens": 307,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "fidelity-name-only-candidate": {
+      "questionId": "fidelity-name-only-candidate",
+      "metrics": {
+        "questionId": "fidelity-name-only-candidate",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "insufficient",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": false,
+        "fidelityDetail": {
+          "mustMatchMisses": [
+            "Danilov",
+            "candidate|possible|unresolved|name-only|same name|not (yet )?(been )?(resolved|confirmed)"
+          ],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": false,
+          "stateShortCircuit": false
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.0102775,
+        "latencyMs": 20462,
+        "degraded": false,
+        "answerSnippet": "No claims in the covered data address this question. The corpus covers Russia/Ukraine/Iran (strikes, prosecutions, sanctions, trade). Try rephrasing toward a covered theater or topic.",
+        "citedClaimIdCount": 0,
+        "completionTokens": 963,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "fidelity-expired-status": {
+      "questionId": "fidelity-expired-status",
+      "metrics": {
+        "questionId": "fidelity-expired-status",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": true,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": false
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.003285,
+        "latencyMs": 6134,
+        "degraded": false,
+        "answerSnippet": "Aurora Logistics LLC was reportedly removed from the U.S. Sources state: \"Aurora Logistics LLC was removed from the OFAC SDN list on 2026-03-18; its 2023 designation was lifted following a delisting petition.\" [c900061] Based on that delisting, it is not currently sanctioned by OFAC as of that date [c900061].",
+        "citedClaimIdCount": 1,
+        "completionTokens": 267,
+        "provider": "openai:gpt-5"
+      }
+    },
+    "fidelity-namesake-collision": {
+      "questionId": "fidelity-namesake-collision",
+      "metrics": {
+        "questionId": "fidelity-namesake-collision",
+        "type": "fidelity",
+        "answerable": false,
+        "candidateHit": null,
+        "evidenceHit": null,
+        "cited": null,
+        "state": "answered",
+        "windowCorrect": null,
+        "negativeHonest": null,
+        "fidelityPass": false,
+        "fidelityDetail": {
+          "mustMatchMisses": [],
+          "mustNotMatchHits": [
+            "(?<!\\b(?:commander|battalion)\\b[^.]{0,80})\\bwas (?:arrested|detained)\\b(?![^.]{0,80}\\b(?:commander|battalion))"
+          ],
+          "malformedPatterns": [],
+          "stateOk": true,
+          "stateShortCircuit": false
+        },
+        "unresolvedGoldCount": 0,
+        "costUsd": 0.008305,
+        "latencyMs": 11453,
+        "degraded": false,
+        "answerSnippet": "Short answer: Unconfirmed, and evidence points against it.\n\n- Ukrainian media reported the arrest of a Serhiy Bondar identified as a territorial defense battalion commander near Odesa on 2026-07-01, but this is an unverified, low-reliability claim [c900071].\n- A separate, higher-reliability, confirmed report shows Serhiy Bondar, the deputy head of the Odesa port authority, attending an infrastruct",
+        "citedClaimIdCount": 2,
+        "completionTokens": 759,
+        "provider": "openai:gpt-5"
+      }
+    }
+  }
+}

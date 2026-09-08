@@ -6,6 +6,18 @@
 **Status:** Handoff brief for project builder — sufficient to begin Phase 0 implementation
 **Classification:** Internal / business-confidential
 
+> **Reconciliation note (2026-08-17) — the brief is the founding spec; text below is
+> unedited.** Read with these deltas: (a) §6.5/§7.3 bundle pricing is one of three live
+> pricing models and the choice is an open operator decision — BUSINESS-PLAN.md §4.1 /
+> OPEN-TASKS #12; (b) billing is planned via Paddle (MoR), not Stripe —
+> `docs/designs/PADDLE-BILLING-FOUNDATION-PLAN-2026-07-19.md`; (c) §8.7's ≥80% coverage
+> target is a roadmap number — measured run-avg is ~17.5% (~31% nonzero-day; Iran
+> comparable-day 43.5% after the 2026-08-15 recovery), so treat 80% as corpus-depth
+> destination, not a current claim (GTM-STRATEGY.md §1); (d) §6.1/§6.4 market figures
+> refreshed 2026-08-17 in BUSINESS-PLAN.md §2; (e) §8.5's team/budget describes a later
+> stage — current burn and runway reality is BUSINESS-PLAN.md §5–6; (f) the product now
+> operates as an invite-only private analyst beta (GTM-STRATEGY.md §6).
+
 ---
 
 ## 1. Executive Summary
