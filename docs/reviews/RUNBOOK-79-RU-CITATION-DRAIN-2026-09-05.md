@@ -91,11 +91,35 @@ npx tsx scripts/registry-materialize.ts
 
 Pure SQL, two phases (full recompute, idempotent): rebuilds `source_theater_stats`
 (DELETE + rebuild in one transaction, so readers never see an empty window), then updates
-`sources`' global aggregates. Reads `DATABASE_URL_UNPOOLED || DATABASE_URL` — **OPEN-TASKS
-#80: the Mac's `.env.local` `DATABASE_URL_UNPOOLED` may be stale/unset**; if so the `||`
-falls through to the pooled DSN automatically (no action needed). If you have a valid
-unpooled URL and want to confirm it's being used, check the script's log output; it does
-not print which DSN it chose, so this is inference-only, not a hard verification.
+`sources`' global aggregates. Reads `DATABASE_URL_UNPOOLED || DATABASE_URL`.
+
+**CORRECTED 2026-09-07 — the `||` does NOT cover the failure that actually occurs, and this
+cost a run.** OPEN-TASKS #80's failure mode is a **set-but-stale** credential, not an absent
+one. `||` falls through only on an EMPTY or unset value; a wrong password is a truthy string,
+so it is used, and the script dies before the transaction:
+
+```
+NeonDbError: password authentication failed for user 'neondb_owner'
+    at async main (scripts/registry-materialize.ts:25:23)
+```
+
+Nothing is written by the failed attempt — it dies at DSN construction. Force the fallback the
+`||` intends by emptying the variable for this one invocation:
+
+```bash
+DATABASE_URL_UNPOOLED= npx tsx scripts/registry-materialize.ts
+```
+
+Empty string, **not** `env -u`. `scripts/env.ts` calls `dotenv.config()` without `override`,
+which only skips keys already PRESENT in `process.env` — so `env -u` deletes the variable and
+dotenv immediately repopulates it from `.env.local` with the stale value, while `VAR=` leaves an
+empty-but-present key that dotenv will not touch. (`scripts/migrate.ts` differs again: it reads
+`DATABASE_URL_UNPOOLED ?? DATABASE_URL`, and `??` does not fall through on an empty string, so
+there the only safe form is to SET it to the DSN you intend.)
+
+The script still does not print which DSN it chose, so which one was used remains inference.
+Fixing `.env.local`'s unpooled credential properly is OPEN-TASKS #80's own job; do not sink the
+drain window into it.
 
 ### 6. Verify
 

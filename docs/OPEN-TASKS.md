@@ -833,6 +833,24 @@ docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md)
 80. **[maintenance] `.env.local`'s `DATABASE_URL_UNPOOLED` credentials are stale** (auth
     fails). Operator: re-pull from the Neon console. Until then scripts fall through to
     the pooled DSN (`registry-materialize` now treats an empty override as absent).
+    **CORRECTION 2026-09-07 — "falls through" is false for the failure that actually
+    occurs, and it has now cost two runs.** The failure mode is **set-but-stale**, not
+    unset: a wrong password is a truthy string, so `DATABASE_URL_UNPOOLED || DATABASE_URL`
+    picks the stale value and `registry-materialize.ts` dies at DSN construction
+    (`:25`, `28P01`, before the transaction — nothing written). Workaround is
+    `DATABASE_URL_UNPOOLED= npx tsx scripts/registry-materialize.ts` (empty string, which
+    stays PRESENT in `process.env` so `scripts/env.ts`'s non-overriding `dotenv.config()`
+    will not repopulate it) — **never `env -u`, which deletes the key and lets dotenv put
+    the stale value straight back.** Two further scripts differ and must be handled
+    separately: `scripts/migrate.ts` uses `DATABASE_URL_UNPOOLED ?? DATABASE_URL`, and
+    `??` does NOT fall through on an empty string, so the only safe form there is to SET
+    both variables to the DSN you intend; `scripts/sqlq.ts` and `scripts/isw-refresh.ts`
+    read `DATABASE_URL` alone and are unaffected. **Latent hazard while this is open:** a
+    fork-bound `migrate.ts` invocation that relies on `env -u` to "unset" the override
+    silently targets whatever `.env.local`'s `DATABASE_URL_UNPOOLED` names — i.e.
+    PRODUCTION. On 2026-09-07 the stale credential is the only reason that did not apply
+    three unreviewed migrations to production; re-pulling the credential without fixing
+    the callers would remove that accidental protection.
 
 ### New (from the cloud-model routing seams reconciliation — 2026-08-20, PR #5,
 docs/reviews/CLOUD-MODEL-ROUTING-SEAMS-2026-08-17.md §12.11)
@@ -1868,3 +1886,83 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     `ASK_PIPELINE` line in `.env.example`. Whichever is taken, #67's report's
     legacy bullet is amended to say the path is also unreserved and unmetered.
     Filed 2026-09-07 at CP4.
+
+111. **[Tier 1 — release ordering] Migrations 0028, 0029 and 0030 are on `main` but
+    NOT applied to production.** Measured read-only 2026-09-07 during the C5-m probes
+    (Stage 2 item 3, `docs/prompts/2026-09-07-48h-stage2-item3-c5m-probes.md`).
+    **Evidence.** `SELECT name FROM _migrations ORDER BY name DESC` against production
+    returns `9999_claim_source_trigger.sql` then `0027_numerous_lord_tyger.sql` (29 rows
+    total); `to_regclass` is NULL for `benchmark_report_editions`, `benchmark_series_days`,
+    `conflict_validation_observations` and `runtime_logs`. This is CORRECT per
+    RELEASE-CHECKLIST §11 (migrations are separate from deploys) with step 27 not yet run —
+    it is filed so step 27 finds no surprise, not because anything is wrong.
+    **Consequence already observed.** The literal (f8) C5-m probe against production failed
+    `42P01` on both series (`relation "benchmark_report_editions" does not exist`), because
+    `--dry` refuses writes but does not stub reads. The measurement was taken against a
+    migrated disposable fork instead; production was never written.
+    **Note the numbering is not the D10 order.** D10 assigned 0029 to
+    `conflict_validation_observations` and 0030 to `runtime_logs`; the files on `main` are
+    `0029_runtime_logs.sql` and `0030_conflict_observations.sql`. The pair is inverted
+    relative to the decision text. No applied migration is affected (ruling 5 intact) —
+    step 27 applies all three in file order and the D10 entry stands as written; this is a
+    naming reconciliation for whoever reads both.
+    **Owner: step 27**, backup-branch-first per RELEASE-CHECKLIST §11.
+
+112. **[Tier 1 — operational hazard] `env -u <VAR>` does NOT protect a script that imports
+    `scripts/env.ts`; it hands the variable back from `.env.local`.** Found by executing
+    Stage 2 item 3's own §3 step 2 on 2026-09-07.
+    **Mechanism.** `scripts/env.ts` calls `config({path: ".env.local"})` and `config()`
+    with no `override`. dotenv declines to overwrite a variable that is PRESENT and sets one
+    that is ABSENT — so unsetting a variable is precisely what invites `.env.local` to
+    repopulate it. `scripts/migrate.ts:7` then reads
+    `process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL`, and the runbook's
+    `env -u DATABASE_URL_UNPOOLED DATABASE_URL="$FORK" npx tsx scripts/migrate.ts` therefore
+    selected **production's unpooled endpoint**, not the fork.
+    **What stopped it.** `28P01` — password authentication failed. The only reason that
+    command did not apply 0028/0029/0030 to production is that production's
+    `DATABASE_URL_UNPOOLED` credential in `.env.local` is stale, which is item **#80**.
+    #80 is currently load-bearing safety by accident. Fixing #80 without fixing this idiom
+    arms the landmine.
+    **Correct form** (used for the actual run, which migrated the fork cleanly): set BOTH
+    names to the target — `DATABASE_URL="$FORK" DATABASE_URL_UNPOOLED="$FORK" npx tsx
+    scripts/migrate.ts`. A present variable is the only variable dotenv will not touch.
+    **Actions.** (a) Correct §3 step 2 of
+    `docs/prompts/2026-09-07-48h-stage2-item3-c5m-probes.md`, whose note explicitly
+    recommends `env -u` over `VAR=` and is exactly backwards for this script. (b) Any
+    other runbook using `env -u` with a `scripts/env.ts` importer needs the same read —
+    `registry-materialize.ts` differs genuinely (it uses `||`, so an EMPTY string does fall
+    through), which is what makes the two idioms easy to confuse.
+    **A second site was found on 2026-09-07 while sweeping for (b):**
+    `docs/reviews/EVIDENCE-QUALITY-OBSERVABILITY-2026-08-17.md:355` records
+    `env -u DATABASE_URL npx tsx scripts/quality-funnel-report.ts …` as having produced a
+    "clean error (DATABASE_URL is not set…), exit 1, zero network calls". That script DOES
+    import `./env` (`scripts/quality-funnel-report.ts:1`) and gates on
+    `process.env.DATABASE_URL` at `:172`, so dotenv would have refilled the name from
+    `.env.local` before the gate ran and the report would have read PRODUCTION. The blast
+    radius is nil — the script is read-only SELECTs with no provider contact — but the
+    recorded evidence is inconsistent with the mechanism and the line teaches the wrong
+    idiom. **Not re-run** (there is no reason to touch production to settle it); the
+    2026-08-17 evidence table was left as another session's record rather than edited.
+    Whoever closes this item should correct that line to `DATABASE_URL=` and mark the
+    old evidence cell unreliable. (c) Consider a fail-closed
+    target assertion in `scripts/migrate.ts`: refuse a host that is not the one the caller
+    named, on the `--base-ack` pattern (decision R4) — a migration runner that can silently
+    retarget production from an unset variable is the hazard, and the guard belongs at the
+    boundary, not in the runbook prose.
+
+113. **[Tier 3 — data] 26 `ru` ISW reports are `parse_status='failed'` and `--retry-failed`
+    recovers none of them.** Separated out of **#79** so the residue is not mistaken for
+    that task's leftovers: #79 closed complete without them.
+    **Scope.** They date **2022-04-27 → 2024-03-30**, long predating #79's 2026-07-04 →
+    2026-08-14 window. The count was 26 before the 2026-09-07 drain and 26 after; nothing
+    was downgraded (a parse failure never downgrades an already-parsed report).
+    **Evidence.** A `npx tsx scripts/isw-refresh.ts --theater ru --retry-failed` pass was run
+    on 2026-09-07 as part of the drain (not required — the dry run showed zero
+    `fetch-failed` lines) and every one of the 26 returned `failed endnotes=0 citations=0
+    inserted=0`. So this is not a transient fetch problem: the pages either no longer exist
+    at those slugs or use a page shape the endnote parser does not recognise.
+    **Why it is Tier 3.** These are 2022–2024 reports; they affect historical registry
+    depth, not any live digest, validation run or scoreboard figure. Fixing them means
+    triaging dead slug vs. legacy layout on a sample first, then either a slug repair or a
+    second parser shape — not a re-run of the existing one.
+    Filed 2026-09-07 from the #79 execution record (AGENTS.md decision log, same date).
