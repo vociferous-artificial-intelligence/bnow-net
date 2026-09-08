@@ -281,43 +281,107 @@ entry; use **2.00** unless you decide otherwise, and record which you used in th
 [ ] 4.10 Tick the ledger box in §3 of this file with the commit SHA; add a §7 line.
 ```
 
-### Item 5 — #48 squash-relaunch, then #47 ($0, operator only — `gh` + history rewrite)
+### Item 5 — #48 squash-relaunch, then #47 — REVISED 2026-09-08 (conflicts found)
 
-Source: stage-2 doc §5.1–§5.3. **Why not a normal merge:** `7a6d629` on the #48 branch ADDS
-`docs/OUTREACH-ROSTER-2026-08-23.md`; D1 says that file must never enter `main`'s history, and a
-normal merge (or a later `git rm`) still carries the add-commit in.
+**Why the stage-2 doc §5 recipe does not work as written.** Both PRs branch from `883e5e3`
+(2026-09-04) and both modify `AGENTS.md`; step 15's compaction (`3f09757`, 2026-09-07)
+restructured that file. `git merge-tree $(git merge-base main <br>) main <br>` → **#48: 2
+conflict hunks (AGENTS.md); #47: 3 conflict hunks (AGENTS.md, docs/OPEN-TASKS.md,
+docs/HUMAN-SETUP-TODO.md)**. `AGENTS.md` is not under the `merge=union` driver. So
+`git merge --squash` halts on conflicts and GitHub refuses `gh pr merge`. Two further facts:
+#47's new OPEN-TASKS item is numbered **108**, already taken on `main`; and both PRs' decision
+entries (dated 2026-09-05) must be placed at the end of the 2026-09-05 run in `## Decision log`
+— i.e. after the "48-hour execution program authorized" entry and before the first 2026-09-06
+entry (`AGENTS.md:892` today) — never at EOF.
+
+**Resolution rule for every conflict hunk: take `main` (`--ours` inside a squash merge), then
+hand-add only the branch's genuinely new content, listed per PR below.** Native terminal only.
 
 ```
 [ ] 5.0  cd /Users/go/code/bnow-net && git status --porcelain (empty) && git fetch --prune origin
-         Keep your own copy of docs/OUTREACH-ROSTER-2026-08-23.md OUTSIDE git first:
-           git show origin/docs/operator-notes-20260905:docs/OUTREACH-ROSTER-2026-08-23.md > ~/operator-notes/OUTREACH-ROSTER-2026-08-23.md
+         lsof -a -d cwd -c claude | grep bnow            (expect nothing)
+         Keep the roster OUTSIDE git first:
+           mkdir -p ~/operator-notes && git show origin/docs/operator-notes-20260905:docs/OUTREACH-ROSTER-2026-08-23.md > ~/operator-notes/OUTREACH-ROSTER-2026-08-23.md
+         Extract the two decision entries you will re-insert by hand:
+           git show origin/docs/operator-notes-20260905:AGENTS.md | awk '/^- \*\*2026-09-05 \(worktree estate cleanup/{f=1} f&&/^## /{exit} f' > /tmp/entry-48.md      (79 lines)
+           git show origin/docs/land-aug17-branches-20260905:AGENTS.md | awk '/^- \*\*2026-09-05 \(2026-08-17 local-model/{f=1} f' > /tmp/entry-47.md   (31 lines)
+           git show origin/docs/land-aug17-branches-20260905:docs/OPEN-TASKS.md | awk '/^### New \(from the 2026-09-05 worktree cleanup\)/{f=1} f' > /tmp/ot-47.md
+         Skim all three: they are 2026-09-05 operator-era text; confirm nothing in them is now false.
+
+---- #48 ----
 [ ] 5.1  git worktree add /tmp/pr48-squash -b docs/operator-notes-20260905-squash origin/main
          cd /tmp/pr48-squash
-         git merge --squash origin/docs/operator-notes-20260905
-         git rm -f docs/OUTREACH-ROSTER-2026-08-23.md
-         git status --short                     (roster must NOT appear as A/M)
-         git commit -m 'docs: operator notes (roster removed per D1)'
-[ ] 5.2  git push --force-with-lease origin HEAD:docs/operator-notes-20260905
-         git ls-tree -r --name-only origin/docs/operator-notes-20260905 | grep -i outreach   (expect NO output)
-         If anything prints → STOP; do not merge.
-[ ] 5.3  cd /Users/go/code/bnow-net
+         git merge --squash origin/docs/operator-notes-20260905        # WILL report conflict in AGENTS.md
+         git checkout --ours AGENTS.md && git add AGENTS.md            # main's structure wins
+         git rm -f docs/OUTREACH-ROSTER-2026-08-23.md                  # D1
+         git status --short                                            # no U entries; roster absent
+[ ] 5.2  Hand-add #48's two pieces of real content to AGENTS.md:
+         (a) the decision entry: insert /tmp/entry-48.md immediately BEFORE the first line
+             matching `^- \*\*2026-09-06` (blank line before and after it). Check:
+               grep -n "^- \*\*2026-09-05 (worktree estate cleanup" AGENTS.md   → one hit, < the 2026-09-06 line
+         (b) `## Conventions` already carries a worktree bullet on main (the remote-mount rule);
+             the branch's extra sentence is "one per PR … REMOVED (`git worktree remove`) in the
+             same session that merges its PR" — append that as ONE more bullet under
+             `## Conventions`. Do not re-add the branch's copy of the whole tail.
+         (c) AGENTS.md:143 says "#47 … and #48 … are open" — leave it; step 25 docs-sync owns
+             snapshot text (note it in the commit message instead).
+         wc -c AGENTS.md                                                # expect ≈ 135k, < 150,000
+         git diff --cached --stat | tail -3 ; git diff --stat          # only the intended files
+[ ] 5.3  git add AGENTS.md
+         git commit -m 'docs: operator notes and 2026-09-05 cleanup record (squashed onto post-CP4 main; roster removed per D1)'
+         git push --force-with-lease origin HEAD:docs/operator-notes-20260905
+         git ls-tree -r --name-only origin/docs/operator-notes-20260905 | grep -i outreach     # expect NO output; if any → STOP
+[ ] 5.4  cd /Users/go/code/bnow-net
+         gh pr view 48 --json mergeable -q .mergeable       # expect MERGEABLE (give GitHub ~30 s)
          gh pr merge 48 --merge
+         git pull --ff-only
          git push origin --delete docs/operator-notes-20260905
-         git worktree remove --force /tmp/pr48-squash
-         git branch -D docs/operator-notes-20260905-squash
+         git worktree remove --force /tmp/pr48-squash && git branch -D docs/operator-notes-20260905-squash
+
+---- #47 ----
+[ ] 5.5  git worktree add /tmp/pr47-squash -b docs/land-aug17-branches-20260905-squash origin/main
+         cd /tmp/pr47-squash
+         git merge --squash origin/docs/land-aug17-branches-20260905   # conflicts: AGENTS.md, docs/OPEN-TASKS.md, docs/HUMAN-SETUP-TODO.md
+         git checkout --ours AGENTS.md docs/OPEN-TASKS.md docs/HUMAN-SETUP-TODO.md
+         git add AGENTS.md docs/OPEN-TASKS.md docs/HUMAN-SETUP-TODO.md
+         git status --short | grep '^U'                                # expect nothing
+         (Everything else in the PR — 19 new eval/design files, the reconciliation report, the
+          business-doc hunks main never touched — auto-merged and stays staged. HUMAN-SETUP-TODO's
+          branch rewrite is dropped: the branch's own rule was "main wins on shared docs".)
+[ ] 5.6  Hand-add #47's real content:
+         (a) insert /tmp/entry-47.md BEFORE the first `^- \*\*2026-09-06` line in AGENTS.md
+             (i.e. right after the #48 entry you placed in 5.2 — same 2026-09-05 run).
+         (b) append /tmp/ot-47.md to the end of docs/OPEN-TASKS.md, RENUMBERED: `108.` →
+             the next free number (`grep -n "^11[0-9]\. " docs/OPEN-TASKS.md | tail -1` — 113 today, so
+             114 unless something landed first). Fix any "#108" self-reference inside the text.
+         wc -c AGENTS.md                                                # < 150,000
+[ ] 5.7  git add AGENTS.md docs/OPEN-TASKS.md
+         git commit -m 'docs: land two preserved 2026-08-17 branches (squashed onto post-CP4 main; harness item renumbered)'
+         git push --force-with-lease origin HEAD:docs/land-aug17-branches-20260905
+         cd /Users/go/code/bnow-net
+         gh pr view 47 --json mergeable -q .mergeable       # expect MERGEABLE
+         gh pr merge 47 --merge
          git pull --ff-only
-[ ] 5.4  gh pr merge 47 --merge
-         git pull --ff-only
-[ ] 5.5  gh pr list --state open        (expect: no #47, no #48 — i.e. empty)
-         git log --oneline -3
-[ ] 5.6  Decision-log line at the END of `## Decision log`: "2026-09-08 (#48 re-landed squashed
-         per D1 — roster now lives in operator notes outside git; #47 merged)". Commit that line
-         together with the §3/§7 update of this file:
-           git add AGENTS.md docs/prompts/2026-09-08-48h-CP4-status-tracker.md
-           git commit -m 'docs: stage 2 items 4-5 closed; #47/#48 landed'
-           git push origin main
-[ ] 5.7  Tick the gh-pr-list box in §3 with the merge SHAs.
+         git push origin --delete docs/land-aug17-branches-20260905
+         git worktree remove --force /tmp/pr47-squash && git branch -D docs/land-aug17-branches-20260905-squash
+
+---- close ----
+[ ] 5.8  gh pr list --state open                                       # expect EMPTY
+         npm run typecheck && npm run lint && npm test                  # docs-only, but the gate is the gate
+         bash scripts/check-decision-log-move.sh                        # do NOT run — archive-pass check; an append fails it by design
+[ ] 5.9  One line at the END of `## Decision log` (a 2026-09-08 entry goes after every 09-07 entry):
+         "2026-09-08 (#48 re-landed squashed per D1; #47 landed) — the outreach roster now lives in
+          operator notes outside git; both PRs' 2026-09-05 entries were re-placed in date order under
+          the post-step-15 convention; #47's OPEN-TASKS item renumbered 108 → <n>."
+         git add AGENTS.md docs/prompts/2026-09-08-48h-CP4-status-tracker.md
+         git commit -m 'docs: stage 2 item 5 closed; #47/#48 landed'
+         git push origin main
+[ ] 5.10 Tick the gh-pr-list box in §3 with both merge SHAs; §7 log line.
 ```
+
+**Halt conditions:** any `U` left in `git status` after the `--ours` step; the roster grep in
+5.3 printing anything; `wc -c AGENTS.md` ≥ 150,000; `gh pr view … mergeable` not MERGEABLE
+after the force-push (paste the output rather than retrying a different merge mode).
 
 **Stage 2 is closed when §3 shows four ticks with evidence.** Only then does this file's §1
 move to Stage 2a — and that move is itself a logged edit here, not an assumption.
@@ -328,3 +392,4 @@ move to Stage 2a — and that move is itself a logged edit here, not an assumpti
 - 2026-09-08 10:40 ET — item 3 status qualified (§0 queries never run; passes 1/2 incomplete); §7 runsheets for items 4 and 5 added; Q1 open for operator.
 - 2026-09-08 11:00 ET — `itest-1788469162388` re-read as the probable kept evaluation branch (creation time = campaign day); §4c flipped from "delete" to "do not delete"; item 4 step 4.1 now says how to confirm.
 - 2026-09-08 11:20 ET — Q1(a) executed by operator; window 2026-02-28→03-22 chosen; item-3 prompt updated (§0.6, §8, §9); item 3 reopened as "one run owed"; June-2025 slug-shape finding queued for OPEN-TASKS.
+- 2026-09-08 11:45 ET — item 5 recipe revised: both PRs conflict with post-step-15 AGENTS.md (merge-tree 2 + 3 hunks); #47's OPEN-TASKS item collides with #108; squash-and-hand-place procedure written.
