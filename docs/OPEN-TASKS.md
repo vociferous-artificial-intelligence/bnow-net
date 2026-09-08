@@ -940,6 +940,25 @@ docs/reviews/CLOUD-MODEL-ROUTING-SEAMS-2026-08-17.md §12.11)
     or registry approval exists for any non-OpenAI provider. The wiring listed above is
     unchanged as the remaining work; what changed is that it now has a typed, gated place
     to land (PLAN-WS-2 §5.4, step 20b) instead of needing a new seam.
+    **STATUS 2026-09-06 (step 20b / PR-2.2-B1): WIRED AND METERED; DORMANT pending an
+    approval.** The wiring listed above has landed. `AnthropicProvider.analyze()` now
+    resolves through `workloadDispatchConfig("digest")` (fail-closed before the key, the
+    guard and any request), reserves on its own `anthropic_digest` `provider_usage` row
+    reusing `LLM_SPRINT_USD_CAP` + `LLM_DIGEST_USD_CAP` (decision R6 — no new env, so no
+    ruling-4 ordering obligation), records every received response BEFORE parsing it
+    (ruling 8, truncated ones included) and returns the durable dispatch identity;
+    `getProvider()` selects it from `resolveWorkloadModel("digest").provider` and never
+    from a key, and step 09's `ANALYSIS_PROVIDER=anthropic` refusal is KEPT with the
+    message rewritten to name `DIGEST_PROVIDER` as the right switch. `anthropicModel()` is
+    deleted — the routing seam is now the only model authority for this path. The digest
+    allowlist is `{openai, anthropic}`; map stays `{openai}` (ruling 13).
+    **It still dispatches nothing**, and that is a property of the gates: no Anthropic
+    model is priced or approved, so every resolution is `dispatchBlocked`. REMAINING
+    before any activation: (a) a price row per model — PR-2.2-B2 lands
+    `claude-haiku-4-5-20251001` and `claude-sonnet-5` under decisions R7/R7-b; (b) the eval
+    dispatch seam (PR-2.2-B3) and a paid representative evaluation; (c) a reviewed
+    `evaluated_candidate` registry entry, which also executes the `analysis-reg-v2` bump
+    (PLAN-WS-2 §5.6); (d) explicit operator activation authorization and the Vercel envs.
 84. **[Tier 1 — deploy gate] Re-confirm `ASK_USD_CAP_DAILY` headroom under the corrected
     gpt-5-mini price before deploying PR #5.** The correction ($0.125/$1 → $0.25/$2 per 1M
     tokens) doubles the Ask rerank reservation and recorded estimate at deploy —

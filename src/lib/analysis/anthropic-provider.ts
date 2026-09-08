@@ -1,9 +1,23 @@
-import { assertLlmEnabled } from "../usage/llm-guard";
+import {
+  LlmBudgetError,
+  anthropicDigestGuardFromEnv,
+  assertLlmEnabled,
+  digestMaxOutputTokens,
+} from "../usage/llm-guard";
+import {
+  ModelConfigError,
+  dispatchIdentity,
+  resolveWorkloadModel,
+  workloadDispatchConfig,
+} from "../llm/model-config";
+import { estimateCostUsd } from "../llm/pricing";
+import { buildMessagesRequest, parseMessagesResponse } from "./anthropic-dispatch";
 import { dropIsolatedSurrogates, wellFormedSlice } from "../text/well-formed-slice";
 import {
   AnalysisProviderError,
   type AnalysisInputDoc,
   type AnalysisProvider,
+  type AnalyzeOptions,
   type DigestAnalysis,
   type ExtractedEvent,
 } from "./provider";
@@ -15,36 +29,27 @@ import { ENTITY_RULES } from "./tracks";
 // regardless of provider, so a malformed response degrades to an empty digest,
 // never to fabricated citations.
 //
-// DORMANT AND UNSELECTABLE (2026-09-06, step 09 — OPEN-TASKS #83). `getProvider()`
-// refuses `ANALYSIS_PROVIDER=anthropic` outright and no longer auto-selects this
-// class when an Anthropic key is the only key present, so nothing in the tree can
-// reach `analyze()` in production. That is deliberate: this provider passes NO
-// `workloadDispatchConfig()` gate (its model is neither priced in
-// `src/lib/llm/pricing.ts` nor approved in `src/lib/llm/analysis-registry.ts`),
-// takes NO `SpendGuard.tryReserve()`, records NO `provider_usage` row, and returns
-// NO dispatch identity — standing rulings 4 and 8 in three places.
+// WIRED, METERED, AND STILL DORMANT (2026-09-06, step 20b / OPEN-TASKS #83).
+// What step 09 refused outright is now routed instead: this provider resolves
+// its model through `workloadDispatchConfig("digest")` — so it fails closed on
+// an unpriced or quality-unapproved model before anything is reserved — passes
+// `SpendGuard.tryReserve()` on its OWN `anthropic_digest` ledger row, records
+// every received response BEFORE parsing it (ruling 8, truncated ones
+// included), and returns the durable dispatch identity `digest.ts` persists.
+// `getProvider()` selects it ONLY from `DIGEST_PROVIDER=anthropic`, never from
+// the presence of a key.
 //
-// Before this provider may be selected again it needs, in one reviewed change:
-// routing through `src/lib/llm/model-config.ts` (so a Claude model resolves per
-// workload and fails closed when unpriced/unapproved), an `analysis-reg-v1` entry
-// carrying its promotion scorecard, prices in `pricing.ts`, and a metered
-// `anthropic_digest` provider row guarded and recorded exactly as
-// `openai-provider.ts` does — replacing `getProvider()`'s refusal, never bypassing
-// it. Metering is deliberately NOT added here.
+// It still dispatches nothing, and that is a property of the GATES, not of a
+// missing branch: no Anthropic model holds an `analysis-reg-v1` approval, so
+// every resolution is `dispatchBlocked` and `analyze()` throws typed and loud.
+// Widening the digest allowlist was not an approval. Activating this path needs
+// a paid representative evaluation, a reviewed registry entry and explicit
+// operator authorization — in that order.
 //
-// What IS repaired here (OPEN-TASKS #97(a)): the provider-bound document line no
-// longer truncates with a bare UTF-16 code-unit `.slice`, the model is resolved at
-// call time rather than snapshotted at module import, and a missing key throws a
-// typed error instead of asserting non-null into a request header.
-
-/** Resolved at CALL time, never snapshotted at module import — a module-load
- *  const froze the value for every later config or test change (the same defect
- *  the routing seam removed from the map stage). Deliberately NOT routed through
- *  `model-config.ts`: doing so is the #83 wiring, not this repair. */
-export function anthropicModel(): string {
-  const raw = process.env.ANTHROPIC_MODEL?.trim();
-  return raw && raw.length > 0 ? raw : "claude-sonnet-5";
-}
+// Repaired earlier and unchanged here (OPEN-TASKS #97(a)): the provider-bound
+// document line no longer truncates with a bare UTF-16 code-unit `.slice`, and
+// a missing key throws a typed error instead of asserting non-null into a
+// request header.
 
 /** One provider-bound document line. Same 400-code-unit budget and same
  *  whitespace normalization as before — and byte-identical output for every
@@ -105,73 +110,124 @@ export function parseEventsJson(raw: string): ExtractedEvent[] {
 }
 
 export class AnthropicProvider implements AnalysisProvider {
-  // a getter, not a field: the model is resolved when read, like the model itself
+  /** A getter, not a field: the model is resolved when read, exactly as the
+   *  dispatch resolves it.
+   *
+   *  Guarded by `providerAllowed` for the same reason the mapreduce tag is
+   *  (ruling 13): a REFUSED provider keeps the historical OpenAI-shaped model,
+   *  so `anthropic:${cfg.model}` on a refused resolution would name an OpenAI
+   *  model as a Claude one. `digests.provider` is a durable field, and a false
+   *  vendor attribution written there is the defect decision T4-b exists to
+   *  prevent. A refused configuration cannot dispatch anyway — `analyze()`
+   *  throws before any request — so this string is only ever read from a log. */
   get name(): string {
-    return `anthropic:${anthropicModel()}`;
+    const cfg = resolveWorkloadModel("digest");
+    return cfg.provider === "anthropic" && cfg.providerAllowed
+      ? `anthropic:${cfg.model}`
+      : "anthropic:unresolved";
   }
 
+  /** Dispatch order, pinned in anthropic-provider.test.ts because every step
+   *  is a ruling:
+   *    assertLlmEnabled            ruling 9 — the digest sites throw typed
+   *    workloadDispatchConfig      ruling 4 — config refused before any spend
+   *    key presence                typed, never a `!` into a header
+   *    guard.init + tryReserve     ruling 4 — reserve BEFORE the request
+   *    fetch  (429: sleep, RESERVE AGAIN, one retry)
+   *    guard.record                ruling 8 — meter BEFORE parse/discard
+   *    truncation throw            recorded first, then discarded
+   *    parse + dispatch identity */
   async analyze(
     countryIso2: string,
     date: string,
     docs: AnalysisInputDoc[],
-    opts?: { systemPrompt?: string | null; track?: string },
+    opts?: AnalyzeOptions,
   ): Promise<DigestAnalysis> {
-    // Kill-switch first (ruling 9: the digest sites throw typed), then the key.
-    // Both precede any request construction, so neither can reach the network.
     assertLlmEnabled("anthropic digest extract");
+    // Fail closed BEFORE the key is read, before the guard exists and before
+    // any request is built. The message carries no "truncated", so digest.ts's
+    // ladder rethrows it immediately instead of burning the smaller rungs.
+    const dispatch = workloadDispatchConfig("digest");
+    if (dispatch.provider !== "anthropic") {
+      // unreachable through getProvider(), which selects this class only on a
+      // resolved anthropic digest provider — but a direct construction must
+      // not be able to bill Claude against an OpenAI-approved model
+      throw new ModelConfigError(
+        "digest",
+        `anthropic-provider constructed for a digest workload that resolves to provider "${dispatch.provider}" — refusing to dispatch`,
+      );
+    }
     const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
     if (!apiKey)
       throw new AnalysisProviderError(
         "anthropic",
         "ANTHROPIC_API_KEY is not set — refusing to dispatch",
       );
-    const model = anthropicModel();
     const docLines = docs.map(anthropicDocLine).join("\n");
 
     const system = opts?.systemPrompt
       ? `${opts.systemPrompt}\n\nRespond with ONLY the JSON object described for the default digest format.`
       : SYSTEM;
 
+    // built per attempt, not once: `init.signal` is an AbortSignal.timeout,
+    // and reusing an already-started one would abort the retry immediately
     const request = () =>
-      fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: 4096,
-          temperature: 0.2,
-          system,
-          messages: [
-            {
-              role: "user",
-              content: `Theater: ${countryIso2.toUpperCase()} · Date: ${date}\n\nDocuments:\n${docLines}`,
-            },
-          ],
-        }),
-        signal: AbortSignal.timeout(120_000),
+      buildMessagesRequest({
+        model: dispatch.model,
+        system,
+        user: `Theater: ${countryIso2.toUpperCase()} · Date: ${date}\n\nDocuments:\n${docLines}`,
+        maxTokens: digestMaxOutputTokens(),
+        temperature: 0.2,
+        apiKey,
       });
 
-    let res = await request();
+    const guard = anthropicDigestGuardFromEnv();
+    await guard.init();
+    const reserve = () => {
+      const r = guard.tryReserve();
+      if (!r.ok) throw new LlmBudgetError(r.reason, r.code);
+    };
+
+    const send = async () => {
+      const { url, init } = request();
+      return fetch(url, init);
+    };
+
+    reserve();
+    let res = await send();
     if (res.status === 429) {
+      // the 429 itself was never billed; the retry takes its OWN reservation
       await new Promise((r) => setTimeout(r, 65_000));
-      res = await request();
+      reserve();
+      res = await send();
     }
     if (!res.ok)
       throw new Error(
         `anthropic ${res.status}: ${(await res.text()).slice(0, 200)}`,
       );
 
-    const json = (await res.json()) as {
-      content?: Array<{ type: string; text?: string }>;
-    };
-    const raw = json.content?.find((b) => b.type === "text")?.text ?? "";
-    const events = parseEventsJson(raw);
-    if (events.length === 0 && raw.length > 0 && !raw.includes('"events"'))
+    const parsed = parseMessagesResponse(await res.json());
+    // ruling 8: meter the RECEIVED response before any parse or discard
+    // decision — a truncated response is billed for every token it emitted
+    const estUsd = estimateCostUsd(dispatch.model, parsed.inputTokens, parsed.outputTokens);
+    const truncated = parsed.stopReason === "max_tokens";
+    await guard.record(1, parsed.inputTokens + parsed.outputTokens, estUsd);
+    opts?.onUsage?.({
+      promptTokens: parsed.inputTokens,
+      completionTokens: parsed.outputTokens,
+      estUsd,
+      truncated,
+    });
+    // the word "truncated" is load-bearing: digest.ts's ladder keys off it to
+    // retry with fewer documents rather than rethrowing
+    if (truncated)
+      throw new Error("anthropic-provider: response truncated (stop_reason=max_tokens)");
+
+    const events = parseEventsJson(parsed.text);
+    if (events.length === 0 && parsed.text.length > 0 && !parsed.text.includes('"events"'))
       console.error("anthropic-provider: response carried no events JSON");
-    return { events, provider: this.name };
+    // durable dispatch identity, built from the SAME config the billed call
+    // used — digest.ts persists it into structured.stats
+    return { events, provider: this.name, dispatch: dispatchIdentity(dispatch) };
   }
 }

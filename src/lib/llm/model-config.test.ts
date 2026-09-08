@@ -10,7 +10,7 @@ import {
   type AnalysisWorkload,
 } from "./model-config";
 import { PRICES_PER_MTOK, estimateCostUsd, pricedFor, type PriceTable } from "./pricing";
-import { WORKLOAD_PROVIDER_ALLOWLIST, type AnalysisProviderId } from "./providers";
+import { ANALYSIS_PROVIDER_IDS, WORKLOAD_PROVIDER_ALLOWLIST, type AnalysisProviderId } from "./providers";
 import { analysisApproval } from "./analysis-registry";
 
 const ENV_VARS = [
@@ -408,7 +408,7 @@ describe("workloadModelMatrix", () => {
   });
 });
 
-describe("provider dimension (2026-09-06) — allowlist {openai}, refused first", () => {
+describe("provider dimension (2026-09-06) — allowlisted per workload, refused first", () => {
   it("absent <W>_PROVIDER resolves to openai from the default source, dispatchable", () => {
     clearAll();
     for (const w of ANALYSIS_WORKLOADS) {
@@ -421,17 +421,43 @@ describe("provider dimension (2026-09-06) — allowlist {openai}, refused first"
     }
   });
 
-  it("a KNOWN but not-allowed provider is refused for every workload", () => {
+  it("a KNOWN but not-allowed provider is refused for every workload whose allowlist excludes it", () => {
     clearAll();
     for (const w of ANALYSIS_WORKLOADS) {
+      if (WORKLOAD_PROVIDER_ALLOWLIST[w].has("anthropic")) continue; // digest, since 2026-09-06
       process.env[WORKLOAD_PROVIDER_ENV[w]] = "anthropic";
       const c = resolveWorkloadModel(w);
       expect(c.dispatchBlocked).toMatch(/not allowed for workload/);
       expect(c.dispatchBlocked).toContain(`provider "anthropic"`);
       expect(c.dispatchBlocked).toContain("allowed: openai");
+      expect(c.providerAllowed).toBe(false);
       expect(() => workloadDispatchConfig(w)).toThrow(ModelConfigError);
       delete process.env[WORKLOAD_PROVIDER_ENV[w]];
     }
+  });
+
+  it("digest ADMITS anthropic and still dispatches nothing — the refusal moves down the ladder, it does not disappear", () => {
+    // widening an allowlist is not an approval (providers.ts). The refusal
+    // changes from "this vendor is not addressable" to "this vendor has no
+    // priced, approved model", which is the gate the activation checklist is
+    // written against — and it is still fail-closed before any reservation.
+    clearAll();
+    process.env.DIGEST_PROVIDER = "anthropic";
+    expect(resolveWorkloadModel("digest").dispatchBlocked).toMatch(
+      /requires an explicit DIGEST_MODEL/,
+    );
+    process.env.DIGEST_MODEL = "claude-not-priced";
+    const c = resolveWorkloadModel("digest");
+    expect(c.provider).toBe("anthropic");
+    expect(c.providerAllowed).toBe(true);
+    expect(c.model).toBe("claude-not-priced"); // never the gpt-4o-mini default
+    expect(c.dispatchBlocked).toMatch(/is not priced for provider "anthropic"/);
+    expect(() => workloadDispatchConfig("digest")).toThrow(ModelConfigError);
+    // and no OpenAI model can slip through as an Anthropic one
+    process.env.DIGEST_MODEL = "gpt-4o-mini";
+    expect(resolveWorkloadModel("digest").dispatchBlocked).toMatch(
+      /is not priced for provider "anthropic"/,
+    );
   });
 
   it("openai_compatible is NAMEABLE but not allowed anywhere (vocabulary is not permission)", () => {
@@ -510,10 +536,12 @@ describe("provider dimension (2026-09-06) — allowlist {openai}, refused first"
     expect(pricedFor("anthropic", "gpt-4o-mini", table)).toBe(false);
   });
 
-  it("every shipped price row is an OpenAI row (the table predates the dimension)", () => {
-    for (const model of Object.keys(PRICES_PER_MTOK)) {
-      expect(pricedFor("openai", model)).toBe(true);
-      expect(pricedFor("anthropic", model)).toBe(false);
+  it("every price row is priced for its OWN provider and no other (an absent field means openai)", () => {
+    for (const [model, row] of Object.entries(PRICES_PER_MTOK)) {
+      const owner = row.provider ?? "openai";
+      for (const p of ANALYSIS_PROVIDER_IDS) {
+        expect(pricedFor(p, model), `${model} priced for ${p}`).toBe(p === owner);
+      }
     }
   });
 
@@ -545,19 +573,42 @@ describe("provider dimension (2026-09-06) — allowlist {openai}, refused first"
     );
     for (const bad of ["anthropic", "openai_compatible", "stub", "nonsense"]) {
       for (const w of ANALYSIS_WORKLOADS) {
+        // an ALLOWED provider is a different case: there the vendor's own
+        // <W>_MODEL is the honest resolution, and it is exercised by the
+        // digest case above. This pin is about REFUSED providers only.
+        if (bad === "anthropic" && WORKLOAD_PROVIDER_ALLOWLIST[w].has("anthropic")) continue;
         process.env[WORKLOAD_PROVIDER_ENV[w]] = bad;
         const c = resolveWorkloadModel(w);
         expect(c.model).toBe(baseline[w]);
+        expect(c.providerAllowed).toBe(false);
         expect(c.dispatchBlocked).not.toBeNull();
         delete process.env[WORKLOAD_PROVIDER_ENV[w]];
       }
     }
   });
 
-  it("the shipped allowlist is exactly {openai} for every workload", () => {
-    for (const w of ANALYSIS_WORKLOADS) {
-      expect([...WORKLOAD_PROVIDER_ALLOWLIST[w]]).toEqual(["openai"]);
-    }
+  it("providerAllowed reports the allowlist verdict, so read-side consumers can scope a vendor the way the model is scoped", () => {
+    clearAll();
+    expect(resolveWorkloadModel("digest").providerAllowed).toBe(true); // default openai
+    process.env.MAP_PROVIDER = "anthropic";
+    expect(resolveWorkloadModel("map").providerAllowed).toBe(false);
+    process.env.MAP_PROVIDER = "nonsense";
+    expect(resolveWorkloadModel("map").providerAllowed).toBe(false);
+  });
+
+  it("the shipped allowlist is exactly this, and widening it is a diff here", () => {
+    // spelled out per workload rather than asserted in a loop: an allowlist
+    // entry is a routing permission, and a PR that adds one should have to
+    // change a line that says so.
+    expect(
+      Object.fromEntries(ANALYSIS_WORKLOADS.map((w) => [w, [...WORKLOAD_PROVIDER_ALLOWLIST[w]]])),
+    ).toEqual({
+      map: ["openai"],
+      reduce: ["openai"],
+      digest: ["openai", "anthropic"],
+      validation: ["openai"],
+      entity_audit: ["openai"],
+    });
   });
 });
 

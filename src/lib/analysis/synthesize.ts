@@ -21,6 +21,7 @@ import {
   workloadDispatchConfig,
   type AnalysisDispatchConfig,
 } from "../llm/model-config";
+import { ANALYSIS_DEFAULT_PROVIDER } from "../llm/providers";
 import { estimateCostUsd } from "../llm/pricing";
 import {
   LlmBudgetError,
@@ -434,18 +435,60 @@ export function finalizeEvents(
 
 // ---- the engine ---------------------------------------------------------------
 
-/** Provider tag persisted on mapreduce digests. Records the ACTUAL dispatched
- *  models, resolved at call time: while map and reduce resolve to the same
- *  model (every default) this is byte-identical to the historical
- *  `openai:<model>+mapreduce` tag; when REDUCE_MODEL diverges, the reduce
- *  model is recorded explicitly so a digest row never misattributes its
- *  synthesis model to the extraction model. */
+/** The (vendor, model) pair that would ACTUALLY dispatch for a workload.
+ *
+ *  `provider` is scoped to an ALLOWED provider on exactly the footing
+ *  `resolveWorkloadModel` scopes the model (ruling 13): a refused
+ *  `<W>_PROVIDER` keeps the historical OpenAI-shaped model, so reporting the
+ *  refused vendor beside that model would claim a Claude-extracted corpus for
+ *  a configuration that dispatched nothing. A refused vendor therefore reads
+ *  back as openai here, which is what the pipeline would in fact have run. */
+function dispatchedIdentity(workload: "map" | "reduce"): { provider: string; model: string } {
+  const cfg = resolveWorkloadModel(workload);
+  return { provider: cfg.providerAllowed ? cfg.provider : ANALYSIS_DEFAULT_PROVIDER, model: cfg.model };
+}
+
+/** Provider tag persisted on mapreduce digests (`digests.provider`). Records
+ *  the ACTUAL dispatched vendor and models, resolved at call time.
+ *
+ *  Byte-identical to the historical tag for every configuration that has ever
+ *  existed: while map and reduce resolve to the same vendor and model this is
+ *  `openai:<model>+mapreduce`, and when only REDUCE_MODEL diverges it is
+ *  `…+reduce=<model>` exactly as before, so a digest row never misattributes
+ *  its synthesis model to the extraction model.
+ *
+ *  The vendor stopped being a constant on 2026-09-06 (decision T4-b). The
+ *  literal `openai:` prefix this function used to hard-code took only the
+ *  model NAMES from the routing seam and was provider-blind, so once a second
+ *  vendor can serve a stage, a digest synthesized by one vendor over claims
+ *  extracted by another would be stamped `openai:…` — a false attribution
+ *  written DURABLY to `digests.provider`, in the exact field an AI-tool
+ *  disclosure would later read. THIS IS LATENT TODAY, and the fix is ordered
+ *  before the hazard on purpose: the map and reduce allowlists are both
+ *  {openai} (providers.ts), so no configuration in this release can make the
+ *  old tag wrong. It becomes reachable the moment either widens.
+ *
+ *  Scope note: the tag names the models CONFIGURED when the digest ran, not
+ *  the models that extracted each cited claim — `extractor_version` lives on
+ *  doc_claims, and the two diverge after a remap. A per-claim provenance
+ *  claim must not be built on this string (PLAN-WS-7 §9.7 debt item 1). */
 export function mapreduceProviderTag(): string {
-  const map = resolveWorkloadModel("map").model;
-  const reduce = resolveWorkloadModel("reduce").model;
-  return map === reduce
-    ? `openai:${map}+mapreduce`
-    : `openai:${map}+mapreduce+reduce=${reduce}`;
+  return mapreduceTagFrom(dispatchedIdentity("map"), dispatchedIdentity("reduce"));
+}
+
+/** The tag's pure string assembly, separated from the environment so every
+ *  shape — including the cross-vendor one no allowlist can produce yet — is
+ *  directly testable rather than argued about in a comment. */
+export function mapreduceTagFrom(
+  map: { provider: string; model: string },
+  reduce: { provider: string; model: string },
+): string {
+  const head = `${map.provider}:${map.model}+mapreduce`;
+  if (map.provider === reduce.provider && map.model === reduce.model) return head;
+  // same vendor, different model: keep the historical `+reduce=<model>` form
+  return map.provider === reduce.provider
+    ? `${head}+reduce=${reduce.model}`
+    : `${head}+reduce=${reduce.provider}:${reduce.model}`;
 }
 
 /** One synthesis vote. Truncation retries once with half the groups (the retry

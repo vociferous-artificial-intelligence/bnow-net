@@ -15,11 +15,7 @@ import {
   ANTHROPIC_NOT_REGISTERED,
   getProvider,
 } from "./provider";
-import {
-  AnthropicProvider,
-  anthropicDocLine,
-  anthropicModel,
-} from "./anthropic-provider";
+import { AnthropicProvider, anthropicDocLine } from "./anthropic-provider";
 import type { AnalysisInputDoc } from "./provider";
 
 // Step 09 (2026-09-06) — the Anthropic seam's activation bypass and #97(a).
@@ -83,6 +79,7 @@ const ENV_KEYS = [
   "OPENAI_API_KEY",
   "OPENAI_MODEL",
   "DIGEST_MODEL",
+  "DIGEST_PROVIDER",
   "LLM_DISABLE",
 ] as const;
 const SAVED = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
@@ -113,14 +110,14 @@ describe("getProvider(): the Anthropic activation bypass is closed (#83)", () =>
     process.env.ANTHROPIC_API_KEY = "sk-ant-test-key";
 
     await expect(getProvider()).rejects.toThrowError(AnalysisProviderError);
-    await expect(getProvider()).rejects.toThrowError(/not registered\/metered/);
+    await expect(getProvider()).rejects.toThrowError(/never by ANALYSIS_PROVIDER/);
     await expect(getProvider()).rejects.toThrowError(/OPEN-TASKS #83/);
 
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(reserveSpy).not.toHaveBeenCalled();
   });
 
-  it("carries the typed refusal identity the wiring must replace, not route around", async () => {
+  it("carries the typed refusal identity the wiring REPLACED rather than routed around", async () => {
     process.env.ANALYSIS_PROVIDER = "anthropic";
     process.env.ANTHROPIC_API_KEY = "sk-ant-test-key";
     const err = await getProvider().then(
@@ -188,49 +185,80 @@ describe("AnthropicProvider.analyze(): refuses before any request (dormant seam)
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("a missing key throws typed BEFORE any fetch (no non-null assertion into the header)", async () => {
+  // The key-presence and dispatch-order cases moved to
+  // anthropic-provider.test.ts when the wiring landed: they need a model-config
+  // that RESOLVES to a dispatchable Anthropic configuration, and this file
+  // deliberately runs against the real one — which, correctly, resolves to
+  // nothing. What is pinned here instead is that dormancy itself.
+  it("with no Anthropic model approved, analyze() refuses on the CONFIG before the key is read", async () => {
+    process.env.DIGEST_PROVIDER = "anthropic";
+    process.env.DIGEST_MODEL = "claude-not-priced";
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test-key";
     const err = await new AnthropicProvider()
       .analyze("ru", "2026-09-06", [DOC])
       .then(
         () => null,
         (e: unknown) => e,
       );
-    expect(err).toBeInstanceOf(AnalysisProviderError);
-    expect((err as AnalysisProviderError).message).toMatch(
-      /ANTHROPIC_API_KEY is not set/,
-    );
+    expect((err as Error).name).toBe("ModelConfigError");
+    // unpriced first, and the registry would refuse next — no Anthropic model
+    // is priced or approved, which is the whole of the dormancy claim
+    expect((err as Error).message).toMatch(/is not priced for provider "anthropic"/);
     expect(fetchSpy).not.toHaveBeenCalled();
+    expect(reserveSpy).not.toHaveBeenCalled();
   });
 
-  it("a whitespace-only key is treated as absent", async () => {
-    process.env.ANTHROPIC_API_KEY = "   ";
+  it("the same refusal with no DIGEST_PROVIDER at all: the digest resolves to openai", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test-key";
     await expect(
       new AnthropicProvider().analyze("ru", "2026-09-06", [DOC]),
-    ).rejects.toThrowError(AnalysisProviderError);
+    ).rejects.toThrowError(/resolves to provider "openai" — refusing to dispatch/);
     expect(fetchSpy).not.toHaveBeenCalled();
+    expect(reserveSpy).not.toHaveBeenCalled();
   });
 
-  it("the kill-switch outranks the missing key", async () => {
+  it("the kill-switch outranks even the config gate", async () => {
     process.env.LLM_DISABLE = "1";
+    process.env.DIGEST_PROVIDER = "anthropic";
+    process.env.DIGEST_MODEL = "claude-not-priced";
     await expect(
       new AnthropicProvider().analyze("ru", "2026-09-06", [DOC]),
     ).rejects.toThrowError(LlmDisabledError);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
 
-describe("anthropicModel(): resolved at call time", () => {
-  it("defaults, then follows ANTHROPIC_MODEL set AFTER module import", () => {
-    expect(anthropicModel()).toBe("claude-sonnet-5");
-    expect(new AnthropicProvider().name).toBe("anthropic:claude-sonnet-5");
-    process.env.ANTHROPIC_MODEL = "claude-opus-5";
-    // the module-load `const MODEL = process.env.ANTHROPIC_MODEL ?? …` could not see this
-    expect(anthropicModel()).toBe("claude-opus-5");
-    expect(new AnthropicProvider().name).toBe("anthropic:claude-opus-5");
+// Step 09 gave this provider its own `anthropicModel()` — call-time
+// resolution of ANTHROPIC_MODEL with a hard-coded default — because routing it
+// through model-config was the #83 wiring, not that repair. The wiring is here
+// now, and the function is DELETED rather than kept: a second model authority
+// beside the routing seam is how the two silently disagree, and the hard-coded
+// default would look priced the moment a price row is keyed to the same id.
+// The call-time property it protected is not lost; it belongs to
+// resolveWorkloadModel and is asserted below through the provider's name.
+describe("the model comes from the routing seam, not a second authority", () => {
+  it("the name follows DIGEST_MODEL at call time, and ANTHROPIC_MODEL means nothing", () => {
+    process.env.DIGEST_PROVIDER = "anthropic";
+    process.env.DIGEST_MODEL = "claude-test-a";
+    expect(new AnthropicProvider().name).toBe("anthropic:claude-test-a");
+    // set AFTER construction: a module-load snapshot could not see this
+    const p = new AnthropicProvider();
+    process.env.DIGEST_MODEL = "claude-test-b";
+    expect(p.name).toBe("anthropic:claude-test-b");
+    // the retired env is inert
+    process.env.ANTHROPIC_MODEL = "claude-from-the-old-env";
+    expect(p.name).toBe("anthropic:claude-test-b");
   });
 
-  it("a blank ANTHROPIC_MODEL is ABSENT, not an empty model name", () => {
-    process.env.ANTHROPIC_MODEL = "   ";
-    expect(anthropicModel()).toBe("claude-sonnet-5");
+  it("the name never attributes an OpenAI-shaped model to Anthropic", () => {
+    // no DIGEST_PROVIDER at all: the digest resolves to openai/gpt-4o-mini, and
+    // naming that model `anthropic:gpt-4o-mini` would be exactly the false
+    // durable attribution decision T4-b exists to prevent
+    expect(new AnthropicProvider().name).toBe("anthropic:unresolved");
+    // and the same for a provider the allowlist refuses (ruling-13 scoping:
+    // a refused vendor keeps the historical OpenAI-shaped model)
+    process.env.DIGEST_PROVIDER = "openai_compatible";
+    expect(new AnthropicProvider().name).toBe("anthropic:unresolved");
   });
 });
 
@@ -284,49 +312,8 @@ describe("#97(a): the Anthropic doc line is well-formed at the 400-code-unit cei
       expect(anthropicDocLine(d)).toBe(digestDocLine(d));
   });
 
-  it("the whole provider-bound request body survives a strict JSON round trip", async () => {
-    process.env.ANTHROPIC_API_KEY = "sk-ant-test-key";
-    let body = "";
-    fetchSpy.mockImplementation((_url, init) => {
-      body = (init as { body: string }).body;
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          content: [{ type: "text", text: '{"events":[]}' }],
-        }),
-      } as unknown as Response);
-    });
-
-    const res = await new AnthropicProvider().analyze("ru", "2026-09-06", [
-      poisonedDoc(1),
-      DOC,
-    ]);
-    expect(res.events).toEqual([]);
-    expect(res.provider).toBe("anthropic:claude-sonnet-5");
-
-    // walk the round-tripped OBJECT's strings: a lone surrogate resurfaces there,
-    // whereas any check ending in JSON.stringify re-escapes it back to ASCII and
-    // can never fail (the round-2 hole recorded in map-request-wellformed.test.ts)
-    const walk = (v: unknown, path: string): void => {
-      if (typeof v === "string") {
-        expect(
-          ISOLATED_SURROGATE.test(v),
-          `isolated surrogate at ${path}`,
-        ).toBe(false);
-        return;
-      }
-      if (Array.isArray(v))
-        return v.forEach((x, i) => walk(x, `${path}[${i}]`));
-      if (v && typeof v === "object")
-        for (const [k, x] of Object.entries(v)) walk(x, `${path}.${k}`);
-    };
-    walk(JSON.parse(body), "$");
-
-    // and the request is unmetered by construction — that is exactly why the seam
-    // is unselectable; step 12/20b must add the reservation, not remove the refusal
-    expect(reserveSpy).not.toHaveBeenCalled();
-    const parsed = JSON.parse(body) as { model: string };
-    expect(parsed.model).toBe("claude-sonnet-5");
-  });
+  // The end-to-end "the request body survives a strict JSON round trip" case
+  // moved to anthropic-provider.test.ts with the wiring: reaching a request now
+  // requires a resolvable Anthropic dispatch, which this file has no business
+  // manufacturing. The clip's own properties stay pinned above.
 });
