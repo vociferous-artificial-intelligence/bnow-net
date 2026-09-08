@@ -581,6 +581,14 @@ export function resumeIdentityMismatch(
   }
   cmp("promptHash", existing.identity.promptHash, current.identity.promptHash);
   cmp("schemaVersion", existing.identity.schemaVersion, current.identity.schemaVersion);
+  // absent on BOTH sides means the historical strict-decoding mode, so a
+  // pre-2026-09-06 file resumes into a same-mode run without a rewrite (the
+  // comparableKnobs treatment, applied to an identity field)
+  cmp(
+    "schemaMode",
+    existing.identity.schemaMode ?? "json_schema_strict",
+    current.identity.schemaMode ?? "json_schema_strict",
+  );
   cmp("extractorVersion", existing.identity.extractorVersion ?? null, current.identity.extractorVersion ?? null);
   // historical defaults on BOTH sides (comparableKnobs): pre-2026-08-27 files
   // lack reduceGroupsFed (=200); pre-2026-09-04 validation files lack

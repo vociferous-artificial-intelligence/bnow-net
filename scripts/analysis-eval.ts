@@ -1043,7 +1043,7 @@ async function modeLive(opts: {
       `capture: ${captureResolution.cfg.dir} (raw development=${captureResolution.cfg.rawDevelopment ? "ON" : "off"}, raw heldout=${captureResolution.cfg.rawHeldout ? "ON — explicitly acknowledged" : "off"}); a capture write failure ABORTS the run`,
     );
   }
-  const deps = await live.buildLiveDeps();
+  const deps = await live.buildLiveDeps(cfg.provider);
   deps.capture = captureSink;
   const outcome = await live.runLiveSweep({
     deps,

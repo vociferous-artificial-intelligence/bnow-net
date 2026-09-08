@@ -23,7 +23,9 @@ import type { DigestEvalCase, MapEvalCase, ValidationEvalCase } from "./contract
 import { evalGuardFromEnv } from "./eval-guard";
 import {
   EVAL_DISPATCHABLE_PROVIDERS,
+  EVAL_DISPATCHABLE_WORKLOADS,
   EvalDispatchError,
+  evalSchemaModeFor,
   RETRY_429_DELAY_MS,
   assertLivePreflight,
   dispatchOnce,
@@ -121,6 +123,7 @@ describe("evalDispatchConfig (baseline via registry; candidates via the ONE regi
         reasoningCapable: false,
         reasoningEffort: null,
         approval: "baseline",
+        schemaMode: "json_schema_strict",
       });
     }
   });
@@ -143,6 +146,7 @@ describe("evalDispatchConfig (baseline via registry; candidates via the ONE regi
       reasoningCapable: true,
       reasoningEffort: "low",
       approval: "evaluation_candidate",
+      schemaMode: "json_schema_strict",
     });
   });
 
@@ -470,22 +474,82 @@ describe("eval provider dimension", () => {
     dbAck: "eval-branch.example.neon.tech",
   };
 
-  it("only openai is eval-dispatchable in this build, and every id in the list is a nameable provider", () => {
-    expect([...EVAL_DISPATCHABLE_PROVIDERS]).toEqual(["openai"]);
+  it("the dispatchable set is derived from the per-workload table, and every id in it is nameable", () => {
+    expect([...EVAL_DISPATCHABLE_PROVIDERS]).toEqual(["openai", "anthropic"]);
     for (const id of EVAL_DISPATCHABLE_PROVIDERS) expect(isAnalysisProviderId(id)).toBe(true);
+    // openai_compatible is nameable and has no request path — an empty
+    // workload list is what makes it non-dispatchable, not a second constant
+    expect(EVAL_DISPATCHABLE_WORKLOADS.openai_compatible).toEqual([]);
+    expect(EVAL_DISPATCHABLE_PROVIDERS).not.toContain("openai_compatible");
+    // anthropic evaluates the digest workload ONLY: map is hard-locked to the
+    // OpenAI baseline and validation is allowlisted to openai in production,
+    // so a cross-vendor cell there would measure something nothing can run
+    expect(EVAL_DISPATCHABLE_WORKLOADS.anthropic).toEqual(["digest"]);
   });
 
   it("the preflight refuses a non-dispatchable provider — and refuses it BEFORE the DB, the key and the caps", () => {
     // a fully-satisfied environment still refuses: the objection is to the
     // BUILD's capability, not to a missing setting the operator could add
-    expect(() => assertLivePreflight({ ...ARGS, provider: "anthropic" }, ENV)).toThrow(
-      /provider "anthropic" is not eval-dispatchable in this build \(allowed: openai\) — refusing before any client construction/,
+    expect(() => assertLivePreflight({ ...ARGS, provider: "openai_compatible" }, ENV)).toThrow(
+      /provider "openai_compatible" is not eval-dispatchable in this build \(allowed: openai\|anthropic\) — refusing before any client construction/,
     );
     // and an EMPTY environment surfaces the provider refusal, not the DB one:
     // that ordering is what "before any client or DB" means operationally
     expect(() =>
-      assertLivePreflight({ ...ARGS, provider: "anthropic" }, {} as NodeJS.ProcessEnv),
+      assertLivePreflight({ ...ARGS, provider: "openai_compatible" }, {} as NodeJS.ProcessEnv),
     ).toThrow(/not eval-dispatchable/);
+  });
+
+  it("a dispatchable provider is still refused for a workload it has no path for", () => {
+    // anthropic can evaluate digest and nothing else; the refusal names what
+    // it CAN do rather than implying the vendor is unusable
+    for (const workload of ["map", "validation"]) {
+      expect(() =>
+        assertLivePreflight(
+          { ...ARGS, workload, provider: "anthropic", model: "claude-sonnet-5" },
+          { ...ENV, ANTHROPIC_API_KEY: "sk-ant-test" },
+        ),
+      ).toThrow(/provider "anthropic" has no eval dispatch path for workload "\w+" in this build \(it can evaluate: digest\)/);
+    }
+  });
+
+  it("the key the preflight demands is the DISPATCHING vendor's, not always OpenAI's", () => {
+    const anthropicArgs = { ...ARGS, workload: "digest", provider: "anthropic", model: "claude-sonnet-5" };
+    // OPENAI_API_KEY present, ANTHROPIC_API_KEY absent: refusing on the OpenAI
+    // key here would send the operator to fix the wrong thing
+    expect(() => assertLivePreflight(anthropicArgs, ENV)).toThrow(/ANTHROPIC_API_KEY is not set/);
+    const both = { ...ENV, ANTHROPIC_API_KEY: "sk-ant-test" } as NodeJS.ProcessEnv;
+    expect(assertLivePreflight(anthropicArgs, both).cfg.provider).toBe("anthropic");
+    // and the OpenAI cell still demands OPENAI_API_KEY
+    const noOpenAi = { ...both, OPENAI_API_KEY: "" } as NodeJS.ProcessEnv;
+    expect(() => assertLivePreflight(ARGS, noOpenAi)).toThrow(/OPENAI_API_KEY is not set/);
+  });
+
+  it("R13: the schema mode is stamped, because a prompt-carried schema is a different experiment", () => {
+    // OpenAI dispatches json_schema + strict:true, so a non-conforming body is
+    // undecodable. Messages has no equivalent, so the schema goes in the
+    // prompt and conformance becomes a model behaviour. Two runs that differ
+    // here are not the same experiment with a different model.
+    expect(evalDispatchConfig("digest", "openai", "gpt-4o-mini", null).schemaMode).toBe(
+      "json_schema_strict",
+    );
+    expect(evalDispatchConfig("digest", "anthropic", "claude-sonnet-5", null).schemaMode).toBe(
+      "prompt_embedded_json",
+    );
+    expect(evalSchemaModeFor("openai_compatible")).toBe("prompt_embedded_json");
+    // and it reaches the durable identity
+    expect(
+      liveIdentity(DATASET, evalDispatchConfig("digest", "anthropic", "claude-sonnet-5", null))
+        .schemaMode,
+    ).toBe("prompt_embedded_json");
+  });
+
+  it("an anthropic candidate is an evaluation_candidate and keys its own results file", () => {
+    const cfg = evalDispatchConfig("digest", "anthropic", "claude-sonnet-5", null);
+    expect(cfg.approval).toBe("evaluation_candidate"); // no anthropic registry approval exists
+    expect(liveConfigKey(cfg.model, cfg.reasoningEffort, cfg.provider)).toBe(
+      "claude-sonnet-5+provider=anthropic",
+    );
   });
 
   it("an unknown provider id refuses identically (the operator's question is the same)", () => {
@@ -509,8 +573,9 @@ describe("eval provider dimension", () => {
     expect(() => evalDispatchConfig("digest", "anthropic", "gpt-4o-mini", null)).toThrow(
       /is not priced for provider "anthropic"/,
     );
+    // openai_compatible has no request path at all, so it never reaches pricing
     expect(() => evalDispatchConfig("digest", "openai_compatible", "gpt-4o-mini", null)).toThrow(
-      /is not priced for provider "openai_compatible"/,
+      /has no eval dispatch path for workload "digest"/,
     );
     // the OpenAI wording is unchanged from before the provider dimension
     expect(() => evalDispatchConfig("digest", "openai", "gpt-99-hypothetical", null)).toThrow(

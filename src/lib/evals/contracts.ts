@@ -468,6 +468,16 @@ export interface CandidateDispatchIdentity {
   promptHash: string;
   /** sha256 of the serialized JSON response schema for this workload */
   schemaVersion: string;
+  /** HOW that schema was imposed (decision R13, 2026-09-06). OpenAI dispatches
+   *  `json_schema` with `strict: true`, so a non-conforming body is
+   *  undecodable; Anthropic Messages has no equivalent and the schema is
+   *  carried in the prompt, which makes conformance a model behaviour rather
+   *  than a decoding constraint. Two runs that differ here are measuring
+   *  different experiments and belong to different comparability classes.
+   *  ABSENT on every file written before this landed — read as
+   *  `json_schema_strict`, which is what those runs did, so no committed file
+   *  needs rewriting and no resume is refused by the field's arrival. */
+  schemaMode?: "json_schema_strict" | "prompt_embedded_json";
   /** map only: mapExtractorVersion per (track, theater) present in the
    *  dataset, joined "track/theater=version" and sorted */
   extractorVersion?: string;

@@ -35,6 +35,7 @@ import type OpenAI from "openai";
 import { analysisOpenAiClient } from "../analysis/openai-client";
 import { mapBatchMaxTokens } from "../analysis/map-worker";
 import { mapResponseSchema } from "../analysis/map-prompts";
+import { buildMessagesRequest, parseMessagesResponse } from "../analysis/anthropic-dispatch";
 import { reduceVotes, synthesisResponseSchema } from "../analysis/synthesize";
 import type { Track } from "../analysis/tracks";
 import {
@@ -120,17 +121,58 @@ export interface EvalCandidateDispatchConfig {
    *  production configuration, registry-resolved. Everything else is
    *  "evaluation_candidate" (the isolated bypass). */
   approval: "baseline" | "evaluation_candidate";
+  /** How the response schema is imposed (decision R13). OpenAI dispatches
+   *  `json_schema` with `strict: true` — the model CANNOT emit a
+   *  non-conforming body. Anthropic Messages has no equivalent, so the schema
+   *  goes in the prompt and conformance becomes a model behaviour rather than
+   *  a decoding constraint. That is a different experiment, not a different
+   *  model on the same one, so it is stamped into the identity and the cell is
+   *  its own comparability class. */
+  schemaMode: EvalSchemaMode;
 }
 
-/** Providers this build can actually DISPATCH an evaluation through.
+/** See EvalCandidateDispatchConfig.schemaMode. ABSENT on every results file
+ *  written before 2026-09-06 and read as `json_schema_strict` — which is what
+ *  those runs did. */
+export type EvalSchemaMode = "json_schema_strict" | "prompt_embedded_json";
+
+/** The schema mode a vendor's dispatch path can offer. Not a preference: it
+ *  is what the API supports. */
+export function evalSchemaModeFor(provider: AnalysisProviderId): EvalSchemaMode {
+  return provider === "openai" ? "json_schema_strict" : "prompt_embedded_json";
+}
+
+/** Which WORKLOADS this build can evaluate on each vendor.
  *
- *  Naming a provider (providers.ts ANALYSIS_PROVIDER_IDS) is not permission
- *  to evaluate on it: every id here needs a request/parse path in
- *  dispatchOnce, a metering row, and a price table entry for its models.
- *  Only `openai` has all three today — PR-2.2-B3 widens this list when the
- *  Anthropic dispatch seam lands, and `assertLivePreflight` refuses anything
- *  outside it BEFORE any client, guard or DB exists. */
-export const EVAL_DISPATCHABLE_PROVIDERS: readonly AnalysisProviderId[] = ["openai"];
+ *  Naming a provider (providers.ts ANALYSIS_PROVIDER_IDS) is not permission to
+ *  evaluate on it: an id needs a request/parse path in dispatchOnce, a
+ *  metering row, and a price table entry for its models. Anthropic has all
+ *  three for `digest` only (PR-2.2-B3) — deliberately not for map or
+ *  validation, whose eval cells compare against production dispatches that are
+ *  hard-locked or allowlisted to OpenAI, so a cross-vendor result there would
+ *  measure something no production path can run. `openai_compatible` has no
+ *  request path at all, so its list is empty and it is not dispatchable.
+ *
+ *  Two gates read this. `assertLivePreflight` refuses a provider with an EMPTY
+ *  list before any client, guard or DB exists; `evalDispatchConfig` refuses a
+ *  (provider, workload) pair once the workload itself has been validated. */
+export const EVAL_DISPATCHABLE_WORKLOADS: Record<AnalysisProviderId, readonly LiveEvalWorkload[]> = {
+  openai: ["map", "digest", "validation"],
+  anthropic: ["digest"],
+  openai_compatible: [],
+};
+
+/** The credential each vendor's dispatch path reads. */
+export const EVAL_PROVIDER_KEY_ENV: Record<AnalysisProviderId, string> = {
+  openai: "OPENAI_API_KEY",
+  anthropic: "ANTHROPIC_API_KEY",
+  openai_compatible: "OPENAI_COMPATIBLE_API_KEY",
+};
+
+/** Providers this build can dispatch an evaluation through at all. */
+export const EVAL_DISPATCHABLE_PROVIDERS: readonly AnalysisProviderId[] = (
+  Object.keys(EVAL_DISPATCHABLE_WORKLOADS) as AnalysisProviderId[]
+).filter((p) => EVAL_DISPATCHABLE_WORKLOADS[p].length > 0);
 
 /** Resolve a (provider, model, effort) for evaluation dispatch. Validates
  *  pricing FOR THAT PROVIDER (an unpriced model still refuses — its spend
@@ -164,6 +206,11 @@ export function evalDispatchConfig(
   if (!isAnalysisProviderId(provider)) {
     throw new EvalDispatchError(
       `provider "${provider}" is not a known provider (known: ${ANALYSIS_PROVIDER_IDS.join("|")})`,
+    );
+  }
+  if (!EVAL_DISPATCHABLE_WORKLOADS[provider].includes(workload)) {
+    throw new EvalDispatchError(
+      `provider "${provider}" has no eval dispatch path for workload "${workload}" in this build (it can evaluate: ${EVAL_DISPATCHABLE_WORKLOADS[provider].join("|") || "nothing"})`,
     );
   }
   if (!pricedFor(provider, model)) {
@@ -201,7 +248,15 @@ export function evalDispatchConfig(
   const verdict = analysisApproval(workload, provider, model, reasoningEffort);
   const approval: EvalCandidateDispatchConfig["approval"] =
     verdict.approved && verdict.status === "baseline" ? "baseline" : "evaluation_candidate";
-  return { workload, provider, model, reasoningCapable, reasoningEffort, approval };
+  return {
+    workload,
+    provider,
+    model,
+    reasoningCapable,
+    reasoningEffort,
+    approval,
+    schemaMode: evalSchemaModeFor(provider),
+  };
 }
 
 // ============================================================================
@@ -303,8 +358,11 @@ export function assertLivePreflight(
       );
     }
   }
-  if (!env.OPENAI_API_KEY) {
-    throw new EvalDispatchError("OPENAI_API_KEY is not set");
+  // provider-relative: an Anthropic cell that refused on a missing
+  // OPENAI_API_KEY would be telling the operator to fix the wrong thing
+  const keyEnv = EVAL_PROVIDER_KEY_ENV[provider as AnalysisProviderId];
+  if (!env[keyEnv]) {
+    throw new EvalDispatchError(`${keyEnv} is not set`);
   }
   for (const cap of ["LLM_SPRINT_USD_CAP", "EVAL_USD_CAP_DAILY"]) {
     const v = env[cap];
@@ -366,6 +424,7 @@ export function liveIdentity(
     reasoningEffort: cfg.reasoningEffort,
     registryVersion: ANALYSIS_ROUTING_REGISTRY_VERSION,
     approval: cfg.approval,
+    schemaMode: cfg.schemaMode,
     promptHash: datasetPromptHash(dataset),
     schemaVersion: workloadSchemaVersion(dataset),
     ...(dataset.workload === "map" ? { extractorVersion: datasetExtractorVersions(dataset) } : {}),
@@ -377,7 +436,13 @@ export function liveIdentity(
 // ============================================================================
 
 export interface LiveDeps {
-  client: OpenAI;
+  /** the OpenAI SDK client, or null for a run whose provider does not use it.
+   *  The openai dispatch branch refuses a null client rather than construct
+   *  one behind the factory's back (the maxRetries:0 discipline lives there). */
+  client: OpenAI | null;
+  /** injectable for tests; the anthropic branch's transport. The openai branch
+   *  goes through the SDK client above and never reads this. */
+  fetch?: typeof globalThis.fetch;
   guard: SpendGuard;
   meter: MeterDelta;
   /** in-memory metered usage totals (tokens/USD of RECEIVED responses) —
@@ -465,8 +530,29 @@ export async function dispatchOnce(
       throw new LlmBudgetError(r.reason, r.code);
     }
   };
-  const request = () =>
-    deps.client.chat.completions.create({
+  /** One vendor's response, reduced to what the meter, the capture line and
+   *  the scorer need. Both branches produce this, so everything after the
+   *  request — reservation accounting, ruling-8 metering, capture, the 429
+   *  retry — is written once and cannot diverge per vendor. */
+  interface NormalizedResponse {
+    raw: string | null;
+    truncated: boolean;
+    promptTokens: number;
+    completionTokens: number;
+    returnedModel: string | null;
+    responseId: string | null;
+    systemFingerprint: string | null;
+    finishReason: string | null;
+    refused: boolean;
+    refusalText: string | null;
+  }
+
+  const requestOpenAi = async (): Promise<NormalizedResponse> => {
+    const client = deps.client;
+    if (client === null) {
+      throw new EvalDispatchError("openai dispatch requires a client — none was built for this run");
+    }
+    const completion = await client.chat.completions.create({
       model: cfg.model,
       messages: [
         { role: "system", content: prompt.system },
@@ -478,6 +564,65 @@ export async function dispatchOnce(
       },
       ...analysisChatParams(cfg, opts),
     });
+    const choice = completion.choices[0];
+    const msg = choice?.message as { refusal?: string | null } | undefined;
+    return {
+      raw: choice?.message?.content ?? null,
+      truncated: choice?.finish_reason === "length",
+      promptTokens: completion.usage?.prompt_tokens ?? 0,
+      completionTokens: completion.usage?.completion_tokens ?? 0,
+      returnedModel: typeof completion.model === "string" ? completion.model : null,
+      responseId: typeof completion.id === "string" ? completion.id : null,
+      systemFingerprint:
+        typeof completion.system_fingerprint === "string" ? completion.system_fingerprint : null,
+      finishReason: choice?.finish_reason ?? null,
+      refused: typeof msg?.refusal === "string" && msg.refusal.length > 0,
+      refusalText: typeof msg?.refusal === "string" ? msg.refusal : null,
+    };
+  };
+
+  const requestAnthropic = async (): Promise<NormalizedResponse> => {
+    const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
+    // the preflight already required this; refusing again keeps the key out of
+    // a header as `undefined` if this function is ever reached another way
+    if (!apiKey) throw new EvalDispatchError("ANTHROPIC_API_KEY is not set");
+    // R13: Messages has no strict json_schema, so the schema travels in the
+    // prompt and conformance becomes a model behaviour. cfg.schemaMode records
+    // that, and the results file is its own comparability class because of it.
+    const { url, init } = buildMessagesRequest({
+      model: cfg.model,
+      system: `${prompt.system}\n\nRespond with ONLY a JSON object, no prose, conforming exactly to this JSON Schema:\n${JSON.stringify(schema.schema)}`,
+      user: prompt.user,
+      maxTokens: opts.maxCompletionTokens ?? reduceMaxOutputTokens(),
+      temperature: opts.temperature,
+      apiKey,
+    });
+    const res = await (deps.fetch ?? globalThis.fetch)(url, init);
+    if (!res.ok) {
+      // shaped like the SDK's error so the 429 retry below is one code path
+      throw Object.assign(new Error(`anthropic ${res.status}: ${(await res.text()).slice(0, 200)}`), {
+        status: res.status,
+      });
+    }
+    const parsed = parseMessagesResponse(await res.json());
+    return {
+      raw: parsed.text === "" ? null : parsed.text,
+      truncated: parsed.stopReason === "max_tokens",
+      promptTokens: parsed.inputTokens,
+      completionTokens: parsed.outputTokens,
+      returnedModel: parsed.model,
+      responseId: parsed.id,
+      // Messages has no system_fingerprint and no refusal field: recorded as
+      // absent rather than invented, so a capture line never implies evidence
+      // the vendor did not give
+      systemFingerprint: null,
+      finishReason: parsed.stopReason,
+      refused: false,
+      refusalText: null,
+    };
+  };
+
+  const request = cfg.provider === "anthropic" ? requestAnthropic : requestOpenAi;
 
   const errorLine = (attemptIndex: number, seq: number | null, e: unknown) => {
     if (capture === null || seq === null) return;
@@ -549,9 +694,7 @@ export async function dispatchOnce(
     }
   }
 
-  const choice = completion.choices[0];
-  const promptTokens = completion.usage?.prompt_tokens ?? 0;
-  const completionTokens = completion.usage?.completion_tokens ?? 0;
+  const { promptTokens, completionTokens, raw, truncated } = completion;
   const estUsd = estimateCostUsd(cfg.model, promptTokens, completionTokens);
   // ruling 8: record the billed usage BEFORE any parse/discard decision —
   // truncated and unparseable responses are billed in full by the provider
@@ -561,10 +704,7 @@ export async function dispatchOnce(
   deps.usage.completionTokens += completionTokens;
   deps.usage.estUsd += estUsd;
 
-  const raw = choice?.message?.content ?? null;
-  const truncated = choice?.finish_reason === "length";
   if (capture !== null && seq !== null) {
-    const msg = choice?.message as { refusal?: string | null } | undefined;
     capture.write({
       ...base(attemptIndex)!,
       kind: "attempt_end",
@@ -572,13 +712,16 @@ export async function dispatchOnce(
       outcome: "response",
       requestedModel: cfg.model,
       requestedProvider: cfg.provider,
-      returnedModel: typeof completion.model === "string" ? completion.model : null,
-      responseId: typeof completion.id === "string" ? completion.id : null,
-      systemFingerprint: typeof completion.system_fingerprint === "string" ? completion.system_fingerprint : null,
-      finishReason: choice?.finish_reason ?? null,
-      refused: typeof msg?.refusal === "string" && msg.refusal.length > 0,
+      returnedModel: completion.returnedModel,
+      responseId: completion.responseId,
+      systemFingerprint: completion.systemFingerprint,
+      finishReason: completion.finishReason,
+      refused: completion.refused,
       // refusal TEXT is model output: only where raw capture is authorized
-      refusal: typeof msg?.refusal === "string" && capture.rawAllowed(ctx!.split) ? msg.refusal : null,
+      refusal:
+        completion.refusalText !== null && capture.rawAllowed(ctx!.split)
+          ? completion.refusalText
+          : null,
       truncated,
       usage: { promptTokens, completionTokens },
       estUsd,
@@ -950,15 +1093,22 @@ export async function runLiveSweep(args: LiveSweepArgs): Promise<LiveSweepOutcom
   return { rf, status: "complete", abort: null, captureRun };
 }
 
-/** Build the live deps for a REAL run: the shared factory client (maxRetries:
- *  0) + the fail-closed openai_eval guard. Only the script's authorized
- *  --execute-live path calls this. Capture is attached by the CLI afterwards
- *  (it needs the results header identity the CLI assembles). */
-export async function buildLiveDeps(): Promise<LiveDeps> {
-  const guard = evalGuardFromEnv();
+/** Build the live deps for a REAL run: for OpenAI the shared factory client
+ *  (maxRetries: 0), for every other vendor plain fetch through its own pure
+ *  request module; plus the fail-closed eval guard on THAT vendor's ledger
+ *  row. Only the script's authorized --execute-live path calls this. Capture
+ *  is attached by the CLI afterwards (it needs the results header identity the
+ *  CLI assembles).
+ *
+ *  The OpenAI client is built ONLY for an OpenAI run: constructing it for an
+ *  Anthropic cell would read OPENAI_API_KEY the preflight never required. */
+export async function buildLiveDeps(
+  provider: AnalysisProviderId = ANALYSIS_DEFAULT_PROVIDER,
+): Promise<LiveDeps> {
+  const guard = evalGuardFromEnv(provider);
   await guard.init();
   return {
-    client: analysisOpenAiClient(),
+    client: provider === "openai" ? analysisOpenAiClient() : null,
     guard,
     meter: { attempts: 0, reservations: 0, meterings: 0, erroredAttempts: 0 },
     usage: { ...ZERO_USAGE },
