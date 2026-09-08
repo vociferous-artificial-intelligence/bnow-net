@@ -32,8 +32,9 @@ gate is ticked in §3a below. Actual spend **$0.046263** against C = $1.00.
 **Current step: Stage 3 (§5.3) — build steps 18–34.** Row A (20, 32, 33, 21) is launchable now.
 Two Stage 2 residue items remain owed and are listed in §4: (a2) file the June-2025 slug-shape
 finding as OPEN-TASKS **#116** (docs, $0), and (e) apply R.16's drafted C5-m decision-log entry.
-Item (g)'s Neon+Vercel halves are DONE (verified 2026-09-08: production `/health` authenticates,
-the local DSN does not) — **its local `.env.local` half is NOT done and is still owed**.
+Item (g) is DONE for everything that runs (production authenticates; Stage 2a used the
+control-plane path throughout). Its stale local `DATABASE_URL` blocks only deliberate
+local-to-production scripts — narrowed and re-scoped in §4.
 
 ---
 
@@ -209,7 +210,7 @@ Re-run `lsof -a -d cwd -c claude | grep bnow` immediately before any Stage 3 lau
 | c | Neon branch `itest-1788469162388` = `br-weathered-forest-atmfaetu`, alive since 2026-09-03. R.15 item 3 asks whether to delete it as an orphan. **Do NOT delete** until item 4 step 4.1 has checked its `provider_usage` ledger — it is the probable kept evaluation branch (A6 "keep until closeout"; D6 addendum ≈$0.15 on `openai_eval`). If 4.1 finds no `openai_eval` row, it is an orphan and may go. | operator, via item 4 | item 4 |
 | d | `roca` C5-m multi-edition figure is 0 by construction (one candidate URL) — never cite it as evidence about ISW | note only | step 24 |
 | e | R.16's drafted decision-log entry for the C5-m result — apply at end of `## Decision log` in date order | operator or step 25 | Stage 2 close / step 25 |
-| g | ~~Rotate the `neondb_owner` password~~ **PARTLY DONE.** Verified 2026-09-08 before Stage 2a: production `/health` authenticates (`DB OK`) and the local `.env.local` DSN fails with `password authentication failed for user 'neondb_owner'` — i.e. the Neon rotation and the Vercel refresh landed, **the local `.env.local` refresh did not**. Stage 2a did not need it (every read went through the fork's own API-issued connection string). **Still owed:** refresh `.env.local` `DATABASE_URL`/`DATABASE_URL_UNPOOLED` in the main checkout and in `48h-ws2-remap-20260905` — until then any script using the local DSN fails, and #80 does not close. | operator | before any local script needs production |
+| g | ~~Rotate the `neondb_owner` password~~ **DONE for everything that runs.** Verified 2026-09-08 before Stage 2a: production `/health` authenticates (`DB OK`); the local `.env.local` DSN returns `password authentication failed for user 'neondb_owner'`. **This is a much narrower gap than first recorded here.** The designed local path is CONTROL PLANE — `scripts/test-integration.sh:11,22` and `scripts/neon-branch.ts` create a disposable branch with `NEON_API_KEY` and use the DSN the API returns, which always carries the role's CURRENT password. Stage 2a ran entirely on that path and never needed `.env.local`'s DSN. So the stale value blocks **only** operator scripts that deliberately target production through `DATABASE_URL` — `isw-refresh.ts`, `registry-materialize.ts`, `sqlq.ts` (the path the #79 drain used). Nothing else. **Still owed, low urgency:** refresh `.env.local` `DATABASE_URL`/`DATABASE_URL_UNPOOLED` before the next deliberate local-to-production script run; #80 does not close until then. See the plane split in `MAP-REMAP-RUNBOOK-2026-09-06.md` §4.1. | operator | before the next local script targets production |
 | h | D6 addendum's "≈$0.15 on the branch" is stale (true pre-run total $0.2918 = campaign + step 1A); corrected in the 2026-09-08 entry, no edit to the addendum (append-only) | done | — |
 | f | §4.1 dry-path finality defect (`DiscoveredEdition` has no `identity`; `--dry` substitutes probe order, `edition-discovery.ts:502-503`) — latent here (pass 0 = pass 1 on all 23 days), still a step 18 register / step 23 fix item | session | Stage 3 rows B/C |
 

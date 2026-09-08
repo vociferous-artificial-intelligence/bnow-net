@@ -147,6 +147,55 @@ Consequences that matter here:
 Never put the connection string in a file that git tracks. Below it is read from a
 `chmod 600` file outside the repo.
 
+### 4.1 Control plane vs data plane — why `.env.local` carries both, and Vercel carries one
+
+`.env.local` holds two *kinds* of Neon credential. They are not alternatives and neither can do
+the other's job. Getting this wrong is what makes a stale password look like a blocker when it
+is not (and vice versa).
+
+| | **Control plane** | **Data plane** |
+|---|---|---|
+| Vars | `NEON_API_KEY` + `NEON_PROJECT_ID` | `DATABASE_URL` (pooled) · `DATABASE_URL_UNPOOLED` (direct) |
+| Talks to | `console.neon.tech/api/v2` over HTTPS | the Postgres endpoint over the wire protocol |
+| Can | create / delete / list **branches** | run **SQL** |
+| Cannot | read or write a single row | create or delete a database |
+| Read by | **`scripts/neon-branch.ts:10-11` only** | `src/db/index.ts:5` (all app runtime) + most scripts; `drizzle.config.ts:10` and `scripts/migrate.ts:7` take the unpooled one |
+
+**The control plane is LOCAL-ONLY, and that is deliberate — which is why no `NEON_*` variable
+exists in any Vercel environment.** Verified 2026-09-08 by `vercel env ls <env> --project
+bnow-net --scope vociferous` across all three environments (46 / 28 / 20 rows, each listing
+carrying a positive control):
+
+| | production | preview | development |
+|---|---|---|---|
+| `NEON_API_KEY`, `NEON_PROJECT_ID` | absent | absent | absent |
+| `DATABASE_URL` | **present** | **present** | absent |
+| `DATABASE_URL_UNPOOLED` | absent | absent | absent |
+
+A loose grep for `neon|database|postgres|unpooled` returns **exactly one row** in production and
+one in preview — `DATABASE_URL` — and nothing at all in development.
+
+The reasoning, and it is a security property worth keeping: **the deployed app never needs to
+create or destroy a database, so it is never given a credential that could.** A leaked
+`DATABASE_URL` exposes the data in one database; a leaked `NEON_API_KEY` is project-wide branch
+admin — it could delete production. Runtime gets the narrow one. `DATABASE_URL_UNPOOLED` is
+likewise absent from Vercel because its only consumers are migrations
+(`drizzle.config.ts`, `scripts/migrate.ts`), which are run from a developer machine, never by
+the deployed app.
+
+**Consequence for every fork-bound procedure in this runbook, including §19's:**
+`scripts/neon-branch.ts create` authenticates with the API key and **returns a fresh DSN in its
+response** (`:34,45`) that carries the role's *current* password. So a fork-bound run depends on
+the control-plane key and **not** on `.env.local`'s `DATABASE_URL` being valid. On 2026-09-08 the
+local DSN was in fact stale (`password authentication failed for user 'neondb_owner'`, after a
+rotation that had reached Neon and Vercel but not the local file) and §19 ran start to finish
+anyway. The same holds for the integration suite: `scripts/test-integration.sh:11,22` creates a
+branch and passes the returned string as `INTEGRATION_DATABASE_URL`.
+
+A stale local `DATABASE_URL` therefore blocks only the scripts that deliberately point at
+**production** — `isw-refresh.ts`, `registry-materialize.ts`, `sqlq.ts` — and nothing on the
+fork path. Do not treat it as a gate on fork work.
+
 ---
 
 ## 5. Start the fork-bound server
@@ -1058,3 +1107,20 @@ clean absence. **An absence check without a positive control is not a check.**
 > data; baseline-version rows untouched. Still modelled-only: the other five live (theater,
 > track) pairs and the full epoch range. #95 stands. Record: §19 of
 > `docs/reviews/MAP-REMAP-RUNBOOK-2026-09-06.md`.
+
+### 19.13 Proposed AGENTS.md credentials-row correction (step 25 applies it)
+
+The `## Credentials & integrations` Neon row currently reads:
+
+> | Neon Postgres | `DATABASE_URL`, `NEON_API_KEY` | **database live; saved branch-admin API key WORKS (re-verified 2026-07-15: disposable integration branches create/run/delete cleanly)** | console.neon.tech |
+
+It names two of the four variables, and does not record that the two planes are separate or
+that one of them is deliberately local-only. Proposed replacement:
+
+> | Neon **control plane** (branch admin) | `NEON_API_KEY` + `NEON_PROJECT_ID` | **live, LOCAL-ONLY BY DESIGN — absent from all three Vercel environments (re-verified 2026-09-08); creates/deletes disposable branches via `scripts/neon-branch.ts` only; project-wide admin, so the deployed app is never given it** | console.neon.tech |
+> | Neon **data plane** (SQL) | `DATABASE_URL` (pooled) · `DATABASE_URL_UNPOOLED` (direct) | **live.** `DATABASE_URL` is the app's only DB credential (`src/db/index.ts:5`) and the only DB variable in Vercel — present in Production + Preview, absent from Development (2026-09-08). `DATABASE_URL_UNPOOLED` is local-only: its consumers are migrations (`drizzle.config.ts:10`, `scripts/migrate.ts:7`), never the deployed app. | console.neon.tech |
+
+Rationale for the split, worth carrying into the table rather than leaving in a review: a leaked
+`DATABASE_URL` exposes one database's data; a leaked `NEON_API_KEY` could delete production.
+Runtime is given only the narrow credential. The full plane comparison, with the verified
+per-environment matrix, is §4.1 of this runbook.
