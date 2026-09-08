@@ -23,15 +23,19 @@ Open PRs (operator `gh pr list`, 09:34 ET): **#48**, **#47** — nothing else.
 
 ## 1. Where we are — read this first
 
-**Current step: Stage 2 (§5.2), item 5 — #48 squash-relaunch, then #47** (runsheet §6, steps
-5.0–5.10), once the item-4 commit below is pushed. Procedure: `docs/prompts/2026-09-07-48h-stage2-operator-runs.md` §4; an
-agent-shaped version is at `Claude outputs/2026-09-07-stage2-item4-capture-run-agent-prompt.md`.
+**Stage 2 (§5.2) is CLOSED as of 2026-09-08 13:10 ET** — all five gate boxes in §3 are ticked
+with evidence. Items 1–5 done; `gh pr list` empty; `main` = `81acadd`.
 
-**Item 4 is done** (entries written, awaiting its commit). **After item 5, Stage 2's gate (§3) is
-fully ticked and §1 moves to Stage 2a** — that move is a logged edit here, not an assumption.
+**Current step: Stage 2a (§5.2a) — the D7/R4 measured remap run.** Attended, `ws2-remap`
+worktree, ≈$0.05, D7 signed (`AGENTS.md:1312`). Procedure: `MAP-REMAP-RUNBOOK-2026-09-06.md`
+§3–§9 with the (f10)/(f11) bindings in the plan §5.2a. **Before it starts, two owed items are
+cheaper done first and are listed in §4: (g) rotate the `neondb_owner` password — do it now,
+between runs, since 2a creates a fresh fork that would inherit the old one; and (a2) file the
+June-2025 slug-shape finding as OPEN-TASKS #116 (docs, $0).** Neither is Stage 2a work; both
+are Stage 2 residue and belong in the closing commit.
 
-**Stage 2 closes when the §5.2 gate (§3 below) has all four boxes ticked with evidence.**
-Nothing in Stage 2a, 3, 4 or 5 starts before that.
+**Stage 3 does not start until 2a's gate (closing note in the runbook, both
+`MAP_CONTENT_CHARS` absence checks shown, fork deleted) is ticked here.**
 
 ---
 
@@ -41,8 +45,8 @@ Nothing in Stage 2a, 3, 4 or 5 starts before that.
 |---|---|---|
 | 5.0 Stage 0 — housekeeping | **DONE** | yes |
 | 5.1 Stage 1 — CP4 merge queue | **DONE** | yes |
-| 5.2 Stage 2 — operator runs | **IN PROGRESS** — items 1, 2, 3 done; items 4, 5 open | no |
-| 5.2a Stage 2a — D7/R4 measured remap | **NOT STARTED** (unblocked: D7 is signed) | no |
+| 5.2 Stage 2 — operator runs | **DONE 2026-09-08** — items 1–5 | yes |
+| 5.2a Stage 2a — D7/R4 measured remap | **CURRENT** — not started; D7 signed | no |
 | 5.3 Stage 3 — build steps 18–34 | **NOT STARTED** | no |
 | 5.4 Stage 4 — review gates / four never-run checks | **NOT STARTED** (one hazard pre-filed, #112) | no |
 | 5.5 Stage 5 — freeze, final audit, deploy | **NOT STARTED** (pre-deploy facts pre-filed, #111) | no |
@@ -114,10 +118,12 @@ not fed. Ledger entry: `EVAL-EXPOSURE-LEDGER.md` "2026-09-08 16:02Z"; decision-l
 `AGENTS.md:1516`. Estimate of record = run card's 18 / $0.0112 (operator's own `--estimate`
 output not captured). Branch retained (A6).
 
-**Item 5 — #48 squash-relaunch, then #47: NOT DONE.** `gh pr list` (09:34 ET) shows both;
-`origin/docs/operator-notes-20260905` is 2 commits ahead (`d96c8f7`, `7a6d629` — the latter is
-the roster add-commit that must never reach `main`), `origin/docs/land-aug17-branches-20260905`
-is 2 ahead (`2ae5e55`, `793b5c8`). Recipe: stage-2 doc §5.1–§5.3.
+**Item 5 — #48 squash-relaunch, then #47: DONE 2026-09-08 13:10 ET.** #48 → `ac91519` /
+merge `d0c981e`; #47 → `8cff524` / merge `81acadd`. `gh pr list --state open` = empty. Roster
+proven absent from the pushed tip before merge. Four conflicts (AGENTS.md ×2 PRs, OPEN-TASKS,
+HUMAN-SETUP-TODO, PARTNER-STRATEGY) resolved main-wins + hand re-placement; #47's OPEN-TASKS
+item renumbered 108 → **115**. `AGENTS.md` 140,195 chars. Decision-log entry appended (commit
+pending).
 
 ### 5.2a Stage 2a — NOT STARTED (unblocked)
 
@@ -160,9 +166,9 @@ Re-run `lsof -a -d cwd -c claude | grep bnow` immediately before any Stage 3 lau
 ```
 [x] Decision log carries the #79 drain execution entry with counts, branchId, and an explicit
     deleted statement                     — AGENTS.md:1468, 61e970d + 06b5c57
-[x] EVAL-EXPOSURE-LEDGER.md carries a capture-run entry with counts     — 2026-09-08 16:02Z entry (commit SHA: fill on push)
+[x] EVAL-EXPOSURE-LEDGER.md carries a capture-run entry with counts     — 2026-09-08 16:02Z entry, committed before item 5
 [x] Both C5-m outputs in hand, verbatim   — C5M-PROBES-2026-09-07.md R.7/R.8 (39d572f); handoff = R.17
-[ ] gh pr list shows neither #47 nor #48                                — item 5, open
+[x] gh pr list shows neither #47 nor #48                                — empty at 13:10 ET; d0c981e, 81acadd
 [x] (recommended) (f1)–(f15) signed, 0 UNSIGNED markers                 — 1642971
 ```
 
@@ -397,3 +403,4 @@ move to Stage 2a — and that move is itself a logged edit here, not an assumpti
 - 2026-09-08 11:00 ET (14:35–14:50Z run) — item 3 DONE (`39d572f`): C5-m answered on 2026-02-28→03-22, 8 multi-edition days, 1 anchor mismatch (03-05); #114 filed; R.17 is step 24's handoff. §4 re-cut: a done, a2/e/f added, c re-read. Current step unchanged: item 4.
 - 2026-09-08 12:20 ET — item 4 executed by operator (16:02Z); ledger + decision-log entries written by session; two [OPERATOR] blanks; owed g (password rotation) and h added.
 - 2026-09-08 12:25 ET — item 4 reconciled 18/18/0/0; ledger blanks filled; item 4 DONE pending commit. Current step → item 5.
+- 2026-09-08 13:15 ET — item 5 DONE (d0c981e, 81acadd); Stage 2 gate fully ticked; §1 moved to Stage 2a. Owed g (password rotation) and a2 (#116) flagged as pre-2a residue.

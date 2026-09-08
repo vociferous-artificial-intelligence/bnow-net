@@ -1643,6 +1643,23 @@ mid-log, was retired by the eighth archive pass on 2026-09-07; OPEN-TASKS #92.)
   owed: rotate the `neondb_owner` password (connection string exposed in a chat transcript
   during branch identification) and refresh `.env.local` + Vercel DSNs, which also closes #80.
 
+- **2026-09-08 (#48 re-landed squashed per D1; #47 landed — Stage 2 item 5 closed)** Both docs
+  PRs, branched from `883e5e3` on 2026-09-04, conflicted with the post-step-15 `AGENTS.md`
+  (`git merge-tree`: 2 and 3 hunks; not under the union driver) and were re-landed as one
+  squash commit each on current `main` — #48 as `ac91519` (merge `d0c981e`), #47 as `8cff524`
+  (merge `81acadd`). Every conflict was resolved to `main` and only the branches' genuinely new
+  content was re-placed by hand: their two 2026-09-05 decision entries now sit at the end of
+  the 2026-09-05 run (before the 2026-09-06 D3 entry) under the post-`3f09757` date-order
+  convention; #48's one-worktree-per-PR bullet joined `## Conventions`; #47's OPEN-TASKS item
+  was renumbered **108 → 115** because `main` already held a different #108 — the harness item
+  that the CTO handoff cited as "#108" and that #108's own numbering note said did not exist
+  now exists as #115; #47's `HUMAN-SETUP-TODO.md` rewrite was dropped per its own "main wins on
+  shared docs" rule; a fourth conflict in `docs/PARTNER-STRATEGY.md`, created by #48 landing
+  first, was resolved by keeping both additive blockquotes. `docs/OUTREACH-ROSTER-2026-08-23.md`
+  never entered `main`'s history (`git ls-tree` on the pushed tip: absent) and now lives in
+  operator notes outside git. Both source branches deleted on `origin`; `gh pr list` is empty.
+  Pre-push gate green on both pushes (4,082 / 270). $0, docs only, no launch, no deploy.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).
