@@ -18,6 +18,16 @@ import {
   type ClaimSourceDoc,
 } from "@/components/claim-evidence-model";
 import { makeClaimEvidenceLabels } from "@/components/claim-evidence-labels";
+import {
+  describeSource,
+  descriptorScopeForCountry,
+  type DescriptorStats,
+} from "@/lib/tradecraft/descriptor";
+import {
+  readRecordedSourceMix,
+  summarizeDigestSources,
+  type SummaryClaim,
+} from "@/lib/tradecraft/source-summary";
 import { ClaimCopyActions } from "@/components/claim-copy-actions";
 import { claimCopyLabels } from "@/components/claim-copy-model";
 import { DigestPrintActions } from "@/components/digest-print-actions";
@@ -61,6 +71,37 @@ interface ClaimRow {
   citation_count: number | null;
 }
 
+/**
+ * The registry profile of ONE source cited by this digest. Fetched once per source
+ * (not once per claim-document row) so the descriptor costs one bounded query rather
+ * than ~19 repeated columns on the claim join.
+ */
+interface SourceProfileRow {
+  id: number;
+  canonical_url: string;
+  domain: string | null;
+  platform: string | null;
+  status: string | null;
+  decayed: boolean;
+  citation_count: number;
+  first_cited: string | null;
+  last_cited: string | null;
+  hedging_confirmed: number;
+  hedging_assessed: number;
+  hedging_unknown: number;
+  hedging_claimed: number;
+  hedging_unverified: number;
+  /** per-corpus columns; null when the source has no row in this digest's corpus */
+  t_citation_count: number | null;
+  t_first_cited: string | null;
+  t_last_cited: string | null;
+  t_hedging_confirmed: number | null;
+  t_hedging_assessed: number | null;
+  t_hedging_unknown: number | null;
+  t_hedging_claimed: number | null;
+  t_hedging_unverified: number | null;
+}
+
 interface DigestRow {
   id: number;
   track: string;
@@ -75,6 +116,13 @@ interface DigestRow {
   provider: string | null;
   reduce_dispatch: unknown;
   llm_dispatch: unknown;
+  /**
+   * `structured.stats.sourceMix.docsAnalyzed` as the digest itself persisted it — the ONLY
+   * durable trace of the 40% platform/adapter cap acting on this digest's analysis batch.
+   * Absent on digests whose engine records no mix; the summary then says so rather than
+   * re-deriving a share from the rendered rows, which are a different population.
+   */
+  source_mix: unknown;
 }
 
 interface EntityRow {
@@ -165,6 +213,52 @@ function toClaimSourceDoc(row: ClaimRow): ClaimSourceDoc {
   };
 }
 
+/**
+ * Descriptor inputs for one cited source. Per-corpus figures when this digest's reference
+ * corpus holds a row for the source, the global aggregate otherwise (the Gulf lenses have
+ * no reference corpus at all — `descriptorScopeForCountry`). Never mixes the two: a
+ * per-corpus count under a global label, or the reverse, would misstate what the citation
+ * figure counts.
+ */
+function toDescriptorInputs(
+  row: SourceProfileRow,
+  corpusScope: ReturnType<typeof descriptorScopeForCountry>,
+): { stats: DescriptorStats; scope: ReturnType<typeof descriptorScopeForCountry> } {
+  const hasCorpusRow = corpusScope.kind === "theater" && row.t_citation_count !== null;
+  if (hasCorpusRow) {
+    return {
+      scope: corpusScope,
+      stats: {
+        citationCount: row.t_citation_count ?? 0,
+        firstCitedReportDate: row.t_first_cited,
+        lastCitedReportDate: row.t_last_cited,
+        hedging: {
+          confirmed: row.t_hedging_confirmed ?? 0,
+          assessed: row.t_hedging_assessed ?? 0,
+          unknown: row.t_hedging_unknown ?? 0,
+          claimed: row.t_hedging_claimed ?? 0,
+          unverified: row.t_hedging_unverified ?? 0,
+        },
+      },
+    };
+  }
+  return {
+    scope: { kind: "global" },
+    stats: {
+      citationCount: row.citation_count,
+      firstCitedReportDate: row.first_cited,
+      lastCitedReportDate: row.last_cited,
+      hedging: {
+        confirmed: row.hedging_confirmed,
+        assessed: row.hedging_assessed,
+        unknown: row.hedging_unknown,
+        claimed: row.hedging_claimed,
+        unverified: row.hedging_unverified,
+      },
+    },
+  };
+}
+
 export default async function DigestPage({
   params,
   searchParams,
@@ -211,7 +305,8 @@ export default async function DigestPage({
             d.provider,
             d.structured->'stats'->'reduce'->'dispatch' AS reduce_dispatch,
             d.structured->'stats'->'llmDispatch' AS llm_dispatch,
-            c.name AS country_name
+            c.name AS country_name,
+            d.structured->'stats'->'sourceMix' AS source_mix
      FROM digests d JOIN countries c ON c.id = d.country_id
      WHERE c.iso2 = $1 AND d.digest_date = $2
      ORDER BY d.track = 'military' DESC`,
@@ -241,7 +336,11 @@ export default async function DigestPage({
   );
 
   const digestIds = digestRows.map((d) => d.id);
-  const [rowsRaw, entityRowsRaw, neighborRaw] = await Promise.all([
+  // WS-7.3: the reference corpus this country's evidence is cited against (ru/ua → ROCA,
+  // ir → Iran Update, Gulf → none, which falls the descriptor back to the global aggregate).
+  const corpusScope = descriptorScopeForCountry(country);
+  const corpusTheater = corpusScope.kind === "theater" ? corpusScope.theater : null;
+  const [rowsRaw, entityRowsRaw, neighborRaw, sourceProfileRaw] = await Promise.all([
     rawSql.query(
       `SELECT cl.digest_id, cl.id AS claim_id, ev.id AS event_id, ev.title AS event_title,
               ev.type AS event_type, ev.summary AS event_summary,
@@ -275,9 +374,43 @@ export default async function DigestPage({
           WHERE cc.iso2 = $1 AND dd.digest_date > $2) AS next_date`,
       [country, date],
     ),
+    // One row per DISTINCT registry source cited by this digest — the descriptor inputs.
+    // Bounded by the number of sources, not by claim x document rows, and independent of
+    // the claim query so it runs in the same round trip. A source with no row in this
+    // digest's corpus (or a Gulf digest, where $2 is null and the join matches nothing)
+    // yields null t_* columns and falls back to the global profile below.
+    rawSql.query(
+      `SELECT s.id, s.canonical_url, s.domain, s.platform::text AS platform,
+              s.status::text AS status, s.decayed, s.citation_count,
+              s.first_cited_report_date::text AS first_cited,
+              s.last_cited_report_date::text AS last_cited,
+              s.hedging_confirmed, s.hedging_assessed, s.hedging_unknown,
+              s.hedging_claimed, s.hedging_unverified,
+              ts.citation_count AS t_citation_count,
+              ts.first_cited_report_date::text AS t_first_cited,
+              ts.last_cited_report_date::text AS t_last_cited,
+              ts.hedging_confirmed AS t_hedging_confirmed,
+              ts.hedging_assessed AS t_hedging_assessed,
+              ts.hedging_unknown AS t_hedging_unknown,
+              ts.hedging_claimed AS t_hedging_claimed,
+              ts.hedging_unverified AS t_hedging_unverified
+       FROM sources s
+       LEFT JOIN source_theater_stats ts ON ts.source_id = s.id AND ts.theater = $2
+       WHERE s.id IN (
+         SELECT DISTINCT rd.source_id
+         FROM claims cl
+         JOIN claim_sources cs ON cs.claim_id = cl.id
+         JOIN raw_documents rd ON rd.id = cs.raw_document_id
+         WHERE cl.digest_id = ANY($1::int[]) AND rd.source_id IS NOT NULL
+       )`,
+      [digestIds, corpusTheater],
+    ),
   ]);
   const rows = rowsRaw as ClaimRow[];
   const entityRows = entityRowsRaw as EntityRow[];
+  const sourceProfiles = new Map(
+    (sourceProfileRaw as SourceProfileRow[]).map((row) => [row.id, row]),
+  );
   const { prev: prevDate, next: nextDate } = shapeNeighborDates(
     (neighborRaw as NeighborDatesRow[])[0],
   );
@@ -475,6 +608,44 @@ export default async function DigestPage({
         const events = byDigest.get(digest.id);
         const order = rankedOrder.get(digest.id) ?? [];
         const orderedEvents = events ? order.map((id) => events.get(id)!).filter(Boolean) : [];
+        // WS-7.3 source summary statement (ICD 206 mech. 3), computed at read time from
+        // rows already in memory — it is persisted nowhere and issues no query of its own.
+        // The cap fact comes from this digest's OWN persisted mix record or is reported as
+        // not recorded; it is never re-derived from the published claims below.
+        // Built from `events`, NOT from the ranked order: a reader's `?profile=` choice
+        // reorders what they see and must not change the digest's provenance statement.
+        const summaryClaims: SummaryClaim[] = [...(events?.values() ?? [])].flatMap((ev) =>
+          [...ev.claims.values()].map((claim) => ({
+            hedging: claim.hedging,
+            docs: claim.docs.map(toClaimSourceDoc),
+          })),
+        );
+        const sourceSummary = summarizeDigestSources(
+          summaryClaims,
+          readRecordedSourceMix(digest.source_mix),
+        );
+        const loadBearing = sourceSummary.topSources.flatMap((top) => {
+          const profile = top.sourceId === null ? undefined : sourceProfiles.get(top.sourceId);
+          if (!profile) return [];
+          const { stats, scope } = toDescriptorInputs(profile, corpusScope);
+          return [
+            {
+              key: profile.id,
+              label: top.label,
+              descriptor: describeSource(
+                {
+                  canonicalUrl: profile.canonical_url,
+                  domain: profile.domain,
+                  platform: profile.platform,
+                  status: profile.status,
+                  decayed: profile.decayed,
+                },
+                stats,
+                scope,
+              ),
+            },
+          ];
+        });
         return (
           <div key={digest.id} className="mb-10">
             <h2 className="mb-3 border-b border-gray-200 pb-1 text-lg font-semibold dark:border-gray-800">
@@ -574,6 +745,34 @@ export default async function DigestPage({
                   </ul>
                 </section>
               ))}
+            <section
+              data-print="source-summary"
+              data-testid="digest-source-summary"
+              aria-labelledby={`sources-${digest.id}`}
+              className="mt-6 rounded-lg border border-gray-200 p-4 dark:border-gray-800"
+            >
+              <h3 id={`sources-${digest.id}`} className="mb-2 text-sm font-semibold">
+                Sources for this digest
+              </h3>
+              <p className="text-sm text-gray-700 dark:text-gray-300">{sourceSummary.text}</p>
+              {loadBearing.length > 0 && (
+                <dl className="mt-3 space-y-2" data-testid="load-bearing-descriptors">
+                  {loadBearing.map((source) => (
+                    <div key={source.key}>
+                      <dt className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {source.label}
+                      </dt>
+                      <dd className="text-sm text-gray-600 dark:text-gray-400">
+                        {source.descriptor.text}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+              <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                {sourceSummary.label} ({sourceSummary.version})
+              </p>
+            </section>
           </div>
         );
       })}

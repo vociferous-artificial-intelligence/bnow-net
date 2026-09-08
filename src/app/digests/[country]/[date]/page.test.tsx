@@ -92,7 +92,8 @@ describe("digest claim anchors (W3)", () => {
       .mockResolvedValueOnce([DIGEST_ROW]) // digestRows
       .mockResolvedValueOnce([CLAIM_ROW]) // claim/doc rows
       .mockResolvedValueOnce([]) // entity rows
-      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]); // neighbor dates
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]) // neighbor dates
+      .mockResolvedValueOnce([]); // WS-7.3 source profiles
 
     const element = await DigestPage({
       params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
@@ -114,7 +115,8 @@ describe("digest evidence and print handoff", () => {
       .mockResolvedValueOnce([DIGEST_ROW])
       .mockResolvedValueOnce([CLAIM_ROW])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }])
+      .mockResolvedValueOnce([]); // WS-7.3 source profiles
 
     const element = await DigestPage({
       params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
@@ -144,7 +146,8 @@ describe("digest evidence and print handoff", () => {
       .mockResolvedValueOnce([DIGEST_ROW])
       .mockResolvedValueOnce(docs)
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }])
+      .mockResolvedValueOnce([]); // WS-7.3 source profiles
 
     const element = await DigestPage({
       params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
@@ -172,7 +175,8 @@ describe("digest evidence and print handoff", () => {
       .mockResolvedValueOnce([DIGEST_ROW, elite])
       .mockResolvedValueOnce([CLAIM_ROW])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }])
+      .mockResolvedValueOnce([]); // WS-7.3 source profiles
 
     const element = await DigestPage({
       params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
@@ -212,7 +216,8 @@ describe("digest evidence and print handoff", () => {
       .mockResolvedValueOnce([DIGEST_ROW])
       .mockResolvedValueOnce([CLAIM_ROW])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }])
+      .mockResolvedValueOnce([]); // WS-7.3 source profiles
 
     const element = await DigestPage({
       params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
@@ -242,7 +247,8 @@ describe("analyst-visible pipeline metadata", () => {
       .mockResolvedValueOnce([DIGEST_ROW])
       .mockResolvedValueOnce([CLAIM_ROW])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }])
+      .mockResolvedValueOnce([]); // WS-7.3 source profiles
 
     const element = await DigestPage({
       params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
@@ -264,8 +270,15 @@ describe("analyst-visible pipeline metadata", () => {
       expect(container.innerHTML, token).not.toContain(token);
     }
     // CLAIM_ROW confidence is 0.8; neither the label nor the decimal may render.
-    expect(container.textContent).not.toContain("conf");
+    // Narrowed from a bare "conf" substring when WS-7.3 added the source summary, whose
+    // ruling-12 sentence legitimately contains "confirmation" and whose descriptors
+    // contain "confirmed" — the ISW hedging vocabulary, not the confidence score. The
+    // assertion now names what the 2026-07-16 decision actually withheld: the "conf"
+    // LABEL beside a claim, and the numeric confidence itself in either rendering.
+    expect(container.textContent).not.toMatch(/\bconf\b/);
+    expect(container.textContent).not.toContain("confidence");
     expect(container.textContent).not.toContain("0.80");
+    expect(container.textContent).not.toContain("0.8");
   });
 
   it("offers the citation action for a stamped digest and withholds the tool disclosure", async () => {
@@ -347,7 +360,8 @@ describe("digest freshness rendering", () => {
       .mockResolvedValueOnce([DIGEST_ROW])
       .mockResolvedValueOnce([CLAIM_ROW])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }])
+      .mockResolvedValueOnce([]); // WS-7.3 source profiles
 
     const element = await DigestPage({
       params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
@@ -372,7 +386,8 @@ describe("digest freshness rendering", () => {
       .mockResolvedValueOnce([DIGEST_ROW, elite])
       .mockResolvedValueOnce([CLAIM_ROW])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }])
+      .mockResolvedValueOnce([]); // WS-7.3 source profiles
 
     const element = await DigestPage({
       params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
@@ -416,7 +431,8 @@ describe("digest date navigation", () => {
       .mockResolvedValueOnce([DIGEST_ROW])
       .mockResolvedValueOnce([CLAIM_ROW])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ prev_date: "2026-07-10", next_date: "2026-07-12" }]);
+      .mockResolvedValueOnce([{ prev_date: "2026-07-10", next_date: "2026-07-12" }])
+      .mockResolvedValueOnce([]); // WS-7.3 source profiles
 
     const element = await DigestPage({
       params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
@@ -435,7 +451,8 @@ describe("digest date navigation", () => {
       .mockResolvedValueOnce([DIGEST_ROW])
       .mockResolvedValueOnce([CLAIM_ROW])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }])
+      .mockResolvedValueOnce([]); // WS-7.3 source profiles
 
     const element = await DigestPage({
       params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
@@ -468,7 +485,8 @@ describe("digest page feedback mailtos", () => {
       .mockResolvedValueOnce([DIGEST_ROW])
       .mockResolvedValueOnce([CLAIM_ROW])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }])
+      .mockResolvedValueOnce([]); // WS-7.3 source profiles
 
     const element = await DigestPage({
       params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
@@ -499,7 +517,8 @@ describe("digest page feedback mailtos", () => {
       .mockResolvedValueOnce([DIGEST_ROW])
       .mockResolvedValueOnce([CLAIM_ROW])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }])
+      .mockResolvedValueOnce([]); // WS-7.3 source profiles
 
     const element = await DigestPage({
       params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
@@ -521,7 +540,8 @@ describe("page-level authorization gate", () => {
       .mockResolvedValueOnce([DIGEST_ROW])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }])
+      .mockResolvedValueOnce([]); // WS-7.3 source profiles
 
     await DigestPage({
       params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
@@ -550,5 +570,224 @@ describe("page-level authorization gate", () => {
 
     expect(gateMock).toHaveBeenCalled();
     expect(queryMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------------
+// WS-7.3 — per-digest source summary statement (ICD 206 mech. 3) and the descriptors
+// for the load-bearing sources (ICD 206 mech. 2). This is the CUSTOMER-VISIBLE render
+// target: /registry and /registry/[id] are admin-only, so a descriptor rendered only
+// there would reach no customer at all (PLAN-WS-7 §3 C3).
+// ---------------------------------------------------------------------------------
+
+const SOURCE_PROFILE_ROW = {
+  id: 1,
+  canonical_url: "https://example.com",
+  domain: "example.com",
+  platform: "independent_media",
+  status: "active",
+  decayed: false,
+  citation_count: 400,
+  first_cited: "2022-03-04",
+  last_cited: "2026-08-14",
+  hedging_confirmed: 100,
+  hedging_assessed: 80,
+  hedging_unknown: 120,
+  hedging_claimed: 60,
+  hedging_unverified: 40,
+  t_citation_count: 300,
+  t_first_cited: "2022-03-04",
+  t_last_cited: "2026-08-14",
+  t_hedging_confirmed: 90,
+  t_hedging_assessed: 60,
+  t_hedging_unknown: 90,
+  t_hedging_claimed: 45,
+  t_hedging_unverified: 15,
+};
+
+/** `structured.stats.sourceMix` exactly as digest.ts:202-206 persists it. */
+const RECORDED_SOURCE_MIX = {
+  docsRaw: { byAdapter: { rss: 900 }, byPlatform: { independent_media: 900 } },
+  trackRows: { byAdapter: { rss: 700 }, byPlatform: { independent_media: 700 } },
+  docsAnalyzed: {
+    byAdapter: { rss: 40, telegram: 35, x: 25 },
+    byPlatform: { independent_media: 40, telegram: 35, x: 25 },
+  },
+};
+
+function mockDigestQueries({
+  digests = [DIGEST_ROW],
+  claims = [CLAIM_ROW],
+  profiles = [SOURCE_PROFILE_ROW] as unknown[],
+}: { digests?: unknown[]; claims?: unknown[]; profiles?: unknown[] } = {}) {
+  queryMock
+    .mockResolvedValueOnce(digests)
+    .mockResolvedValueOnce(claims)
+    .mockResolvedValueOnce([])
+    .mockResolvedValueOnce([{ prev_date: null, next_date: null }])
+    .mockResolvedValueOnce(profiles);
+}
+
+async function renderDigest(country = "ru") {
+  const element = await DigestPage({
+    params: Promise.resolve({ country, date: "2026-07-11" }),
+    searchParams: Promise.resolve({}),
+  });
+  return render(element);
+}
+
+describe("digest source summary statement (WS-7.3)", () => {
+  it("renders the statement, its counts and the generated-not-judged label", async () => {
+    mockDigestQueries();
+    const { getByTestId } = await renderDigest();
+    const summary = getByTestId("digest-source-summary").textContent ?? "";
+    expect(summary).toContain("Sources for this digest");
+    expect(summary).toContain(
+      "This digest publishes 1 claim resting on 1 distinct document from 1 channel across 1 platform.",
+    );
+    expect(summary).toContain("The source supporting the most claims is Example News (1 claim).");
+    expect(summary).toContain(
+      "Generated from citation data, summary template v1 — not an analyst judgment. (summary-v1)",
+    );
+  });
+
+  it("says the cap is not recorded when the digest persisted no source mix, and infers nothing", async () => {
+    // DIGEST_ROW carries no source_mix — the shape of every mapreduce digest, which is
+    // 6 of the 11 digests a day. The 40% figure must NOT appear: it would be a fabricated
+    // provenance claim derived from the published rows rather than from the analysis batch.
+    mockDigestQueries();
+    const { getByTestId } = await renderDigest();
+    const summary = getByTestId("digest-source-summary").textContent ?? "";
+    expect(summary).toContain(
+      "Source-mix figures were not recorded for this digest, so the platform and adapter cap cannot be reported for it.",
+    );
+    expect(summary).not.toContain("40%");
+    expect(summary).not.toContain("analysis batch");
+  });
+
+  it("reports the cap fact from the digest's own persisted record when it has one", async () => {
+    mockDigestQueries({ digests: [{ ...DIGEST_ROW, source_mix: RECORDED_SOURCE_MIX }] });
+    const { getByTestId } = await renderDigest();
+    const summary = getByTestId("digest-source-summary").textContent ?? "";
+    // 100 documents is the RECORDED analysis batch, not the single rendered document
+    expect(summary).toContain(
+      "The analysis batch behind this digest was capped at 40% per platform and per adapter; of the 100 documents it contained,",
+    );
+    expect(summary).toContain("the largest platform share was 40% (independent_media)");
+    expect(summary).toContain(
+      "Whether that cap held a document back or dropped one from the batch is not recorded.",
+    );
+  });
+
+  it("does not change with the reader's ranking profile", async () => {
+    // The summary is a provenance statement about the digest, not about what this reader
+    // sees first — so it is built from the digest's events, never from the ranked order.
+    const claims = [
+      CLAIM_ROW,
+      { ...CLAIM_ROW, claim_id: 124, event_id: 2, event_title: "Second", doc_id: 2 },
+    ];
+    mockDigestQueries({ claims });
+    const balanced = await renderDigest();
+    const balancedText = balanced.getByTestId("digest-source-summary").textContent;
+    cleanup();
+    queryMock.mockReset();
+
+    mockDigestQueries({ claims });
+    const element = await DigestPage({
+      params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
+      searchParams: Promise.resolve({ profile: "sanctions" }),
+    });
+    const { getByTestId } = render(element);
+    expect(getByTestId("digest-source-summary").textContent).toBe(balancedText);
+  });
+
+  it("selects the persisted mix from the digest row rather than recomputing it", async () => {
+    mockDigestQueries();
+    await renderDigest();
+    expect(String(queryMock.mock.calls[0]?.[0])).toContain("sourceMix");
+  });
+});
+
+describe("digest load-bearing source descriptors (WS-7.3)", () => {
+  it("renders a descriptor per load-bearing source, scoped to this country's reference corpus", async () => {
+    mockDigestQueries();
+    const { getByTestId } = await renderDigest("ru");
+    const descriptors = getByTestId("load-bearing-descriptors").textContent ?? "";
+    expect(descriptors).toContain("Example News");
+    expect(descriptors).toContain(
+      "Cited in the ISW Russian Offensive Campaign Assessment 300 times between 2022-03-04 and 2026-08-14.",
+    );
+    expect(descriptors).toContain("held at mid-trust by design");
+    // the per-corpus row is used, so the global 400 must not be the figure shown
+    expect(descriptors).not.toContain("400 times");
+  });
+
+  it("asks for the corpus this country validates against — ua reads the ROCA corpus", async () => {
+    mockDigestQueries();
+    await renderDigest("ua");
+    expect(queryMock.mock.calls[4]?.[1]).toEqual([[1], "ru"]);
+  });
+
+  it("falls back to the global profile for a theater with no reference corpus", async () => {
+    // The Gulf lenses have no daily ISW reference (referenceFor returns null), so the
+    // theater parameter is null, the join matches nothing, and the descriptor reports the
+    // global aggregate under a global label rather than an empty per-corpus profile.
+    mockDigestQueries({
+      profiles: [
+        {
+          ...SOURCE_PROFILE_ROW,
+          t_citation_count: null,
+          t_first_cited: null,
+          t_last_cited: null,
+          t_hedging_confirmed: null,
+          t_hedging_assessed: null,
+          t_hedging_unknown: null,
+          t_hedging_claimed: null,
+          t_hedging_unverified: null,
+        },
+      ],
+    });
+    const { getByTestId } = await renderDigest("sa");
+    expect(queryMock.mock.calls[4]?.[1]).toEqual([[1], null]);
+    expect(getByTestId("load-bearing-descriptors").textContent).toContain(
+      "Cited in ISW reporting 400 times",
+    );
+  });
+
+  it("omits the descriptor list when no cited source has a registry row, keeping the summary", async () => {
+    mockDigestQueries({
+      claims: [{ ...CLAIM_ROW, source_id: null, source_name: null, source_key: null }],
+      profiles: [],
+    });
+    const { getByTestId, queryByTestId } = await renderDigest();
+    expect(queryByTestId("load-bearing-descriptors")).toBeNull();
+    expect(getByTestId("digest-source-summary").textContent).toContain("This digest publishes 1 claim");
+  });
+
+  it("renders no reliability score anywhere in the summary section", async () => {
+    mockDigestQueries();
+    const { getByTestId } = await renderDigest();
+    // CLAIM_ROW reliability is 0.75 and renders on the evidence chip; the summary block
+    // is score-free by construction (describeSource takes no reliability parameter).
+    expect(getByTestId("digest-source-summary").textContent).not.toContain("0.75");
+  });
+
+  it("carries no document title, no document body and no claim prose (ruling 1)", async () => {
+    const SENTINEL = "ZZQSENTINELPROSEZZQ";
+    mockDigestQueries({
+      claims: [
+        {
+          ...CLAIM_ROW,
+          text: `Russian forces ${SENTINEL} advanced`,
+          doc_title: `${SENTINEL} headline`,
+          event_summary: `${SENTINEL} event summary`,
+        },
+      ],
+    });
+    const { getByTestId, container } = await renderDigest();
+    // the sentinel IS on the page (the claim and its evidence trail render it) — what this
+    // pins is that none of it reaches the generated provenance block
+    expect(container.textContent).toContain(SENTINEL);
+    expect(getByTestId("digest-source-summary").textContent).not.toContain(SENTINEL);
   });
 });
