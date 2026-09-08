@@ -10,6 +10,15 @@
 | Spend | $0. Compute-at-render unless PLAN-WS-7 shows persisting is needed (then it waits for the WS-7.5 migration — not this window). |
 | Closing report | `docs/reviews/WS-7-3-DESCRIPTORS-2026-09-07.md` |
 
+**READ FIRST — handoff from the 2026-09-08 read-only pass (relaunch note).** This step was
+launched at ≈20:27Z without a permission mode, so the session could read but not write or run; it
+exited after doing the read-only half. Its output is preserved at
+`/Users/go/code/bnow-net-worktrees/logs/step33.readonly-20260908.log` — **read it before
+anything else.** It re-verified every `file:line` this prompt and the plan rely on against
+`a7ba98b` and lists the corrections (several citations have drifted), plus cross-file breaks the
+plan does not mention. Treat that log as the corrected working spec; do not redo its reading.
+Its three findings are binding: the cap fact must come from `structured.stats.sourceMix` (legacy digests only) and render "not recorded for this digest" on mapreduce digests — never inferred from render-time rows; the four crosswalk rows it names move in module + document together; and the evidence-trail column additions at digest `page.tsx:202-218` will meet step 32's concurrent `toolStamp` change at `:186-197` — both additive, expect a small rebase.
+
 Read COMMON first, then PLAN-WS-7, the addendum §4.3, `src/lib/registry/view-policy.ts`, the two
 registry pages, `src/lib/conflicts/evidence-selection.ts` (40% cap), `summarizeClaimEvidence`.
 Descriptor template per source per theater (platform, theater, ISW citation count and span, hedging
