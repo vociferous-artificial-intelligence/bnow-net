@@ -9,7 +9,7 @@
 | Production writes | **NONE.** A Neon branch is created and deleted; no production row or column is touched. |
 | Depends on | Nothing in Stage 2. Independent of items 1, 2, 4, 5. |
 | **Gate** | **§0 first.** August 2026 is proven to contain zero multi-edition days; running §3 on it again returns the same empty denominator. §0 picks the window from production data, or concludes there is none. |
-| Window under test | `<FROM>` → `<TO>`, set by §0.3. Every command below uses those bounds — the August dates are left in place only as worked examples. |
+| Window under test | **`2026-02-28` → `2026-03-22`** — SET 2026-09-08 by §0.3's queries (see §0.6). Every command below uses those bounds — the August dates in the command blocks are worked examples; substitute. |
 | Blocks | **Step 24** (`2026-09-05-48h-24-ws3-5-scoreboard-and-soak-prep.md`), whose prompt carries these outputs verbatim as its measurement input. |
 | Record | Both probe outputs kept in full · an OPEN-TASKS line for the unapplied migration · the fork deleted and said so · closing report |
 
@@ -109,6 +109,48 @@ something other than 404 for absent slugs — and it must be filed rather than a
 because inflated `probe_failed` days feed C15/(f14) directly.
 
 Note the 25 hit pages are already cached, so a re-run re-fetches only the ~99 misses.
+
+---
+
+### 0.6 RESULT — §0.3 was run 2026-09-08 10:25 ET (operator, production, read-only)
+
+The two queries returned rows. Split-edition slugs cluster in exactly two periods:
+
+| period | rows with `morning`/`evening` | slug shape in `isw_reports` |
+|---|---|---|
+| 2025-06-14 → 2025-06-24 | 11 (9 evening, 2 morning) | `iran-update-special-report-june-DD-2025-{morning,evening}-edition/` — **suffix** form |
+| 2026-02-28 → 2026-03-22 | 17 (15 evening, 2 morning: 03-05, 03-10) | `iran-update-{morning,evening}-special-report-march-D-2026/` — **prefix** form |
+
+**Only the 2026 period is measurable with the code on `main`.** `iranUpdateUrlCandidatesForDate()`
+(`src/lib/validation/run.ts:31-41`) generates four shapes — `special-report-<md>`,
+`evening-special-report-<md>`, `morning-special-report-<md>`, `<md>` — all prefix-form, and
+`IRAN_SPECIAL_PATH_RE` (`src/lib/conflicts/editions.ts:73`) only matches the prefix form. The
+June 2025 `…-YYYY-{morning,evening}-edition/` suffix form is neither generated nor parsed, so a
+probe over June 2025 would report every one of those days as `probe_failed` — a phantom gap,
+not a measurement. **Do not probe June 2025.** This is a new finding for OPEN-TASKS (the
+"fifth slug shape" hazard the 2026-09-07 analysis anticipated): any backfill over 2025-06-12 →
+06-24 with the current candidate list manufactures publication gaps. It also explains the
+`iran-update-special-report-june-` row spanning 2025-06-14 → 2026-06-30 (n=41): the 2025 suffix
+URLs and the 2026 prefix URLs share that substring prefix.
+
+**Window under test: `--from 2026-02-28 --to 2026-03-22`** (23 days, ≤92 probes). Within it the
+table shows the special-report shape taking over on 03-14 and 03-17–03-21 (single edition), so
+multi-edition days are expected mainly 02-28 → 03-13, and 03-05 / 03-10 are the two days where
+the table kept the *morning* edition — the strongest candidates for `anchor ≠ final`.
+
+**§0.5 is SUPERSEDED.** The 2026-09-08 single-session re-run of August reproduced 124/79
+byte-for-byte; the failures are deterministic HTTP 403s after ~20 not-found requests, not
+concurrency (`docs/reviews/C5M-PROBES-2026-09-07.md`, re-run record). So `probeFailures` will
+**not** collapse in this window either — expect the 403 trip roughly a week in — and that is no
+longer a halt condition (§8 amended). What matters: a real page still returned 200 while the
+host was tripped (n=1 observation), so an existing second edition is likely still discovered;
+`probeFailedDays`/`publicationGapDays` from this window remain soft, exactly as for August, and
+step 24 is told so.
+
+Passes: take pass 0 (`--dry`), then pass 1 and pass 2 on the fork per §4.3, with the new bounds
+in every command and new output filenames (`~/c5m-<series>-<pass>-20260908-mar.txt`). `roca`
+over the same window is still a null instrument for multi-edition (§0.4) but is kept for the
+gap/probe figures. Attended, single session, launch claim taken first.
 
 ---
 
@@ -447,8 +489,12 @@ branchId. Then:
   set to `$C5M_FORK` on the same command line.
 - **§0 was skipped.** Probing before the window is chosen is the failure this run already made
   once. If `--from`/`--to` are still 2026-08-01/2026-08-31, stop and do §0.
-- **A single-session run still reports dozens of `probeFailures`.** Do not proceed to passes 1
-  and 2 on a corpus whose miss classification is broken — file it (§0.5) and stop.
+- ~~**A single-session run still reports dozens of `probeFailures`.** Do not proceed to passes 1
+  and 2 on a corpus whose miss classification is broken — file it (§0.5) and stop.~~
+  **AMENDED 2026-09-08:** dozens of `probeFailures` are the known deterministic 403 trip
+  (§0.6), not a halt. Proceed to passes 1 and 2; report the count and label the gap figures
+  soft. Halt only if a day that the `isw_reports` table shows as published returns **no**
+  edition at all — that would be the slug-shape hazard, not throttling.
 - **A second session is running this same step.** Check before starting: `lsof -a -d cwd -c
   claude | grep bnow-net`, and look for a recent `docs/reviews/C5M-PROBES-*.md` or stray
   `~/c5m-*.txt`. Two sessions on this step corrupt the measurement — they defeat `politeFetch`'s
@@ -462,7 +508,9 @@ branchId. Then:
 
 > Read `docs/prompts/2026-09-05-48h-COMMON.md`, then
 > `docs/prompts/2026-09-07-48h-stage2-item3-c5m-probes.md`, and execute it end to end on this
-> Mac. You are running Stage 2 item 3 under **(f8)**, with the fork substitution resting on
+> Mac. **§0 is already done — §0.6 sets the window to `--from 2026-02-28 --to 2026-03-22`;
+> use those bounds in every command and do not re-run §0's queries or the August window.**
+> Take the launch claim first; if another session holds it, stop and say so. You are running Stage 2 item 3 under **(f8)**, with the fork substitution resting on
 > **(f5)/O3**. Zero spend and **zero production writes** — you create a Neon fork, migrate it,
 > probe it `--dry`, and delete it. Do **not** apply any migration to production for any reason.
 > Keep both probe outputs in full including the summary JSON; attach §4's finality caveat to
