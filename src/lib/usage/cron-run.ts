@@ -72,13 +72,18 @@ export const JOB_MAX_DURATION_SEC: Record<string, number> = {
 export const SWEEP_GRACE_SEC = 120;
 const WIDEST_CEILING_SEC = Math.max(...Object.values(JOB_MAX_DURATION_SEC)) + SWEEP_GRACE_SEC;
 
-function ceilingCaseSql(): string {
+/** The sweep's per-family ceiling as a SQL CASE, in seconds. Exported so
+ *  read-only consumers (scripts/audit-cron.ts's runtime-log correlation) bound
+ *  a dead run's window by the SAME arithmetic the sweep classifies it with,
+ *  instead of a second copy that can drift. `jobExpr` lets a caller qualify the
+ *  column in a join; the sweep's own single-table default is unchanged. */
+export function ceilingCaseSql(jobExpr = "job"): string {
   // Values come from the compile-time table above (integers by construction),
   // injected as literals so the sweep is a single statement.
   const whens = Object.entries(JOB_MAX_DURATION_SEC)
     .map(([family, secs]) => `WHEN '${family}' THEN ${Math.floor(secs) + SWEEP_GRACE_SEC}`)
     .join(" ");
-  return `CASE split_part(job, ':', 1) ${whens} ELSE ${WIDEST_CEILING_SEC} END`;
+  return `CASE split_part(${jobExpr}, ':', 1) ${whens} ELSE ${WIDEST_CEILING_SEC} END`;
 }
 
 /** #98: classify long-dead rows. Ruling 10's signal (`finished_at IS NULL` =
