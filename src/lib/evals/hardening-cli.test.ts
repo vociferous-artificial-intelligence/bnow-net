@@ -232,15 +232,37 @@ describe("--provider: refused for a vendor this build cannot evaluate on", () =>
     EVAL_USD_CAP_DAILY: "1",
   };
 
-  it("--execute-live --provider anthropic refuses before any client construction, with a real key and both caps present (PLAN-WS-2 §7.1)", () => {
+  it("--execute-live --provider refuses before any client construction, with a real key and both caps present (PLAN-WS-2 §7.1)", () => {
+    // anthropic evaluates the digest workload only: a map cell names what the
+    // vendor CAN do rather than implying it is unusable
+    const wrongWorkload = spawnSync(
+      TSX_BIN,
+      [CLI, "--execute-live", "--workload", "map", "--provider", "anthropic", "--model", "claude-sonnet-5", "--db-ack", "eval-probe.invalid", "--repetitions", "3"],
+      { env: { ...LIVE_ENV, ANTHROPIC_API_KEY: "sk-ant-probe-not-a-real-key" }, encoding: "utf8", timeout: 120_000 },
+    );
+    expect(wrongWorkload.status).toBe(2);
+    expect(wrongWorkload.stderr).toMatch(
+      /REFUSED \(before any client construction\).*provider "anthropic" has no eval dispatch path for workload "map" in this build \(it can evaluate: digest\)/,
+    );
+    // the digest cell gets as far as the credential — and asks for the RIGHT
+    // one, with OPENAI_API_KEY present and ANTHROPIC_API_KEY absent
+    const wrongKey = spawnSync(
+      TSX_BIN,
+      [CLI, "--execute-live", "--workload", "digest", "--provider", "anthropic", "--model", "claude-sonnet-5", "--db-ack", "eval-probe.invalid", "--repetitions", "3"],
+      { env: LIVE_ENV, encoding: "utf8", timeout: 120_000 },
+    );
+    expect(wrongKey.status).toBe(2);
+    expect(wrongKey.stderr).toMatch(
+      /REFUSED \(before any client construction\).*ANTHROPIC_API_KEY is not set/,
+    );
     const r = spawnSync(
       TSX_BIN,
-      [CLI, "--execute-live", "--workload", "map", "--provider", "anthropic", "--model", "gpt-4o-mini", "--db-ack", "eval-probe.invalid", "--repetitions", "3"],
+      [CLI, "--execute-live", "--workload", "map", "--provider", "openai_compatible", "--model", "gpt-4o-mini", "--db-ack", "eval-probe.invalid", "--repetitions", "3"],
       { env: LIVE_ENV, encoding: "utf8", timeout: 120_000 },
     );
     expect(r.status).toBe(2);
     expect(r.stderr).toMatch(
-      /REFUSED \(before any client construction\).*provider "anthropic" is not eval-dispatchable in this build \(allowed: openai\)/,
+      /REFUSED \(before any client construction\).*provider "openai_compatible" is not eval-dispatchable in this build \(allowed: openai\|anthropic\)/,
     );
     const unknown = spawnSync(
       TSX_BIN,
