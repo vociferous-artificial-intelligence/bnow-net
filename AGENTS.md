@@ -1460,6 +1460,24 @@ mid-log, was retired by the eighth archive pass on 2026-09-07; OPEN-TASKS #92.)
   no environment change, no migration applied to production, no candidate model touched.
   Record: `docs/reviews/C5M-PROBES-2026-09-07.md` (the 2026-09-08 re-run section).
 
+- **2026-09-08 (ninth and tenth archive passes — the log cut to 2026-09-05; a one-off
+  deviation from D5's 7-day window, under D5's ceiling)** Operator-run on `main`, two passes,
+  each proven by `scripts/check-decision-log-move.sh HEAD` before commit. **Ninth pass
+  (`eb4bf9f`)**, the policy move: the single entry dated before 2026-09-01 (the 2026-08-31/09-01
+  map-flood OOM incident, 3,591 chars) moved verbatim to `docs/DECISIONS.md`; 205 entries
+  before and after, 60 → 59 inline, `AGENTS.md` 147,701 → 144,085. That left 5.9k of headroom
+  under the 150,000 ceiling with Stage 3 about to append a closing entry per step at 2–4k each —
+  the window and the ceiling conflicted, and the ceiling is the harder rule (the window exists
+  to serve it). **Tenth pass (`c6e3dae`)**, the operator's one-off deeper cut: the six entries
+  dated 2026-09-03 and 2026-09-04 (17,314 chars) moved verbatim, 59 → 53 inline, 146 → 152
+  archived, `AGENTS.md` → **126,660** (23k headroom). Both passes PASS: every body
+  byte-identical, none duplicated or invented, ascending order in both files. D5's 7-day
+  window is **not** amended — the next pass reverts to it; the archive header records the split
+  point as 2026-09-05 with a pointer here. Rationale for the record: today alone added four
+  execution entries (~17k) — Stage 2 items 4 and 5, Stage 2a, C5-m — and a first-breach halt
+  inside a Stage 3 session would have cost more than moving four extra days early. $0, docs
+  only, no code, no standing text changed except the archive header line.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).

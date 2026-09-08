@@ -573,3 +573,4 @@ move to Stage 2a — and that move is itself a logged edit here, not an assumpti
 - 2026-09-08 13:40 ET — Stage 2a runsheet A.1–G.2 written into §6.
 - 2026-09-08 15:50 ET — Stage 2a verified against the plan gate and landed on main (286474e, 6e0e11c); §19.11 entry applied to AGENTS.md; Neon two-plane note carried into §5.2a. Current step: Stage 3 (row A) after the residue closeout decision.
 - 2026-09-08 16:05 ET — residue closeout: R.16 entry + credentials rows in AGENTS.md; #33 status + #116 in OPEN-TASKS; step-18 prompt line (#114, #116, dry-path defect). §4 a/a2/e closed. Next: Stage 3 row A launch sheet.
+- 2026-09-08 16:30 ET — AGENTS.md archive passes 9 (eb4bf9f, policy) and 10 (c6e3dae, one-off cut to 2026-09-05): 147,701 → 126,660 chars, 205 entries preserved, both PASS; record entry appended. Next: Stage 3 row A launch sheet.
