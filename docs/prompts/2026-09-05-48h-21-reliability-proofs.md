@@ -10,6 +10,28 @@
 | Spend | $0 — refusal fires BEFORE dispatch, so the flood proof runs with `LLM_DISABLE=1` or a blank `OPENAI_API_KEY` on the fork; the watchdog proof injects deps. |
 | Closing report | `docs/reviews/RELIABILITY-PROOFS-2026-09-06.md` |
 
+**READ FIRST — handoff from the 2026-09-08 read-only pass (relaunch note).** This step was
+launched at ≈20:27Z without a permission mode, so the session could read but not write or run; it
+exited after doing the read-only half. Its output is preserved at
+`/Users/go/code/bnow-net-worktrees/logs/step21.readonly-20260908.log` — **read it before
+anything else.** Treat any `file:line` corrections and cross-file findings in it as the corrected
+working spec for this step; do not redo its reading. Where it and this prompt disagree on a
+citation, the log (verified against `a7ba98b`) wins; where it and a SIGNED decision-log entry
+disagree, the entry wins.
+**Binding findings from that pass:** (1) **no test-only cap seam is needed** — one ~75,100-row
+reference-mass seed on day `M = today−12` drives all three #102 paths against the real
+`MAP_REF_ROW_CAP = 75_000`; the log's table gives the candidate-day layout per test
+(shed-and-proceed / hard-cap refusal / shed exhaustion) and the assertions; use it as written.
+(2) #103 extends `map-watch-signals.itest.ts` with an explicit `MapWatchConfig` (stale
+thresholds huge) so `map_timeouts` is isolated deterministically. (3) G5's three probes are
+**characterization** tests labelled `WS2-F03`/`WS2-F26` — measure, do not fix; step 23 flips
+them. (4) `scripts/audit-cron.ts`'s new column must guard `to_regclass('public.runtime_logs')`
+before the empty-table case (0029 unapplied to production, #111). Citation moves: watchdog hook
+`cron-run.ts:144-151`; flood pins start `map-worker-flood-bounds.test.ts:351`. Two standing-text
+errors for step 25, not you: AGENTS.md's directory map credits `src/lib/cron/` with `withCronRun`
+(it lives at `src/lib/usage/cron-run.ts:188`); D10's 0029/0030 order is inverted (#111). Run
+the three itest files in one `npm run test:integration -- <files>` so they share a fork.
+
 **DECISIONS BINDING — added 2026-09-08.** O3 is SIGNED: `AGENTS.md` decision-log entry
 "2026-09-07 (O3 — fork proofs accepted for this window; the preview-deployment drill is…)"
 ((f5); INDEX §2.2 row O3). Fork-based itest proofs are accepted as the #102/#103 "live proof";

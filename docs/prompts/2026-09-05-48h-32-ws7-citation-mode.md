@@ -10,6 +10,28 @@
 | Spend | $0 |
 | Closing report | `docs/reviews/WS-7-2-CITATION-MODE-2026-09-07.md` |
 
+**READ FIRST — handoff from the 2026-09-08 read-only pass (relaunch note).** This step was
+launched at ≈20:27Z without a permission mode, so the session could read but not write or run; it
+exited after doing the read-only half. Its output is preserved at
+`/Users/go/code/bnow-net-worktrees/logs/step32.readonly-20260908.log` — **read it before
+anything else.** Treat any `file:line` corrections and cross-file findings in it as the corrected
+working spec for this step; do not redo its reading. Where it and this prompt disagree on a
+citation, the log (verified against `a7ba98b`) wins; where it and a SIGNED decision-log entry
+disagree, the entry wins.
+**Binding finding from that pass — T4's "dark" must mean ABSENT, not un-rendered:**
+`ClaimCopyActions` is a `"use client"` component, so anything placed in its `payload` prop is
+serialized into the RSC flight payload embedded in the page HTML. A `toolStamp` in the payload
+would put `openai:gpt-4o-mini+mapreduce` into view-source for every viewer while the disclosure
+is withheld. Therefore the policy is applied **server-side, before the payload is built**:
+`resolveClaimCitationStamp(stamp, view)` returns `{ attributable, tools: view.showToolDisclosure
+? stamp : null }`, so `tools` is `null` for every currently resolvable role and no model name
+crosses the client boundary; `attributable` alone drives the ruling-3 refusal for `stub` digests.
+The policy module keys entitlement by **tier**, with the entitled set empty — never by role
+(T4's hold covers signed-in users and admins). The log also lists three existing assertions /
+comments the PR must correct (`page.test.tsx:239`, `claim-evidence-model.ts:12-20,185`,
+`page.tsx:187-189`) and the `copy_mode` allowlists in `analytics/events.ts:34` +
+`sanitize.ts:42`; the year-bearing formatter gap in `format-et.ts:22-32` is real.
+
 **DECISIONS BINDING — added 2026-09-08, read before the sketch below (which predates them).**
 The spec for this step changed on 2026-09-07 under **T4** and **T4-b**, both SIGNED in
 `AGENTS.md`'s decision log (entries "2026-09-07 (T4 — ICS 206-01 tool disclosure: capability

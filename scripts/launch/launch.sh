@@ -88,6 +88,17 @@ if [ "$ATTENDED" = no ] && [ "${ENV_STATE#HOLDS}" != "$ENV_STATE" ]; then
   exit 1
 fi
 
+# Permission mode (COMMON §4.10): a detached `claude -p` without one can read but not write or
+# run, so it does the reading pass and exits with no PR — four sessions did exactly that on
+# 2026-09-08 (steps 20/21/32/33, launched with CLAUDE_LAUNCH_OPTS unset). Refuse rather than
+# start a session that cannot deliver.
+echo "  launch opts: ${CLAUDE_LAUNCH_OPTS:-(none)}"
+if [ "$ATTENDED" = no ] && [ -z "${CLAUDE_LAUNCH_OPTS:-}" ]; then
+  echo "FAIL: unattended launch needs a permission mode in CLAUDE_LAUNCH_OPTS, e.g." >&2
+  echo "  export CLAUDE_LAUNCH_OPTS='--dangerously-skip-permissions'   (COMMON §4.10)" >&2
+  exit 1
+fi
+
 RUN_CMD="cd '$WT' && nohup claude -p --model '$MODEL' ${CLAUDE_LAUNCH_OPTS:-} < '$PROMPT_ABS' > '$LOG' 2>&1 &"
 
 if [ "$GO" != "--go" ]; then
