@@ -390,6 +390,133 @@ hand-add only the branch's genuinely new content, listed per PR below.** Native 
 5.3 printing anything; `wc -c AGENTS.md` ≥ 150,000; `gh pr view … mergeable` not MERGEABLE
 after the force-push (paste the output rather than retrying a different merge mode).
 
+### Stage 2a — D7/R4 measured remap run (attended, `48h-ws2-remap-20260905`, ≈$0.05)
+
+Sources: `docs/reviews/MAP-REMAP-RUNBOOK-2026-09-06.md` §3–§9; plan §5.2a; (f10)/(f11);
+`scripts/launch/steps.tsv` row `22m` (attended=yes). Day under test **2026-08-25**, ir/military:
+the 2026-09-06 dry run modelled **701 pairs / 36 batches / $0.0765** for it (runbook §10.2).
+Version expected: `military:ir -> gpt-4o-mini:1bfad9e5e447`.
+
+**Two things before the fork exists.** (1) §4g — rotate `neondb_owner` first; a fork inherits
+the parent's role password, so rotating before the fork keeps the exposed credential out of it.
+(2) The Vercel BEFORE check (A.3) — do not create the fork until it has printed nothing.
+
+```
+[ ] A.1  cd /Users/go/code/bnow-net && git status --porcelain (empty) && git fetch --prune origin
+         lsof -a -d cwd -c claude | grep bnow                   (nothing)
+[ ] A.2  Password rotated per §4g; .env.local updated; a quick read-only query proves the new DSN:
+           npx tsx scripts/sqlq.ts "SELECT 1"
+[ ] A.3  Vercel BEFORE (from the main checkout, which is linked to the project):
+           npx vercel env ls production  | grep -c MAP_CONTENT_CHARS
+           npx vercel env ls preview     | grep -c MAP_CONTENT_CHARS
+           npx vercel env ls development | grep -c MAP_CONTENT_CHARS
+         Expect 0 / 0 / 0. Keep the three full `env ls` outputs (paste into the closing note).
+[ ] B.1  Worktree onto current main via the launch guard (claims step 22m, resets the lane):
+           scripts/launch/launch.sh 22m
+           scripts/launch/launch.sh 22m --go
+         It prints "attended" and the worktree path; it launches nothing.
+[ ] B.2  cd /Users/go/code/bnow-net-worktrees/48h-ws2-remap-20260905
+         git log --oneline -1                                   (= origin/main tip, 81acadd or later)
+         cp /Users/go/code/bnow-net/.env.local .
+         git status --porcelain                                 (empty — .env.local is ignored)
+         npm ci
+         lsof -ti :3000                                         (nothing)
+         npm run typecheck && npm run lint && npm test          (green)
+         cp next-env.d.ts /tmp/next-env.d.ts.bak
+[ ] C.1  Fork (never print the connection string):
+           npx tsx scripts/neon-branch.ts create > /tmp/fork.json
+           chmod 600 /tmp/fork.json
+           python3 -c 'import json;print(json.load(open("/tmp/fork.json"))["branchId"])'
+           python3 -c 'import json;print(json.load(open("/tmp/fork.json"))["connectionString"],end="")' > /tmp/fork_url
+           chmod 600 /tmp/fork_url
+         Record the branchId. Do NOT run db:migrate on it (already at production's 0027).
+[ ] C.2  Read the caps off the fork's COPIED ledger:
+           DATABASE_URL="$(cat /tmp/fork_url)" npx tsx scripts/sqlq.ts "SELECT round(sum(est_usd)::numeric,4) AS t FROM provider_usage WHERE provider='openai_map'"
+           DATABASE_URL="$(cat /tmp/fork_url)" npx tsx scripts/sqlq.ts "SELECT coalesce(round(est_usd::numeric,4),0) AS d FROM provider_usage WHERE provider='openai_map' AND day=CURRENT_DATE"
+         MAP_SPRINT_USD_CAP = T + 1.00 ; MAP_USD_CAP_DAILY = D + 1.00 (D = 0 if no row). Write both down.
+         Also record the BEFORE row: same query as the AFTER in E.2.
+[ ] D.1  Estimate server (keys blank, LLM_DISABLE=1):
+           openssl rand -hex 16 > /tmp/remap_cron_secret && chmod 600 /tmp/remap_cron_secret
+           cat > /tmp/remap-server-env.sh <<'EOF'
+           export DATABASE_URL="$(cat /tmp/fork_url)"
+           export CRON_SECRET="$(cat /tmp/remap_cron_secret)"
+           export OPENAI_API_KEY=""
+           export ANTHROPIC_API_KEY=""
+           export POSTMARK_SERVER_TOKEN=""
+           export RESEND_API_KEY=""
+           export X_API_KEY=""
+           export OPENSANCTIONS_API_KEY=""
+           export LLM_DISABLE=1
+           export MAP_CONTENT_CHARS=1499
+           export AUTH_SECRET="remap-dry-run-local-secret"
+           export NODE_ENV=production
+           EOF
+           chmod 600 /tmp/remap-server-env.sh
+           source /tmp/remap-server-env.sh && ./node_modules/.bin/next build
+           source /tmp/remap-server-env.sh && ./node_modules/.bin/next start -p 3000 > /tmp/remap-server.log 2>&1 &
+           until curl -fsS http://localhost:3000/health >/dev/null; do sleep 1; done
+           curl -s http://localhost:3000/health | grep -o "DB OK"
+[ ] D.2  Estimate pass ($0), driver env in the SAME shell:
+           export CRON_SECRET=$(cat /tmp/remap_cron_secret)
+           export MAP_BACKFILL_BASE=http://localhost:3000
+           npx tsx scripts/map-remap.ts --theater ir --track military --from 2026-08-25 --to 2026-08-25
+         Expect ≈ eligible=4115 pairs=701 batches=36 est≈$0.0765, version military:ir -> gpt-4o-mini:1bfad9e5e447,
+         and NO line containing "WOULD BE REFUSED". If "WOULD BE REFUSED" appears → STOP (§9), paste it.
+[ ] E.1  Measured server (key set, LLM_DISABLE unset, caps set) — restart:
+           pkill -f "next start -p 3000"
+           cat > /tmp/remap-server-env-live.sh <<'EOF'
+           export DATABASE_URL="$(cat /tmp/fork_url)"
+           export CRON_SECRET="$(cat /tmp/remap_cron_secret)"
+           export OPENAI_API_KEY="$(grep -m1 '^OPENAI_API_KEY=' /Users/go/code/bnow-net/.env.local | cut -d= -f2-)"
+           export ANTHROPIC_API_KEY=""
+           export POSTMARK_SERVER_TOKEN=""
+           export RESEND_API_KEY=""
+           export X_API_KEY=""
+           export OPENSANCTIONS_API_KEY=""
+           unset LLM_DISABLE
+           export MAP_CONTENT_CHARS=1499
+           export MAP_SPRINT_USD_CAP=<T+1.00>
+           export MAP_USD_CAP_DAILY=<D+1.00>
+           export AUTH_SECRET="remap-dry-run-local-secret"
+           export NODE_ENV=production
+           EOF
+           chmod 600 /tmp/remap-server-env-live.sh
+           source /tmp/remap-server-env-live.sh && ./node_modules/.bin/next start -p 3000 > /tmp/remap-server-live.log 2>&1 &
+           until curl -fsS http://localhost:3000/health >/dev/null; do sleep 1; done
+         (no rebuild needed — the env is read at start; MAP_CONTENT_CHARS unchanged)
+[ ] E.2  The measured run — one day, bounded twice:
+           npx tsx scripts/map-remap.ts --theater ir --track military --from 2026-08-25 --to 2026-08-25 --execute --budget 1.00 --limit 1000 2>&1 | tee /tmp/remap-run-20260908.txt
+         Keep the final `REMAP …` line verbatim. Then the readings:
+           DATABASE_URL="$(cat /tmp/fork_url)" npx tsx scripts/sqlq.ts "SELECT day::text, requests, round(est_usd::numeric,4) AS usd FROM provider_usage WHERE provider='openai_map' ORDER BY day DESC LIMIT 3"
+           DATABASE_URL="$(cat /tmp/fork_url)" npx tsx scripts/sqlq.ts "SELECT count(*) AS rows, sum(claim_count) AS claims FROM doc_map_state WHERE extractor_version='gpt-4o-mini:1bfad9e5e447'"
+           DATABASE_URL="$(cat /tmp/fork_url)" npx tsx scripts/sqlq.ts "SELECT count(*) AS claims FROM doc_claims WHERE extractor_version='gpt-4o-mini:1bfad9e5e447'"
+         Expect ≈701 rows and actual USD in the $0.04–0.08 band (threshold semantics: may exceed by one batch).
+[ ] F.1  Tear down, in this order:
+           pkill -f "next start -p 3000"
+           npx tsx scripts/neon-branch.ts delete <branchId>
+           rm -f /tmp/fork_url /tmp/fork.json /tmp/remap-server-env.sh /tmp/remap-server-env-live.sh
+           cp /tmp/next-env.d.ts.bak next-env.d.ts
+           rm -rf data/remap-state/
+           git status --porcelain                              (empty, or only ignored files)
+           lsof -ti :3000                                      (nothing)
+[ ] F.2  Vercel AFTER — the same three `env ls | grep -c MAP_CONTENT_CHARS` lines: 0 / 0 / 0.
+[ ] G.1  Closing note appended to MAP-REMAP-RUNBOOK-2026-09-06.md as a new dated section (§19): branchId,
+         T/D and the two caps as set, the estimate line, the final REMAP line, openai_map before/after,
+         doc_map_state rows + claims at the new version, both Vercel checks verbatim (BEFORE and AFTER),
+         fork deleted (time), threshold-semantics caveat. Plus the decision-log execution entry (end of
+         `## Decision log`, date order) and the launch claim released. Paste me the raw readings and I
+         draft both.
+[ ] G.2  git add docs/reviews/MAP-REMAP-RUNBOOK-2026-09-06.md AGENTS.md docs/prompts/2026-09-08-48h-CP4-status-tracker.md
+         git commit -m 'docs: D7/R4 measured remap run - closing note and execution entry'
+         git push origin main
+```
+
+**Halt conditions (runbook §9 applies — delete the fork before reporting):** `WOULD BE REFUSED` in
+the estimate; `/health` not `DB OK`; the driver banner showing any base other than
+`http://localhost:3000`; a `daily_cap`/`sprint_cap` stop at zero batches (caps computed wrong —
+never raise a cap mid-run, recompute from C.2); any `MAP_CONTENT_CHARS` count other than 0 in
+either Vercel check.
+
 **Stage 2 is closed when §3 shows four ticks with evidence.** Only then does this file's §1
 move to Stage 2a — and that move is itself a logged edit here, not an assumption.
 
@@ -404,3 +531,4 @@ move to Stage 2a — and that move is itself a logged edit here, not an assumpti
 - 2026-09-08 12:20 ET — item 4 executed by operator (16:02Z); ledger + decision-log entries written by session; two [OPERATOR] blanks; owed g (password rotation) and h added.
 - 2026-09-08 12:25 ET — item 4 reconciled 18/18/0/0; ledger blanks filled; item 4 DONE pending commit. Current step → item 5.
 - 2026-09-08 13:15 ET — item 5 DONE (d0c981e, 81acadd); Stage 2 gate fully ticked; §1 moved to Stage 2a. Owed g (password rotation) and a2 (#116) flagged as pre-2a residue.
+- 2026-09-08 13:40 ET — Stage 2a runsheet A.1–G.2 written into §6.
