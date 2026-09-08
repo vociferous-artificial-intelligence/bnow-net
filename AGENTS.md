@@ -532,54 +532,6 @@ END OF THIS SECTION in date order — NOT at the end of the file. (The former en
 convention, which left Conventions / Credentials / Next steps / Operating protocol wedged
 mid-log, was retired by the eighth archive pass on 2026-09-07; OPEN-TASKS #92.)
 
-- **2026-08-31/09-01 (map flood OOM incident — detection, bounded recovery, three
-  serialized fix releases; #97 embeddings/validation shipped)** During PR #37's
-  pre-merge health recheck the session found the hourly map worker OOM-killed
-  (runtime-log-confirmed) on every run since 07:40Z: a 07:03Z MTProto long-park
-  catch-up had inserted 447 documents dated back to 2026-06-14, the oldest-first
-  steady selection spanned 58 days, and the dedup reference BETWEEN materialized
-  419,360 rows. Twelve consecutive #98-swept runs; doc_claims frozen 06:40:57Z; NO
-  operator email (map_health evaluates only inside completing runs → #103). The
-  merge was HELD and the operator authorized a bounded response. Executed: (1)
-  read-only diagnosis with live pg_stat_activity + runtime-log capture; (2) manual
-  recovery through the EXISTING date-scoped backfill route (normal dispositions —
-  no blanket processed updates, no deletion, no remap of never-dispositioned docs):
-  whole-range dry estimate $0.4180 gated a $1 allowance, **actual $0.2968**;
-  backlog 6,081→0, 2,199 claims recovered, newest-eligible == newest-mapped ==
-  08-31; service restored (19:40Z natural cycle healthy) and backlog cleared are
-  separately evidenced verdicts; (3) PR #38 `52ea272` — #102 bounded dedup
-  (day-span probe + fresh-first split, ±1-day IN-list reference fetch,
-  MAP_REF_ROW_CAP=75K sized to the instance from measured ~7.6KB/reference,
-  adaptive old-day shedding with loud no-work refusals, revived reference
-  exact-md5 arm as a documented contract-valid behavior repair) — three
-  independent reviews + two delta reviews, 3,000-trial verdict oracle, deployed
-  `dpl_FJ33AS2DKMcme3qwjBiSTyNABxYh` 19:47Z; (4) PR #39 `c0aa788` — #103 watchdog
-  independent of map-run completion (atomic slot claim, bounded email send,
-  hook after the host row INSERT, inert under test runners), deployed
-  `dpl_GxEcce4WiTkF1reDZknaPYDeubjn`; its first natural traversal exposed a
-  first-evaluation notification bug (ONE spurious "recovered" email 21:45:15Z —
-  a release defect, not an outage event), repaired same-hour in PR #40 `4ab388f`
-  and verified non-recurring; (5) PR #37 `a4ed5cb` — the #97
-  embeddings/validation `wellFormedSlice` repair, rebased twice with the five
-  reviewed files verified byte-identical each time and gates re-run per head,
-  deployed `dpl_Bya68YX6a3GaDQe1LnYyMo1YhHkh` ~22:00Z with #40. Observation
-  CLOSED PASS 2026-09-01T13:32Z: 132 crons clean; 15 map cycles, 1,507 claims,
-  0 batchErrors; both natural checkpoints PROVEN (finalize embed 11 requests/76
-  units == 76/76 new claims embedded, provider row updated at the run's finish
-  instant; validate `llm-majority` ×5 votes ×3 theaters == 15 llm_match
-  requests — keyword fallback dispatches zero, so genuine matcher traversal).
-  Binding until superseded: the #102 flood bounds and refusal semantics are load-
-  bearing (do not widen MAP_REF_ROW_CAP without re-deriving the memory
-  arithmetic); the watchdog contract (never break the host job; honest
-  ruling-10 bookkeeping; budget episodes stay owned by in-run map-health);
-  the rollback ladder above (never below `52ea272`). #97 stays OPEN: dormant
-  `anthropic-provider.ts:70` (repair + #83 wiring + scorecard are activation
-  prerequisites — key absence is not a repair) and the ASK_SESSIONS residuals.
-  Spend ledger: $0.2968 manual map recovery (of $1 authorized); zero other
-  manual paid calls; no cap/env/flag/cron/migration change. Records:
-  `docs/reviews/MAP-FLOOD-OOM-INCIDENT-2026-08-31.md`,
-  `docs/reviews/EMBED-VALIDATE-RELEASE-2026-08-31.md`.
-
 - **2026-09-03 (operator configuration-only release — X cap raise + #94 override removal;
   recorded after the fact, no operation repeated)** The operator executed packet §1
   option (a) and §2: `X_SPRINT_USD_CAP=150` and `X_DAILY_USD_CAP=4` set in Production,
