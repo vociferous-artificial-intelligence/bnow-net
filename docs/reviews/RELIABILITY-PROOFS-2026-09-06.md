@@ -25,7 +25,8 @@
 
 Three commits on the step branch; one PR's worth of work.
 
-**PR — `map: real-Postgres proofs of #102 shed/refusal and #103 pre-completion death detection`**
+**PR #79** — `map: real-Postgres proofs of #102 shed/refusal and #103 pre-completion death detection`
+(https://github.com/vociferous-artificial-intelligence/bnow-net/pull/79)
 
 1. `6d421c7` — `map: prove the #102 overflow paths and #103 detection on a real fork`
    - `src/integration/map-flood-bounds.itest.ts` (+207): a new describe,
