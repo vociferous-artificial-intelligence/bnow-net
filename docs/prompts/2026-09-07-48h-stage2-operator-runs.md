@@ -41,7 +41,10 @@ Three environment facts that change what you can do where:
    Items 5 and every `gh pr` command below are native-terminal-only for that reason alone,
    before any authorization argument.
 2. **`node_modules` is macOS-only** — `npm run typecheck/lint/test/build` run here, never from
-   a remote session.
+   a remote session. This covers **every `npx tsx …` script too**, not just the npm scripts: a
+   mounted Linux shell fails with `You installed esbuild for another platform` (it finds
+   `@esbuild/darwin-arm64` and needs `@esbuild/linux-arm64`). Every command in this file is a
+   Mac command.
 3. **Never run `git worktree prune` from a remote session** — mounted paths report every
    worktree "prunable" (CP4 plan §2).
 
@@ -131,8 +134,9 @@ the two `SELECT`s below go through it during this item.
 
 **Run state, 2026-09-07 (update this line as you go).** §2.1–§2.6 **DONE** (drain 17:18–17:21
 EDT). Pending 36 → **0**; parsed 1,562 → **1,598**; `registry-materialize` succeeded on the
-`DATABASE_URL_UNPOOLED=` re-run. **Remaining: §2.7 — write the entry, then delete backup branch
-`br-wispy-silence-atgxus3y`, which is still live.**
+`DATABASE_URL_UNPOOLED=` re-run. §2.7 **DONE** — the entry is in `AGENTS.md` and backup branch
+`br-wispy-silence-atgxus3y` was **deleted 2026-09-07T21:28:43Z** (17:28:43 EDT), verified absent
+from the Neon branch list on 2026-09-08. **Item 1 is complete; nothing here remains to run.**
 
 ### 2.1 Preflight (read-only)
 
@@ -221,9 +225,12 @@ invocation:
 DATABASE_URL_UNPOOLED= npx tsx scripts/registry-materialize.ts
 ```
 
-(Empty string, not `unset` — either works, but `env -u DATABASE_URL_UNPOOLED npx tsx …` is the
-explicit form if you prefer it.) Fixing `.env.local`'s unpooled credential properly is
-OPEN-TASKS #80's own job; do not sink the drain window into it.
+**Empty string — never `env -u`.** `scripts/env.ts` calls `dotenv.config()` without
+`override`, and dotenv fills any key *absent* from `process.env`. `VAR=` keeps the key present
+and empty, so `||` skips it. `env -u VAR` removes the key, dotenv refills it from `.env.local`,
+and the command then targets **production**. Verified 2026-09-07; see OPEN-TASKS #112,
+`docs/reviews/C5M-PROBES-2026-09-07.md` §7, and §3.1. Fixing `.env.local`'s unpooled
+credential properly is OPEN-TASKS #80's own job; do not sink the drain window into it.
 
 ### 2.6 Verify
 
@@ -326,26 +333,113 @@ Authorized by **(f8)**: read-only, behind the write-refusing repository decorato
 and zero spend. `--dry` routes through `DryRunReferenceReportRepository`, which makes the
 zero-write property structural rather than a promise.
 
-```bash
-npx tsx scripts/isw-refresh.ts --series iran_update --from 2026-08-01 --to 2026-08-31 --dry 2>&1 | tee /tmp/c5m-iran-update.txt
-npx tsx scripts/isw-refresh.ts --series roca        --from 2026-08-01 --to 2026-08-31 --dry 2>&1 | tee /tmp/c5m-roca.txt
+**Run state, 2026-09-07 17:33 EDT — BLOCKED against production, and the fix is §3.1.** Both
+probes died identically before fetching anything useful:
+
+```
+NeonDbError: relation "benchmark_report_editions" does not exist   (code 42P01)
+    at SqlReferenceReportRepository.editionsForDay   (reference-repo-sql.ts:459)
+    at SqlReferenceReportRepository.dayStatus        (reference-repo-sql.ts:487)
+    at DryRunReferenceReportRepository.upsertEdition (reference-repo.ts:326)
+    at discoverEditions                              (edition-discovery.ts:325)
 ```
 
-Envelope per (f8): ~4 probes/day, ≈4.5 minutes of spacing per series. Every line is prefixed
-`DRY`; the run ends with a `series discovery summary: {…}` JSON line.
+### 3.0 What the failure means
+
+`benchmark_report_editions` and `benchmark_series_days` are created by migration
+**`drizzle/0028_lumpy_dragon_lord.sql`**, which is on `main` but has **not been applied to
+production**. That is not a defect — RELEASE-CHECKLIST §11 keeps migrations separate from
+deploys, and step 27 has not run — but it does mean the probe cannot read production as-is.
+
+Note what the stack shows: `--dry` refuses **writes**, it does not stub **reads**.
+`upsertEdition` still calls `dayStatus` → `editionsForDay`, which SELECTs from the missing
+table. So the zero-write guarantee held perfectly; the read simply had nowhere to land.
+
+**This is a decision point, and (f8) does not cover both branches.**
+
+- **Applying 0028+ to production now** is a schema write. (f8) authorized a *read-only* probe;
+  no signed entry authorizes a production DDL change ahead of step 27's deploy. It would need
+  its own decision and RELEASE-CHECKLIST §11's backup-branch-first discipline.
+- **Running the probe against a migrated fork of production** stays inside (f8) and has direct
+  precedent: (f5)/O3 accepted fork-based proofs for exactly this shape of blocker. **Take this
+  branch.** Do not apply migrations to production to unblock a measurement.
+
+Does the fork change the answer? No. The measurement is web-driven — `discoverEditions` fetches
+each candidate URL and derives editions from the HTML; the repository is only where results
+would be recorded. The one production-dependent read is `anchorReportIdFor()` against
+`isw_reports`, and a fork taken now is a copy-on-write image of production *including the §2
+drain*, so that read is identical. `benchmark_report_editions` is empty on a fresh fork and
+absent on production — both yield `dayStatus = unknown`, which is the same input either way.
+
+### 3.1 The fork route (~15 min, still $0, still zero production writes)
+
+**Full run card: `docs/prompts/2026-09-07-48h-stage2-item3-c5m-probes.md`** — preflight, halt
+conditions, the finality caveat on `anchorNotFinalDays`, the closing-report shape and a paste
+block for a session. The condensed sequence:
+
+```bash
+# 1. Which migrations does production actually have? (read-only, worth knowing regardless)
+npx tsx scripts/sqlq.ts "SELECT name FROM _migrations ORDER BY name DESC LIMIT 8"
+
+# 2. Fork production
+npx tsx scripts/neon-branch.ts create        # note the branchId AND the connectionString
+export C5M_FORK='<connectionString from step 2>'
+
+# 3. Bring the fork's schema up to main. SET BOTH DSN VARS — never `env -u` either one, which
+#    lets .env.local refill it and aims migrate.ts at PRODUCTION (OPEN-TASKS #112; full
+#    derivation in docs/reviews/C5M-PROBES-2026-09-07.md §7). Print the resolved target host
+#    first and read it.
+DATABASE_URL_UNPOOLED="$C5M_FORK" DATABASE_URL="$C5M_FORK" node -e '
+  require("dotenv").config({path:".env.local"});
+  console.log("migrate.ts will target:", new URL(process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL).host);'
+DATABASE_URL_UNPOOLED="$C5M_FORK" DATABASE_URL="$C5M_FORK" npx tsx scripts/migrate.ts
+
+# 4. The probes, pointed at the fork. isw-refresh.ts reads DATABASE_URL only (deliberately,
+#    per its own comment), and scripts/env.ts loads .env.local WITHOUT override, so an inline
+#    prefix wins over the file.
+DATABASE_URL="$C5M_FORK" npx tsx scripts/isw-refresh.ts --series iran_update --from 2026-08-01 --to 2026-08-31 --dry 2>&1 | tee ~/c5m-iran-update-20260907.txt
+DATABASE_URL="$C5M_FORK" npx tsx scripts/isw-refresh.ts --series roca        --from 2026-08-01 --to 2026-08-31 --dry 2>&1 | tee ~/c5m-roca-20260907.txt
+
+# 5. Delete the fork and say so in the record
+npx tsx scripts/neon-branch.ts delete <branchId>
+```
+
+Envelope per (f8): ~4 probes/day, ≈4.5 minutes of spacing per series. Every per-day line is
+prefixed `DRY`; each run ends with a `series discovery summary: {…}` JSON line. If a run ends
+without that summary line, it failed — keep the error, do not paste a partial as the
+measurement.
 
 **What to keep:** both outputs **in full**, verbatim, including the summary JSON. They are
 pasted into **step 24's prompt** (`2026-09-05-48h-24-ws3-5-scoreboard-and-soak-prep.md`) as its
-measurement input. `/tmp` is fine for the hour; if step 24 will not launch today, move them
-somewhere that survives a reboot.
+measurement input, and step 24 **must be told the measurement came from a migrated fork, not
+production, and why** — otherwise its report will claim a production reading it does not have.
+The commands above write to `~/` rather than `/tmp` for that reason: these outlive the hour.
 
-**Scope limit, restated because it is easy to lose:** (f8) authorizes **the measurement only**.
-It is WS-3.7's evidence for whether production's probe order should change; the change itself is
-a separate, unmade decision. A session that reads these outputs and proposes a production
-probe-order change has exceeded the authorization.
+### 3.2 Record it
 
-Delegation: an attended session may run these — zero writes, zero spend, no `gh`, no
-`node_modules` beyond `tsx`. The outputs still have to reach step 24's prompt.
+The probes need no decision-log entry of their own — (f8) is the authorization and step 24
+carries the outputs. But the **blocker** is worth a line, because it is a live fact about
+production that step 27 inherits:
+
+> `docs/OPEN-TASKS.md` — migration **0028** (`benchmark_report_editions`,
+> `benchmark_series_days`) and any later pending migration are on `main` but **not applied to
+> production**; the C5-m probes hit `42P01` against production on 2026-09-07 and were run
+> against a migrated fork instead. Step 27's deploy must apply them, backup-branch-first per
+> RELEASE-CHECKLIST §11.
+
+Step 27 already owns the migration pass, so this is a note that removes a surprise, not new work.
+
+### 3.3 Scope limit, restated because it is easy to lose
+
+(f8) authorizes **the measurement only**. It is WS-3.7's evidence for whether production's probe
+order should change; the change itself is a separate, unmade decision. A session that reads
+these outputs and proposes a production probe-order change has exceeded the authorization —
+and so would a session that "fixed" the 42P01 by migrating production.
+
+Delegation: an attended session may run §3.1 — zero production writes, zero spend, no `gh`.
+It must run on the **Mac**, not from a remote session: `node_modules` is macOS-only, so `npx
+tsx` fails in a mounted Linux shell with an esbuild platform error. The outputs still have to
+reach step 24's prompt.
 
 ---
 
