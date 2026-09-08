@@ -1472,7 +1472,9 @@ mid-log, was retired by the eighth archive pass on 2026-09-07; OPEN-TASKS #92.)
   (newest 2026-09-06), failed 26 (newest 2024-03-30) — the pending count matches the figure
   recorded 2026-08-15 exactly; no drift. Backup branch **`br-wispy-silence-atgxus3y`**
   (`scripts/neon-branch.ts create`, copy-on-write fork of production) taken before any write,
-  deleted at 17:XX EDT after this entry was written.
+  deleted at **2026-09-07T21:28:43Z** (17:28:43 EDT) after this entry was written; the
+  deletion instant is the operator's Neon record, and the branch was independently verified
+  absent from the project's branch list on 2026-09-08.
   Dry run (`--theater ru --dry`, zero writes): **36/36 `parseOk=true`, zero `fetch-failed`
   lines**; 2,564 endnotes and 6,896 citations staged across 2026-07-04 → 2026-08-14
   (117–307 citations/report).
