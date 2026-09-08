@@ -4459,3 +4459,58 @@ Execution (resumed 2026-09-07 ~00:05Z — audit finished):
   `src/lib/validation/run.ts`, `vercel.json`, `drizzle/` and `src/db/schema.ts`. Zero paid calls, zero
   production writes, no migration, no env change, no deploy. Spend $0. Report:
   `docs/reviews/WS-3-2-EDITION-DISCOVERY-2026-09-06.md`.
+
+## 2026-09-07 ~22:00Z — Stage 2 item 3: C5-m multi-edition probes, fork route (planned block)
+
+1. Preflight: confirm main checkout on `main`, `drizzle/0028_lumpy_dragon_lord.sql` present,
+   `NEON_API_KEY` in `.env.local`, and read production's `_migrations` (read-only) to establish
+   which migrations are pending.
+2. Confirm `to_regclass('benchmark_report_editions')` is NULL on production (halt condition if not).
+3. Create a disposable Neon fork of production (`scripts/neon-branch.ts create`), record the branchId
+   only — never the connection string.
+4. Migrate the fork to `main` (`env -u DATABASE_URL_UNPOOLED DATABASE_URL=<fork> scripts/migrate.ts`);
+   confirm `benchmark_report_editions` exists on the fork with 0 rows and is still absent on production.
+5. Run the two (f8) `--dry` probes against the fork (`--series iran_update` and `--series roca`,
+   2026-08-01 → 2026-08-31), keeping both outputs in full including the `series discovery summary:` JSON.
+6. Ask the operator about §4's optional fork-write variant; do not take it unilaterally.
+7. Delete the fork and say so with its branchId.
+8. Records: `docs/OPEN-TASKS.md` line for the unapplied migrations; closing report
+   `docs/reviews/C5M-PROBES-2026-09-07.md` per §7 with §4's finality caveat attached to
+   `anchorNotFinalDays`. Zero spend, zero production writes.
+
+**Execution (same block)**
+
+- Preflight clean: main checkout on `main` at `61e970d`, `drizzle/0028_lumpy_dragon_lord.sql`
+  present, `NEON_API_KEY` present. Production `_migrations` = **29 rows**, newest numbered
+  `0027_numerous_lord_tyger.sql`; `to_regclass` NULL for all four new tables. Pending on `main`:
+  **0028, 0029, 0030** (file names invert D10's 0029/0030 assignment — recorded, not a defect).
+- Fork `br-noisy-boat-atyk6mqa` created and migrated (0028/0029/0030 applied; 32 rows), carrying
+  production's 2,747 `isw_reports` including the 2026-09-07 RU drain.
+- **Finding: the prompt's `env -u DATABASE_URL_UNPOOLED …` migrate line targets PRODUCTION.**
+  `scripts/env.ts`'s dotenv calls carry no `override`, so unsetting a variable is what invites
+  `.env.local` to repopulate it; `scripts/migrate.ts:8` (`??`) then picked production's unpooled
+  endpoint. It failed `28P01` — the stale credential of OPEN-TASKS #80 is the only reason
+  0028/0029/0030 were not applied to production. Nothing written. Corrected form
+  (`DATABASE_URL=… DATABASE_URL_UNPOOLED=…`) migrated the fork cleanly. Filed as #112.
+- **Pass 0 (`--dry`, the literal (f8) command) COMPLETED on both series.** `iran_update`: 31 days,
+  25 editions, multiEditionDays **0**, anchorNotFinalDays 0, unanchoredDays 0, publishedDays 25,
+  probeFailedDays 6, publicationGapDays 0, probes 124, probeFailures 79. `roca`: 31 days, 30
+  editions, multiEditionDays **0**, anchorNotFinalDays 0, unanchoredDays 4, publishedDays 30,
+  probeFailedDays 1, publicationGapDays 0, probes 31, probeFailures 1.
+- Operator approved the fork-write variant before it ran. **Pass 1 killed incomplete** (25 of 31
+  Iran days, no summary line); `roca` pass 1 and both pass-2 runs never ran.
+- **HALTED per §8 on two conditions:** a concurrent session executing the same prompt clobbered
+  this session's pass-0 Iran output at 19:32 (later renamed by that actor to
+  `…PARTIAL-clobbered-by-duplicate-session.txt`) and this session's pass-1 process was killed;
+  and the host began refusing probes that had returned clean 404s an hour earlier — two sessions
+  defeat `politeFetch`'s per-process spacing. Stopped rather than competed (COMMON §11).
+- Evidence preserved: pass-0 Iran restored verbatim from the session transcript with a provenance
+  header; pass-0 roca intact; pass-1 partial kept. Final fork read before deletion: **21 editions
+  across 21 distinct days, 21 of 21 anchored** to an existing `isw_reports` row.
+- Fork **deleted 19:34:04 EDT**; connection string never written anywhere. Production re-verified
+  after deletion: 29 migrations, all four tables absent.
+- **C5-m is UNANSWERED for this window:** `multiEditionDays = 0` on both series means an empty
+  denominator, and the Iran reading is degraded (79/124 probes neither clean 404 nor edition).
+- Records: `docs/reviews/C5M-PROBES-2026-09-07.md`, OPEN-TASKS **#111** (unapplied migrations) and
+  **#112** (the `env -u` hazard). Proposed decision-log entry is in the report §12, not applied
+  (AGENTS.md write-lock). Spend **$0**; zero production writes; no deploy, no env change.
