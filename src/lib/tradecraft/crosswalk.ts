@@ -96,9 +96,9 @@ export const CROSSWALK_ROWS: readonly CrosswalkRow[] = [
     standard: "ICD 203",
     requirement: "Properly describes the quality and credibility of underlying sources",
     mechanism:
-      "Every source carries a citation profile and a five-value hedging distribution per theater; the per-claim evidence panel shows the documents behind a claim; no narrative source descriptor is generated yet",
+      "Every source carries a citation profile and a five-value hedging distribution per theater, the per-claim evidence panel shows the documents behind a claim, and a generated narrative descriptor states the platform, the citation volume and date span in the named reference corpus, the hedging distribution and the registry status; no credibility level is asserted",
     status: "PARTIAL",
-    closedBy: "WS-7.3",
+    closedBy: "WS-7.4",
   },
   {
     standard: "ICD 203",
@@ -176,17 +176,17 @@ export const CROSSWALK_ROWS: readonly CrosswalkRow[] = [
     standard: "ICD 206",
     requirement: "Source descriptors conveying reliability, bias and limitations",
     mechanism:
-      "The inputs are held per source and per theater — platform, status, citation count, first and last cited dates, and the five hedging counts — but no descriptor is generated or rendered anywhere",
-    status: "GAP",
-    closedBy: "WS-7.3",
+      "A deterministic template generates a descriptor per source and per reference corpus — platform, citation volume and span, the hedging distribution as shares in the corpus's own vocabulary, registry status, and the caveat that this describes how the benchmark cited the source rather than an independent audit — versioned and labelled as generated, with a pooled platform identity refused a profile and told so. Reliability and limitations are conveyed; the source's bias is not modelled",
+    status: "PARTIAL",
+    closedBy: "not in WS-7",
   },
   {
     standard: "ICD 206",
     requirement: "Source summary statement for the product as a whole",
     mechanism:
-      "The inputs are held — the claim-to-document join, the source and platform mix cap with its cap events, and same-theater dedup — but no per-digest summary statement is generated",
-    status: "GAP",
-    closedBy: "WS-7.3",
+      "A summary statement is generated per digest at read time from the claim-to-document join: distinct documents, channels and platforms, the share of claims resting on two or more of each, the sources supporting the most claims, the count resting on a single unconfirmed document, and the platform and transport mix against the batch cap the digest itself recorded — or an explicit statement that the digest recorded no mix figures",
+    status: "BUILT",
+    closedBy: null,
   },
   {
     standard: "ICD 206",
@@ -208,9 +208,9 @@ export const CROSSWALK_ROWS: readonly CrosswalkRow[] = [
     standard: "ICS 206-01",
     requirement: "A brief narrative quality descriptor per source",
     mechanism:
-      "Not generated. The citation-volume and hedging-profile inputs exist per theater",
-    status: "GAP",
-    closedBy: "WS-7.3",
+      "Generated per source and per reference corpus from citation volume and hedging distribution, rendered on the source detail surface and beside the digest the source supports, and never a letter grade or a headline score",
+    status: "BUILT",
+    closedBy: null,
   },
   {
     standard: "ICS 206-01",
