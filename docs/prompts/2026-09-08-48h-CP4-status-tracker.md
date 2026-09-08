@@ -23,13 +23,12 @@ Open PRs (operator `gh pr list`, 09:34 ET): **#48**, **#47** — nothing else.
 
 ## 1. Where we are — read this first
 
-**Current step: Stage 2 (§5.2), item 4 — the WS-1.1 ×3 capture run.** Operator-only (it
-spends, ≈$0.01). Procedure: `docs/prompts/2026-09-07-48h-stage2-operator-runs.md` §4; an
+**Current step: Stage 2 (§5.2), item 5 — #48 squash-relaunch, then #47** (runsheet §6, steps
+5.0–5.10), once the item-4 commit below is pushed. Procedure: `docs/prompts/2026-09-07-48h-stage2-operator-runs.md` §4; an
 agent-shaped version is at `Claude outputs/2026-09-07-stage2-item4-capture-run-agent-prompt.md`.
 
-**Next step after that: Stage 2 item 5** — #48 squash-relaunch, then #47 merge. Operator-only
-(`gh` + history rewrite). Procedure: same file, §5. Item 5 does not depend on item 4; the two
-may be done in either order, but each is closed separately below.
+**Item 4 is done** (entries written, awaiting its commit). **After item 5, Stage 2's gate (§3) is
+fully ticked and §1 moves to Stage 2a** — that move is a logged edit here, not an assumption.
 
 **Stage 2 closes when the §5.2 gate (§3 below) has all four boxes ticked with evidence.**
 Nothing in Stage 2a, 3, 4 or 5 starts before that.
@@ -106,9 +105,14 @@ step-15 convention.
   to a Stage 2 closing docs commit. Launch claim taken (`claims/step-s2i3-c5m/`).
 - The earlier August pass-0 record stands as the literal-(f8) record.
 
-**Item 4 — WS-1.1 ×3 capture run: NOT DONE.** `docs/reviews/EVAL-EXPOSURE-LEDGER.md`'s last
-entry is "2026-09-06 — concurrent-main rebase closeout"; there is no capture-run entry, no
-`--capture-reconcile` output recorded. **← CURRENT STEP.**
+**Item 4 — WS-1.1 ×3 capture run: DONE 2026-09-08 16:02Z (run) / 16:14Z (reconciled); commit
+pending.** Branch confirmed as the kept evaluation branch by its `openai_eval` row
+(`br-weathered-forest-atmfaetu` = `itest-1788469162388`). Cell `map-depth-full`. 18 requests /
+$0.0039; `openai_eval` $0.2918/767 → $0.2957/785, exact; reconciliation 18/18/0/0, 0 budget
+stops, 0 abandoned. 18/18 scored, 10 pass / 8 fail, injectionHits on 2 of 18; row 005 payload
+not fed. Ledger entry: `EVAL-EXPOSURE-LEDGER.md` "2026-09-08 16:02Z"; decision-log entry
+`AGENTS.md:1516`. Estimate of record = run card's 18 / $0.0112 (operator's own `--estimate`
+output not captured). Branch retained (A6).
 
 **Item 5 — #48 squash-relaunch, then #47: NOT DONE.** `gh pr list` (09:34 ET) shows both;
 `origin/docs/operator-notes-20260905` is 2 commits ahead (`d96c8f7`, `7a6d629` — the latter is
@@ -156,7 +160,7 @@ Re-run `lsof -a -d cwd -c claude | grep bnow` immediately before any Stage 3 lau
 ```
 [x] Decision log carries the #79 drain execution entry with counts, branchId, and an explicit
     deleted statement                     — AGENTS.md:1468, 61e970d + 06b5c57
-[ ] EVAL-EXPOSURE-LEDGER.md carries a capture-run entry with counts     — item 4, open
+[x] EVAL-EXPOSURE-LEDGER.md carries a capture-run entry with counts     — 2026-09-08 16:02Z entry (commit SHA: fill on push)
 [x] Both C5-m outputs in hand, verbatim   — C5M-PROBES-2026-09-07.md R.7/R.8 (39d572f); handoff = R.17
 [ ] gh pr list shows neither #47 nor #48                                — item 5, open
 [x] (recommended) (f1)–(f15) signed, 0 UNSIGNED markers                 — 1642971
@@ -174,6 +178,8 @@ Re-run `lsof -a -d cwd -c claude | grep bnow` immediately before any Stage 3 lau
 | c | Neon branch `itest-1788469162388` = `br-weathered-forest-atmfaetu`, alive since 2026-09-03. R.15 item 3 asks whether to delete it as an orphan. **Do NOT delete** until item 4 step 4.1 has checked its `provider_usage` ledger — it is the probable kept evaluation branch (A6 "keep until closeout"; D6 addendum ≈$0.15 on `openai_eval`). If 4.1 finds no `openai_eval` row, it is an orphan and may go. | operator, via item 4 | item 4 |
 | d | `roca` C5-m multi-edition figure is 0 by construction (one candidate URL) — never cite it as evidence about ISW | note only | step 24 |
 | e | R.16's drafted decision-log entry for the C5-m result — apply at end of `## Decision log` in date order | operator or step 25 | Stage 2 close / step 25 |
+| g | **Rotate the `neondb_owner` password** in the Neon console after Stage 2 (the branch connection string, which carries production's inherited password, was pasted into a chat transcript on 2026-09-08); then refresh `.env.local` and Vercel `DATABASE_URL`/`DATABASE_URL_UNPOOLED` — closes #80 as a side effect. Do it between attended runs, not mid-run. | operator | after item 5, before Stage 2a |
+| h | D6 addendum's "≈$0.15 on the branch" is stale (true pre-run total $0.2918 = campaign + step 1A); corrected in the 2026-09-08 entry, no edit to the addendum (append-only) | done | — |
 | f | §4.1 dry-path finality defect (`DiscoveredEdition` has no `identity`; `--dry` substitutes probe order, `edition-discovery.ts:502-503`) — latent here (pass 0 = pass 1 on all 23 days), still a step 18 register / step 23 fix item | session | Stage 3 rows B/C |
 
 ## 5. What the 2026-09-07 FINISH prompt touched, mapped to plan sections
@@ -389,3 +395,5 @@ move to Stage 2a — and that move is itself a logged edit here, not an assumpti
 - 2026-09-08 11:20 ET — Q1(a) executed by operator; window 2026-02-28→03-22 chosen; item-3 prompt updated (§0.6, §8, §9); item 3 reopened as "one run owed"; June-2025 slug-shape finding queued for OPEN-TASKS.
 - 2026-09-08 11:45 ET — item 5 recipe revised: both PRs conflict with post-step-15 AGENTS.md (merge-tree 2 + 3 hunks); #47's OPEN-TASKS item collides with #108; squash-and-hand-place procedure written.
 - 2026-09-08 11:00 ET (14:35–14:50Z run) — item 3 DONE (`39d572f`): C5-m answered on 2026-02-28→03-22, 8 multi-edition days, 1 anchor mismatch (03-05); #114 filed; R.17 is step 24's handoff. §4 re-cut: a done, a2/e/f added, c re-read. Current step unchanged: item 4.
+- 2026-09-08 12:20 ET — item 4 executed by operator (16:02Z); ledger + decision-log entries written by session; two [OPERATOR] blanks; owed g (password rotation) and h added.
+- 2026-09-08 12:25 ET — item 4 reconciled 18/18/0/0; ledger blanks filled; item 4 DONE pending commit. Current step → item 5.
