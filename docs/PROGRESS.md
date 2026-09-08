@@ -4711,4 +4711,4 @@ Execution (same block):
 - Filed OPEN-TASKS **#117** (extraction provenance is digest-scoped; carries the
   provider-blind `mapreduceProviderTag()` ordering item for step 20b). Report:
   `docs/reviews/WS-7-2-CITATION-MODE-2026-09-07.md`, with the proposed decision-log entry for
-  step 25. Branch committed, **not pushed; no PR opened**.
+  step 25. Pushed (pre-push gate green) and opened as **PR #80**.

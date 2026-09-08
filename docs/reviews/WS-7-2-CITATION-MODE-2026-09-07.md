@@ -20,7 +20,8 @@
 ## Built
 
 One commit, `c0f5998` — `citation: ICS 206-01 copy mode with the AI-tool disclosure built
-and dark`. No PR opened yet (see Handoff).
+and dark`, plus the docs commit. Opened as **PR #80** —
+https://github.com/vociferous-artificial-intelligence/bnow-net/pull/80
 
 **New**
 
@@ -282,9 +283,8 @@ Three items for the operator's awareness, none of which stops the PR:
 
 ## Handoff
 
-- **The branch is committed but NOT pushed and no PR is open.** `gh` was not exercised this
-  session. Push and open the PR with a body mirroring Built / Tests / Rulings above; nothing
-  deploys before step 26's go/no-go regardless.
+- **PR #80 is open against `main`** and the pre-push gate passed on the push (typecheck +
+  lint + test). Nothing deploys before step 26's go/no-go regardless.
 - **Step 33 (WS-7.3 descriptors) replaces `descriptorFor` in `src/lib/citation/ics206.ts`.**
   It is one function returning one string, deliberately isolated, and `Ics206SourceEntry.descriptor`
   is the field to fill. `citationCount` is already on `ClaimSourceDoc` (optional) and already
