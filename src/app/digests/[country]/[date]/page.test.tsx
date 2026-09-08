@@ -286,7 +286,8 @@ describe("analyst-visible pipeline metadata", () => {
       .mockResolvedValueOnce([DIGEST_ROW])
       .mockResolvedValueOnce([CLAIM_ROW])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }])
+      .mockResolvedValueOnce([]); // WS-7.3 source profiles
 
     const element = await DigestPage({
       params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
@@ -306,7 +307,8 @@ describe("analyst-visible pipeline metadata", () => {
       .mockResolvedValueOnce([{ ...DIGEST_ROW, provider: "stub", reduce_dispatch: null }])
       .mockResolvedValueOnce([CLAIM_ROW])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }])
+      .mockResolvedValueOnce([]); // WS-7.3 source profiles
 
     const element = await DigestPage({
       params: Promise.resolve({ country: "ru", date: "2026-07-11" }),

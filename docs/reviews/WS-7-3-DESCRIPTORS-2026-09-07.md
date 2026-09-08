@@ -13,6 +13,7 @@
 - **Mode:** unattended session (relaunched with a permission mode after the read-only pass
   exited). No `.env.local` was copied; no database, no network, no provider.
 - **Spend: $0.** No paid provider call, no deploy, no environment change, no migration.
+- **PR:** [#77 — WS-7.3: templated source descriptors + per-digest source summary statement](https://github.com/vociferous-artificial-intelligence/bnow-net/pull/77), three commits (`dfb2dc9` modules, `250567c` render targets, `1ea4a07` docs). Pre-push gate green.
 
 ## Built
 
