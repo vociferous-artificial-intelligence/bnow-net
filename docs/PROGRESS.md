@@ -4514,3 +4514,70 @@ Execution (resumed 2026-09-07 ~00:05Z — audit finished):
 - Records: `docs/reviews/C5M-PROBES-2026-09-07.md`, OPEN-TASKS **#111** (unapplied migrations) and
   **#112** (the `env -u` hazard). Proposed decision-log entry is in the report §12, not applied
   (AGENTS.md write-lock). Spend **$0**; zero production writes; no deploy, no env change.
+
+## 2026-09-08 ~14:35Z — Stage 2 item 3 re-run: C5-m probes over the March 2026 window (planned block)
+
+1. Take the launch claim for this step before anything else; halt if another session holds it
+   (COMMON §11 / prompt §8). Verify single-session by `lsof` and by the absence of a competing
+   claim under `bnow-net-worktrees/claims/`.
+2. Preflight per prompt §2 in the main checkout on `main`: clean tree, `drizzle/0028` present,
+   `NEON_API_KEY` present, and the production `_migrations` reading that §6's OPEN-TASKS line
+   cites. Confirm `to_regclass('benchmark_report_editions')` is still NULL on production — a
+   non-null there is a halt (§8), because it would mean someone applied 0028 in the meantime.
+3. Skip §0 — it was executed by the operator on 2026-09-08 and §0.6 fixes the window at
+   `--from 2026-02-28 --to 2026-03-22`. Do not re-run §0's queries and do not re-probe August.
+4. Fork production (`scripts/neon-branch.ts create`), keep the connection string out of every
+   file, log and report, print the target host before migrating, and migrate the fork with BOTH
+   DSN variables set explicitly — never `env -u` either of them (#112).
+5. Pass 0: the literal (f8) `--dry` command on both series over the March window, kept for the
+   record and as the demonstration that the dry path degrades (§4.1).
+6. Pass 1 and pass 2 (fork writes, same window, same fork) — only on operator confirmation per
+   §4.3. Pass 1 supplies `multiEditionDays`/`anchorNotFinalDays`; pass 2 supplies
+   `publicationGapDays`, carrying (f14)/C15's same-session reopening trigger.
+7. Delete the fork, then re-verify production is untouched.
+8. Records: append the re-run to `docs/reviews/C5M-PROBES-2026-09-07.md` per §7 with §4's
+   finality caveat attached to `anchorNotFinalDays`; the §6 OPEN-TASKS line for the unapplied
+   migrations; proposed decision-log entry in the report only (AGENTS.md write-lock). Zero
+   spend, zero production writes, launch nothing.
+
+**Execution (same block)**
+
+- Launch claim taken first: `steps.tsv` has no row for this step, so `claim.sh` cannot claim it
+  mechanically; the claim was taken in the same shape at
+  `bnow-net-worktrees/claims/step-s2i3-c5m/` (atomic `mkdir`, 14:35:16Z) with the first entry in
+  `claims/launches.log`. `lsof` showed one session; no `~/c5m-*-20260908-mar.txt` existed.
+- Preflight clean on `main` at `689db86`. Production `_migrations` **29 rows**, newest numbered
+  `0027`; all four new tables `to_regclass` NULL. Pending on `main`: 0028, 0029, 0030 — same
+  reading as 2026-09-07, so nobody applied 0028 in between (§8's first halt did not fire).
+- Fork `br-cold-fog-atmcvp28` created, pre-migrate host check printed the FORK endpoint, and
+  0028/0029/0030 applied with BOTH DSN names set explicitly (never `env -u` — #112).
+- **Pass 0 (`--dry`) COMPLETED on both series** over 2026-02-28 → 2026-03-22. `iran_update`:
+  multiEditionDays **8**, anchorNotFinalDays **1**, publishedDays 15, probeFailedDays 8,
+  publicationGapDays 0, probes 92, probeFailures 49. `roca`: multiEditionDays 0, publishedDays 6,
+  probeFailedDays 17, probes 23, probeFailures 17.
+- Operator confirmed the §4.3 fork-write variant in session at ≈14:40Z, before any non-dry
+  command ran. **Passes 1 and 2 COMPLETED on both series** (14:43:28Z → 14:49:25Z).
+- **C5-m is ANSWERED for this window.** Pass 1: `multiEditionDays = 8`, `anchorNotFinalDays = 1`
+  — **2026-03-05**, anchor `morning` vs daily-final `evening`; 1 of 8 observed multi-edition
+  days. Pass 2: `publicationGapDays = 0` on both series. Both Iran figures are LOWER bounds
+  (14 of 23 days probed under the host's 403 state; **2026-03-10** is the named unresolved
+  candidate — `isw_reports` also kept its morning edition).
+- Pass 0 and pass 1 agreed on all 23 day lines, so §4.1's dry-path defect is latent in this
+  corpus rather than actively miscounting — corpus luck (evening is both probe-first and
+  daily-final here), not a refutation. Pass 1 is still the quoted reading.
+- **§8's "published day returned no edition" trigger fired literally and was judged NOT a halt**,
+  with evidence: all 46 `isw_reports` URLs in the window are shapes the probe generates, and
+  three identical `roca` passes gave `publishedDays` 6 → 6 → 13 — so all 17 pass-1 `probe_failed`
+  days were false negatives. It is the 403 throttle, which §8 as amended says is not a halt.
+- **New finding (#114):** the 403 state suppresses REAL pages, not only nonexistent shapes. This
+  corrects the 2026-09-07 record's n=1 "a genuine second edition would most likely have been
+  served". The 404 → 403 threshold reproduced exactly: 20 clean 404s, then none in 55 further
+  probes. Consequence: `publication_gap` is effectively unreachable once the host trips, so
+  (f14)/C15's reopening trigger is still unexercised.
+- Fork **deleted 14:50:43Z** and verified absent against the Neon branches API; the connection
+  string was never written to any file, report, log entry or chat. Production re-verified after:
+  29 migrations, four tables absent, `isw_reports` window count 46 unchanged.
+- Records: `docs/reviews/C5M-PROBES-2026-09-07.md` (2026-09-08 re-run section, R.1–R.18),
+  OPEN-TASKS **#111** confirmation line and new **#114**. Proposed decision-log entry is in the
+  report R.16, not applied (AGENTS.md write-lock). Spend **$0**; zero production writes; no
+  deploy, no env change; nothing launched.

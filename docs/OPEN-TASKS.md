@@ -1907,6 +1907,11 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     step 27 applies all three in file order and the D10 entry stands as written; this is a
     naming reconciliation for whoever reads both.
     **Owner: step 27**, backup-branch-first per RELEASE-CHECKLIST §11.
+    **Re-confirmed read-only 2026-09-08** during the C5-m re-run over the March 2026
+    window: still 29 rows, still `0027` as the newest numbered migration, and all four
+    tables still absent. Nothing applied 0028 in the intervening day. The measurement was
+    again taken against a migrated disposable fork (`br-cold-fog-atmcvp28`, deleted
+    14:50:43Z); production was never written. Step 27's obligation is unchanged.
 
 112. **[Tier 1 — operational hazard] `env -u <VAR>` does NOT protect a script that imports
     `scripts/env.ts`; it hands the variable back from `.env.local`.** Found by executing
@@ -1966,3 +1971,41 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     triaging dead slug vs. legacy layout on a sample first, then either a slug repair or a
     second parser shape — not a re-run of the existing one.
     Filed 2026-09-07 from the #79 execution record (AGENTS.md decision log, same date).
+
+114. **[Tier 2 — measurement integrity] `probe_failed` conflates "ISW did not publish" with
+    "understandingwar.org throttled us", and the 403 state suppresses REAL pages.** Measured
+    2026-09-08 during the C5-m re-run over 2026-02-28 → 2026-03-22
+    (`docs/reviews/C5M-PROBES-2026-09-07.md`, the 2026-09-08 re-run section, R.10).
+    **Evidence, from repetition rather than inference.** Three identical `--series roca` passes
+    over the same 23 days on the same fork returned `publishedDays` **6 → 6 → 13** and
+    `probeFailedDays` **17 → 17 → 10**. Publication is a fixed historical fact and
+    `isw_reports` holds all 23 of those `ru` days as published, so **all 17 of pass 1's
+    `probe_failed` days were false negatives** — seven of them corrected themselves on a third
+    identical sweep. In the same window 25 of 46 known-published URLs (`ir` + `ru`) returned no
+    edition at all.
+    **Mechanism.** `politeFetch` retries only on 429 or ≥500 (`src/lib/fetch-cache.ts:59-62`),
+    so a 403 returns at once and records `status: 403`. `isCleanNotFound` accepts only
+    `status === 404` (`src/lib/isw/edition-discovery.ts:226-228`), so a 403 is neither a clean
+    404 nor an edition and lands in `probeFailures` (`:359`). The host issues clean 404s for
+    roughly the first 20 not-found requests of a run and then stops: this run served **exactly
+    20**, then none in the remaining 55 network probes — reproducing the ~20 threshold the
+    2026-09-08 August re-run measured.
+    **Two consequences, in opposite directions.** (a) `publication_gap` is effectively
+    unreachable once the host trips, because confirmation requires EVERY probe of the day to be
+    a clean 404 (`:377-379`). That incidentally prevents phantom gaps — but it also makes
+    C15/(f14)'s confirmation instrument inert for any window longer than about a week, and
+    C15's same-session reopening trigger has still never been exercised. (b) `probeFailedDays`
+    overstates trouble and understates coverage; a WS-3.6 soak that predeclares thresholds
+    against these statuses would be predeclaring against a fetch artifact.
+    **This also corrects a 2026-09-07 conclusion.** That record's mitigation — "a genuine
+    second edition would most likely have been served" — rested on n=1. It replicates (12 real
+    pages were fetched fresh after the trip in this run, proven by disk-cache mtimes) but is
+    too strong: the outcome is probabilistic, and the two Iran C5-m figures are therefore
+    LOWER bounds, with 2026-03-10 the specific day the artifact left unresolved.
+    **Options** (decision R.15 item 1 of that report): (a) leave it; (b) split 403 out of
+    `probe_failed` as an explicit indeterminate status and give gap confirmation a
+    "never confirmable under throttling" branch; (c) add backoff so a run converges the way
+    the third `roca` pass did by accident. Recommendation **(b) now, (c) later** — (b) is a
+    labelling change inside the module step 14 owns; (c) changes fetch volume against a
+    third-party host and deserves its own decision.
+    **Owner: step 23**, alongside the §4.1 dry-path finality fix in the same module.
