@@ -54,6 +54,9 @@ vi.mock("@/lib/usage/llm-guard", async (importOriginal) => {
 
 vi.mock("@/lib/usage/cron-run", () => ({ withCronRun }));
 
+import { ANALYSIS_ROUTING_REGISTRY_VERSION } from "@/lib/llm/analysis-registry";
+import { entityAuditListing, entityAuditRequest } from "@/lib/analysis/entity-audit-prompts";
+
 const { GET } = await import("./route");
 
 const ENV_KEYS = [
@@ -111,5 +114,42 @@ describe("entity-audit route — provider refused before reservation", () => {
     expect(guardInit).toHaveBeenCalledOnce();
     expect(guardReserve).toHaveBeenCalledOnce();
     expect(withCronRun).toHaveBeenCalledOnce();
+  });
+});
+
+// PR-2.4-2: the prompt and request shape moved into a pure module
+// (src/lib/analysis/entity-audit-prompts.ts). entity-audit-prompts.test.ts
+// pins the module's output against the pre-extraction literal; this pins that
+// the ROUTE still dispatches exactly that output — the two together are what
+// make "byte-identical request" a checked claim rather than a PR assertion.
+describe("entity-audit route — the dispatched request is the pure module's output", () => {
+  it("chat.completions.create receives entityAuditRequest(dispatch, entityAuditListing(rows))", async () => {
+    // let the cron wrapper actually run the body (it is fully mocked above, so
+    // by default run() never executes and nothing is dispatched)
+    withCronRun.mockImplementation(async (_name: string, fn: (c: Record<string, unknown>) => unknown) => fn({}));
+    createSpy.mockResolvedValue({
+      usage: { prompt_tokens: 10, completion_tokens: 2 },
+      choices: [{ message: { content: '{"proposals":[]}' } }],
+    });
+
+    const res = await GET(req());
+    expect(res.status).toBe(200);
+    expect(createSpy).toHaveBeenCalledOnce();
+    // the mocked Pool returns zero rows, so the listing is empty — the point
+    // here is the request SHAPE and its provenance, not the corpus
+    expect(createSpy.mock.calls[0][0]).toEqual(
+      entityAuditRequest(
+        {
+          workload: "entity_audit",
+          provider: "openai",
+          model: "gpt-4o-mini",
+          reasoningCapable: false,
+          reasoningEffort: null,
+          approvalStatus: "baseline",
+          registryVersion: ANALYSIS_ROUTING_REGISTRY_VERSION,
+        },
+        entityAuditListing([]),
+      ),
+    );
   });
 });

@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { Pool } from "@neondatabase/serverless";
 import { analysisOpenAiClient } from "@/lib/analysis/openai-client";
 import {
+  entityAuditListing,
+  entityAuditRequest,
+  type EntityAuditRow,
+} from "@/lib/analysis/entity-audit-prompts";
+import {
   ModelConfigError,
-  analysisChatParams,
   dispatchIdentity,
   workloadDispatchConfig,
   type AnalysisDispatchConfig,
@@ -30,20 +34,6 @@ interface Proposal {
   intoName?: string;
   reason: string;
 }
-
-const SYSTEM = `You curate an entity graph for an OSINT conflict/elite-politics tracker. Entities must be specific, trackable real-world actors: named people, agencies, companies, organizations, armed factions/parties.
-
-Given the entity list (id, kind, name, claims = evidence count, sample claim text), propose corrections as JSON {"proposals":[{"action":"delete"|"merge","id":<id>,"intoId":<id if merge>,"reason":"<short>"}]}.
-
-DELETE only when clearly:
-- a collective/non-specific actor ("protesters", "local residents")
-- geography posing as an actor (a city/country with no institutional sense)
-- an object, weapon system, disease, weather event, or abstract concept
-- a person/org with zero plausible relevance to conflict, sanctions, elite politics, or security (e.g. sports/entertainment figures in stray claims)
-
-MERGE only when two ids are clearly the SAME real-world actor (spelling/transliteration variants, abbreviation vs full name). intoId = the better-evidenced or better-named one.
-
-Be conservative: when unsure, propose nothing for that entity. Do not invent ids.`;
 
 export async function GET(req: NextRequest) {
   const auth = req.headers.get("authorization");
@@ -99,25 +89,13 @@ async function run(
        GROUP BY e.id ORDER BY e.id`,
     );
 
-    const listing = rows
-      .map(
-        (r) =>
-          `${r.id} | ${r.kind} | ${r.name} | claims=${r.claims}${r.sample ? ` | e.g. "${String(r.sample).slice(0, 120)}"` : ""}`,
-      )
-      .join("\n");
+    // prompt + request shape live in the pure module so an evaluation can
+    // reproduce them without booting a route (entity-audit-prompts.ts); the
+    // request object is byte-identical to the literal this route used to build
+    const listing = entityAuditListing(rows as EntityAuditRow[]);
 
     const client = analysisOpenAiClient();
-    const completion = await client.chat.completions.create({
-      model: dispatch.model,
-      messages: [
-        { role: "system", content: SYSTEM },
-        { role: "user", content: `Entities:\n${listing}` },
-      ],
-      // default (non-reasoning) payload keeps exactly the historical
-      // `temperature: 0`; a reasoning model drops it (model-config.ts)
-      ...analysisChatParams(dispatch, { temperature: 0 }),
-      response_format: { type: "json_object" },
-    });
+    const completion = await client.chat.completions.create(entityAuditRequest(dispatch, listing));
 
     const promptTokens = completion.usage?.prompt_tokens ?? 0;
     const completionTokens = completion.usage?.completion_tokens ?? 0;
