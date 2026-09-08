@@ -69,7 +69,7 @@ async function mkDeps(create: ReturnType<typeof vi.fn>, opts: { capture?: LiveDe
   };
 }
 
-const CFG = evalDispatchConfig("validation", "gpt-4o-mini", null);
+const CFG = evalDispatchConfig("validation", "openai", "gpt-4o-mini", null);
 
 /** two takeaways, two claims — the val-typ-005 shape (labels: 0→1071, 1→null) */
 const CASE: ValidationEvalCase = {
@@ -181,7 +181,7 @@ describe("validation vote knob", () => {
 
 describe("preflight vote guards (validation only)", () => {
   const ENV = { EVAL_DATABASE_URL: "postgres://u:p@eval.example.neon.tech/db", OPENAI_API_KEY: "sk-test", LLM_SPRINT_USD_CAP: "10", EVAL_USD_CAP_DAILY: "2" } as unknown as NodeJS.ProcessEnv;
-  const ARGS = { executeLive: true, workload: "validation", model: "gpt-4o-mini", effort: null, dbAck: "eval.example.neon.tech" };
+  const ARGS = { executeLive: true, workload: "validation", provider: null, model: "gpt-4o-mini", effort: null, dbAck: "eval.example.neon.tech" };
 
   it("refuses a production MATCH_VOTES/MATCHER_MODE override, a non-existent vote count, an unacknowledged single round, and an ack that authorizes nothing", () => {
     expect(() => assertLivePreflight(ARGS, { ...ENV, MATCH_VOTES: "3" })).toThrow(/MATCHER_MODE\/MATCH_VOTES alter/);

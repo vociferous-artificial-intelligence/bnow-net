@@ -43,7 +43,14 @@ import {
   type AnalysisReasoningEffort,
 } from "../llm/model-config";
 import { ANALYSIS_ROUTING_REGISTRY_VERSION, analysisApproval } from "../llm/analysis-registry";
-import { PRICES_PER_MTOK, estimateCostUsd } from "../llm/pricing";
+import { estimateCostUsd, pricedFor } from "../llm/pricing";
+import {
+  ANALYSIS_DEFAULT_PROVIDER,
+  ANALYSIS_PROVIDER_IDS,
+  analysisReasoningCapable,
+  isAnalysisProviderId,
+  type AnalysisProviderId,
+} from "../llm/providers";
 import { LlmBudgetError, reduceMaxOutputTokens } from "../usage/llm-guard";
 import type { SpendGuard } from "../usage/spend-guard";
 import { MATCH_RESPONSE_SCHEMA, MATCH_VOTES_DEFAULT, resolveVoteRounds, sanitizeMatches, type LlmMatch } from "../validation/llm-match";
@@ -101,6 +108,10 @@ export class EvalDispatchError extends Error {
 
 export interface EvalCandidateDispatchConfig {
   workload: LiveEvalWorkload;
+  /** the vendor this candidate dispatches through. Validated against
+   *  EVAL_DISPATCHABLE_PROVIDERS in the preflight, BEFORE this config is
+   *  built and long before any client or DB exists. */
+  provider: AnalysisProviderId;
   model: string;
   reasoningCapable: boolean;
   reasoningEffort: AnalysisReasoningEffort | null;
@@ -111,20 +122,36 @@ export interface EvalCandidateDispatchConfig {
   approval: "baseline" | "evaluation_candidate";
 }
 
-const REASONING_MODEL = /^(gpt-5|o\d)/; // mirror of model-config's split
+/** Providers this build can actually DISPATCH an evaluation through.
+ *
+ *  Naming a provider (providers.ts ANALYSIS_PROVIDER_IDS) is not permission
+ *  to evaluate on it: every id here needs a request/parse path in
+ *  dispatchOnce, a metering row, and a price table entry for its models.
+ *  Only `openai` has all three today — PR-2.2-B3 widens this list when the
+ *  Anthropic dispatch seam lands, and `assertLivePreflight` refuses anything
+ *  outside it BEFORE any client, guard or DB exists. */
+export const EVAL_DISPATCHABLE_PROVIDERS: readonly AnalysisProviderId[] = ["openai"];
 
-/** Resolve a model for evaluation dispatch. Validates pricing (an unpriced
- *  model still refuses — its spend could only be guessed, ruling 4's spirit)
- *  and reasoning effort (allowlist; effort on a non-reasoning model refuses).
+/** Resolve a (provider, model, effort) for evaluation dispatch. Validates
+ *  pricing FOR THAT PROVIDER (an unpriced model still refuses — its spend
+ *  could only be guessed, ruling 4's spirit) and reasoning effort (allowlist;
+ *  effort on a model whose provider/name cannot take one refuses).
  *  A combination the analysis approval registry records as status "baseline"
  *  (the registered production configuration, e.g. gpt-4o-mini/effort-absent)
  *  is resolved THROUGH the registry and stamped approval "baseline". Any
  *  other priced combination deliberately BYPASSES the analysis-registry
  *  approval and the map activation lock, stamping approval
  *  "evaluation_candidate" into every artifact so no candidate output can
- *  masquerade as production-approved. */
+ *  masquerade as production-approved.
+ *
+ *  The provider is an INPUT, not an assumption: the price lookup and the
+ *  reasoning-capability probe are both provider-relative, so a model priced
+ *  for OpenAI can never be metered as another vendor's and vice versa. The
+ *  eval-dispatchability allowlist is enforced by the preflight, not here —
+ *  this function stays pure and callable from a unit test for any provider. */
 export function evalDispatchConfig(
   workload: string,
+  provider: string,
   model: string,
   effort: string | null,
 ): EvalCandidateDispatchConfig {
@@ -134,12 +161,22 @@ export function evalDispatchConfig(
   if (workload !== "map" && workload !== "digest" && workload !== "validation") {
     throw new EvalDispatchError(`unknown workload "${workload}"`);
   }
-  if (!Object.prototype.hasOwnProperty.call(PRICES_PER_MTOK, model)) {
+  if (!isAnalysisProviderId(provider)) {
     throw new EvalDispatchError(
-      `model "${model}" has no entry in the metering price table (src/lib/llm/pricing.ts) — refusing to dispatch unpriced, even for evaluation`,
+      `provider "${provider}" is not a known provider (known: ${ANALYSIS_PROVIDER_IDS.join("|")})`,
     );
   }
-  const reasoningCapable = REASONING_MODEL.test(model);
+  if (!pricedFor(provider, model)) {
+    // same two-message split as the production seam (model-config.ts): the
+    // OpenAI wording is unchanged from before the provider dimension, so the
+    // overwhelmingly common refusal reads exactly as operators know it
+    throw new EvalDispatchError(
+      provider === "openai"
+        ? `model "${model}" has no entry in the metering price table (src/lib/llm/pricing.ts) — refusing to dispatch unpriced, even for evaluation`
+        : `model "${model}" is not priced for provider "${provider}" in the metering price table (src/lib/llm/pricing.ts) — refusing to dispatch unpriced, even for evaluation`,
+    );
+  }
+  const reasoningCapable = analysisReasoningCapable(provider, model);
   let reasoningEffort: AnalysisReasoningEffort | null = null;
   if (effort !== null) {
     const lower = effort.trim().toLowerCase();
@@ -158,13 +195,13 @@ export function evalDispatchConfig(
   // production configuration's). Only a status-"baseline" registry verdict
   // resolves here; a future "evaluated_candidate" registry entry still takes
   // the bypass stamp — its eval artifacts describe candidate dispatches.
-  // The eval plane is OpenAI-only in this release (the `--provider` flag and a
-  // provider-qualified eval identity are PLAN-WS-2 §7.1 / PR-2.4-1); the
-  // literal keeps the registry lookup honest rather than provider-agnostic.
-  const verdict = analysisApproval(workload, "openai", model, reasoningEffort);
+  // The provider is passed through rather than assumed: a registry approval
+  // is keyed on (workload, provider, model, effort), so a Claude model can
+  // never inherit an OpenAI baseline's status by sharing its name.
+  const verdict = analysisApproval(workload, provider, model, reasoningEffort);
   const approval: EvalCandidateDispatchConfig["approval"] =
     verdict.approved && verdict.status === "baseline" ? "baseline" : "evaluation_candidate";
-  return { workload, model, reasoningCapable, reasoningEffort, approval };
+  return { workload, provider, model, reasoningCapable, reasoningEffort, approval };
 }
 
 // ============================================================================
@@ -174,6 +211,10 @@ export function evalDispatchConfig(
 export interface LivePreflightArgs {
   executeLive: boolean;
   workload: string;
+  /** --provider; null = the CLI default (openai). Refused before the DB, the
+   *  key and the caps are even looked at — an unevaluable vendor is not a
+   *  configuration to be completed, it is a build capability that is absent. */
+  provider: string | null;
   model: string | null;
   effort: string | null;
   dbAck: string | null;
@@ -206,6 +247,18 @@ export function assertLivePreflight(
   }
   if (args.model === null || args.model === "") {
     throw new EvalDispatchError("live mode requires --model");
+  }
+  // PROVIDER before everything environmental. An id this build cannot
+  // dispatch is refused here — before EVAL_DATABASE_URL, before the API key,
+  // before the caps, before evalDispatchConfig, and (this function being pure)
+  // before any client, guard or DB connection exists at all. Unknown ids and
+  // known-but-not-wired ids fail identically: the operator's question is
+  // "can this build evaluate on that vendor", and the answer is no either way.
+  const provider = args.provider ?? ANALYSIS_DEFAULT_PROVIDER;
+  if (!(EVAL_DISPATCHABLE_PROVIDERS as readonly string[]).includes(provider)) {
+    throw new EvalDispatchError(
+      `provider "${provider}" is not eval-dispatchable in this build (allowed: ${EVAL_DISPATCHABLE_PROVIDERS.join("|")}) — refusing before any client construction`,
+    );
   }
   const url = env.EVAL_DATABASE_URL;
   if (!url) {
@@ -259,7 +312,7 @@ export function assertLivePreflight(
       throw new EvalDispatchError(`${cap} is not set to a positive number — the openai_eval guard fails closed`);
     }
   }
-  const cfg = evalDispatchConfig(args.workload, args.model, args.effort);
+  const cfg = evalDispatchConfig(args.workload, provider, args.model, args.effort);
   // ruling 18: K=5 synthesis votes is the SHIPPED digest configuration — a
   // live digest eval at any other K would measure a non-shipped pipeline and
   // its scorecard would be meaningless for activation. Refuse rather than
@@ -308,7 +361,7 @@ export function liveIdentity(
   cfg: EvalCandidateDispatchConfig,
 ): CandidateDispatchIdentity {
   return {
-    provider: "openai",
+    provider: cfg.provider,
     model: cfg.model,
     reasoningEffort: cfg.reasoningEffort,
     registryVersion: ANALYSIS_ROUTING_REGISTRY_VERSION,
@@ -435,6 +488,7 @@ export async function dispatchOnce(
       attemptSeq: seq,
       outcome: "error",
       requestedModel: cfg.model,
+      requestedProvider: cfg.provider,
       returnedModel: null,
       responseId: null,
       systemFingerprint: null,
@@ -462,7 +516,7 @@ export async function dispatchOnce(
     let seq: number | null = null;
     if (capture !== null) {
       seq = capture.nextAttemptSeq();
-      capture.write({ ...base(attemptIndex)!, kind: "attempt_start", attemptSeq: seq, requestedModel: cfg.model });
+      capture.write({ ...base(attemptIndex)!, kind: "attempt_start", attemptSeq: seq, requestedModel: cfg.model, requestedProvider: cfg.provider });
     }
     deps.meter.reservations++;
     deps.meter.attempts++;
@@ -517,6 +571,7 @@ export async function dispatchOnce(
       attemptSeq: seq,
       outcome: "response",
       requestedModel: cfg.model,
+      requestedProvider: cfg.provider,
       returnedModel: typeof completion.model === "string" ? completion.model : null,
       responseId: typeof completion.id === "string" ? completion.id : null,
       systemFingerprint: typeof completion.system_fingerprint === "string" ? completion.system_fingerprint : null,
@@ -676,7 +731,7 @@ export async function runLiveCase(
     caseId: evalCase.id,
     datasetVersion,
     runId,
-    configKey: liveConfigKey(cfg.model, cfg.reasoningEffort),
+    configKey: liveConfigKey(cfg.model, cfg.reasoningEffort, cfg.provider),
     repetition,
     attempt: deps.meter.attempts - meterBefore,
     status,

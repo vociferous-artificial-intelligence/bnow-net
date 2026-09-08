@@ -41,7 +41,7 @@ import "./env";
 //       default output must not become a heldout iteration channel). Every
 //       skipped/invalid/incomplete entry is surfaced loudly — no silent caps.
 //
-//   --execute-live --workload X --model M [--effort E] --db-ack <host>
+//   --execute-live --workload X --model M [--effort E] [--provider P] --db-ack <host>
 //                  [--repetitions N] [--only id,...] [--fresh] [--dev]
 //                  [--allow-heldout-rerun]
 //                  [--validation-votes 5|1] [--single-round-diagnostic]
@@ -58,6 +58,14 @@ import "./env";
 //       --allow-heldout-rerun flag (a stochastic failure must not be
 //       re-rolled to a pass), and any key replaced by a later run stays
 //       visible in the scorecard's run-provenance line.
+//
+//       --provider (2026-09-06, PLAN-WS-2 §7.1) names the VENDOR; it defaults
+//       to openai and only openai is eval-dispatchable in this build. Any
+//       other id — nameable or not — is refused in the preflight, before the
+//       DB, the key, the caps and any client. A non-openai provider qualifies
+//       the results configKey as `<model>[@effort]+provider=<id>[+profile]
+//       [+votesN]`, so no historical file is renamed and a candidate on
+//       another vendor still pairs with the OpenAI baseline of its profile.
 //
 //       Validation parity (2026-09-04): a live validation case dispatches the
 //       production matcher's FIVE vote rounds and resolves them through the
@@ -89,7 +97,8 @@ import "./env";
 //       A capture write failure aborts the run (evidence of calls already
 //       made is retained: they are metered and recorded as abandoned).
 //
-//   --capture-reconcile --workload X --model M [--effort E] [--capacity P] [--out p.md]
+//   --capture-reconcile --workload X --model M [--effort E] [--provider P]
+//                       [--capacity P] [--out p.md]
 //       Reconcile EVAL_CAPTURE_DIR lines against the results file: attempts,
 //       responses, errors, unresolved (crash-window), metered, budget stops,
 //       abandoned vs completed vs orphan cases. Metadata only. No DB, no
@@ -144,6 +153,7 @@ import {
   emptyEvalResultsFile,
   heldoutCoverage,
   liveConfigKey,
+  baselinePairingKey,
   BASELINE_PROFILE,
   CAPACITY_PROFILES,
   MIN_LIVE_REPETITIONS,
@@ -180,6 +190,7 @@ import {
   type WorkloadScorecard,
 } from "../src/lib/evals/runner";
 import { ANALYSIS_DEFAULT_MODEL } from "../src/lib/llm/model-config";
+import { ANALYSIS_DEFAULT_PROVIDER, ANALYSIS_PROVIDER_IDS, isAnalysisProviderId, type AnalysisProviderId } from "../src/lib/llm/providers";
 
 const REPO_ROOT = path.resolve(__dirname, "..");
 const EVALS_DIR = path.join(REPO_ROOT, "docs", "evals", "analysis");
@@ -383,12 +394,18 @@ function profiledKey(base: string): string {
   return withCapacityProfileKey(base, activeCapacityProfile);
 }
 
-/** The configKey a LIVE results file is written/read under: model+effort,
+/** The configKey a LIVE results file is written/read under: model+effort, the
+ *  provider segment (omitted for openai, so historical keys are byte-exact),
  *  the capacity-profile suffix, and — validation only — the vote-count
  *  suffix (`+votes5` / `+votes1`), which keeps every post-2026-09-04
  *  validation file on a path no pre-parity single-round file ever used. */
-function liveResultsConfigKey(workload: AnalysisEvalWorkload, model: string, effort: string | null): string {
-  const base = profiledKey(liveConfigKey(model, effort));
+function liveResultsConfigKey(
+  workload: AnalysisEvalWorkload,
+  model: string,
+  effort: string | null,
+  provider: AnalysisProviderId = ANALYSIS_DEFAULT_PROVIDER,
+): string {
+  const base = profiledKey(liveConfigKey(model, effort, provider));
   return workload === "validation" ? `${base}${validationVotesKeySuffix(evalValidationVotes())}` : base;
 }
 
@@ -620,16 +637,11 @@ function modeReport(workloads: AnalysisEvalWorkload[], outPath: string, showHeld
       // LIVE results on the same dataset UNDER THE SAME capacity profile —
       // a profiled candidate must never be compared against an unprofiled
       // baseline (the knob-drift degrade would otherwise fire on every cell)
-      // the validation vote suffix (+votes<K>) is NOT a capacity profile:
-      // strip it first, derive the profile suffix, then re-append it so a
-      // profiled validation candidate pairs with the profiled baseline at
-      // the SAME vote count (review MINOR-1)
-      const votesMatch = configKey.match(/\+votes\d+$/);
-      const votesSuffix = votesMatch ? votesMatch[0] : "";
-      const keySansVotes = votesSuffix ? configKey.slice(0, -votesSuffix.length) : configKey;
-      const plusAt = keySansVotes.lastIndexOf("+");
-      const profileSuffix = plusAt === -1 ? "" : keySansVotes.slice(plusAt);
-      const baselineKey = `${ANALYSIS_DEFAULT_MODEL}${profileSuffix}${votesSuffix}`;
+      // neither the validation vote suffix (+votes<K>, review MINOR-1) nor the
+      // provider segment (+provider=<id>, PLAN-WS-2 §7.1) is a capacity
+      // profile; baselinePairingKey strips both in the one order that works
+      // and is unit-pinned in runner.test.ts
+      const baselineKey = baselinePairingKey(configKey, ANALYSIS_DEFAULT_MODEL);
       const baseline = live && configKey !== baselineKey ? loadResults(w, baselineKey) : null;
       const baselineExpectation = baseline
         ? { configKey: baselineKey, model: ANALYSIS_DEFAULT_MODEL }
@@ -890,6 +902,7 @@ function conflictModeReport(
 
 async function modeLive(opts: {
   workload: AnalysisEvalWorkload;
+  provider: string | null;
   model: string | null;
   effort: string | null;
   dbAck: string | null;
@@ -907,6 +920,7 @@ async function modeLive(opts: {
     preflight = live.assertLivePreflight({
       executeLive: hasFlag("execute-live"),
       workload: opts.workload,
+      provider: opts.provider,
       model: opts.model,
       effort: opts.effort,
       dbAck: opts.dbAck,
@@ -923,7 +937,7 @@ async function modeLive(opts: {
   // the spend ledger (provider_usage, provider openai_eval) writes to the
   // ACKNOWLEDGED eval branch — DATABASE_URL is overwritten, never read
   process.env.DATABASE_URL = evalDatabaseUrl;
-  console.log(`live eval: workload=${cfg.workload} model=${cfg.model} effort=${cfg.reasoningEffort ?? "absent"} db=${dbHost}`);
+  console.log(`live eval: workload=${cfg.workload} provider=${cfg.provider} model=${cfg.model} effort=${cfg.reasoningEffort ?? "absent"} db=${dbHost}`);
   console.log(
     cfg.approval === "baseline"
       ? `approval=baseline — registry-backed production baseline identity (see identity.registryVersion in the results header).`
@@ -931,7 +945,7 @@ async function modeLive(opts: {
   );
 
   const { ds, contentHash } = loadDataset(opts.workload);
-  const configKey = liveResultsConfigKey(opts.workload, cfg.model, cfg.reasoningEffort);
+  const configKey = liveResultsConfigKey(opts.workload, cfg.model, cfg.reasoningEffort, cfg.provider);
   if (opts.workload === "validation") {
     const votes = evalValidationVotes();
     console.log(
@@ -1108,9 +1122,9 @@ function captureDirOrExit(): string {
   return path.resolve(dir);
 }
 
-function modeCaptureReconcile(workload: AnalysisEvalWorkload, model: string, effort: string | null, outPath: string | undefined): void {
+function modeCaptureReconcile(workload: AnalysisEvalWorkload, provider: AnalysisProviderId, model: string, effort: string | null, outPath: string | undefined): void {
   const dir = captureDirOrExit();
-  const configKey = liveResultsConfigKey(workload, model, effort);
+  const configKey = liveResultsConfigKey(workload, model, effort, provider);
   const rfPath = resultsPath(workload, configKey);
   const rf = loadResultsAtPath(rfPath);
   const files = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(".jsonl")).sort() : [];
@@ -1144,7 +1158,7 @@ function modeCaptureInspect(file: string, showRaw: boolean): void {
     throw e;
   }
   const run = parsed.run!;
-  console.log(`capture ${path.basename(file)}: run ${run.runId} ${run.workload}/${run.configKey} dataset ${run.datasetVersion} split=${run.split} raw=${run.raw} model=${run.identity.model} scorer=${run.scorer.module}@${run.scorer.sourceSha256?.slice(0, 12) ?? "?"} git=${run.gitHead?.slice(0, 12) ?? "?"}`);
+  console.log(`capture ${path.basename(file)}: run ${run.runId} ${run.workload}/${run.configKey} dataset ${run.datasetVersion} split=${run.split} raw=${run.raw} provider=${run.identity.provider} model=${run.identity.model} scorer=${run.scorer.module}@${run.scorer.sourceSha256?.slice(0, 12) ?? "?"} git=${run.gitHead?.slice(0, 12) ?? "?"}`);
   for (const l of parsed.lines) {
     if (l.kind === "attempt_start") console.log(`  #${l.attemptSeq} start ${l.caseId}#r${l.repetition}${l.voteIndex !== null ? ` vote ${l.voteIndex}/${l.voteCount}` : ""} attempt ${l.attemptIndex} model ${l.requestedModel}`);
     else if (l.kind === "attempt_end") {
@@ -1369,7 +1383,15 @@ async function main(): Promise<void> {
       console.error("--capture-reconcile requires --model (the results file is keyed by configKey)");
       process.exit(2);
     }
-    return modeCaptureReconcile(workloads[0], model, flagValue("effort") ?? null, flagValue("out"));
+    // metadata mode: no dispatch, so the only question the provider answers is
+    // which results FILE to read. An unnameable id could only name a file that
+    // cannot exist — refuse it here rather than report zero results for it.
+    const rawProvider = flagValue("provider") ?? ANALYSIS_DEFAULT_PROVIDER;
+    if (!isAnalysisProviderId(rawProvider)) {
+      console.error(`--provider: unknown provider "${rawProvider}" (known: ${ANALYSIS_PROVIDER_IDS.join(", ")})`);
+      process.exit(2);
+    }
+    return modeCaptureReconcile(workloads[0], rawProvider, model, flagValue("effort") ?? null, flagValue("out"));
   }
   if (!hasFlag("execute-live")) {
     // capture is a live-only facility: every other mode ignores the env with
@@ -1392,6 +1414,10 @@ async function main(): Promise<void> {
     }
     return modeLive({
       workload: workloads[0],
+      // raw, unvalidated: assertLivePreflight is the ONE refusal surface for a
+      // provider this build cannot evaluate on, and it refuses unknown ids and
+      // known-but-unwired ids identically
+      provider: flagValue("provider") ?? null,
       model: flagValue("model") ?? null,
       effort: flagValue("effort") ?? null,
       dbAck: flagValue("db-ack") ?? null,
