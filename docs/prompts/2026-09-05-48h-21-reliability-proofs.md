@@ -10,6 +10,19 @@
 | Spend | $0 — refusal fires BEFORE dispatch, so the flood proof runs with `LLM_DISABLE=1` or a blank `OPENAI_API_KEY` on the fork; the watchdog proof injects deps. |
 | Closing report | `docs/reviews/RELIABILITY-PROOFS-2026-09-06.md` |
 
+**DECISIONS BINDING — added 2026-09-08.** O3 is SIGNED: `AGENTS.md` decision-log entry
+"2026-09-07 (O3 — fork proofs accepted for this window; the preview-deployment drill is…)"
+((f5); INDEX §2.2 row O3). Fork-based itest proofs are accepted as the #102/#103 "live proof";
+the preview-deployment drill is logged as a follow-up, not required here. **Do not print
+`AWAITING AUTHORIZATION: O3`; cite that entry and build.** Also on `main` since this prompt was
+written: migrations 0029/0030 exist as files but are UNAPPLIED to production (OPEN-TASKS #111) —
+irrelevant on a fork you migrate yourself, but never `env -u DATABASE_URL_UNPOOLED` to point
+`migrate.ts` at a fork: set BOTH `DATABASE_URL` and `DATABASE_URL_UNPOOLED` to the fork DSN on the
+same command line (OPEN-TASKS #112 — `env -u` lets dotenv repopulate the name from `.env.local`
+and the migration then targets production). Register gap G5 (`runtime-logs.itest.ts` on a fork
+with 0029 applied, plus the NUL / int4 / row-cap probes) is assigned to this step by CP4 plan
+§5.4 if it fits; otherwise say so in the report and it falls to step 23.
+
 Read `docs/prompts/2026-09-05-48h-COMMON.md` first.
 
 ## Facts

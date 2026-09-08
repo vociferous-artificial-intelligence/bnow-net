@@ -23,18 +23,12 @@ Open PRs (operator `gh pr list`, 09:34 ET): **#48**, **#47** — nothing else.
 
 ## 1. Where we are — read this first
 
-**Stage 2 (§5.2) is CLOSED as of 2026-09-08 13:10 ET** — all five gate boxes in §3 are ticked
-with evidence. Items 1–5 done; `gh pr list` empty; `main` = `81acadd`.
+**Stages 0, 1, 2, 2a: DONE and gated. `AGENTS.md` archive passes 9+10 done (126.7k).**
 
-**Stage 2a (§5.2a) is DONE as of 2026-09-08** — the D7/R4 measured remap run executed and its
-gate is ticked in §3a below. Actual spend **$0.046263** against C = $1.00.
-
-**Current step: Stage 3 (§5.3) — build steps 18–34.** Row A (20, 32, 33, 21) is launchable now.
-Two Stage 2 residue items remain owed and are listed in §4: (a2) file the June-2025 slug-shape
-finding as OPEN-TASKS **#116** (docs, $0), and (e) apply R.16's drafted C5-m decision-log entry.
-Item (g) is DONE for everything that runs (production authenticates; Stage 2a used the
-control-plane path throughout). Its stale local `DATABASE_URL` blocks only deliberate
-local-to-production scripts — narrowed and re-scoped in §4.
+**Current step: Stage 3 row A launch — steps 20, 32, 33, 21** via `scripts/launch/launch.sh`,
+per the §6 Stage 3 sequence (3A.0 → 3A.4). Row B (18 attended, 19) may launch alongside.
+Nothing in row C launches until its own gate line in §6 is true; step 23's and step 24's prompts
+still need their additions (§6, 3C) before they go.
 
 ---
 
@@ -46,7 +40,7 @@ local-to-production scripts — narrowed and re-scoped in §4.
 | 5.1 Stage 1 — CP4 merge queue | **DONE** | yes |
 | 5.2 Stage 2 — operator runs | **DONE 2026-09-08** — items 1–5 | yes |
 | 5.2a Stage 2a — D7/R4 measured remap | **DONE 2026-09-08** — executed, $0.046263 | yes |
-| 5.3 Stage 3 — build steps 18–34 | **CURRENT** — row A launchable | no |
+| 5.3 Stage 3 — build steps 18–34 | **CURRENT** — row A launching; B launchable; C/D gated | no |
 | 5.4 Stage 4 — review gates / four never-run checks | **NOT STARTED** (one hazard pre-filed, #112) | no |
 | 5.5 Stage 5 — freeze, final audit, deploy | **NOT STARTED** (pre-deploy facts pre-filed, #111) | no |
 | §6 detached sessions | **RESOLVED** | yes |
@@ -556,6 +550,110 @@ the estimate; `/health` not `DB OK`; the driver banner showing any base other th
 never raise a cap mid-run, recompute from C.2); any `MAP_CONTENT_CHARS` count other than 0 in
 either Vercel check.
 
+### Stage 3 — operator sequence (plan §5.3; one row at a time, gates between rows)
+
+**The mechanics that prevent yesterday's double-launch:** every launch goes through
+`scripts/launch/launch.sh <step> --go`, which takes an atomic claim
+(`bnow-net-worktrees/claims/step-<n>/`), resets the step's worktree to `origin/main` on its lane
+branch, checks the worktree's `.env.local` posture, and only then starts `claude -p` detached
+with the prompt on stdin and a log in `bnow-net-worktrees/logs/step<n>.log`. A second `--go` for
+the same step dies at the claim. `scripts/launch/status.sh` is the one screen to read instead of
+memory. Never launch a step by pasting a prompt into a terminal by hand.
+
+**Row A (now): steps 20, 32, 33, 21 — four worktrees, unattended allowed (steps.tsv attended=no).**
+
+```
+[ ] 3A.0  cd /Users/go/code/bnow-net && git status --porcelain (empty) && git fetch --prune origin
+          git log --oneline -1 origin/main                    (the binding-blocks commit or later)
+          lsof -a -d cwd -c claude | grep bnow                  (nothing)
+          scripts/launch/status.sh                             (no live claims; read it once)
+[ ] 3A.1  Env posture, per worktree, BEFORE launching (COMMON §4.10 — an unattended launch refuses
+          if spend/deploy keys are present):
+            for w in ws2-routing ws7-tradecraft ws7-docs ws4-ops; do
+              f=/Users/go/code/bnow-net-worktrees/48h-$w-20260905/.env.local
+              echo "== $w"; test -f "$f" && cut -d= -f1 "$f" || echo "(no .env.local)"
+            done
+          20 / 32 / 33: $0, no DB — remove .env.local entirely if present.
+          21: needs a fork → keep ONLY DATABASE_URL, DATABASE_URL_UNPOOLED, NEON_PROJECT_ID, NEON_API_KEY
+              (the trimmed copy); no OPENAI/ANTHROPIC/POSTMARK/VERCEL lines.
+[ ] 3A.2  Fresh toolchain per worktree (each gets its own node_modules — CP4 plan §5.4):
+            for w in ws2-routing ws7-tradecraft ws7-docs ws4-ops; do
+              (cd /Users/go/code/bnow-net-worktrees/48h-$w-20260905 && git checkout -- package-lock.json 2>/dev/null; npm ci --silent)
+            done
+[ ] 3A.3  Launch, one at a time, dry then go, reading each dry output before the go:
+            scripts/launch/launch.sh 20 && scripts/launch/launch.sh 20 --go
+            scripts/launch/launch.sh 32 && scripts/launch/launch.sh 32 --go
+            scripts/launch/launch.sh 33 && scripts/launch/launch.sh 33 --go
+            scripts/launch/launch.sh 21 && scripts/launch/launch.sh 21 --go
+          Note 32 and 34 share a worktree (ws7-tradecraft): 34 cannot launch until 32 has merged.
+[ ] 3A.4  Monitor: scripts/launch/status.sh every ~20 min; tail -5 bnow-net-worktrees/logs/step<n>.log
+          A step is DELIVERED when its PR is open and its closing report exists in docs/reviews/.
+          A step that prints AWAITING AUTHORIZATION or halts: read the log, do not relaunch — tell me.
+```
+
+**Row B (launchable now too — #70/#71 are on `main`): steps 18 (attended), 19.** Different
+worktrees from row A (`audit-ws3`, `ws3-conflict`), so they may run alongside row A.
+
+```
+[ ] 3B.0  Step 18 is attended=yes: `scripts/launch/launch.sh 18 --go` claims + preps and PRINTS the
+          session command; you run it in a terminal you can watch. Its prompt now carries #114, #116
+          and the dry-path defect (2026-09-08 addition) and G2 (audit PR #63). Fan-out is bounded per
+          CP4 §5.4 (3 refuters per major, 1 batched verification per PR, 1 completeness critic) —
+          if the session proposes more, stop it.
+[ ] 3B.1  Step 19 (unattended): env posture as for 21 (fork keys only), npm ci, then
+            scripts/launch/launch.sh 19 && scripts/launch/launch.sh 19 --go
+          E5 authorizes exactly ONE docs/evals/analysis/ refresh, this step only.
+```
+
+**CP5 merge queue — after each row delivers (attended, main checkout, same fence as CP4).**
+
+```
+[ ] CP5.0 lsof -a -d cwd -c claude | grep <worktree>   (the delivering session has exited)
+          gh pr list --state open                       (the row's PRs, nothing else unexpected)
+[ ] CP5.1 Per PR, BEFORE believing GitHub's DIRTY flag:
+            mb=$(git merge-base origin/main origin/<branch>); git merge-tree $mb origin/main origin/<branch> | grep -c '^+<<<<<<<'
+          0 → merge as-is. >0 → rebase in the PR's OWN worktree from the top of its stack with
+          --update-refs; resolve only PROGRESS/BLOCKERS/OPEN-TASKS/decision-log tails; ANY conflict
+          in code, drizzle/, or src/db/schema.ts STOPS the queue — paste it.
+[ ] CP5.2 gh pr merge <n> --merge; git pull --ff-only; next PR.
+[ ] CP5.3 Gate on post-merge main: npm run typecheck && npm run lint && npm test && (build)
+            LLM_DISABLE=1 OPENAI_API_KEY= ANTHROPIC_API_KEY= DATABASE_URL=postgres://x:y@localhost/z npm run build
+          Record unit count before/after and `ls drizzle | tail -4`.
+[ ] CP5.4 One docs commit: INDEX §10 CP5 line (merge SHAs, gate figures, what was launched/not),
+          tracker §2/§7 updated; push. Then `scripts/launch/status.sh` to confirm claims released.
+```
+
+**Row C — three independent gates, launch each when ITS gate is true:**
+
+```
+[ ] 3C.23 Steps 23r + 23c (remediate 17 + 18) — gate: step 18's register merged AND your
+          accept / defer / fix mark on EVERY finding in both registers (#74's 71 + 18's). Efficient
+          shape (plan §5.3): mark the 3 majors + the ~10 minors touching a spend path, gate, migration
+          or production-visible behaviour as FIX; blanket-DEFER the rest into one OPEN-TASKS entry.
+          Before launch, the session (me) adds to step 23's prompt: the marks, #110 (WS2-F06 fix),
+          #112 (migrate.ts boundary guard), #114 + R.15 decision 1 (split 403), #116 (June-2025 slug
+          shape), the WS2-F04 runbook-order correction if 25 has not landed it.
+[ ] 3C.24 Step 24 — gate: step 19 merged. Before launch, the session adds to step 24's prompt the
+          C5M report's R.17 handoff VERBATIM (window 2026-02-28→03-22; 8 multi-edition days, 1 anchor
+          mismatch; iran figures are lower bounds; (f14)/C15 NOT exercised and structurally could not
+          be; roca null instrument; 'real page served 200' is n=1) — it must NOT carry the August text.
+[ ] 3C.34 Step 34 — gate: step 32 merged (shares ws7-tradecraft). T3 tables signed as drafted ((f9),
+          T3-a/T3-b): ESTIMATIVE_MAP_V1, six invariants = the exhaustive test's spec.
+```
+
+**Row D — step 25 docs sync (gate: every row-C PR merged).** Its work order is the #74
+register's 22-item stale-text list (two are do-not-apply); it also lands the WS2-F04 runbook
+order correction if 23 did not, and runs the next archive pass under D5's normal 7-day window.
+
+**Stage 3 closes when:** 20, 32, 33, 21, 18, 19, 23, 24, 34, 25 are all merged, the CP5/CP6
+INDEX §10 lines exist, `scripts/launch/status.sh` shows no live claim, and `gh pr list` is
+empty. Then Stage 4's four never-run checks (plan §5.4) are assigned and Stage 5's freeze begins.
+
+**Prompt readiness (done 2026-09-08 before row A):** binding blocks added to the step-20 (signed
+f-batch, `mapreduceProviderTag()` gate), step-21 (O3 signed; #111/#112) and step-32 (T4/T4-b:
+disclosure BUILT and DARK, policy function, per-stage block, marker, test) prompts; step 18's
+prompt carries #114/#116. Still owed before row C: the step-23 and step-24 prompt additions above.
+
 **Stage 2 is closed when §3 shows four ticks with evidence.** Only then does this file's §1
 move to Stage 2a — and that move is itself a logged edit here, not an assumption.
 
@@ -574,3 +672,4 @@ move to Stage 2a — and that move is itself a logged edit here, not an assumpti
 - 2026-09-08 15:50 ET — Stage 2a verified against the plan gate and landed on main (286474e, 6e0e11c); §19.11 entry applied to AGENTS.md; Neon two-plane note carried into §5.2a. Current step: Stage 3 (row A) after the residue closeout decision.
 - 2026-09-08 16:05 ET — residue closeout: R.16 entry + credentials rows in AGENTS.md; #33 status + #116 in OPEN-TASKS; step-18 prompt line (#114, #116, dry-path defect). §4 a/a2/e closed. Next: Stage 3 row A launch sheet.
 - 2026-09-08 16:30 ET — AGENTS.md archive passes 9 (eb4bf9f, policy) and 10 (c6e3dae, one-off cut to 2026-09-05): 147,701 → 126,660 chars, 205 entries preserved, both PASS; record entry appended. Next: Stage 3 row A launch sheet.
+- 2026-09-08 16:50 ET — Stage 3 operator sequence written (§6); binding blocks added to prompts 20/21/32; §1 → row A launch.
