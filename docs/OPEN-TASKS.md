@@ -2096,3 +2096,27 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     the parser regex, with a fixture for 2025-06-18 (morning) and 2025-06-14 (evening); until
     then, do not run any discovery backfill over 2025-06-12 → 06-24. Owner: step 18's register
     (WS-3 audit) → step 23. Related: #114 (403 conflation). Filed 2026-09-08.
+
+117. **[Tier 3 — provenance] The digest carries no record of WHICH extractor versions
+    produced the claims it cites, so the ICS 206-01 tool disclosure is digest-scoped and its
+    extraction stage reads "not recorded for this digest".** `extractor_version` lives only on
+    `doc_claims` (`src/db/schema.ts:932`) and `doc_map_state` (`:1003`); the `claims` table has
+    no model/extractor/provider column and `claim_sources` is a bare join table, so there is no
+    relational path from a cited claim to the map run that extracted it (PLAN-WS-7 §3 C1).
+    `digests.provider` names the map model **configured when the digest ran**, not the model
+    that extracted each cited claim — and those diverge the moment a remap happens, which
+    OPEN-TASKS #33 now demonstrably does. `src/lib/citation/ics206.ts` therefore renders the
+    extraction stage as `not recorded for this digest` and **never back-fills it** with the
+    digest-run map model, because that would be invented provenance in the one field a
+    receiving desk would trust. Fix (PLAN-WS-7 §9.7 debt item 1): collect the contributing
+    `doc_claims.extractor_version` values at reduce time into `digests.structured.stats` —
+    additive jsonb, **no migration**, the `evidenceRecency` precedent — then have
+    `readClaimToolStamp` read them. Until then the disclosure is honest but incomplete, which
+    costs nothing today only because operator decision T4 holds it dark on every surface.
+    **Related and separately load-bearing:** `mapreduceProviderTag()`
+    (`src/lib/analysis/synthesize.ts:443-449`) hard-codes the literal `openai:` prefix and is
+    provider-blind, so under D2 = B a digest synthesized by a non-OpenAI model would be stamped
+    `openai:…` in the exact field this disclosure reads. Decision T4-b makes that an ordering
+    item for step 20b — the tag must take its provider from the resolved dispatch BEFORE the
+    Anthropic path is enabled. `isStubToolStamp` compensates only partially, by also checking
+    the dispatch identity's own `provider` field. Filed 2026-09-08 by WS-7.2 (48h step 32).
