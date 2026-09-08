@@ -87,30 +87,24 @@ step-15 convention.
   "CORRECTED 2026-09-07"); OPEN-TASKS **#80** annotated (`docs/OPEN-TASKS.md:833ff`); the 26
   legacy `failed` reports filed as **#113** (`docs/OPEN-TASKS.md:1953`). Commit `982eedc`.
 
-**Item 3 — C5-m probes: plan-level gate MET on August pass 0; REOPENED 2026-09-08 for one
-run on the window §0.3 found (2026-02-28→03-22) — see §6 Q1. Owed: that run, attended, $0.**
-- Plan gate (§5.2: "the two C5-m outputs are in hand for step 24") — met, see below.
-- The item-3 prompt (`2026-09-07-48h-stage2-item3-c5m-probes.md`) asks for more than the plan:
-  §0's two read-only window-selection queries on production (`sqlq.ts` … `isw_reports` …
-  `morning`/`evening`) were **never run** (no trace in `C5M-PROBES-2026-09-07.md`; the 09-08
-  re-run used the same August window); fork-write **pass 1 was killed at 2026-08-25 on
-  `iran_update` and never ran on `roca`; pass 2 never ran on either** (report §0, §8).
-  Those passes are the only way `anchorNotFinalDays` / `publicationGapDays` become meaningful.
-- Pass-0 outputs verbatim in `docs/reviews/C5M-PROBES-2026-09-07.md` — `iran_update` at line 103
-  (124 probes / 79 failures, `multiEditionDays` 0), `roca` at line 115 (31 / 1, `multiEditionDays`
-  0). Commits `0838d42`, `d7a5e40`. PROGRESS block at `docs/PROGRESS.md:4463`.
-- Reading for step 24 (do not lose this): `roca` is sound; `iran_update`'s 0 is a **soft
-  negative** (79 of 124 probes were 403s, deterministic after ~20 not-founds, reproducible
-  across two runs 12 h apart — not concurrency). Neither series has a multi-edition day in
-  August, so the C5-m ratio has **no denominator** in this window. (f14)/C15's reopening
-  trigger was **not exercised and could not have been** — a 403 forces `probe_failed`, so
-  `publication_gap` cannot arise after the trip (`edition-discovery.ts:377-381`).
-- **Residue (decays if left):** the `isCleanNotFound` finding (404-only conflates "does not
-  exist" with "could not tell"; `confirmGapEligible` can never confirm a gap on a tripped day)
-  is recorded **only** in the two probe documents. `grep -c isCleanNotFound` = 0 in
-  `docs/OPEN-TASKS.md`, in the step-18 prompt and in the step-24 prompt. It must be routed
-  (OPEN-TASKS #114, or a line in step 18's prompt) **before Stage 3 row B launches**. This is a
-  $0 docs edit; it is listed in §4 as owed, not started.
+**Item 3 — C5-m probes: DONE 2026-09-08 (commit `39d572f`). C5-m is answered.**
+- Window 2026-02-28 → 2026-03-22 (set by §0.3's production queries, recorded in the item-3
+  prompt §0.6). Three passes on a migrated disposable fork `br-cold-fog-atmcvp28` (deleted
+  14:50:43Z, verified absent). $0, zero production writes, production re-verified after.
+- **The reading (pass 1, `C5M-PROBES-2026-09-07.md:731`): `iran_update` multiEditionDays 8,
+  anchorNotFinalDays 1** — 2026-03-05, `isw_reports` anchored on the morning edition, daily-final
+  is evening (1 of 8, lower bound; 2026-03-10 is the named unresolved day). `roca` 0/0 by
+  construction (one candidate URL). Pass 2: `publicationGapDays` 0 on both — (f14)/C15's
+  reopening trigger still not exercised, and on this host it is close to structural.
+- **Step 24's handoff text is R.17** of that report (`C5M-PROBES-2026-09-07.md:1061`). It
+  supersedes every August number. The 2026-09-07 "real pages still served 200" mitigation is
+  **corrected** by R.10: three identical `roca` passes gave publishedDays 6 → 6 → 13, so the 403
+  state suppresses real pages too.
+- Records: report sections R.1–R.18; OPEN-TASKS **#114** filed (the `isCleanNotFound`/403
+  conflation — closes §4a's first half); #111 confirmation line; PROGRESS plan + execution
+  blocks. Decision-log entry drafted in **R.16, not applied** (write-lock) — owed to step 25 or
+  to a Stage 2 closing docs commit. Launch claim taken (`claims/step-s2i3-c5m/`).
+- The earlier August pass-0 record stands as the literal-(f8) record.
 
 **Item 4 — WS-1.1 ×3 capture run: NOT DONE.** `docs/reviews/EVAL-EXPOSURE-LEDGER.md`'s last
 entry is "2026-09-06 — concurrent-main rebase closeout"; there is no capture-run entry, no
@@ -163,7 +157,7 @@ Re-run `lsof -a -d cwd -c claude | grep bnow` immediately before any Stage 3 lau
 [x] Decision log carries the #79 drain execution entry with counts, branchId, and an explicit
     deleted statement                     — AGENTS.md:1468, 61e970d + 06b5c57
 [ ] EVAL-EXPOSURE-LEDGER.md carries a capture-run entry with counts     — item 4, open
-[x] Both C5-m outputs in hand, verbatim   — C5M-PROBES-2026-09-07.md:103, :115
+[x] Both C5-m outputs in hand, verbatim   — C5M-PROBES-2026-09-07.md R.7/R.8 (39d572f); handoff = R.17
 [ ] gh pr list shows neither #47 nor #48                                — item 5, open
 [x] (recommended) (f1)–(f15) signed, 0 UNSIGNED markers                 — 1642971
 ```
@@ -174,12 +168,13 @@ Re-run `lsof -a -d cwd -c claude | grep bnow` immediately before any Stage 3 lau
 
 | # | Item | Owner | When |
 |---|---|---|---|
-| a | Route the `isCleanNotFound` / `confirmGapEligible` finding: file OPEN-TASKS #114 and/or add a line to step 18's prompt naming `C5M-PROBES-2026-09-07.md` §6 | session, $0 docs | before Stage 3 row B launches |
-| b | Step 24's prompt must carry: both probe outputs, the soft-negative reading of `iran_update`, "C15/(f14) not exercised and structurally could not be", and that the "real page still served 200" mitigation is n=1 | session, when step 24's prompt is prepared | Stage 3 row C |
-| c | Neon branch `itest-1788469162388` — the FINISH session called it a likely orphan. **Do NOT delete it.** Its name encodes creation time 2026-09-03 20:59:22 UTC — the day of the paid eval campaign — and `scripts/neon-branch.ts` names every branch `itest-<ms>`. It is almost certainly the **kept evaluation branch** (A6 "keep until closeout"; D6 addendum: ≈$0.15 on `openai_eval`) that item 4 needs. Confirm by reading its `provider_usage` row (item 4 step 4.1). | operator confirms | item 4 |
-| d | `roca` C5-m is a single observation by design | note only | step 24 |
-
----
+| a | ~~Route the `isCleanNotFound` finding~~ **DONE** — OPEN-TASKS #114 (`39d572f`). Still to add: one line in step 18's prompt naming #114 and `C5M-PROBES-2026-09-07.md` R.10; step 23 owns R.15's decision 1 (split 403 out of `probe_failed`, recommendation (b)) | session, $0 docs | before Stage 3 row B launches |
+| a2 | **File the June-2025 suffix slug shape** (`…-june-14-2025-{morning,evening}-edition/`, 11 days, neither generated by `run.ts:31-41` nor parsed by `editions.ts:73`; a backfill over 2025-06-12→06-24 manufactures phantom gaps). Next free OPEN-TASKS number is **115**; item 5's renumbered #47 entry then takes 116 (or the reverse, whichever lands first) | session, $0 docs | before Stage 3 row B |
+| b | Step 24's prompt must carry **R.17 verbatim** (`C5M-PROBES-2026-09-07.md:1061-1105`), not the 2026-09-07 August text | session, when step 24's prompt is prepared | Stage 3 row C |
+| c | Neon branch `itest-1788469162388` = `br-weathered-forest-atmfaetu`, alive since 2026-09-03. R.15 item 3 asks whether to delete it as an orphan. **Do NOT delete** until item 4 step 4.1 has checked its `provider_usage` ledger — it is the probable kept evaluation branch (A6 "keep until closeout"; D6 addendum ≈$0.15 on `openai_eval`). If 4.1 finds no `openai_eval` row, it is an orphan and may go. | operator, via item 4 | item 4 |
+| d | `roca` C5-m multi-edition figure is 0 by construction (one candidate URL) — never cite it as evidence about ISW | note only | step 24 |
+| e | R.16's drafted decision-log entry for the C5-m result — apply at end of `## Decision log` in date order | operator or step 25 | Stage 2 close / step 25 |
+| f | §4.1 dry-path finality defect (`DiscoveredEdition` has no `identity`; `--dry` substitutes probe order, `edition-discovery.ts:502-503`) — latent here (pass 0 = pass 1 on all 23 days), still a step 18 register / step 23 fix item | session | Stage 3 rows B/C |
 
 ## 5. What the 2026-09-07 FINISH prompt touched, mapped to plan sections
 
@@ -393,3 +388,4 @@ move to Stage 2a — and that move is itself a logged edit here, not an assumpti
 - 2026-09-08 11:00 ET — `itest-1788469162388` re-read as the probable kept evaluation branch (creation time = campaign day); §4c flipped from "delete" to "do not delete"; item 4 step 4.1 now says how to confirm.
 - 2026-09-08 11:20 ET — Q1(a) executed by operator; window 2026-02-28→03-22 chosen; item-3 prompt updated (§0.6, §8, §9); item 3 reopened as "one run owed"; June-2025 slug-shape finding queued for OPEN-TASKS.
 - 2026-09-08 11:45 ET — item 5 recipe revised: both PRs conflict with post-step-15 AGENTS.md (merge-tree 2 + 3 hunks); #47's OPEN-TASKS item collides with #108; squash-and-hand-place procedure written.
+- 2026-09-08 11:00 ET (14:35–14:50Z run) — item 3 DONE (`39d572f`): C5-m answered on 2026-02-28→03-22, 8 multi-edition days, 1 anchor mismatch (03-05); #114 filed; R.17 is step 24's handoff. §4 re-cut: a done, a2/e/f added, c re-read. Current step unchanged: item 4.
