@@ -191,19 +191,47 @@ describe("unpriced models fail closed", () => {
     expect(() => workloadDispatchConfig("digest")).toThrow(/unpriced/);
   });
 
-  it("pricing is NOT approval: every priced non-baseline model is quality-blocked", () => {
-    clearAll();
-    for (const model of Object.keys(PRICES_PER_MTOK)) {
+  it("pricing is NOT approval: every priced non-baseline model is quality-blocked, on its OWN vendor", () => {
+    // Each row is exercised against the provider that owns it. Testing an
+    // Anthropic row under the default openai provider would pass for the wrong
+    // reason (unpriced-for-that-vendor, a rung earlier), so this asserts the
+    // stronger thing: the model is genuinely priced and STILL refused, which
+    // is the whole "necessary but not sufficient" claim.
+    for (const [model, row] of Object.entries(PRICES_PER_MTOK)) {
+      clearAll();
+      const provider = row.provider ?? "openai";
+      if (provider !== "openai") process.env.DIGEST_PROVIDER = provider;
       process.env.DIGEST_MODEL = model;
       if (model === "gpt-4o-mini") {
         expect(workloadDispatchConfig("digest").model).toBe(model);
-      } else {
-        const c = resolveWorkloadModel("digest");
-        expect(c.priced).toBe(true);
-        expect(c.approved).toBe(false);
-        expect(c.dispatchBlocked).toMatch(/approval/);
-        expect(() => workloadDispatchConfig("digest")).toThrow(ModelConfigError);
+        continue;
       }
+      const c = resolveWorkloadModel("digest");
+      expect(c.provider, model).toBe(provider);
+      expect(c.priced, model).toBe(true);
+      expect(c.approved, model).toBe(false);
+      expect(c.dispatchBlocked, model).toMatch(/approval/);
+      expect(() => workloadDispatchConfig("digest")).toThrow(ModelConfigError);
+    }
+  });
+
+  it("no Anthropic model is approved anywhere — the price rows activate nothing (R7 / R7-b)", () => {
+    for (const [model, row] of Object.entries(PRICES_PER_MTOK)) {
+      if (row.provider !== "anthropic") continue;
+      for (const w of ANALYSIS_WORKLOADS) {
+        expect(analysisApproval(w, "anthropic", model, null).approved, `${w}/${model}`).toBe(false);
+      }
+    }
+  });
+
+  it("the Anthropic rows carry the operator-verified rates and are priced for anthropic only", () => {
+    // the numbers themselves, so a silent edit is a visible diff in a test
+    expect(PRICES_PER_MTOK["claude-haiku-4-5-20251001"]).toEqual({ in: 1, out: 5, provider: "anthropic" });
+    expect(PRICES_PER_MTOK["claude-sonnet-5"]).toEqual({ in: 2, out: 10, provider: "anthropic" });
+    for (const id of ["claude-haiku-4-5-20251001", "claude-sonnet-5"]) {
+      expect(pricedFor("anthropic", id)).toBe(true);
+      expect(pricedFor("openai", id)).toBe(false);
+      expect(pricedFor("openai_compatible", id)).toBe(false);
     }
   });
 
