@@ -1660,6 +1660,68 @@ mid-log, was retired by the eighth archive pass on 2026-09-07; OPEN-TASKS #92.)
   operator notes outside git. Both source branches deleted on `origin`; `gh pr list` is empty.
   Pre-push gate green on both pushes (4,082 / 270). $0, docs only, no launch, no deploy.
 
+- **2026-09-08 (OPEN-TASKS #33 — the remap driver EXECUTED for the first time; D7 discharged
+  on a disposable fork; the measured cost figure)** Under the signed D7 (`C = $1.00`
+  operative, $10 outer bound) and R4 option (a), the version-aware remap driver — deployed
+  2026-08-21, rehearsed in estimate mode 2026-09-06, never executed — was run in `--execute`
+  mode for the first time against a local `next start` bound to disposable Neon fork
+  **`br-royal-resonance-atvgety1`** (created and deleted this session), `MAP_CONTENT_CHARS=1499`
+  on the fork-bound server only, `MAP_BACKFILL_BASE=http://localhost:3000` on every command.
+  Caps were computed off the fork's COPIED ledger as (f10) requires — `MAP_SPRINT_USD_CAP =
+  T + C = 24.9400` against `T = $23.940010`, `MAP_USD_CAP_DAILY = D + C = 1.4559` against
+  `D = $0.455843` — never a literal ceiling. **One ir/military day (2026-08-25), bounded twice
+  over (`--budget 1.00 --limit 1000`): 701 doc-track pairs attempted, 382 claims, actual
+  $0.046263 against $0.0765 modelled.** Twelve drain sweeps then twelve confirming sweeps
+  returning `pairs=0` — the sweep-completion proof exercised on real data; `omitted=0` on
+  every batch (ruling 7 clean at batch size 20). Reconciliation is exact on all four
+  independent reads: ledger delta $0.046263 == driver $0.0463; `doc_claims` @
+  `gpt-4o-mini:1bfad9e5e447` == 382; `doc_map_state` @ that version == 701; `cron_runs`
+  `map:remap` == 24, all ok. `doc_map_state` at the BASELINE version stayed at 53,006 rows,
+  so ruling 13's rollback is demonstrated rather than asserted. **Measured unit cost
+  $0.0660 per 1,000 doc-track pairs — the estimator is conservative by 1.65×**, landing
+  within 1.5% of the $0.067/1k the 2026-09-06 ledger cross-check predicted; the $36
+  full-corpus figure is confirmed as an upper band and the measured rate projects the same
+  339,669 pairs at ≈$22.4. **No-rebill proven the hard way:** the checkpoint file was deleted
+  and the identical command re-run — 0 pairs, $0.0000, ledger and rows unchanged, so
+  `doc_map_state` is the authority and a lost checkpoint costs a re-scan, never a re-bill.
+  One honest divergence: `provider_usage.requests` 374 → 412 = 38 dispatches against 36
+  modelled batches (truncation splits meter their own request), a 5.6% count overrun the
+  cost model still over-covers. `MAP_CONTENT_CHARS` verified ABSENT from all three Vercel
+  environments before AND after, each listing carrying a positive control. Production was
+  never contacted and still holds zero `map:remap` rows; no env change, no deploy, no
+  migration, no code change; the map activation lock is untouched. Fork deleted, server
+  killed, `data/remap-state/` removed, tree clean. **#33's status changes from "TOOL
+  DEPLOYED, NEVER EXECUTED" to "EXECUTED ON A FORK, one (theater, track, day)"** — the other
+  five live pairs and the full epoch range remain modelled only, and #95 still stands (no
+  contention, takeover, lease-loss or discard path fired). Record: §19 of
+  `docs/reviews/MAP-REMAP-RUNBOOK-2026-09-06.md`.
+
+- **2026-09-08 (C5-m measured — fork-write passes taken under (f5)/O3, on operator
+  confirmation)** Stage 2 item 3 was re-run over **2026-02-28 → 2026-03-22**, the window
+  §0.6 selected from production's own split-edition slugs after August 2026 proved to hold
+  no multi-edition day. A disposable Neon fork of production (`br-cold-fog-atmcvp28`) was
+  created, migrated to `main` (0028/0029/0030), probed three times and **deleted at
+  14:50:43Z**, verified absent against the Neon API. (f8) authorizes a *read-only* probe;
+  passes 1 and 2 wrote, but only to that fork, addressed by explicit DSN — the (f5)/O3
+  shape — and on an in-session operator confirmation taken before the first non-dry command.
+  Production was never addressed: 29 migrations before and after, all four new tables still
+  absent, `isw_reports` unchanged. **The C5-m answer for this window: `multiEditionDays = 8`,
+  `anchorNotFinalDays = 1` — the citation anchor sits on the non-final edition on
+  2026-03-05 (anchor `morning`, daily-final `evening`), 1 of 8 observed multi-edition days.**
+  Both are LOWER bounds: 14 of 23 days were probed while understandingwar.org was answering
+  403 for not-found URLs, and 2026-03-10 — where `isw_reports` also kept the morning edition
+  — could not be resolved because its evening shape returned 403 rather than a clean 404.
+  `publicationGapDays = 0` in every pass and **(f14)/C15's same-session reopening trigger was
+  never exercised**: gap confirmation requires every probe of the day to be a clean 404, and
+  no day was. **New finding, measured not inferred:** three identical `roca` passes over the
+  same 23 days returned `publishedDays` 6 → 6 → 13, and `isw_reports` shows all 23 days
+  published, so **all 17 of pass 1's `roca` `probe_failed` days were false negatives**. The
+  403 state suppresses real pages, not only nonexistent shapes — which corrects the
+  2026-09-07 record's "a genuine second edition would most likely have been served". The
+  404 → 403 threshold reproduced exactly: 20 clean 404s, then none. Spend **$0**; no deploy,
+  no environment change, no migration applied to production, no candidate model touched.
+  Record: `docs/reviews/C5M-PROBES-2026-09-07.md` (the 2026-09-08 re-run section).
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).
@@ -1686,7 +1748,8 @@ mid-log, was retired by the eighth archive pass on 2026-09-07; OPEN-TASKS #92.)
 
 | Service | Env var | Status | Where to get |
 |---|---|---|---|
-| Neon Postgres | `DATABASE_URL`, `NEON_API_KEY` | **database live; saved branch-admin API key WORKS (re-verified 2026-07-15: disposable integration branches create/run/delete cleanly)** | console.neon.tech |
+| Neon **control plane** (branch admin) | `NEON_API_KEY` + `NEON_PROJECT_ID` | **live, LOCAL-ONLY BY DESIGN — absent from all three Vercel environments (re-verified 2026-09-08); creates/deletes disposable branches via `scripts/neon-branch.ts` only; project-wide admin, so the deployed app is never given it** | console.neon.tech |
+| Neon **data plane** (SQL) | `DATABASE_URL` (pooled) · `DATABASE_URL_UNPOOLED` (direct) | **live.** `DATABASE_URL` is the app's only DB credential (`src/db/index.ts:5`) and the only DB variable in Vercel — present in Production + Preview, absent from Development (2026-09-08). `DATABASE_URL_UNPOOLED` is local-only: its consumers are migrations (`drizzle.config.ts:10`, `scripts/migrate.ts:7`), never the deployed app. Full plane comparison: `docs/reviews/MAP-REMAP-RUNBOOK-2026-09-06.md` §4.1. | console.neon.tech |
 | Vercel deploy | CLI session (`VERCEL_TOKEN` expired) | **live (CLI)** | vercel.com/account/tokens |
 | OpenAI (analysis + ask v2 + embeddings) | `OPENAI_API_KEY` + caps (ruling 4) | **live, spend-guarded** (openai_ask / openai_embed meter separately) | platform.openai.com |
 | LLM kill-switch | `LLM_DISABLE=1` | refuses every LLM call site (ruling 9) | (env only) |

@@ -174,7 +174,14 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     baseline with no env override — `MAP_MODEL` or a validated `MAP_REASONING_EFFORT` is
     refused `MAP ACTIVATION BLOCKED` — until this remap path exists and activation is
     explicitly authorized. Pricing or `analysis-reg-v1` approval alone does not unlock it.
-    **STATUS 2026-08-22 — TOOL DEPLOYED, NEVER EXECUTED (not closed).**
+    **STATUS 2026-09-08 — EXECUTED on a fork (was 2026-08-22: TOOL DEPLOYED, NEVER EXECUTED;
+    not closed).** One ir/military day drained end to end under signed D7: 701 pairs, 382
+    claims, **$0.046263 actual vs $0.0765 modelled = $0.0660 per 1k pairs**, estimator
+    conservative by 1.65×. Sweep-completion proof and the no-rebill property (checkpoint
+    deleted, re-run cost $0.0000) both confirmed on real data; baseline-version rows
+    untouched. Still modelled-only: the other five live (theater, track) pairs and the full
+    epoch range. #95 stands. Record: §19 of `docs/reviews/MAP-REMAP-RUNBOOK-2026-09-06.md`.
+    The 2026-08-22 text below is retained as history.
     `scripts/map-remap.ts` plus remap mode in `runMapCycle` shipped 2026-08-21
     (`docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md`): dry-run-first, resumable,
     lease-safe, route-capability-gated, fail-closed on every numeric flag, checkpoint bound
@@ -2035,3 +2042,21 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     (namesake `mustNotMatch` firing on faithful long-apposition negations; the
     denial-prefix override converting deny-then-resolve into over-suppression),
     which that PR should fix rather than inherit. Filed 2026-09-05.
+
+116. **[Tier 2 — measurement integrity] ISW's June-2025 split-edition slug shape is neither
+    generated nor parsed, so any backfill over 2025-06-12 → 2025-06-24 manufactures phantom
+    `probe_failed` days.** Found 2026-09-08 by the C5-m §0.3 window-selection queries on
+    production `isw_reports` (theater `ir`): eleven rows dated 2025-06-14 → 06-24 carry the
+    **suffix** form `…/iran-update-special-report-june-DD-2025-{morning,evening}-edition/`,
+    whereas `iranUpdateUrlCandidatesForDate()` (`src/lib/validation/run.ts:31-41`) generates
+    only the four **prefix** forms (`special-report-<md>`, `evening-special-report-<md>`,
+    `morning-special-report-<md>`, `<md>`) and `IRAN_SPECIAL_PATH_RE`
+    (`src/lib/conflicts/editions.ts:73`) matches only the prefix form. The 2026 split period
+    (2026-02-28 → 03-22) uses the prefix form and was measurable; June 2025 is not. Because
+    `probe_failed` feeds C15/(f14)'s gap confirmation, a backfill over that range would record
+    published days as failures — the "fifth slug shape" hazard the 2026-09-07 analysis
+    anticipated, now confirmed for a real date range. Going-forward discovery is unaffected
+    (ISW no longer uses the suffix form). Fix: add the suffix shape to the candidate list and
+    the parser regex, with a fixture for 2025-06-18 (morning) and 2025-06-14 (evening); until
+    then, do not run any discovery backfill over 2025-06-12 → 06-24. Owner: step 18's register
+    (WS-3 audit) → step 23. Related: #114 (403 conflation). Filed 2026-09-08.
