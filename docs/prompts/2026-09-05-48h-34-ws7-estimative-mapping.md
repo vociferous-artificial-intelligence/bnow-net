@@ -10,6 +10,18 @@
 | Spend | $0 |
 | Closing report | `docs/reviews/WS-7-4-ESTIMATIVE-2026-09-07.md` |
 
+**DECISIONS BINDING — added 2026-09-08.** T3 is SIGNED: `AGENTS.md` decision-log entry
+"2026-09-07 (T3 — PLAN-WS-7 §6.1–6.3 signed as drafted, with T3-a and T3-b)" ((f9); INDEX §2.2
+row T3). The tables are operator-approved data as drafted; T3-a: no `claims.confidence`, no
+source reliability in the mapping; T3-b: `almost certain`, the three sub-even bands and AJP-2.1
+levels 4/5 are never machine-assigned. **Do not print `AWAITING AUTHORIZATION: T3`; cite that
+entry and build.** Ship as `ESTIMATIVE_MAP_V1`; the six invariants in the entry are the exhaustive
+test's spec; any cell change is a new version, never an edit. Step 32 (PR #80) has merged before
+this launch — its citation block is where the band renders; read
+`docs/reviews/WS-7-2-CITATION-MODE-2026-09-07.md` for the disclosure-block shape (structured per
+stage, `tool disclosure withheld` marker while dark) so the band slots in without touching the
+dark-stamp policy.
+
 Read COMMON first, then PLAN-WS-7, the addendum §4.4 and §7. Pure module
 `src/lib/tradecraft/estimative.ts`, constant `ESTIMATIVE_MAP_V1`, `(hedging, confidence,
 corroboration) → { likelihood, range, confidence }` with the signed table as data; exhaustive table
