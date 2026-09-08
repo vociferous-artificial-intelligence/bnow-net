@@ -4629,3 +4629,37 @@ Execution (same block):
 5. Run the three itest files in one `npm run test:integration` so they share a single fork;
    typecheck + lint + unit suite green.
 6. Write `docs/reviews/RELIABILITY-PROOFS-2026-09-06.md` and update #102/#103/#93 status lines.
+
+**Execution (same block):**
+
+- Base `origin/main` **`6913c57`**; branch `48h/ws4-ops-20260905-reliability-proofs`; attended.
+  O3 signed (AGENTS.md, 2026-09-07) — cited, not re-litigated; no `AWAITING AUTHORIZATION` owed.
+- **#102 — all three overflow terminals fork-proven against the REAL `MAP_REF_ROW_CAP`,
+  with NO test-only seam and no env override.** One 75,100-row reference mass on `M = today−12`
+  (seeded server-side in 5,666 ms) plus candidate days chosen relative to `M` reaches
+  shed-and-proceed (`refShedDays=1`, `refShedCandidates=1`, `refRows=24,642` — the fork's own
+  density — shed candidate untouched), the hard-cap refusal (non-flood path, nothing can shed),
+  and shed exhaustion with an empty fresh segment. Both refusals assert zero writes and a
+  provider mock that was never called.
+- **#103 — `runMapWatchCheck` end-to-end on real Postgres:** real slot claim, real
+  `provider_state`, real signal queries; only clock and mail injected. Detection → throttle at
+  +1 s → cooldown dedup at +601 s → one RECOVERED notice at +1,202 s, state row asserted at each
+  step. The 2026-09-01 first-evaluation hotfix is exercised on real Postgres for the first time.
+- **Register gap G5 closed by measurement.** WS2-F03 confirmed as documented
+  (`invalid byte sequence for encoding "UTF8": 0x00`; the clean co-batched entry dies with the
+  poisoned one) and the int4 overflow likewise. WS2-F26 confirmed **with a refinement**: the
+  failure is a wire-protocol parameter-count wrap (5,462 × 12 = 65,544 ≡ 8 mod 65,536), not a
+  clean rejection — and it can never mis-bind silently. Boundary measured at 5,461 ok / 5,462
+  fails. All three are CHARACTERIZATION tests that step 23 inverts.
+- **LOG-DRAIN handoff discharged:** `scripts/audit-cron.ts` gains 24h runtime-log coverage
+  (including the `status_code = -1` crash signature) plus the §9(c) correlation join, guarded on
+  `to_regclass` (#111) and additive — an absent or empty `runtime_logs` changes no verdict.
+  `ceilingCaseSql` exported so the correlation window cannot drift from the #98 sweep's.
+- Tests: unit **4,082 / 270** unchanged, typecheck + lint clean; fork **28 passed / 3 files** in
+  93 s on `br-long-hat-at1048v9` (created and deleted by the harness). Integration count in
+  these three files 19 → 28. **Spend $0**, structural: the trimmed `.env.local` holds no
+  provider credential at all.
+- OPEN-TASKS #102 and #103 headers **downgraded to "fork-proven", not closed** — neither path
+  has fired naturally in production, and per O3 the preview-deployment drill stays follow-up.
+- Report: `docs/reviews/RELIABILITY-PROOFS-2026-09-06.md`. Proposed AGENTS.md decision-log entry
+  and two standing-text corrections are in its Handoff, not applied (write-lock).

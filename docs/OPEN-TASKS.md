@@ -1628,8 +1628,9 @@ docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md)
 ### New (from the 2026-08-31 map OOM incident)
 
 102. **[Tier 1 — reliability incident, DEPLOYED 2026-08-31 / OBSERVED HEALTHY — header
-    corrected 2026-09-05; residual: shed/refusal paths remain unit/itest-proven only, not
-    naturally fired] Steady map selection had no day-span
+    corrected 2026-09-05, again 2026-09-08; residual: the shed/refusal paths are now
+    FORK-PROVEN against the real 75,000-row cap but have still never fired naturally in
+    production] Steady map selection had no day-span
     bound and the dedup reference window had no materialization bound.** On 2026-08-31 the
     07:03Z MTProto long-park catch-up inserted 447 documents whose `published_at` reached
     back to 2026-06-14 (t.me/kharkivnapriamok 211, t.me/pushilindenis 192, t.me/sladkov_plus
@@ -1705,10 +1706,27 @@ docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md)
     6,081→0). The shed/refusal paths have NOT fired naturally (no flood since) —
     they remain unit/itest-pinned only. Incident record:
     `docs/reviews/MAP-FLOOD-OOM-INCIDENT-2026-08-31.md`.
+    **STATUS 2026-09-08 — FORK-PROVEN (step 21, under the signed O3).** The three
+    overflow terminals are now driven end-to-end on a disposable Neon fork against the
+    REAL `MAP_REF_ROW_CAP` — no test-only seam and no env override
+    (`src/integration/map-flood-bounds.itest.ts`, 4 new cases): adaptive shedding drops
+    exactly one old day and the run PROCEEDS (`refShedDays=1`,
+    `refShedCandidates=1`, `refRows` 24,642 against the fork's own reference density,
+    shed candidate untouched); the hard-cap refusal fires on the non-flood path where
+    nothing can shed; and shed exhaustion with an empty fresh segment refuses loudly.
+    Both refusals are asserted to mark nothing and to dispatch nothing — $0 by control
+    flow. **What this does and does not settle:** the 75,000 constant, the shed
+    arithmetic, the recount and the write-freedom of both refusals are measured; the
+    reference DENSITY that crosses the cap is seeded (75,100 rows on one day), because
+    no natural single-day ir window on the fork approaches it. The paths have still
+    never fired in production, and per O3 the preview-deployment drill is follow-up
+    work, not a blocker. Record:
+    `docs/reviews/RELIABILITY-PROOFS-2026-09-06.md`.
 
 103. **[Tier 1 — monitoring blind spot, DEPLOYED 2026-09-01 (PR #39 + hotfix PR #40) —
-    header corrected 2026-09-05; residual: detection proof remains SYNTHETIC only, no
-    natural pre-completion death observed yet] Nothing alerts when map runs die BEFORE their own
+    header corrected 2026-09-05, again 2026-09-08; residual: detection is now FORK-PROVEN
+    end-to-end on real Postgres, but no natural pre-completion death has occurred since
+    deploy] Nothing alerts when map runs die BEFORE their own
     health evaluation.** Proven live by #102: eleven consecutive OOM-killed hourly runs
     (07:40→17:40Z on 2026-08-31) produced #98-swept `ok=false` rows, a frozen
     `doc_claims`, and ZERO operator email — `runScheduledMapHealth` executes only inside
@@ -1753,6 +1771,24 @@ docs/reviews/QF-A-EVIDENCE-RECENCY-FUNNEL-CLOSEOUT-2026-08-27.md)
     healthy pipeline — the false notification did not repeat and no real incident
     was masked. Detection proof remains SYNTHETIC; unchanged: the first real
     pre-completion death is the first live proof.
+    **STATUS 2026-09-08 — FORK-PROVEN (step 21, under the signed O3).** The synthetic
+    caveat is downgraded, not closed. `runMapWatchCheck` now runs end-to-end on a
+    disposable Neon fork (`src/integration/map-watch-signals.itest.ts`): the atomic slot
+    claim, the `provider_state` row and all five signal queries are real Postgres against
+    real production history; only the clock and the mail transport are injected. Four
+    calls prove detection on the incident's own signature (two `ok=false` /
+    `finished_at IS NULL` map rows → one `map_timeouts` email carrying
+    `sweptTimeouts=2`), the real slot throttle one second later, cooldown dedup after
+    the slot ages out, and exactly one RECOVERED notice once the rows finish — with the
+    state row asserted at every step. The first call also exercises the 2026-09-01
+    first-evaluation hotfix on real Postgres: the claim's partial state row must read as
+    "no episode", never as an episode clearing. The stale-start and stale-progress
+    thresholds are set beyond any reachable age so `map_timeouts` is the only reportable
+    problem, which is what makes the episode key deterministic rather than a function of
+    how stale the fork happens to be. **Still open:** no natural pre-completion death has
+    occurred since deploy, so the production traversal remains future-observable, and per
+    O3 the preview-deployment drill is follow-up work. Record:
+    `docs/reviews/RELIABILITY-PROOFS-2026-09-06.md`.
 
 104. **[Tier 3 — eval content] The corpus-v2 Arabic fixture needs a human
     native-speaker linguistic/safety review (Q13).** `map-c2-adv-005-translation-denial-ar`
