@@ -4819,3 +4819,28 @@ lane `48h/ws7-tradecraft-20260905`, under the SIGNED T3 / T3-a / T3-b decision e
   to **#14** that WS-7.4 does not satisfy it. Report:
   `docs/reviews/WS-7-4-ESTIMATIVE-2026-09-07.md`, with the proposed decision-log entry for
   step 25. Pushed (pre-push gate green) and opened as **PR #84**.
+## 2026-09-08 ~16:45Z — step 20 WS-2.4 eval-plane provider parity + 20b Anthropic (planned block)
+
+Prompt `docs/prompts/2026-09-05-48h-20-eval-provider-parity.md`, lane
+`48h/ws2-routing-20260905`, base `origin/main` `dc2e55e`. Attended relaunch of the
+2026-09-08 read-only pass (`logs/step20.readonly-20260908.log`), whose citation
+corrections and cross-file break list are taken as the working spec.
+
+1. PR-2.4-1 `evals: --provider flag, provider-qualified identity, fail-closed allowlist`
+   — `EVAL_DISPATCHABLE_PROVIDERS`, provider through `evalDispatchConfig` →
+   `liveIdentity`, `+provider=<id>` configKey before the profile/votes suffixes with
+   the pairing strip, capture attempt lines, `--capture-reconcile --provider`, banner.
+2. PR-2.4-2 `analysis: extract the entity-audit prompt/request into a pure module`
+   — byte-identical request, pinned at the route through the existing `route.test.ts`
+   `create` spy; R12 recorded, not decided.
+3. 20b-B1 `analysis: anthropic digest provider metered, identity-stamped and routed
+   through model-config` — includes the (f13)/T4-b ordering gate: `mapreduceProviderTag()`
+   and `AnthropicProvider.name` become provider-aware BEFORE the digest allowlist widens.
+4. 20b-B2 `llm: price rows for the anthropic digest models (operator-verified)` — R7
+   `claude-haiku-4-5-20251001` $1/$5 and R7-b `claude-sonnet-5` $2/$10.
+5. 20b-B3 `evals: anthropic dispatch seam for live evaluation (digest only)` — after
+   PR-2.4-1; `evalGuardFromEnv(provider)`, provider-relative key preflight, R13
+   `schemaMode` in the identity.
+6. Embeddings coverage: design note only (PLAN-WS-2 §7.3), no code.
+7. Closing report `docs/reviews/WS-2-4-EVAL-PARITY-2026-09-06.md`. $0, no env, no paid
+   call, `docs/evals/analysis/` byte-untouched.
