@@ -11,8 +11,10 @@ vi.mock("@/lib/analytics/client", () => ({ captureProductEvent: captureMock }));
 const labels: ClaimCopyLabels = {
   copyForReport: "Copy for report", moreCopyOptions: "More copy options", copyLink: "Copy link",
   copyWithEvidence: "Copy with evidence", copyTextOnly: "Copy text only", copying: "Copying…",
+  copyCitation: "Copy source citation", copyCitationConformant: "Copy ICS 206-01 citation",
   reportCopied: "Report copied", linkCopied: "Link copied", evidenceCopied: "Evidence copied",
-  textCopied: "Text copied", copyFailed: "Copy failed", statusLabel: "Status", asOfLabel: "As of",
+  textCopied: "Text copied", citationCopied: "Citation copied",
+  copyFailed: "Copy failed", statusLabel: "Status", asOfLabel: "As of",
   evidenceLabel: "Evidence", sourceLabel: "Source", sourceValue: "BNOW.NET {country} claim {claimId}",
   linkedSummary: "{docs} linked documents · {channels} channels · {platforms} platforms",
   evidenceListLabel: "Evidence list", publishedLabel: "Published",
@@ -41,6 +43,78 @@ afterEach(() => {
   Reflect.deleteProperty(globalThis, "ClipboardItem");
   Reflect.deleteProperty(navigator, "clipboard");
   captureMock.mockReset();
+});
+
+const WITHHELD_STAMP = { attributable: true, tools: null } as const;
+
+describe("ICS 206-01 citation mode", () => {
+  it("offers no citation button on a surface with no digest stamp plumbed", () => {
+    // search / signals / entities / ask construct their payloads independently and
+    // cannot join `digests`; the mode is refused rather than emitted stampless.
+    render(<ClaimCopyActions payload={payload} surface="search" locale="en" labels={labels} />);
+    expect(screen.queryByText("Copy source citation")).toBeNull();
+    expect(screen.queryByText("Copy ICS 206-01 citation")).toBeNull();
+  });
+
+  it("offers no citation button for a stub-provider digest (ruling 3)", () => {
+    render(
+      <ClaimCopyActions
+        payload={{ ...payload, citation: { attributable: false, tools: null } }}
+        surface="digest"
+        locale="en"
+        labels={labels}
+      />,
+    );
+    expect(screen.queryByText("Copy source citation")).toBeNull();
+  });
+
+  it("labels the action non-conformantly while the tool disclosure is withheld (T4-b)", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    setClipboard({ writeText });
+    render(
+      <ClaimCopyActions
+        payload={{ ...payload, citation: WITHHELD_STAMP }}
+        surface="digest"
+        locale="en"
+        labels={labels}
+      />,
+    );
+    // never called an "ICS 206-01 citation" without the disclosure it requires
+    expect(screen.queryByText("Copy ICS 206-01 citation")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Copy source citation" }));
+
+    const written = writeText.mock.calls[0][0] as string;
+    expect(written).toContain("tool disclosure withheld");
+    expect(written).toContain("Accessed (BNOW ingest)");
+    // T4: no engine or model name reaches the clipboard either
+    expect(written).not.toContain("gpt-4o-mini");
+    expect(written).not.toContain("openai");
+    expect(await screen.findByText("Citation copied")).toBeTruthy();
+    expect(captureMock).toHaveBeenCalledWith("claim_copied", {
+      surface: "digest",
+      copy_mode: "citation",
+      theater: "ru",
+      hedging_class: "claimed",
+      evidence_count_bucket: "1",
+    });
+  });
+
+  it("does not serialize a withheld stamp into the rendered client payload", () => {
+    // The whole reason the policy runs server-side: this component is a client
+    // boundary, so an un-rendered stamp on the payload would still be readable.
+    const { container } = render(
+      <ClaimCopyActions
+        payload={{ ...payload, citation: WITHHELD_STAMP }}
+        surface="digest"
+        locale="en"
+        labels={labels}
+      />,
+    );
+    expect(JSON.stringify(WITHHELD_STAMP)).not.toContain("gpt-4o-mini");
+    expect(container.innerHTML).not.toContain("gpt-4o-mini");
+    expect(container.innerHTML).not.toContain("openai");
+  });
 });
 
 describe("ClaimCopyActions", () => {

@@ -4663,3 +4663,26 @@ Execution (same block):
   has fired naturally in production, and per O3 the preview-deployment drill stays follow-up.
 - Report: `docs/reviews/RELIABILITY-PROOFS-2026-09-06.md`. Proposed AGENTS.md decision-log entry
   and two standing-text corrections are in its Handoff, not applied (write-lock).
+## 2026-09-08 ~21:00Z — WS-7.2 ICS 206-01 citation mode (step 32, planned block)
+
+1. Re-read the step-32 read-only handoff log, COMMON, PLAN-WS-7 §3 C1/C4/C9 + §4 WS-7.2,
+   addendum §4.2, and the signed T2 / T4 / T4-b decision entries; re-verify every file:line.
+2. Add the disclosure policy module `src/lib/citation/disclosure-policy.ts` on the
+   `view-policy.ts` pattern — a policy FUNCTION keyed by tier, entitled set empty, role
+   available but never the gate (T4-b), plus `resolveClaimCitationStamp` so the withheld
+   disclosure is ABSENT from the client payload rather than merely un-rendered.
+3. Add the pure module `src/lib/citation/ics206.ts`: the citation JSON shape, the tool-stamp
+   reader (per-stage, `extraction` never back-filled — C1), plain + HTML serializers, and
+   `canonicalClaimUrl` moved out of `claim-copy-model.ts` so one URL validator remains.
+4. Move `escapeClaimCopyHtml` to the `claim-evidence-model.ts` leaf (cycle-free) and re-export.
+5. Add the fifth `ClaimCopyMode` `citation` with an OPTIONAL payload field, so the other five
+   payload sites are untouched and a stampless surface refuses the mode fail-closed.
+6. Plumb `d.provider` + the two dispatch sub-objects through the digest header query; resolve
+   the viewer; keep the provider unrendered (2026-07-16 stands, T4 rule 6).
+7. Add the year-bearing ET formatter a citation cannot omit; add `citation` to the two
+   analytics allowlists; three English-only catalog keys.
+8. Tests: policy pinned OFF for every role x tier; XSS fixture; ruling-1 sentinel fixture;
+   stub refusal; NULL version renders "unstamped — pre-analysis-reg-v1"; the digest page's
+   provider assertion inverted for the query and strengthened for the rendered output.
+9. Correct the three now-wrong comments/assertions the handoff named; closing report
+   `docs/reviews/WS-7-2-CITATION-MODE-2026-09-07.md`; PR.

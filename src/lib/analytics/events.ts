@@ -31,7 +31,7 @@ export interface ProductEventProperties {
   ask_started: { entry: "form" | "intent" };
   signal_detail_viewed: { theater: AnalyticsTheater; signal_type: "purge" | "procurement_surge" | "data_dark" | "trade_divergence" | "pressure_spike"; evidence_count_bucket: EvidenceCountBucket };
   feedback_initiated: { surface: "digest_error" | "source_suggestion"; theater?: AnalyticsTheater };
-  claim_copied: { surface: AnalyticsSurface; copy_mode: "report" | "link" | "evidence" | "text"; theater: AnalyticsTheater; hedging_class: HedgingClass; evidence_count_bucket: EvidenceCountBucket };
+  claim_copied: { surface: AnalyticsSurface; copy_mode: "report" | "link" | "evidence" | "text" | "citation"; theater: AnalyticsTheater; hedging_class: HedgingClass; evidence_count_bucket: EvidenceCountBucket };
   digest_print_initiated: { theater: AnalyticsTheater; print_mode: "brief" | "evidence"; digest_age_bucket: DigestAgeBucket };
 }
 

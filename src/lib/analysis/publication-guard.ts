@@ -1,4 +1,5 @@
 import type { DigestAnalysis } from "./provider";
+import { ATTRIBUTION_LABEL, DISPUTED_HEDGING } from "./attribution-labels";
 
 // Deterministic post-synthesis publication guard (Workstream B, 2026-07-13).
 //
@@ -45,19 +46,11 @@ import type { DigestAnalysis } from "./provider";
 type GuardEvent = DigestAnalysis["events"][number];
 type GuardClaim = GuardEvent["claims"][number];
 
-/** Hedging classes that mean "someone asserts this; BNOW has not confirmed it". */
-export const DISPUTED_HEDGING: ReadonlySet<string> = new Set([
-  "claimed",
-  "unverified",
-  "unknown",
-]);
-
-/** Fixed attribution labels — the only words this guard ever adds. */
-export const ATTRIBUTION_LABEL: Record<string, string> = {
-  claimed: "Sources claim:",
-  unverified: "Unverified reporting:",
-  unknown: "Unverified reporting:",
-};
+// Defined on a leaf module so the citation builder can read them without
+// dragging this file's provider/spend-guard/@db graph toward a client bundle
+// (attribution-labels.ts explains why). Re-exported here because this is where
+// every existing caller and the guard's own test reach for them.
+export { ATTRIBUTION_LABEL, DISPUTED_HEDGING };
 
 /** R1 threshold: a disputed reputational person-allegation needs at least this
  *  many cited documents to publish at all (attributed). */

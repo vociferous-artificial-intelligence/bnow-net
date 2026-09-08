@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildClaimCopyContent,
   canCopyClaimCitation,
+  canCopyIcs206Citation,
+  citationButtonLabel,
   escapeClaimCopyHtml,
   type ClaimCopyLabels,
   type ClaimCopyPayload,
@@ -11,8 +13,10 @@ import type { ClaimSourceDoc } from "./claim-evidence-model";
 export const copyLabels: ClaimCopyLabels = {
   copyForReport: "Copy for report", moreCopyOptions: "More copy options", copyLink: "Copy link",
   copyWithEvidence: "Copy with evidence", copyTextOnly: "Copy text only", copying: "Copying…",
+  copyCitation: "Copy source citation", copyCitationConformant: "Copy ICS 206-01 citation",
   reportCopied: "Report copied", linkCopied: "Link copied", evidenceCopied: "Evidence copied",
-  textCopied: "Text copied", copyFailed: "Copy failed", statusLabel: "Status", asOfLabel: "As of",
+  textCopied: "Text copied", citationCopied: "Citation copied",
+  copyFailed: "Copy failed", statusLabel: "Status", asOfLabel: "As of",
   evidenceLabel: "Evidence", sourceLabel: "Source", sourceValue: "BNOW.NET, {country} Daily Digest, claim c{claimId}",
   linkedSummary: "{docs} linked documents · {channels} channels · {platforms} platforms",
   evidenceListLabel: "Evidence list", publishedLabel: "Published",
@@ -124,5 +128,77 @@ describe("claim evidence copy", () => {
       plain: payload.text,
       html: `<p>${payload.text}</p>`,
     });
+  });
+});
+
+describe("citation mode plumbing (the fifth ClaimCopyMode)", () => {
+  it("refuses on every surface that has not plumbed a stamp, and on a stub digest", () => {
+    // The five non-digest payload sites construct ClaimCopyPayload independently
+    // and pass no `citation`, so the optional field is exactly what lets them stay
+    // untouched while still failing closed.
+    expect(buildClaimCopyContent(copyPayload(), "citation", copyLabels, "en")).toBeNull();
+    expect(canCopyIcs206Citation(copyPayload())).toBe(false);
+    expect(
+      canCopyIcs206Citation(copyPayload({ citation: { attributable: false, tools: null } })),
+    ).toBe(false);
+    // ...while the four existing modes are unaffected by the new field
+    expect(buildClaimCopyContent(copyPayload(), "report", copyLabels, "en")).not.toBeNull();
+  });
+
+  it("emits the citation artifact once a digest stamp is present", () => {
+    const payload = copyPayload({ citation: { attributable: true, tools: null } });
+    expect(canCopyIcs206Citation(payload)).toBe(true);
+    const content = buildClaimCopyContent(payload, "citation", copyLabels, "en")!;
+    expect(content.plain).toContain("BNOW.NET — source citation (ICS 206-01 fields; tool disclosure withheld)");
+    expect(content.plain).toContain("Accessed (BNOW ingest)");
+    expect(content.html).toContain("<strong>Accessed (BNOW ingest):</strong>");
+    // the artifact is authoritative English and does NOT read the translated
+    // copy labels — a citation whose vocabulary changed per locale would not be
+    // reconstructible by the desk that receives it
+    const de = buildClaimCopyContent(payload, "citation", copyLabels, "de")!;
+    expect(de.plain).toBe(content.plain);
+  });
+
+  it("agrees with the builder on every refusal — the cheap check cannot drift", () => {
+    const stamps = [
+      undefined,
+      { attributable: false, tools: null },
+      { attributable: true, tools: null },
+      { attributable: true, tools: { provider: "openai:gpt-4o-mini", synthesis: null } },
+    ] as const;
+    const breakers: Array<Partial<ClaimCopyPayload>> = [
+      {},
+      { asOf: null },
+      { asOf: "   " },
+      { claimUrl: null },
+      { claimUrl: "javascript:alert(1)" },
+      { claimUrl: "https://bnow.net/digests/ua/2026-07-13#c4762" },
+      { docs: [] },
+    ];
+    for (const citation of stamps) {
+      for (const breaker of breakers) {
+        const payload = copyPayload({ citation, ...breaker });
+        expect(
+          canCopyIcs206Citation(payload),
+          `${JSON.stringify(citation)} ${JSON.stringify(breaker)}`,
+        ).toBe(buildClaimCopyContent(payload, "citation", copyLabels, "en") !== null);
+      }
+    }
+  });
+
+  it("switches the button label only when the disclosure is actually present (T4-b)", () => {
+    expect(citationButtonLabel(copyPayload({ citation: { attributable: true, tools: null } }), copyLabels))
+      .toBe(copyLabels.copyCitation);
+    expect(
+      citationButtonLabel(
+        copyPayload({
+          citation: {
+            attributable: true,
+            tools: { provider: "openai:gpt-4o-mini+mapreduce", synthesis: null },
+          },
+        }),
+        copyLabels,
+      ),
+    ).toBe(copyLabels.copyCitationConformant);
   });
 });
