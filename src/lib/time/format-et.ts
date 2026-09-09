@@ -31,6 +31,24 @@ export function formatEtDateTime(
   });
 }
 
+/** "Jul 12, 2026, 10:45 AM ET" — the citation form. Identical to formatEtDateTime
+ *  except that it never omits the year: a source citation that cannot be dated to a
+ *  year is not reconstructible, which is the whole point of the ICS 206-01 access and
+ *  publication fields (src/lib/citation/ics206.ts). Browsing surfaces keep the
+ *  shorter year-less form — a digest reader already knows the year from the page. */
+export function formatEtDateTimeYear(
+  value: Date | string | null | undefined,
+  locale: Locale,
+): string | null {
+  return fmt(value, locale, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 /** "10:45 AM ET" — time-only, for labels that already carry the date. */
 export function formatEtTime(
   value: Date | string | null | undefined,

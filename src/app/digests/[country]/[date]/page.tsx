@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { rawSql } from "@/db";
-import { requireAcceptedUser } from "@/lib/gate";
+import { currentRole, requireAcceptedUser } from "@/lib/gate";
 import { getProfile, PROFILES } from "@/lib/profiles/config";
 import { rankEvents, type RankableEvent } from "@/lib/profiles/rank";
 import { feedbackMailto } from "@/lib/feedback";
@@ -25,6 +25,11 @@ import { brandSiteBaseUrl } from "@/lib/site-url";
 import { digestStage, type DigestStage } from "@/lib/time/digest-status";
 import { toInstant } from "@/lib/time/day-boundary";
 import { formatEtDateTime } from "@/lib/time/format-et";
+import { readClaimToolStamp } from "@/lib/citation/ics206";
+import {
+  citationDisclosureView,
+  resolveClaimCitationStamp,
+} from "@/lib/citation/disclosure-policy";
 import { DigestViewedMarker } from "@/components/analytics/product-event-markers";
 import { digestAgeBucket } from "@/components/analytics/product-event-model";
 import { TrackedFeedbackLink } from "@/components/analytics/tracked-feedback-link";
@@ -53,6 +58,7 @@ interface ClaimRow {
   source_platform: string | null;
   published_at: string | null;
   fetched_at: string;
+  citation_count: number | null;
 }
 
 interface DigestRow {
@@ -61,6 +67,14 @@ interface DigestRow {
   status: string;
   country_name: string;
   created_at: string;
+  // Provenance for the ICS 206-01 citation stamp ONLY. `provider` is selected but
+  // NEVER rendered: the 2026-07-16 decision to hide which model wrote a digest
+  // stands unreversed (T4 rule 6), and the tool disclosure it feeds is withheld on
+  // every surface (T4). It is read server-side, resolved through
+  // disclosure-policy.ts, and does not reach the client payload.
+  provider: string | null;
+  reduce_dispatch: unknown;
+  llm_dispatch: unknown;
 }
 
 interface EntityRow {
@@ -147,6 +161,7 @@ function toClaimSourceDoc(row: ClaimRow): ClaimSourceDoc {
     reliability: row.reliability === null ? null : Number(row.reliability),
     publishedAt: row.published_at,
     firstSeenAt: row.fetched_at ?? "",
+    citationCount: row.citation_count === null ? null : Number(row.citation_count),
   };
 }
 
@@ -165,7 +180,10 @@ export default async function DigestPage({
   const { profile: profileKey } = await searchParams;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^[a-z]{2}$/.test(country)) notFound();
 
-  const locale = await getLocale();
+  // The viewer is resolved for the AI-tool disclosure policy below. currentRole()
+  // authorizes nothing here (ruling 21) — requireAcceptedUser() above is the gate;
+  // this only shapes what the citation artifact may disclose.
+  const [locale, viewerRole] = await Promise.all([getLocale(), currentRole()]);
   const t = makeT(locale);
   const evidenceLabels = makeClaimEvidenceLabels(t);
   const copyLabels = claimCopyLabels(t);
@@ -184,9 +202,15 @@ export default async function DigestPage({
   const sourceMailto = feedbackMailto("[BNOW source] suggestion");
 
   const digestRows = (await rawSql.query(
-    // No d.provider: which model wrote a digest is pipeline detail, not analyst
-    // information, and it was rendering beside every track heading (2026-07-16).
+    // d.provider and the two dispatch sub-objects are selected for the citation
+    // tool stamp and are NEVER rendered — which model wrote a digest is pipeline
+    // detail, not analyst information, and it was rendering beside every track
+    // heading (2026-07-16). Only the sub-objects are read, not the whole
+    // `structured` blob, which carries the full event/claim payload.
     `SELECT d.id, d.track, d.status, d.created_at::text AS created_at,
+            d.provider,
+            d.structured->'stats'->'reduce'->'dispatch' AS reduce_dispatch,
+            d.structured->'stats'->'llmDispatch' AS llm_dispatch,
             c.name AS country_name
      FROM digests d JOIN countries c ON c.id = d.country_id
      WHERE c.iso2 = $1 AND d.digest_date = $2
@@ -195,6 +219,26 @@ export default async function DigestPage({
   )) as DigestRow[];
   if (digestRows.length === 0) notFound();
   const trackByDigest = new Map(digestRows.map((d) => [d.id, d.track]));
+  // T4/T4-b: the policy is applied HERE, server-side, before any payload is built.
+  // ClaimCopyActions is a client component, so a withheld stamp left on its payload
+  // would be serialized into the page's RSC flight payload and readable in
+  // view-source — "not rendered" is not "not disclosed". resolveClaimCitationStamp
+  // returns tools: null while the disclosure is withheld, so no model name crosses
+  // the boundary; only the boolean that answers ruling 3 does.
+  const disclosure = citationDisclosureView({ role: viewerRole });
+  const citationByDigest = new Map(
+    digestRows.map((d) => [
+      d.id,
+      resolveClaimCitationStamp(
+        readClaimToolStamp({
+          provider: d.provider,
+          reduceDispatch: d.reduce_dispatch,
+          llmDispatch: d.llm_dispatch,
+        }),
+        disclosure,
+      ),
+    ]),
+  );
 
   const digestIds = digestRows.map((d) => d.id);
   const [rowsRaw, entityRowsRaw, neighborRaw] = await Promise.all([
@@ -205,7 +249,7 @@ export default async function DigestPage({
               rd.id AS doc_id, rd.url AS doc_url, rd.title AS doc_title, rd.adapter,
               s.id AS source_id, s.name AS source_name, s.canonical_url AS source_key,
               s.domain AS source_domain, s.reliability_score AS reliability,
-              s.platform AS source_platform,
+              s.platform AS source_platform, s.citation_count AS citation_count,
               rd.published_at::text AS published_at,
               rd.fetched_at::text AS fetched_at
        FROM claims cl
@@ -503,6 +547,7 @@ export default async function DigestPage({
                             claimUrl: `${canonicalDigestUrl}#c${claimId}`,
                             docs: claimDocs,
                             showScores: true,
+                            citation: citationByDigest.get(digest.id),
                           }}
                           surface="digest"
                           locale={locale}

@@ -11,6 +11,8 @@ import {
 import {
   buildClaimCopyContent,
   canCopyClaimCitation,
+  canCopyIcs206Citation,
+  citationButtonLabel,
   type ClaimCopyLabels,
   type ClaimCopyMode,
   type ClaimCopyPayload,
@@ -28,7 +30,7 @@ async function writeClipboard(mode: ClaimCopyMode, plain: string, html: string):
   const clipboard = navigator.clipboard;
   if (!clipboard) throw new Error("clipboard_unavailable");
 
-  if (mode === "report" || mode === "evidence") {
+  if (mode === "report" || mode === "evidence" || mode === "citation") {
     const ClipboardItemConstructor = globalThis.ClipboardItem;
     if (ClipboardItemConstructor && typeof clipboard.write === "function") {
       try {
@@ -54,6 +56,7 @@ function successMessage(mode: ClaimCopyMode, labels: ClaimCopyLabels): string {
   if (mode === "report") return labels.reportCopied;
   if (mode === "link") return labels.linkCopied;
   if (mode === "evidence") return labels.evidenceCopied;
+  if (mode === "citation") return labels.citationCopied;
   return labels.textCopied;
 }
 
@@ -62,6 +65,9 @@ export function ClaimCopyActions({ payload, surface, locale, labels }: ClaimCopy
   const [status, setStatus] = useState("");
   const writeLock = useRef(false);
   const citationAvailable = canCopyClaimCitation(payload);
+  // Narrower than citationAvailable: also needs an attributable digest stamp, so a
+  // surface with no stamp plumbed (search/signals/entities/ask) simply never offers it.
+  const ics206Available = canCopyIcs206Citation(payload);
 
   async function copy(mode: ClaimCopyMode) {
     if (writeLock.current) return;
@@ -147,6 +153,18 @@ export function ClaimCopyActions({ payload, surface, locale, labels }: ClaimCopy
           >
             {pending === "text" ? labels.copying : labels.copyTextOnly}
           </button>
+          {ics206Available && (
+            <button
+              type="button"
+              className="rounded border border-gray-300 px-2 py-1 disabled:cursor-wait disabled:opacity-60 dark:border-gray-700"
+              disabled={disabled}
+              aria-busy={pending === "citation"}
+              data-copy-mode="citation"
+              onClick={() => void copy("citation")}
+            >
+              {pending === "citation" ? labels.copying : citationButtonLabel(payload, labels)}
+            </button>
+          )}
         </div>
       </details>
       <span className="self-center text-gray-600 dark:text-gray-400" aria-live="polite">

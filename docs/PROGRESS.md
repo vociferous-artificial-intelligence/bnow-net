@@ -4663,3 +4663,52 @@ Execution (same block):
   has fired naturally in production, and per O3 the preview-deployment drill stays follow-up.
 - Report: `docs/reviews/RELIABILITY-PROOFS-2026-09-06.md`. Proposed AGENTS.md decision-log entry
   and two standing-text corrections are in its Handoff, not applied (write-lock).
+## 2026-09-08 ~21:00Z — WS-7.2 ICS 206-01 citation mode (step 32, planned block)
+
+1. Re-read the step-32 read-only handoff log, COMMON, PLAN-WS-7 §3 C1/C4/C9 + §4 WS-7.2,
+   addendum §4.2, and the signed T2 / T4 / T4-b decision entries; re-verify every file:line.
+2. Add the disclosure policy module `src/lib/citation/disclosure-policy.ts` on the
+   `view-policy.ts` pattern — a policy FUNCTION keyed by tier, entitled set empty, role
+   available but never the gate (T4-b), plus `resolveClaimCitationStamp` so the withheld
+   disclosure is ABSENT from the client payload rather than merely un-rendered.
+3. Add the pure module `src/lib/citation/ics206.ts`: the citation JSON shape, the tool-stamp
+   reader (per-stage, `extraction` never back-filled — C1), plain + HTML serializers, and
+   `canonicalClaimUrl` moved out of `claim-copy-model.ts` so one URL validator remains.
+4. Move `escapeClaimCopyHtml` to the `claim-evidence-model.ts` leaf (cycle-free) and re-export.
+5. Add the fifth `ClaimCopyMode` `citation` with an OPTIONAL payload field, so the other five
+   payload sites are untouched and a stampless surface refuses the mode fail-closed.
+6. Plumb `d.provider` + the two dispatch sub-objects through the digest header query; resolve
+   the viewer; keep the provider unrendered (2026-07-16 stands, T4 rule 6).
+7. Add the year-bearing ET formatter a citation cannot omit; add `citation` to the two
+   analytics allowlists; three English-only catalog keys.
+8. Tests: policy pinned OFF for every role x tier; XSS fixture; ruling-1 sentinel fixture;
+   stub refusal; NULL version renders "unstamped — pre-analysis-reg-v1"; the digest page's
+   provider assertion inverted for the query and strengthened for the rendered output.
+9. Correct the three now-wrong comments/assertions the handoff named; closing report
+   `docs/reviews/WS-7-2-CITATION-MODE-2026-09-07.md`; PR.
+
+**Execution (same block)**
+
+- Base `6913c57`; branch `48h/ws7-tradecraft-20260905-step32-citation-mode`; commit `c0f5998`;
+  attended; **$0** — no provider call, no database, no environment read, no deploy.
+- Built the fifth `ClaimCopyMode` `citation` on the digest surface, `src/lib/citation/ics206.ts`
+  (artifact + serializers + the moved `canonicalClaimUrl`) and
+  `src/lib/citation/disclosure-policy.ts` (the T4 gate, keyed on tier, entitled set empty).
+- **The policy runs server-side, before the payload is built.** `ClaimCopyActions` is a client
+  boundary, so a stamp left on its payload would sit in the page HTML; `tools` is null for
+  every resolvable viewer and no model name crosses. Pinned at the policy, the component and
+  the page (five tokens, `textContent` and `innerHTML`, role mocked `admin`).
+- Ruling 19's labels moved to `src/lib/analysis/attribution-labels.ts` (re-exported by
+  `publication-guard.ts`) after `madge` showed the guard import pulled `spend-guard.ts` and
+  `@/db` into the client graph — **31 modules → 12**. Type-only, so nothing shipped; the first
+  runtime import added to the guard would have made it real. `client-boundary.test.ts` scans
+  for it, with a non-vacuous control.
+- Corrected the three stale items the handoff named: `claim-evidence-model.ts` `fetched_at`
+  and tie-break comments (T2), the digest page's "No d.provider" comment, and
+  `page.test.tsx`'s "stops selecting provider" assertion — inverted for the query, strengthened
+  for the output.
+- Tests **4,082/270 → 4,121/273**; typecheck clean; lint 0 errors (3 pre-existing warnings).
+- Filed OPEN-TASKS **#117** (extraction provenance is digest-scoped; carries the
+  provider-blind `mapreduceProviderTag()` ordering item for step 20b). Report:
+  `docs/reviews/WS-7-2-CITATION-MODE-2026-09-07.md`, with the proposed decision-log entry for
+  step 25. Pushed (pre-push gate green) and opened as **PR #80**.

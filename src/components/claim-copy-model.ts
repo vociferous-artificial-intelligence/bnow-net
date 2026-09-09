@@ -3,17 +3,30 @@ import { formatEtDateTime } from "@/lib/time/format-et";
 import {
   canonicalEvidenceDocs,
   claimSourceLabel,
+  escapeClaimCopyHtml,
   evidencePlatform,
   safeHttpUrl,
   summarizeClaimEvidence,
   type ClaimSourceDoc,
   type EvidencePlatform,
 } from "./claim-evidence-model";
+import {
+  buildIcs206Citation,
+  canonicalClaimUrl,
+  serializeIcs206Html,
+  serializeIcs206Plain,
+  type ClaimCitationStamp,
+} from "@/lib/citation/ics206";
+
+// escapeClaimCopyHtml now lives on the claim-evidence-model leaf so the citation
+// builder can share it without an import cycle; re-exported here because this is
+// where every existing caller and test reaches for it.
+export { escapeClaimCopyHtml };
 
 type CopyTranslator = (key: string) => string;
 
 export type ClaimCopySurface = "digest" | "ask_cited" | "ask_related" | "search" | "signal" | "entity";
-export type ClaimCopyMode = "report" | "link" | "evidence" | "text";
+export type ClaimCopyMode = "report" | "link" | "evidence" | "text" | "citation";
 
 export interface ClaimCopyPayload {
   claimId: number;
@@ -25,6 +38,21 @@ export interface ClaimCopyPayload {
   claimUrl: string | null;
   docs: ClaimSourceDoc[];
   showScores: boolean;
+  /**
+   * The T4-resolved tool stamp for the digest this claim came from. OPTIONAL by
+   * design: the payload is constructed independently at six sites and only the
+   * digest page can join `digests` on `claims.digest_id`, so making it required
+   * would force all six into one PR. Citation mode is REFUSED where it is
+   * absent, so a surface adopts when it is ready and none can silently emit a
+   * stampless citation.
+   *
+   * Already policy-resolved when it gets here (disclosure-policy.ts): this
+   * component is a client boundary, so anything in this payload is serialized
+   * into the page's RSC flight payload and readable in view-source. `tools` is
+   * null for every viewer while T4 holds the disclosure dark, which is what
+   * makes "withheld" mean absent rather than merely un-rendered.
+   */
+  citation?: ClaimCitationStamp;
 }
 
 export interface ClaimCopyLabels {
@@ -33,11 +61,14 @@ export interface ClaimCopyLabels {
   copyLink: string;
   copyWithEvidence: string;
   copyTextOnly: string;
+  copyCitation: string;
+  copyCitationConformant: string;
   copying: string;
   reportCopied: string;
   linkCopied: string;
   evidenceCopied: string;
   textCopied: string;
+  citationCopied: string;
   copyFailed: string;
   statusLabel: string;
   asOfLabel: string;
@@ -66,11 +97,14 @@ export function claimCopyLabels(t: CopyTranslator): ClaimCopyLabels {
     copyLink: t("copy.link"),
     copyWithEvidence: t("copy.with_evidence"),
     copyTextOnly: t("copy.text_only"),
+    copyCitation: t("copy.citation"),
+    copyCitationConformant: t("copy.citation_conformant"),
     copying: t("copy.pending"),
     reportCopied: t("copy.report_copied"),
     linkCopied: t("copy.link_copied"),
     evidenceCopied: t("copy.evidence_copied"),
     textCopied: t("copy.text_copied"),
+    citationCopied: t("copy.citation_copied"),
     copyFailed: t("copy.failed"),
     statusLabel: t("copy.status"),
     asOfLabel: t("copy.as_of"),
@@ -104,16 +138,6 @@ function interpolate(template: string, values: Record<string, string | number>):
   return template.replace(/\{(\w+)\}/g, (token, key: string) =>
     Object.prototype.hasOwnProperty.call(values, key) ? String(values[key]) : token,
   );
-}
-
-/** Escape every user/source-controlled value before rich clipboard serialization. */
-export function escapeClaimCopyHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 function status(payload: ClaimCopyPayload, labels: ClaimCopyLabels): string {
@@ -151,33 +175,26 @@ export function canCopyClaimCitation(payload: ClaimCopyPayload): boolean {
   return Boolean(payload.asOf?.trim() && canonicalClaimUrl(payload));
 }
 
-function canonicalClaimUrl(payload: ClaimCopyPayload): string | null {
-  const safe = safeHttpUrl(payload.claimUrl);
-  if (!safe) return null;
-  try {
-    const url = new URL(safe);
-    const parts = url.pathname.split("/");
-    const hasCanonicalPath =
-      parts.length === 4 &&
-      parts[1] === "digests" &&
-      parts[2] === payload.countryIso2.toLocaleLowerCase() &&
-      /^\d{4}-\d{2}-\d{2}$/.test(parts[3]);
-    if (
-      url.protocol !== "https:" ||
-      url.hostname.toLocaleLowerCase() !== "bnow.net" ||
-      url.port ||
-      url.username ||
-      url.password ||
-      url.search ||
-      !hasCanonicalPath ||
-      url.hash !== `#c${payload.claimId}`
-    ) {
-      return null;
-    }
-    return safe;
-  } catch {
-    return null;
-  }
+/**
+ * Whether the ICS 206-01 citation mode may be offered. Strictly narrower than
+ * canCopyClaimCitation: it additionally requires a resolved tool stamp from a
+ * digest with attributable, non-stub provenance (ruling 3).
+ *
+ * Mirrors buildIcs206Citation's refusal conditions rather than calling it: this
+ * runs on every render of every claim, and building the artifact would parse a
+ * URL per evidence document just to discard the result. claim-copy-model.test.ts
+ * pins the two against each other so the mirror cannot drift.
+ */
+export function canCopyIcs206Citation(payload: ClaimCopyPayload): boolean {
+  return Boolean(
+    payload.citation?.attributable && payload.asOf?.trim() && canonicalClaimUrl(payload),
+  );
+}
+
+/** The button must not call the artifact a conformant "ICS 206-01 citation"
+ *  while the AI-tool disclosure is withheld (T4-b rule 4). */
+export function citationButtonLabel(payload: ClaimCopyPayload, labels: ClaimCopyLabels): string {
+  return payload.citation?.tools ? labels.copyCitationConformant : labels.copyCitation;
 }
 
 function reportLines(payload: ClaimCopyPayload, labels: ClaimCopyLabels): string[] | null {
@@ -246,6 +263,12 @@ export function buildClaimCopyContent(
   if (mode === "link") {
     if (!payload.asOf?.trim() || !url) return null;
     return { plain: url, html: `<a href="${escapeClaimCopyHtml(url)}">${escapeClaimCopyHtml(url)}</a>` };
+  }
+
+  if (mode === "citation") {
+    const citation = buildIcs206Citation(payload);
+    if (!citation) return null;
+    return { plain: serializeIcs206Plain(citation), html: serializeIcs206Html(citation) };
   }
 
   const lines = reportLines(payload, labels);

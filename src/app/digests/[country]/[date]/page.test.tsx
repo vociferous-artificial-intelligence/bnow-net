@@ -24,8 +24,14 @@ vi.mock("@/i18n/server", () => ({
 // deleted or reordered; the HTTP-level proof lives in
 // src/integration/authz-page-gate.itest.ts, which npm test does not run.
 const gateMock = vi.hoisted(() => vi.fn(async () => ({ email: "user@example.com" })));
+// currentRole authorizes nothing here (it never substitutes for a gate) — the page
+// resolves it only to build the T4 citation-disclosure viewer. Mocked as "admin",
+// the most privileged value, so the "no provider/model token renders" assertions
+// below are the hardest case rather than the easiest.
+const roleMock = vi.hoisted(() => vi.fn(async () => "admin" as const));
 vi.mock("@/lib/gate", () => ({
   requireAcceptedUser: gateMock,
+  currentRole: roleMock,
 }));
 
 const pageModule = await import("./page");
@@ -43,6 +49,15 @@ const DIGEST_ROW = {
   track: "military",
   status: "final",
   provider: "openai:gpt-4o-mini+mapreduce",
+  reduce_dispatch: {
+    workload: "reduce",
+    provider: "openai",
+    model: "gpt-4o-mini",
+    reasoningEffort: null,
+    registryVersion: "analysis-reg-v1",
+    approval: "baseline",
+  },
+  llm_dispatch: null,
   country_name: "Russia",
   created_at: "2026-07-12T02:05:00Z",
 };
@@ -222,7 +237,7 @@ describe("digest evidence and print handoff", () => {
 });
 
 describe("analyst-visible pipeline metadata", () => {
-  it("renders no provider/model token and no raw confidence decimal, and stops selecting provider", async () => {
+  it("renders no provider/model token and no raw confidence decimal", async () => {
     queryMock
       .mockResolvedValueOnce([DIGEST_ROW])
       .mockResolvedValueOnce([CLAIM_ROW])
@@ -235,14 +250,57 @@ describe("analyst-visible pipeline metadata", () => {
     });
     const { container } = render(element);
 
-    // DIGEST_ROW still carries a provider — the page must ignore it rather than depend
-    // on the column being absent, and must not ask the database for it either.
-    expect(container.textContent).not.toContain("openai:gpt-4o-mini+mapreduce");
-    expect(container.textContent).not.toContain("gpt-4o-mini");
-    expect(String(queryMock.mock.calls[0]?.[0])).not.toContain("d.provider");
+    // The page now SELECTS d.provider and the two dispatch sub-objects, for the
+    // citation tool stamp only (WS-7.2). The 2026-07-16 decision to hide which
+    // model wrote a digest stands unreversed (T4 rule 6), so the assertion that
+    // matters moved from "does not ask the database" to "nothing reaches the
+    // page" — including the serialized client payload, not just the text.
+    expect(String(queryMock.mock.calls[0]?.[0])).toContain("d.provider");
+    for (const token of ["openai:gpt-4o-mini+mapreduce", "gpt-4o-mini", "openai", "analysis-reg-v1", "mapreduce"]) {
+      expect(container.textContent, token).not.toContain(token);
+      // ClaimCopyActions is a client component: its whole payload is serialized
+      // into the page, so a withheld stamp left on it would be readable in
+      // view-source. innerHTML is the closer proxy for that than textContent.
+      expect(container.innerHTML, token).not.toContain(token);
+    }
     // CLAIM_ROW confidence is 0.8; neither the label nor the decimal may render.
     expect(container.textContent).not.toContain("conf");
     expect(container.textContent).not.toContain("0.80");
+  });
+
+  it("offers the citation action for a stamped digest and withholds the tool disclosure", async () => {
+    queryMock
+      .mockResolvedValueOnce([DIGEST_ROW])
+      .mockResolvedValueOnce([CLAIM_ROW])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+
+    const element = await DigestPage({
+      params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
+      searchParams: Promise.resolve({}),
+    });
+    const { container } = render(element);
+
+    const button = container.querySelector('[data-copy-mode="citation"]');
+    expect(button).toBeTruthy();
+    // withheld => the non-conformant label, for an admin viewer (roleMock above)
+    expect(button!.textContent).toBe("Copy source citation");
+    expect(container.textContent).not.toContain("Copy ICS 206-01 citation");
+  });
+
+  it("withholds the citation action entirely for a stub-provider digest (ruling 3)", async () => {
+    queryMock
+      .mockResolvedValueOnce([{ ...DIGEST_ROW, provider: "stub", reduce_dispatch: null }])
+      .mockResolvedValueOnce([CLAIM_ROW])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }]);
+
+    const element = await DigestPage({
+      params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
+      searchParams: Promise.resolve({}),
+    });
+    const { container } = render(element);
+    expect(container.querySelector('[data-copy-mode="citation"]')).toBeNull();
   });
 });
 
@@ -473,6 +531,12 @@ describe("page-level authorization gate", () => {
     expect(gateMock).toHaveBeenCalled();
     expect(gateMock.mock.invocationCallOrder[0]).toBeLessThan(
       queryMock.mock.invocationCallOrder[0],
+    );
+    // currentRole() shapes presentation only and never substitutes for a gate, so
+    // it must stay behind it — a refactor that hoisted the role lookup would be
+    // doing a DB read for an unauthenticated caller.
+    expect(gateMock.mock.invocationCallOrder[0]).toBeLessThan(
+      roleMock.mock.invocationCallOrder[0],
     );
   });
 

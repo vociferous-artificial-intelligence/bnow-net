@@ -451,6 +451,15 @@ const en: Dict = {
   "copy.link": "Copy link",
   "copy.with_evidence": "Copy with evidence",
   "copy.text_only": "Copy text only",
+  // Citation-mode chrome only. The citation ARTIFACT itself is authoritative English
+  // and is not routed through i18n (see src/lib/citation/ics206.ts) — these three keys
+  // are English-only, and makeT's per-key English fallback covers the other locales.
+  // The conformant label is used ONLY when the AI-tool disclosure is actually present:
+  // operator decision T4-b forbids calling the artifact an ICS 206-01 citation while
+  // the disclosure is withheld.
+  "copy.citation": "Copy source citation",
+  "copy.citation_conformant": "Copy ICS 206-01 citation",
+  "copy.citation_copied": "Citation copied",
   "copy.report_copied": "Report copied",
   "copy.link_copied": "Link copied",
   "copy.evidence_copied": "Evidence copied",

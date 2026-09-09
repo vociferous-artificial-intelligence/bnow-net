@@ -13,11 +13,24 @@ export interface ClaimSourceDoc {
   /**
    * raw_documents.fetched_at — when BNOW ingested the document. Retained and carried
    * on every doc: it is the deterministic sort tie-break below, the ranking recency
-   * fallback, and the validation-timeliness/health input. It is NOT presented to
-   * analysts (2026-07-16): "First seen by BNOW" told them when our crawler ran, not
-   * when the world learned the fact, and it read as a provenance claim it never was.
+   * fallback, and the validation-timeliness/health input.
+   *
+   * It is NOT presented to analysts on any browsing surface (2026-07-16): "First seen
+   * by BNOW" told them when our crawler ran, not when the world learned the fact, and
+   * it read as a provenance claim it never was. ONE narrow exception, operator
+   * decision T2 (2026-09-07): the ICS 206-01 citation mode renders it labeled
+   * "Accessed (BNOW ingest)", because a citation a reader must be able to reconstruct
+   * needs an access date. Citation mode only — see src/lib/citation/ics206.ts.
    */
   firstSeenAt: string;
+  /**
+   * sources.citation_count — how often ISW cited this source. Optional because five
+   * of the six ClaimSourceDoc construction sites do not select it; the citation
+   * descriptor simply omits the clause when it is absent. Not a moat field: the
+   * reduced registry view orders BY citations precisely because reliability is the
+   * moat and the count is not (registry/view-policy.ts).
+   */
+  citationCount?: number | null;
 }
 
 export type EvidenceSortMode =
@@ -73,6 +86,19 @@ export const DEFAULT_VISIBLE_CLAIM_DOCS = 6;
 function nonEmpty(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+}
+
+/** Escape every user/source-controlled value before rich clipboard serialization.
+ *  Lives on this leaf module, beside safeHttpUrl, because both the clipboard
+ *  serializer (claim-copy-model.ts, which re-exports it) and the citation builder
+ *  (lib/citation/ics206.ts) need it and those two must not import each other. */
+export function escapeClaimCopyHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 /** Only these URLs are safe to expose as browser or rich-clipboard anchors. */
@@ -182,7 +208,8 @@ function compareLabel(a: ClaimSourceDoc, b: ClaimSourceDoc): number {
   return claimSourceLabel(a).localeCompare(claimSourceLabel(b), undefined, { sensitivity: "base" });
 }
 
-/** Deterministic ordering only — firstSeenAt is never surfaced to the analyst. */
+/** Deterministic ordering only — this use of firstSeenAt is never surfaced (the one
+ *  surface that shows it at all is citation mode, per T2; see the field docstring). */
 function stableTieBreak(a: ClaimSourceDoc, b: ClaimSourceDoc): number {
   return (
     compareNullableNumber(timestamp(a.firstSeenAt), timestamp(b.firstSeenAt), 1) ||

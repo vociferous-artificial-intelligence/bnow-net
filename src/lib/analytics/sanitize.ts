@@ -39,7 +39,7 @@ const ENUMS: Record<ProductEventName, Record<string, ReadonlySet<unknown>>> = {
   ask_started: { entry: new Set(["form", "intent"]) },
   signal_detail_viewed: { theater: new Set(["ru", "ua", "ir", "il", "sa", "ae", "qa", "om", "bh", "kw", "other"]), signal_type: new Set(["purge", "procurement_surge", "data_dark", "trade_divergence", "pressure_spike"]), evidence_count_bucket: new Set(["0", "1", "2-5", "6+"]) },
   feedback_initiated: { surface: new Set(["digest_error", "source_suggestion"]), theater: new Set(["ru", "ua", "ir", "il", "sa", "ae", "qa", "om", "bh", "kw", "other"]) },
-  claim_copied: { surface: new Set(["digest", "ask_cited", "ask_related", "search", "signal", "entity"]), copy_mode: new Set(["report", "link", "evidence", "text"]), theater: new Set(["ru", "ua", "ir", "il", "sa", "ae", "qa", "om", "bh", "kw", "other"]), hedging_class: new Set(["confirmed", "assessed", "claimed", "unverified", "unknown"]), evidence_count_bucket: new Set(["0", "1", "2-5", "6+"]) },
+  claim_copied: { surface: new Set(["digest", "ask_cited", "ask_related", "search", "signal", "entity"]), copy_mode: new Set(["report", "link", "evidence", "text", "citation"]), theater: new Set(["ru", "ua", "ir", "il", "sa", "ae", "qa", "om", "bh", "kw", "other"]), hedging_class: new Set(["confirmed", "assessed", "claimed", "unverified", "unknown"]), evidence_count_bucket: new Set(["0", "1", "2-5", "6+"]) },
   digest_print_initiated: { theater: new Set(["ru", "ua", "ir", "il", "sa", "ae", "qa", "om", "bh", "kw", "other"]), print_mode: new Set(["brief", "evidence"]), digest_age_bucket: new Set(["today", "1-7d", "older"]) },
 };
 
