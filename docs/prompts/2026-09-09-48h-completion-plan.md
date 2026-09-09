@@ -29,7 +29,13 @@ per-worktree copy steps anywhere below.
 
 Stage 3 has ten steps; six are merged (18, 20, 21, 32, 33, 34 — CP5). Four remain, then the
 closing stages. Three lanes launch in parallel in the first hour: **19**, **23r**, **23c** —
-the change from the 09-08 sheet, where 23c waited for 19 because they shared a worktree.
+the change from the 09-08 sheet, where 23c waited for 19 because they shared a worktree. The
+reverse order (23c to completion, then 19) was analyzed on 2026-09-09
+(`docs/reviews/REORDER-23C-19-ANALYSIS-2026-09-09.md`): it would cost lane C's whole duration
+(6–8 h) on the critical path, so instead step 19 builds its claim-sources PR first and takes
+lane C's fixed module for its second PR whenever 23c has merged by then — the data-quality gain
+(a real `unit_attribution` for Iran instead of the constant `"both"`, honest per-day status
+reasons) at zero schedule cost in the expected case.
 
 | Step | Worktree (under `/Users/go/code/bnow-net-worktrees/`) | Lane branch | Attended | Launchable when | Prompt (`docs/prompts/`) | Report the launcher looks for (`docs/reviews/`) |
 |---|---|---|---|---|---|---|
@@ -286,9 +292,13 @@ log, do not relaunch, tell me.
 
 ## 3. CP6 — merge queue for steps 19, 23c, 23r
 
-Order **19 → 23c → 23r** (lane C's `persistObservation` hunk sits under 19's calls; lane R shares
-no file with either). Merge each PR only after its delivering session has exited. Repeat card
-3.1 → 3.3 per PR, then 3.4 once.
+Order: **whichever of 23c / 19 delivers first, then the other, then 23r.** Do not hold 23c for
+19 — merge it the moment its session has exited, because step 19 checks `origin/main` before it
+opens its observation-pipeline PR and consumes lane C's fixed module if it is there (its prompt,
+item 8; `docs/reviews/REORDER-23C-19-ANALYSIS-2026-09-09.md`). If both are waiting at once, 23c
+before 19. Lane C's `persistObservation` hunk is inside the function body and 19 only calls the
+function, so neither order conflicts; 23r shares no file with either. Merge each PR only after
+its delivering session has exited. Repeat card 3.1 → 3.3 per PR, then 3.4 once.
 
 ### 3.1 Fence and stack check — per PR
 
@@ -347,7 +357,8 @@ git log --oneline -1
 ### 3.4 Gate and record — once, after the last merge of the queue
 
 **Where:** `/Users/go/code/bnow-net`, branch `main`.
-**Requires:** 19, 23c and 23r merged and pulled.
+**Requires:** 19, 23c and 23r merged and pulled (run it also after an early 23c merge if 19 is
+still hours away — a green gate on `main` is what 19 rebases onto).
 
 ```
 cd /Users/go/code/bnow-net
@@ -640,5 +651,9 @@ npx tsx scripts/sqlq.ts "SELECT 1"
   Anthropic path); step 27 (DSN refresh, A2 ordering, G3 list, code-ahead facts).
 - **Tracker** `docs/prompts/2026-09-08-48h-CP4-status-tracker.md`: §1 points here; §6 Stage 3
   sheet marked superseded; §7 line.
+- **Later on 2026-09-09:** `docs/reviews/REORDER-23C-19-ANALYSIS-2026-09-09.md` (should 23c
+  run before 19?) — answer: adaptive shape; step 19 item 8 rewritten (PR 1 first, branch A/B
+  check at PR 2), step 23's WS3-F04 row and CP6 order flipped to "whichever delivers first",
+  D-d's clause, `steps.tsv` rows 19/23c.
 - **Not changed:** INDEX §10 (operator-written), any file under `src/`, any `.env.local`, any
   worktree.

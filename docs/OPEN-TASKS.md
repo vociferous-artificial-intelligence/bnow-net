@@ -2174,3 +2174,54 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     persist path and a change there should ride its own review rather than a
     presentation-layer change (the 2026-09-07 A1 precedent). Pair it with a repo-wide check
     for other NUL-bearing sources.
+
+120. **[Tier 3 — extraction recall] `iran-levant-v1`'s append-only window closes at WS-3.6
+    enablement, and the recall gap that gets locked in is in the NON-CITY features and the
+    punctuation family — not in variant volume.** Measured 2026-09-09 against GeoNames
+    `cities15000` (via `geonamescache`, the flattened per-country `alternatenames` column),
+    then confirmed against the 171 cached ISW pages (counts only).
+    **What was measured.** 106 TOPONYM canonicals. 74 matched a GeoNames populated place
+    ≥15k; **32 did not, because they are not populated places** — the straits and waterways
+    (`hormuz`, `bab_el_mandeb`, `persian_gulf`, `gulf_of_oman`, `gulf_of_aden`, `red_sea`),
+    the installations (`al_udeid`, `ain_al_asad`, `al_tanf`, `nevatim`, `parchin`, `fordow`,
+    `ras_isa`), the provinces and districts (`khuzestan`, `sistan_baluchestan`,
+    `eastern_province`, `anbar`, `bekaa`, `negev`, `golan`, `west_bank`, `south_lebanon`,
+    `iraqi_kurdistan`, `dahiyeh`), the countries (`saudi_arabia`, `uae`, `qatar`, `bahrain`,
+    `oman`) and the islands (`kharg`, `socotra`, `duqm`). **These are exactly where the
+    step-18 register's measured misses live** (WS3-F06: `Bab-al-Mandeb`, `Ayn al-Asad`,
+    `al-Asad Air Base`, `Bekaa`) — a `cities15000` pass is structurally blind to them.
+    **The volume route is a dead end.** From the 74 matched records, 331 uncovered Latin
+    spellings survive a same-canonical similarity filter, 207 after a length filter — and
+    **4 of the 207 occur anywhere in the 171 cached pages**. Of those four: `jerusalem` is a
+    disambiguation artifact (already a variant, `iran-levant-v1.ts:144`); `shirazi` (×7) is a
+    surname/demonym, not the city — adding it LOSES precision; `al quds` (×6) is followed by
+    `also` / `issued` / `claimed` / `released` in every instance, i.e. the Quds Force, an
+    organization, not the city (ruling 20 territory); only **`tel-aviv` (×2, against
+    `tel aviv` ×8) is a real recall gain** — a hyphen-for-space form the D-e fold does NOT
+    reach, because that fold maps unicode hyphens to ASCII `-` and curly apostrophes to `'`,
+    never hyphen↔space.
+    **Two precision findings fall out of the same pass.** `al-quds`, a SHIPPED variant of
+    `jerusalem`, occurs **0 times** in the corpus while the organization spelling `al quds`
+    occurs 6 — the variant never fires and its nearest neighbour is an org name. And
+    `bab el-mandeb`, the shipped variant, occurs **0 times** while `bab-al-mandeb` occurs —
+    confirming WS3-F06 from the other side: the table carries forms ISW does not use.
+    **Why this is dated.** The file's own rule permits append-only edits until a result
+    persists under the version. Step 19 writes to a fork; lane C's merge does not persist.
+    The line is **WS-3.6 enablement** — the first production write under `iran-levant-v1`.
+    Before it, an append is one commit. After it, every correction is `iran-levant-v2` plus a
+    re-derivation of every stored signature — and the two precision findings above cannot be
+    fixed by appending at all, because removing or guarding a variant is not an append.
+    **What to do, in order.** (1) In step 23 lane C under D-e: the R3 list plus `tel-aviv`.
+    (2) Before enablement, one full-dump pass over feature classes **H / T / S / A**, not
+    just P, using the language-tagged `alternateNames` file rather than the flattened column
+    — `download.geonames.org` is blocked by egress policy from both the session container and
+    the operator's machine (verified 2026-09-09: 403 at CONNECT from each), so it needs a host
+    with access; `interscript/geonames-transliteration-data` is the parsed alternative.
+    (3) A decision on `al-quds` and `bab el-mandeb`; both are v2-shaped, so they must be
+    settled BEFORE the line, not after.
+    **Sourcing (ruling 1) preserved:** candidate spellings came from GeoNames — geography —
+    and the ISW cache was read counts-only, to RANK candidates and detect precision hazards.
+    No reference-report prose entered any candidate list, and none may enter the gazetteer
+    file. Same posture as the step-18 register's disclosure 3.
+    **Owner:** step 23 lane C for (1); the WS-3.6 enablement checklist (step 24) for (2) and
+    (3). Related: WS3-F06, decision D-e (2026-09-09). Filed 2026-09-09.

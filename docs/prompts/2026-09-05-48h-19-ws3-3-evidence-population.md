@@ -40,19 +40,29 @@ later: CP5 landed 18, 20, 21, 32, 33, 34; nothing in `drizzle/` or `src/db/schem
 step-18 register's handoff for this step is binding** (`WS-3-AUDIT-FINDING-REGISTER-2026-09-06.md`
 §Handoff "For step 19"): do not call `persistObservation` with a caller-chosen edition id —
 resolve the winner's row id from `edition_key` (+ `series`, `report_date`) and pass exactly that
-id (WS3-F04's identity check is step 23's and may land in parallel; do not depend on it). Fill
+id (lane C's WS3-F04 check, when on `origin/main`, enforces exactly this; resolving from the key is correct on both branches of item (8)). Fill
 `unit_attribution` from `classifyTheaterWith(gazetteerFor(series), sig.toponyms)` for Iran — the
-RU/UA `classifyTakeawayTheater` returns only `ru|ua|both`. Expect `derived.units[].toponyms` to
-be EMPTY for every Iran edition written before WS3-F05 lands; join on `sha256` + `ordinal`,
-never on signatures. `probe_failed` today means "indeterminate", never "ISW did not publish".
-(8) **Parallel lane, same module:** step 23 lane C runs at the same time in the `audit-ws3`
-worktree and owns `src/lib/isw/edition-discovery.ts`, `observation-store.ts`'s
-`persistObservation` body, and the June-2025 parser shape (decision **D-d** signed 2026-09-09:
-the N3 `--backfill-from-isw-reports` mode is lane C's, not yours — do not build it; if the
-D-a…D-f entry is absent from `AGENTS.md` at launch, still do not build it, list it). Consume
-those modules through their exported API; do not edit them unless a one-line change is
-unavoidable, and name any such hunk in the report — the operator merges this step first at CP6
-and lane C rebases onto it. (9) The report file name stays
+RU/UA `classifyTakeawayTheater` returns only `ru|ua|both`. Whether `derived.units[].toponyms` is
+EMPTY (today's tree: `unitSignaturesFrom(html)` computes under `ru-ua-v1`, so every Iran unit's
+`classifyTheaterWith` result is the constant `"both"`) or POPULATED under `iran-levant-v1` with the
+gazetteer stamped into `EDITION_UNITS_VERSION` (after lane C's WS3-F05) depends on which branch
+of item (8) you are on — read the constant on the tree you build against and say which; join on
+`sha256` + `ordinal` either way, never on signatures. `probe_failed` today means "indeterminate", never "ISW did not publish".
+(8) **Parallel lane, same module — build in the order that lets you consume the fix.** Step 23
+lane C launched in the same hour in the `48h-audit-ws3-20260905` worktree and owns
+`src/lib/isw/edition-discovery.ts`, `observation-store.ts`'s `persistObservation` body, the
+June-2025 parser shape and the N3 `--backfill-from-isw-reports` mode (decision **D-d**, entry
+"2026-09-09 (D-a … D-f — WS-3 audit register decisions signed)"): never edit those files, never
+build the backfill. **Build PR 1 (claim sources) first — it touches none of them.** Then, once,
+at the start of PR 2, run `git fetch origin && git log --oneline origin/main -- src/lib/isw/edition-discovery.ts src/lib/conflicts/observation-store.ts`
+and decide: **branch A — lane C's commits are on `origin/main`** (WS3-F01 `classifyProbe` /
+`probeIndeterminate`, F02, F03, F04, F05): rebase your lane onto `origin/main`, consume the fixed
+module — `dayStatusReason` available for your per-day counts, Iran toponyms populated, the F04
+check present — and drop the route-around instructions of block (1) for those findings;
+**branch B — not yet**: block (1) and item (7) apply verbatim (route around, EMPTY toponyms,
+id-from-key). Decide once, say in the report which branch you took and at which `origin/main`
+SHA, and do not re-check mid-PR. The operator merges whichever of 23c / this step delivers
+first; if lane C merges first, rebase onto it before opening PR 2's pull request. (9) The report file name stays
 `docs/reviews/WS-3-3-EVIDENCE-POPULATION-2026-09-06.md` (the launcher looks for it). If you open
 stacked PRs, say so in the report: the operator must `gh pr edit <n> --base main` before merging
 each PR above the bottom of the stack. (10) Handoff for step 24 must name: the observation read
