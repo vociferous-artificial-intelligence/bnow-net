@@ -4791,3 +4791,31 @@ lane `48h/ws7-tradecraft-20260905`, under the SIGNED T3 / T3-a / T3-b decision e
    `src/lib/tradecraft/crosswalk.ts` and `docs/METHODOLOGY-TRADECRAFT.md` (drift test).
 8. Snapshot tests per surface; closing report `docs/reviews/WS-7-4-ESTIMATIVE-2026-09-07.md`
    with the proposed decision-log entry recording V1 as a presentation layer; PR.
+
+**Execution (same block)**
+
+- Base `48a9d4e` (= `origin/main`, the PR #80 merge); branch
+  `48h/ws7-tradecraft-20260905-step34-estimative`; commit `3b5f81b`; **attended**; **$0** —
+  no provider call, no database, no environment read, no deploy, no migration.
+- T3/T3-a/T3-b are SIGNED, so `AWAITING AUTHORIZATION` was not printed. `ESTIMATIVE_MAP_V1`
+  ships as data in `src/lib/tradecraft/estimative.ts` — a pure leaf whose ONLY import is a
+  type, so it has no runtime import at all and structurally cannot reach `claims.confidence`
+  or a reliability score (T3-a, pinned by an import-hygiene scan and a field-read scan).
+- Rendered beside the hedging label — which stays — on the digest, search, signals and ask
+  claim rows, in the digest print appendix's status line (the one literal
+  `statuses[hedging]` site), in the copy "status" line, and in the ICS 206-01 citation
+  artifact with its derivation. The T4 dark-stamp policy is untouched, and a test pins the
+  estimative block identical on the withheld and the disclosed artifact.
+- Exhaustive test: all twenty hedging x tier cells by value, plus the six signed invariants
+  as a literal spec block. The three sub-even bands, `almost certain`, and AJP-2.1 levels 4
+  and 5 are never assigned; `high` confidence occurs in exactly one cell.
+- Corrected in place: the public `/methodology` page's §7 sentence "we do not state a
+  likelihood or an analytic-confidence level of our own" (false the day this ships), the
+  digest page's OPEN-TASKS #14 comment, and the crosswalk's ICD 203 uncertainty row
+  GAP -> PARTIAL in both `crosswalk.ts` and `docs/METHODOLOGY-TRADECRAFT.md`.
+- Tests **4,121/273 -> 4,201/275**; typecheck clean; lint 0 errors (3 pre-existing warnings).
+- Filed OPEN-TASKS **#118** (an unrelated find: a literal NUL byte in
+  `src/lib/analysis/digest-persist.ts` makes `grep` skip that file silently) and added a note
+  to **#14** that WS-7.4 does not satisfy it. Report:
+  `docs/reviews/WS-7-4-ESTIMATIVE-2026-09-07.md`, with the proposed decision-log entry for
+  step 25.
