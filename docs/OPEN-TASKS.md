@@ -462,7 +462,14 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     2,703 accounts / zero roots. One `facebook.com` root still pools **26,195 citations / 7,081
     raw URLs**. All have paths, but at least 1,977 use reserved routes (`watch`, `share`, `reel`,
     `permalink.php`, etc.) and need fail-closed shape-specific recovery; never treat a share id as
-    a page. This blocks #14. Research + coding handoff:
+    a page. This blocks #14. **Status 2026-09-08 (WS-7.3):** unchanged as a data task — nothing is
+    segmented — but the new source descriptors now FAIL CLOSED on it: a known multi-tenant host
+    cited at its root renders the "platform root — not a single publisher" caveat and NO hedging
+    profile (`src/lib/tradecraft/descriptor.ts`, `KNOWN_PLATFORM_ROOTS`). Recorded residual: an
+    UNLISTED multi-tenant root still gets a profile, because `canonicalSource()`
+    (`src/lib/isw/urls.ts:85-122`) keys every non-social source by its bare host, so a URL
+    heuristic cannot tell `facebook.com` from `pravda.com.ua` — only this task's segmentation
+    can. Research + coding handoff:
     `docs/reviews/OPEN-TASKS-RESEARCH-2026-07-16.md`,
     `docs/prompts/2026-07-16-facebook-source-segmentation.md`.
 57. ~~**/pricing promises registry access the product no longer grants.**~~ ✅ CLOSED

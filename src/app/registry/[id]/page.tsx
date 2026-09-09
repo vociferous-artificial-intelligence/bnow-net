@@ -4,6 +4,7 @@ import { rawSql } from "@/db";
 import { getT } from "@/i18n/server";
 import { currentRole, requireAdminOr404 } from "@/lib/gate";
 import { registryView } from "@/lib/registry/view-policy";
+import { describeSource, type DescriptorSource, type DescriptorStats } from "@/lib/tradecraft/descriptor";
 
 export const dynamic = "force-dynamic";
 
@@ -64,7 +65,9 @@ export default async function SourceDetailPage({
     ),
     rawSql.query(
       `SELECT theater, citation_count, first_cited_report_date::text AS first,
-              last_cited_report_date::text AS last, reliability_score, decayed
+              last_cited_report_date::text AS last, reliability_score, decayed,
+              hedging_confirmed, hedging_assessed, hedging_unknown,
+              hedging_claimed, hedging_unverified
        FROM source_theater_stats WHERE source_id = $1 ORDER BY citation_count DESC`,
       [id],
     ),
@@ -79,6 +82,8 @@ export default async function SourceDetailPage({
   const theaterStats = theaterRaw as Array<{
     theater: string; citation_count: number; first: string | null; last: string | null;
     reliability_score: number | null; decayed: boolean;
+    hedging_confirmed: number; hedging_assessed: number; hedging_unknown: number;
+    hedging_claimed: number; hedging_unverified: number;
   }>;
   const THEATER_LABEL: Record<string, string> = {
     ru: "Russia/Ukraine (ROCA)",
@@ -93,6 +98,26 @@ export default async function SourceDetailPage({
     claimed: s.hedging_claimed, unverified: s.hedging_unverified,
   };
   const maxYear = Math.max(...byYear.map((r) => r.n), 1);
+
+  // WS-7.3 source descriptors (ICD 206 mech. 2 / ICS 206-01). Deliberately built from a
+  // NARROW projection of the row: `describeSource` has no reliability parameter, so the
+  // moat number cannot reach a descriptor and the `view.showReliability` gate above stays
+  // the only place it renders. `source_theater_stats` carries no platform/name/status, so
+  // every per-corpus descriptor reads its identity from the `sources` row.
+  const descriptorSource: DescriptorSource = {
+    canonicalUrl: s.canonical_url,
+    domain: s.domain,
+    platform: s.platform,
+    status: s.status,
+    decayed: s.decayed,
+  };
+  const globalStats: DescriptorStats = {
+    citationCount: s.citation_count,
+    firstCitedReportDate: s.first_cited_report_date,
+    lastCitedReportDate: s.last_cited_report_date,
+    hedging: hedgeCounts as DescriptorStats["hedging"],
+  };
+  const globalDescriptor = describeSource(descriptorSource, globalStats, { kind: "global" });
 
   return (
     <main id="main" className="mx-auto max-w-3xl p-6">
@@ -114,6 +139,14 @@ export default async function SourceDetailPage({
           </>
         )}
       </p>
+
+      <section className="mb-8 rounded-lg border border-gray-200 p-4 dark:border-gray-800" data-testid="source-descriptor">
+        <h2 className="mb-2 text-sm font-semibold">Source descriptor</h2>
+        <p className="text-sm text-gray-700 dark:text-gray-300">{globalDescriptor.text}</p>
+        <p className="mt-2 text-xs text-gray-500">
+          {globalDescriptor.label} ({globalDescriptor.version})
+        </p>
+      </section>
 
       <section className="mb-8 grid gap-6 sm:grid-cols-2">
         <div>
@@ -191,6 +224,34 @@ export default async function SourceDetailPage({
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="mt-3 space-y-3" data-testid="theater-descriptors">
+            {theaterStats.map((row) => {
+              const d = describeSource(
+                descriptorSource,
+                {
+                  citationCount: row.citation_count,
+                  firstCitedReportDate: row.first,
+                  lastCitedReportDate: row.last,
+                  hedging: {
+                    confirmed: row.hedging_confirmed,
+                    assessed: row.hedging_assessed,
+                    unknown: row.hedging_unknown,
+                    claimed: row.hedging_claimed,
+                    unverified: row.hedging_unverified,
+                  },
+                },
+                { kind: "theater", theater: row.theater },
+              );
+              return (
+                <p key={`descriptor-${row.theater}`} className="text-sm text-gray-700 dark:text-gray-300">
+                  {d.text}
+                </p>
+              );
+            })}
+            <p className="text-xs text-gray-500">
+              {globalDescriptor.label} ({globalDescriptor.version})
+            </p>
           </div>
         </section>
       )}

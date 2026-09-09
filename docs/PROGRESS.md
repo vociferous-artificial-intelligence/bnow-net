@@ -4712,3 +4712,54 @@ Execution (same block):
   provider-blind `mapreduceProviderTag()` ordering item for step 20b). Report:
   `docs/reviews/WS-7-2-CITATION-MODE-2026-09-07.md`, with the proposed decision-log entry for
   step 25. Pushed (pre-push gate green) and opened as **PR #80**.
+## 2026-09-08 ~21:00Z — WS-7.3 source descriptors + per-digest source summary (step 33, planned block)
+
+1. Re-verify the read-only pass's three findings against the tree, then build
+   `src/lib/tradecraft/descriptor.ts` (`descriptor-v1`) — a pure template over `sources` +
+   `source_theater_stats`, with the ruling-16 wording for `unknown`, no reliability input at
+   all, and a fail-closed platform-root caveat (#56) that suppresses the hedging profile.
+2. Build `src/lib/tradecraft/source-summary.ts` (`summary-v1`) — computed at render from
+   claim/document rows the digest page already holds: distinct documents/channels/platforms,
+   corroboration shares, top-3 load-bearing sources, single-document weak-hedging claims, and
+   the cap fact read ONLY from the persisted `structured.stats.sourceMix` (legacy digests),
+   rendering "not recorded for this digest" on mapreduce digests.
+3. Render both: `/registry/[id]` (admin) and the digest page (customer-visible, C3), the
+   latter as a per-track "Sources for this digest" block fed by additive columns on the
+   existing claim query — no extra round trip, `ClaimSourceDoc` untouched.
+4. Tests: golden-file text assertions for both templates, zero-citation and platform-root
+   fixtures, a ruling-1 sentinel-prose fixture, an import-hygiene source scan, and page-level
+   assertions on both surfaces (gate-before-query preserved).
+5. Update the four crosswalk rows the module and `docs/METHODOLOGY-TRADECRAFT.md` share
+   (including the wrong `evidence-selection.ts` citation at doc line 87), keeping the drift
+   test green.
+6. Closing report `docs/reviews/WS-7-3-DESCRIPTORS-2026-09-07.md`; PR; no deploy, no spend.
+
+**Execution (same block).**
+
+- Read the 2026-09-08 read-only handoff log first, as the prompt requires, and treated its
+  three findings as the working spec. All three held: `synthesize.ts` writes no `sourceMix`
+  key (repo-wide grep), the four crosswalk rows sat exactly where it said, and the digest
+  header query is where step 32 will land its `toolStamp`.
+- Built `src/lib/tradecraft/descriptor.ts` (`descriptor-v1`) and
+  `src/lib/tradecraft/source-summary.ts` (`summary-v1`), both pure — a source scan pins no
+  environment read, no database, no provider, no spend ledger and no clock, and a
+  blanked-environment import renders both.
+- **One verified correction to PLAN-WS-7 §4:** its "canonical_url with no path segment is a
+  platform root" fallback would have suppressed the hedging profile of essentially the whole
+  registry, because `canonicalSource()` (`src/lib/isw/urls.ts:85-122`) keys every non-social
+  source by its bare host. The shipped rule fails closed on a known multi-tenant host cited
+  at its root, on a telegram/x identity with no account segment, and on an unparseable
+  identity; the residual is recorded on OPEN-TASKS #56.
+- Rendered on `/registry/[id]` (admin) and, for the customer-visible target C3 requires, on
+  the digest page as a per-track "Sources for this digest" block — one additive jsonb subpath
+  on the header query and one query inside the existing `Promise.all`. `ClaimSourceDoc` is
+  untouched, so the other four claim surfaces are unaffected.
+- Moved the four crosswalk rows in module and document together: ICD 206 summary and
+  ICS 206-01 descriptor to BUILT, the ICD 206 descriptor row to PARTIAL (nothing models
+  bias), the ICD 203 quality/credibility row's closing step to WS-7.4. Corrected that summary
+  row's enforcing-file cell, which cited a conflict-lane module imported by nothing in
+  production.
+- **4,082 / 270 → 4,147 / 274 tests green**; typecheck clean; lint 0 errors (3 pre-existing
+  warnings elsewhere). $0 — no database, no network, no provider, no deploy, no migration.
+- Report: `docs/reviews/WS-7-3-DESCRIPTORS-2026-09-07.md`, with the proposed AGENTS.md
+  directory-map line and decision-log entry for step 25 (not applied here).
