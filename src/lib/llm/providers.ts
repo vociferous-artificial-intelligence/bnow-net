@@ -12,10 +12,12 @@
 // - ANALYSIS_PROVIDER_IDS is the set of provider ids the seam can NAME. A name
 //   here is not permission to dispatch.
 // - WORKLOAD_PROVIDER_ALLOWLIST is the set a workload may actually dispatch.
-//   Today every entry is exactly {openai}. WIDENING AN ENTRY IS A REVIEWED PR
-//   PLUS A DECISION-LOG ENTRY — and, on its own, still dispatches nothing: the
-//   model must also be priced FOR THAT PROVIDER in pricing.ts and approved for
-//   the exact (workload, provider, model, effort) in analysis-registry.ts.
+//   Every entry is {openai} except digest, which is {openai, anthropic} since
+//   2026-09-06. WIDENING AN ENTRY IS A REVIEWED PR PLUS A DECISION-LOG ENTRY —
+//   and, on its own, still dispatches nothing: the model must also be priced
+//   FOR THAT PROVIDER in pricing.ts and approved for the exact
+//   (workload, provider, model, effort) in analysis-registry.ts. No Anthropic
+//   approval exists, so the digest entry is a widened refusal, not a route.
 //
 // This module is deliberately leaf-level: it imports nothing from the seam, so
 // pricing.ts, analysis-registry.ts, model-config.ts and the eval live-runner can
@@ -39,16 +41,27 @@ export type AnalysisProviderId = (typeof ANALYSIS_PROVIDER_IDS)[number];
  *  absent — i.e. everywhere today, in every environment. */
 export const ANALYSIS_DEFAULT_PROVIDER: AnalysisProviderId = "openai";
 
-/** Per-workload DISPATCH allowlist. Every entry is {openai} at 2026-09-06.
- *  Widening one is a reviewed PR + a decision-log entry, and still leaves the
- *  pricing and quality-registry gates in force. */
+/** Per-workload DISPATCH allowlist. Widening one is a reviewed PR + a
+ *  decision-log entry, and still leaves the pricing and quality-registry gates
+ *  in force — the entry says a vendor MAY be routed to, never that one is.
+ *
+ *  `digest` gained `anthropic` on 2026-09-06 (decision D2 = B, OPEN-TASKS #83
+ *  wiring). It dispatches NOTHING today and that is the point: with the
+ *  allowlist widened but no Anthropic registry approval,
+ *  `DIGEST_PROVIDER=anthropic` resolves dispatchBlocked and every legacy-digest
+ *  run fails typed and loud. The widening only moves the refusal from "this
+ *  vendor is not addressable" to "this vendor has no approved model", which is
+ *  the gate the activation checklist is written against.
+ *
+ *  `map` stays {openai} and must: a provider change would change the
+ *  extractor-version basis, which ruling 13's hard lock exists to prevent. */
 export const WORKLOAD_PROVIDER_ALLOWLIST: Record<
   AnalysisWorkload,
   ReadonlySet<AnalysisProviderId>
 > = {
   map: new Set<AnalysisProviderId>(["openai"]),
   reduce: new Set<AnalysisProviderId>(["openai"]),
-  digest: new Set<AnalysisProviderId>(["openai"]),
+  digest: new Set<AnalysisProviderId>(["openai", "anthropic"]),
   validation: new Set<AnalysisProviderId>(["openai"]),
   entity_audit: new Set<AnalysisProviderId>(["openai"]),
 };

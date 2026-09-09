@@ -54,13 +54,26 @@ describe("model-routing-inspect — provider column and refusals", () => {
   }, 120_000);
 
   it("a disallowed provider prints BLOCKED with the allowlist reason and its env-var name", () => {
-    const r = inspect({ DIGEST_PROVIDER: "anthropic" });
+    // digest admits anthropic since 2026-09-06, so the allowlist rung is shown
+    // with a provider no workload admits
+    const r = inspect({ DIGEST_PROVIDER: "openai_compatible" });
     expect(r.status).toBe(0);
     expect(r.stdout).toMatch(
-      /digest\s+provider=anthropic\(DIGEST_PROVIDER\).*BLOCKED: provider "anthropic" is not allowed for workload "digest" \(allowed: openai\)/,
+      /digest\s+provider=openai_compatible\(DIGEST_PROVIDER\).*BLOCKED: provider "openai_compatible" is not allowed for workload "digest" \(allowed: openai\|anthropic\)/,
     );
     // one bad workload never blocks the others
     expect(r.stdout).toMatch(/^\s+reduce\s+provider=openai.*\bok$/m);
+  }, 120_000);
+
+  it("an ALLOWED but unapproved DIGEST_PROVIDER=anthropic prints BLOCKED on pricing, not on the allowlist", () => {
+    // what the digest widening actually did: the refusal moved one rung down.
+    // The inspector is where an operator would check that before setting an env.
+    const r = inspect({ DIGEST_PROVIDER: "anthropic", DIGEST_MODEL: "claude-not-priced" });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(
+      /digest\s+provider=anthropic\(DIGEST_PROVIDER\).*BLOCKED: model "claude-not-priced" is not priced for provider "anthropic"/,
+    );
+    expect(r.stdout).not.toMatch(/digest.*not allowed for workload "digest"/);
   }, 120_000);
 
   it("an unknown provider prints BLOCKED naming the known ids", () => {
@@ -79,7 +92,7 @@ describe("model-routing-inspect — provider column and refusals", () => {
   it("the footer states the shipped allowlist and that naming is not permission", () => {
     const r = inspect();
     expect(r.stdout).toContain(
-      "Provider allowlist (src/lib/llm/providers.ts): map={openai} reduce={openai} digest={openai} validation={openai} entity_audit={openai}",
+      "Provider allowlist (src/lib/llm/providers.ts): map={openai} reduce={openai} digest={openai,anthropic} validation={openai} entity_audit={openai}",
     );
     expect(r.stdout).toContain(
       "Nameable provider ids (naming is NOT permission): openai, anthropic, openai_compatible",

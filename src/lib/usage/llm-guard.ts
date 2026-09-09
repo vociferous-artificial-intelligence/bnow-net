@@ -1,5 +1,7 @@
-// Global LLM controls shared by every OpenAI call site: a kill-switch, the
-// gpt-4o-mini price table, and the digest path's SpendGuard.
+// Global LLM controls shared by every analysis call site: a kill-switch, the
+// legacy gpt-4o-mini price table, and the digest path's SpendGuard. Not
+// OpenAI-only since the provider dimension landed — anthropic_digest meters
+// here too, on its own ledger row inside the same cap envelope (decision R6).
 //
 // Before this module the digest extract call — ~98% of true LLM spend
 // (docs/reviews/PIPELINE-AUDIT-2026-07.md §7c) — wrote nothing to provider_usage
@@ -22,6 +24,17 @@ export const DIGEST_PROVIDER = "openai_digest";
  *  so the digest ledger stays a clean measure of the digest path, even though both
  *  draw on the one LLM_DIGEST_USD_CAP per-day envelope. */
 export const ENTITY_AUDIT_PROVIDER = "openai_entity_audit";
+
+/** provider_usage.provider for the Anthropic digest extract call (OPEN-TASKS
+ *  #83's wiring). Its OWN ledger row so a second vendor's spend never blends
+ *  into openai_digest's, and — because pgUsageStore.load filters by provider —
+ *  its own full LLM_DIGEST_USD_CAP day envelope and its own LLM_SPRINT_USD_CAP
+ *  backstop. The two digest rows are ADDITIVE, not shared: exactly the
+ *  openai_entity_audit precedent above. No new cap env is created (decision
+ *  R6), so there is no ruling-4 ordering obligation to discharge before this
+ *  guard deploys — both envs already gate openai_digest in every Vercel
+ *  environment. */
+export const ANTHROPIC_DIGEST_PROVIDER = "anthropic_digest";
 
 /** provider_usage.provider for the shadow map stage's extract calls. Its own
  *  ledger row AND its own daily-cap env (MAP_USD_CAP_DAILY) — never shared with
@@ -109,8 +122,14 @@ export function digestMaxOutputTokens(): number {
 
 /** One guard instance per LLM call — the daily and total caps live in
  *  provider_usage, so they hold across serverless invocations; runRequestCap
- *  therefore just says how many requests one reservation cycle may buy. */
-function openAiGuard(provider: string, dailyRequestCap: number, runRequestCap: number): SpendGuard {
+ *  therefore just says how many requests one reservation cycle may buy.
+ *
+ *  Named for the ENVELOPE, not the vendor: every row built here draws on the
+ *  same LLM_DIGEST_USD_CAP per-day figure and the same LLM_SPRINT_USD_CAP
+ *  backstop, and since the provider dimension landed that set is no longer
+ *  OpenAI-only (anthropic_digest, decision R6). Each row still gets its own
+ *  independent counters — pgUsageStore.load filters WHERE provider = $1. */
+function digestEnvelopeGuard(provider: string, dailyRequestCap: number, runRequestCap: number): SpendGuard {
   return new SpendGuard(
     {
       provider,
@@ -126,7 +145,7 @@ function openAiGuard(provider: string, dailyRequestCap: number, runRequestCap: n
 
 /** Guard for the digest extract call — the ~98% of LLM spend that had none. */
 export function digestGuardFromEnv(): SpendGuard {
-  return openAiGuard(
+  return digestEnvelopeGuard(
     DIGEST_PROVIDER,
     envNum("LLM_DIGEST_DAILY_REQUEST_CAP", 400),
     envNum("LLM_DIGEST_RUN_REQUEST_CAP", 1),
@@ -136,10 +155,25 @@ export function digestGuardFromEnv(): SpendGuard {
 /** Guard for the unscheduled entity-audit route, whose single prompt grows with
  *  the entity graph and was never metered (audit §7a site D, §12 #2). */
 export function entityAuditGuardFromEnv(): SpendGuard {
-  return openAiGuard(
+  return digestEnvelopeGuard(
     ENTITY_AUDIT_PROVIDER,
     envNum("LLM_ENTITY_AUDIT_DAILY_REQUEST_CAP", 10),
     envNum("LLM_ENTITY_AUDIT_RUN_REQUEST_CAP", 1),
+  );
+}
+
+/** Guard for the Anthropic digest extract call. Same envelope as the OpenAI
+ *  digest guard by decision R6 — reuse LLM_SPRINT_USD_CAP + LLM_DIGEST_USD_CAP
+ *  rather than mint ANTHROPIC_DIGEST_USD_CAP, because a new cap env would have
+ *  to exist in all three Vercel environments BEFORE the guard deploys
+ *  (ruling 4) for a path that is dormant in this window and protects nothing
+ *  extra. Same request caps as the OpenAI digest guard: one billed call per
+ *  reservation cycle. */
+export function anthropicDigestGuardFromEnv(): SpendGuard {
+  return digestEnvelopeGuard(
+    ANTHROPIC_DIGEST_PROVIDER,
+    envNum("LLM_DIGEST_DAILY_REQUEST_CAP", 400),
+    envNum("LLM_DIGEST_RUN_REQUEST_CAP", 1),
   );
 }
 

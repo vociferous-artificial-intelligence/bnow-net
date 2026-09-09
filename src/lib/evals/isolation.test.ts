@@ -20,6 +20,10 @@ const PRODUCTION_DISPATCH_MODULES = [
   "lib/analysis/map-worker.ts",
   "lib/analysis/synthesize.ts",
   "lib/analysis/openai-provider.ts",
+  // a second vendor's dispatch path is a production dispatch path (step 20b);
+  // it reaches no OpenAI client, so it is not in openai-client.test.ts's list
+  "lib/analysis/anthropic-provider.ts",
+  "lib/analysis/anthropic-dispatch.ts",
   "lib/validation/llm-match.ts",
   "app/api/cron/entity-audit/route.ts",
 ];

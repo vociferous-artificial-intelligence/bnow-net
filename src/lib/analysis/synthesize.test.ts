@@ -2,9 +2,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import { overwriteVerdict } from "./digest-persist";
 import type { ClaimGroup } from "./reduce";
 import { dropIsolatedSurrogates } from "../text/well-formed-slice";
+import { resolveWorkloadModel } from "../llm/model-config";
 import {
   finalizeEvents,
   mapreduceProviderTag,
+  mapreduceTagFrom,
   mergeVotes,
   parseVote,
   reduceGroupsFed,
@@ -524,5 +526,59 @@ describe("mapreduceProviderTag", () => {
     expect(mapreduceProviderTag()).toBe("openai:gpt-4o-mini+mapreduce");
     process.env.REDUCE_MODEL = "gpt-5-mini";
     expect(mapreduceProviderTag()).toBe("openai:gpt-4o-mini+mapreduce+reduce=gpt-5-mini");
+  });
+
+  // 2026-09-06, decision T4-b (the (f13) ordering gate). The tag used to
+  // hard-code the literal `openai:` and take only the model NAMES from the
+  // routing seam, so it was provider-blind: once a second vendor can serve a
+  // stage, a digest synthesized by one vendor over claims extracted by another
+  // would be stamped `openai:…` — a false attribution written DURABLY to
+  // digests.provider, in the exact field an AI-tool disclosure would read.
+  //
+  // The fix ships BEFORE the hazard is reachable, which is the whole point of
+  // the ordering gate: map and reduce are both allowlisted {openai}, so no
+  // configuration in this release can make the old tag wrong. These cases
+  // therefore inject the allowlist to exercise the branch a future widening
+  // would take, on the same footing model-config.test.ts injects it.
+  describe("the vendor is no longer a hard-coded literal (latent until an allowlist widens)", () => {
+    it("a REFUSED map provider keeps the openai vendor, mirroring ruling 13's model scoping", () => {
+      for (const k of KEYS) delete process.env[k];
+      // map is allowlisted {openai}, so MAP_PROVIDER=anthropic dispatches
+      // nothing and resolveWorkloadModel keeps the OpenAI-shaped MODEL. The
+      // tag must keep the OpenAI VENDOR for the same reason: otherwise a
+      // provider that ran nothing would be credited with the extraction, in a
+      // durable field.
+      process.env.MAP_PROVIDER = "anthropic";
+      process.env.REDUCE_PROVIDER = "anthropic";
+      expect(resolveWorkloadModel("map").providerAllowed).toBe(false);
+      expect(resolveWorkloadModel("map").provider).toBe("anthropic");
+      expect(mapreduceProviderTag()).toBe("openai:gpt-4o-mini+mapreduce");
+    });
+
+    it("the string assembly records the vendor, and qualifies reduce only when the vendors differ", () => {
+      // the shapes an allowlist widening would produce. Exercised through the
+      // pure assembly because no environment can reach them in this release —
+      // which is the ordering gate working, not a gap in the test.
+      const o = (model: string) => ({ provider: "openai", model });
+      const a = (model: string) => ({ provider: "anthropic", model });
+      // unchanged shapes: same vendor
+      expect(mapreduceTagFrom(o("gpt-4o-mini"), o("gpt-4o-mini"))).toBe("openai:gpt-4o-mini+mapreduce");
+      expect(mapreduceTagFrom(o("gpt-4o-mini"), o("gpt-5-mini"))).toBe(
+        "openai:gpt-4o-mini+mapreduce+reduce=gpt-5-mini",
+      );
+      // new shapes: the vendor is named, and a divergent one is qualified
+      expect(mapreduceTagFrom(a("claude-x"), a("claude-x"))).toBe("anthropic:claude-x+mapreduce");
+      expect(mapreduceTagFrom(a("claude-x"), a("claude-y"))).toBe(
+        "anthropic:claude-x+mapreduce+reduce=claude-y",
+      );
+      // the defect T4-b names: claims extracted by one vendor, synthesized by
+      // another. The old literal stamped this `openai:…` outright.
+      expect(mapreduceTagFrom(o("gpt-4o-mini"), a("claude-x"))).toBe(
+        "openai:gpt-4o-mini+mapreduce+reduce=anthropic:claude-x",
+      );
+      expect(mapreduceTagFrom(a("claude-x"), o("gpt-4o-mini"))).toBe(
+        "anthropic:claude-x+mapreduce+reduce=openai:gpt-4o-mini",
+      );
+    });
   });
 });

@@ -17,9 +17,11 @@
 //   which froze test/config changes and hid the reduce stage's coupling).
 // - Provider per workload: <WORKLOAD>_PROVIDER, default openai, validated
 //   against the per-workload allowlist in providers.ts BEFORE anything else is
-//   interpreted (every allowlist is {openai} today, so this is a refusal
-//   surface, not a routing surface). ANALYSIS_PROVIDER is NOT read here — it
-//   keeps its own stub/anthropic meaning in src/lib/analysis/provider.ts.
+//   interpreted. Every allowlist is {openai} except digest, which also admits
+//   anthropic (2026-09-06) — and since no Anthropic model is priced-and-
+//   approved, that entry is still a refusal surface rather than a routing one.
+//   ANALYSIS_PROVIDER is NOT read here — it keeps its own stub/anthropic
+//   meaning in src/lib/analysis/provider.ts.
 // - Precedence per workload: <WORKLOAD>_MODEL → OPENAI_MODEL → gpt-4o-mini,
 //   for provider openai ONLY; any other provider requires an explicit
 //   <WORKLOAD>_MODEL. Values are trimmed; blank/whitespace-only are ABSENT.
@@ -111,6 +113,14 @@ export interface WorkloadModelConfig {
   providerEnvVar: string;
   /** trimmed raw provider env value (null when absent) — kept for diagnostics */
   providerRaw: string | null;
+  /** the workload's allowlist admits `provider`. FALSE means nothing about
+   *  this configuration dispatches, AND — see the model comment below — that
+   *  `model` is the historical OpenAI-shaped resolution rather than the named
+   *  vendor's. Read-side consumers that name a vendor (the mapreduce provider
+   *  tag) MUST consult this: a refused vendor keeps the OpenAI model, so
+   *  reporting the vendor without it would attribute an OpenAI-extracted
+   *  corpus to a provider that dispatched nothing. */
+  providerAllowed: boolean;
   /** the model that WOULD dispatch for this workload */
   model: string;
   modelSource: "workload" | "openai_model" | "default";
@@ -254,6 +264,7 @@ export function resolveWorkloadModel(
     providerSource,
     providerEnvVar: env.provider,
     providerRaw,
+    providerAllowed,
     model,
     modelSource,
     modelEnvVar: env.model,

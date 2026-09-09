@@ -38,9 +38,9 @@ export interface DigestAnalysis {
   events: ExtractedEvent[];
   provider: string;
   /** Durable model-dispatch identity (release hardening 2026-08-17), set by
-   *  the OpenAI provider from the exact config its billed call used; the stub
-   *  spends nothing and the Anthropic seam is a separately-blocked follow-up,
-   *  so both omit it. digest.ts persists it into structured.stats. */
+   *  the OpenAI and Anthropic providers from the exact config their billed
+   *  call used; the stub spends nothing, so it alone omits it. digest.ts
+   *  persists it into structured.stats. */
   dispatch?: import("../llm/model-config").AnalysisDispatchIdentity;
 }
 
@@ -73,13 +73,20 @@ export interface AnalysisProvider {
   ): Promise<DigestAnalysis>;
 }
 
-/** The one refusal message the Anthropic seam raises today, exported so the
- *  eventual wiring (OPEN-TASKS #83) has to REPLACE this constant rather than
- *  route around it, and so tests pin the exact operator-facing wording. */
+/** The refusal `ANALYSIS_PROVIDER=anthropic` raises. Rewritten by the #83
+ *  wiring (2026-09-06, step 20b): the seam is now routed, guarded and metered,
+ *  so the objection is no longer "this provider is unsafe" but "this env is
+ *  the wrong switch". `ANALYSIS_PROVIDER` names a legacy binary choice with no
+ *  model, no effort and no allowlist behind it; the routing seam decides the
+ *  digest vendor per workload, through gates that can refuse. Honouring the
+ *  legacy env would put a second, gate-free selection path next to the one the
+ *  rulings are enforced on — so it stays refused, and the message says which
+ *  switch to use instead. */
 export const ANTHROPIC_NOT_REGISTERED =
-  "provider anthropic is not registered/metered — see OPEN-TASKS #83: it passes no " +
-  "workloadDispatchConfig() gate (no priced model, no analysis-registry approval) and " +
-  "no SpendGuard reservation, so selecting it would bypass standing rulings 4 and 8";
+  "provider anthropic is selected by DIGEST_PROVIDER=anthropic plus an approved " +
+  "DIGEST_MODEL, never by ANALYSIS_PROVIDER — see OPEN-TASKS #83. ANALYSIS_PROVIDER " +
+  "carries no model, no reasoning effort and no per-workload allowlist, so honouring " +
+  "it here would be a second selection path around the routing seam's gates";
 
 /** Thrown when ANALYSIS_PROVIDER names a provider that exists in the tree but is
  *  not admissible. Typed and fail-closed in the same class as ModelConfigError:
@@ -99,20 +106,26 @@ export class AnalysisProviderError extends Error {
 
 /** Select the analysis provider.
  *
- *  Selection order and what it deliberately does NOT do (2026-09-06, step 09):
+ *  Selection order, and what it deliberately does NOT do:
  *  - `ANALYSIS_PROVIDER=stub` always wins — the deterministic extractive path.
  *  - `ANALYSIS_PROVIDER=anthropic` is REFUSED, key or no key. The seam is
- *    implemented but unmetered and unregistered, so honouring it would have
- *    dispatched a billed call with no `workloadDispatchConfig()` gate, no
- *    `SpendGuard.tryReserve()` and no dispatch identity.
- *  - There is NO "only an Anthropic key exists" branch any more. It used to
- *    select the same unmetered seam silently, which made a single environment
- *    variable — one now present in the operator's `.env.local` — enough to route
- *    production analysis around both rulings. Absent an OpenAI key the stub is
- *    the correct fallback: it spends nothing and invents nothing.
- *  Restoring Anthropic means wiring it through `src/lib/llm/model-config.ts`, the
- *  analysis registry and `pricing.ts` with its own metered `anthropic_digest`
- *  provider row — i.e. replacing the refusal, not removing it. */
+ *    wired and metered now (step 20b), so the refusal is no longer about
+ *    safety: this env is simply the wrong switch, and keeping a second,
+ *    gate-free selection path beside the routing seam is how the gates get
+ *    bypassed later. See ANTHROPIC_NOT_REGISTERED.
+ *  - The digest VENDOR comes from the routing seam:
+ *    `resolveWorkloadModel("digest").provider`. Read deliberately from the
+ *    RESOLVED provider rather than a dispatchable one — a `DIGEST_PROVIDER=
+ *    anthropic` that is blocked (unpriced, unapproved, or off the allowlist)
+ *    still selects the Anthropic provider, whose `analyze()` then throws typed
+ *    and loud. Falling back to OpenAI there would silently bill the wrong
+ *    vendor's budget for a configuration the operator did not ask for.
+ *  - There is NO "only an Anthropic key exists" branch. It used to select an
+ *    unmetered seam silently, which made a single environment variable — one
+ *    present in the operator's `.env.local` — enough to route production
+ *    analysis around rulings 4 and 8. Key presence never selects a provider.
+ *  Absent all of the above, an OpenAI key selects OpenAI and nothing selects
+ *  the stub, which spends nothing and invents nothing. */
 export async function getProvider(): Promise<AnalysisProvider> {
   const forced = process.env.ANALYSIS_PROVIDER;
   if (forced === "stub") {
@@ -121,6 +134,13 @@ export async function getProvider(): Promise<AnalysisProvider> {
   }
   if (forced === "anthropic") {
     throw new AnalysisProviderError("anthropic", ANTHROPIC_NOT_REGISTERED);
+  }
+  // resolveWorkloadModel never throws — safe here, where the caller has not
+  // yet decided to dispatch anything
+  const { resolveWorkloadModel } = await import("../llm/model-config");
+  if (resolveWorkloadModel("digest").provider === "anthropic") {
+    const { AnthropicProvider } = await import("./anthropic-provider");
+    return new AnthropicProvider();
   }
   if (process.env.OPENAI_API_KEY) {
     const { OpenAiProvider } = await import("./openai-provider");

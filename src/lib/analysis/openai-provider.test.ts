@@ -120,9 +120,27 @@ describe("OpenAiProvider dispatch (baseline)", () => {
   });
 
   it("a non-allowlisted DIGEST_PROVIDER fails BEFORE reservation and BEFORE client construction", async () => {
-    process.env.DIGEST_PROVIDER = "anthropic";
+    // openai_compatible, not anthropic: the digest allowlist admits anthropic
+    // since 2026-09-06, and this pin is about the ALLOWLIST rung specifically
+    process.env.DIGEST_PROVIDER = "openai_compatible";
     const p = new OpenAiProvider();
     await expect(p.analyze("ua", "2026-08-17", DOCS)).rejects.toThrow(/not allowed for workload "digest"/);
+    expect(ctorSpy).not.toHaveBeenCalled();
+    expect(createSpy).not.toHaveBeenCalled();
+    expect(querySpy).not.toHaveBeenCalled();
+  });
+
+  it("an ALLOWED but unapproved DIGEST_PROVIDER also fails before reservation and client construction", async () => {
+    // the rung the digest widening actually moved the refusal to. getProvider()
+    // would never hand an anthropic digest to THIS class, but a direct
+    // construction must still refuse rather than bill an OpenAI call against a
+    // configuration that names another vendor.
+    process.env.DIGEST_PROVIDER = "anthropic";
+    process.env.DIGEST_MODEL = "claude-not-priced";
+    const p = new OpenAiProvider();
+    await expect(p.analyze("ua", "2026-08-17", DOCS)).rejects.toThrow(
+      /is not priced for provider "anthropic"/,
+    );
     expect(ctorSpy).not.toHaveBeenCalled();
     expect(createSpy).not.toHaveBeenCalled();
     expect(querySpy).not.toHaveBeenCalled();
