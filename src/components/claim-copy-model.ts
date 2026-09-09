@@ -11,6 +11,11 @@ import {
   type EvidencePlatform,
 } from "./claim-evidence-model";
 import {
+  confidenceLabel,
+  estimateForClaim,
+  likelihoodLabel,
+} from "@/lib/tradecraft/estimative";
+import {
   buildIcs206Citation,
   canonicalClaimUrl,
   serializeIcs206Html,
@@ -72,6 +77,8 @@ export interface ClaimCopyLabels {
   copyFailed: string;
   statusLabel: string;
   asOfLabel: string;
+  likelihoodLabel: string;
+  confidenceLabel: string;
   evidenceLabel: string;
   sourceLabel: string;
   sourceValue: string;
@@ -108,6 +115,8 @@ export function claimCopyLabels(t: CopyTranslator): ClaimCopyLabels {
     copyFailed: t("copy.failed"),
     statusLabel: t("copy.status"),
     asOfLabel: t("copy.as_of"),
+    likelihoodLabel: t("tradecraft.likelihood"),
+    confidenceLabel: t("tradecraft.confidence"),
     evidenceLabel: t("copy.evidence"),
     sourceLabel: t("copy.source"),
     sourceValue: t("copy.source_value"),
@@ -143,6 +152,18 @@ function interpolate(template: string, values: Record<string, string | number>):
 function status(payload: ClaimCopyPayload, labels: ClaimCopyLabels): string {
   const key = payload.hedging.toLocaleLowerCase();
   return labels.statuses[key as keyof ClaimCopyLabels["statuses"]] ?? labels.statuses.unknown;
+}
+
+/**
+ * WS-7.4's clause on the copy "status" line: the ICD 203 band with its
+ * percentage range, then the corroboration-derived confidence level. Values are
+ * the standard's own English terms (see claim-estimative.tsx); only the two
+ * field labels are translated. Derived from hedging + evidence independence
+ * alone — never claims.confidence, never a reliability score (T3-a).
+ */
+function estimative(payload: ClaimCopyPayload, labels: ClaimCopyLabels): string {
+  const estimate = estimateForClaim(payload.hedging, summarizeClaimEvidence(payload.docs));
+  return `${labels.likelihoodLabel}: ${likelihoodLabel(estimate)} · ${labels.confidenceLabel}: ${confidenceLabel(estimate)}`;
 }
 
 function platform(doc: ClaimSourceDoc, labels: ClaimCopyLabels): string {
@@ -203,6 +224,7 @@ function reportLines(payload: ClaimCopyPayload, labels: ClaimCopyLabels): string
   return [
     payload.text,
     `${labels.statusLabel}: ${status(payload, labels)} · ${labels.asOfLabel}: ${payload.asOf}`,
+    estimative(payload, labels),
     `${labels.evidenceLabel}: ${linkedSummary(payload, labels)}`,
     `${labels.sourceLabel}: ${sourceValue(payload, labels)}`,
     url,
@@ -215,6 +237,7 @@ function reportHtml(payload: ClaimCopyPayload, labels: ClaimCopyLabels): string 
   return [
     `<p>${escapeClaimCopyHtml(payload.text)}</p>`,
     `<p><strong>${escapeClaimCopyHtml(labels.statusLabel)}:</strong> ${escapeClaimCopyHtml(status(payload, labels))} · <strong>${escapeClaimCopyHtml(labels.asOfLabel)}:</strong> ${escapeClaimCopyHtml(payload.asOf)}<br>`,
+    `${escapeClaimCopyHtml(estimative(payload, labels))}<br>`,
     `<strong>${escapeClaimCopyHtml(labels.evidenceLabel)}:</strong> ${escapeClaimCopyHtml(linkedSummary(payload, labels))}<br>`,
     `<strong>${escapeClaimCopyHtml(labels.sourceLabel)}:</strong> ${escapeClaimCopyHtml(sourceValue(payload, labels))}<br>`,
     `<a href="${escapeClaimCopyHtml(url)}">${escapeClaimCopyHtml(url)}</a></p>`,

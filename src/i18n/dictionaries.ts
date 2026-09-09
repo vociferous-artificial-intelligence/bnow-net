@@ -486,6 +486,19 @@ const en: Dict = {
   "copy.status_unverified": "Unverified",
   "copy.status_unknown": "Unknown",
 
+  // WS-7.4 estimative presentation (operator decision T3). Only these three
+  // FIELD LABELS are translatable chrome; a native review may translate them.
+  // The values beside them — the ICD 203 band, its percentage range and the
+  // confidence level — are defined terms of the standard, come from
+  // src/lib/tradecraft/estimative.ts and stay verbatim English on every locale,
+  // exactly as the raw hedging enum already does on the claim chip.
+  // "Corroboration-derived confidence" is the honesty constraint in the label
+  // itself: it is machine-derived from source independence and must never read
+  // as an analyst's confidence.
+  "tradecraft.likelihood": "Likelihood (ICD 203)",
+  "tradecraft.confidence": "Corroboration-derived confidence",
+  "tradecraft.derived_from": "Derived from",
+
   // Browser-native print/PDF workflow for digest handoff.
   // One disclosure named by `actions`; brief/evidence are its two options, so they no
   // longer repeat the verb ("Print brief" → "Brief").

@@ -4,6 +4,7 @@ import { getLocale } from "@/i18n/server";
 import { dict, makeT } from "@/i18n/dictionaries";
 import { makeClaimEvidenceLabels } from "@/components/claim-evidence-labels";
 import { claimCopyLabels } from "@/components/claim-copy-model";
+import { claimEstimativeLabels } from "@/components/claim-estimative";
 import { isAskIntentId, normalizeAskQuestion } from "@/lib/ask/intent";
 import { progressiveAllowedFor } from "@/lib/ask/features";
 import { AskForm } from "./ask-form";
@@ -84,6 +85,7 @@ export default async function AskPage({
         locale={locale}
         evidenceLabels={makeClaimEvidenceLabels(t)}
         copyLabels={claimCopyLabels(t)}
+        estimativeLabels={claimEstimativeLabels(t)}
       />
     </main>
   );

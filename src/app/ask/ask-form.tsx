@@ -14,6 +14,7 @@ import { Loader2 } from "lucide-react";
 import type { Locale } from "@/i18n/dictionaries";
 import type { ClaimEvidenceLabels } from "@/components/claim-evidence-model";
 import type { ClaimCopyLabels } from "@/components/claim-copy-model";
+import type { ClaimEstimativeLabels } from "@/components/claim-estimative";
 import { askIntentStorageKey, normalizeAskQuestion } from "@/lib/ask/intent";
 import { askStartedEventEnabled } from "@/lib/analytics/events";
 import { captureProductEvent } from "@/lib/analytics/client";
@@ -56,6 +57,7 @@ export interface AskFormProps {
   locale: Locale;
   evidenceLabels: ClaimEvidenceLabels;
   copyLabels: ClaimCopyLabels;
+  estimativeLabels: ClaimEstimativeLabels;
 }
 
 /** Hydrated terminal payload from GET /api/ask/runs/[id]/result — the same
@@ -255,6 +257,7 @@ export function AskForm({
   locale,
   evidenceLabels,
   copyLabels,
+  estimativeLabels,
 }: AskFormProps) {
   const t: Translate = (key) => strings[key] ?? key;
   const [state, formAction] = useActionState<AskActionState | null, FormData>(askAction, null);
@@ -527,6 +530,7 @@ export function AskForm({
             locale={locale}
             evidenceLabels={evidenceLabels}
             copyLabels={copyLabels}
+            estimativeLabels={estimativeLabels}
           />
         </>
       )}
@@ -562,6 +566,7 @@ export function AskForm({
             locale={locale}
             evidenceLabels={evidenceLabels}
             copyLabels={copyLabels}
+            estimativeLabels={estimativeLabels}
           />
         </>
       )}

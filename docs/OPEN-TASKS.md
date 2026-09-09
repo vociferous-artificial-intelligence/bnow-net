@@ -264,6 +264,12 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     until the 26,195-citation Facebook root is segmented. Design + future coding handoff:
     `docs/designs/SOURCE-RELIABILITY-CALIBRATION.md`,
     `docs/prompts/2026-07-16-source-reliability-calibration.md`.
+    **NOT satisfied by WS-7.4 (2026-09-08), which a reader could mistake for it.** The
+    "corroboration-derived confidence" level now rendered beside every claim comes from
+    `src/lib/tradecraft/estimative.ts`, which reads the hedging class and the evidence
+    independence COUNTS and reads no `claims.confidence` and no `reliability_score` at all
+    (pinned by `estimative.test.ts`). The uncalibrated numeric score is still rendered on no
+    surface, and this task is exactly as open, and as blocked by #56, as it was before.
 
 ## New (from the 2026-07-10/11 state recon — docs/reviews/STATE-2026-07-10.md)
 
@@ -2127,3 +2133,25 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     item for step 20b — the tag must take its provider from the resolved dispatch BEFORE the
     Anthropic path is enabled. `isStubToolStamp` compensates only partially, by also checking
     the dispatch identity's own `provider` field. Filed 2026-09-08 by WS-7.2 (48h step 32).
+
+118. **[Tier 3 — tooling hazard] `src/lib/analysis/digest-persist.ts` contains a literal NUL
+    byte, so `grep` classifies it as binary and SILENTLY skips it.** `entityCacheKey` builds
+    its cache key with a NUL separator written as a RAW control character in the source
+    rather than as the escape `\u0000`. `file` reports the module as `data`; `grep -n
+    confidence src/lib/analysis/digest-persist.ts` prints **nothing** even though the word
+    appears there several times — including on the `UPDATE claims c SET confidence = sub.conf
+    FROM (… avg(COALESCE(s.reliability_score, 0.3)) …)` statement that is the sole writer of
+    `claims.confidence`. **Runtime behaviour is correct and this is not a bug in the persist
+    path** — a NUL is a legitimate string separator in JS and the file is valid UTF-8. The
+    hazard is auditing: any `grep -rn` sweep over `src/` — a secret scan, a `process.env`
+    audit, a "who writes this column" search — passes silently over the digest persist
+    transaction, one of the files most worth sweeping. Node-based source scans
+    (`client-boundary.test.ts`, `evals/isolation.test.ts`) are unaffected; they use
+    `readFileSync`. Discovered 2026-09-08 by WS-7.4 (48h step 34) while re-verifying
+    PLAN-WS-7 §3 C2's citation of that exact statement — the citation was right and grep
+    could not confirm it. Fix: write the separator as the escape `\u0000`. Byte-for-byte
+    identical behaviour, one character class changed, and the file becomes greppable.
+    Deliberately NOT scoped into WS-7.4's PR: the file is a money- and invariant-bearing
+    persist path and a change there should ride its own review rather than a
+    presentation-layer change (the 2026-09-07 A1 precedent). Pair it with a repo-wide check
+    for other NUL-bearing sources.

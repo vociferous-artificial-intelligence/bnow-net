@@ -74,7 +74,7 @@ is deliberately absent from the public page.
 | ICD 203 | Timely | Digests are generated four times a day per theater and track; lag against the expert benchmark is measured, not asserted | `vercel.json` cron schedule; `src/db/schema.ts:307-325` (`validation_runs.timeliness_hours`) | BUILT | — |
 | ICD 203 | Based on all available sources | Multi-adapter ingestion — RSS, GDELT, Telegram web preview, Telegram MTProto, X — into one hash-deduplicated document store, with a per-theater corpus and a source and platform mix cap so one loud platform cannot fill a batch | `src/lib/adapters/`; `src/db/schema.ts:178-212`; `src/lib/analysis/source-mix.ts:15,26-30` | PARTIAL | not in WS-7 |
 | ICD 203 | Properly describes the quality and credibility of underlying sources | Every source carries a citation profile and a five-value hedging distribution per theater, the per-claim evidence panel shows the documents behind a claim, and a generated narrative descriptor states the platform, the citation volume and date span in the named reference corpus, the hedging distribution and the registry status; no credibility level is asserted | `src/db/schema.ts:74-103,109-131`; `src/components/claim-evidence-model.ts:1-21`; `src/lib/tradecraft/descriptor.ts` | PARTIAL | WS-7.4 |
-| ICD 203 | Properly expresses and explains uncertainty | The source's own estimative posture is captured as a five-value hedging label on every claim; BNOW states no likelihood band and no analytic-confidence level of its own | `src/db/schema.ts:38-44,268-269`; `src/lib/isw/hedging.ts` | GAP | WS-7.4 |
+| ICD 203 | Properly expresses and explains uncertainty | Every rendered claim carries an ICD 203 likelihood band with its published percentage range beside a separately labelled corroboration-derived confidence level, both computed by a signed, versioned mapping from the source's own estimative posture and the independence of the documents behind the claim; the sub-even bands and the highest band are never machine-assigned, because there is no refutation mechanism and no analyst-verified tier yet | `src/db/schema.ts:38-44,268-269`; `src/lib/isw/hedging.ts`; `src/lib/tradecraft/estimative.ts` | PARTIAL | not in WS-7 |
 | ICD 203 | Distinguishes underlying information from assumptions and judgments | A claim cannot be committed without at least one source document — a deferrable database trigger fails the transaction otherwise — and a deterministic publication guard rebuilds or drops any event whose prose would state a single-document disputed allegation as fact | `drizzle/9999_claim_source_trigger.sql`; `src/db/schema.ts:291-305`; `src/lib/analysis/publication-guard.ts` | BUILT | — |
 | ICD 203 | Incorporates analysis of alternatives | Divergences against the expert benchmark are recorded per run and shown on the scoreboard, but no structured alternative-hypothesis method is implemented | `src/db/schema.ts:307-325` (`validation_runs.divergences`) | GAP | not in WS-7 |
 | ICD 203 | Demonstrates customer relevance and addresses implications | Products are scoped per theater and per track so a reader selects the lens rather than filtering a firehose; no explicit implications section is generated | `src/db/schema.ts:237-255`; `src/lib/analysis/tracks.ts` | PARTIAL | not in WS-7 |
@@ -210,12 +210,15 @@ assessment on a public scoreboard.
 3. **What does the scoreboard number mean?** Coverage against a named expert benchmark — agreement
    with ISW/CTP on the same day — not accuracy, and not independent confirmation, because both
    parties read many of the same open sources. That caveat is rendered beside the number.
-4. **What is missing?** The `GAP` rows in the crosswalk above: ICD 203 estimative language with a
-   separate analytic confidence level, PAI/CAI/OSINT vocabulary in the citation output, analysis of
-   alternatives, and an explicit statement of change between editions. Narrative source descriptors
-   and the per-product source summary statement moved off this list when WS-7.3 shipped them; the
-   descriptor row stays `PARTIAL` because nothing models a source's bias, which is the remaining
-   third of the ICD 206 requirement and which no planned step closes. On preservation, press on the four caveats in
+4. **What is missing?** The `GAP` rows in the crosswalk above: analysis of alternatives, and an
+   explicit statement of change between editions. Four items that were on this list have since
+   shipped and are now `PARTIAL`, not `GAP`: narrative source descriptors and the per-product
+   source summary statement (WS-7.3) — the descriptor row stays partial because nothing models a
+   source's bias, the remaining third of the ICD 206 requirement, which no planned step closes;
+   PAI/CAI/OSINT vocabulary in the citation output (WS-7.2); and ICD 203 estimative language with
+   a separate corroboration-derived confidence level (WS-7.4) — partial because it is a
+   deterministic presentation mapping, not an analyst judgment, and it never states a below-even
+   likelihood or the highest band. On preservation, press on the four caveats in
    `docs/RETENTION-AND-PRESERVATION.md` §3 rather than on the retention claim itself. Each names the
    workstream step that closes it, or says plainly that none does. A reviewer who wants to be useful should push on the `PARTIAL`
    rows, not the `BUILT` ones.

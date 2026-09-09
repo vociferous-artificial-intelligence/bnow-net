@@ -17,6 +17,7 @@ export const copyLabels: ClaimCopyLabels = {
   reportCopied: "Report copied", linkCopied: "Link copied", evidenceCopied: "Evidence copied",
   textCopied: "Text copied", citationCopied: "Citation copied",
   copyFailed: "Copy failed", statusLabel: "Status", asOfLabel: "As of",
+  likelihoodLabel: "Likelihood (ICD 203)", confidenceLabel: "Corroboration-derived confidence",
   evidenceLabel: "Evidence", sourceLabel: "Source", sourceValue: "BNOW.NET, {country} Daily Digest, claim c{claimId}",
   linkedSummary: "{docs} linked documents · {channels} channels · {platforms} platforms",
   evidenceListLabel: "Evidence list", publishedLabel: "Published",
@@ -55,11 +56,19 @@ describe("claim report copy", () => {
     expect(content.plain).toBe(
       "Ukraine and partners formed a coalition.\n" +
         "Status: Confirmed · As of: 13 July 2026\n" +
+        // WS-7.4: the estimative clause sits on the status line's own row.
+        // 2 docs / 2 channels / 1 platform = tier C2; confirmed x C2 =
+        // very likely 80-95 / moderate in the signed ESTIMATIVE_MAP_V1.
+        "Likelihood (ICD 203): very likely (80–95%) · " +
+        "Corroboration-derived confidence: moderate\n" +
         "Evidence: 2 linked documents · 2 channels · 1 platforms\n" +
         "Source: BNOW.NET, Russia Daily Digest, claim c4762\n" +
         "https://bnow.net/digests/ru/2026-07-13#c4762",
     );
     expect(content.html).toContain("<strong>Status:</strong> Confirmed");
+    expect(content.html).toContain(
+      "Likelihood (ICD 203): very likely (80–95%) · Corroboration-derived confidence: moderate<br>",
+    );
     expect(content.html).toContain('href="https://bnow.net/digests/ru/2026-07-13#c4762"');
     expect(content.plain).not.toContain("provider");
     expect(content.plain).not.toContain("docId");

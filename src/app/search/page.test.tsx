@@ -199,6 +199,16 @@ describe("/search never touches the paid ASK pipeline surface", () => {
     const link = screen.getByRole("link", { name: "view digest →" }) as HTMLAnchorElement;
     expect(link.getAttribute("href")).toBe("/digests/ua/2026-07-09#c1");
     expect(screen.getByText("2 documents · 2 channels · 2 platforms")).toBeTruthy();
+
+    // WS-7.4 surface pin. The first ranked row is `claimed` with 2 channels on
+    // 2 platforms = tier C3, which the signed table maps to likely 55-80 /
+    // moderate. Labelled corroboration-derived, never analyst confidence.
+    const estimative = document.querySelectorAll('[data-testid="claim-estimative"]');
+    expect(estimative.length).toBe(2); // one per rendered claim row
+    expect(estimative[0]!.textContent).toBe(
+      "Likelihood (ICD 203): likely (55–80%) · Corroboration-derived confidence: moderate",
+    );
+    expect(document.body.textContent).not.toContain("analyst confidence");
     expect(screen.getAllByText("Example News").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Copy for report" })).toBeTruthy();
 

@@ -5,6 +5,7 @@ import { makeT } from "@/i18n/dictionaries";
 import type { ClaimSourceDoc } from "@/components/claim-evidence-model";
 import { makeClaimEvidenceLabels } from "@/components/claim-evidence-labels";
 import { claimCopyLabels } from "@/components/claim-copy-model";
+import { claimEstimativeLabels } from "@/components/claim-estimative";
 import { AskResult, type AskResultLike, type ResolvedClaim } from "./ask-result";
 
 const t = makeT("en");
@@ -12,6 +13,7 @@ const chromeProps = {
   locale: "en" as const,
   evidenceLabels: makeClaimEvidenceLabels(t),
   copyLabels: claimCopyLabels(t),
+  estimativeLabels: claimEstimativeLabels(t),
 };
 
 afterEach(cleanup);
@@ -84,6 +86,18 @@ describe("answered state", () => {
     expect(document.querySelectorAll('[data-copy-surface="ask_cited"]')).toHaveLength(2);
     // no v2 chrome for a plain answered result
     expect(screen.queryByRole("heading", { name: "Related claims" })).toBeNull();
+
+    // WS-7.4 surface pin. /ask renders NO hedging chip, so this line is the
+    // only place a claim's estimative posture appears here — which is why the
+    // title carries the derivation. Both fixtures are `assessed` with one
+    // document = tier C0, mapping to roughly even chance 45-55 / low.
+    const estimative = document.querySelectorAll('[data-testid="claim-estimative"]');
+    expect(estimative).toHaveLength(2);
+    expect(estimative[0]!.textContent).toBe(
+      "Likelihood (ICD 203): roughly even chance (45–55%) · Corroboration-derived confidence: low",
+    );
+    expect(estimative[0]!.getAttribute("title")).toContain('source classification "assessed"');
+    expect(document.body.textContent).not.toContain("analyst confidence");
   });
 
   it("never renders the provider/model string in the subscriber result (WS3)", () => {
@@ -369,6 +383,10 @@ describe("related claims block", () => {
     expect(heading).toBeTruthy();
     expect(screen.getByText("related one")).toBeTruthy();
     expect(screen.getByText("related two")).toBeTruthy();
+    // The band renders on the RELATED rows too, and deliberately so: cited and
+    // related use one renderer, and showing a band on half the list would read
+    // as "the others are unassessed" rather than "the others are not cited".
+    expect(document.querySelectorAll('[data-testid="claim-estimative"]')).toHaveLength(4);
   });
 
   it("omits the Related claims block when relatedClaimIds is empty", () => {
