@@ -4581,3 +4581,35 @@ Execution (resumed 2026-09-07 ~00:05Z — audit finished):
   OPEN-TASKS **#111** confirmation line and new **#114**. Proposed decision-log entry is in the
   report R.16, not applied (AGENTS.md write-lock). Spend **$0**; zero production writes; no
   deploy, no env change; nothing launched.
+
+## 2026-09-08 ~20:35Z — Step 18: independent audit of the WS-3 diffs (#56, #63, #73, #70, #71) (planned block)
+
+1. Prove the worktree (`48h-audit-ws3-20260905`, never the main checkout), reset the lane branch to the
+   audited SHA `a7ba98b` (= `origin/main` after CP3 and the Stage 2/2a closeouts), take the merge SHAs from
+   `git log --merges`, and read COMMON §3/§4.10, the four WS-3 reports, PLAN-WS-3, the WS-3.0 memo and the
+   C5-m record. Nothing forbidden is opened; the trimmed `.env.local` (four Neon variables) is created for the
+   fork itests only.
+2. Lens 1 — migrations: journal idx 28→29→30, snapshot `prevId` chain, `drizzle-kit generate` on `main`
+   (scratch worktree) produces no file, `9999` byte-identical to `2203150`, `migrations.test.ts` pins.
+3. Lens 2/3 — ruling 1 and design fidelity by reading every source file the five PRs added or changed, then the
+   13b "attack these first" list and the step-13 carried items.
+4. Lens 4 — production isolation: `run.ts` and `vercel.json` diffs, the route's gate order, `cron-run.ts`
+   against the pre-window base `883e5e3`.
+5. Lens 5 — gazetteer: the prompt's carried items (a)–(d): prose-variant recall probe, ACTIONS coverage of the
+   snapshot, the third fail-open hunt, the `keywordUnmatchable === insufficientData.length` mutation.
+6. Lens 6 — mutate-and-run (23 mutations, detached scratch worktree, every file reverted and verified), two
+   scratch reproductions (the `--dry` finality substitution; the >10 KB non-report phantom edition), and the
+   five fork itests on one disposable Neon fork, deleted by the runner.
+7. Audit OPEN-TASKS #114 and #116 as findings, not hypotheses (C5-m evidence re-read at the SHA).
+8. Write `docs/reviews/WS-3-AUDIT-FINDING-REGISTER-2026-09-06.md` (register, per-PR verdict, stale standing
+   text for step 25, mutation log, fork ids, COMMON §5 sections) on branch
+   `48h/audit-ws3-20260905-finding-register`; open the PR. No code change; step 23 remediates.
+
+Execution (same block):
+- Worktree proven (`git rev-parse --show-toplevel` = the audit worktree; branch never `main`); HEAD `a7ba98b` == `origin/main`, so no reset. Merges taken from `git log --merges`: #56 `2203150`, #63 `c728b2b`, #73 `3e7cfdd`, #70 `72da938`, #71 `5f30cd3`. Trimmed `.env.local` (four Neon variables) created for the fork run; values never printed; ignored.
+- Lens 1: journal idx 28→29→30 contiguous, snapshot `prevId` chain intact, `drizzle-kit generate` at `a7ba98b` = "No schema changes", `9999` blob `db45b24…` identical at `2203150`/`883e5e3`/HEAD, `migrations.test.ts` pins for 0028 and 0030 present (0029 has none — noted).
+- Lens 4: `run.ts`, `score.ts`, `isw-extract.ts`, `stub-provider.ts`, `backtest-matrix.ts`, `score-validation.ts`, `validation.test.ts` byte-identical since before #56; `vercel.json` unchanged since `883e5e3`; `cron-run.ts` diff = the ceiling line + the optional `runId`; `docs/evals/analysis/` and `fixtures/conflicts/` untouched by all five PRs.
+- Baseline `npm test` 4,082 / 270 green. Fork itests 52 / 52 over 5 files on `br-fancy-wildflower-atoc4ev3` (0028/0029/0030 applied; runner deleted the fork).
+- 23 mutations in a detached scratch worktree, all reverted: 21 caught; 2 survived (route gate ORDER unpinned → WS3-F09; 403 in `isCleanNotFound` unpinned → WS3-F01). Two scratch reproductions pass at HEAD: the `--dry` finality substitution miscounts in both directions (WS3-F02, major) and a >10 KB non-report body becomes a published edition that outranks the real one (WS3-F03, minor).
+- Measurements: 54-probe prose recall → 15 misses (WS3-F06); 171 cached ISW pages sampled read-only for spellings (ISW writes "Bab-al-Mandeb", missed); golden walk 719 strings → only `headlineLabel` ×13 and `window.cutoffAtRaw` ×1 non-token (13b claim confirmed); real Iran page `derived.units` toponyms 0 under `ru-ua-v1` vs 8 under `iran-levant-v1` (WS3-F05).
+- Register written: `docs/reviews/WS-3-AUDIT-FINDING-REGISTER-2026-09-06.md` — 21 findings (2 major WS3-F01/F02, 9 minor, 10 note), 0 blocker, 0 revert; per-PR verdicts all merge-stands (#70 with a scheduling precondition; #73 with WS3-F04 before step 19 writes); six decisions listed for the operator; stale AGENTS.md lines listed for step 25. Disclosures: Fable 5.1 ran this step (prompt reserved it for 26); `.env.local` created by the session; cache read-only sample; no forbidden file opened. $0.
