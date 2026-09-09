@@ -22,7 +22,8 @@
 ## Built
 
 One commit, `3b5f81b` — `tradecraft: ICD 203 likelihood band and corroboration-derived
-confidence`.
+confidence` — plus this docs commit. Opened as **PR #84** —
+https://github.com/vociferous-artificial-intelligence/bnow-net/pull/84
 
 **New**
 

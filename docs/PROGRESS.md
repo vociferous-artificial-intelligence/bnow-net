@@ -4818,4 +4818,4 @@ lane `48h/ws7-tradecraft-20260905`, under the SIGNED T3 / T3-a / T3-b decision e
   `src/lib/analysis/digest-persist.ts` makes `grep` skip that file silently) and added a note
   to **#14** that WS-7.4 does not satisfy it. Report:
   `docs/reviews/WS-7-4-ESTIMATIVE-2026-09-07.md`, with the proposed decision-log entry for
-  step 25.
+  step 25. Pushed (pre-push gate green) and opened as **PR #84**.
