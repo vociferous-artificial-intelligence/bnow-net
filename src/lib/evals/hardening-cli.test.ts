@@ -15,6 +15,11 @@ const CLI = join(process.cwd(), "scripts", "analysis-eval.ts");
 const BLANKED_ENV = {
   ...process.env,
   OPENAI_API_KEY: "",
+  // Present-and-empty, not absent: scripts/env.ts loads .env.local without override,
+  // so an ABSENT name would be refilled from the developer's file (OPEN-TASKS #112).
+  // A main checkout with a real ANTHROPIC_API_KEY made the --provider anthropic
+  // "key not set" refusal unreachable here (2026-09-08, CP5 gate).
+  ANTHROPIC_API_KEY: "",
   DATABASE_URL: "",
   DATABASE_URL_UNPOOLED: "",
   NEON_API_KEY: "",
