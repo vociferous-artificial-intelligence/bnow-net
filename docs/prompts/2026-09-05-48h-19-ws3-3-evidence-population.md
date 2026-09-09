@@ -10,6 +10,29 @@
 | Spend | $0. The matcher's paid path stays unreachable until the route is scheduled AND the spend row (C12) exists — pin it. |
 | Closing report | `docs/reviews/WS-3-3-EVIDENCE-POPULATION-2026-09-06.md` |
 
+**DECISIONS BINDING — added 2026-09-08 (read before the plan-mode preamble).** D4 and E5 are
+SIGNED: `AGENTS.md` decision-log entries "2026-09-06 (D4 — conflict-validation unit decisions
+C1–C14 signed as recommended …)" and "2026-09-06 (E5 — one authorized write under
+`docs/evals/analysis/`, scoped to step 19)". Take the E5 branch; do not print any
+`AWAITING AUTHORIZATION`. Since this prompt was written: (1) **step 18's WS-3 audit register is
+on `main`** — `docs/reviews/WS-3-AUDIT-FINDING-REGISTER-2026-09-06.md` (PR #78; 21 findings, 2
+major, 0 blocker, every verdict merge-stands). Read its majors and minors before touching
+`edition-discovery.ts` or anything that consumes `probe_failed` / `publication_gap`: WS3-F01
+(403 conflation, OPEN-TASKS #114 — `probe_failed` means "could not tell", never "did not
+publish"; gap confirmation is effectively unreachable on a throttled day), WS3-F02 (the `--dry`
+finality substitution), WS3-F03 (an oversize non-report body can count as a published edition),
+WS3-F04/F05 (edition-id mismatch unchecked; Iran signatures computed under the RU/UA gazetteer).
+**Do not fix them here** — step 23 remediates; build so that your population logic does not
+depend on the broken semantics, and say in the report which findings you had to route around.
+(2) **OPEN-TASKS #116**: the June-2025 suffix slug shape is neither generated nor parsed —
+**never run any discovery backfill over 2025-06-12 → 2025-06-24**; a measurable split-edition
+window is 2026-02-28 → 2026-03-22 (`docs/reviews/C5M-PROBES-2026-09-07.md` R.17). (3)
+**OPEN-TASKS #112**: to point `migrate.ts` at a fork set BOTH `DATABASE_URL` and
+`DATABASE_URL_UNPOOLED` on the same command line; never `env -u`. (4) Migrations 0028/0029/0030
+are on `main` but unapplied to production (#111) — a fork you create is at 0027 until you
+migrate it yourself. (5) The worktree's `.env.local` is the trimmed four-key copy; that is all
+this step needs. $0; the matcher's paid path stays unreachable and must be pinned so.
+
 Read `docs/prompts/2026-09-05-48h-COMMON.md` first, then the memo, PLAN-WS-3 §3.3, and the
 three upstream reports.
 

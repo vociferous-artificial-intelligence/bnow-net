@@ -23,12 +23,27 @@ Open PRs (operator `gh pr list`, 09:34 ET): **#48**, **#47** — nothing else.
 
 ## 1. Where we are — read this first
 
-**Stages 0, 1, 2, 2a: DONE and gated. `AGENTS.md` archive passes 9+10 done (126.7k).**
+**Stages 0, 1, 2, 2a: DONE. Stage 3 rows A and B(18) and step 34: DONE and landed (CP5,
+INDEX §10 2026-09-08 line).** `main` = `25bdd27`, gate green 4,332 / 282, build PASS,
+`gh pr list` empty.
 
-**Current step: Stage 3 row A launch — steps 20, 32, 33, 21** via `scripts/launch/launch.sh`,
-per the §6 Stage 3 sequence (3A.0 → 3A.4). Row B (18 attended, 19) may launch alongside.
-Nothing in row C launches until its own gate line in §6 is true; step 23's and step 24's prompts
-still need their additions (§6, 3C) before they go.
+**Current step: Stage 3 — two things in parallel.**
+1. **Launch step 19** (WS-3.3 evidence population; unattended; fork keys only in its
+   `.env.local`; `export CLAUDE_LAUNCH_OPTS='--dangerously-skip-permissions'` first):
+   `scripts/launch/launch.sh 19 && scripts/launch/launch.sh 19 --go`.
+2. **Operator adjudication for step 23:** accept / defer / fix on every finding in
+   `docs/reviews/WS-2-AUDIT-FINDING-REGISTER-2026-09-06.md` (71) and
+   `docs/reviews/WS-3-AUDIT-FINDING-REGISTER-2026-09-06.md` (21). Efficient shape: FIX the 5
+   majors + the minors that touch a spend path, gate, migration or production-visible behaviour;
+   blanket-DEFER the rest into one OPEN-TASKS entry. Also answer #78's six listed decisions.
+   Hand me the marks and I write them into step 23's prompt with #110/#112/#114/#116 and R.15.
+
+Then: 23r + 23c launch (after the marks are in the prompt); 24 after 19 merges (its prompt gets
+R.17 first); 25 after every row-C merge. Step 26 must NOT run on Fable (18 used it).
+
+**Rule learned at CP5 — stack PRs:** before merging any PR whose GitHub base is another PR's
+branch, `gh pr edit <n> --base main`. #82/#83 were merged into their stack bases and had to be
+re-landed as #85.
 
 ---
 
@@ -40,7 +55,7 @@ still need their additions (§6, 3C) before they go.
 | 5.1 Stage 1 — CP4 merge queue | **DONE** | yes |
 | 5.2 Stage 2 — operator runs | **DONE 2026-09-08** — items 1–5 | yes |
 | 5.2a Stage 2a — D7/R4 measured remap | **DONE 2026-09-08** — executed, $0.046263 | yes |
-| 5.3 Stage 3 — build steps 18–34 | **CURRENT** — row A launching; B launchable; C/D gated | no |
+| 5.3 Stage 3 — build steps 18–34 | **IN PROGRESS** — 18, 20, 21, 32, 33, 34 merged (CP5); 19 launchable; 23/24/25 gated | no |
 | 5.4 Stage 4 — review gates / four never-run checks | **NOT STARTED** (one hazard pre-filed, #112) | no |
 | 5.5 Stage 5 — freeze, final audit, deploy | **NOT STARTED** (pre-deploy facts pre-filed, #111) | no |
 | §6 detached sessions | **RESOLVED** | yes |
@@ -673,3 +688,4 @@ move to Stage 2a — and that move is itself a logged edit here, not an assumpti
 - 2026-09-08 16:05 ET — residue closeout: R.16 entry + credentials rows in AGENTS.md; #33 status + #116 in OPEN-TASKS; step-18 prompt line (#114, #116, dry-path defect). §4 a/a2/e closed. Next: Stage 3 row A launch sheet.
 - 2026-09-08 16:30 ET — AGENTS.md archive passes 9 (eb4bf9f, policy) and 10 (c6e3dae, one-off cut to 2026-09-05): 147,701 → 126,660 chars, 205 entries preserved, both PASS; record entry appended. Next: Stage 3 row A launch sheet.
 - 2026-09-08 16:50 ET — Stage 3 operator sequence written (§6); binding blocks added to prompts 20/21/32; §1 → row A launch.
+- 2026-09-08 21:55 ET — CP5 landed: #78 #79 #80 #77 #84 #76 #75 #81 #85 + test fix 25bdd27; gate 4,332/282, build PASS. Two incidents recorded (permission mode; stack-base merges). §1 → launch 19 + operator marks for 23.
