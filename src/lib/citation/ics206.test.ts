@@ -173,6 +173,9 @@ describe("the withheld artifact (T4)", () => {
         "\n" +
         "Claim: Ukraine and partners formed a coalition.\n" +
         "Classification: Confirmed\n" +
+        "Likelihood (ICD 203): likely (55–80%)\n" +
+        "Corroboration-derived confidence: moderate\n" +
+        "Estimative basis: source classification \"confirmed\", corroboration tier C0; estimative-map-v1.\n" +
         "Corroboration: 1 document · 1 channel · 1 platform\n" +
         "Retrieved as of: 13 July 2026\n" +
         "Publisher: BNOW.NET, Russia Daily Digest, claim c4762\n" +
@@ -187,6 +190,55 @@ describe("the withheld artifact (T4)", () => {
         "Tool disclosure\n" +
         "tool disclosure withheld",
     );
+  });
+});
+
+describe("the WS-7.4 estimative block (T3)", () => {
+  it("renders on BOTH the withheld and the disclosed artifact — it is independent of T4", () => {
+    for (const stamp of [WITHHELD, DISCLOSED]) {
+      const citation = buildIcs206Citation(input({ citation: stamp }))!;
+      expect(citation.estimative.likelihood).toBe("likely (55–80%)");
+      expect(citation.estimative.confidence).toBe("moderate");
+      expect(citation.estimative.basis).toBe(
+        'source classification "confirmed", corroboration tier C0; estimative-map-v1.',
+      );
+      // the disclosure policy is untouched by the band either way
+      expect(citation.disclosure.withheld).toBe(stamp === WITHHELD);
+    }
+  });
+
+  it("carries the derivation so the citation stays reconstructible", () => {
+    const plain = serializeIcs206Plain(buildIcs206Citation(input())!);
+    expect(plain).toContain("Estimative basis: source classification");
+    expect(plain).toContain("estimative-map-v1");
+    const html = serializeIcs206Html(buildIcs206Citation(input())!);
+    expect(html).toContain("<strong>Likelihood (ICD 203):</strong> likely (55–80%)");
+    expect(html).toContain("<strong>Corroboration-derived confidence:</strong> moderate");
+  });
+
+  it("says corroboration-derived, never analyst confidence", () => {
+    const citation = buildIcs206Citation(input())!;
+    for (const out of [serializeIcs206Plain(citation), serializeIcs206Html(citation)]) {
+      expect(out).toContain("Corroboration-derived confidence");
+      expect(out.toLocaleLowerCase()).not.toContain("analyst confidence");
+    }
+  });
+
+  it("emits no AJP-2.1 credibility code — that is an export field, never this surface (T1)", () => {
+    const citation = buildIcs206Citation(input())!;
+    expect(JSON.stringify(citation)).not.toContain("credibility");
+    for (const out of [serializeIcs206Plain(citation), serializeIcs206Html(citation)]) {
+      expect(out.toLocaleLowerCase()).not.toContain("ajp");
+      expect(out.toLocaleLowerCase()).not.toContain("admiralty");
+      expect(out).not.toContain("Probably true");
+    }
+  });
+
+  it("withholds the band rather than defaulting it when a claim carries no evidence", () => {
+    const citation = buildIcs206Citation(input({ docs: [] }))!;
+    expect(citation.estimative.likelihood).toBe("not assessable");
+    expect(citation.estimative.confidence).toBe("not assessable");
+    expect(serializeIcs206Plain(citation)).toContain("Likelihood (ICD 203): not assessable");
   });
 });
 

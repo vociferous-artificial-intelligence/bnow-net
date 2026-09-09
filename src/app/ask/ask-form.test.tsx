@@ -7,6 +7,7 @@ import { askIntentStorageKey } from "@/lib/ask/intent";
 import { dict, makeT } from "@/i18n/dictionaries";
 import { makeClaimEvidenceLabels } from "@/components/claim-evidence-labels";
 import { claimCopyLabels } from "@/components/claim-copy-model";
+import { claimEstimativeLabels } from "@/components/claim-estimative";
 import type { AskActionState } from "./actions";
 
 // AskForm imports ./actions (a "use server" module reaching for @/db + LLM
@@ -51,6 +52,7 @@ const formProps = {
   locale: "en" as const,
   evidenceLabels: makeClaimEvidenceLabels(t),
   copyLabels: claimCopyLabels(t),
+  estimativeLabels: claimEstimativeLabels(t),
 };
 
 function fakeState(question: string): AskActionState {

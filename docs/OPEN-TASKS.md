@@ -264,6 +264,12 @@ in BLOCKERS.md and are deliberately deferred until credentials exist.
     until the 26,195-citation Facebook root is segmented. Design + future coding handoff:
     `docs/designs/SOURCE-RELIABILITY-CALIBRATION.md`,
     `docs/prompts/2026-07-16-source-reliability-calibration.md`.
+    **NOT satisfied by WS-7.4 (2026-09-08), which a reader could mistake for it.** The
+    "corroboration-derived confidence" level now rendered beside every claim comes from
+    `src/lib/tradecraft/estimative.ts`, which reads the hedging class and the evidence
+    independence COUNTS and reads no `claims.confidence` and no `reliability_score` at all
+    (pinned by `estimative.test.ts`). The uncalibrated numeric score is still rendered on no
+    surface, and this task is exactly as open, and as blocked by #56, as it was before.
 
 ## New (from the 2026-07-10/11 state recon — docs/reviews/STATE-2026-07-10.md)
 

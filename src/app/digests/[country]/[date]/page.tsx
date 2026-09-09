@@ -30,6 +30,7 @@ import {
 } from "@/lib/tradecraft/source-summary";
 import { ClaimCopyActions } from "@/components/claim-copy-actions";
 import { claimCopyLabels } from "@/components/claim-copy-model";
+import { ClaimEstimative, claimEstimativeLabels } from "@/components/claim-estimative";
 import { DigestPrintActions } from "@/components/digest-print-actions";
 import { brandSiteBaseUrl } from "@/lib/site-url";
 import { digestStage, type DigestStage } from "@/lib/time/digest-status";
@@ -281,6 +282,7 @@ export default async function DigestPage({
   const t = makeT(locale);
   const evidenceLabels = makeClaimEvidenceLabels(t);
   const copyLabels = claimCopyLabels(t);
+  const estimativeLabels = claimEstimativeLabels(t);
   const asOf = new Intl.DateTimeFormat(locale, {
     year: "numeric",
     month: "long",
@@ -688,11 +690,26 @@ export default async function DigestPage({
                           {c.hedging}
                         </span>
                         {c.text}
-                        {/* No "conf 0.82": the score is uncalibrated, so two decimals
-                            implied a precision it does not have. It still ranks events
-                            (rank.ts avgConfidence) and stays on the claim row. A
-                            High/Medium/Low replacement waits on calibrated thresholds
-                            — OPEN-TASKS #14. */}
+                        {/* Still no "conf 0.82": claims.confidence is the mean of
+                            sources.reliability_score (digest-persist.ts:244-252), so two
+                            decimals implied a precision it does not have. It ranks events
+                            (rank.ts avgConfidence) and stays unrendered; OPEN-TASKS #14 is
+                            UNCHANGED by the line below.
+
+                            What WS-7.4 adds beside the hedging chip is a different
+                            quantity with a different derivation: an ICD 203 likelihood
+                            band and a "corroboration-derived confidence" level computed
+                            from the signed ESTIMATIVE_MAP_V1 table over the source's own
+                            hedging class and the INDEPENDENCE COUNTS of the documents
+                            behind the claim (operator decision T3, T3-a). It reads
+                            neither claims.confidence nor any reliability score — that is
+                            pinned by a test — so it neither uses nor unblocks #14, and
+                            the uncalibrated numeric score is still rendered nowhere. */}
+                        <ClaimEstimative
+                          hedging={c.hedging}
+                          docs={claimDocs}
+                          labels={estimativeLabels}
+                        />
                         {(entitiesByClaim.get(claimId) ?? []).length > 0 && (
                           <div data-print="hide" className="mt-1 flex flex-wrap gap-1.5 pl-1">
                             {entitiesByClaim.get(claimId)!.map((e) => (
@@ -798,6 +815,15 @@ export default async function DigestPage({
                   <p className="mb-1 text-xs">
                     {t("copy.status")}: {copyLabels.statuses[claim.hedging as keyof typeof copyLabels.statuses] ?? copyLabels.statuses.unknown}
                   </p>
+                  {/* The one literal statuses[hedging] render site — the band goes
+                      beside it, so a printed evidence appendix carries the same
+                      estimative posture the on-screen claim row does. */}
+                  <ClaimEstimative
+                    hedging={claim.hedging}
+                    docs={claim.docs.map(toClaimSourceDoc)}
+                    labels={estimativeLabels}
+                    className="mb-1"
+                  />
                   <ul className="space-y-1.5">
                     {canonicalEvidenceDocs(claim.docs.map(toClaimSourceDoc)).map((doc) => {
                       const safeUrl = safeHttpUrl(doc.url);

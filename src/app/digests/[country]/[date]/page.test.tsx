@@ -269,16 +269,55 @@ describe("analyst-visible pipeline metadata", () => {
       // view-source. innerHTML is the closer proxy for that than textContent.
       expect(container.innerHTML, token).not.toContain(token);
     }
-    // CLAIM_ROW confidence is 0.8; neither the label nor the decimal may render.
-    // Narrowed from a bare "conf" substring when WS-7.3 added the source summary, whose
-    // ruling-12 sentence legitimately contains "confirmation" and whose descriptors
-    // contain "confirmed" — the ISW hedging vocabulary, not the confidence score. The
-    // assertion now names what the 2026-07-16 decision actually withheld: the "conf"
-    // LABEL beside a claim, and the numeric confidence itself in either rendering.
-    expect(container.textContent).not.toMatch(/\bconf\b/);
-    expect(container.textContent).not.toContain("confidence");
+    // CLAIM_ROW confidence is 0.8; neither the "conf 0.80" label nor the bare
+    // decimal may render (OPEN-TASKS #14 — the score is uncalibrated).
+    //
+    // The assertion was `not.toContain("conf")`. WS-7.4 makes that substring
+    // legitimate: the estimative line renders "Corroboration-derived
+    // confidence", a DIFFERENT quantity derived from hedging and evidence
+    // independence, which reads no claims.confidence and no reliability score
+    // (T3-a, pinned in estimative.test.ts). So the pin is narrowed to what it
+    // was always protecting — the label form and the number — rather than
+    // relaxed: `conf` followed by any digit, and the decimal itself.
+    expect(container.textContent).not.toMatch(/conf\w*[\s:=]*0?\.\d/i);
     expect(container.textContent).not.toContain("0.80");
-    expect(container.textContent).not.toContain("0.8");
+    expect(container.textContent).not.toContain("0.8 ");
+    // and the estimative line that DOES render carries no numeric score, only
+    // the ICD 203 percentage range
+    const estimative = container.querySelector('[data-testid="claim-estimative"]');
+    expect(estimative?.textContent).toContain("Corroboration-derived confidence: low");
+    expect(estimative?.textContent).not.toMatch(/0\.\d/);
+  });
+
+  it("renders the WS-7.4 band on the claim row AND in the print appendix", async () => {
+    queryMock
+      .mockResolvedValueOnce([DIGEST_ROW])
+      .mockResolvedValueOnce([CLAIM_ROW])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ prev_date: null, next_date: null }])
+      .mockResolvedValueOnce([]); // WS-7.3 source profiles
+
+    const element = await DigestPage({
+      params: Promise.resolve({ country: "ru", date: "2026-07-11" }),
+      searchParams: Promise.resolve({}),
+    });
+    const { container } = render(element);
+
+    // Two render sites on this page: the claim row, and the print appendix's
+    // status line — the one literal statuses[hedging] site the prompt names.
+    const nodes = container.querySelectorAll('[data-testid="claim-estimative"]');
+    expect(nodes).toHaveLength(2);
+    // CLAIM_ROW is `assessed` with one document = tier C0.
+    for (const node of nodes) {
+      expect(node.textContent).toBe(
+        "Likelihood (ICD 203): roughly even chance (45–55%) · Corroboration-derived confidence: low",
+      );
+      expect(node.getAttribute("data-estimative-version")).toBe("estimative-map-v1");
+    }
+    // the hedging label is ADDED to, never replaced
+    expect(container.textContent).toContain("Status: Assessed"); // appendix
+    expect(container.textContent).toContain("assessed"); // the on-screen chip
+    expect(container.textContent).not.toContain("analyst confidence");
   });
 
   it("offers the citation action for a stamped digest and withholds the tool disclosure", async () => {

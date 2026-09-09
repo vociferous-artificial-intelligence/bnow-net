@@ -15,6 +15,7 @@ const labels: ClaimCopyLabels = {
   reportCopied: "Report copied", linkCopied: "Link copied", evidenceCopied: "Evidence copied",
   textCopied: "Text copied", citationCopied: "Citation copied",
   copyFailed: "Copy failed", statusLabel: "Status", asOfLabel: "As of",
+  likelihoodLabel: "Likelihood (ICD 203)", confidenceLabel: "Corroboration-derived confidence",
   evidenceLabel: "Evidence", sourceLabel: "Source", sourceValue: "BNOW.NET {country} claim {claimId}",
   linkedSummary: "{docs} linked documents · {channels} channels · {platforms} platforms",
   evidenceListLabel: "Evidence list", publishedLabel: "Published",

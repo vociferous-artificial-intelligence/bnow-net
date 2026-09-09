@@ -13,6 +13,7 @@ import { formatDate } from "@/i18n/format";
 import { ClaimSources } from "@/components/claim-sources";
 import { makeClaimEvidenceLabels } from "@/components/claim-evidence-labels";
 import { ClaimCopyActions } from "@/components/claim-copy-actions";
+import { ClaimEstimative, claimEstimativeLabels } from "@/components/claim-estimative";
 import { claimCopyLabels } from "@/components/claim-copy-model";
 import { brandSiteBaseUrl } from "@/lib/site-url";
 import { summarizeClaimEvidence } from "@/components/claim-evidence-model";
@@ -45,6 +46,7 @@ export default async function SignalsPage() {
   const t = makeT(locale);
   const evidenceLabels = makeClaimEvidenceLabels(t);
   const copyLabels = claimCopyLabels(t);
+  const estimativeLabels = claimEstimativeLabels(t);
   // /signals is a PUBLIC page (docs/reviews/DESIGN-FUNCTION-EVAL-2026-07-11.md §0.5,
   // D3) with a teaser-public / specifics-gated split (IA-REFINEMENT-REVIEW.md TASK 3):
   // the headline count + type is public; the `detail` specifics (named individuals,
@@ -180,6 +182,11 @@ export default async function SignalsPage() {
                                 {c.hedging}
                               </span>
                               {c.text}
+                              <ClaimEstimative
+                                hedging={c.hedging}
+                                docs={c.docs}
+                                labels={estimativeLabels}
+                              />
                               <ClaimSources
                                 docs={c.docs}
                                 locale={locale}

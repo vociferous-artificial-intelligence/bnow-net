@@ -251,10 +251,16 @@ export default function MethodologyPage() {
               expert benchmark — agreement with the same-day expert assessment. Agreement is not
               independent confirmation: the benchmark reads many of the same open sources BNOW
               reads, and that caveat is rendered beside the number, not in a footnote. We do not
-              claim our source-reliability rating is calibrated, and we do not state a likelihood or
-              an analytic-confidence level of our own — today we carry the source&apos;s own
-              estimative posture, and nothing further. Closing that gap in the language of ICD 203
-              is planned, and it is marked as a gap above until it ships.
+              claim our source-reliability rating is calibrated, and it is not what produces the
+              estimative labels beside a claim. Those labels — an ICD 203 likelihood band with its
+              published percentage range, and a separately named corroboration-derived confidence
+              level — are computed by a fixed, versioned mapping from two things only: the
+              source&apos;s own hedging posture, and how independent the documents behind the claim
+              are. They are not an analyst&apos;s judgment, and no human has reviewed them. Two
+              limits follow, and they are deliberate: we never state that a claim is less likely
+              than even odds, because we have no mechanism that refutes a claim; and we never state
+              the highest band, which is reserved for a tier an analyst has verified. The row above
+              stays marked partial for exactly those reasons.
             </LegalP>
           </LegalSection>
 

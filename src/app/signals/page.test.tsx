@@ -113,6 +113,10 @@ describe("/signals auth boundary", () => {
     expect(html).not.toContain("Targets incl.");
     expect(html).not.toContain("factional purge");
     expect(html).not.toContain("data-copy-surface");
+    // WS-7.4's band rides the gated per-claim block, so it is withheld too — an
+    // estimative posture is a statement about specific evidence.
+    expect(html).not.toContain("claim-estimative");
+    expect(html).not.toContain("Likelihood (ICD 203)");
     // The accepted-only attribution/non-endorsement notice is not shown to anonymous.
     expect(container.textContent).not.toContain("BNOW reports and attributes");
     // The gated evidence query never ran for the anonymous request.
@@ -147,6 +151,13 @@ describe("/signals auth boundary", () => {
     expect(html).toContain("Example channel"); // the human-readable source chip
     expect(html).not.toContain("0.62"); // score policy: Signals never renders reliability
     expect(container.querySelector('[data-copy-surface="signal"]')).toBeTruthy();
+    // WS-7.4 surface pin: the band renders here too, and — like the reliability
+    // score above — it exposes no number beyond the ICD 203 percentage range.
+    const estimative = container.querySelector('[data-testid="claim-estimative"]')!;
+    expect(estimative.textContent).toContain("Likelihood (ICD 203):");
+    expect(estimative.textContent).toContain("Corroboration-derived confidence:");
+    expect(estimative.getAttribute("data-estimative-version")).toBe("estimative-map-v1");
+    expect(container.textContent).not.toContain("analyst confidence");
     expect(captureMock).toHaveBeenCalledWith("signal_detail_viewed", {
       theater: "ru",
       signal_type: "purge",
@@ -172,6 +183,10 @@ describe("/signals auth boundary", () => {
     expect(container.textContent).toContain("accept the Terms to inspect the evidence");
     expect(container.querySelector('a[href="/welcome/legal"]')).toBeTruthy();
     expect(html).not.toContain("data-copy-surface");
+    // WS-7.4's band rides the gated per-claim block, so it is withheld too — an
+    // estimative posture is a statement about specific evidence.
+    expect(html).not.toContain("claim-estimative");
+    expect(html).not.toContain("Likelihood (ICD 203)");
     // The gated evidence query never ran for the un-accepted request.
     expect(queryMock).not.toHaveBeenCalled();
     expect(captureMock).not.toHaveBeenCalled();

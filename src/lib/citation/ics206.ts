@@ -9,6 +9,12 @@ import {
 } from "@/components/claim-evidence-model";
 import { formatEtDateTimeYear } from "@/lib/time/format-et";
 import { ATTRIBUTION_LABEL, DISPUTED_HEDGING } from "@/lib/analysis/attribution-labels";
+import {
+  confidenceLabel,
+  estimateDerivation,
+  estimateForClaim,
+  likelihoodLabel,
+} from "@/lib/tradecraft/estimative";
 
 // WS-7.2 — the ICS 206-01 citation artifact, as data.
 //
@@ -88,6 +94,25 @@ export interface Ics206SourceEntry {
   accessed: string | null;
 }
 
+/**
+ * WS-7.4's estimative block (operator decision T3). Presentation only: the
+ * mapping is deterministic, reads no model and is not persisted, so a citation
+ * carrying it stays reconstructible from the claim's own hedging class and its
+ * evidence counts — which is why `basis` is printed beside the two values.
+ *
+ * The AJP-2.1 information-credibility code is deliberately ABSENT here. It is a
+ * derived EXPORT field and never the primary presentation (decision T1), and
+ * this artifact is a product surface, not an export format.
+ */
+export interface Ics206Estimative {
+  /** "likely (55–80%)", or "not assessable" when no evidence document exists. */
+  likelihood: string;
+  /** "moderate" — corroboration-derived, NEVER an analyst's confidence. */
+  confidence: string;
+  /** Source classification, corroboration tier and mapping version. */
+  basis: string;
+}
+
 export interface Ics206Disclosure {
   /** True while operator decision T4 holds the AI-tool disclosure dark. */
   withheld: boolean;
@@ -104,6 +129,7 @@ export interface Ics206Citation {
   classification: string;
   /** Ruling 19's fixed attribution label, verbatim, for a disputed claim. */
   attribution: string | null;
+  estimative: Ics206Estimative;
   corroboration: string;
   asOf: string;
   canonicalUrl: string;
@@ -129,6 +155,13 @@ export interface Ics206Input {
 export const ICS206_UNSTAMPED = "unstamped — pre-analysis-reg-v1";
 export const ICS206_WITHHELD_MARKER = "tool disclosure withheld";
 export const ICS206_EXTRACTION_UNRECORDED = "not recorded for this digest";
+
+/** Field labels for the WS-7.4 block. English constants, like every other
+ *  label in this artifact: "Corroboration-derived confidence" is the honesty
+ *  constraint stated in the label itself and must survive verbatim. */
+const LIKELIHOOD_FIELD = "Likelihood (ICD 203)";
+const CONFIDENCE_FIELD = "Corroboration-derived confidence";
+const ESTIMATIVE_BASIS_FIELD = "Estimative basis";
 
 const HEADLINE_CONFORMANT = "BNOW.NET — ICS 206-01 source citation";
 const HEADLINE_WITHHELD = `BNOW.NET — source citation (ICS 206-01 fields; ${ICS206_WITHHELD_MARKER})`;
@@ -335,6 +368,7 @@ export function buildIcs206Citation(input: Ics206Input): Ics206Citation | null {
   const hedging = input.hedging.trim().toLocaleLowerCase();
   const summary = summarizeClaimEvidence(input.docs);
   const disclosure = disclosureFor(stamp);
+  const estimate = estimateForClaim(input.hedging, summary);
 
   return {
     conformant: !disclosure.withheld,
@@ -348,6 +382,11 @@ export function buildIcs206Citation(input: Ics206Input): Ics206Citation | null {
     attribution: DISPUTED_HEDGING.has(hedging)
       ? (ATTRIBUTION_LABEL[hedging] ?? ATTRIBUTION_LABEL.unknown)
       : null,
+    estimative: {
+      likelihood: likelihoodLabel(estimate),
+      confidence: confidenceLabel(estimate),
+      basis: estimateDerivation(input.hedging, estimate),
+    },
     corroboration: [
       plural(summary.documents, "document", "documents"),
       plural(summary.channels, "channel", "channels"),
@@ -380,6 +419,9 @@ export function serializeIcs206Plain(citation: Ics206Citation): string {
     `Classification: ${citation.classification}${
       citation.attribution ? ` — BNOW attribution: "${citation.attribution}"` : ""
     }`,
+    `${LIKELIHOOD_FIELD}: ${citation.estimative.likelihood}`,
+    `${CONFIDENCE_FIELD}: ${citation.estimative.confidence}`,
+    `${ESTIMATIVE_BASIS_FIELD}: ${citation.estimative.basis}`,
     `Corroboration: ${citation.corroboration}`,
     `Retrieved as of: ${citation.asOf}`,
     `Publisher: ${citation.publisher}`,
@@ -422,6 +464,9 @@ export function serializeIcs206Html(citation: Ics206Citation): string {
     `<strong>Classification:</strong> ${e(citation.classification)}${
       citation.attribution ? ` — BNOW attribution: &quot;${e(citation.attribution)}&quot;` : ""
     }<br>`,
+    `<strong>${e(LIKELIHOOD_FIELD)}:</strong> ${e(citation.estimative.likelihood)}<br>`,
+    `<strong>${e(CONFIDENCE_FIELD)}:</strong> ${e(citation.estimative.confidence)}<br>`,
+    `<strong>${e(ESTIMATIVE_BASIS_FIELD)}:</strong> ${e(citation.estimative.basis)}<br>`,
     `<strong>Corroboration:</strong> ${e(citation.corroboration)}<br>`,
     `<strong>Retrieved as of:</strong> ${e(citation.asOf)}<br>`,
     `<strong>Publisher:</strong> ${e(citation.publisher)}<br>`,

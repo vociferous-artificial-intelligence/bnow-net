@@ -4763,3 +4763,31 @@ Execution (same block):
   warnings elsewhere). $0 — no database, no network, no provider, no deploy, no migration.
 - Report: `docs/reviews/WS-7-3-DESCRIPTORS-2026-09-07.md`, with the proposed AGENTS.md
   directory-map line and decision-log entry for step 25 (not applied here).
+
+## 2026-09-08 ~19:00Z — WS-7.4 ICD 203 likelihood band + corroboration-derived confidence (planned block)
+
+Step 34 of the 2026-09-05 48-hour program (`docs/prompts/2026-09-05-48h-34-ws7-estimative-mapping.md`),
+lane `48h/ws7-tradecraft-20260905`, under the SIGNED T3 / T3-a / T3-b decision entry.
+
+1. Build the pure module `src/lib/tradecraft/estimative.ts`: `ESTIMATIVE_MAP_V1` as data —
+   the signed 5x4 hedging x corroboration grid, the corroboration-tier total function, the
+   ICD 203 band table with its percentage ranges, and the export-only AJP-2.1 1-6 credibility
+   derivation. No `claims.confidence`, no source reliability (T3-a). Zero runtime imports.
+2. Exhaustive table test: every hedging enum x every tier, the out-of-enum fallback, the
+   empty-evidence `none` case, and the six signed invariants as the spec block.
+3. Import-hygiene test (`matcher-import-hygiene.test.ts` shape) — no `@/db`, no registry, no
+   reliability source, no env read, no fetch; plus the `client-boundary.test.ts` scan, since
+   the module enters a client bundle through `claim-copy-model.ts`.
+4. One presentational leaf `src/components/claim-estimative.tsx`, rendered beside the hedging
+   chip on the four named claim surfaces (digest, search, signals, ask-cited) and in the
+   digest print appendix's status line — the one literal `statuses[hedging]` render site.
+5. Add the band to the copy "status" line (report + evidence modes) and to the ICS 206-01
+   citation artifact, without touching the T4 dark-stamp policy.
+6. Label it "corroboration-derived confidence", never "analyst confidence"; keep the numeric
+   range so a PHIA reader maps it themselves; band and confidence terms stay English terms of
+   art, chrome goes through i18n.
+7. Correct the two standing lines this PR makes wrong: the digest page's OPEN-TASKS #14
+   comment, and the crosswalk's ICD 203 "expresses and explains uncertainty" GAP row in BOTH
+   `src/lib/tradecraft/crosswalk.ts` and `docs/METHODOLOGY-TRADECRAFT.md` (drift test).
+8. Snapshot tests per surface; closing report `docs/reviews/WS-7-4-ESTIMATIVE-2026-09-07.md`
+   with the proposed decision-log entry recording V1 as a presentation layer; PR.

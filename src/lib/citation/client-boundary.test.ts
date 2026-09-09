@@ -19,7 +19,10 @@ import { describe, expect, it } from "vitest";
 // imported by claim-copy-model.ts, and takes `import type { Role }` from
 // @/lib/gate. Its whole job is to run before the client boundary.
 
-const CLIENT_REACHABLE = ["ics206.ts"];
+// Paths relative to this directory. estimative.ts joins the graph through
+// claim-copy-model.ts (the copy "status" line) and through ics206.ts itself, so
+// it is under the same constraint even though it lives in src/lib/tradecraft/.
+const CLIENT_REACHABLE = ["ics206.ts", "../tradecraft/estimative.ts"];
 
 /** Any module specifier reaching a server-only or heavyweight layer. `\s*`
  *  rather than `\s+` after `from` so an unspaced `from"..."` cannot slip past. */

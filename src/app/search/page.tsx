@@ -12,6 +12,7 @@ import { summarizeClaimEvidence, type ClaimSourceDoc } from "@/components/claim-
 import { makeClaimEvidenceLabels } from "@/components/claim-evidence-labels";
 import { ClaimSources } from "@/components/claim-sources";
 import { ClaimCopyActions } from "@/components/claim-copy-actions";
+import { ClaimEstimative, claimEstimativeLabels } from "@/components/claim-estimative";
 import { claimCopyLabels } from "@/components/claim-copy-model";
 import { SearchCompletedMarker } from "@/components/analytics/product-event-markers";
 
@@ -109,6 +110,7 @@ export default async function SearchPage({
   const t = makeT(locale);
   const evidenceLabels = makeClaimEvidenceLabels(t);
   const copyLabels = claimCopyLabels(t);
+  const estimativeLabels = claimEstimativeLabels(t);
   const { q } = await searchParams;
   const question = (q ?? "").slice(0, 400);
   const trimmed = question.trim();
@@ -225,6 +227,11 @@ export default async function SearchPage({
                       {digestDate && <span>{digestDate}</span>}
                     </div>
                     <p>{r.text}</p>
+                    <ClaimEstimative
+                      hedging={r.hedging}
+                      docs={copyPayload.docs}
+                      labels={estimativeLabels}
+                    />
                     <ClaimSources
                       docs={copyPayload.docs}
                       showScores

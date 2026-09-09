@@ -104,9 +104,9 @@ export const CROSSWALK_ROWS: readonly CrosswalkRow[] = [
     standard: "ICD 203",
     requirement: "Properly expresses and explains uncertainty",
     mechanism:
-      "The source's own estimative posture is captured as a five-value hedging label on every claim; BNOW states no likelihood band and no analytic-confidence level of its own",
-    status: "GAP",
-    closedBy: "WS-7.4",
+      "Every rendered claim carries an ICD 203 likelihood band with its published percentage range beside a separately labelled corroboration-derived confidence level, both computed by a signed, versioned mapping from the source's own estimative posture and the independence of the documents behind the claim; the sub-even bands and the highest band are never machine-assigned, because there is no refutation mechanism and no analyst-verified tier yet",
+    status: "PARTIAL",
+    closedBy: "not in WS-7",
   },
   {
     standard: "ICD 203",

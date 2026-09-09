@@ -10,6 +10,10 @@ import type {
   ClaimCopySurface,
 } from "@/components/claim-copy-model";
 import { summarizeClaimEvidence } from "@/components/claim-evidence-model";
+import {
+  ClaimEstimative,
+  type ClaimEstimativeLabels,
+} from "@/components/claim-estimative";
 
 // Presentational rendering for an /ask result. Extracted from page.tsx so it can be
 // unit-tested with @testing-library without a live DB/auth/server-action harness.
@@ -62,6 +66,7 @@ export interface AskResultProps {
   locale: Locale;
   evidenceLabels: ClaimEvidenceLabels;
   copyLabels: ClaimCopyLabels;
+  estimativeLabels: ClaimEstimativeLabels;
 }
 
 /** Defensive state derivation for payloads that predate the v2 `state` field. */
@@ -90,12 +95,14 @@ function ClaimItems({
   locale,
   evidenceLabels,
   copyLabels,
+  estimativeLabels,
 }: {
   items: ResolvedClaim[];
   surface: Extract<ClaimCopySurface, "ask_cited" | "ask_related">;
   locale: Locale;
   evidenceLabels: ClaimEvidenceLabels;
   copyLabels: ClaimCopyLabels;
+  estimativeLabels: ClaimEstimativeLabels;
 }) {
   return (
     <ul className="space-y-2">
@@ -111,6 +118,15 @@ function ClaimItems({
               digest →
             </Link>
           )}
+          {/* WS-7.4: /ask renders no hedging chip, so this is the only place a
+              claim's estimative posture appears here. The component's title
+              carries the derivation — source classification and corroboration
+              tier — so a band never stands alone without what produced it. */}
+          <ClaimEstimative
+            hedging={c.hedging}
+            docs={c.copyPayload.docs}
+            labels={estimativeLabels}
+          />
           <ClaimSources
             docs={c.copyPayload.docs}
             showScores
@@ -143,6 +159,7 @@ export function AskResult({
   locale,
   evidenceLabels,
   copyLabels,
+  estimativeLabels,
 }: AskResultProps) {
   const state = deriveAnswerState(result);
   const relatedIds = result.relatedClaimIds ?? [];
@@ -220,6 +237,7 @@ export function AskResult({
             locale={locale}
             evidenceLabels={evidenceLabels}
             copyLabels={copyLabels}
+            estimativeLabels={estimativeLabels}
           />
         </div>
       )}
@@ -233,6 +251,7 @@ export function AskResult({
             locale={locale}
             evidenceLabels={evidenceLabels}
             copyLabels={copyLabels}
+            estimativeLabels={estimativeLabels}
           />
         </div>
       )}

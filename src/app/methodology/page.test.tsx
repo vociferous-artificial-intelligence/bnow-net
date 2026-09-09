@@ -86,6 +86,21 @@ describe("/methodology (public tradecraft crosswalk)", () => {
     expect(t).not.toMatch(/accuracy score/i);
   });
 
+  it("describes the WS-7.4 estimative labels truthfully and without overclaiming", () => {
+    const t = text();
+    // The page used to say "we do not state a likelihood or an
+    // analytic-confidence level of our own". WS-7.4 makes that false; the
+    // replacement must state the derivation and the two withheld extremes.
+    expect(t).not.toMatch(/do not state a likelihood/i);
+    expect(t).toContain("not an analyst");
+    expect(t).toContain("never state that a claim is less likely than even odds");
+    expect(t).toContain("never state the highest band");
+    // and it still refuses the calibration claim the label does not depend on
+    expect(t).toContain("do not claim our source-reliability rating is calibrated");
+    // T5 stays enforced by the moat test below: no weight constant is printed here
+    expect(t).not.toMatch(/0\.75|0\.15|1\.0\b/);
+  });
+
   it("states ruling 1 — no expert prose and no source full text is published", () => {
     const t = text();
     expect(t).toContain("No prose from the Institute for the Study of War");
