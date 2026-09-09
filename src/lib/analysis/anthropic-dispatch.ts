@@ -59,6 +59,9 @@ export function buildMessagesRequest(args: AnthropicRequestArgs): AnthropicHttpR
 export interface AnthropicParsedResponse {
   /** concatenation of every text block, "" when the response carried none */
   text: string;
+  /** the vendor's message id — the evidence a capture line needs to be
+   *  reconcilable against a vendor-side record; null when absent */
+  id: string | null;
   /** end_turn | max_tokens | stop_sequence | tool_use | null */
   stopReason: string | null;
   inputTokens: number;
@@ -76,6 +79,7 @@ export interface AnthropicParsedResponse {
  *  emptiness handling decides what that means. */
 export function parseMessagesResponse(json: unknown): AnthropicParsedResponse {
   const body = (json ?? {}) as {
+    id?: unknown;
     content?: unknown;
     stop_reason?: unknown;
     model?: unknown;
@@ -95,6 +99,7 @@ export function parseMessagesResponse(json: unknown): AnthropicParsedResponse {
   const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
   return {
     text,
+    id: typeof body.id === "string" ? body.id : null,
     stopReason: typeof body.stop_reason === "string" ? body.stop_reason : null,
     inputTokens: num(body.usage?.input_tokens),
     outputTokens: num(body.usage?.output_tokens),

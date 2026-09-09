@@ -3,7 +3,7 @@
 // CaptureFs). No client is built, no network, no DB, no real fs write.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type OpenAI from "openai";
 
 const ctorSpy = vi.hoisted(() => vi.fn());
@@ -19,6 +19,7 @@ import { SpendGuard, type UsageStore } from "../usage/spend-guard";
 import { openCaptureSink, parseCaptureFile, type CaptureAttemptEndLine, type CaptureAttemptStartLine, type CaptureBudgetStopLine, type CaptureFs, type CaptureRunHeader } from "./capture";
 import type { AnalysisEvalDataset, DigestEvalCase, EvalResultsFile, ValidationEvalCase } from "./contracts";
 import { dispatchOnce, evalDispatchConfig, liveIdentity, runLiveSweep, type LiveDeps } from "./live-runner";
+import { EVAL_PROVIDER_ROWS } from "./eval-guard";
 import { ZERO_METER, currentEnvKnobs, mergeEvalResults, pendingWork, resumeIdentityMismatch, type ResultsFileHeader } from "./runner";
 
 // ---- fakes --------------------------------------------------------------------
@@ -43,7 +44,7 @@ function memFs(opts: { failOnAppendMatching?: (data: string, n: number) => boole
   return { fs, files, log };
 }
 
-function memGuard(log: string[] = [], caps: { runRequestCap?: number } = {}) {
+function memGuard(log: string[] = [], caps: { runRequestCap?: number; provider?: "openai" | "anthropic" } = {}) {
   const store: UsageStore = {
     load: async () => ({ totalUsd: 0, totalRequests: 0, dayUsd: 0, dayRequests: 0 }),
     record: async () => {
@@ -51,7 +52,13 @@ function memGuard(log: string[] = [], caps: { runRequestCap?: number } = {}) {
     },
   };
   return new SpendGuard(
-    { provider: "openai_eval", totalCapUsd: 10, dailyUsdCap: 5, dailyRequestCap: 100, runRequestCap: caps.runRequestCap ?? 50 },
+    {
+      provider: EVAL_PROVIDER_ROWS[caps.provider ?? "openai"],
+      totalCapUsd: 10,
+      dailyUsdCap: 5,
+      dailyRequestCap: 100,
+      runRequestCap: caps.runRequestCap ?? 50,
+    },
     store,
   );
 }
@@ -137,11 +144,23 @@ function runHeader(header: ResultsFileHeader, runId: string): CaptureRunHeader {
   };
 }
 
-async function mkDeps(create: ReturnType<typeof vi.fn>, opts: { capture?: LiveDeps["capture"]; log?: string[]; runRequestCap?: number } = {}): Promise<LiveDeps> {
-  const guard = memGuard(opts.log, { runRequestCap: opts.runRequestCap });
+async function mkDeps(
+  create: ReturnType<typeof vi.fn>,
+  opts: {
+    capture?: LiveDeps["capture"];
+    log?: string[];
+    runRequestCap?: number;
+    fetch?: LiveDeps["fetch"];
+    provider?: "openai" | "anthropic";
+  } = {},
+): Promise<LiveDeps> {
+  const guard = memGuard(opts.log, { runRequestCap: opts.runRequestCap, provider: opts.provider });
   await guard.init();
   return {
-    client: { chat: { completions: { create } } } as unknown as OpenAI,
+    // an anthropic run builds no OpenAI client at all — buildLiveDeps returns
+    // null there, and these deps mirror it so a stray SDK call would throw
+    client: opts.provider === "anthropic" ? null : ({ chat: { completions: { create } } } as unknown as OpenAI),
+    fetch: opts.fetch,
     guard,
     meter: { attempts: 0, reservations: 0, meterings: 0, erroredAttempts: 0 },
     usage: { promptTokens: 0, completionTokens: 0, estUsd: 0 },
@@ -508,5 +527,171 @@ describe("historical results-file compatibility", () => {
     expect(withEntry.meter.attempts).toBe(242);
     expect(withEntry.abandonedAttempts).toHaveLength(1);
     expect(campaignShaped.abandonedAttempts).toBeUndefined(); // input untouched
+  });
+});
+
+// ---- the anthropic eval dispatch branch (PR-2.2-B3) ---------------------------
+//
+// Same reserve < fetch < record < parse order, same capture lines, same
+// DispatchOutcome — a second vendor must not get a second set of accounting
+// rules. The branch differs only where the vendor's API differs, and each of
+// those differences is asserted rather than left to the reader.
+
+const ANT_CFG = evalDispatchConfig("digest", "anthropic", "claude-sonnet-5", null);
+
+function anthropicBody(over: Record<string, unknown> = {}) {
+  return {
+    id: "msg_abc",
+    model: "claude-sonnet-5-20260101",
+    stop_reason: "end_turn",
+    usage: { input_tokens: 100, output_tokens: 50 },
+    content: [{ type: "text", text: '{"events":[]}' }],
+    ...over,
+  };
+}
+
+function anthropicFetch(bodies: Array<Record<string, unknown>> | Record<string, unknown>, log?: string[]) {
+  const queue = Array.isArray(bodies) ? [...bodies] : [bodies];
+  const calls: Array<[string, RequestInit]> = [];
+  const fn = vi.fn(async (url: unknown, init: unknown) => {
+    log?.push("fetch");
+    calls.push([url as string, init as RequestInit]);
+    const next = queue.length > 1 ? queue.shift()! : queue[0];
+    if (typeof next.__status === "number") {
+      return { ok: false, status: next.__status, text: async () => "rate limited" } as unknown as Response;
+    }
+    return { ok: true, status: 200, json: async () => next } as unknown as Response;
+  });
+  return { fn: fn as unknown as LiveDeps["fetch"], calls };
+}
+
+describe("anthropic eval dispatch", () => {
+  const savedKey = process.env.ANTHROPIC_API_KEY;
+  beforeEach(() => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test-key";
+  });
+  afterEach(() => {
+    if (savedKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = savedKey;
+  });
+
+  it("meters on the anthropic_eval row and never touches the OpenAI SDK", async () => {
+    const create = vi.fn();
+    const { fn } = anthropicFetch(anthropicBody());
+    const d = await mkDeps(create, { provider: "anthropic", fetch: fn });
+    const out = await dispatchOnce(d, ANT_CFG, PROMPT, SCHEMA, { temperature: 0.2, maxCompletionTokens: 4096 }, CTX);
+    expect(create).not.toHaveBeenCalled();
+    expect(d.client).toBeNull();
+    expect(out).toEqual({
+      raw: '{"events":[]}',
+      truncated: false,
+      promptTokens: 100,
+      completionTokens: 50,
+      // priced from the anthropic row: (100*2 + 50*10)/1e6
+      estUsd: (100 * 2 + 50 * 10) / 1_000_000,
+    });
+    expect(d.meter).toEqual({ attempts: 1, reservations: 1, meterings: 1, erroredAttempts: 0 });
+  });
+
+  it("carries the R13 prompt-embedded schema, the routed model and the vendor's key header", async () => {
+    const { fn, calls } = anthropicFetch(anthropicBody());
+    const d = await mkDeps(vi.fn(), { provider: "anthropic", fetch: fn });
+    await dispatchOnce(d, ANT_CFG, PROMPT, SCHEMA, { temperature: 0.2, maxCompletionTokens: 4096 }, CTX);
+    const [, init] = calls[0];
+    expect((init.headers as Record<string, string>)["x-api-key"]).toBe("sk-ant-test-key");
+    const body = JSON.parse(init.body as string);
+    expect(body.model).toBe("claude-sonnet-5");
+    expect(body.max_tokens).toBe(4096);
+    expect(body.temperature).toBe(0.2);
+    // the schema Messages cannot enforce travels in the system prompt instead
+    expect(body.system).toContain("sys");
+    expect(body.system).toContain(JSON.stringify(SCHEMA.schema));
+    expect(body.messages).toEqual([{ role: "user", content: "usr" }]);
+  });
+
+  it("refuses before any request when the vendor's key is absent", async () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    const { fn, calls } = anthropicFetch(anthropicBody());
+    const d = await mkDeps(vi.fn(), { provider: "anthropic", fetch: fn });
+    await expect(
+      dispatchOnce(d, ANT_CFG, PROMPT, SCHEMA, { temperature: 0.2 }, CTX),
+    ).rejects.toThrow(/ANTHROPIC_API_KEY is not set/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("writes the SAME capture lines, with the vendor stamped and absent evidence recorded as absent", async () => {
+    const log: string[] = [];
+    const m = memFs();
+    const sink = openCaptureSink(CAP_CFG, runHeader(headerFor(dataset([], "digest"), ANT_CFG), "live-1"), m.fs);
+    (m.fs as { appendFileSync: CaptureFs["appendFileSync"] }).appendFileSync = ((p, data) => {
+      log.push(`capture:${JSON.parse(data as string).kind}`);
+      m.files.set(p as string, (m.files.get(p as string) ?? "") + data);
+    }) as CaptureFs["appendFileSync"];
+    const { fn } = anthropicFetch(anthropicBody(), log);
+    const d = await mkDeps(vi.fn(), { provider: "anthropic", fetch: fn, capture: sink, log });
+    await dispatchOnce(d, ANT_CFG, PROMPT, SCHEMA, { temperature: 0.2 }, CTX);
+    // ruling 8 in the file itself: the end line follows guard.record
+    expect(log).toEqual([
+      "capture:run",
+      "capture:attempt_start",
+      "fetch",
+      "guard.record",
+      "capture:attempt_end",
+    ]);
+    const parsed = parseCaptureFile("d", m.files.get(sink.files.development)!);
+    const end = parsed.lines.find((l) => l.kind === "attempt_end") as CaptureAttemptEndLine;
+    expect(end).toMatchObject({
+      outcome: "response",
+      requestedModel: "claude-sonnet-5",
+      requestedProvider: "anthropic",
+      returnedModel: "claude-sonnet-5-20260101",
+      responseId: "msg_abc",
+      finishReason: "end_turn",
+      metered: true,
+      truncated: false,
+      usage: { promptTokens: 100, completionTokens: 50 },
+    });
+    // Messages has no system_fingerprint and no refusal field: recorded as
+    // absent rather than invented, so a capture line never implies evidence
+    // the vendor did not give
+    expect(end.systemFingerprint).toBeNull();
+    expect(end.refused).toBe(false);
+    expect(end.refusal).toBeNull();
+  });
+
+  it("stop_reason max_tokens is the truncation signal, recorded before it is discarded", async () => {
+    const log: string[] = [];
+    const { fn } = anthropicFetch(anthropicBody({ stop_reason: "max_tokens" }), log);
+    const d = await mkDeps(vi.fn(), { provider: "anthropic", fetch: fn, log });
+    const out = await dispatchOnce(d, ANT_CFG, PROMPT, SCHEMA, { temperature: 0.2 }, CTX);
+    expect(out.truncated).toBe(true);
+    expect(log).toEqual(["fetch", "guard.record"]);
+    expect(d.meter.meterings).toBe(1);
+  });
+
+  it("a 429 takes a FRESH reservation for the retry, exactly as the OpenAI branch does", async () => {
+    const { fn } = anthropicFetch([{ __status: 429 }, anthropicBody()]);
+    const d = await mkDeps(vi.fn(), { provider: "anthropic", fetch: fn });
+    const out = await dispatchOnce(d, ANT_CFG, PROMPT, SCHEMA, { temperature: 0.2 }, CTX);
+    expect(out.promptTokens).toBe(100);
+    expect(d.meter).toEqual({ attempts: 2, reservations: 2, meterings: 1, erroredAttempts: 1 });
+  });
+
+  it("a non-429 error status throws with no metering (no billable response was received)", async () => {
+    const log: string[] = [];
+    const { fn } = anthropicFetch([{ __status: 500 }], log);
+    const d = await mkDeps(vi.fn(), { provider: "anthropic", fetch: fn, log });
+    await expect(dispatchOnce(d, ANT_CFG, PROMPT, SCHEMA, { temperature: 0.2 }, CTX)).rejects.toThrow(
+      /anthropic 500/,
+    );
+    expect(log).toEqual(["fetch"]);
+    expect(d.meter).toEqual({ attempts: 1, reservations: 1, meterings: 0, erroredAttempts: 1 });
+  });
+
+  it("an openai run with no client refuses rather than building one behind the factory's back", async () => {
+    const d = await mkDeps(vi.fn(), { provider: "anthropic" }); // client: null
+    await expect(dispatchOnce(d, VAL_CFG, PROMPT, SCHEMA, { temperature: 0 }, CTX)).rejects.toThrow(
+      /openai dispatch requires a client/,
+    );
   });
 });

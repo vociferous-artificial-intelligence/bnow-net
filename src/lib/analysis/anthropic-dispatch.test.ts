@@ -51,6 +51,7 @@ describe("parseMessagesResponse", () => {
   it("reads text, stop reason, usage and the answering model", () => {
     expect(
       parseMessagesResponse({
+        id: "msg_abc",
         model: "claude-test-20260101",
         stop_reason: "end_turn",
         usage: { input_tokens: 12, output_tokens: 3 },
@@ -58,6 +59,7 @@ describe("parseMessagesResponse", () => {
       }),
     ).toEqual({
       text: "hello",
+      id: "msg_abc",
       stopReason: "end_turn",
       inputTokens: 12,
       outputTokens: 3,
@@ -84,6 +86,7 @@ describe("parseMessagesResponse", () => {
     for (const body of [null, undefined, {}, [], "nonsense", 42, { content: "not an array" }]) {
       expect(parseMessagesResponse(body)).toEqual({
         text: "",
+        id: null,
         stopReason: null,
         inputTokens: 0,
         outputTokens: 0,
