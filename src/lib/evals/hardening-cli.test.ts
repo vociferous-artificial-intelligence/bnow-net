@@ -219,3 +219,43 @@ describe("2026-09-04 validation parity: vote-count flag, estimates, diagnostic a
     expect(r.stderr).toMatch(/live-mode acknowledgement/);
   }, 120_000);
 });
+
+// ---- the eval provider dimension at the CLI boundary (PLAN-WS-2 §7.1) ----------
+
+describe("--provider: refused for a vendor this build cannot evaluate on", () => {
+  const LIVE_ENV = {
+    ...BLANKED_ENV,
+    LLM_DISABLE: "",
+    OPENAI_API_KEY: "sk-probe-not-a-real-key",
+    EVAL_DATABASE_URL: "postgres://probe:probe@eval-probe.invalid/db",
+    LLM_SPRINT_USD_CAP: "1",
+    EVAL_USD_CAP_DAILY: "1",
+  };
+
+  it("--execute-live --provider anthropic refuses before any client construction, with a real key and both caps present (PLAN-WS-2 §7.1)", () => {
+    const r = spawnSync(
+      TSX_BIN,
+      [CLI, "--execute-live", "--workload", "map", "--provider", "anthropic", "--model", "gpt-4o-mini", "--db-ack", "eval-probe.invalid", "--repetitions", "3"],
+      { env: LIVE_ENV, encoding: "utf8", timeout: 120_000 },
+    );
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(
+      /REFUSED \(before any client construction\).*provider "anthropic" is not eval-dispatchable in this build \(allowed: openai\)/,
+    );
+    const unknown = spawnSync(
+      TSX_BIN,
+      [CLI, "--execute-live", "--workload", "map", "--provider", "not-a-vendor", "--model", "gpt-4o-mini", "--db-ack", "eval-probe.invalid", "--repetitions", "3"],
+      { env: LIVE_ENV, encoding: "utf8", timeout: 120_000 },
+    );
+    expect(unknown.status).toBe(2);
+    expect(unknown.stderr).toMatch(/not eval-dispatchable/);
+    // nothing named by the refused provider was written
+    expect(readdirSync("docs/evals/analysis/results").filter((f) => f.includes("provider="))).toEqual([]);
+  }, 120_000);
+
+  it("--capture-reconcile refuses an unnameable --provider (it could only name a file that cannot exist)", () => {
+    const r = runCli(["--capture-reconcile", "--workload", "map", "--model", "gpt-4o-mini", "--provider", "not-a-vendor"]);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/--provider: unknown provider "not-a-vendor" \(known: openai, anthropic, openai_compatible\)/);
+  }, 120_000);
+});

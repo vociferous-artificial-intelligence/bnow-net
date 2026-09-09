@@ -4819,3 +4819,52 @@ lane `48h/ws7-tradecraft-20260905`, under the SIGNED T3 / T3-a / T3-b decision e
   to **#14** that WS-7.4 does not satisfy it. Report:
   `docs/reviews/WS-7-4-ESTIMATIVE-2026-09-07.md`, with the proposed decision-log entry for
   step 25. Pushed (pre-push gate green) and opened as **PR #84**.
+## 2026-09-08 ~16:45Z — step 20 WS-2.4 eval-plane provider parity + 20b Anthropic (planned block)
+
+Prompt `docs/prompts/2026-09-05-48h-20-eval-provider-parity.md`, lane
+`48h/ws2-routing-20260905`, base `origin/main` `dc2e55e`. Attended relaunch of the
+2026-09-08 read-only pass (`logs/step20.readonly-20260908.log`), whose citation
+corrections and cross-file break list are taken as the working spec.
+
+1. PR-2.4-1 `evals: --provider flag, provider-qualified identity, fail-closed allowlist`
+   — `EVAL_DISPATCHABLE_PROVIDERS`, provider through `evalDispatchConfig` →
+   `liveIdentity`, `+provider=<id>` configKey before the profile/votes suffixes with
+   the pairing strip, capture attempt lines, `--capture-reconcile --provider`, banner.
+2. PR-2.4-2 `analysis: extract the entity-audit prompt/request into a pure module`
+   — byte-identical request, pinned at the route through the existing `route.test.ts`
+   `create` spy; R12 recorded, not decided.
+3. 20b-B1 `analysis: anthropic digest provider metered, identity-stamped and routed
+   through model-config` — includes the (f13)/T4-b ordering gate: `mapreduceProviderTag()`
+   and `AnthropicProvider.name` become provider-aware BEFORE the digest allowlist widens.
+4. 20b-B2 `llm: price rows for the anthropic digest models (operator-verified)` — R7
+   `claude-haiku-4-5-20251001` $1/$5 and R7-b `claude-sonnet-5` $2/$10.
+5. 20b-B3 `evals: anthropic dispatch seam for live evaluation (digest only)` — after
+   PR-2.4-1; `evalGuardFromEnv(provider)`, provider-relative key preflight, R13
+   `schemaMode` in the identity.
+6. Embeddings coverage: design note only (PLAN-WS-2 §7.3), no code.
+7. Closing report `docs/reviews/WS-2-4-EVAL-PARITY-2026-09-06.md`. $0, no env, no paid
+   call, `docs/evals/analysis/` byte-untouched.
+
+Execution (same block):
+
+- All seven items done. Five PRs open: **#75** (eval `--provider`), **#76** (entity-audit
+  prompt module), **#81** (Anthropic provider wired + metered, with the T4-b provider-tag
+  gate), **#82** (two price rows), **#83** (eval Anthropic seam). Merge order #75/#76 in any
+  order, then #81 → #82 → #83; the last three are a genuine stack, each needing the one below.
+- Base `origin/main` `dc2e55e`; main moved to `6913c57` (docs + launcher) mid-session and the
+  later branches are cut from it.
+- Tests: main 4,082/270 → #75 4,097/270, #76 4,089/271, #81 4,112/272, #82 4,114/272,
+  #83 4,141/272. Typecheck and lint clean on every branch (3 pre-existing warnings, none in
+  touched files); the pre-push gate ran on every push.
+- $0, no paid call, no env change, no migration, no fork, `docs/evals/analysis/`
+  byte-untouched on every branch. Ran UNATTENDED: the worktree carries the trimmed
+  `.env.local` (four Neon/DB keys, no provider key), and nothing in the session read it.
+- Item 6 (embeddings coverage) is a design note in the report, as scoped: it belongs to the
+  Ask eval runner's retrieval-recall instrument, not `analysis-eval`. No code.
+- Two things found and NOT fixed here, both recorded in the report: `entityAuditListing`'s
+  120-code-unit `String.slice` is a #97-family site the umbrella does not list (fixing it
+  would break #76's byte-identical contract), and R12 stays a decision rather than an answer.
+- One self-correction: #81's commit message and PR body first cited a 4,089 baseline that
+  belongs to #76's branch. #81 is cut from `origin/main`, so the baseline is 4,082. Commit
+  amended, #82/#83 rebased (post-rebase diff empty), force-pushed with `--force-with-lease`,
+  PR body edited.

@@ -12,12 +12,17 @@ vi.mock("openai", () => ({
   },
 }));
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { analysisApproval } from "../llm/analysis-registry";
+import { analysisReasoningCapable, isAnalysisProviderId } from "../llm/providers";
+import { liveConfigKey, offlineIdentity } from "./runner";
 import { LlmBudgetError } from "../usage/llm-guard";
 import { SpendGuard, type UsageStore } from "../usage/spend-guard";
 import type { DigestEvalCase, MapEvalCase, ValidationEvalCase } from "./contracts";
 import { evalGuardFromEnv } from "./eval-guard";
 import {
+  EVAL_DISPATCHABLE_PROVIDERS,
   EvalDispatchError,
   RETRY_429_DELAY_MS,
   assertLivePreflight,
@@ -67,7 +72,7 @@ async function deps(create: ReturnType<typeof vi.fn>): Promise<LiveDeps & { slee
   };
 }
 
-const CFG = evalDispatchConfig("validation", "gpt-4o-mini", null);
+const CFG = evalDispatchConfig("validation", "openai", "gpt-4o-mini", null);
 const PROMPT = { system: "sys", user: "usr" };
 const SCHEMA = { name: "matches", schema: { type: "object" } };
 
@@ -90,16 +95,16 @@ const MAP_CASE: MapEvalCase = {
 
 describe("evalDispatchConfig (baseline via registry; candidates via the ONE registry bypass)", () => {
   it("refuses an unpriced model even for evaluation", () => {
-    expect(() => evalDispatchConfig("map", "gpt-99-hypothetical", null)).toThrow(/no entry in the metering price table/);
+    expect(() => evalDispatchConfig("map", "openai", "gpt-99-hypothetical", null)).toThrow(/no entry in the metering price table/);
   });
 
   it("refuses invalid efforts and effort-on-non-reasoning models", () => {
-    expect(() => evalDispatchConfig("map", "gpt-5-mini", "extreme")).toThrow(/invalid reasoning effort/);
-    expect(() => evalDispatchConfig("map", "gpt-4o-mini", "low")).toThrow(/non-reasoning model/);
+    expect(() => evalDispatchConfig("map", "openai", "gpt-5-mini", "extreme")).toThrow(/invalid reasoning effort/);
+    expect(() => evalDispatchConfig("map", "openai", "gpt-4o-mini", "low")).toThrow(/non-reasoning model/);
   });
 
   it("refuses the reduce workload (deterministic — nothing to dispatch)", () => {
-    expect(() => evalDispatchConfig("reduce", "gpt-4o-mini", null)).toThrow(/deterministic/);
+    expect(() => evalDispatchConfig("reduce", "openai", "gpt-4o-mini", null)).toThrow(/deterministic/);
   });
 
   it("resolves the registered production baseline through the registry, stamping baseline", () => {
@@ -109,8 +114,9 @@ describe("evalDispatchConfig (baseline via registry; candidates via the ONE regi
     for (const workload of ["map", "digest", "validation"] as const) {
       const verdict = analysisApproval(workload, "openai", "gpt-4o-mini", null);
       expect(verdict).toMatchObject({ approved: true, status: "baseline" });
-      expect(evalDispatchConfig(workload, "gpt-4o-mini", null)).toEqual({
+      expect(evalDispatchConfig(workload, "openai", "gpt-4o-mini", null)).toEqual({
         workload,
+        provider: "openai",
         model: "gpt-4o-mini",
         reasoningCapable: false,
         reasoningEffort: null,
@@ -120,18 +126,19 @@ describe("evalDispatchConfig (baseline via registry; candidates via the ONE regi
   });
 
   it("keeps gpt-5-nano an evaluation_candidate (no registry approval)", () => {
-    expect(evalDispatchConfig("map", "gpt-5-nano", null).approval).toBe("evaluation_candidate");
-    expect(evalDispatchConfig("digest", "gpt-5-nano", null).approval).toBe("evaluation_candidate");
-    expect(evalDispatchConfig("validation", "gpt-5-nano", null).approval).toBe("evaluation_candidate");
+    expect(evalDispatchConfig("map", "openai", "gpt-5-nano", null).approval).toBe("evaluation_candidate");
+    expect(evalDispatchConfig("digest", "openai", "gpt-5-nano", null).approval).toBe("evaluation_candidate");
+    expect(evalDispatchConfig("validation", "openai", "gpt-5-nano", null).approval).toBe("evaluation_candidate");
   });
 
   it("bypasses registry approval and the map activation lock for candidates, stamping evaluation_candidate", () => {
     // gpt-5-mini is priced but has NO analysis-registry approval for map, and
     // the map activation lock blocks any non-baseline model in production —
     // the eval path may still measure it, marked as a candidate only.
-    const cfg = evalDispatchConfig("map", "gpt-5-mini", "low");
+    const cfg = evalDispatchConfig("map", "openai", "gpt-5-mini", "low");
     expect(cfg).toEqual({
       workload: "map",
+      provider: "openai",
       model: "gpt-5-mini",
       reasoningCapable: true,
       reasoningEffort: "low",
@@ -145,12 +152,12 @@ describe("evalDispatchConfig (baseline via registry; candidates via the ONE regi
       workload: "map",
       cases: [MAP_CASE],
     } as unknown as Parameters<typeof liveIdentity>[0];
-    const id = liveIdentity(dataset, evalDispatchConfig("map", "gpt-4o-mini", null));
+    const id = liveIdentity(dataset, evalDispatchConfig("map", "openai", "gpt-4o-mini", null));
     expect(id.approval).toBe("baseline");
     expect(id.model).toBe("gpt-4o-mini");
     expect(id.reasoningEffort).toBeNull();
     expect(id.registryVersion).toBe("analysis-reg-v1");
-    expect(liveIdentity(dataset, evalDispatchConfig("map", "gpt-5-nano", null)).approval).toBe(
+    expect(liveIdentity(dataset, evalDispatchConfig("map", "openai", "gpt-5-nano", null)).approval).toBe(
       "evaluation_candidate",
     );
   });
@@ -168,6 +175,7 @@ describe("assertLivePreflight (all guards BEFORE any client construction)", () =
   const GOOD_ARGS = {
     executeLive: true,
     workload: "validation",
+    provider: null, // the CLI default: absent --provider = openai
     model: "gpt-4o-mini",
     effort: null,
     dbAck: "eval-branch.example.neon.tech",
@@ -372,7 +380,7 @@ describe("runLiveCase", () => {
     });
     const create = vi.fn(async () => completion(raw));
     const d = await deps(create);
-    const cfg = evalDispatchConfig("map", "gpt-5-mini", null);
+    const cfg = evalDispatchConfig("map", "openai", "gpt-5-mini", null);
     const result = await runLiveCase(d, cfg, MAP_CASE, "map-v1", "run-t", 0);
     expect(result.status).toBe("scored");
     expect(result.checks.pass).toBe(true);
@@ -401,7 +409,7 @@ describe("runLiveCase", () => {
     const voteRaw = JSON.stringify({ events: [{ title: "Sources report depot strike", type: "strike", summary: "Reportedly damaged.", claims: [{ text: "Sources claim the depot was damaged in a strike.", gids: [1] }] }] });
     const create = vi.fn(async () => completion(voteRaw));
     const d = await deps(create);
-    const cfg = evalDispatchConfig("digest", "gpt-4o-mini", null);
+    const cfg = evalDispatchConfig("digest", "openai", "gpt-4o-mini", null);
     const result = await runLiveCase(d, cfg, digestCase, "digest-v1", "run-t", 0);
     expect(create).toHaveBeenCalledTimes(5);
     expect(d.meter).toEqual({ attempts: 5, reservations: 5, meterings: 5, erroredAttempts: 0 });
@@ -426,7 +434,7 @@ describe("runLiveCase", () => {
     };
     const create = vi.fn(async () => completion("garbage not json"));
     const d = await deps(create);
-    const cfg = evalDispatchConfig("validation", "gpt-4o-mini", null);
+    const cfg = evalDispatchConfig("validation", "openai", "gpt-4o-mini", null);
     const result = await runLiveCase(d, cfg, valCase, "validation-v1", "run-t", 0);
     expect(result.status).toBe("schema_invalid");
     expect(result.checks.pass).toBe(false);
@@ -435,5 +443,111 @@ describe("runLiveCase", () => {
     expect(create).toHaveBeenCalledTimes(5);
     expect(d.meter.meterings).toBe(5);
     expect(result.votes).toEqual({ requested: 5, usable: 0, mode: "production-equivalent", matcher: "llm", perTakeaway: null });
+  });
+});
+
+// ---- the provider dimension (PLAN-WS-2 §7.1) -----------------------------------
+
+describe("eval provider dimension", () => {
+  const DATASET = {
+    datasetVersion: "map-test",
+    workload: "map",
+    cases: [MAP_CASE],
+  } as unknown as Parameters<typeof liveIdentity>[0];
+
+  const ENV = {
+    EVAL_DATABASE_URL: "postgres://user:pw@eval-branch.example.neon.tech/db",
+    OPENAI_API_KEY: "sk-test",
+    LLM_SPRINT_USD_CAP: "10",
+    EVAL_USD_CAP_DAILY: "2",
+  } as unknown as NodeJS.ProcessEnv;
+  const ARGS = {
+    executeLive: true,
+    workload: "validation",
+    provider: null,
+    model: "gpt-4o-mini",
+    effort: null,
+    dbAck: "eval-branch.example.neon.tech",
+  };
+
+  it("only openai is eval-dispatchable in this build, and every id in the list is a nameable provider", () => {
+    expect([...EVAL_DISPATCHABLE_PROVIDERS]).toEqual(["openai"]);
+    for (const id of EVAL_DISPATCHABLE_PROVIDERS) expect(isAnalysisProviderId(id)).toBe(true);
+  });
+
+  it("the preflight refuses a non-dispatchable provider — and refuses it BEFORE the DB, the key and the caps", () => {
+    // a fully-satisfied environment still refuses: the objection is to the
+    // BUILD's capability, not to a missing setting the operator could add
+    expect(() => assertLivePreflight({ ...ARGS, provider: "anthropic" }, ENV)).toThrow(
+      /provider "anthropic" is not eval-dispatchable in this build \(allowed: openai\) — refusing before any client construction/,
+    );
+    // and an EMPTY environment surfaces the provider refusal, not the DB one:
+    // that ordering is what "before any client or DB" means operationally
+    expect(() =>
+      assertLivePreflight({ ...ARGS, provider: "anthropic" }, {} as NodeJS.ProcessEnv),
+    ).toThrow(/not eval-dispatchable/);
+  });
+
+  it("an unknown provider id refuses identically (the operator's question is the same)", () => {
+    expect(() => assertLivePreflight({ ...ARGS, provider: "not-a-vendor" }, ENV)).toThrow(
+      /provider "not-a-vendor" is not eval-dispatchable in this build/,
+    );
+    expect(() => assertLivePreflight({ ...ARGS, provider: "stub" }, ENV)).toThrow(
+      /not eval-dispatchable/,
+    );
+  });
+
+  it("the pin is not vacuous: provider null and provider openai both pass and resolve to openai", () => {
+    expect(assertLivePreflight(ARGS, ENV).cfg.provider).toBe("openai");
+    expect(assertLivePreflight({ ...ARGS, provider: "openai" }, ENV).cfg.provider).toBe("openai");
+  });
+
+  it("evalDispatchConfig carries the provider and prices FOR it, never across vendors", () => {
+    expect(evalDispatchConfig("digest", "openai", "gpt-4o-mini", null).provider).toBe("openai");
+    // gpt-4o-mini is an OpenAI price row; asking for it as another vendor's
+    // model must refuse rather than meter Claude tokens at OpenAI rates
+    expect(() => evalDispatchConfig("digest", "anthropic", "gpt-4o-mini", null)).toThrow(
+      /is not priced for provider "anthropic"/,
+    );
+    expect(() => evalDispatchConfig("digest", "openai_compatible", "gpt-4o-mini", null)).toThrow(
+      /is not priced for provider "openai_compatible"/,
+    );
+    // the OpenAI wording is unchanged from before the provider dimension
+    expect(() => evalDispatchConfig("digest", "openai", "gpt-99-hypothetical", null)).toThrow(
+      /has no entry in the metering price table/,
+    );
+  });
+
+  it("evalDispatchConfig refuses an unnameable provider before it prices anything", () => {
+    expect(() => evalDispatchConfig("digest", "not-a-vendor", "gpt-4o-mini", null)).toThrow(
+      /provider "not-a-vendor" is not a known provider \(known: openai\|anthropic\|openai_compatible\)/,
+    );
+  });
+
+  it("reasoning capability is provider-relative (providers.ts), not a local regex mirror", () => {
+    expect(evalDispatchConfig("map", "openai", "gpt-5-mini", null).reasoningCapable).toBe(
+      analysisReasoningCapable("openai", "gpt-5-mini"),
+    );
+    expect(evalDispatchConfig("map", "openai", "gpt-4o-mini", null).reasoningCapable).toBe(
+      analysisReasoningCapable("openai", "gpt-4o-mini"),
+    );
+    // the mirror this file used to keep is gone — a second capability
+    // authority is how the two silently diverge (the same argument that made
+    // pricing.ts the single price authority)
+    const src = readFileSync(join(__dirname, "live-runner.ts"), "utf8");
+    expect(src).not.toMatch(/const REASONING_MODEL/);
+  });
+
+  it("liveIdentity records the dispatching provider, and an offline identity still says stub", () => {
+    const id = liveIdentity(DATASET, evalDispatchConfig("map", "openai", "gpt-4o-mini", null));
+    expect(id.provider).toBe("openai");
+    // headerIsLive is `provider !== "stub"`, so the offline convention must
+    // survive the union widening untouched (PR #61's skip is keyed on it)
+    expect(offlineIdentity(DATASET).provider).toBe("stub");
+  });
+
+  it("the results configKey carries the provider through runLiveCase", () => {
+    const cfg = evalDispatchConfig("validation", "openai", "gpt-4o-mini", null);
+    expect(liveConfigKey(cfg.model, cfg.reasoningEffort, cfg.provider)).toBe("gpt-4o-mini");
   });
 });

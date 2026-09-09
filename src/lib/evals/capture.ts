@@ -50,6 +50,7 @@ import type {
   EvalSplit,
 } from "./contracts";
 import { resultKey } from "./contracts";
+import type { AnalysisProviderId } from "../llm/providers";
 
 export type { CaptureRunRecord } from "./contracts";
 
@@ -255,11 +256,19 @@ interface CaptureAttemptBase {
   attemptIndex: number;
 }
 
+/** `requestedProvider` is OPTIONAL and absent means "openai" — exactly the
+ *  `ModelPrice.provider` convention in pricing.ts, and for the same reason:
+ *  every capture line written before the provider dimension (v1, all of them
+ *  today) is an OpenAI line, and re-reading those files must not require a
+ *  format version bump. The run line's `identity.provider` remains the
+ *  authoritative record for a run; this per-attempt copy makes a single line
+ *  self-describing when it is read out of context. */
 export interface CaptureAttemptStartLine extends CaptureAttemptBase {
   kind: "attempt_start";
   /** run-wide physical attempt ordinal (1-based); the matching end carries the same value */
   attemptSeq: number;
   requestedModel: string;
+  requestedProvider?: AnalysisProviderId;
 }
 
 export interface CaptureAttemptEndLine extends CaptureAttemptBase {
@@ -267,6 +276,7 @@ export interface CaptureAttemptEndLine extends CaptureAttemptBase {
   attemptSeq: number;
   outcome: "response" | "error";
   requestedModel: string;
+  requestedProvider?: AnalysisProviderId;
   returnedModel: string | null;
   responseId: string | null;
   systemFingerprint: string | null;

@@ -48,6 +48,7 @@ import {
   assertLiveOnlySelection,
   buildAnalysisEstimatePlan,
   buildCandidatePrompt,
+  baselinePairingKey,
   buildWorkloadScorecard,
   computeCompleteness,
   classifyCaseApplicability,
@@ -64,6 +65,7 @@ import {
   runScopeFor,
   scoreOfflineCase,
   sha256,
+  stripProviderKeySegment,
   type ResultsFileHeader,
 } from "./runner";
 
@@ -538,6 +540,10 @@ describe("configuration identity", () => {
     expect(offlineIdentity(REDUCE_DS).extractorVersion).toBeUndefined();
     expect(liveConfigKey("gpt-5-mini", "low")).toBe("gpt-5-mini@low");
     expect(liveConfigKey("gpt-5-mini", null)).toBe("gpt-5-mini");
+    // the provider dimension is OMITTED for openai — every historical key
+    // (committed offline files, gitignored live files) stays byte-identical
+    expect(liveConfigKey("gpt-5-mini", "low", "openai")).toBe("gpt-5-mini@low");
+    expect(liveConfigKey("gpt-4o-mini", null, "openai")).toBe("gpt-4o-mini");
     const knobs = currentEnvKnobs();
     expect(knobs.reduceVotes).toBe(5);
     expect(knobs.mapOutTokensPerDoc).toBe(200);
@@ -549,5 +555,52 @@ describe("provider/DB isolation of the non-live paths", () => {
     expect(openAiCtor).not.toHaveBeenCalled();
     expect(poolCtor).not.toHaveBeenCalled();
     expect(dbTouched).not.toHaveBeenCalled();
+  });
+});
+
+// ---- the provider segment of a live configKey (PLAN-WS-2 §7.1) -----------------
+
+describe("live configKey provider segment", () => {
+  it("omits the segment for openai and appends it for every other vendor", () => {
+    expect(liveConfigKey("gpt-4o-mini", null)).toBe("gpt-4o-mini");
+    expect(liveConfigKey("gpt-4o-mini", null, "openai")).toBe("gpt-4o-mini");
+    expect(liveConfigKey("claude-x", null, "anthropic")).toBe("claude-x+provider=anthropic");
+    expect(liveConfigKey("m", "high", "anthropic")).toBe("m@high+provider=anthropic");
+    expect(liveConfigKey("m", null, "openai_compatible")).toBe("m+provider=openai_compatible");
+  });
+
+  it("stripProviderKeySegment removes exactly the segment, keeping what follows", () => {
+    expect(stripProviderKeySegment("gpt-4o-mini")).toBe("gpt-4o-mini");
+    expect(stripProviderKeySegment("gpt-4o-mini+map-depth-4000")).toBe("gpt-4o-mini+map-depth-4000");
+    expect(stripProviderKeySegment("m+provider=anthropic")).toBe("m");
+    expect(stripProviderKeySegment("m@low+provider=anthropic")).toBe("m@low");
+    expect(stripProviderKeySegment("m+provider=anthropic+map-depth-4000")).toBe("m+map-depth-4000");
+    expect(stripProviderKeySegment("m+provider=openai_compatible+p")).toBe("m+p");
+  });
+
+  it("a candidate on another vendor pairs against the OpenAI baseline of the SAME profile and vote count", () => {
+    // the regression this ordering exists to stop: with no profile, reading
+    // the last "+" before stripping the provider would yield the baseline key
+    // "gpt-4o-mini+provider=anthropic", which can never exist
+    expect(baselinePairingKey("gpt-5-nano+provider=anthropic", "gpt-4o-mini")).toBe("gpt-4o-mini");
+    expect(
+      baselinePairingKey("gpt-5-nano+provider=anthropic+map-depth-4000+votes5", "gpt-4o-mini"),
+    ).toBe("gpt-4o-mini+map-depth-4000+votes5");
+    expect(baselinePairingKey("claude-x@high+provider=anthropic+votes1", "gpt-4o-mini")).toBe(
+      "gpt-4o-mini+votes1",
+    );
+  });
+
+  it("every pre-provider key derives the SAME baseline it did before (no report re-pairing)", () => {
+    for (const [key, expected] of [
+      ["gpt-5-nano", "gpt-4o-mini"],
+      ["gpt-5-mini@low", "gpt-4o-mini"],
+      ["gpt-5-nano+map-depth-4000", "gpt-4o-mini+map-depth-4000"],
+      ["gpt-5-nano+votes5", "gpt-4o-mini+votes5"],
+      ["gpt-5-nano+map-depth-4000+votes1", "gpt-4o-mini+map-depth-4000+votes1"],
+      ["gpt-4o-mini+votes5", "gpt-4o-mini+votes5"],
+    ] as const) {
+      expect(baselinePairingKey(key, "gpt-4o-mini")).toBe(expected);
+    }
   });
 });

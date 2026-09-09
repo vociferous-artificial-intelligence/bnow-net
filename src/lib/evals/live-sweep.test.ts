@@ -66,8 +66,8 @@ function completion(content: string | null, over: { finish?: string; refusal?: s
   };
 }
 
-const VAL_CFG = evalDispatchConfig("validation", "gpt-4o-mini", null);
-const DIG_CFG = evalDispatchConfig("digest", "gpt-4o-mini", null);
+const VAL_CFG = evalDispatchConfig("validation", "openai", "gpt-4o-mini", null);
+const DIG_CFG = evalDispatchConfig("digest", "openai", "gpt-4o-mini", null);
 const PROMPT = { system: "sys", user: "usr" };
 const SCHEMA = { name: "matches", schema: { type: "object" } };
 
@@ -193,12 +193,13 @@ describe("dispatchOnce capture lines", () => {
     const parsed = parseCaptureFile("d", m.files.get(sink.files.development)!);
     const start = parsed.lines[1] as CaptureAttemptStartLine;
     const end = parsed.lines[2] as CaptureAttemptEndLine;
-    expect(start).toMatchObject({ kind: "attempt_start", attemptSeq: 1, attemptIndex: 0, caseId: "val-a", repetition: 0, voteIndex: null, voteCount: 1, requestedModel: "gpt-4o-mini", runId: "live-1" });
+    expect(start).toMatchObject({ kind: "attempt_start", attemptSeq: 1, attemptIndex: 0, caseId: "val-a", repetition: 0, voteIndex: null, voteCount: 1, requestedModel: "gpt-4o-mini", requestedProvider: "openai", runId: "live-1" });
     expect(end).toMatchObject({
       kind: "attempt_end",
       attemptSeq: 1,
       outcome: "response",
       requestedModel: "gpt-4o-mini",
+      requestedProvider: "openai",
       returnedModel: "gpt-4o-mini-2024-07-18",
       responseId: "chatcmpl-abc",
       systemFingerprint: "fp_123",

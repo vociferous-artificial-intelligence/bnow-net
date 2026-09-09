@@ -44,6 +44,7 @@ import {
 import type { Track } from "../analysis/tracks";
 import { ANALYSIS_ROUTING_REGISTRY_VERSION } from "../llm/analysis-registry";
 import { estimateCostUsd } from "../llm/pricing";
+import type { AnalysisProviderId } from "../llm/providers";
 import { reduceMaxOutputTokens } from "../usage/llm-guard";
 import {
   MATCH_RESPONSE_SCHEMA,
@@ -341,8 +342,72 @@ export function offlineIdentity(dataset: AnalysisEvalDataset): CandidateDispatch
   };
 }
 
-export function liveConfigKey(model: string, effort: string | null): string {
-  return effort === null ? model : `${model}@${effort}`;
+/** The identity segment of a LIVE results configKey.
+ *
+ *  Shape: `<model>[@effort][+provider=<id>]`. The provider segment is OMITTED
+ *  for openai, so every historical key stays byte-identical and no committed
+ *  or gitignored artifact is renamed by the provider dimension landing.
+ *
+ *  Position matters: the caller appends the capacity-profile suffix and then
+ *  the validation vote suffix, so the full key reads
+ *  `<model>[@effort][+provider=<id>][+<profile>][+votesN]`. The report's
+ *  baseline pairing strips the votes suffix, then this provider segment, and
+ *  only then reads the profile off the last `+` — a candidate on another
+ *  vendor therefore pairs against the OpenAI baseline of the SAME profile
+ *  (scripts/analysis-eval.ts, modeReport). */
+export function liveConfigKey(
+  model: string,
+  effort: string | null,
+  provider: AnalysisProviderId = "openai",
+): string {
+  const base = effort === null ? model : `${model}@${effort}`;
+  return provider === "openai" ? base : `${base}${LIVE_PROVIDER_KEY_PREFIX}${provider}`;
+}
+
+/** The literal that introduces the provider segment of a live configKey.
+ *  Shared with the report's pairing strip so the writer and the reader can
+ *  never disagree about the shape. */
+export const LIVE_PROVIDER_KEY_PREFIX = "+provider=";
+
+/** Remove the provider segment from a live configKey (no-op for an OpenAI key,
+ *  which never carries one). Used by the report's baseline pairing, which must
+ *  derive the capacity profile from the last `+` AFTER the provider segment is
+ *  gone — otherwise `gpt-5-nano+provider=anthropic` would read
+ *  `+provider=anthropic` as its capacity profile and pair against a baseline
+ *  key that cannot exist. */
+export function stripProviderKeySegment(configKey: string): string {
+  const i = configKey.indexOf(LIVE_PROVIDER_KEY_PREFIX);
+  if (i === -1) return configKey;
+  const rest = configKey.slice(i + LIVE_PROVIDER_KEY_PREFIX.length);
+  const next = rest.indexOf("+");
+  return configKey.slice(0, i) + (next === -1 ? "" : rest.slice(next));
+}
+
+/** The OpenAI-baseline configKey a candidate configKey pairs against for the
+ *  report's pairwise gates.
+ *
+ *  A live configKey is `<model>[@effort][+provider=<id>][+<profile>][+votesN]`,
+ *  and only the capacity profile and the validation vote count are dimensions
+ *  the baseline must MATCH — the model, the effort and the provider are what
+ *  varies between candidate and baseline. So: strip the vote suffix, strip the
+ *  provider segment, read the profile off the last `+` of what remains, and
+ *  reattach profile + votes to the baseline model.
+ *
+ *  Order is load-bearing. The vote suffix must go first (it is not a profile).
+ *  The provider segment must go second, because it sits BEFORE the profile: on
+ *  `gpt-5-nano+provider=anthropic` with no profile, reading the last `+` first
+ *  would derive `+provider=anthropic` as the profile and pair against
+ *  `gpt-4o-mini+provider=anthropic` — a baseline that cannot exist, since the
+ *  baseline is by definition the OpenAI production default. */
+export function baselinePairingKey(configKey: string, baselineModel: string): string {
+  const votesMatch = configKey.match(/\+votes\d+$/);
+  const votesSuffix = votesMatch ? votesMatch[0] : "";
+  const keySansVotes = stripProviderKeySegment(
+    votesSuffix ? configKey.slice(0, -votesSuffix.length) : configKey,
+  );
+  const plusAt = keySansVotes.lastIndexOf("+");
+  const profileSuffix = plusAt === -1 ? "" : keySansVotes.slice(plusAt);
+  return `${baselineModel}${profileSuffix}${votesSuffix}`;
 }
 
 // ============================================================================

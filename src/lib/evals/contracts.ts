@@ -21,6 +21,7 @@
 // - No copyrighted source full text: doc snippets are short synthetic texts
 //   authored for this repo (multilingual ones included), < ~400 chars each.
 
+import type { AnalysisProviderId } from "../llm/providers";
 import type { Hedging, ReduceClaim } from "../analysis/reduce";
 import type { ClaimForValidation } from "../validation/score";
 import type { EvidenceRecencyDocInput } from "./evidence-recency-summary";
@@ -433,7 +434,15 @@ function contractLimits(ds: AnalysisEvalDataset): ContractLimits {
  *  "stub" + model "offline-fixtures" (nothing dispatched) but still record the
  *  CURRENT prompt/schema hashes so drift is visible across reports. */
 export interface CandidateDispatchIdentity {
-  provider: "openai" | "stub";
+  /** The vendor that dispatched (or "stub" for an offline fixture run, which
+   *  dispatches nothing). Widened from `"openai" | "stub"` when the eval plane
+   *  gained the provider dimension (PLAN-WS-2 §7.1): NAMING a provider here is
+   *  not permission to dispatch it — `EVAL_DISPATCHABLE_PROVIDERS`
+   *  (live-runner.ts) is the allowlist, and the live preflight refuses anything
+   *  outside it before any client or DB exists. "stub" stays load-bearing:
+   *  `headerIsLive` is `provider !== "stub"`, so an offline file must never
+   *  carry a vendor id. */
+  provider: AnalysisProviderId | "stub";
   model: string;
   reasoningEffort: string | null;
   /** the ANALYSIS_ROUTING_REGISTRY_VERSION this run was judged against. For a
