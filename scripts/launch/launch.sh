@@ -14,6 +14,8 @@
 #                                                             never started detached
 #
 # Extra CLI flags for the detached session go in $CLAUDE_LAUNCH_OPTS (e.g. a permission mode).
+# Every claude invocation is wrapped in `caffeinate -ims` (2026-09-09) so the Mac cannot idle-,
+# display- or system-sleep while a session runs; the wrapper exits with the session.
 # What this script deliberately does NOT do: copy credentials. It verifies the env posture
 # (COMMON §4.10 — an unattended worktree must hold no spend/deploy keys) and refuses on
 # violation; moving .env.local files stays a human act.
@@ -99,7 +101,7 @@ if [ "$ATTENDED" = no ] && [ -z "${CLAUDE_LAUNCH_OPTS:-}" ]; then
   exit 1
 fi
 
-RUN_CMD="cd '$WT' && nohup claude -p --model '$MODEL' ${CLAUDE_LAUNCH_OPTS:-} < '$PROMPT_ABS' > '$LOG' 2>&1 &"
+RUN_CMD="cd '$WT' && nohup caffeinate -ims claude -p --model '$MODEL' ${CLAUDE_LAUNCH_OPTS:-} < '$PROMPT_ABS' > '$LOG' 2>&1 &"
 
 if [ "$GO" != "--go" ]; then
   echo "DRY RUN — nothing claimed, nothing launched. Would do:"
@@ -132,7 +134,7 @@ if [ "$ATTENDED" = yes ]; then
   echo ""
   echo "ATTENDED step — claimed and prepped; run the session yourself, in a terminal you watch:"
   echo ""
-  echo "  cd '$WT' && claude --model '$MODEL' ${CLAUDE_LAUNCH_OPTS:-}"
+  echo "  cd '$WT' && caffeinate -ims claude --model '$MODEL' ${CLAUDE_LAUNCH_OPTS:-}"
   echo "  # then paste the prompt: $PROMPT_ABS"
   echo ""
   echo "(For step 26 remember the bounded fan-out; for 22m the run spends — keep both caps in view.)"
@@ -148,10 +150,15 @@ if ! kill -0 "$PID" 2>/dev/null; then
   release
   exit 1
 fi
-printf '%s\n' "$PID" > "$CLAIMS/step-$STEP/pid"
-printf '%s\tlaunch\tstep-%s\tpid=%s\tlog=%s\n' "$NOW" "$STEP" "$PID" "$LOG" >> "$CLAIMS/launches.log"
+# $PID is caffeinate's. Record the claude CHILD pid so status.sh reads the session itself
+# (DEAD when claude exits, SUSP if it is stopped); caffeinate exits with it either way.
+CPID=$(pgrep -P "$PID" 2>/dev/null | head -1)
+[ -z "$CPID" ] && CPID=$PID
+printf '%s\n' "$CPID" > "$CLAIMS/step-$STEP/pid"
+printf '%s\n' "$PID" > "$CLAIMS/step-$STEP/pid.caffeinate"
+printf '%s\tlaunch\tstep-%s\tpid=%s\tcaffeinate=%s\tlog=%s\n' "$NOW" "$STEP" "$CPID" "$PID" "$LOG" >> "$CLAIMS/launches.log"
 echo ""
-echo "LAUNCHED step $STEP detached: pid $PID"
+echo "LAUNCHED step $STEP detached: claude pid $CPID (caffeinate $PID)"
 echo "  tail -f '$LOG'"
 echo "  $SCRIPT_DIR/status.sh   # the one-screen view"
 exit 0

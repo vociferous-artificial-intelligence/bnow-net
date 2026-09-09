@@ -10,6 +10,38 @@
 
 No agent runs this step.
 
+**ADDED 2026-09-09 — facts to have in front of you before step 1.**
+
+- **Credentials first (tracker §4g).** The `.env.local` `DATABASE_URL` / `DATABASE_URL_UNPOOLED`
+  in the main checkout carry the pre-rotation `neondb_owner` password and fail
+  authentication; every fork-bound run used the control plane instead. `npm run db:migrate`
+  from the release clone targets production through those two names, so refresh them in
+  `/Users/go/code/bnow-net-rel-20260823/.env.local` (and the main checkout) from the Neon
+  console BEFORE any production script, and prove it read-only:
+  `npx tsx scripts/sqlq.ts "SELECT 1"`. #80 closes only when this is done.
+- **The one hard ordering (A2 (b), signed; WS2-F04 corrected by step 23):** Neon backup branch →
+  `npm run db:migrate` from the release clone (0028, 0029, 0030 — one recorded line each, then
+  `SELECT name FROM _migrations WHERE name LIKE '00%' ORDER BY 1` shows 32 rows) → deploy the
+  receiver → set `LOG_DRAIN_SECRET` in Production before the deploy that reads it → register
+  the drain → `npx tsx scripts/audit-cron.ts` (safe at every point; prints "no drain registered
+  yet" until it is). Never register a drain against a database without `runtime_logs`.
+- **Env read-back (register gap G3), all three environments, names only in the record:**
+  `ASK_EMBED_MODEL`, `ASK_ANSWER_MODEL`, `ASK_RERANK_MODEL`, `ASK_PIPELINE`, `OPENAI_MODEL`, the
+  five `<W>_PROVIDER` and `<W>_MODEL`, `DIGEST_PROVIDER`, `ANTHROPIC_API_KEY`, `LOG_DRAIN_SECRET`,
+  `EVAL_*`, `CONFLICTS_UI`, `FEATURE_AUTH_GATE` — and **`MAP_CONTENT_CHARS`, which must be
+  ABSENT** (R4). Expected today: `ASK_ANSWER_MODEL` / `ASK_RERANK_MODEL` / `ASK_PIPELINE` absent
+  (WS2-F68); `DIGEST_PROVIDER` and `ANTHROPIC_API_KEY` absent — the Anthropic digest path stays
+  DORMANT unless a separate signed decision enables it; `MAP_CONTENT_CHARS` absent.
+- **What is code-ahead of production:** every PR since `883e5e3` (step 26's list). Nothing in
+  this program deployed anything; production is still `8a19ade` unless a hotfix moved it — read
+  `AGENTS.md` Current state before assuming.
+- **Worktree cleanup (item 4) is a native-terminal act:** `git worktree remove` only for lanes
+  whose PRs are merged; then `git worktree prune && git worktree list` from the Mac (a
+  remote-mount session mislabels every worktree `prunable`).
+- Sign the D-a…D-f entry's downstream effects if step 23 changed them; sign step 25's closing
+  entry; append the INDEX §10 close line.
+
+
 1. Read `docs/reviews/PROGRAM-48H-FINAL-AUDIT-2026-09-07.md` §deploy verdicts. Deploy only
    PRs marked **go** whose env/secret list is fully set in Production, Preview and
    Development (ruling 4 ordering) — docs and inert code first. Anything marked go-after-fix

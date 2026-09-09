@@ -27,19 +27,14 @@ Open PRs (operator `gh pr list`, 09:34 ET): **#48**, **#47** — nothing else.
 INDEX §10 2026-09-08 line).** `main` = `25bdd27`, gate green 4,332 / 282, build PASS,
 `gh pr list` empty.
 
-**Current step: Stage 3 — two things in parallel.**
-1. **Launch step 19** (WS-3.3 evidence population; unattended; fork keys only in its
-   `.env.local`; `export CLAUDE_LAUNCH_OPTS='--dangerously-skip-permissions'` first):
-   `scripts/launch/launch.sh 19 && scripts/launch/launch.sh 19 --go`.
-2. **Operator adjudication for step 23:** accept / defer / fix on every finding in
-   `docs/reviews/WS-2-AUDIT-FINDING-REGISTER-2026-09-06.md` (71) and
-   `docs/reviews/WS-3-AUDIT-FINDING-REGISTER-2026-09-06.md` (21). Efficient shape: FIX the 5
-   majors + the minors that touch a spend path, gate, migration or production-visible behaviour;
-   blanket-DEFER the rest into one OPEN-TASKS entry. Also answer #78's six listed decisions.
-   Hand me the marks and I write them into step 23's prompt with #110/#112/#114/#116 and R.15.
-
-Then: 23r + 23c launch (after the marks are in the prompt); 24 after 19 merges (its prompt gets
-R.17 first); 25 after every row-C merge. Step 26 must NOT run on Fable (18 used it).
+**Current step: Stage 3 remainder — run from `docs/prompts/2026-09-09-48h-completion-plan.md`**
+(it supersedes this file's §6 Stage 3 sheet; §1–§5 here stay the fact record). Morning order:
+§2.1 sign D-a…D-f (drafted entry `docs/prompts/2026-09-09-48h-sign-Da-Df.md`) → §2.2 confirm
+the step-23 marks (tabled in the rewritten step-23 prompt; one PENDING line to flip) → §2.3
+env posture + `npm ci` for `ws3-conflict`, `ws2-routing`, `audit-ws3` → §2.4 commit → §2.5
+launch **19, 23r, 23c in parallel** (23c moved to the `audit-ws3` worktree on 2026-09-09).
+Then CP6 (19 first, then 23c, then 23r), 24 after 19 merges, 25 after everything, CP7, freeze,
+26 on **Opus** (not Fable), 27.
 
 **Rule learned at CP5 — stack PRs:** before merging any PR whose GitHub base is another PR's
 branch, `gh pr edit <n> --base main`. #82/#83 were merged into their stack bases and had to be
@@ -55,7 +50,7 @@ re-landed as #85.
 | 5.1 Stage 1 — CP4 merge queue | **DONE** | yes |
 | 5.2 Stage 2 — operator runs | **DONE 2026-09-08** — items 1–5 | yes |
 | 5.2a Stage 2a — D7/R4 measured remap | **DONE 2026-09-08** — executed, $0.046263 | yes |
-| 5.3 Stage 3 — build steps 18–34 | **IN PROGRESS** — 18, 20, 21, 32, 33, 34 merged (CP5); 19 launchable; 23/24/25 gated | no |
+| 5.3 Stage 3 — build steps 18–34 | **IN PROGRESS** — 18, 20, 21, 32, 33, 34 merged (CP5); 19 / 23r / 23c launch in parallel (2026-09-09 plan §2); 24 after 19; 25 last | no |
 | 5.4 Stage 4 — review gates / four never-run checks | **NOT STARTED** (one hazard pre-filed, #112) | no |
 | 5.5 Stage 5 — freeze, final audit, deploy | **NOT STARTED** (pre-deploy facts pre-filed, #111) | no |
 | §6 detached sessions | **RESOLVED** | yes |
@@ -565,6 +560,10 @@ the estimate; `/health` not `DB OK`; the driver banner showing any base other th
 never raise a cap mid-run, recompute from C.2); any `MAP_CONTENT_CHARS` count other than 0 in
 either Vercel check.
 
+### Stage 3 — operator sequence — SUPERSEDED 2026-09-09 by `docs/prompts/2026-09-09-48h-completion-plan.md` (kept for the record; row A/B and CP5 are done)
+
+#### (superseded text follows)
+
 ### Stage 3 — operator sequence (plan §5.3; one row at a time, gates between rows)
 
 **The mechanics that prevent yesterday's double-launch:** every launch goes through
@@ -689,3 +688,4 @@ move to Stage 2a — and that move is itself a logged edit here, not an assumpti
 - 2026-09-08 16:30 ET — AGENTS.md archive passes 9 (eb4bf9f, policy) and 10 (c6e3dae, one-off cut to 2026-09-05): 147,701 → 126,660 chars, 205 entries preserved, both PASS; record entry appended. Next: Stage 3 row A launch sheet.
 - 2026-09-08 16:50 ET — Stage 3 operator sequence written (§6); binding blocks added to prompts 20/21/32; §1 → row A launch.
 - 2026-09-08 21:55 ET — CP5 landed: #78 #79 #80 #77 #84 #76 #75 #81 #85 + test fix 25bdd27; gate 4,332/282, build PASS. Two incidents recorded (permission mode; stack-base merges). §1 → launch 19 + operator marks for 23.
+- 2026-09-09 (morning prep, remote session, docs only) — remainder plan written (`2026-09-09-48h-completion-plan.md`); step 23 prompt rewritten from sketch with marks tables; binding blocks added to 19/24/25/26/27; steps.tsv: 23c → audit-ws3, 26 → opus; D-a…D-f entry drafted for operator signature. §1 → the 09-09 plan §2. Nothing launched.

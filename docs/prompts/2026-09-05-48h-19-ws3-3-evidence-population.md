@@ -33,6 +33,32 @@ are on `main` but unapplied to production (#111) — a fork you create is at 002
 migrate it yourself. (5) The worktree's `.env.local` is the trimmed four-key copy; that is all
 this step needs. $0; the matcher's paid path stays unreachable and must be pinned so.
 
+**ADDED 2026-09-09 — read with the block above.** (6) `main` at launch is `f55534e` or
+later: CP5 landed 18, 20, 21, 32, 33, 34; nothing in `drizzle/` or `src/db/schema.ts` moved
+(gate on `main`: 4,332 / 282, build PASS). The launcher reset your lane branch
+`48h/ws3-conflict-20260905` to `origin/main`; cut the two step branches from it. (7) **The
+step-18 register's handoff for this step is binding** (`WS-3-AUDIT-FINDING-REGISTER-2026-09-06.md`
+§Handoff "For step 19"): do not call `persistObservation` with a caller-chosen edition id —
+resolve the winner's row id from `edition_key` (+ `series`, `report_date`) and pass exactly that
+id (WS3-F04's identity check is step 23's and may land in parallel; do not depend on it). Fill
+`unit_attribution` from `classifyTheaterWith(gazetteerFor(series), sig.toponyms)` for Iran — the
+RU/UA `classifyTakeawayTheater` returns only `ru|ua|both`. Expect `derived.units[].toponyms` to
+be EMPTY for every Iran edition written before WS3-F05 lands; join on `sha256` + `ordinal`,
+never on signatures. `probe_failed` today means "indeterminate", never "ISW did not publish".
+(8) **Parallel lane, same module:** step 23 lane C runs at the same time in the `audit-ws3`
+worktree and owns `src/lib/isw/edition-discovery.ts`, `observation-store.ts`'s
+`persistObservation` body, and the June-2025 parser shape (decision **D-d** signed 2026-09-09:
+the N3 `--backfill-from-isw-reports` mode is lane C's, not yours — do not build it; if the
+D-a…D-f entry is absent from `AGENTS.md` at launch, still do not build it, list it). Consume
+those modules through their exported API; do not edit them unless a one-line change is
+unavoidable, and name any such hunk in the report — the operator merges this step first at CP6
+and lane C rebases onto it. (9) The report file name stays
+`docs/reviews/WS-3-3-EVIDENCE-POPULATION-2026-09-06.md` (the launcher looks for it). If you open
+stacked PRs, say so in the report: the operator must `gh pr edit <n> --base main` before merging
+each PR above the bottom of the stack. (10) Handoff for step 24 must name: the observation read
+API, which columns are populated for Iran vs RU/UA, and whether any `publication_gap` row exists
+on your fork (expect none — C15's trigger is structurally unexercisable under throttling).
+
 Read `docs/prompts/2026-09-05-48h-COMMON.md` first, then the memo, PLAN-WS-3 §3.3, and the
 three upstream reports.
 
