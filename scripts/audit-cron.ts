@@ -4,6 +4,7 @@
 // window for the monthly trade/materials crons).
 import "./env";
 import { neon } from "@neondatabase/serverless";
+import { ceilingCaseSql } from "../src/lib/usage/cron-run";
 
 const sql = neon(process.env.DATABASE_URL!);
 
@@ -50,6 +51,68 @@ async function main() {
     // degraded runs (#87) carry error NULL by contract; render their category
     const detail = r.error != null ? String(r.error) : `degraded ${JSON.stringify(r.degraded)}`;
     console.log(`  FAIL ${r.job} ${r.started_at.toISOString()}: ${detail.slice(0, 160)}`);
+  }
+
+  // Runtime logs (#93 drain). PURELY ADDITIVE: this section prints evidence and
+  // never changes a verdict above, because until the operator registers the
+  // drain in the Vercel dashboard the table is legitimately empty — an absent
+  // or empty runtime_logs is a fact about enablement, not a cron failure.
+  // to_regclass first: migration 0029 is not applied everywhere (OPEN-TASKS
+  // #111), and an unguarded query here would kill the whole audit.
+  console.log("\n-- runtime logs (#93 drain): coverage for the last 24h --");
+  const [{ present }] = (await sql`
+    SELECT to_regclass('public.runtime_logs') IS NOT NULL AS present`) as Array<{ present: boolean }>;
+  if (!present) {
+    console.log("runtime_logs absent — migration 0029 not applied to this database (OPEN-TASKS #111)");
+  } else {
+    const [cov] = (await sql`
+      SELECT count(*)::int                                        AS lines,
+             count(DISTINCT request_id)::int                      AS invocations,
+             count(DISTINCT deployment_id)::int                   AS deployments,
+             count(*) FILTER (WHERE level IN ('error','fatal'))::int AS error_lines,
+             count(*) FILTER (WHERE status_code = -1)::int        AS crashed,
+             min(logged_at) AS first_at, max(logged_at) AS last_at
+        FROM runtime_logs WHERE logged_at > now() - interval '24 hours'`) as Array<Record<string, unknown>>;
+    if (Number(cov.lines) === 0) {
+      console.log(
+        "no runtime_logs rows in 24h — no drain registered yet (docs/designs/LOG-DRAIN.md §8). " +
+          "Not a cron finding; runtime-log coverage starts when the drain is created.",
+      );
+    } else {
+      console.log(
+        `lines=${cov.lines} invocations=${cov.invocations} deployments=${cov.deployments} ` +
+          `error_lines=${cov.error_lines} CRASHED(statusCode=-1)=${cov.crashed} ` +
+          `window ${(cov.first_at as Date).toISOString()} .. ${(cov.last_at as Date).toISOString()}`,
+      );
+      // §9(c): every line a failed/killed run emitted, bounded by the same
+      // per-family ceiling the #98 sweep classifies dead runs with — precisely
+      // the window in which a run that left finished_at NULL must have died.
+      const correlated = (await sql.query(
+        `SELECT r.job, r.started_at, r.ok,
+                count(l.id)::int AS log_lines,
+                count(l.id) FILTER (WHERE l.level IN ('error','fatal'))::int AS error_lines,
+                min(left(l.message, 160)) FILTER (WHERE l.level IN ('error','fatal')) AS sample
+           FROM cron_runs r
+           LEFT JOIN runtime_logs l
+             ON l.request_path = '/api/cron/' || split_part(r.job, ':', 1)
+            AND l.logged_at >= r.started_at
+            AND l.logged_at <  COALESCE(r.finished_at,
+                  r.started_at + make_interval(secs => (${ceilingCaseSql("r.job")})))
+          WHERE r.started_at > now() - interval '24 hours'
+            AND (r.ok IS FALSE
+                 OR (r.ok IS NULL AND r.finished_at IS NULL
+                     AND r.started_at <= now() - interval '800 seconds'))
+          GROUP BY r.id, r.job, r.started_at, r.ok
+          ORDER BY r.started_at DESC LIMIT 10`,
+      )) as Array<Record<string, unknown>>;
+      if (!correlated.length) console.log("  (no failed or killed runs in 24h to correlate)");
+      for (const r of correlated)
+        console.log(
+          `  ${String(r.job).padEnd(18)} ${(r.started_at as Date).toISOString()} ok=${r.ok} ` +
+            `lines=${r.log_lines} errors=${r.error_lines}` +
+            (r.sample ? ` :: ${String(r.sample)}` : ""),
+        );
+    }
   }
 
   console.log("\n-- LLM spend by provider, last 3 days (digest path must appear) --");

@@ -300,3 +300,102 @@ describe("the route against real Postgres", () => {
     expect(after.rows[0].n).toBe(before.rows[0].n);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Register gap G5 (step 21 / CP4 §5.4): WS2-F03 and WS2-F26 were asserted from
+// PostgreSQL documentation and never measured. These three are CHARACTERIZATION
+// tests — they pin the CURRENT, DEFECTIVE behaviour so the fix has a regression
+// net and so the register's claims rest on evidence rather than on a manual.
+//
+// ***STEP 23 FLIPS THESE.*** When the NUL strip, the int4 clamp and the
+// LOG_DRAIN_MAX_ROWS clamp land, each measured failure below becomes a success
+// and the comments must be rewritten with it. A failure here after step 23 is
+// the fix landing, not a regression.
+//
+// Why it matters operationally: the receiver answers 500 on a throw, Vercel
+// retries the IDENTICAL batch, and the batch is therefore lost permanently
+// rather than transiently. None of it is reachable until a drain is registered.
+describe("G5 characterization: measured failure modes of the current receiver", () => {
+  const NUL = String.fromCharCode(0); // never a literal in source
+  const probe = async (rows: Parameters<typeof insertRuntimeLogs>[1]): Promise<string> => {
+    try {
+      await insertRuntimeLogs(exec, rows);
+      return "";
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
+  };
+
+  it("WS2-F03: a single U+0000 in one message makes the WHOLE batch unstorable", async () => {
+    const { rows } = normalizeBatch(
+      [
+        entry({ id: `${PREFIX}nul-clean`, message: "map: 45 batches, 0 errors" }),
+        entry({ id: `${PREFIX}nul-poison`, message: `map: killed mid${NUL}line` }),
+      ],
+      DEFAULT_MAX_ROWS,
+    );
+    // normalizeBatch passes NUL through today — wellFormedSlice strips lone
+    // surrogates, not control characters
+    expect(rows).toHaveLength(2);
+    expect(rows[1].message).toContain(NUL);
+
+    const message = await probe(rows);
+    expect(message).not.toBe(""); // MEASURED: PostgreSQL rejects 0x00 in text
+    console.log(`[G5/WS2-F03] insert error: ${message.slice(0, 200)}`);
+
+    // all-or-nothing: the CLEAN co-batched entry is lost with the poisoned one,
+    // which is what makes the redelivery loop permanent
+    const { rows: stored } = await pool.query<{ id: string }>(
+      `SELECT id FROM runtime_logs WHERE id LIKE $1`,
+      [`${PREFIX}nul-%`],
+    );
+    expect(stored).toHaveLength(0);
+  });
+
+  it("WS2-F03 (second half): a status_code beyond int4 is truncated, not clamped, and the batch fails", async () => {
+    const { rows } = normalizeBatch(
+      [entry({ id: `${PREFIX}int4`, statusCode: 2_147_483_648 })],
+      DEFAULT_MAX_ROWS,
+    );
+    expect(rows[0].statusCode).toBe(2_147_483_648); // int() truncates the float only
+
+    const message = await probe(rows);
+    expect(message).not.toBe(""); // MEASURED: integer out of range
+    console.log(`[G5/WS2-F03 int4] insert error: ${message.slice(0, 200)}`);
+    const { rows: stored } = await pool.query<{ id: string }>(
+      `SELECT id FROM runtime_logs WHERE id = $1`,
+      [`${PREFIX}int4`],
+    );
+    expect(stored).toHaveLength(0);
+  });
+
+  it("WS2-F26: 12 bind parameters per row means a batch over 5,461 rows exceeds the 65,535-parameter cap", async () => {
+    // DEFAULT_MAX_ROWS (1000 -> 12,000 parameters) is safe; the finding is that
+    // LOG_DRAIN_MAX_ROWS has no UPPER clamp, so an operator-set value above
+    // 5,461 breaks every delivery larger than that. 5,462 * 12 = 65,544.
+    const OVER = 5_462;
+    expect(OVER * 12).toBeGreaterThan(65_535);
+    const { rows } = normalizeBatch(
+      Array.from({ length: OVER }, (_, i) => entry({ id: `${PREFIX}bind-${i}` })),
+      OVER, // exactly what maxRows() would return for LOG_DRAIN_MAX_ROWS=5462
+    );
+    expect(rows).toHaveLength(OVER);
+
+    const message = await probe(rows);
+    expect(message).not.toBe(""); // MEASURED: the extended-protocol Bind cap
+    console.log(`[G5/WS2-F26] insert error: ${message.slice(0, 200)}`);
+    const { rows: count } = await pool.query<{ n: string }>(
+      `SELECT count(*) AS n FROM runtime_logs WHERE id LIKE $1`,
+      [`${PREFIX}bind-%`],
+    );
+    expect(Number(count[0].n)).toBe(0);
+
+    // and the row count one BELOW the boundary still stores, so the parameter
+    // cap is the whole difference — nothing else about a large batch is broken
+    const safe = normalizeBatch(
+      Array.from({ length: 5_461 }, (_, i) => entry({ id: `${PREFIX}bindok-${i}` })),
+      5_461,
+    ).rows;
+    expect(await insertRuntimeLogs(exec, safe)).toBe(5_461);
+  });
+});

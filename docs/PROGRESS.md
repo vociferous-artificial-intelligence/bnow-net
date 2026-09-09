@@ -4613,3 +4613,53 @@ Execution (same block):
 - 23 mutations in a detached scratch worktree, all reverted: 21 caught; 2 survived (route gate ORDER unpinned → WS3-F09; 403 in `isCleanNotFound` unpinned → WS3-F01). Two scratch reproductions pass at HEAD: the `--dry` finality substitution miscounts in both directions (WS3-F02, major) and a >10 KB non-report body becomes a published edition that outranks the real one (WS3-F03, minor).
 - Measurements: 54-probe prose recall → 15 misses (WS3-F06); 171 cached ISW pages sampled read-only for spellings (ISW writes "Bab-al-Mandeb", missed); golden walk 719 strings → only `headlineLabel` ×13 and `window.cutoffAtRaw` ×1 non-token (13b claim confirmed); real Iran page `derived.units` toponyms 0 under `ru-ua-v1` vs 8 under `iran-levant-v1` (WS3-F05).
 - Register written: `docs/reviews/WS-3-AUDIT-FINDING-REGISTER-2026-09-06.md` — 21 findings (2 major WS3-F01/F02, 9 minor, 10 note), 0 blocker, 0 revert; per-PR verdicts all merge-stands (#70 with a scheduling precondition; #73 with WS3-F04 before step 19 writes); six decisions listed for the operator; stale AGENTS.md lines listed for step 25. Disclosures: Fable 5.1 ran this step (prompt reserved it for 26); `.env.local` created by the session; cache read-only sample; no forbidden file opened. $0.
+## 2026-09-08 ~21:00Z — WS-4.2 reliability proofs on a Neon fork (#102/#103, G5) (planned block)
+
+1. Extend `src/integration/map-flood-bounds.itest.ts` with a reference-mass describe that drives
+   the three #102 overflow paths against the REAL `MAP_REF_ROW_CAP = 75_000` — no test-only cap
+   seam, no env override: shed-and-proceed, hard-cap refusal, shed exhaustion.
+2. Extend `src/integration/map-watch-signals.itest.ts` with an end-to-end `runMapWatchCheck` case
+   on real Postgres: detection → real slot throttle → cooldown dedup → recovery notice, with an
+   explicit `MapWatchConfig` isolating `map_timeouts`.
+3. Close register gap G5: run `runtime-logs.itest.ts` on the fork and add three CHARACTERIZATION
+   probes for WS2-F03 (NUL) and WS2-F26 (int4 overflow, 65,535-parameter bind cap) — measure the
+   documented failures, do not fix them (step 23 flips them).
+4. Discharge the LOG-DRAIN handoff: a runtime-log column in `scripts/audit-cron.ts` guarded on
+   `to_regclass('public.runtime_logs')` and tolerating an EMPTY table without changing verdicts.
+5. Run the three itest files in one `npm run test:integration` so they share a single fork;
+   typecheck + lint + unit suite green.
+6. Write `docs/reviews/RELIABILITY-PROOFS-2026-09-06.md` and update #102/#103/#93 status lines.
+
+**Execution (same block):**
+
+- Base `origin/main` **`6913c57`**; branch `48h/ws4-ops-20260905-reliability-proofs`; attended.
+  O3 signed (AGENTS.md, 2026-09-07) — cited, not re-litigated; no `AWAITING AUTHORIZATION` owed.
+- **#102 — all three overflow terminals fork-proven against the REAL `MAP_REF_ROW_CAP`,
+  with NO test-only seam and no env override.** One 75,100-row reference mass on `M = today−12`
+  (seeded server-side in 5,666 ms) plus candidate days chosen relative to `M` reaches
+  shed-and-proceed (`refShedDays=1`, `refShedCandidates=1`, `refRows=24,642` — the fork's own
+  density — shed candidate untouched), the hard-cap refusal (non-flood path, nothing can shed),
+  and shed exhaustion with an empty fresh segment. Both refusals assert zero writes and a
+  provider mock that was never called.
+- **#103 — `runMapWatchCheck` end-to-end on real Postgres:** real slot claim, real
+  `provider_state`, real signal queries; only clock and mail injected. Detection → throttle at
+  +1 s → cooldown dedup at +601 s → one RECOVERED notice at +1,202 s, state row asserted at each
+  step. The 2026-09-01 first-evaluation hotfix is exercised on real Postgres for the first time.
+- **Register gap G5 closed by measurement.** WS2-F03 confirmed as documented
+  (`invalid byte sequence for encoding "UTF8": 0x00`; the clean co-batched entry dies with the
+  poisoned one) and the int4 overflow likewise. WS2-F26 confirmed **with a refinement**: the
+  failure is a wire-protocol parameter-count wrap (5,462 × 12 = 65,544 ≡ 8 mod 65,536), not a
+  clean rejection — and it can never mis-bind silently. Boundary measured at 5,461 ok / 5,462
+  fails. All three are CHARACTERIZATION tests that step 23 inverts.
+- **LOG-DRAIN handoff discharged:** `scripts/audit-cron.ts` gains 24h runtime-log coverage
+  (including the `status_code = -1` crash signature) plus the §9(c) correlation join, guarded on
+  `to_regclass` (#111) and additive — an absent or empty `runtime_logs` changes no verdict.
+  `ceilingCaseSql` exported so the correlation window cannot drift from the #98 sweep's.
+- Tests: unit **4,082 / 270** unchanged, typecheck + lint clean; fork **28 passed / 3 files** in
+  93 s on `br-long-hat-at1048v9` (created and deleted by the harness). Integration count in
+  these three files 19 → 28. **Spend $0**, structural: the trimmed `.env.local` holds no
+  provider credential at all.
+- OPEN-TASKS #102 and #103 headers **downgraded to "fork-proven", not closed** — neither path
+  has fired naturally in production, and per O3 the preview-deployment drill stays follow-up.
+- Report: `docs/reviews/RELIABILITY-PROOFS-2026-09-06.md`. Proposed AGENTS.md decision-log entry
+  and two standing-text corrections are in its Handoff, not applied (write-lock).
