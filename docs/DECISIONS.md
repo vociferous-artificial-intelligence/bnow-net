@@ -6,9 +6,13 @@ preserves history; editing or summarizing entries does not and is forbidden. Ent
 here are never edited or deleted; a wrong entry is corrected by a new dated entry in
 the live log in AGENTS.md.
 
-Split as of **2026-09-05 (tenth archive pass, performed 2026-09-08 — a one-off deeper cut
-under D5's ceiling, see the AGENTS.md entry of that date)**: every entry dated before
-2026-09-05 lives here — 2026-07-04 through the 2026-09-04 entries. AGENTS.md keeps a rolling 7-day inline window (decision D5, 2026-09-05), which is
+Split as of **2026-09-10 (eleventh archive pass — a partial-day cut under D5's ceiling,
+see the AGENTS.md entry of that date)**: every entry dated before 2026-09-05 lives here —
+2026-07-04 through the 2026-09-04 entries — plus the eleven earliest 2026-09-05 entries
+(eval successor-plan step 1 authorization, D1, D2, D5, D6, D8, D9, E1, E3, D11, D12). The
+remaining 2026-09-05 entries (the program-authorization entry, the worktree-cleanup entry,
+and the 2026-08-17-branches-landed entry) stay inline in AGENTS.md, now its earliest
+entries. AGENTS.md keeps a rolling 7-day inline window (decision D5, 2026-09-05), which is
 what holds it under the 150,000-character tooling ceiling that decision also set.
 Durable versions of still-binding decisions live in AGENTS.md § Standing rulings. This
 preamble records where the split currently sits, so it is corrected on each pass; the
@@ -2915,3 +2919,80 @@ pass.
   against the decision log. `git diff 883e5e3 origin/main` is empty as of 2026-09-05, i.e.
   `origin/main` is `883e5e3`. No deploy accompanied this merge; production remains
   `dpl_6RN34UVHefQsvTfC2HM8Si5QnNmT` / `8a19ade`.
+
+- **2026-09-05 (eval successor-plan step 1 authorization + step-1A execution — as reported
+  by the operator)** No prior entry in this log records authorizing the eval successor plan's
+  "step 1" bounded run before it ran; the successor plan only PROPOSES it
+  (`docs/reviews/EVAL-SUCCESSOR-PLAN-2026-09-04.md:59-67`): a development-split,
+  capture-enabled, production-equivalent baseline run (gpt-4o-mini; `--dev --repetitions 3`;
+  `EVAL_CAPTURE_DIR` set, `EVAL_CAPTURE_RAW=1`, heldout raw NOT enabled) on the existing
+  disposable Neon branch, within `EVAL_USD_CAP_DAILY=2` and a campaign-local
+  `LLM_SPRINT_USD_CAP` the operator names, plus the human labelling/adjudication work.
+  Explicitly NOT authorized by that proposal: any heldout run, any scorer/gate/label change,
+  any candidate model, any deploy. The 48-hour program's decision sheet answers it at **D6**
+  ("Yes Authorize $0.50 to $2.00"; `docs/prompts/2026-09-05-48h-00-INDEX.md` §2), read as the
+  operator naming the campaign-local ceiling the plan left blank; the value chosen is $2.00
+  (see the D6 addendum entry below). The CTO roadmap handoff §1 states, as fact, that "Step 1A
+  (development-split, capture-enabled gpt-4o-mini baseline ×3 + blinded human-labeling packet)
+  executed 2026-09-05; artifacts live outside the repo in
+  `/Users/go/code/bnow-net-eval-successor-1a-20260904-artifacts/` (SHA manifests verified)."
+  This entry does NOT independently verify that execution — the reconciling session did not
+  open the artifacts folder (COMMON §3 forbids it) and ran nothing. It records the handoff's
+  claim as **reported by the operator's planning process**. If any detail differs from what
+  actually ran, a correcting entry is appended rather than this one edited.
+
+- **2026-09-05 (D1 — PR #48 outreach roster)** `docs/OUTREACH-ROSTER-2026-08-23.md` is
+  **removed from git**. The GO-NO-GO register is kept.
+
+- **2026-09-05 (D2 — provider ambition for WS-2)** Option **B is authorized now**: OpenAI plus
+  Anthropic, with `ANTHROPIC_API_KEY` added to `.env.local`, proceeding under the **same budget
+  envelope** as the OpenAI-only option A. Option C (local OpenAI-compatible models) is a
+  provisional yes but **deferred out of this development round** — not needed for at least two
+  weeks, on the condition it stays easy to add later. The routing seams therefore ship
+  B-complete and C-ready.
+
+- **2026-09-05 (D5 — AGENTS.md compaction approved, with a 150k-character ceiling)** The
+  AGENTS.md split is approved: inline window 7 days, strict date order restored when
+  reunifying, and — added by the operator as a binding additional constraint — **AGENTS.md
+  stays below 150,000 characters**, to avoid the "over the 150.0k-char limit" warning. Note
+  for step 15: AGENTS.md was 157,962 characters when this was first drafted (2026-09-05) and
+  is over 190,000 characters once these entries land — already past the ceiling, which step
+  15's compaction must clear.
+
+- **2026-09-05 (D6 — WS-1.1 capture-run spend authorization)** A campaign-local
+  `LLM_SPRINT_USD_CAP` in the range **$0.50 to $2.00** is authorized for the ≈18-map-call,
+  ≈$0.01 capture run, on condition that the summary report explains the cap's effect. See the
+  D6 addendum entry below for that explanation and the value set.
+
+- **2026-09-05 (D8 — credential confirmations)** `NEON_API_KEY`, `ANTHROPIC_API_KEY` and
+  `OPENAI_API_KEY` are confirmed working. **`VERCEL_TOKEN` is valid and correctly scoped to
+  the bnow-net project** — this supersedes `docs/BLOCKERS.md`'s stale "expired" framing and
+  narrows AGENTS.md's credentials-table reading of "expired but CLI-live". A later pass folds
+  the operator's exact wording (valid, restricted to the bnow-net project) into that table.
+
+- **2026-09-05 (D9 — injection-case authorship; already executed by the operator)** The six
+  development-split injection cases were authored by the operator directly, outside any agent
+  session, using the OpenAI model **Astra** run through OpenAI Codex. This satisfies the
+  requirement behind the original decision — the author must not have read the live heldout
+  `failures` strings — because no program session authored them. Step 07 therefore records the
+  cases as operator-authored and does not re-author them. The earlier ambiguity in the phrase
+  "Astra via openai key" is resolved: Astra is an OpenAI model, run in OpenAI Codex.
+
+- **2026-09-05 (E1 — injection-case dataset vehicle)** The injection cases land in a **new
+  dataset file `map-inj-dev-v1.json`**, not by pre-creating `map-v3.json`.
+
+- **2026-09-05 (E3 — exposure-ledger home)** The eval exposure ledger lives at
+  **`docs/reviews/EVAL-EXPOSURE-LEDGER.md`**, append-only, in dated sections.
+
+- **2026-09-05 (D11 — AGENTS.md standing-text correction authority)** The reconcile session
+  (step 01) **may correct AGENTS.md standing text** before step 15's compaction lands, and did
+  so under this authorization. One correction the operator named — replacing the VERCEL_TOKEN
+  wording in the credentials table with "working, restricted to the bnow-net project" — was
+  **not applied in that session** (out of its assigned scope) and is carried forward for step
+  15 or a later pass.
+
+- **2026-09-05 (D12 — model names in program documents)** Model names and model
+  recommendations are **allowed** in `docs/prompts/*`, `docs/reviews/*`, and this decision log,
+  following existing precedent. CLAUDE.md's commit-hygiene rule — no vendor branding in
+  commits, PRs, code, or code comments — is unaffected and remains binding. This decision only
+  confirms the existing docs-only precedent.
