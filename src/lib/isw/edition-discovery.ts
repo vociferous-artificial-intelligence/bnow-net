@@ -160,11 +160,15 @@ export type ProbeClass = "edition" | "clean_not_found" | "indeterminate";
 /** Why a day could not be resolved. RETURN SHAPE ONLY: `benchmark_series_days`
  *  keeps its two-value CHECK and this window adds no migration (D-a).
  *
- *  - `throttled`   — a 403 / 429 / ≥500 / no-response / undersized-200 probe.
- *  - `unparseable_body` — a body over MIN_REPORT_BYTES that declared no Key
- *    Takeaway at all (D-b). Kept distinct so the new indeterminate class does
- *    not re-conflate one level down: "the host would not talk to us" and
- *    "the host served something that is not a report" are different problems. */
+ *  - `throttled` — the host would not talk to us: 403, 429, ≥500, or no
+ *    response at all after politeFetch's own retries.
+ *  - `unparseable_body` — the host served something that is not a report:
+ *    D-b's >10 KB body with no declared Key Takeaway, and the UNDERSIZED 200,
+ *    which is the same problem one threshold earlier.
+ *
+ *  The split is what stops the new indeterminate class re-conflating one level
+ *  down, so each value must carry the whole of its own kind: an undersized 200
+ *  is not a transport failure and must not be reported as throttling. */
 export type DayStatusReason = "throttled" | "unparseable_body";
 
 export const DAY_STATUS_REASONS: readonly DayStatusReason[] = ["throttled", "unparseable_body"];
@@ -434,7 +438,11 @@ export async function discoverEditions(
       // `page === null` cannot survive classifyProbe as an edition (a null
       // page has a null status); the check is here so the narrowing is the
       // compiler's, not a comment's.
-      if (probeClass === "indeterminate") indeterminate.throttled += 1;
+      if (probeClass === "indeterminate") {
+        // an undersized 200 means the host ANSWERED with something unusable;
+        // everything else in this class means it would not answer at all
+        indeterminate[probe.status === 200 ? "unparseable_body" : "throttled"] += 1;
+      }
       continue;
     }
 
@@ -498,11 +506,19 @@ export async function discoverEditions(
   }
 
   const probeIndeterminate = indeterminate.throttled + indeterminate.unparseable_body;
-  // Identical to the shipped formula `probes.filter(p => !isCleanNotFound(p)).length
-  // - editions.length`, because a probe that is neither a clean 404 nor a
-  // REGISTERED edition is exactly an indeterminate one. Kept as its own name
-  // and its own field so the operational key and the semantic claim can drift
-  // apart later without a silent redefinition.
+  // The shipped FORMULA — `probes.filter(p => !isCleanNotFound(p)).length -
+  // editions.length` — evaluated against the post-D-b edition set, because a
+  // probe that is neither a clean 404 nor a REGISTERED edition is exactly an
+  // indeterminate one.
+  //
+  // NOT the shipped VALUE in every case, and the difference matters to a soak
+  // that predeclares against this counter: a >10 KB zero-unit body used to
+  // register as an edition and contribute 0 here; under D-b it registers
+  // nothing and contributes 1. That is the correct reading of the same rule
+  // once such a body stops being an edition, but it is a change.
+  //
+  // Kept as its own name and its own field so the operational key and the
+  // semantic claim can drift apart later without a silent redefinition.
   const probeFailures = probeIndeterminate;
   const probeIndeterminateReasons = { ...indeterminate };
 

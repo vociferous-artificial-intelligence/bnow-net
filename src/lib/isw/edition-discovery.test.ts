@@ -321,6 +321,10 @@ describe("discoverEditions — every shape probed, no collapse (C4)", () => {
     expect(out.editions).toEqual([]);
     expect(out.probeFailures).toBe(1);
     expect(out.dayStatus).toBe("probe_failed");
+    // the host ANSWERED with something unusable — a body problem, not a
+    // transport one, so it must not be reported as throttling
+    expect(out.dayStatusReason).toBe("unparseable_body");
+    expect(out.probeIndeterminateReasons).toEqual({ throttled: 0, unparseable_body: 1 });
   });
 });
 
@@ -331,7 +335,9 @@ describe("classifyProbe (WS3-F01 / #114: a 403 is INDETERMINATE, never a clean n
     expect(classifyProbe(probe(404))).toBe("clean_not_found");
     expect(classifyProbe(probe(200, MIN_REPORT_BYTES + 1))).toBe("edition");
     // the host's measured throttle response, plus every other outcome that
-    // leaves the shape's EXISTENCE unknown rather than disproved
+    // leaves the shape's EXISTENCE unknown rather than disproved. All of these
+    // report reason `throttled`; only a 200 the module cannot use reports
+    // `unparseable_body` (see the undersized-200 and oversize-zero-unit cases)
     for (const status of [403, 429, 500, 502, 503, null, 301, 302, 400, 418]) {
       expect(classifyProbe(probe(status)), String(status)).toBe("indeterminate");
     }
