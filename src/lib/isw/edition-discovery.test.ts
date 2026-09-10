@@ -279,14 +279,26 @@ describe("discoverEditions — every shape probed, no collapse (C4)", () => {
     expect(plain!.identity.cutoffAt).toBeNull();
   });
 
-  it("an oversize page with no takeaways is an edition with parse_status failed", async () => {
+  it("an oversize page with NO takeaways is not an edition at all (WS3-F03, D-b)", async () => {
+    // Was: "an oversize page with no takeaways is an edition with parse_status
+    // failed". D-b reverses it — the host's own error page measured 9,661
+    // bytes against a 10,000-byte threshold, so a template change is 340 bytes
+    // away from minting phantom editions that outrank real ones.
     const d = deps({ [U.special]: OVERSIZE_HTML });
     const out = await discoverEditions(d, "iran_update", DAY);
     expect(OVERSIZE_HTML.length).toBeGreaterThan(MIN_REPORT_BYTES);
-    expect(out.editions).toEqual([
-      expect.objectContaining({ label: "special", parseStatus: "failed", units: 0 }),
-    ]);
-    expect((await d.repo.getEdition(`iran_update:${DAY}:special`))!.derived).toEqual({});
+    expect(out.editions).toEqual([]);
+    expect(await d.repo.getEdition(`iran_update:${DAY}:special`)).toBeNull();
+    expect(out.dayStatus).toBe("probe_failed");
+    expect(out.dayStatusReason).toBe("unparseable_body");
+    expect(out.probeIndeterminateReasons).toEqual({ throttled: 0, unparseable_body: 1 });
+  });
+
+  it("every edition discovery registers is `parsed` — it can no longer mint a `failed` one", async () => {
+    const d = deps({ [U.evening]: EVENING_HTML, [U.morning]: MORNING_HTML, [U.plain]: OVERSIZE_HTML });
+    const out = await discoverEditions(d, "iran_update", DAY);
+    expect(out.editions.map((e) => e.parseStatus)).toEqual(["parsed", "parsed"]);
+    for (const e of out.editions) expect(e.units).toBeGreaterThan(0);
   });
 
   it("an UNDERSIZED 200 never registers an edition and is not a clean 404", async () => {
@@ -662,5 +674,50 @@ describe("runSeriesDiscovery — --dry measures FINALITY, not probe order (WS3-F
     expect(record.provider).toBe("isw");
     expect(record.designatedFinal).toBeNull();
     expect(JSON.stringify(record)).not.toContain("coastal facility");
+  });
+});
+
+
+describe("discoverEditions — a >10 KB non-report body is not an edition (WS3-F03, D-b)", () => {
+  // The step-18 register's reproduction R2, expectations INVERTED: at a7ba98b
+  // both cases asserted the phantom, which is what D-b removes.
+  it("does not clear a CONFIRMED publication_gap and never marks the day published", async () => {
+    const repo = new InMemoryReferenceReportRepository();
+    await repo.recordDayStatus("iran_update", DAY, "probe_failed");
+    await repo.recordDayStatus("iran_update", DAY, "publication_gap");
+
+    const out = await discoverEditions(deps({ [U.special]: OVERSIZE_HTML }, { repo }), "iran_update", DAY);
+    expect(OVERSIZE_HTML.length).toBeGreaterThan(MIN_REPORT_BYTES);
+    expect(out.editions).toEqual([]);
+    expect(out.dayStatus).toBe("publication_gap"); // was "published"
+    expect(out.dayStatusAction).toBe("kept_prior");
+    expect(await repo.dayStatus("iran_update", DAY)).toBe("publication_gap"); // the gap survives
+  });
+
+  it("a zero-unit body on a higher-ranked shape never outranks the REAL edition", async () => {
+    const d = deps({ [U.special]: IRAN_SPECIAL_HTML, [U.evening]: OVERSIZE_HTML });
+    const out = await discoverEditions(d, "iran_update", DAY);
+    expect(out.editions.map((e) => e.label)).toEqual(["special"]); // was [special, evening]
+    const sel = selectDailyFinal(await d.repo.editionsForDay("iran_update", DAY));
+    expect(sel.selected.identity.editionKey).toBe(`iran_update:${DAY}:special`); // was :evening
+    expect(sel.selected.parseStatus).toBe("parsed"); // was "failed"
+  });
+
+  it("the day is re-probed next run rather than frozen behind the phantom", async () => {
+    const repo = new InMemoryReferenceReportRepository();
+    const first = await discoverEditions(deps({ [U.evening]: OVERSIZE_HTML }, { repo }), "iran_update", DAY);
+    expect(first.dayStatus).toBe("probe_failed");
+    // the real evening report arrives on the next sweep
+    const second = await discoverEditions(deps({ [U.evening]: EVENING_HTML }, { repo }), "iran_update", DAY);
+    expect(second.editions.map((e) => e.label)).toEqual(["evening"]);
+    expect(second.editions[0].action).toBe("inserted"); // no phantom row to repair around
+    expect(second.dayStatus).toBe("published");
+  });
+
+  it("an unparseable body alongside a 403 reports the THROTTLE, the stronger unknown", async () => {
+    const d = deps({ [U.special]: OVERSIZE_HTML, [U.evening]: 403 });
+    const out = await discoverEditions(d, "iran_update", DAY);
+    expect(out.probeIndeterminateReasons).toEqual({ throttled: 1, unparseable_body: 1 });
+    expect(out.dayStatusReason).toBe("throttled");
   });
 });

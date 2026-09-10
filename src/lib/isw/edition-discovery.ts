@@ -36,6 +36,13 @@
 // shape return a clean 404, and only once the day is old enough that a late
 // publication is no longer plausible. See confirmGapEligible below for exactly
 // what that does and does not guarantee.
+//
+// AND EDITIONS ARE NEVER FABRICATED EITHER (D-b, 2026-09-09). A probe body is
+// an edition only if it clears MIN_REPORT_BYTES *and* declares at least one
+// Key Takeaway. Size alone is not evidence: the host's not-found page measured
+// 9,661 bytes against a 10,000-byte threshold. Anything else that comes back
+// over the wire is INDETERMINATE (classifyProbe), which is a statement about
+// our knowledge rather than about ISW's publishing.
 
 import { createHash } from "node:crypto";
 import {
@@ -109,7 +116,8 @@ export interface DiscoveredEdition {
   action: "inserted" | "unchanged" | "repaired";
   repairedFields: readonly EditionRepairedField[];
   parseStatus: EditionParseStatus;
-  /** how many declared units the page yielded (0 ⇒ parseStatus "failed") */
+  /** how many declared units the page yielded — always ≥ 1, because a
+   *  zero-unit body is not an edition (D-b) */
   units: number;
   /** isw_reports.id when link-only anchoring matched, else null (C5) */
   anchoredReportId: number | null;
@@ -396,6 +404,20 @@ export async function discoverEditions(
 
     const canonicalUrl = canonicalizeIswUrl(url);
     const units = unitSignaturesFrom(page.html);
+    if (units.length === 0) {
+      // D-b: a body over the threshold that declares no Key Takeaway is NOT an
+      // edition. The host's own not-found page measured 9,661 bytes against
+      // this 10,000-byte threshold — a template change 340 bytes wide would
+      // otherwise mint an edition that proves the day published, deletes a
+      // CONFIRMED publication_gap row, and can outrank the real report in
+      // selectDailyFinal (which ignores parseStatus). Counting it
+      // indeterminate keeps the day probe_failed and re-probes it next run.
+      // The accepted cost, recorded: a real-but-unparseable report is no
+      // longer stored for a later re-parse — the reason code is what records
+      // that a body was seen at all.
+      indeterminate.unparseable_body += 1;
+      continue;
+    }
     const anchors = editionAnchorsFrom(extractReportInstants(page.html, reportDate));
     const anchoredReportId = await anchorReportIdFor(deps.query, theater, reportDate, canonicalUrl);
 
@@ -418,9 +440,11 @@ export async function discoverEditions(
       designatedFinal: null,
       cutoffTreatment: anchors.cutoffTreatment,
       publishedTreatment: anchors.publishedTreatment,
-      parseStatus: units.length > 0 ? "parsed" : "failed",
+      // always `parsed`: a zero-unit body was refused above (D-b), so
+      // discovery can no longer mint a `failed` edition
+      parseStatus: "parsed",
       citationAnchorId: anchoredReportId,
-      derived: units.length > 0 ? { units, unitsVersion: EDITION_UNITS_VERSION } : {},
+      derived: { units, unitsVersion: EDITION_UNITS_VERSION },
     });
     const result = await deps.repo.upsertEdition(record);
 
