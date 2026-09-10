@@ -35,8 +35,8 @@ describe("migrationEndpointId", () => {
 });
 
 describe("assertMigrationTarget (#112 boundary guard)", () => {
-  it("refuses when the two names address different databases", () => {
-    expect(() => assertMigrationTarget(FORK, PROD)).toThrow(/name DIFFERENT databases/);
+  it("refuses when the two names address different endpoints", () => {
+    expect(() => assertMigrationTarget(FORK, PROD)).toThrow(/name DIFFERENT endpoints/);
     // the message names which one WOULD have been migrated — the unpooled one
     expect(() => assertMigrationTarget(FORK, PROD)).toThrow(/"ep-prod-aaa[^"]*" would be migrated/);
     expect(() => assertMigrationTarget(FORK, PROD)).toThrow(/OPEN-TASKS #112/);
@@ -45,6 +45,17 @@ describe("assertMigrationTarget (#112 boundary guard)", () => {
   it("allows the correct form: BOTH names set to the same target", () => {
     expect(() => assertMigrationTarget(FORK, FORK)).not.toThrow();
     expect(() => assertMigrationTarget(PROD, PROD_DIRECT)).not.toThrow(); // pooled + direct, one DB
+  });
+
+  it("compares ENDPOINTS, not databases: same endpoint, different database name, passes", () => {
+    // Stated as a known bound rather than left to be discovered. A fork and
+    // production are always different endpoints, so this is outside #112's hazard.
+    expect(() =>
+      assertMigrationTarget(
+        "postgres://u:p@ep-prod-aaa-pooler.us-east-2.aws.neon.tech/neondb",
+        "postgres://u:p@ep-prod-aaa.us-east-2.aws.neon.tech/scratch",
+      ),
+    ).not.toThrow();
   });
 
   it("allows a single name in play — there is nothing to disagree about", () => {
@@ -67,7 +78,7 @@ describe("scripts/migrate.ts refuses at the boundary, before any connection", ()
     const r = run({ DATABASE_URL: FORK, DATABASE_URL_UNPOOLED: PROD });
     const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
     expect(r.status).not.toBe(0);
-    expect(out).toContain("name DIFFERENT databases");
+    expect(out).toContain("name DIFFERENT endpoints");
     // it refused BEFORE the runner: no CREATE TABLE, no driver error, no DNS failure
     expect(out).not.toMatch(/applying \d|migrations up to date|ENOTFOUND|password authentication/);
   });

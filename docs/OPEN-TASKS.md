@@ -2260,6 +2260,23 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     | WS2-F60, F61, F63 | note | `scripts/map-remap.ts:186, :192-198, :215-223` | ack-guard edge cases | every one is in the FAIL-CLOSED direction (over-strict refusals, or an empty host that cannot match a real ack); a fix here can only loosen a guard, which is the wrong direction to take without a reason |
     | WS2-F65, F66, F67 | note | `answer.ts:574/:588`; the #67 report's ruling-4 sentence; `router.test.ts:45-66` | gate-resolution pin; an overstated "zero calls" claim; a moved G4 assertion | test-strength and report wording; F66/F67 wording → step 25 |
 
+    **Also deferred here — three same-class residuals the step-23 re-check found, which no
+    register finding names** (so they are recorded rather than fixed under a finding that does
+    not cover them):
+    (a) `src/lib/logs/drain.ts` `normalizeEntry` bounds `timestamp` only by
+    `Number.isNaN(new Date(ts))`, so `timestamp: 1e15` — a plain ms/µs unit confusion, not an
+    attack — yields `"+033658-09-27T01:46:40.000Z"`, an expanded-year ISO string handed to a
+    `timestamptz`. If PostgreSQL rejects that form it is exactly WS2-F03's shape (one entry
+    fails the whole multi-row INSERT). A sane range check beside the existing NaN check is two
+    lines; it was left out because WS2-F03 is scoped to NUL and int4.
+    (b) `scripts/map-backfill.ts:209` still prints `via ${opts.base}` verbatim — the same
+    credential-print class WS2-F29 fixed in `map-remap.ts`, in a different script the register
+    did not audit.
+    (c) `scripts/migrations-lib.ts`'s `assertMigrationTarget` compares Neon ENDPOINTS, so two
+    DSNs on one endpoint differing only in database name or role pass. Outside #112's hazard (a
+    fork and production are always different endpoints) and now stated in the docstring and
+    pinned by a test, but not closed.
+
     **Lane C — WS-3 register (#78).**
 
     | id | sev | where | remediation | why deferred |

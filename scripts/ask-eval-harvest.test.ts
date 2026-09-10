@@ -50,8 +50,14 @@ describe("ask-eval-harvest --generate refuses the offline configurations (WS2-F1
   });
 
   it("neither refusal fires for an ordinary configuration (it stops later, on its own terms)", () => {
+    // Guards against an UNCONDITIONAL refusal, so the two cases above cannot be
+    // satisfied by a check that always fires. The run still exits 2 — on the
+    // blank OPENAI_API_KEY, one gate later — which is what pins that the new
+    // checks did not simply swallow the pre-existing one.
     const r = run({});
     expect(r.out).not.toContain("LLM_DISABLE=1");
     expect(r.out).not.toContain("ANALYSIS_PROVIDER=stub is the offline switch");
+    expect(r.status).toBe(2);
+    expect(r.out).toContain("OPENAI_API_KEY not set");
   });
 });

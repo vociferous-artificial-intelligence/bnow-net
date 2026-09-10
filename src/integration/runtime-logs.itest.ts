@@ -379,11 +379,14 @@ describe("G5: the hardened receiver stores what used to poison the whole batch",
   });
 
   it("WS2-F26: LOG_DRAIN_MAX_ROWS can no longer configure a batch past the 65,535-parameter cap", async () => {
-    // The boundary itself is unchanged and still measured here: 12 bind
-    // parameters per row in ONE statement, so 5,462 rows is 65,544 parameters
-    // and PostgreSQL refuses the Bind message. What changed is REACHABILITY —
-    // maxRows() now clamps, so no configuration can hand insertRuntimeLogs a
-    // batch that large.
+    // The boundary itself is unchanged: 12 bind parameters per row in ONE
+    // statement, so 5,462 rows is 65,544 parameters and PostgreSQL refuses the
+    // Bind message. Step 21 MEASURED that against a real database; this case no
+    // longer re-measures it (a clamped maxRows can no longer produce such a
+    // batch, which is the point) and asserts it arithmetically instead — the
+    // measurement of record is the step-21 characterization run, not this line.
+    // What this case proves is REACHABILITY: no configuration can hand
+    // insertRuntimeLogs a batch that large, and the clamped ceiling stores.
     const saved = process.env.LOG_DRAIN_MAX_ROWS;
     try {
       for (const over of ["5462", "65536", "1000000"]) {

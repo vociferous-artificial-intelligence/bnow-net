@@ -23,7 +23,13 @@ export function migrationEndpointId(dsn: string): string {
   }
 }
 
-/** Refuse when the two DSN variables name DIFFERENT databases (OPEN-TASKS #112).
+/** Refuse when the two DSN variables name DIFFERENT Neon ENDPOINTS (OPEN-TASKS #112).
+ *
+ *  Endpoint, not database: the comparison is host-only, so two DSNs on the same
+ *  endpoint that differ in database name or role compare EQUAL and pass. That is
+ *  outside this guard's hazard — a fork and production are always different
+ *  endpoints — but it is what the function actually checks, so it is what the
+ *  name and this docstring say.
  *
  *  `scripts/migrate.ts` reads `DATABASE_URL_UNPOOLED ?? DATABASE_URL`, and
  *  `scripts/env.ts` loads `.env.local` with dotenv, which declines to overwrite a
@@ -49,7 +55,7 @@ export function assertMigrationTarget(
   const b = migrationEndpointId(unpooled);
   if (a === b) return;
   throw new Error(
-    `migrate: DATABASE_URL and DATABASE_URL_UNPOOLED name DIFFERENT databases ` +
+    `migrate: DATABASE_URL and DATABASE_URL_UNPOOLED name DIFFERENT endpoints ` +
       `("${b}" would be migrated; "${a}" was also named) — refusing.\n` +
       `If this is deliberate, set BOTH to the target: ` +
       `DATABASE_URL="$TARGET" DATABASE_URL_UNPOOLED="$TARGET" npx tsx scripts/migrate.ts\n` +

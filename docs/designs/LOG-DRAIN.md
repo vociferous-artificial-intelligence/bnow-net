@@ -415,7 +415,7 @@ Concretely:
    registering a drain against a database with no `runtime_logs` table is not:
    every signed delivery reaches `insertRuntimeLogs`, throws, returns 500 (the one
    retryable status), Vercel retries it, and the errored-drain notification fires.
-3b. **Apply migration 0029 — its own step, BEFORE step 4.** From the release
+   **3b. Apply migration 0029 — its own step, BEFORE step 4.** From the release
    clone: take the Neon backup branch first (RELEASE-CHECKLIST step 11, precedent
    `backup-pre-iran-recovery-2026-08-15` / `br-polished-block-atu0r968`), then
    `npm run db:migrate`, then confirm the marker landed:
