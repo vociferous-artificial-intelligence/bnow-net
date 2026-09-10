@@ -861,7 +861,16 @@ accepted). No new decision is proposed.
    `scripts/env.ts` refills an ABSENT name from `.env.local` (#112); and each blanks
    `OPENAI_API_KEY`, so a regression cannot turn one into a paid call. The F05 case targets
    an RFC 2606 `.invalid` host, so even a fully inert guard cannot reach a deployment.
-6. **`#67`'s report and `#64`'s design/review were edited by this lane.** Both edits are
+6. **A `guard.record()` failure now turns a billed legacy answer into an error response.**
+   `record()` sits inside the existing `try`, so a `provider_usage` write failure is caught
+   by the existing catch and returns provider `"error"` / "Query failed". This is
+   **deliberate, and it is exactly what the v2 path already does** — `openai.ts:42-74` is
+   the shape this fix mirrors line for line (`init` → `tryReserve` → dispatch → `record`
+   before reading the body), and a throw there propagates the same way. Making the legacy
+   path swallow a metering failure would give it bespoke error handling the guarded path
+   does not have, which is the opposite of what a byte-faithful rollback should do. Worth
+   knowing, not worth diverging over.
+7. **`#67`'s report and `#64`'s design/review were edited by this lane.** Both edits are
    dated, marked as corrections, and leave the original sentence visible. That is deliberate:
    a report is a record, and silently rewriting one destroys the audit trail the register
    depends on.
