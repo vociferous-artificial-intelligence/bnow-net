@@ -5057,3 +5057,24 @@ Execution (same block):
    WS3-F01/403-throttling correction to any threshold predeclared against `probe_failed`.
 5. Gates green, closing report `docs/reviews/WS-3-5-SCOREBOARD-AND-SOAK-PREP-2026-09-07.md`.
    No flag on, no env named as set, `git diff vercel.json` empty, $0.
+
+**Execution (same block, 2026-09-10):**
+
+- Base `origin/main` `23b5d7a`. Lane C's WS3-F01/F02/F03/F05/F07 verified PRESENT on `main`
+  (prompt item 6 resolves to the "fixes landed" branch), so the checklist lists them as
+  fixed-in-code with a residual enablement measurement rather than as open blockers.
+- **PR #95** `…-conflict-observations-view`: `db-product-view.ts` (+ test) with C4 resolved at
+  read time; `benchmark-key.ts` (+ test); `evidence-row.ts` / `result-summary.ts` /
+  `product-slugs.ts` extracted from the fixture provider so ruling 3 holds by module graph;
+  the four `/conflicts/**` pages swapped off fixtures; `soak-eligibility-banner.tsx` and
+  `observation-day-list.tsx` added; `synthetic-banner.tsx` and `benchmark-run-list.tsx` deleted;
+  live claim/source join for the gated evidence tier; `robots.ts`; the C10 relabel in all seven
+  catalogs with the flag-guarded reciprocal link; `conflict-feature-off.itest.ts` seeded.
+- **PR #96** `…-soak-prep`: `docs/reviews/CONFLICT-SHADOW-SOAK-ENABLEMENT-2026-09-07.md`.
+- Gates: unit **4,557/290 → 4,599/293**, typecheck clean, lint clean (3 pre-existing warnings),
+  fork itest **25/25** on `br-patient-bar-ath7n7n8` (created and deleted by the runner).
+- `git diff vercel.json` empty; no env named as set; no flag on; **$0**.
+- Three decisions raised, none taken: the C13-versus-public-teaser gate at flag-on (recommend
+  landing `compound-v1` first), the sample-power sizing correction the measured `probe_failed`
+  finding forces, and whether `first_observed_at` should be scheduled proactively (recommend hold).
+- Closing report: `docs/reviews/WS-3-5-SCOREBOARD-AND-SOAK-PREP-2026-09-07.md`.
