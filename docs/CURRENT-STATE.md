@@ -5,7 +5,7 @@ this file is **not append-only**: correct it in place whenever live product, ope
 deployment, test, credential, or repository state changes. Historical narrative belongs in
 `PROGRESS.md`, review notes, and `DECISIONS.md`.
 
-## Current state — snapshot (verified through 2026-09-03 for production, 2026-09-05 for
+## Current state — snapshot (verified through 2026-09-03 for production, 2026-09-10 for
 `main`; correct in place when it changes)
 
 Live at **https://bnow.net** (Vercel project `bnow-net`, team `vociferous`;
@@ -26,16 +26,29 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   previously deployed `a4ed5cb`, so `main` == production held at deploy time. No
   migration, no flag, no cron, no other env change. Verification limits recorded in
   the 2026-09-03 decision-log entry (Production/Preview sprint values are
-  sensitive-type secrets the CLI cannot read back). **`main` has since moved to
-  `883e5e3` (2026-09-04, corrected 2026-09-05): PR #45 `9854626` (eval opt-in
-  capture + interrupted-attempt accounting) then PR #46 merge `883e5e3`
-  (validation live-evaluation five-vote parity) — both are eval-plane-only
-  (`src/lib/evals/`, the eval CLI, and a pure extraction in
-  `src/lib/validation/llm-match.ts` that production's own `llmMatchTakeaways`
-  now also calls, behavior-unchanged and test-pinned), reachable from no
-  scheduled route. `main` != production as of 2026-09-05; no redeploy has
-  occurred or is scheduled for these PRs. PRs #47/#48 are open on top of
-  `883e5e3`, pending decision D1 (the #48 outreach-roster disposition).**
+  sensitive-type secrets the CLI cannot read back). **`main` has since moved far
+  past `883e5e3` (corrected 2026-09-10).** PR #45 (`9854626`) and PR #46 (merge
+  `883e5e3`, 2026-09-04) were eval-plane-only (five-vote validation parity +
+  capture accounting). PRs #47/#48 landed 2026-09-08 as squashed re-lands
+  (`8cff524`/`ac91519`, the D1 outreach-roster removal). From 2026-09-05 the
+  48-hour execution program (`docs/prompts/2026-09-05-48h-00-INDEX.md`) then
+  merged **48 further PRs, #49–#96**, delivering: the analysis-model routing
+  matrix generalized to a (workload, provider, model, effort) dimension with a
+  dormant Anthropic `digest` seam (see the Model routing bullet below);
+  validation-by-conflict infrastructure (migrations 0028–0030, an Iran/Levant
+  gazetteer, a live conflict-observation pipeline behind the still-unscheduled
+  `conflict-validate` route, a DB-backed `/conflicts/**` read model — see the
+  Validation bullet below); reliability proofs downgrading #102/#103 from
+  synthetic to fork-proven, and a built-but-unregistered log-drain receiver
+  (#93); ICS 206-01/ICD 203 "tradecraft legibility" — citation mode with its
+  AI-tool disclosure built and dark (T4), templated source descriptors, and a
+  corroboration-derived confidence presentation layer; and two adversarial-audit
+  remediation passes. **None of it is deployed or scheduled to deploy** —
+  production is still `8a19ade` (this bullet), migrations 0028–0030 exist only
+  on `main` (production stays at 0027 applied), `CONFLICTS_UI` and every new cap
+  env are absent from every Vercel environment. Full accounting:
+  `docs/reviews/PROGRAM-48H-DOCS-SYNC-2026-09-07.md` and the AGENTS.md decision
+  log's 2026-09-05 through 2026-09-10 entries.
 
 - **2026-08-31/09-01 map-flood incident response + #97 embed/validate release
   (previous release, carried forward):** production was **`dpl_Bya68YX6a3GaDQe1LnYyMo1YhHkh`**
@@ -135,6 +148,44 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   2026-09-01T13:35Z at ~$1.09/day burn; now ~42% of the raised all-time cap with
   ~2.5 months of runway; `docs/reviews/OPERATOR-DECISION-PACKET-2026-08-28.md` §1
   option (a), daily raise beyond it by explicit operator choice).
+
+- **48-hour execution program deliverables — on `main` only, NOT deployed (2026-09-05
+  through 2026-09-10; new section, added by this docs-sync step).** Three subsystems that
+  previously had no dedicated bullet in this file:
+  **(1) Eval control plane, generalized to a provider dimension (steps 12/20).** The
+  offline/live eval CLI (`scripts/analysis-eval.ts`) gained a `--provider` flag;
+  `EVAL_DISPATCHABLE_PROVIDERS` is now `["openai", "anthropic"]` (any sentence elsewhere
+  saying it is `["openai"]` alone is stale), with provider-qualified `configKey`s and
+  dispatch identities so an eval result can never conflate two vendors under one cache
+  key. The offline-results identity is decoupled from the live `analysis-reg-v1` registry
+  constant (R2), so a future registry-version bump does not force a rewrite of committed
+  `docs/evals/analysis/results/*.json` files. Still zero non-OpenAI registry approvals
+  and zero `EVAL_*` env in any Vercel environment — live/paid evaluation stays impossible
+  in production, unchanged.
+  **(2) WS-7 "tradecraft legibility" — ICS 206-01 / ICD 203 (steps 29–34), presentation
+  only, no new judgment.** A fifth digest copy mode, `citation`, renders an ICS 206-01
+  style artifact carrying T2's "Accessed (BNOW ingest)" access date; its AI-tool
+  disclosure (which model/vendor did the extraction and synthesis) is built but rendered
+  on NO surface today, gated by a per-tier policy function with an empty entitled set
+  (decision T4 — no market signal yet, and the billing-entitlement module this would key
+  off does not exist). Templated source descriptors (`src/lib/tradecraft/descriptor.ts`)
+  and a per-digest source summary render on the digest page and the admin registry;
+  neither reads `claims.confidence` or `sources.reliability_score` (#14/#56 untouched). A
+  corroboration-derived confidence + ICD 203 likelihood band
+  (`src/lib/tradecraft/estimative.ts`, `ESTIMATIVE_MAP_V1`, versioned) renders beside the
+  hedging label on digest/search/signals/ask claim rows — pure presentation over existing
+  hedging + evidence-independence counts, zero runtime imports, cannot leak the
+  reliability moat. Public `/methodology` (PR #69) now documents the crosswalk
+  qualitatively, still withholding the numeric hedging-weight constants (T5).
+  **(3) Reliability: log drain built-not-registered; #102/#103 downgraded to fork-proven
+  (steps 16/21).** `/api/logs/drain` + `runtime_logs` (migration 0029) exist in code and
+  are INERT with `LOG_DRAIN_SECRET` unset — no Vercel drain has been registered (#93 stays
+  open until both happen). `scripts/audit-cron.ts` now prints a runtime-log coverage
+  section, guarded so an absent/empty table changes no verdict. #102 (map flood
+  shed/refusal) and #103 (map watchdog detection) both moved from "deployed, proofs
+  synthetic" to "deployed, proofs FORK-PROVEN on real Postgres" (O3) — neither has fired
+  NATURALLY in production since deploy, so both OPEN-TASKS headers stay open pending that.
+  Full accounting of all three: `docs/reviews/PROGRAM-48H-DOCS-SYNC-2026-09-07.md`.
 
 - **OpenSanctions match-safety release (2026-07-22):** release commit `441ee09`
   (original deploy `dpl_E5ysiLJSg1ynNmqJkgmpDjrzZD32`, then the 2026-08-14 env-only
@@ -300,21 +351,30 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   truncation-split path (#96) — is the authoritative loss signal. TTL is
   `MAP_LEASE_TTL_SEC`, default 120s clamped to [30,600], and is NOT set in any Vercel
   environment.
-- **Map remap operator (OPEN-TASKS #33) — DEPLOYED, NEVER EXECUTED.**
-  `scripts/map-remap.ts` plus remap mode in `runMapCycle` shipped in the same release:
-  dry-run-first, resumable, lease-safe, route-capability-gated, fail-closed on every
-  numeric flag, checkpoint bound to extractor versions AND route target, structurally
-  incapable of writing `raw_documents.processed` or of deleting/rewriting historical
-  `doc_claims`. It has NEVER been run against production or any deployed route, so remap
-  is NOT production-proven and no yield, cost or completion figure for it exists. The MAP
-  activation hard lock is untouched: only the baseline `gpt-4o-mini`/no-effort
-  configuration can dispatch, which makes this a prompt-revision tool until an operator
-  authorizes an activation — which additionally needs an executed, costed corpus remap
-  and a paid representative scorecard (#81). NOTE (corrected 2026-08-24): the stall-bound
-  objection is GONE — #86 is CLOSED (map micro-batch rejection **56.8% → 0.0%**, held for
-  767 consecutive batches across the 24-cycle recovery window), so the driver's 3-call
-  stall bound no longer trips on batch rejections. Remap remains unexecuted and
-  unauthorized for every other reason.
+- **Map remap operator (OPEN-TASKS #33) — DEPLOYED, NEVER RUN AGAINST PRODUCTION;
+  EXECUTED ON A FORK 2026-09-08 (corrected 2026-09-10; the fork work is on `main`, not
+  deployed).** `scripts/map-remap.ts` plus remap mode in `runMapCycle` shipped in the
+  2026-08-21 release: dry-run-first, resumable, lease-safe, route-capability-gated,
+  fail-closed on every numeric flag, checkpoint bound to extractor versions AND route
+  target, structurally incapable of writing `raw_documents.processed` or of
+  deleting/rewriting historical `doc_claims`. **Still true of the deployed production
+  build:** it has NEVER been run against production or any deployed route, so remap is
+  NOT production-proven there, and the MAP activation hard lock is untouched — only the
+  baseline `gpt-4o-mini`/no-effort configuration can dispatch. NOTE (corrected
+  2026-08-24): the stall-bound objection is GONE — #86 is CLOSED (map micro-batch
+  rejection **56.8% → 0.0%**, held for 767 consecutive batches), so the driver's 3-call
+  stall bound no longer trips on batch rejections. **New on `main` (2026-09-08, under
+  signed D7/R4, not deployed):** the driver was EXECUTED in `--execute` mode for the
+  first time, against a disposable Neon fork bound to a local `next start`, for one
+  (theater=ir, track=military, day=2026-08-25): 701 doc-track pairs attempted, 382 claims
+  written, $0.046263 actual against $0.0765 modelled — measured **$0.0660 per 1,000
+  doc-track pairs**, the estimator conservative by 1.65×. Sweep-completion (24 drain + 24
+  confirming sweeps returning zero pairs) and no-rebill (checkpoint file deleted,
+  identical re-run cost $0.0000, `doc_map_state` unchanged) were both proven on real
+  data; the other five live (theater, track) pairs and the full epoch range remain
+  modelled only ($36 upper band; ≈$22.4 projected at the measured rate). Activation still
+  additionally needs a paid representative scorecard (#81) and explicit operator
+  authorization. Record: `docs/reviews/MAP-REMAP-RUNBOOK-2026-09-06.md` §19.
 - **Model routing (PR #5 — LIVE in production since 2026-08-20, first carried by
   `dpl_GH6UWFojKPEgPrhBiT7utPBPnQBJ` / `7336b9c`, 24h formal soak CLOSED PASS 2026-08-21;
   carried forward through the `143964a` release-train build and its successors):** `src/lib/llm/model-config.ts`
@@ -346,6 +406,16 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   combinations and matches all six live production pairs in `doc_claims`
   (ru+ua military `d73cc83ed8df`, ru+ir elite_politics `15a6078371bd`, ir military
   `75e0ff6403db`, ir nuclear `19c06260f149`).
+  **On `main` (2026-09-08, NOT deployed):** this seam gains a (provider, model, effort)
+  dimension — `src/lib/llm/providers.ts` allowlists providers per workload, `{openai}`
+  everywhere except `digest`, which is `{openai, anthropic}`; a new `anthropic_digest`
+  SpendGuard row metered under the existing `LLM_SPRINT_USD_CAP`/`LLM_DIGEST_USD_CAP`
+  envelope (decision R6, no new env); `claude-haiku-4-5-20251001` ($1/$5) and
+  `claude-sonnet-5` ($2/$10) are priced (R7/R7-b). `mapreduceProviderTag()` was made
+  provider-aware in the same change, so a Claude-synthesized digest can never be
+  mis-stamped `openai:…`. **Still fully dormant:** zero `analysis-reg-v1` approvals exist
+  for Anthropic — every Anthropic dispatch refuses before any reservation — and no
+  routing env for either provider exists in any Vercel environment.
 - **Digests — two engines behind `DIGEST_ENGINE`; prod is FLIPPED to `mapreduce`
   (2026-07-09; code default is still legacy when the env is unset, which is the
   rollback):** legacy = the 100-doc batch extraction (source-mix quota, ladder);
@@ -396,6 +466,30 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
 - **Validation vs ISW:** majority-vote LLM matching (k=5, 26/27 reproducible across
   reruns), keyword gazetteer as no-key fallback; ISW report auto-discovery by slug.
   Coverage avg ~17.5% (nonzero-day ~31%), median info-lead +14.7h (2026-07-05 backtest).
+  This per-country pipeline, `validation_runs`, and the public `/scoreboard` numbers are
+  BYTE-IDENTICAL through the whole 48-hour program (D4/C2) — none of what follows changes
+  them. **New, on `main` only, NOT deployed (2026-09-05→10, decisions D3/D4/C1–C15,
+  N1–N3):** a parallel conflict-keyed validation plane. Two new tables (migrations 0028
+  `benchmark_report_editions`+`benchmark_series_days`, 0030
+  `conflict_validation_observations`; `isw_reports` itself untouched) back a versioned
+  `CONFLICT_REGISTRY` (ROCA=ru+ua, Iran/Levant) scored via a NEW, still-UNSCHEDULED
+  `/api/cron/conflict-validate` route: discovery records every edition of a day,
+  `selectDailyFinal` (C4) picks the day's winner at read time, and the score is a
+  denominator of every declared Key Takeaway (C3). A shadow LLM matcher metering on its
+  own `llm_conflict_match` row (never production's `llm_match`) fails closed on an unset
+  `CONFLICT_MATCH_USD_CAP_DAILY`. Every observation stamps `unit-flags-v0` (C13), whose
+  `compound` derivation is deliberately UNDER-attested — no number produced under it may
+  reach a public surface. A DB-backed read model (`db-product-view.ts`) now serves the
+  flag-gated `/conflicts/**` pages for real (`CONFLICTS_UI` still absent everywhere, so
+  every route still 404s); `/scoreboard`'s country rows are relabeled "evidence lenses" in
+  copy only, numbers unchanged. A read-only production probe (C5-m, run twice) found the
+  citation anchor sits on the NON-final edition on 1 of 8 measured multi-edition days, and
+  that understandingwar.org throttles to clean 404s after ~20 requests, turning real pages
+  into false `probe_failed` — both now-labelled `probeIndeterminate`/`unavailable` rather
+  than silently miscounted. Full account: the AGENTS.md decision log's C1–C15/D-a…D-f
+  entries and `docs/reviews/WS-3-5-SCOREBOARD-AND-SOAK-PREP-2026-09-07.md` (the WS-3.6
+  enablement checklist, still gated on landing `compound-v1`, source-independence and
+  sample-power work before any soak).
 - **Surface:** landing (**nav restructured 2026-07-12 IA refinement: Coverage ▾ | Signals |
   Ask | Solutions ▾ | Validation | Pricing — Product group retired, Signals+Ask promoted
   top-level, Solutions>signals duplicate dropped; every route has exactly one nav path; robots.txt
@@ -596,14 +690,17 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   Signals proof; optional analytics was left off and persisted `denied`. It remains the standing
   verification identity and was signed back out after the proof. Evidence:
   `docs/reviews/POSTHOG-ANALYTICS-IMPLEMENTATION-NOTE-2026-07-14.md`.
-- **Tests:** **3,451 unit tests / 239 files** green (`npm test`, typecheck clean,
-  lint 0 errors with 3 pre-existing unused-var warnings in test files — measured
-  2026-08-29 on the release clone at `6ba72b5`, whose tree is byte-identical to the
-  reviewed PR #35 head `f3d45b4`) + **155/155** Neon-branch integration tests /
-  **23 files** (PR #35 ran the full suite twice on disposable production forks with
-  zero paid calls; the fork is deleted after each run). Historical authoritative
-  gates: 3,421/239 on `bf0061b` (2026-08-28); 3,329/231 + 151/21 on the 2026-08-24
-  release-train tree `e359c61`.
+- **Tests (production tree, `8a19ade`):** **3,451 unit tests / 239 files** green
+  (`npm test`, typecheck clean, lint 0 errors with 3 pre-existing unused-var warnings in
+  test files — measured 2026-08-29 on the release clone at `6ba72b5`, whose tree is
+  byte-identical to the reviewed PR #35 head `f3d45b4`) + **155/155** Neon-branch
+  integration tests / **23 files** (PR #35 ran the full suite twice on disposable
+  production forks with zero paid calls; the fork is deleted after each run). Historical
+  authoritative gates: 3,421/239 on `bf0061b` (2026-08-28); 3,329/231 + 151/21 on the
+  2026-08-24 release-train tree `e359c61`. **`main` (NOT deployed, measured 2026-09-10 on
+  `619986c` at the close of the 48-hour program's Stage 3): 4,599 unit tests / 293 files,
+  typecheck + lint clean.** Integration tests ran per-PR on disposable Neon forks
+  throughout the program; no single aggregate count is current across the ~50 merged PRs.
   The saved `NEON_API_KEY` works (disposable branches created and deleted cleanly). CI
   mirror: `.github/workflows/ci.yml`; the enforced pre-push gate is `.githooks/pre-push`
   (typecheck+lint+test), which does not include the integration suite.
@@ -635,8 +732,9 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   lease ← `7336b9c` PR #5 routing seams ← `9c5e9cb` Candidate B ← `26989f7` Iran
   recovery.
   Command:
-  `npx vercel@latest deploy --prod --yes` via the machine CLI session
-  (`VERCEL_TOKEN` is expired; regen is an operator task, SETUP-NEXT-WEEK #2). Note: a CLI
+  `npx vercel@latest deploy --prod --yes` via the machine CLI session (`VERCEL_TOKEN`
+  is working, correctly scoped to the bnow-net project — D8/D11, 2026-09-05, corrects the
+  earlier "expired" reading). Note: a CLI
   deploy from a git WORKTREE ships no git metadata (`.git` is a file there) and renders an
   EMPTY `/health` commit stamp — verify those via `data-dpl-id` (OPEN-TASKS #78).
 - **This Mac (the WSL2 box is history):** no DNS pin needed — `api.openai.com`,
@@ -654,12 +752,16 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   2026-08-24 release train (`143964a`, eleven PRs #12–#22 + docs, per
   `docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md`). As of 2026-09-03: zero open
   PRs; `origin/main` is `8a19ade` (the 2026-09-01 docs-only closeout merge atop
-  `a4ed5cb`) = the deployed production commit. **Corrected 2026-09-05: `origin/main`
-  has since advanced to `883e5e3`** via PR #45 (`9854626`, eval capture/accounting)
-  and PR #46 (merge `883e5e3`, validation eval five-vote parity) — both eval-plane-only,
-  neither deployed; PRs #47 and #48 are open on top of it (docs-only branch landings +
-  operator notes, pending the D1 outreach-roster decision). `origin/main` no longer
-  equals the deployed production commit as of 2026-09-05. The
+  `a4ed5cb`) = the deployed production commit. **Corrected 2026-09-10 (superseding the
+  2026-09-05 correction, which is now itself stale):** `origin/main` moved to `883e5e3`
+  via PR #45/#46 (eval-plane-only), then PRs #47/#48 landed 2026-09-08 as squashed
+  re-lands, then the 2026-09-05 48-hour execution program merged **48 further PRs,
+  #49–#96** — `origin/main` is now `619986c` (Stage 3's close, before this docs-sync
+  step's own commits). `gh pr list --state open` is **empty**: every PR this program
+  opened is merged. `origin/main` has not equalled the deployed production commit
+  (`8a19ade`) since 2026-09-04, and the gap is now ~50 PRs wide, not two. See the
+  Current-state snapshot bullet at the top of this file and
+  `docs/reviews/PROGRAM-48H-DOCS-SYNC-2026-09-07.md` for the full accounting. The
   parked audit/integration branches (`codex/quality-foundation-*`,
   `codex/conflict-evaluations-*`, p0–p7) remain retained provenance contained in
   `main`; the one unmerged remote branch is `codex/paddle-onboarding-page` (a
