@@ -198,6 +198,113 @@ describe("ask() — legacy pipeline (ASK_PIPELINE=legacy, faithful rollback)", (
     expect(res.answerModel).toBeUndefined();
   });
 
+  // ---- WS2-F06 / OPEN-TASKS #110: the rollback path is a PAID dispatch ----------
+  // Before the fix legacyAnswer reached openaiLegacyChatCompletion with no
+  // askGuardFromEnv(), no init(), no tryReserve() and no record(): ruling 4's
+  // "every paid-provider call passes tryReserve() first and FAILS CLOSED when its
+  // total-cap env is unset" did not hold for the one configuration the operator is
+  // told to roll back to.
+
+  it("reserves BEFORE the dispatch and records AFTER it (ruling 4 + ruling 8)", async () => {
+    vi.stubEnv("ASK_PIPELINE", "legacy");
+    vi.stubEnv("OPENAI_API_KEY", "sk-test");
+    vi.stubEnv("ANALYSIS_PROVIDER", "");
+    vi.stubEnv("LLM_DISABLE", "");
+    vi.stubEnv("OPENAI_MODEL", undefined);
+    mocks.retrieveMock.mockResolvedValue({
+      claims: [{ claimId: 1, text: "A strike hit the depot", hedging: "reported", claimDate: "2026-07-05", countryIso2: "ru", track: null, entities: [] }],
+      entities: [],
+      terms: ["strike"],
+    });
+
+    const order: string[] = [];
+    mocks.guard.init.mockImplementation(async () => void order.push("init"));
+    mocks.guard.tryReserve.mockImplementation(() => {
+      order.push("tryReserve");
+      return { ok: true };
+    });
+    mocks.guard.record.mockImplementation(async () => void order.push("record"));
+    mocks.createMock.mockImplementation(async () => {
+      order.push("create");
+      return completion({ content: "A strike occurred [c1].", promptTokens: 100, completionTokens: 20 });
+    });
+
+    const res = await ask("what strikes happened?");
+
+    expect(order).toEqual(["init", "tryReserve", "create", "record"]);
+    expect(mocks.guard.tryReserve).toHaveBeenCalledTimes(1);
+    expect(mocks.guard.record).toHaveBeenCalledTimes(1);
+    expect(mocks.guard.record).toHaveBeenCalledWith(1, 120, estimateCostUsd("gpt-4o-mini", 100, 20));
+    expect(res.provider).toBe("openai:gpt-4o-mini");
+  });
+
+  it("a refusing guard degrades to the deterministic cited-claims answer and never dispatches", async () => {
+    vi.stubEnv("ASK_PIPELINE", "legacy");
+    vi.stubEnv("OPENAI_API_KEY", "sk-test");
+    vi.stubEnv("ANALYSIS_PROVIDER", "");
+    vi.stubEnv("LLM_DISABLE", "");
+    mocks.retrieveMock.mockResolvedValue({
+      claims: [
+        { claimId: 1, text: "A strike hit the depot", hedging: "reported", claimDate: "2026-07-05", countryIso2: "ru", track: null, entities: [] },
+        { claimId: 2, text: "A second strike followed", hedging: "reported", claimDate: "2026-07-05", countryIso2: "ru", track: null, entities: [] },
+      ],
+      entities: [],
+      terms: ["strike"],
+    });
+    mocks.guard.tryReserve.mockReturnValue({ ok: false, code: "cap_unset", reason: "openai_ask: total cap env unset — failing closed" });
+
+    const res = await ask("what strikes happened?");
+
+    expect(mocks.createMock).not.toHaveBeenCalled();
+    expect(mocks.guard.record).not.toHaveBeenCalled();
+    expect(res.provider).toBe("budget"); // degraded, never re-served as a paid answer
+    expect(res.state).toBe("answered");
+    expect(res.answer).toContain("Top matching evidence:");
+    expect(res.citedClaimIds).toEqual([1, 2]);
+    expect(res.usage).toBeUndefined();
+  });
+
+  it("a guard init failure degrades to the error shape, never escapes to the route", async () => {
+    // init() reads provider_usage. It runs inside legacyAnswer's try (as the v2
+    // adapter's does inside answerFromEvidence's), so a read failure becomes this
+    // function's "Query failed" answer rather than an exception reaching /ask,
+    // which has no catch around ask() and would 500 a user surface.
+    vi.stubEnv("ASK_PIPELINE", "legacy");
+    vi.stubEnv("OPENAI_API_KEY", "sk-test");
+    vi.stubEnv("ANALYSIS_PROVIDER", "");
+    vi.stubEnv("LLM_DISABLE", "");
+    mocks.retrieveMock.mockResolvedValue({
+      claims: [{ claimId: 1, text: "A strike hit the depot", hedging: "reported", claimDate: "2026-07-05", countryIso2: "ru", track: null, entities: [] }],
+      entities: [],
+      terms: ["strike"],
+    });
+    mocks.guard.init.mockRejectedValue(new Error("provider_usage unreachable"));
+
+    const res = await ask("what strikes happened?");
+
+    expect(res.provider).toBe("error");
+    expect(res.state).toBe("error");
+    expect(res.answer).toMatch(/^Query failed/);
+    expect(mocks.createMock).not.toHaveBeenCalled();
+  });
+
+  it("the offline branch still short-circuits BEFORE the guard (no reservation with no key)", async () => {
+    vi.stubEnv("ASK_PIPELINE", "legacy");
+    vi.stubEnv("OPENAI_API_KEY", ""); // no key ⇒ deterministic path, no paid boundary
+    mocks.retrieveMock.mockResolvedValue({
+      claims: [{ claimId: 1, text: "A strike hit the depot", hedging: "reported", claimDate: "2026-07-05", countryIso2: "ru", track: null, entities: [] }],
+      entities: [],
+      terms: ["strike"],
+    });
+
+    const res = await ask("what strikes happened?");
+
+    expect(mocks.guard.init).not.toHaveBeenCalled();
+    expect(mocks.guard.tryReserve).not.toHaveBeenCalled();
+    expect(mocks.createMock).not.toHaveBeenCalled();
+    expect(res.provider).toBe("stub");
+  });
+
   it("no-evidence legacy short-circuit → insufficient / provider none", async () => {
     vi.stubEnv("ASK_PIPELINE", "legacy");
     vi.stubEnv("OPENAI_API_KEY", "sk-test");
