@@ -96,19 +96,26 @@ export function buildMatchUserPrompt(takeawayTexts: string[], claims: ClaimForVa
   );
 }
 
-/** One matching call. Returns sanitized matches + actual USD cost, or throws. */
-async function llmMatchOnce(
-  client: OpenAI,
-  guard: SpendGuard,
+/** The system/user pair one vote round sends. Extracted so a second caller
+ *  (the conflict shadow matcher, PLAN-WS-3 §3.4b) can dispatch the EXACT
+ *  production request instead of forking a copy of it. */
+export interface MatchPrompt {
+  system: string;
+  user: string;
+}
+
+/** The exact request body a vote round sends, given a prompt pair. Pure — it
+ *  builds the object and dispatches nothing — so the "byte-identical request"
+ *  claim is testable without a client. */
+export function matchCompletionRequest(
   dispatch: AnalysisDispatchConfig,
-  takeawayTexts: string[],
-  claims: ClaimForValidation[],
-): Promise<{ matches: LlmMatch[]; usd: number }> {
-  const completion = await client.chat.completions.create({
+  prompt: MatchPrompt,
+): Record<string, unknown> {
+  return {
     model: dispatch.model,
     messages: [
-      { role: "system", content: MATCH_SYSTEM_PROMPT },
-      { role: "user", content: buildMatchUserPrompt(takeawayTexts, claims) },
+      { role: "system", content: prompt.system },
+      { role: "user", content: prompt.user },
     ],
     response_format: {
       type: "json_schema",
@@ -118,18 +125,54 @@ async function llmMatchOnce(
     // `temperature: 0` and, deliberately, still NO output-token ceiling; a
     // reasoning model drops temperature (model-config.ts)
     ...analysisChatParams(dispatch, { temperature: 0 }),
-  });
+  };
+}
+
+/** ONE billed vote round: dispatch, meter, return the RAW body.
+ *
+ *  Exported for the conflict shadow matcher, which needs the production
+ *  request and the production metering discipline but its OWN parser and its
+ *  OWN SpendGuard row (memo C12: `llm_conflict_match`, never `llm_match` — a
+ *  shadow budget stop must not starve production validation). The caller
+ *  reserves BEFORE calling this; the reservation is not made here, because
+ *  ruling 4 puts `tryReserve()` in front of the dispatch decision, not inside
+ *  it.
+ *
+ *  Metering happens BEFORE the body is interpreted (ruling 8): an
+ *  unparseable or truncated response is billed in full by the provider, so
+ *  recording must not depend on anything the caller does with `raw`. */
+export async function dispatchMatchVote(
+  client: OpenAI,
+  guard: SpendGuard,
+  dispatch: AnalysisDispatchConfig,
+  prompt: MatchPrompt,
+): Promise<{ raw: string; usd: number }> {
+  const completion = await client.chat.completions.create(
+    matchCompletionRequest(dispatch, prompt) as never,
+  );
   const usd = estimateCostUsd(
     dispatch.model,
     completion.usage?.prompt_tokens ?? 0,
     completion.usage?.completion_tokens ?? 0,
   );
-  // Meter BEFORE interpreting the body (ruling 8, first adversarial hardening
-  // review finding 2): an unparseable/truncated response is billed in full by
-  // the provider, so recording must not depend on JSON.parse succeeding. This
-  // site has no output ceiling, making a 16K-ceiling truncation possible.
   await guard.record(1, 1, usd);
-  const raw = completion.choices[0]?.message?.content ?? '{"matches":[]}';
+  return { raw: completion.choices[0]?.message?.content ?? '{"matches":[]}', usd };
+}
+
+/** One matching call. Returns sanitized matches + actual USD cost, or throws.
+ *  A thin caller of dispatchMatchVote since PLAN-WS-3 §3.4b — the request it
+ *  sends and the order of metering vs parsing are unchanged. */
+async function llmMatchOnce(
+  client: OpenAI,
+  guard: SpendGuard,
+  dispatch: AnalysisDispatchConfig,
+  takeawayTexts: string[],
+  claims: ClaimForValidation[],
+): Promise<{ matches: LlmMatch[]; usd: number }> {
+  const { raw, usd } = await dispatchMatchVote(client, guard, dispatch, {
+    system: MATCH_SYSTEM_PROMPT,
+    user: buildMatchUserPrompt(takeawayTexts, claims),
+  });
   const parsed = (JSON.parse(raw) as { matches: LlmMatch[] }).matches ?? [];
   const matches = sanitizeMatches(parsed, takeawayTexts.length, new Set(claims.map((c) => c.claimId)));
   return { matches, usd };
