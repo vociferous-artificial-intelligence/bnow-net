@@ -218,13 +218,19 @@ async function legacyAnswer(question: string): Promise<AskAnswer> {
   // degraded answer is never re-served as a paid one (ruling 3). The request payload
   // below is untouched — the rollback stays byte-faithful (DL-6).
   const guard = askGuardFromEnv();
-  await guard.init();
-  if (!guard.tryReserve().ok) {
-    const det = legacyDeterministic(r);
-    return { ...det, evidenceCount, terms: r.terms, provider: "budget" };
-  }
 
   try {
+    // init() INSIDE the try, like the v2 adapter (llm/openai.ts:42, which runs
+    // inside answerFromEvidence's try): it reads provider_usage, and a read failure
+    // must degrade to this function's "Query failed" shape, not escape to the /ask
+    // route — which has no catch around ask(), so an escape is a 500 on a user
+    // surface (ruling 9's reason for degrading rather than throwing here).
+    await guard.init();
+    if (!guard.tryReserve().ok) {
+      const det = legacyDeterministic(r);
+      return { ...det, evidenceCount, terms: r.terms, provider: "budget" };
+    }
+
     // Phase 5: SDK construction moved to the adapter (raw passthrough — the
     // legacy request payload is byte-identical; charter: nothing improved).
     const completion = await openaiLegacyChatCompletion({

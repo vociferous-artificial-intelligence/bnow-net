@@ -264,6 +264,30 @@ describe("ask() — legacy pipeline (ASK_PIPELINE=legacy, faithful rollback)", (
     expect(res.usage).toBeUndefined();
   });
 
+  it("a guard init failure degrades to the error shape, never escapes to the route", async () => {
+    // init() reads provider_usage. It runs inside legacyAnswer's try (as the v2
+    // adapter's does inside answerFromEvidence's), so a read failure becomes this
+    // function's "Query failed" answer rather than an exception reaching /ask,
+    // which has no catch around ask() and would 500 a user surface.
+    vi.stubEnv("ASK_PIPELINE", "legacy");
+    vi.stubEnv("OPENAI_API_KEY", "sk-test");
+    vi.stubEnv("ANALYSIS_PROVIDER", "");
+    vi.stubEnv("LLM_DISABLE", "");
+    mocks.retrieveMock.mockResolvedValue({
+      claims: [{ claimId: 1, text: "A strike hit the depot", hedging: "reported", claimDate: "2026-07-05", countryIso2: "ru", track: null, entities: [] }],
+      entities: [],
+      terms: ["strike"],
+    });
+    mocks.guard.init.mockRejectedValue(new Error("provider_usage unreachable"));
+
+    const res = await ask("what strikes happened?");
+
+    expect(res.provider).toBe("error");
+    expect(res.state).toBe("error");
+    expect(res.answer).toMatch(/^Query failed/);
+    expect(mocks.createMock).not.toHaveBeenCalled();
+  });
+
   it("the offline branch still short-circuits BEFORE the guard (no reservation with no key)", async () => {
     vi.stubEnv("ASK_PIPELINE", "legacy");
     vi.stubEnv("OPENAI_API_KEY", ""); // no key ⇒ deterministic path, no paid boundary
