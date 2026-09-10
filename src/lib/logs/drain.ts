@@ -193,15 +193,41 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 
 // ---------------------------------------------------------------- normalizing
 
+/** U+0000. PostgreSQL text columns reject it outright ("invalid byte sequence for
+ *  encoding UTF8: 0x00"), and the batch is ONE multi-row INSERT, so a single
+ *  poisoned entry made the whole delivery unstorable — 500, Vercel retries the
+ *  identical body, and the co-batched clean entries are lost permanently rather
+ *  than transiently (WS2-F03, measured on real Postgres). wellFormedSlice strips
+ *  lone surrogates, not control characters, so this is its own pass. */
+const NUL = /\u0000/g;
+
+/** int4 bounds. status_code is an `integer` column; Math.trunc alone let a value
+ *  past 2^31-1 through and PostgreSQL failed the WHOLE batch on it (WS2-F03,
+ *  second half). Clamping keeps the row — a nonsense status code is worth
+ *  strictly more than a permanently rejected delivery.
+ *
+ *  Scoped to status_code ON PURPOSE. The register's remediation said "int() ->
+ *  clamp", but int() also reads `timestamp`, a millisecond epoch that is
+ *  legitimately ~1.76e12 and lands in a timestamptz, not an int4: clamping there
+ *  moved every logged_at to 1970-01-25. The existing projection test caught it. */
+const INT4_MIN = -2_147_483_648;
+const INT4_MAX = 2_147_483_647;
+
 function str(v: unknown, limit: number): string | null {
   if (typeof v !== "string") return null;
-  const t = v.trim();
+  const t = v.replace(NUL, "").trim();
   if (t === "") return null;
   return wellFormedSlice(t, limit);
 }
 
 function int(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? Math.trunc(v) : null;
+}
+
+/** int() for a value bound for an int4 column. */
+function int4(v: unknown): number | null {
+  const n = int(v);
+  return n === null ? null : Math.min(Math.max(n, INT4_MIN), INT4_MAX);
 }
 
 /** Strip the query string and fragment. `proxy.path` is documented as "request
@@ -250,7 +276,7 @@ export function normalizeEntry(entry: unknown): RuntimeLogRow | null {
   let message: string | null = null;
   let messageSha256: string | null = null;
   if (typeof entry.message === "string" && entry.message !== "") {
-    const redacted = redactSecrets(entry.message);
+    const redacted = redactSecrets(entry.message.replace(NUL, ""));
     messageSha256 = createHash("sha256").update(redacted, "utf8").digest("hex");
     message = wellFormedSlice(redacted, DRAIN_MESSAGE_CHARS);
   }
@@ -265,7 +291,7 @@ export function normalizeEntry(entry: unknown): RuntimeLogRow | null {
     environment: str(entry.environment, MAX_SHORT),
     requestPath,
     requestId: str(entry.requestId, MAX_MEDIUM),
-    statusCode: int(entry.statusCode),
+    statusCode: int4(entry.statusCode),
     message,
     messageSha256,
   };

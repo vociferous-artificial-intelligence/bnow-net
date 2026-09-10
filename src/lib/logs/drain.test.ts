@@ -284,6 +284,40 @@ describe("message handling: redact, then hash, then well-formed truncate", () =>
     expect(clean).toContain("[redacted]");
   });
 
+  it("WS2-F03: strips U+0000 from every stored string, so one entry cannot poison the batch", () => {
+    const NUL = String.fromCharCode(0); // never a literal in source
+    const row = normalizeEntry(
+      entry({
+        id: `abc${NUL}def`,
+        message: `map: killed mid${NUL}line`,
+        path: `/api/cron/${NUL}map`,
+        requestId: `req${NUL}1`,
+      }),
+    )!;
+    for (const v of [row.id, row.message, row.requestPath, row.requestId]) {
+      expect(v).not.toContain(NUL);
+    }
+    expect(row.message).toBe("map: killed midline");
+    // the hash is taken over the cleaned text, so the preimage carries no NUL either
+    expect(row.messageSha256).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("WS2-F03: a NUL-only string is treated as absent, not stored as an empty one", () => {
+    const NUL = String.fromCharCode(0);
+    expect(normalizeEntry(entry({ id: NUL }))).toBeNull();
+    expect(normalizeEntry(entry({ requestId: NUL }))!.requestId).toBeNull();
+  });
+
+  it("WS2-F03: clamps status_code into int4 instead of failing the whole INSERT", () => {
+    expect(normalizeEntry(entry({ statusCode: 2_147_483_648 }))!.statusCode).toBe(2_147_483_647);
+    expect(normalizeEntry(entry({ statusCode: -2_147_483_649 }))!.statusCode).toBe(-2_147_483_648);
+    expect(normalizeEntry(entry({ statusCode: 1e30 }))!.statusCode).toBe(2_147_483_647);
+    // ...and an ordinary status is untouched, as is the millisecond timestamp,
+    // which is NOT an int4 column and must never be clamped with it
+    expect(normalizeEntry(entry({ statusCode: 503 }))!.statusCode).toBe(503);
+    expect(normalizeEntry(entry())!.loggedAt).toBe(new Date(1_757_000_000_000).toISOString());
+  });
+
   it("leaves ordinary log prose alone", () => {
     const s = "map: 45 batches, 0 errors, fence 38, released 1";
     expect(redactSecrets(s)).toBe(s);
