@@ -73,7 +73,7 @@ export function foldMatchPunctuation(text: string): string {
  *  actually begins or ends with a word character, so a variant like `al-qaim`
  *  anchors on both sides while a hypothetical `-foo` would not gain a
  *  meaningless left anchor. */
-function variantSource(variant: string): string {
+export function variantSource(variant: string): string {
   const stem = variant.endsWith("*");
   const literal = foldMatchPunctuation(stem ? variant.slice(0, -1) : variant);
   const left = /^\w/.test(literal) ? "\\b" : "";
