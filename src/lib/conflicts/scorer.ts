@@ -544,6 +544,7 @@ export async function scoreConflictReport(
   const label = combinedLabel(corpusOutcome.label, retentionOutcome.label);
   const matcherStamp = matcherStampOf(matcher.kind, label, corpusOutcome, retentionOutcome);
   const keywordUnmatchable = keywordUnmatchableOf(corpusOutcome, retentionOutcome);
+  const insufficientData = insufficientDataOf(corpusOutcome, retentionOutcome);
 
   const denominator = units.length;
   const partialDistinct = new Set([
@@ -575,6 +576,11 @@ export async function scoreConflictReport(
     ...(Object.keys(ca.laneDiagnostics).length > 0 ? { laneDiagnostics: ca.laneDiagnostics } : {}),
     matcherRung: label,
     ...(keywordUnmatchable !== null ? { keywordUnmatchable } : {}),
+    // omitted when empty: a keyword-rung result with no signal-less unit
+    // already says so with `keywordUnmatchable: 0`, and stamping an empty
+    // array on every such result would move every committed golden for no
+    // information
+    ...(insufficientData !== null && insufficientData.length > 0 ? { insufficientData } : {}),
     contribution,
     headlineLabel: CONFLICT_HEADLINE_LABEL,
     window: {
@@ -832,6 +838,29 @@ function keywordUnmatchableOf(
     throw new ConflictDomainError(
       "invalid_match_outcome",
       `keywordUnmatchable disagrees between populations (${a} vs ${b}) — it counts declared units, not claims`,
+    );
+  }
+  return a ?? b;
+}
+
+/** The `insufficient_data` class is a UNIT property, exactly like the count
+ *  beside it: a unit either carries gazetteer/action signal or it does not, and
+ *  which population's claims were offered cannot change that. So both
+ *  keyword-rung outcomes must name the SAME set — disagreement is an adapter
+ *  defect, not a finding, and is refused rather than merged (the arithmetic in
+ *  `keywordUnmatchableOf` would otherwise stay consistent while the two id
+ *  lists silently diverged). Null when no population resolved to the keyword
+ *  rung. Returned in declared-unit order as the rung emits it. */
+function insufficientDataOf(
+  corpusOutcome: ConflictMatchOutcome,
+  retentionOutcome: ConflictMatchOutcome,
+): readonly string[] | null {
+  const a = corpusOutcome.insufficientData;
+  const b = retentionOutcome.insufficientData;
+  if (a !== null && b !== null && (a.length !== b.length || a.some((id, i) => id !== b[i]))) {
+    throw new ConflictDomainError(
+      "invalid_match_outcome",
+      "insufficientData disagrees between populations — it names declared units, not claims",
     );
   }
   return a ?? b;

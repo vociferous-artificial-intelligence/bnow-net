@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-27T21:42:21.147Z",
+  "generatedAt": "2026-09-10T02:20:51.239Z",
   "headerNote": "CONFLICT PROFILE (validation workload, register #3): offline-fixtures results score the FROZEN conflict fixture corpus through the real conflict pipeline and byte-compare against the committed goldens — a machinery/drift proof, NOT a model evaluation; no paid calls are involved. Verdicts use the inherited preset gates; with no live baseline they read insufficient_data by construction.",
   "scorecards": [
     {
@@ -13,7 +13,8 @@
           "scored": 8,
           "schemaInvalid": 0,
           "providerError": 0,
-          "skipped": 0
+          "skipped": 0,
+          "inapplicable": 0
         },
         "checks": {
           "passed": 8,
@@ -30,7 +31,7 @@
           "presentResults": 8,
           "missingResults": 0,
           "missingHeldout": 0,
-          "datasetContentHash": "bb53aa70f176901b158fad10f89c47061dad163bc85b3ea05e38ff0d98960079",
+          "datasetContentHash": "e7e18ad9e8652316a6cd6b3b27ad8a55c48cdcfeb901ea0fc3a843ab248b0bdc",
           "heldoutPresent": {
             "typical": 1,
             "edge": 1,
@@ -137,6 +138,7 @@
           "keywordRecallVacuousCount": 0,
           "checksPassRate": 1
         },
+        "capacityDiagnostics": null,
         "resources": {
           "latencyMsMean": null,
           "promptTokensTotal": 0,
@@ -188,7 +190,9 @@
         "mapContentChars": 1500,
         "reduceGroupsFed": 200
       },
-      "baselineEnvKnobs": null
+      "baselineEnvKnobs": null,
+      "baselineIdentity": null,
+      "discardedGenerations": 1
     },
     {
       "workload": "validation",
@@ -201,7 +205,8 @@
           "scored": 6,
           "schemaInvalid": 0,
           "providerError": 0,
-          "skipped": 0
+          "skipped": 0,
+          "inapplicable": 0
         },
         "checks": {
           "passed": 6,
@@ -218,7 +223,7 @@
           "presentResults": 6,
           "missingResults": 0,
           "missingHeldout": 0,
-          "datasetContentHash": "83c39aaf3c5fa6298c0bea429ce593bde110cf20b4125c8f10912ec46b20230f",
+          "datasetContentHash": "711598ebcd1589b69025916b36ec5441a21390841539f4ed2fb7309fd7bc28c8",
           "heldoutPresent": {
             "typical": 1,
             "edge": 1,
@@ -325,6 +330,7 @@
           "keywordRecallVacuousCount": 0,
           "checksPassRate": 1
         },
+        "capacityDiagnostics": null,
         "resources": {
           "latencyMsMean": null,
           "promptTokensTotal": 0,
@@ -376,7 +382,9 @@
         "mapContentChars": 1500,
         "reduceGroupsFed": 200
       },
-      "baselineEnvKnobs": null
+      "baselineEnvKnobs": null,
+      "baselineIdentity": null,
+      "discardedGenerations": 1
     }
   ]
 }

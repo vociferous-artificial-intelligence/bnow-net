@@ -27,6 +27,7 @@ import { ConflictKeywordMatcher } from "./keyword-matcher";
 import { LlmCompatibleMatcher } from "./llm-compatible-matcher";
 import { scoreConflictReport, type ConflictScoreRequest } from "./scorer";
 import { fixtureSnapshotRef } from "./snapshot-ref";
+import { assertNoProseInStoredResult } from "./observation-store";
 import type { EvaluationKind } from "./vocabulary";
 
 function probeFixtureRef() {
@@ -720,5 +721,114 @@ describe("stamps and result variants", () => {
     expect(result.lanes!.reduce((n, r) => n + r.units, 0)).toBe(
       result.headline.corpusRecall.denominator,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The insufficient_data class (step 06 landed it on the rung's outcome; step 19
+// threads it through the scorer — denominator-unchanged)
+// ---------------------------------------------------------------------------
+
+function keywordRungOutcome(
+  insufficientData: readonly string[] | null,
+  over: Partial<ConflictMatchOutcome> = {},
+): ConflictMatchOutcome {
+  return {
+    label: "keyword",
+    matches: [],
+    voteRounds: null,
+    votesK: null,
+    votes: null,
+    keywordUnmatchable: insufficientData === null ? null : insufficientData.length,
+    insufficientData,
+    gazetteerVersion: "ru-ua-v1",
+    model: null,
+    ...over,
+  };
+}
+
+function outcomeMatcher(
+  outcomes: readonly ConflictMatchOutcome[],
+  kind: ConflictMatcher["kind"] = "keyword",
+): ConflictMatcher {
+  let call = -1;
+  return {
+    kind,
+    match: async () => {
+      call += 1;
+      return outcomes[Math.min(call, outcomes.length - 1)];
+    },
+  };
+}
+
+describe("insufficient_data (the denominator-unchanged third class)", () => {
+  it("names the signal-less units WITHOUT moving the denominator or the count", async () => {
+    const { corpus, retention } = await assemblies([UA_CLAIM]);
+    const result = expectScored(
+      await scoreConflictReport(
+        request([U0, U1]),
+        corpus,
+        retention,
+        outcomeMatcher([keywordRungOutcome(["u1"])]),
+      ),
+    );
+    expect(result.insufficientData).toEqual(["u1"]);
+    // the class is a DIAGNOSTIC on top of unchanged arithmetic: u1 stays a miss
+    // inside the full declared-unit denominator
+    expect(result.keywordUnmatchable).toBe(1);
+    expect(result.headline.corpusRecall.denominator).toBe(2);
+    expect(result.headline.corpusRecall.matched).toBe(0);
+    expect(result.corpusRecall.u1).toBe("miss");
+    expect(result.lanes!.reduce((n, r) => n + r.units, 0)).toBe(2);
+  });
+
+  it("is OMITTED when empty — identical information to keywordUnmatchable: 0", async () => {
+    const { corpus, retention } = await assemblies([UA_CLAIM]);
+    const result = expectScored(
+      await scoreConflictReport(
+        request([U0]),
+        corpus,
+        retention,
+        outcomeMatcher([keywordRungOutcome([])]),
+      ),
+    );
+    expect(result.keywordUnmatchable).toBe(0);
+    expect("insufficientData" in result).toBe(false);
+  });
+
+  it("is absent on a non-keyword rung", async () => {
+    const { corpus, retention } = await assemblies([UA_CLAIM]);
+    const result = expectScored(
+      await scoreConflictReport(request([U0]), corpus, retention, fakeOracle([full("u0", 1)])),
+    );
+    expect("insufficientData" in result).toBe(false);
+  });
+
+  it("REFUSES a result whose two populations name different signal-less units", async () => {
+    const { corpus, retention } = await assemblies([UA_CLAIM]);
+    await expect(
+      scoreConflictReport(
+        request([U0, U1]),
+        corpus,
+        retention,
+        outcomeMatcher([keywordRungOutcome(["u1"]), keywordRungOutcome(["u0"])]),
+      ),
+    ).rejects.toThrowError(/insufficientData disagrees between populations/);
+  });
+
+  it("survives the persistence gate and the stored-token alphabet (ruling 1)", async () => {
+    const { corpus, retention } = await assemblies([UA_CLAIM]);
+    const result = expectScored(
+      await scoreConflictReport(
+        request([U0, U1]),
+        corpus,
+        retention,
+        outcomeMatcher([keywordRungOutcome(["u1"])]),
+      ),
+    );
+    // scoreConflictReport already runs assertPersistableConflictResultV1; the
+    // unit ids must ALSO be storable tokens or the observation write would
+    // refuse a legitimate keyword-rung day
+    expect(() => assertNoProseInStoredResult(result)).not.toThrow();
   });
 });
