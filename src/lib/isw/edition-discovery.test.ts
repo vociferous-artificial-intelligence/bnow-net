@@ -577,3 +577,90 @@ describe("runSeriesDiscovery (the --series window driver and the C5 measurement)
     expect(await repo.getEdition(`iran_update:${DAY}:evening`)).toEqual(before);
   });
 });
+
+
+describe("runSeriesDiscovery — --dry measures FINALITY, not probe order (WS3-F02)", () => {
+  // Promoted verbatim in shape from the step-18 register's reproduction R1,
+  // with the `dry` expectations INVERTED: at a7ba98b both cases asserted a
+  // divergence, which is exactly what the fix removes. The C5 measurement is
+  // taken with --dry against production, so a dry figure that disagrees with
+  // the live one is a wrong number in an operator's report.
+  const oneDay = (dry: boolean) => ({ series: "iran_update" as const, from: DAY, to: DAY, dry });
+
+  const bothWays = async (bodies: Record<string, Body>, anchorUrl: string) => {
+    const live = await runSeriesDiscovery(
+      oneDay(false),
+      deps(bodies, { iswRows: [{ id: 11, url: anchorUrl }] }),
+      () => {},
+    );
+    const dry = await runSeriesDiscovery(
+      oneDay(true),
+      // a FRESH store: the C5 pass runs --dry against a database that holds no
+      // benchmark rows at all, which is what made probe order stand in for
+      // finality
+      deps(bodies, { iswRows: [{ id: 11, url: anchorUrl }] }),
+      () => {},
+    );
+    return { live, dry };
+  };
+
+  it("special + evening: the anchor on the true final reads `final` in BOTH modes", async () => {
+    const bodies = { [U.special]: IRAN_SPECIAL_HTML, [U.evening]: EVENING_HTML };
+    const { live, dry } = await bothWays(bodies, U.evening);
+    expect(live.anchorNotFinalDays).toBe(0);
+    expect(dry.anchorNotFinalDays).toBe(0); // was 1 — probe order put `special` first
+  });
+
+  it("special + evening: the anchor on the NON-final edition reads `not final` in BOTH modes", async () => {
+    const bodies = { [U.special]: IRAN_SPECIAL_HTML, [U.evening]: EVENING_HTML };
+    const { live, dry } = await bothWays(bodies, U.special);
+    expect(live.anchorNotFinalDays).toBe(1);
+    expect(dry.anchorNotFinalDays).toBe(1); // was 0 — the undercount direction
+  });
+
+  it("morning + plain: the same two directions on the other disagreeing pair", async () => {
+    const bodies = { [U.morning]: MORNING_HTML, [U.plain]: PLAIN_HTML };
+    const onFinal = await bothWays(bodies, U.plain);
+    expect(onFinal.live.anchorNotFinalDays).toBe(0);
+    expect(onFinal.dry.anchorNotFinalDays).toBe(0);
+    const offFinal = await bothWays(bodies, U.morning);
+    expect(offFinal.live.anchorNotFinalDays).toBe(1);
+    expect(offFinal.dry.anchorNotFinalDays).toBe(1);
+  });
+
+  it("morning + evening agree even pre-fix — the corpus luck that hid this", async () => {
+    const bodies = { [U.evening]: EVENING_HTML, [U.morning]: MORNING_HTML };
+    const { live, dry } = await bothWays(bodies, U.morning);
+    expect(live.anchorNotFinalDays).toBe(1);
+    expect(dry.anchorNotFinalDays).toBe(1);
+  });
+
+  it("a PARTIALLY populated store: this run's newly discovered final still wins", async () => {
+    // an earlier live run stored only the morning edition; today's dry run
+    // finds morning AND evening. Selecting over `stored` alone would call the
+    // morning edition final and mis-report the anchor.
+    const repo = new InMemoryReferenceReportRepository();
+    await discoverEditions(deps({ [U.morning]: MORNING_HTML }, { repo }), "iran_update", DAY);
+    expect(await repo.editionsForDay("iran_update", DAY)).toHaveLength(1);
+
+    const lines: string[] = [];
+    const d = deps(
+      { [U.evening]: EVENING_HTML, [U.morning]: MORNING_HTML },
+      { repo, iswRows: [{ id: 11, url: U.evening }] },
+    );
+    const dry = await runSeriesDiscovery(oneDay(true), d, (l) => lines.push(l));
+    expect(dry.anchorNotFinalDays).toBe(0); // was 1: `stored` held only morning
+    expect(lines[0]).toContain("anchor=final");
+    // and the dry run still wrote nothing
+    expect(await repo.editionsForDay("iran_update", DAY)).toHaveLength(1);
+  });
+
+  it("carries the canonical record onto each DiscoveredEdition, prose-free", async () => {
+    const out = await discoverEditions(deps({ [U.evening]: EVENING_HTML }), "iran_update", DAY);
+    const record = out.editions[0].record;
+    expect(record.identity.editionKey).toBe(`iran_update:${DAY}:evening`);
+    expect(record.provider).toBe("isw");
+    expect(record.designatedFinal).toBeNull();
+    expect(JSON.stringify(record)).not.toContain("coastal facility");
+  });
+});

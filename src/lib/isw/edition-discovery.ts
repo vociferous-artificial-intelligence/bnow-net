@@ -42,11 +42,13 @@ import {
   SCOPE_VERSIONS,
   canonicalizeIswUrl,
   normalizeIswEditionUrl,
+  parseEditionRecord,
   selectDailyFinal,
   type EditionParseStatus,
   type EditionUnitSignature,
   type NormalizedEditionUrl,
   type ReferenceDayStatus,
+  type ReferenceEditionRecord,
 } from "../conflicts/editions";
 import { ConflictDomainError } from "../conflicts/errors";
 import {
@@ -111,6 +113,12 @@ export interface DiscoveredEdition {
   units: number;
   /** isw_reports.id when link-only anchoring matched, else null (C5) */
   anchoredReportId: number | null;
+  /** the CANONICAL record this run wrote (or would have written in --dry).
+   *  Carried because finality is a property of the record set, not of probe
+   *  ORDER: without it a caller can only ask "which shape did we hit first",
+   *  which is the question the whole module exists to stop asking (WS3-F02).
+   *  Prose-free by construction — the same payload the repository stores. */
+  record: ReferenceEditionRecord;
 }
 
 /** What one probe established about the shape it asked for.
@@ -391,7 +399,9 @@ export async function discoverEditions(
     const anchors = editionAnchorsFrom(extractReportInstants(page.html, reportDate));
     const anchoredReportId = await anchorReportIdFor(deps.query, theater, reportDate, canonicalUrl);
 
-    const result = await deps.repo.upsertEdition({
+    // parsed through the SAME authority the repository uses, so the record a
+    // caller ranks is byte-identical to the one that was (or would be) stored
+    const record = parseEditionRecord({
       identity: {
         series,
         editionKey: normalized.editionKey,
@@ -412,6 +422,7 @@ export async function discoverEditions(
       citationAnchorId: anchoredReportId,
       derived: units.length > 0 ? { units, unitsVersion: EDITION_UNITS_VERSION } : {},
     });
+    const result = await deps.repo.upsertEdition(record);
 
     editions.push({
       editionKey: normalized.editionKey,
@@ -419,9 +430,10 @@ export async function discoverEditions(
       canonicalUrl,
       action: result.action,
       repairedFields: result.repairedFields,
-      parseStatus: units.length > 0 ? "parsed" : "failed",
+      parseStatus: record.parseStatus,
       units: units.length,
       anchoredReportId,
+      record,
     });
   }
 
@@ -558,6 +570,34 @@ export interface SeriesDiscoverySummary {
   unparseableBodyDays: number;
 }
 
+/** The daily-final winner over the UNION of what the store already holds and
+ *  what THIS run discovered, keyed by editionKey.
+ *
+ *  WHY A UNION (WS3-F02). `editionsForDay` answers with what is stored. In
+ *  LIVE mode that already includes this run's writes, so the union is a no-op.
+ *  In `--dry` mode nothing is written, so on a fresh store the stored set is
+ *  EMPTY and the shipped code fell back to `discovered[0]` — probe order,
+ *  which is not finality: probe order puts `special` before `evening` (ranks
+ *  40 < 50) and `morning` before `plain` (20 < 30), so a dry C5 measurement
+ *  reported anchor≠final where the anchor WAS final, and the reverse. On a
+ *  partially populated store the stored set is stale in the same way. The
+ *  union is exactly the record set a live run would have left behind, so the
+ *  measurement is mode-independent by construction.
+ *
+ *  A key present on both sides resolves to the STORED record: in live mode
+ *  that is the post-merge row, which is authoritative; in dry mode the merge
+ *  only ever fills anchors in, and the label — which carries the finality
+ *  rank — is fixed by the key itself. */
+export function dailyFinalKeyFor(
+  stored: readonly ReferenceEditionRecord[],
+  discovered: readonly DiscoveredEdition[],
+): string {
+  const byKey = new Map<string, ReferenceEditionRecord>();
+  for (const e of discovered) byKey.set(e.record.identity.editionKey, e.record);
+  for (const r of stored) byKey.set(r.identity.editionKey, r);
+  return selectDailyFinal([...byKey.values()]).selected.identity.editionKey;
+}
+
 /** Drive discovery across a date window, one line per day. This is the
  *  operator-facing measurement C5 asks step 14 to take: how many days carry
  *  more than one edition, and how often the citation anchor is NOT the
@@ -604,14 +644,12 @@ export async function runSeriesDiscovery(
     if (out.dayStatus === "publication_gap") summary.publicationGapDays += 1;
 
     // C5 measurement: compare the anchored edition against the daily-final
-    // winner. In dry mode the anchor a live run WOULD have set is the one this
-    // run computed, so the measurement is identical either way.
+    // winner over stored ∪ discovered (dailyFinalKeyFor), so the dry and live
+    // figures are the same number and not an artifact of probe order.
     let anchorNote = "";
     if (out.editions.length > 0) {
       const anchored = out.editions.filter((e) => e.anchoredReportId !== null);
-      const stored = await repo.editionsForDay(plan.series, day);
-      const finalKey =
-        stored.length > 0 ? selectDailyFinal(stored).selected.identity.editionKey : out.editions[0].editionKey;
+      const finalKey = dailyFinalKeyFor(await repo.editionsForDay(plan.series, day), out.editions);
       if (anchored.length === 0) {
         summary.unanchoredDays += 1;
         anchorNote = " anchor=none";
