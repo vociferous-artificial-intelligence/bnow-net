@@ -405,9 +405,29 @@ Concretely:
    explicitly; leaving it unset applies the same default.
 3. **Deploy** the receiver **from the plain release clone**
    `/Users/go/code/bnow-net-rel-20260823` (never a worktree — OPEN-TASKS #78,
-   the blank `/health` stamp trap), per `docs/RELEASE-CHECKLIST.md`. The
-   migration applies with the deploy in the usual way. The route is live but
-   inert: no drain exists yet, so no request arrives.
+   the blank `/health` stamp trap), per `docs/RELEASE-CHECKLIST.md`. The route is
+   live but inert: no drain exists yet, so no request arrives.
+   **NOTHING APPLIES MIGRATIONS ON DEPLOY.** `package.json`'s `build` is plain
+   `next build`, `vercel.json` declares no `buildCommand`, and `db:migrate` is the
+   manual `tsx scripts/migrate.ts` that `docs/RELEASE-CHECKLIST.md` step 11
+   requires as its own line. Deploying the code without the migration is *safe* —
+   the receiver is inert until the secret exists and a drain is registered — but
+   registering a drain against a database with no `runtime_logs` table is not:
+   every signed delivery reaches `insertRuntimeLogs`, throws, returns 500 (the one
+   retryable status), Vercel retries it, and the errored-drain notification fires.
+3b. **Apply migration 0029 — its own step, BEFORE step 4.** From the release
+   clone: take the Neon backup branch first (RELEASE-CHECKLIST step 11, precedent
+   `backup-pre-iran-recovery-2026-08-15` / `br-polished-block-atu0r968`), then
+   `npm run db:migrate`, then confirm the marker landed:
+
+   ```sql
+   SELECT name FROM _migrations WHERE name LIKE '0029%';   -- expect exactly one row
+   SELECT to_regclass('runtime_logs');                     -- expect: runtime_logs
+   ```
+
+   Until both answer, do not proceed to step 4. (As of 2026-09-08 production is
+   still at 29 `_migrations` rows with `0027` as its newest numbered migration and
+   `runtime_logs` absent — OPEN-TASKS #111.)
 4. **Register the drain**: Vercel dashboard → **Team Settings** → **Drains** →
    **Add Drain** → data type **Logs** → select the `bnow-net` project.
    - **Additional configuration for logs**: sources **`lambda`** only
