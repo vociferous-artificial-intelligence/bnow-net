@@ -72,8 +72,12 @@ export function drainSecret(): string | null {
 function posInt(name: string, fallback: number): number {
   const raw = trimmed(name);
   if (raw === null) return fallback;
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+  // Floor BEFORE the > 0 test (WS2-F25): checking the un-floored value accepted
+  // anything in (0,1) — LOG_DRAIN_RETENTION_DAYS=0.5, a plausible "twelve hours",
+  // floored to 0 and was accepted, which contradicts .env.example and would make
+  // the sweep cutoff `now` (delete everything).
+  const n = Math.floor(Number(raw));
+  return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
 /** Retention window in days. Unlike a spend cap (ruling 4) this deliberately
@@ -82,8 +86,17 @@ function posInt(name: string, fallback: number): number {
 export function retentionDays(): number {
   return posInt("LOG_DRAIN_RETENTION_DAYS", DEFAULT_RETENTION_DAYS);
 }
+/** Hard ceiling on rows per INSERT. insertRuntimeLogs binds 12 parameters per row
+ *  in ONE statement and the PostgreSQL extended protocol caps a Bind message at
+ *  65,535 parameters, so 5,462 rows (65,544 parameters) fails outright — measured
+ *  on real Postgres, with 5,461 storing cleanly (WS2-F26). The cap is enforced
+ *  here rather than by chunking the INSERT: one statement keeps the delivery
+ *  atomic, and the overflow is already counted as `overCap` and dropped rather
+ *  than lost to a retry loop. 5,000 leaves 461 rows of margin. */
+export const MAX_ROWS_CEILING = 5000;
+
 export function maxRows(): number {
-  return posInt("LOG_DRAIN_MAX_ROWS", DEFAULT_MAX_ROWS);
+  return Math.min(posInt("LOG_DRAIN_MAX_ROWS", DEFAULT_MAX_ROWS), MAX_ROWS_CEILING);
 }
 export function maxBodyBytes(): number {
   return posInt("LOG_DRAIN_MAX_BODY_BYTES", DEFAULT_MAX_BODY_BYTES);
@@ -103,14 +116,23 @@ export function sweepLimit(): number {
  *  Constant-time compare, with the length check done on the DECODED bytes so a
  *  wrong-length header cannot be distinguished by timing from a wrong value —
  *  and so timingSafeEqual is never handed mismatched buffers (it throws). */
-export function verifyDrainSignature(rawBody: string, header: string | null, secret: string): boolean {
+export function verifyDrainSignature(
+  rawBody: string | Buffer,
+  header: string | null,
+  secret: string,
+): boolean {
   if (typeof header !== "string" || header.length === 0) return false;
   const hex = header.trim();
-  // Buffer.from(_, "hex") does not throw on non-hex input, it stops decoding —
-  // which the length check below would catch anyway, but rejecting explicitly
-  // keeps "malformed header" and "wrong secret" the same, cheap outcome.
-  if (!/^[0-9a-fA-F]+$/.test(hex)) return false;
-  const expected = createHmac("sha1", secret).update(Buffer.from(rawBody, "utf8")).digest();
+  // Buffer.from(_, "hex") does not throw on non-hex input, it stops decoding, and
+  // it also silently DROPS a dangling nibble — so an odd-length header consisting
+  // of the correct 40 hex characters plus one more decoded to the correct 20 bytes
+  // and verified TRUE (WS2-F52). Pin the exact SHA-1 hex length instead of "is hex".
+  if (!/^[0-9a-fA-F]{40}$/.test(hex)) return false;
+  // Over the RAW bytes. A string body would be the UTF-8 RE-ENCODING of a decoded
+  // request, so any invalid UTF-8 sequence (already replaced with U+FFFD) would
+  // change the signed bytes and fail a legitimately signed delivery (WS2-F54).
+  const body = typeof rawBody === "string" ? Buffer.from(rawBody, "utf8") : rawBody;
+  const expected = createHmac("sha1", secret).update(body).digest();
   const got = Buffer.from(hex, "hex");
   if (got.length !== expected.length) return false;
   return timingSafeEqual(got, expected);
@@ -123,8 +145,25 @@ const REDACTIONS: Array<[RegExp, string]> = [
   [/\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi, "Bearer [redacted]"],
   [/\bsk-[A-Za-z0-9_-]{8,}/g, "sk-[redacted]"],
   [/\bsk_[A-Za-z0-9_-]{8,}/g, "sk_[redacted]"],
+  // NO \b before the keyword (WS2-F24). A word boundary there was the whole defect:
+  // there is none inside `LOG_DRAIN_SECRET`, `client_secret` or `clientSecret`, so
+  // the single most likely accidental leak shape — an identifier ENDING in the
+  // keyword, followed by `=` or `:` — passed through untouched. Dropping the anchor
+  // fixes every one of those forms, and `MYSECRET=` (no separator at all) with them.
+  //
+  // It also stays LINEAR, which matters more than it looks: redaction runs on the
+  // FULL untruncated message, the body cap is 4 MB, and a slow regex here would
+  // time the function out -> non-2xx -> Vercel retries the identical body, which is
+  // the permanent retry loop this whole module is built to avoid. The first attempt
+  // at this fix put a variable-length identifier scan BEFORE the keyword and was
+  // quadratic: 128 KB of a dense separator run took 11 s (measured). Matching the
+  // keyword literal first keeps it at ~1 ms per MB.
+  //
+  // Over-matching is bounded by what FOLLOWS: an 8+ character non-delimiter value
+  // after `=` or `:`. "broken=..." does not end in a keyword; "token count 12345"
+  // has no assignment.
   [
-    /\b(api[_-]?key|secret|token|password|passwd)("?\s*[:=]\s*"?)[^\s"',;)}\]]{8,}/gi,
+    /(api[_-]?key|secret|token|session|password|passwd)("?\s*[:=]\s*"?)[^\s"',;)}\]]{8,}/gi,
     "$1$2[redacted]",
   ],
 ];
@@ -193,15 +232,41 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 
 // ---------------------------------------------------------------- normalizing
 
+/** U+0000. PostgreSQL text columns reject it outright ("invalid byte sequence for
+ *  encoding UTF8: 0x00"), and the batch is ONE multi-row INSERT, so a single
+ *  poisoned entry made the whole delivery unstorable — 500, Vercel retries the
+ *  identical body, and the co-batched clean entries are lost permanently rather
+ *  than transiently (WS2-F03, measured on real Postgres). wellFormedSlice strips
+ *  lone surrogates, not control characters, so this is its own pass. */
+const NUL = /\u0000/g;
+
+/** int4 bounds. status_code is an `integer` column; Math.trunc alone let a value
+ *  past 2^31-1 through and PostgreSQL failed the WHOLE batch on it (WS2-F03,
+ *  second half). Clamping keeps the row — a nonsense status code is worth
+ *  strictly more than a permanently rejected delivery.
+ *
+ *  Scoped to status_code ON PURPOSE. The register's remediation said "int() ->
+ *  clamp", but int() also reads `timestamp`, a millisecond epoch that is
+ *  legitimately ~1.76e12 and lands in a timestamptz, not an int4: clamping there
+ *  moved every logged_at to 1970-01-25. The existing projection test caught it. */
+const INT4_MIN = -2_147_483_648;
+const INT4_MAX = 2_147_483_647;
+
 function str(v: unknown, limit: number): string | null {
   if (typeof v !== "string") return null;
-  const t = v.trim();
+  const t = v.replace(NUL, "").trim();
   if (t === "") return null;
   return wellFormedSlice(t, limit);
 }
 
 function int(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? Math.trunc(v) : null;
+}
+
+/** int() for a value bound for an int4 column. */
+function int4(v: unknown): number | null {
+  const n = int(v);
+  return n === null ? null : Math.min(Math.max(n, INT4_MIN), INT4_MAX);
 }
 
 /** Strip the query string and fragment. `proxy.path` is documented as "request
@@ -250,7 +315,7 @@ export function normalizeEntry(entry: unknown): RuntimeLogRow | null {
   let message: string | null = null;
   let messageSha256: string | null = null;
   if (typeof entry.message === "string" && entry.message !== "") {
-    const redacted = redactSecrets(entry.message);
+    const redacted = redactSecrets(entry.message.replace(NUL, ""));
     messageSha256 = createHash("sha256").update(redacted, "utf8").digest("hex");
     message = wellFormedSlice(redacted, DRAIN_MESSAGE_CHARS);
   }
@@ -265,7 +330,7 @@ export function normalizeEntry(entry: unknown): RuntimeLogRow | null {
     environment: str(entry.environment, MAX_SHORT),
     requestPath,
     requestId: str(entry.requestId, MAX_MEDIUM),
-    statusCode: int(entry.statusCode),
+    statusCode: int4(entry.statusCode),
     message,
     messageSha256,
   };

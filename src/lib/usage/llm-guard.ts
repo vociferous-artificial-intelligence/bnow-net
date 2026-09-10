@@ -177,6 +177,39 @@ export function anthropicDigestGuardFromEnv(): SpendGuard {
   );
 }
 
+/** provider_usage.provider for the CONFLICT shadow matcher (WS-3, memo C12).
+ *  Its own ledger row on purpose: the production validation matcher meters as
+ *  `llm_match`, and a shadow budget stop must never starve production
+ *  validation. It is not `openai_eval` either — a cron route importing
+ *  src/lib/evals/* would break the eval-library isolation contract. */
+export const CONFLICT_MATCH_PROVIDER = "llm_conflict_match";
+
+/** Guard for the conflict shadow matcher (memo C12 / N1).
+ *
+ *  FAIL-CLOSED BY DESIGN AND BY DEFAULT. `CONFLICT_MATCH_USD_CAP_DAILY` has NO
+ *  fallback of any kind — not a production check, not a development default —
+ *  so until the operator sets it in all three Vercel environments (the ruling-4
+ *  ordering step that precedes adding the cron line, WS-3.6) every reservation
+ *  is refused with `daily_usd_unset` and the conflict path scores on its keyword
+ *  rung. Deploying this guard with the cap unset therefore stops nothing: the
+ *  path is inert either way.
+ *
+ *  The all-time backstop is the shared `LLM_SPRINT_USD_CAP`, so the shadow
+ *  matcher can never spend past the ceiling every other OpenAI path honours.
+ *  Request caps carry the predeclared soak thresholds (N1: 300/day, 200/run). */
+export function conflictMatchGuardFromEnv(): SpendGuard {
+  return new SpendGuard(
+    {
+      provider: CONFLICT_MATCH_PROVIDER,
+      totalCapUsd: envCap("LLM_SPRINT_USD_CAP"),
+      dailyUsdCap: envCap("CONFLICT_MATCH_USD_CAP_DAILY"),
+      dailyRequestCap: envNum("CONFLICT_MATCH_DAILY_REQUEST_CAP", 300),
+      runRequestCap: envNum("CONFLICT_MATCH_RUN_REQUEST_CAP", 200),
+    },
+    pgUsageStore,
+  );
+}
+
 /** Resolved per-day USD cap for the map worker. Same fail-closed contract as the
  *  digest cap, but its OWN env var: production with MAP_USD_CAP_DAILY unset must
  *  not map.

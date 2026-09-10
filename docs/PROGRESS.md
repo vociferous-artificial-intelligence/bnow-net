@@ -4969,3 +4969,69 @@ Execution (same block):
    `CONFLICT_MATCH_USD_CAP_DAILY` is unset; no ISW prose in the persisted object.
 5. Gates on every branch (typecheck + lint + `npm test`), fork itests for the DB-touching PRs,
    closing report `docs/reviews/WS-3-3-EVIDENCE-POPULATION-2026-09-06.md`. $0.
+
+Execution (same block):
+
+- All seven items done. **Two PRs**, a stack: **#88** (WS2-F06 alone, base `main`, as A1 and
+  the register require) and **#89** (everything else, base #88's branch). Twenty-one commits,
+  one per finding, titled `<area>: <finding id> — <imperative>`.
+- Base `origin/main` `4b8e7e7`; `main` did not move during the session.
+- Tests: 4,332/282 → **4,361/284**; typecheck clean; lint 0 errors (3 pre-existing warnings,
+  none in a touched file). `runtime-logs.itest.ts` **19/19** on disposable Neon branch
+  `br-mute-bread-atetixpc` (created and deleted in-session).
+- Every code fix has a run that FAILS on the pre-fix code; every test-strength finding has a
+  measured mutant kill. Both are pasted verbatim in the closing report.
+- $0, no paid call, no env change, no migration, no deploy, `vercel.json` byte-identical;
+  `AGENTS.md`, `docs/evals/analysis/` and `drizzle/` untouched. Ran ATTENDED. The worktree
+  carries the trimmed four-key `.env.local`, so no provider key existed in this session.
+- **One register remediation was wrong and was not followed:** WS2-F03's "clamp `int()`"
+  would have clamped the millisecond `timestamp` into int4 and moved every `logged_at` to
+  1970-01-25. The existing projection test caught it; the clamp is scoped to `status_code`.
+- WS2-F16 and WS2-F17 confirmed CLOSED-BY-#75/#81 — F17's refusal is already pinned at
+  `model-config.test.ts:654-662`, so no pin was added.
+- The drain bundle was authored as one verified state, mutation-tested, then decomposed into
+  eight commits and `cmp`-checked byte-identical against that state, so the per-finding
+  commits are not a re-derivation that could have drifted from what was tested.
+- **Independent re-check (Opus, read-only) confirmed all seventeen findings CLOSED — and found
+  one real defect in the fix itself.** The first WS2-F24 redaction patch was QUADRATIC
+  (measured: 128 KB → 11,038 ms against 0 ms for the pre-existing rule) because it scanned a
+  variable-length identifier before the keyword; on a 4 MB body that is a function timeout →
+  non-2xx → Vercel retries the identical body, i.e. the exact permanent retry loop the bundle
+  was closing. Replaced by ONE linear rule (drop the `\b`, add `session`) which is simpler,
+  1 MB in 1 ms, and catches more (`MYSECRET=` with no separator). Linearity is now a test.
+- Three further re-check items applied: `guard.init()` moved inside `legacyAnswer`'s `try`
+  (it was 500ing a user surface on a `provider_usage` read failure, where v2 degrades — fixed
+  on the F06 branch so PR #88 is correct standalone); the inverted itest's WS2-F26 comment
+  corrected (it claimed a boundary that is now asserted arithmetically was "still measured");
+  `3b.`/`2b.` made valid list markers; `assertMigrationTarget` renamed in prose to endpoints.
+- Final gate after the re-check fixes: **4,364 / 284**, typecheck clean, lint 0 errors;
+  `runtime-logs.itest.ts` re-run **19/19** on a second fork `br-shiny-thunder-ateszphz`
+  (created and deleted in-session).
+- **Execution (same block).** Three PRs, not two: #86 `…-db-claim-sources` (§3.3a, base `main`),
+  #87 `…-insufficient-data` (the scorer diagnostic + the E5 eval-artifact regeneration, base
+  `main`, independent), #93 `…-live-observation` (§3.3b + §3.4b, **stacked on #86** — the
+  operator must `gh pr edit 93 --base main` after #86 merges). The split exists so E5's one
+  authorized write under `docs/evals/analysis/` is auditable in its own diff.
+- Base `origin/main` `4b8e7e7`. **Item (8) decided: branch B** — lane C's WS3-F01…F05 fixes were
+  not on `origin/main` (`classifyProbe`/`probeIndeterminate` absent), so the pipeline routes
+  around the broken semantics: Iran toponyms arrive empty, the join is `sha256` then `ordinal`,
+  the edition row id is resolved from `edition_key`, and `probe_failed` is read as
+  "could not tell".
+- Tests: `main` 4,332/282 → #86 4,357/283 → #93 4,441/288; #87 is 4,332 → 4,337/282 off `main`.
+  Typecheck and lint clean on every branch (3 pre-existing warnings, none in touched files).
+  Fork itests **15/15** on `br-wispy-brook-atkhgugi` (+ `br-wandering-rice-atdn4n25` and
+  `br-young-bread-ath111iu` earlier), all deleted by the runner.
+- $0: no paid call, no env change, no migration, no deploy, no production write. `vercel.json`,
+  `drizzle/`, `src/db/schema.ts` and `src/lib/validation/run.ts` byte-unchanged. Ran UNATTENDED
+  on the trimmed four-key `.env.local`; no provider key exists in this worktree.
+- The pre-push gate caught a real omission twice: `no-delete.test.ts` refused both new itests
+  until they joined the pinned `raw_documents`-deleter inventory and the policy document's
+  count sentence moved with them.
+- One deliberate deviation from a signed handoff, recorded not buried: step 06 also asked for
+  `gazetteerVersion` inside the result's `versions` block. NOT added — the WS-3.1b design makes
+  the observation row a projection of the result and takes that stamp from the caller precisely
+  because the result does not know it, and the store-side cross-check that would make a second
+  copy safe is lane C's file this window.
+- New, not in any plan document: `unattributed` as an attribution value, distinct from `both`.
+  On branch B every Iran unit's toponyms are empty, and `both` would record "spans every
+  contributor" for "nothing was recognised".

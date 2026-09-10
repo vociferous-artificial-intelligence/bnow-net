@@ -2039,6 +2039,20 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     named, on the `--base-ack` pattern (decision R4) — a migration runner that can silently
     retarget production from an unset variable is the hazard, and the guard belongs at the
     boundary, not in the runbook prose.
+    **(c) DONE 2026-09-09 by step 23 (lane R).** `assertMigrationTarget(DATABASE_URL,
+    DATABASE_URL_UNPOOLED)` runs as the first statement of `scripts/migrate.ts`'s `main()`
+    — after `import "./env"`, which is the point: by then dotenv has already refilled any
+    name the caller unset, so the guard sees exactly what the runner would have used. It
+    refuses when the two DSNs name different databases, BEFORE any connection, and its
+    message gives the correct form (set BOTH names) and says plainly not to use `env -u`.
+    `migrationEndpointId` folds Neon's trailing `-pooler` label, so production's pooled and
+    direct DSNs still compare EQUAL and the ordinary release path is unaffected; an
+    unparseable DSN returns its trimmed self, which can never equal a real host, so garbage
+    fails closed. Pinned in `scripts/migrate-target.test.ts`, including a spawned-process
+    case asserting the refusal happens before the runner opens anything (measured pre-fix:
+    the same invocation reached `password authentication failed`, i.e. a real connection
+    attempt). **(a) and (b) remain OPEN** — the two runbook lines that teach the `env -u`
+    idiom are unedited, and neither is step 23's to touch.
 
 113. **[Tier 3 — data] 26 `ru` ISW reports are `parse_status='failed'` and `--retry-failed`
     recovers none of them.** Separated out of **#79** so the residue is not mistaken for
@@ -2221,6 +2235,48 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     reproduction for each: `docs/reviews/WS-2-AUDIT-FINDING-REGISTER-2026-09-06.md` and
     `docs/reviews/WS-3-AUDIT-FINDING-REGISTER-2026-09-06.md`.
 
+    **Lane R — WS-2 register (#74).**
+
+    | id | sev | where | remediation | why deferred |
+    |---|---|---|---|---|
+    | WS2-F02 (code half) | minor | `src/lib/logs/drain.ts:247-248` | Option A: keep the query string for `/api/cron/*` paths only, so the ingest family's `?which=` discriminator survives | docs half lands in step 25; the code half changes what is STORED, so it wants its own privacy read (ruling 3 / Ask-content retention) rather than a ride on a hardening PR |
+    | WS2-F10 | minor | `src/lib/analysis/anthropic-seam.test.ts:135-137` | literal pin on `ANTHROPIC_NOT_REGISTERED` instead of the self-referential template compare | test-strength only; the constant is inert (#83 path dormant) |
+    | WS2-F13 (code half) | minor | `src/lib/analysis/digest-persist.ts:339-359` | mirror the stub branch for the third `embedTexts` caller (post-COMMIT digest embed) | docs half → step 25; the code half changes digest persistence behaviour and belongs with #117's provenance work |
+    | WS2-F15 | minor | `src/lib/embeddings/client.test.ts:109-125` | restore the strength the rewrite dropped: a test-only priced row so `ASK_EMBED_MODEL` is pinned to the SDK call and the provider tag again | test-strength only; the mutant it misses is invisible to production because no non-default embed model is configured |
+    | WS2-F20 (test half) | minor | `src/lib/analysis/map-prompts.test.ts` SAVED_KEYS | add `MAP_PROVIDER` / `REDUCE_PROVIDER` so `afterEach` restores them | an env leak BETWEEN tests, not a production path; the docs half → step 25 |
+    | WS2-F21 | minor | `src/lib/llm/import-graph.test.ts:72-75` | walk `src/` and `scripts/`, regex covering `from\s*`, line-leading `import\s*`, `require(` and dynamic `import(` | the same `from\s+` blindness is PRE-EXISTING for `"openai"` at `:46`; fixing one specifier scan and not the other is worse than fixing neither, and the pair is its own change |
+    | WS2-F22 | minor | `src/lib/llm/model-config.test.ts:631-639` | behavioural pin beside the arity pin (a defaulted second parameter keeps `.length === 1`) | test-strength; under the surviving mutant the widened dispatch is still caught by pricing, so nothing dispatches |
+    | WS2-F31 (code half) | minor | `src/lib/ask/router.ts:147` | append `:${p.reason}` to the recorded route policy | persisting the suffix is a `route_policy` FORMAT change with historical rows lacking it — a data-shape decision, not a bug fix. The false report sentence → step 25 |
+    | WS2-F32 | minor | `src/lib/ask/eval-run.ts:212-227` | extend R14's abort to a rerank-stage refusal | R14 (2026-09-07) decided the answer-model matrix shape and explicitly defers the hatch to the PR that schedules the paid matrix; the rerank arm belongs in that same PR |
+    | WS2-F36 | note | `src/lib/ask/attribution.ts:110-135` | report `state` and `provider` so degraded/refused runs are visible | read-only reporting script; #67's own report already names the gap |
+    | WS2-F37 | note | `src/lib/ask/attribution.test.ts:175-182` | the comment stripper is blinded by a `/*` string literal | test-strength on a read-only-scan assertion |
+    | WS2-F39, F46, F49, F50 | note | `embeddings/client.ts:163`, `analysis-registry.ts:136-138`, `evals/runner.ts:184-186`, `:514-516` | pins for four EQUIVALENT mutants | equivalent at runtime today; each becomes real only when a non-OpenAI approval or a non-stub identity union lands, and each wants that PR's context |
+    | WS2-F41 | note | `model-config.ts:162-168` | the test-only `allowlist` parameter | already closed for threading by the arity pin + TypeScript; F22 is the live half |
+    | WS2-F42 | note | `src/lib/analysis/digest.ts:166-176` | the ladder-rethrow guarantee is mis-attributed twice | documentation of an existing correct behaviour |
+    | WS2-F43 | note | `model-config.ts:96, :234-237` | the map activation lock has no provider dimension | ruling 13 forbids touching the lock predicate in this window (COMMON §3); it is a genuine design question for the activation decision |
+    | WS2-F47 | note | `scripts/analysis-eval.ts:397-402` | widen the pre-schema guard | eval control plane; `docs/evals/analysis/` is frozen this window |
+    | WS2-F48 | note | `src/lib/evals/runner.ts:1447-1451` | print `provider` beside `registryVersion` in the judged identity line | eval reporting; same freeze |
+    | WS2-F51, F53, F55, F56, F57, F58 | note | `LOG-DRAIN.md:271-277, :293`; `drain.ts:219-224, :241-244, :335-338, :388-402` | size-limit citation; the unbacked "anything else thrown → 200" row; no replay window; trust-boundary restatement; self-ingestion variants; the per-process sweep throttle | all six are accurate-but-incomplete DOCUMENTATION of behaviour that is correct and deliberate. F55's half-corrected route header comment and F51's citation are step 25's; the rest describe residuals the design already discloses |
+    | WS2-F60, F61, F63 | note | `scripts/map-remap.ts:186, :192-198, :215-223` | ack-guard edge cases | every one is in the FAIL-CLOSED direction (over-strict refusals, or an empty host that cannot match a real ack); a fix here can only loosen a guard, which is the wrong direction to take without a reason |
+    | WS2-F65, F66, F67 | note | `answer.ts:574/:588`; the #67 report's ruling-4 sentence; `router.test.ts:45-66` | gate-resolution pin; an overstated "zero calls" claim; a moved G4 assertion | test-strength and report wording; F66/F67 wording → step 25 |
+
+    **Also deferred here — three same-class residuals the step-23 re-check found, which no
+    register finding names** (so they are recorded rather than fixed under a finding that does
+    not cover them):
+    (a) `src/lib/logs/drain.ts` `normalizeEntry` bounds `timestamp` only by
+    `Number.isNaN(new Date(ts))`, so `timestamp: 1e15` — a plain ms/µs unit confusion, not an
+    attack — yields `"+033658-09-27T01:46:40.000Z"`, an expanded-year ISO string handed to a
+    `timestamptz`. If PostgreSQL rejects that form it is exactly WS2-F03's shape (one entry
+    fails the whole multi-row INSERT). A sane range check beside the existing NaN check is two
+    lines; it was left out because WS2-F03 is scoped to NUL and int4.
+    (b) `scripts/map-backfill.ts:209` still prints `via ${opts.base}` verbatim — the same
+    credential-print class WS2-F29 fixed in `map-remap.ts`, in a different script the register
+    did not audit.
+    (c) `scripts/migrations-lib.ts`'s `assertMigrationTarget` compares Neon ENDPOINTS, so two
+    DSNs on one endpoint differing only in database name or role pass. Outside #112's hazard (a
+    fork and production are always different endpoints) and now stated in the docstring and
+    pinned by a test, but not closed.
+
     **Lane C — WS-3 register (#78).**
 
     | id | sev | where | remediation | why deferred |
@@ -2235,7 +2291,7 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     | WS3-N09 | note | `migrations.test.ts` | add the 0027-style additive pin for 0029 | Lens 1 asks for pins on 0028 and 0030 and both exist; 0029 (`runtime_logs`, PR #64) has none. Confirmed 2026-09-09 as the prompt asks: `migrations.test.ts` mentions `runtime_logs` only inside the 0030 block's frozen-table list (`:273`), never as its own additive pin, and step 17's register carries no finding asking for one — its 0029 items are WS2-F27 (stale numbering prose) and WS2-F28 (the AGENTS.md `drizzle/` range). Belongs with #64's owner, and 0029 is already proven applied on a fork by three itests. |
     | WS3-N10 | note | AGENTS.md decision C5-m | a one-line correcting decision-log entry | The C5-m decision's "READ-ONLY probe of production" cannot run as literally written: `--series … --dry` reads `benchmark_series_days` on every day and production is at 29 migrations with those tables absent (re-verified 2026-09-09 on a fork of production). The operators ran it on a migrated fork instead. The log is append-only, so this is the operator's line to write, not a code change. |
 
-    Lane R's WS-2 rows belong to this same entry (PR #89). `docs/reviews/AUDIT-REMEDIATIONS-2026-09-07.md`
+    Both lanes' rows filed 2026-09-10 (PRs #89 and #94). `docs/reviews/AUDIT-REMEDIATIONS-2026-09-07.md`
     records what step 23 DID fix, one section per lane.
 
 120. **[Tier 3 — extraction recall] `iran-levant-v1`'s append-only window closes at WS-3.6

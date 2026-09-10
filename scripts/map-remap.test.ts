@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { msToNextUtcDay, type MapCallResult } from "./map-backfill";
 import { parseCountFlag, parseUsdFlag } from "./map-backfill";
 import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { join } from "node:path";
 import {
   MAX_CONSECUTIVE_SKIPS,
   MAX_SWEEPS,
@@ -953,6 +955,74 @@ describe("non-loopback route targets need an explicit acknowledgement", () => {
     );
     expect(remapBaseHost("https://user:pw@bnow-net.vercel.app")).not.toContain("pw");
     expect(remapBaseHost("http://127.0.0.1:3000")).toBe("127.0.0.1");
+  });
+
+  it("WS2-F29: neither verbatim print of the base can leak URL userinfo", async () => {
+    // The runbook disclosed ONE verbatim opts.base print (the banner). There were
+    // two: the remap-capability handshake error printed it as well. Both now go
+    // through remapTargetId, which strips userinfo, query and fragment.
+    const lines: string[] = [];
+    const base = "https://operator:sup3rsecret@example.test:8443/x?token=abc#frag";
+    const opts: RemapDriveOpts = {
+      base,
+      secret: "cron-secret",
+      theater: "ir",
+      from: "2026-08-25",
+      to: "2026-08-25",
+      budgetUsd: 1,
+      execute: false,
+      store: memoryCheckpointStore(),
+      log: (l: string) => lines.push(l),
+      // a route that does NOT echo maxSelectedId ⇒ the capability handshake throws
+      call: async () => dry({ maxSelectedId: undefined }),
+      sleep: async () => {},
+    };
+    await expect(driveMapRemap(opts)).rejects.toThrow(/does not support remap mode/);
+
+    const thrown = await driveMapRemap(opts).catch((e: unknown) =>
+      e instanceof Error ? e.message : String(e),
+    );
+    const all = [...lines, thrown].join("\n");
+    for (const secretish of ["sup3rsecret", "operator:", "token=abc", "#frag"]) {
+      expect(all).not.toContain(secretish);
+    }
+    // ...and the banner still names the target, in the normalized form the
+    // checkpoint is bound to
+    expect(all).toContain("MAP_BACKFILL_BASE=https://example.test:8443/x");
+    expect(thrown).toContain("the route at https://example.test:8443/x");
+  });
+
+  it("WS2-F05: the CLI REFUSES an unacknowledged target before any route call (subprocess)", () => {
+    // The source pin below is an indexOf over the file text: it passes when the
+    // call is commented out or wrapped in `try { ... } catch {}`, and in both the
+    // guard is inert and an unacknowledged production remap proceeds. Running the
+    // real CLI is the only check that cannot be satisfied by a call that does
+    // nothing. The base is an RFC 2606 .invalid host, so even a fully inert guard
+    // cannot reach a real deployment from this test.
+    const r = spawnSync(
+      join(process.cwd(), "node_modules", ".bin", "tsx"),
+      [join(process.cwd(), "scripts", "map-remap.ts"), "--theater", "ir", "--from", "2026-08-25", "--to", "2026-08-25"],
+      {
+        encoding: "utf8",
+        timeout: 60_000,
+        env: {
+          ...process.env,
+          // set, never unset: scripts/env.ts loads .env.local and dotenv REFILLS an
+          // absent name, so unsetting is what invites the real value back in (#112)
+          MAP_BACKFILL_BASE: "https://remap-guard-probe.invalid",
+          CRON_SECRET: "not-a-real-secret",
+          OPENAI_API_KEY: "",
+          ANTHROPIC_API_KEY: "",
+        },
+      },
+    );
+    expect(r.status).not.toBe(0);
+    expect(`${r.stdout}${r.stderr}`).toMatch(
+      /base "remap-guard-probe\.invalid" is not loopback — pass --base-ack remap-guard-probe\.invalid/,
+    );
+    // the driver never started: its banner is the first thing driveMapRemap logs
+    expect(r.stdout).not.toContain("map remap —");
+    expect(r.stdout).not.toContain("phase 1: estimate");
   });
 
   it("the CLI calls the guard BEFORE constructing the driver (source pin)", () => {

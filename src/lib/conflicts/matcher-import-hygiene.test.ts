@@ -106,3 +106,54 @@ describe("Phase-4 module purity", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// The paid surface of the conflict layer is ONE file (PLAN-WS-3 §3.4b)
+// ---------------------------------------------------------------------------
+
+import { readdirSync } from "node:fs";
+
+/** The ONLY module in src/lib/conflicts permitted to reach a provider client or
+ *  the spend machinery. Everything else in the package is pure or DB-only, so a
+ *  reviewer auditing "what can spend here" reads one file. */
+const PAID_SURFACE = "live-matcher.ts";
+
+const PROVIDER_IMPORTS = [
+  /from\s+["']openai["']/,
+  /from\s+["']@anthropic/,
+  /from\s+["']\.\.\/analysis\/openai-client["']/,
+  /from\s+["']\.\.\/analysis\/anthropic["']/,
+  /from\s+["']\.\.\/usage\/llm-guard["']/,
+  /from\s+["']\.\.\/usage\/spend-guard["']/,
+] as const;
+
+describe("the conflict layer's paid surface is exactly one module", () => {
+  const dir = join(process.cwd(), "src", "lib", "conflicts");
+  const modules = readdirSync(dir).filter(
+    (f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && f !== PAID_SURFACE,
+  );
+
+  it("finds the modules it is supposed to scan", () => {
+    // a broken walk would make the assertion below vacuously pass
+    expect(modules.length).toBeGreaterThan(30);
+    expect(modules).toContain("live-observation.ts");
+    expect(readdirSync(dir)).toContain(PAID_SURFACE);
+  });
+
+  for (const file of modules) {
+    it(`${file} imports no provider client and no spend guard`, () => {
+      const source = readFileSync(join(dir, file), "utf8");
+      for (const pattern of PROVIDER_IMPORTS) {
+        expect(pattern.test(source), `${file} matches ${String(pattern)}`).toBe(false);
+      }
+    });
+  }
+
+  it("live-matcher.ts DOES reach the client and the guard — the exemption is real, not vacuous", () => {
+    const source = readFileSync(join(dir, PAID_SURFACE), "utf8");
+    expect(/from\s+["']\.\.\/analysis\/openai-client["']/.test(source)).toBe(true);
+    expect(/from\s+["']\.\.\/usage\/llm-guard["']/.test(source)).toBe(true);
+    // and it reserves before it dispatches
+    expect(source.indexOf("tryReserve")).toBeLessThan(source.indexOf("dispatchMatchVote(client"));
+  });
+});
