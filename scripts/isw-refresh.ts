@@ -3,7 +3,12 @@ import { neon } from "@neondatabase/serverless";
 import { parseReport } from "../src/lib/isw/parse";
 import { loadParsedReportById, refreshSourceStats, type QueryFn } from "../src/lib/isw/load";
 import { iranUpdateUrlCandidatesForDate, iswUrlForDate } from "../src/lib/validation/run";
-import { parseSeriesDiscoveryArgs, runSeriesDiscovery } from "../src/lib/isw/edition-discovery";
+import {
+  backfillFromIswReports,
+  parseSeriesBackfillArgs,
+  parseSeriesDiscoveryArgs,
+  runSeriesDiscovery,
+} from "../src/lib/isw/edition-discovery";
 import { SqlReferenceReportRepository } from "../src/lib/conflicts/reference-repo-sql";
 import { politeFetch } from "../src/lib/fetch-cache";
 import { utcDayRange } from "../src/lib/time/day-boundary";
@@ -33,6 +38,16 @@ import { utcDayRange } from "../src/lib/time/day-boundary";
 //      Reports the C5 measurement: days with >1 edition, anchor != daily-final.
 //
 //   npx tsx scripts/isw-refresh.ts --series iran_update --from 2026-08-01 --to 2026-08-31 --dry
+//
+//   4. --series roca|iran_update --backfill-from-isw-reports [--dry]: decision
+//      N3's operator step. Registers every EXISTING isw_reports row of the
+//      series' theater as an edition row by normalizing its stored URL. ZERO
+//      network — it fetches nothing — so it writes parse_status 'pending' with
+//      an empty derived payload, which a later discovery run upgrades in
+//      place. A row whose URL the versioned normalization table refuses is
+//      counted and skipped, never fatal.
+//
+//   npx tsx scripts/isw-refresh.ts --series iran_update --backfill-from-isw-reports --dry
 //
 // ISW prose never persists: only URLs, canonical source identities, hedging
 // enums, ≤60-char hedging cues, and counts reach the database (ruling 1).
@@ -72,6 +87,22 @@ async function refreshOne(reportId: number, url: string): Promise<string> {
 }
 
 async function main() {
+  // --series … --backfill-from-isw-reports: decision N3's zero-network
+  // registration of the existing corpus. Checked FIRST, because it is a
+  // --series mode that takes no --from/--to window.
+  const backfillPlan = parseSeriesBackfillArgs(args);
+  if (backfillPlan) {
+    console.log(
+      `isw-refresh series=${backfillPlan.series} backfill-from-isw-reports dry=${backfillPlan.dry}`,
+    );
+    const summary = await backfillFromIswReports(
+      { repo: new SqlReferenceReportRepository(query), query },
+      backfillPlan,
+    );
+    console.log("series backfill summary:", JSON.stringify(summary));
+    return;
+  }
+
   // --series: WS-3.2 edition discovery. Its own branch, FIRST, returning before
   // any of the historical code below — so the --theater path (pending drain and
   // --discover) is byte-identical and cannot be reached by a --series

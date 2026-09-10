@@ -582,6 +582,10 @@ export interface SeriesDiscoveryPlan {
  *  never a silent default: an unknown series, a missing or malformed window
  *  bound, or an inverted range all throw before any network or DB work. */
 export function parseSeriesDiscoveryArgs(args: readonly string[]): SeriesDiscoveryPlan | null {
+  // `--backfill-from-isw-reports` is a DIFFERENT --series mode with no date
+  // bounds (parseSeriesBackfillArgs); returning null here keeps one dispatch
+  // authority rather than two that can both claim the same argv.
+  if (args.includes("--backfill-from-isw-reports")) return null;
   const at = args.indexOf("--series");
   if (at === -1) return null;
   const value = args[at + 1];
@@ -728,4 +732,159 @@ export async function runSeriesDiscovery(
     );
   }
   return summary;
+}
+
+// ---------------------------------------------------------------------------
+// `isw-refresh --series … --backfill-from-isw-reports` (the N3 operator mode)
+// ---------------------------------------------------------------------------
+
+export interface SeriesBackfillPlan {
+  series: ReferenceSeriesId;
+  /** compute and report, write nothing */
+  dry: boolean;
+}
+
+/** A row the backfill would not register, and why. Bounded and prose-free:
+ *  a report URL, a typed code, and the domain error's own message. */
+export interface BackfillRefusal {
+  reportId: number;
+  url: string;
+  code: string;
+  reason: string;
+}
+
+export interface SeriesBackfillSummary {
+  series: ReferenceSeriesId;
+  theater: string;
+  dry: boolean;
+  rows: number;
+  inserted: number;
+  unchanged: number;
+  repaired: number;
+  refused: number;
+  /** capped sample — the COUNT is the number that matters */
+  refusals: readonly BackfillRefusal[];
+}
+
+const BACKFILL_REFUSAL_SAMPLE = 20;
+
+/** Parse the `--backfill-from-isw-reports` CLI mode. Returns null when the
+ *  flag is absent, so `parseSeriesDiscoveryArgs` keeps the plain `--series`
+ *  window. Requires `--series` and refuses an unknown one; it takes no date
+ *  bounds, because the corpus itself is the window. */
+export function parseSeriesBackfillArgs(args: readonly string[]): SeriesBackfillPlan | null {
+  if (!args.includes("--backfill-from-isw-reports")) return null;
+  const at = args.indexOf("--series");
+  const value = at === -1 ? undefined : args[at + 1];
+  if (value !== "roca" && value !== "iran_update") {
+    throw new Error(
+      `--backfill-from-isw-reports needs --series roca|iran_update, got ${JSON.stringify(value ?? null)}`,
+    );
+  }
+  return { series: value, dry: args.includes("--dry") };
+}
+
+/**
+ * Register every existing `isw_reports` row of the series' theater as an
+ * edition row, by normalizing its stored URL. Decision N3's operator step.
+ *
+ * ZERO NETWORK, by construction: it reads one table and writes the
+ * migration-0028 tables through the same merge authority discovery uses. It
+ * never fetches a page, never writes `isw_reports` or `source_citations`, and
+ * never calls refreshReportCitations. `--dry` writes nothing at all.
+ *
+ * NO HTML MEANS NO UNITS, so these rows are `parseStatus: "pending"` with an
+ * empty `derived` and both anchors `missing`. That is NOT the D-b criterion
+ * failing — D-b judges a fetched BODY, and there is no body here. A later
+ * discovery run upgrades the row in place: `mergeEditionRecords` ranks
+ * pending < failed < parsed and an empty incoming `derived` never erases a
+ * stored one, so nothing this mode writes can degrade a real parse. Writing
+ * `failed` instead would claim we tried to parse something.
+ *
+ * EVERY REFUSAL IS PER ROW AND COUNTED, NEVER FATAL. A typed
+ * `ConflictDomainError` — an unknown URL shape, a URL that normalizes to
+ * another series, a slug date that disagrees with the row's `report_date` —
+ * is recorded and the walk continues. Anything else propagates: a programming
+ * error should be loud, and the mode is idempotent, so a re-run resumes.
+ */
+export async function backfillFromIswReports(
+  deps: { repo: ReferenceReportRepository; query: QueryFn },
+  plan: SeriesBackfillPlan,
+  log: (line: string) => void = console.log,
+): Promise<SeriesBackfillSummary> {
+  const repo = plan.dry ? new DryRunReferenceReportRepository(deps.repo) : deps.repo;
+  const theater = SERIES_ISW_THEATER[plan.series];
+  const summary: SeriesBackfillSummary = {
+    series: plan.series,
+    theater,
+    dry: plan.dry,
+    rows: 0,
+    inserted: 0,
+    unchanged: 0,
+    repaired: 0,
+    refused: 0,
+    refusals: [],
+  };
+  const refusals: BackfillRefusal[] = [];
+
+  const rows = await deps.query(
+    `SELECT id, url, report_date::text AS report_date FROM isw_reports
+      WHERE theater = $1 ORDER BY report_date, id`,
+    [theater],
+  );
+
+  for (const row of rows) {
+    summary.rows += 1;
+    const reportId = Number(row.id);
+    const url = String(row.url);
+    const reportDate = String(row.report_date);
+    try {
+      const normalized = normalizeIswEditionUrl(url);
+      if (normalized.series !== plan.series) {
+        throw new ConflictDomainError(
+          "invalid_edition_url",
+          `normalizes to series ${normalized.series}, not ${plan.series}`,
+        );
+      }
+      if (normalized.reportDate !== reportDate) {
+        // the slug and the stored report_date disagree: registering either one
+        // would be inventing an identity
+        throw new ConflictDomainError(
+          "invalid_edition_url",
+          `slug date ${normalized.reportDate} disagrees with isw_reports.report_date ${reportDate}`,
+        );
+      }
+      const result = await repo.upsertEdition(
+        parseEditionRecord({
+          identity: {
+            series: plan.series,
+            editionKey: normalized.editionKey,
+            reportDate,
+            cutoffAt: null,
+            publishedAt: null,
+            scopeVersion: SCOPE_VERSIONS[plan.series],
+          },
+          provider: "isw",
+          canonicalUrl: canonicalizeIswUrl(url),
+          normVersion: normalized.normVersion,
+          designatedFinal: null,
+          cutoffTreatment: "missing",
+          publishedTreatment: "missing",
+          parseStatus: "pending",
+          citationAnchorId: reportId,
+          derived: {},
+        }),
+      );
+      summary[result.action] += 1;
+    } catch (e) {
+      if (!(e instanceof ConflictDomainError)) throw e;
+      summary.refused += 1;
+      if (refusals.length < BACKFILL_REFUSAL_SAMPLE) {
+        refusals.push({ reportId, url, code: e.code, reason: e.message });
+      }
+      log(`${reportDate}  ${plan.dry ? "DRY " : ""}REFUSED ${e.code} report=${reportId} ${url}`);
+    }
+  }
+
+  return { ...summary, refusals };
 }

@@ -13,6 +13,9 @@ import {
   editionUnitsVersion,
   isCleanNotFound,
   normalizeUnitTextForHash,
+  backfillFromIswReports,
+  parseSeriesBackfillArgs,
+  parseSeriesDiscoveryArgs,
   runSeriesDiscovery,
   seriesProbeUrls,
   unitSignaturesFrom,
@@ -791,5 +794,188 @@ describe("unitSignaturesFrom — the SERIES' gazetteer scores the page (WS3-F05,
     expect(units).toHaveLength(5);
     expect(units.reduce((n, u) => n + u.toponyms.length, 0)).toBe(8);
     expect(units[1].toponyms).toEqual(["qatar", "al_udeid", "bahrain", "kuwait"]);
+  });
+});
+
+
+describe("backfillFromIswReports (WS3-F07 — decision N3's zero-network operator mode)", () => {
+  const JUNE = "https://understandingwar.org/research/middle-east/";
+  const rowsFor = (rows: Array<[number, string, string]>) =>
+    rows.map(([id, url, report_date]) => ({ id, url, report_date }));
+
+  function backfillDeps(rows: Array<[number, string, string]>) {
+    const queries: unknown[][] = [];
+    const repo = new InMemoryReferenceReportRepository();
+    const fetches: string[] = [];
+    const query: QueryFn = async (sql, params = []) => {
+      queries.push([sql, params]);
+      return rowsFor(rows);
+    };
+    return { repo, query, queries, fetches };
+  }
+
+  it("registers each row as a PENDING edition anchored to its isw_reports id", async () => {
+    const d = backfillDeps([
+      [11, `${JUNE}iran-update-special-report-august-12-2026/`, DAY],
+      [12, `${JUNE}iran-update-evening-special-report-august-12-2026/`, DAY],
+    ]);
+    const summary = await backfillFromIswReports(d, { series: "iran_update", dry: false }, () => {});
+
+    expect(summary).toMatchObject({
+      series: "iran_update",
+      theater: "ir",
+      dry: false,
+      rows: 2,
+      inserted: 2,
+      unchanged: 0,
+      repaired: 0,
+      refused: 0,
+      refusals: [],
+    });
+    const day = await d.repo.editionsForDay("iran_update", DAY);
+    expect(day.map((e) => e.identity.editionKey).sort()).toEqual([
+      `iran_update:${DAY}:evening`,
+      `iran_update:${DAY}:special`,
+    ]);
+    for (const e of day) {
+      expect(e.provider).toBe("isw");
+      expect(e.parseStatus).toBe("pending"); // no HTML was fetched, so nothing was parsed
+      expect(e.derived).toEqual({});
+      expect(e.cutoffTreatment).toBe("missing");
+      expect(e.publishedTreatment).toBe("missing");
+      expect(e.designatedFinal).toBeNull();
+    }
+    expect(day.find((e) => e.identity.editionKey.endsWith(":special"))!.citationAnchorId).toBe(11);
+  });
+
+  it("reads isw_reports READ-ONLY, keyed on the series' theater, and fetches nothing", async () => {
+    const d = backfillDeps([[11, `${JUNE}iran-update-special-report-august-12-2026/`, DAY]]);
+    await backfillFromIswReports(d, { series: "iran_update", dry: false }, () => {});
+    expect(d.queries).toHaveLength(1);
+    const [sql, params] = d.queries[0] as [string, unknown[]];
+    expect(sql).toContain("SELECT id, url, report_date::text AS report_date FROM isw_reports");
+    expect(sql).not.toMatch(/INSERT|UPDATE|DELETE/i);
+    expect(params).toEqual(["ir"]);
+    const roca = backfillDeps([]);
+    await backfillFromIswReports(roca, { series: "roca", dry: false }, () => {});
+    expect((roca.queries[0] as [string, unknown[]])[1]).toEqual(["ru"]);
+  });
+
+  it("registers the ELEVEN June-2025 suffix-form rows rather than refusing them (#116)", async () => {
+    const june = [
+      [201, `${JUNE}iran-update-special-report-june-14-2025-evening-edition/`, "2025-06-14"],
+      [202, `${JUNE}iran-update-special-report-june-18-2025-morning-edition/`, "2025-06-18"],
+      [203, `${JUNE}iran-update-special-report-june-24-2025-evening-edition/`, "2025-06-24"],
+    ] as Array<[number, string, string]>;
+    const d = backfillDeps(june);
+    const summary = await backfillFromIswReports(d, { series: "iran_update", dry: false }, () => {});
+    expect(summary.refused).toBe(0);
+    expect(summary.inserted).toBe(3);
+    expect((await d.repo.editionsForDay("iran_update", "2025-06-14"))[0].identity.editionKey).toBe(
+      "iran_update:2025-06-14:evening",
+    );
+  });
+
+  it("counts a per-row typed refusal and KEEPS GOING", async () => {
+    const d = backfillDeps([
+      [1, `${JUNE}iran-update-weekly-review-august-12-2026/`, DAY], // unknown shape
+      [2, "not a url", DAY], // unparseable
+      [3, "https://example.com/research/middle-east/iran-update-august-12-2026/", DAY], // wrong host
+      [4, `${JUNE}iran-update-special-report-august-12-2026/`, "2026-08-13"], // slug/date disagree
+      [5, "https://understandingwar.org/research/russia-ukraine/russian-offensive-campaign-assessment-june-30-2026/", "2026-06-30"], // other series
+      [6, `${JUNE}iran-update-special-report-august-12-2026/`, DAY], // the good one, LAST
+    ]);
+    const lines: string[] = [];
+    const summary = await backfillFromIswReports(d, { series: "iran_update", dry: false }, (l) =>
+      lines.push(l),
+    );
+    expect(summary.rows).toBe(6);
+    expect(summary.refused).toBe(5);
+    expect(summary.inserted).toBe(1); // the walk never aborted
+    expect(summary.refusals.map((r) => r.reportId)).toEqual([1, 2, 3, 4, 5]);
+    for (const r of summary.refusals) expect(r.code).toBe("invalid_edition_url");
+    expect(summary.refusals[3].reason).toContain("disagrees with isw_reports.report_date");
+    expect(summary.refusals[4].reason).toContain("not iran_update");
+    expect(lines).toHaveLength(5);
+    expect(await d.repo.getEdition(`iran_update:${DAY}:special`)).not.toBeNull();
+  });
+
+  it("is idempotent: a replay is `unchanged` and adds no row", async () => {
+    const rows: Array<[number, string, string]> = [
+      [11, `${JUNE}iran-update-special-report-august-12-2026/`, DAY],
+    ];
+    const first = backfillDeps(rows);
+    await backfillFromIswReports(first, { series: "iran_update", dry: false }, () => {});
+    const again = { ...backfillDeps(rows), repo: first.repo };
+    const summary = await backfillFromIswReports(again, { series: "iran_update", dry: false }, () => {});
+    expect(summary).toMatchObject({ rows: 1, inserted: 0, unchanged: 1, repaired: 0 });
+    expect(await first.repo.editionsForDay("iran_update", DAY)).toHaveLength(1);
+  });
+
+  it("a later discovery run UPGRADES a backfilled row in place (pending -> parsed)", async () => {
+    const d = backfillDeps([[11, `${JUNE}iran-update-evening-special-report-august-12-2026/`, DAY]]);
+    await backfillFromIswReports(d, { series: "iran_update", dry: false }, () => {});
+    expect((await d.repo.getEdition(`iran_update:${DAY}:evening`))!.parseStatus).toBe("pending");
+
+    const discovery = deps({ [U.evening]: EVENING_HTML }, { repo: d.repo, iswRows: [{ id: 11, url: U.evening }] });
+    const out = await discoverEditions(discovery, "iran_update", DAY);
+    expect(out.editions[0].action).toBe("repaired");
+    expect(out.editions[0].repairedFields).toContain("parse_status");
+    const stored = await d.repo.getEdition(`iran_update:${DAY}:evening`);
+    expect(stored!.parseStatus).toBe("parsed");
+    expect(stored!.derived.units!.length).toBeGreaterThan(0);
+    expect(stored!.citationAnchorId).toBe(11); // the anchor the backfill set survives
+    expect(await d.repo.editionsForDay("iran_update", DAY)).toHaveLength(1); // no duplicate
+  });
+
+  it("--dry writes NOTHING while reporting what a live run would have done", async () => {
+    const d = backfillDeps([
+      [11, `${JUNE}iran-update-special-report-august-12-2026/`, DAY],
+      [12, `${JUNE}iran-update-weekly-review-august-12-2026/`, DAY],
+    ]);
+    const summary = await backfillFromIswReports(d, { series: "iran_update", dry: true }, () => {});
+    expect(summary).toMatchObject({ dry: true, rows: 2, inserted: 1, refused: 1 });
+    expect(await d.repo.editionsForDay("iran_update", DAY)).toEqual([]);
+  });
+
+  it("caps the refusal SAMPLE without capping the count", async () => {
+    const many: Array<[number, string, string]> = Array.from({ length: 25 }, (_, i) => [
+      i + 1,
+      `${JUNE}iran-update-weekly-review-august-12-2026/`,
+      DAY,
+    ]);
+    const summary = await backfillFromIswReports(backfillDeps(many), { series: "iran_update", dry: true }, () => {});
+    expect(summary.refused).toBe(25);
+    expect(summary.refusals).toHaveLength(20);
+  });
+});
+
+describe("parseSeriesBackfillArgs (one dispatch authority for the two --series modes)", () => {
+  it("claims the argv only when the flag is present, and refuses an unknown series", () => {
+    expect(parseSeriesBackfillArgs(["--series", "iran_update"])).toBeNull();
+    expect(parseSeriesBackfillArgs(["--series", "iran_update", "--backfill-from-isw-reports"])).toEqual({
+      series: "iran_update",
+      dry: false,
+    });
+    expect(parseSeriesBackfillArgs(["--series", "roca", "--backfill-from-isw-reports", "--dry"])).toEqual({
+      series: "roca",
+      dry: true,
+    });
+    expect(() => parseSeriesBackfillArgs(["--backfill-from-isw-reports"])).toThrowError(
+      /needs --series roca\|iran_update/,
+    );
+    expect(() => parseSeriesBackfillArgs(["--series", "syria", "--backfill-from-isw-reports"])).toThrowError(
+      /needs --series roca\|iran_update/,
+    );
+  });
+
+  it("the window parser yields to it, so one argv can never run both modes", () => {
+    const argv = ["--series", "iran_update", "--backfill-from-isw-reports", "--from", "2025-06-01", "--to", "2025-06-30"];
+    expect(parseSeriesDiscoveryArgs(argv)).toBeNull();
+    expect(parseSeriesBackfillArgs(argv)).toEqual({ series: "iran_update", dry: false });
+    // and without the flag the window parser still claims it
+    expect(parseSeriesDiscoveryArgs(["--series", "iran_update", "--from", "2025-06-01", "--to", "2025-06-30"])).toEqual(
+      { series: "iran_update", from: "2025-06-01", to: "2025-06-30", dry: false },
+    );
   });
 });
