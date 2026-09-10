@@ -100,6 +100,21 @@ describe("drain signature (the route's ONLY authorization)", () => {
     expect(verifyDrainSignature(body, sign(body) + "ab", SECRET)).toBe(false);
   });
 
+  it("WS2-F01: rejects a signature that differs by ONE hex character, at the head, middle and tail", () => {
+    // Every rejection case above uses a wholly different digest or a malformed
+    // header, so a compare that looked at only the first few bytes survived them
+    // all. Flipping one character of an OTHERWISE-VALID signature is the only
+    // shape that pins the full-length constant-time compare.
+    const body = '{"id":"a"}';
+    const valid = sign(body);
+    for (const i of [0, 20, 39]) {
+      const flipped = valid.slice(0, i) + (valid[i] === "0" ? "1" : "0") + valid.slice(i + 1);
+      expect(flipped).not.toBe(valid);
+      expect(flipped).toHaveLength(valid.length);
+      expect(verifyDrainSignature(body, flipped, SECRET)).toBe(false);
+    }
+  });
+
   it("WS2-F52: rejects an odd-length header, including a valid signature plus one hex char", () => {
     // Buffer.from(hex, "hex") silently DROPS a dangling nibble, so `<valid>f`
     // decoded to the correct 20 bytes and verified TRUE under a length-agnostic
