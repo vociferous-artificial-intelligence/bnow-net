@@ -51,6 +51,12 @@ only because `openai_ask` happened to be at $0 each time. Treat it as load-beari
    ruling 4 is explicit: "Set a new cap env in ALL Vercel envs BEFORE deploying the guard
    that reads it, or you stop that pipeline" — this is a fail-closed guard, so a missing
    cap env doesn't degrade gracefully, it halts the pipeline the next time it runs.
+   **The same ordering applies to any fail-closed SECRET a release reads for the first
+   time, even though a secret is neither a cap nor a flag.** Precedent: `LOG_DRAIN_SECRET`
+   (`docs/designs/LOG-DRAIN.md` §8) — the receiver answers 503 and stores nothing until it
+   is set in Production, Preview and Development, so it must be set BEFORE the deploy that
+   carries the code that reads it. List these names in the release record alongside the cap
+   envs. (Added 2026-09-09, WS2-F59.)
 
 6. **#84 headroom record — may not be skipped.** One read-only `provider_usage` SELECT
    comparing `ASK_USD_CAP_DAILY` against the day's real `openai_ask` usage so far, written
@@ -101,6 +107,16 @@ only because `openai_ask` happened to be at $0 each time. Treat it as load-beari
     recording both. The 2026-07-21 Ask release is the fullest precedent: backup branch
     taken first, migrations 0021–0027 applied and verified idempotent, decision-log entry
     written before the feature flags that depended on the new columns went live.
+   **Nothing applies migrations on deploy** — `package.json`'s `build` is plain
+   `next build` and `vercel.json` declares no `buildCommand` — so a release document
+   that says a deploy "carries" a migration means only that the code expects it. **A
+   feature whose enablement is a separate operator action must not be enabled until its
+   migration is applied and confirmed.** Precedent: migrations **0028, 0029 and 0030**
+   are on `main` and NOT applied to production (OPEN-TASKS #111); registering the Vercel
+   log drain before `0029` is applied makes every signed delivery 500 and retry
+   (WS2-F04). Confirm with `SELECT name FROM _migrations WHERE name LIKE '<nnnn>%'` and
+   `SELECT to_regclass('<table>')` before the enabling action, and record both answers.
+   (Added 2026-09-09, WS2-F59 / WS2-F04.)
 
 ## Known gaps this checklist does not close
 

@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_MAX_ROWS,
+  MAX_ROWS_CEILING,
   DEFAULT_RETENTION_DAYS,
   DRAIN_MESSAGE_CHARS,
   DRAIN_ROUTE_PATH,
@@ -97,6 +98,43 @@ describe("drain signature (the route's ONLY authorization)", () => {
     expect(verifyDrainSignature(body, "not-hex-at-all", SECRET)).toBe(false);
     expect(verifyDrainSignature(body, sign(body).slice(0, 38), SECRET)).toBe(false);
     expect(verifyDrainSignature(body, sign(body) + "ab", SECRET)).toBe(false);
+  });
+
+  it("WS2-F01: rejects a signature that differs by ONE hex character, at the head, middle and tail", () => {
+    // Every rejection case above uses a wholly different digest or a malformed
+    // header, so a compare that looked at only the first few bytes survived them
+    // all. Flipping one character of an OTHERWISE-VALID signature is the only
+    // shape that pins the full-length constant-time compare.
+    const body = '{"id":"a"}';
+    const valid = sign(body);
+    for (const i of [0, 20, 39]) {
+      const flipped = valid.slice(0, i) + (valid[i] === "0" ? "1" : "0") + valid.slice(i + 1);
+      expect(flipped).not.toBe(valid);
+      expect(flipped).toHaveLength(valid.length);
+      expect(verifyDrainSignature(body, flipped, SECRET)).toBe(false);
+    }
+  });
+
+  it("WS2-F52: rejects an odd-length header, including a valid signature plus one hex char", () => {
+    // Buffer.from(hex, "hex") silently DROPS a dangling nibble, so `<valid>f`
+    // decoded to the correct 20 bytes and verified TRUE under a length-agnostic
+    // hex test. The regex now pins exactly 40 characters.
+    const body = '{"id":"a"}';
+    expect(verifyDrainSignature(body, sign(body) + "f", SECRET)).toBe(false);
+    expect(verifyDrainSignature(body, sign(body).slice(0, 39), SECRET)).toBe(false);
+    expect(verifyDrainSignature(body, "a".repeat(41), SECRET)).toBe(false);
+  });
+
+  it("WS2-F54: verifies the RAW BYTES, so a body with invalid UTF-8 still authenticates", () => {
+    // The route hands the request's bytes straight in. Decoding to a string first
+    // replaces an invalid sequence with U+FFFD, so re-encoding produces different
+    // bytes and a legitimately signed delivery would 403 — which Vercel does not
+    // retry, making the delivery a silent permanent loss.
+    const bytes = Buffer.concat([Buffer.from('{"id":"a","m":"'), Buffer.from([0xff, 0xfe]), Buffer.from('"}')]);
+    const signature = createHmac("sha1", SECRET).update(bytes).digest("hex");
+    expect(verifyDrainSignature(bytes, signature, SECRET)).toBe(true);
+    // and the lossy round-trip a string body would have signed does NOT match
+    expect(verifyDrainSignature(bytes.toString("utf8"), signature, SECRET)).toBe(false);
   });
 
   it("tolerates surrounding whitespace in the header", () => {
@@ -284,6 +322,85 @@ describe("message handling: redact, then hash, then well-formed truncate", () =>
     expect(clean).toContain("[redacted]");
   });
 
+  it("WS2-F24: redacts a keyword that ENDS an identifier — the accidental env-dump shape", () => {
+    // The original rule anchored \b BEFORE the keyword, and there is no word
+    // boundary inside LOG_DRAIN_SECRET or client_secret, so the single most
+    // likely accidental leak shape survived redaction untouched. MYSECRET has no
+    // separator either, which the first attempt at this fix also missed.
+    const dirty = [
+      "LOG_DRAIN_SECRET=aGVsbG93b3JsZDEyMzQ1",
+      "client_secret=abcdefghijklmnop",
+      "OPENAI_API_KEY=sk-ABCDEFGHIJKLMNOP",
+      "TELEGRAM_SESSION=1BQANOTEuMTA4LjU2",
+      'clientSecret: "QRSTUVWXYZ012345"',
+      "X-API-Key: ZYXWVUTSRQPONMLK",
+      "MYSECRET=NOSEPARATORHERE1",
+    ].join("; ");
+    const clean = redactSecrets(dirty);
+    for (const leaked of [
+      "aGVsbG93b3JsZDEyMzQ1", "abcdefghijklmnop", "ABCDEFGHIJKLMNOP",
+      "1BQANOTEuMTA4LjU2", "QRSTUVWXYZ012345", "ZYXWVUTSRQPONMLK", "NOSEPARATORHERE1",
+    ]) {
+      expect(clean).not.toContain(leaked);
+    }
+    // the identifier itself is kept — the operator needs to know WHICH name leaked
+    expect(clean).toContain("LOG_DRAIN_SECRET=[redacted]");
+    expect(clean).toContain("client_secret=[redacted]");
+  });
+
+  it("WS2-F24: redaction is LINEAR — a slow regex here would time the function out", () => {
+    // redactSecrets runs on the FULL untruncated message and the body cap is 4 MB.
+    // The first attempt at this fix scanned a variable-length identifier BEFORE the
+    // keyword and was quadratic: 128 KB of "a-" took 11 s, which on a real delivery
+    // means a function timeout -> non-2xx -> Vercel retries the identical body, i.e.
+    // the exact permanent retry loop WS2-F03 and WS2-F26 exist to prevent.
+    const pathological = "a-".repeat(512 * 1024); // 1 MB of dense separators
+    const t0 = Date.now();
+    expect(redactSecrets(pathological)).toBe(pathological);
+    expect(Date.now() - t0).toBeLessThan(1000);
+
+    // and a large message that is DENSE in real secrets still redacts every one
+    const many = Array.from({ length: 5_000 }, (_, i) => `SOME_LONG_ENV_NAME_${i}_SECRET=abcdefghijklmnop`).join(" ");
+    const t1 = Date.now();
+    const cleaned = redactSecrets(many);
+    expect(cleaned).not.toContain("abcdefghijklmnop");
+    expect(Date.now() - t1).toBeLessThan(1000);
+  });
+
+  it("WS2-F03: strips U+0000 from every stored string, so one entry cannot poison the batch", () => {
+    const NUL = String.fromCharCode(0); // never a literal in source
+    const row = normalizeEntry(
+      entry({
+        id: `abc${NUL}def`,
+        message: `map: killed mid${NUL}line`,
+        path: `/api/cron/${NUL}map`,
+        requestId: `req${NUL}1`,
+      }),
+    )!;
+    for (const v of [row.id, row.message, row.requestPath, row.requestId]) {
+      expect(v).not.toContain(NUL);
+    }
+    expect(row.message).toBe("map: killed midline");
+    // the hash is taken over the cleaned text, so the preimage carries no NUL either
+    expect(row.messageSha256).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("WS2-F03: a NUL-only string is treated as absent, not stored as an empty one", () => {
+    const NUL = String.fromCharCode(0);
+    expect(normalizeEntry(entry({ id: NUL }))).toBeNull();
+    expect(normalizeEntry(entry({ requestId: NUL }))!.requestId).toBeNull();
+  });
+
+  it("WS2-F03: clamps status_code into int4 instead of failing the whole INSERT", () => {
+    expect(normalizeEntry(entry({ statusCode: 2_147_483_648 }))!.statusCode).toBe(2_147_483_647);
+    expect(normalizeEntry(entry({ statusCode: -2_147_483_649 }))!.statusCode).toBe(-2_147_483_648);
+    expect(normalizeEntry(entry({ statusCode: 1e30 }))!.statusCode).toBe(2_147_483_647);
+    // ...and an ordinary status is untouched, as is the millisecond timestamp,
+    // which is NOT an int4 column and must never be clamped with it
+    expect(normalizeEntry(entry({ statusCode: 503 }))!.statusCode).toBe(503);
+    expect(normalizeEntry(entry())!.loggedAt).toBe(new Date(1_757_000_000_000).toISOString());
+  });
+
   it("leaves ordinary log prose alone", () => {
     const s = "map: 45 batches, 0 errors, fence 38, released 1";
     expect(redactSecrets(s)).toBe(s);
@@ -390,6 +507,37 @@ describe("bounds and retention arithmetic", () => {
       process.env.LOG_DRAIN_RETENTION_DAYS = bad;
       expect(retentionDays()).toBe(DEFAULT_RETENTION_DAYS);
     }
+  });
+
+  it("WS2-F25: a fractional value below 1 falls back rather than flooring to zero", () => {
+    // posInt tested n > 0 BEFORE flooring, so LOG_DRAIN_RETENTION_DAYS=0.5 — a
+    // plausible "twelve hours" — floored to 0 and was ACCEPTED, contradicting
+    // .env.example and making the sweep cutoff `now`.
+    for (const bad of ["0.5", "0.99", "0.0001"]) {
+      process.env.LOG_DRAIN_RETENTION_DAYS = bad;
+      expect(retentionDays()).toBe(DEFAULT_RETENTION_DAYS);
+      process.env.LOG_DRAIN_MAX_ROWS = bad;
+      expect(maxRows()).toBe(DEFAULT_MAX_ROWS);
+      process.env.LOG_DRAIN_SWEEP_LIMIT = bad;
+      expect(sweepLimit()).toBe(5000);
+    }
+    // a value at or above 1 still floors as before
+    process.env.LOG_DRAIN_RETENTION_DAYS = "7.9";
+    expect(retentionDays()).toBe(7);
+  });
+
+  it("WS2-F26: clamps LOG_DRAIN_MAX_ROWS so one INSERT never exceeds the 65,535-parameter Bind cap", () => {
+    // insertRuntimeLogs binds 12 parameters per row in ONE statement; 5,462 rows
+    // is 65,544 parameters and every delivery that large failed outright
+    // (measured on real Postgres — 5,461 stores, 5,462 does not).
+    expect(MAX_ROWS_CEILING * 12).toBeLessThan(65_535);
+    for (const over of ["5462", "100000", "999999999"]) {
+      process.env.LOG_DRAIN_MAX_ROWS = over;
+      expect(maxRows()).toBe(MAX_ROWS_CEILING);
+    }
+    // below the ceiling the operator's value still wins
+    process.env.LOG_DRAIN_MAX_ROWS = "250";
+    expect(maxRows()).toBe(250);
   });
 
   it("retentionCutoff subtracts whole days from the instant given", () => {

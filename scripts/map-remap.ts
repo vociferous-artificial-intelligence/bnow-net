@@ -362,9 +362,14 @@ export async function driveMapRemap(opts: RemapDriveOpts): Promise<RemapDriveRes
   };
 
   // -- phase 1: estimate (dry remap runs — no LLM, no writes, no lease) -------
+  // remapTargetId, never opts.base: the raw value is the operator's own
+  // MAP_BACKFILL_BASE and may carry URL userinfo, which this line would otherwise
+  // print verbatim into a terminal, a CI log and — once the drain is registered —
+  // runtime_logs (WS2-F29). The normalized id is the same thing the checkpoint is
+  // bound to, so the banner and the checkpoint now name the target identically.
   log(
     `map remap — ${days[0]} … ${days[days.length - 1]} theater=${theater}` +
-      `${opts.track ? ` track=${opts.track}` : ""} via MAP_BACKFILL_BASE=${opts.base}`,
+      `${opts.track ? ` track=${opts.track}` : ""} via MAP_BACKFILL_BASE=${remapTargetId(opts.base)}`,
   );
   log(`\n== phase 1: estimate (dry runs — no LLM calls, no writes) ==`);
   let estTotal = 0;
@@ -382,9 +387,11 @@ export async function driveMapRemap(opts: RemapDriveOpts): Promise<RemapDriveRes
     // MAJOR-3). A remap-capable route ALWAYS echoes maxSelectedId, empty days
     // included; refuse to continue without it.
     if (c.maxSelectedId === undefined) {
+      // the SECOND verbatim print of opts.base (WS2-F29): the runbook disclosed
+      // only the banner above, and a throw message reaches the same places
       throw new Error(
-        `the route at ${opts.base} does not support remap mode (no maxSelectedId in the dry ` +
-          `response) — deploy the remap-capable build before running this driver`,
+        `the route at ${remapTargetId(opts.base)} does not support remap mode (no maxSelectedId ` +
+          `in the dry response) — deploy the remap-capable build before running this driver`,
       );
     }
     estTotal += n(c, "estUsd");

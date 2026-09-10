@@ -28,6 +28,8 @@ const {
   resetDrainSweepThrottle,
   DRAIN_ROUTE_PATH,
   DEFAULT_MAX_ROWS,
+  MAX_ROWS_CEILING,
+  maxRows,
 } = await import("@/lib/logs/drain");
 const { POST } = await import("@/app/api/logs/drain/route");
 
@@ -302,20 +304,26 @@ describe("the route against real Postgres", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Register gap G5 (step 21 / CP4 §5.4): WS2-F03 and WS2-F26 were asserted from
-// PostgreSQL documentation and never measured. These three are CHARACTERIZATION
-// tests — they pin the CURRENT, DEFECTIVE behaviour so the fix has a regression
-// net and so the register's claims rest on evidence rather than on a manual.
+// Register gap G5 (step 21 / CP4 §5.4), INVERTED by step 23.
 //
-// ***STEP 23 FLIPS THESE.*** When the NUL strip, the int4 clamp and the
-// LOG_DRAIN_MAX_ROWS clamp land, each measured failure below becomes a success
-// and the comments must be rewritten with it. A failure here after step 23 is
-// the fix landing, not a regression.
+// These began as CHARACTERIZATION tests: step 21 measured, on real Postgres,
+// that WS2-F03 and WS2-F26 were true rather than inferred from a manual, and
+// pinned the DEFECTIVE behaviour so the fix would have a regression net. Step 23
+// landed the NUL strip, the int4 clamp and the LOG_DRAIN_MAX_ROWS ceiling, so
+// each measured failure is now a measured SUCCESS and the cases assert storage
+// plus the ABSENCE of the exact error string step 21 recorded:
+//   invalid byte sequence for encoding "UTF8": 0x00
+//   value "2147483648" is out of range for type integer
+//   bind message has 8 parameter formats but 0 parameters
 //
-// Why it matters operationally: the receiver answers 500 on a throw, Vercel
-// retries the IDENTICAL batch, and the batch is therefore lost permanently
-// rather than transiently. None of it is reachable until a drain is registered.
-describe("G5 characterization: measured failure modes of the current receiver", () => {
+// The co-batched-clean-entry assertion is kept deliberately: it is what proves
+// the fix restores the whole DELIVERY, not merely one row. A failure here is a
+// regression of the hardening, not the old defect resurfacing.
+//
+// Why it mattered operationally: the receiver answers 500 on a throw, Vercel
+// retries the IDENTICAL batch, and the batch was therefore lost permanently
+// rather than transiently. None of it was reachable until a drain is registered.
+describe("G5: the hardened receiver stores what used to poison the whole batch", () => {
   const NUL = String.fromCharCode(0); // never a literal in source
   const probe = async (rows: Parameters<typeof insertRuntimeLogs>[1]): Promise<string> => {
     try {
@@ -326,7 +334,7 @@ describe("G5 characterization: measured failure modes of the current receiver", 
     }
   };
 
-  it("WS2-F03: a single U+0000 in one message makes the WHOLE batch unstorable", async () => {
+  it("WS2-F03: a U+0000 in one message no longer makes the batch unstorable", async () => {
     const { rows } = normalizeBatch(
       [
         entry({ id: `${PREFIX}nul-clean`, message: "map: 45 batches, 0 errors" }),
@@ -334,68 +342,104 @@ describe("G5 characterization: measured failure modes of the current receiver", 
       ],
       DEFAULT_MAX_ROWS,
     );
-    // normalizeBatch passes NUL through today — wellFormedSlice strips lone
-    // surrogates, not control characters
     expect(rows).toHaveLength(2);
-    expect(rows[1].message).toContain(NUL);
+    expect(rows[1].message).not.toContain(NUL); // stripped in normalizeEntry
+    expect(rows[1].message).toBe("map: killed midline");
 
     const message = await probe(rows);
-    expect(message).not.toBe(""); // MEASURED: PostgreSQL rejects 0x00 in text
-    console.log(`[G5/WS2-F03] insert error: ${message.slice(0, 200)}`);
+    expect(message).toBe(""); // was: 'invalid byte sequence for encoding "UTF8": 0x00'
+    expect(message).not.toContain("invalid byte sequence");
 
-    // all-or-nothing: the CLEAN co-batched entry is lost with the poisoned one,
-    // which is what makes the redelivery loop permanent
-    const { rows: stored } = await pool.query<{ id: string }>(
-      `SELECT id FROM runtime_logs WHERE id LIKE $1`,
+    // the whole delivery lands — the co-batched CLEAN entry is no longer lost
+    // with the poisoned one, which is what made the redelivery loop permanent
+    const { rows: stored } = await pool.query<{ id: string; message: string }>(
+      `SELECT id, message FROM runtime_logs WHERE id LIKE $1 ORDER BY id`,
       [`${PREFIX}nul-%`],
     );
-    expect(stored).toHaveLength(0);
+    expect(stored.map((r) => r.id)).toEqual([`${PREFIX}nul-clean`, `${PREFIX}nul-poison`]);
+    expect(stored[1].message).toBe("map: killed midline");
   });
 
-  it("WS2-F03 (second half): a status_code beyond int4 is truncated, not clamped, and the batch fails", async () => {
+  it("WS2-F03 (second half): a status_code beyond int4 is CLAMPED and the batch stores", async () => {
     const { rows } = normalizeBatch(
       [entry({ id: `${PREFIX}int4`, statusCode: 2_147_483_648 })],
       DEFAULT_MAX_ROWS,
     );
-    expect(rows[0].statusCode).toBe(2_147_483_648); // int() truncates the float only
+    expect(rows[0].statusCode).toBe(2_147_483_647); // clamped, not truncated
 
     const message = await probe(rows);
-    expect(message).not.toBe(""); // MEASURED: integer out of range
-    console.log(`[G5/WS2-F03 int4] insert error: ${message.slice(0, 200)}`);
-    const { rows: stored } = await pool.query<{ id: string }>(
-      `SELECT id FROM runtime_logs WHERE id = $1`,
+    expect(message).toBe(""); // was: value "2147483648" is out of range for type integer
+    expect(message).not.toContain("out of range");
+    const { rows: stored } = await pool.query<{ status_code: number }>(
+      `SELECT status_code FROM runtime_logs WHERE id = $1`,
       [`${PREFIX}int4`],
     );
-    expect(stored).toHaveLength(0);
+    expect(stored).toHaveLength(1);
+    expect(Number(stored[0].status_code)).toBe(2_147_483_647);
   });
 
-  it("WS2-F26: 12 bind parameters per row means a batch over 5,461 rows exceeds the 65,535-parameter cap", async () => {
-    // DEFAULT_MAX_ROWS (1000 -> 12,000 parameters) is safe; the finding is that
-    // LOG_DRAIN_MAX_ROWS has no UPPER clamp, so an operator-set value above
-    // 5,461 breaks every delivery larger than that. 5,462 * 12 = 65,544.
-    const OVER = 5_462;
-    expect(OVER * 12).toBeGreaterThan(65_535);
-    const { rows } = normalizeBatch(
-      Array.from({ length: OVER }, (_, i) => entry({ id: `${PREFIX}bind-${i}` })),
-      OVER, // exactly what maxRows() would return for LOG_DRAIN_MAX_ROWS=5462
-    );
-    expect(rows).toHaveLength(OVER);
+  it("WS2-F26: LOG_DRAIN_MAX_ROWS can no longer configure a batch past the 65,535-parameter cap", async () => {
+    // The boundary itself is unchanged: 12 bind parameters per row in ONE
+    // statement, so 5,462 rows is 65,544 parameters and PostgreSQL refuses the
+    // Bind message. Step 21 MEASURED that against a real database; this case no
+    // longer re-measures it (a clamped maxRows can no longer produce such a
+    // batch, which is the point) and asserts it arithmetically instead — the
+    // measurement of record is the step-21 characterization run, not this line.
+    // What this case proves is REACHABILITY: no configuration can hand
+    // insertRuntimeLogs a batch that large, and the clamped ceiling stores.
+    const saved = process.env.LOG_DRAIN_MAX_ROWS;
+    try {
+      for (const over of ["5462", "65536", "1000000"]) {
+        process.env.LOG_DRAIN_MAX_ROWS = over;
+        expect(maxRows()).toBe(MAX_ROWS_CEILING);
+      }
+      expect(MAX_ROWS_CEILING * 12).toBeLessThan(65_535);
 
-    const message = await probe(rows);
-    expect(message).not.toBe(""); // MEASURED: the extended-protocol Bind cap
-    console.log(`[G5/WS2-F26] insert error: ${message.slice(0, 200)}`);
-    const { rows: count } = await pool.query<{ n: string }>(
-      `SELECT count(*) AS n FROM runtime_logs WHERE id LIKE $1`,
-      [`${PREFIX}bind-%`],
-    );
-    expect(Number(count[0].n)).toBe(0);
+      // end to end at the clamped ceiling: 5,000 rows store in one statement
+      process.env.LOG_DRAIN_MAX_ROWS = "5462";
+      const { rows } = normalizeBatch(
+        Array.from({ length: 5_462 }, (_, i) => entry({ id: `${PREFIX}bind-${i}` })),
+        maxRows(), // exactly what the route passes
+      );
+      expect(rows).toHaveLength(MAX_ROWS_CEILING);
 
-    // and the row count one BELOW the boundary still stores, so the parameter
-    // cap is the whole difference — nothing else about a large batch is broken
-    const safe = normalizeBatch(
-      Array.from({ length: 5_461 }, (_, i) => entry({ id: `${PREFIX}bindok-${i}` })),
-      5_461,
-    ).rows;
-    expect(await insertRuntimeLogs(exec, safe)).toBe(5_461);
+      const message = await probe(rows);
+      expect(message).toBe(""); // was: bind message has 8 parameter formats but 0 parameters
+      expect(message).not.toContain("bind message");
+      const { rows: count } = await pool.query<{ n: string }>(
+        `SELECT count(*) AS n FROM runtime_logs WHERE id LIKE $1`,
+        [`${PREFIX}bind-%`],
+      );
+      expect(Number(count[0].n)).toBe(MAX_ROWS_CEILING);
+    } finally {
+      if (saved === undefined) delete process.env.LOG_DRAIN_MAX_ROWS;
+      else process.env.LOG_DRAIN_MAX_ROWS = saved;
+    }
+  });
+
+  it("WS2-F54: a delivery whose body carries invalid UTF-8 verifies and stores", async () => {
+    // The route signs and verifies the RAW request bytes. Under the previous
+    // req.text() path the invalid sequence was replaced with U+FFFD before
+    // hashing, so the re-encoded bytes differed, verification failed and the
+    // receiver answered 403 — which Vercel does NOT retry.
+    const bytes = Buffer.from(
+      JSON.stringify(entry({ id: `${PREFIX}rawbytes`, message: "raw@byte" })),
+      "utf8",
+    );
+    bytes[bytes.indexOf(0x40)] = 0xff; // '@' -> a lone 0xFF: not valid UTF-8
+    expect(bytes.toString("utf8")).toContain("\uFFFD"); // what req.text() would have signed
+    const signature = createHmac("sha1", SECRET).update(bytes).digest("hex");
+    const res = await POST(
+      new NextRequest("https://bnow.net/api/logs/drain", {
+        method: "POST",
+        body: bytes,
+        headers: { "x-vercel-signature": signature },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const { rows } = await pool.query<{ id: string }>(`SELECT id FROM runtime_logs WHERE id = $1`, [
+      `${PREFIX}rawbytes`,
+    ]);
+    expect(rows).toHaveLength(1);
   });
 });
