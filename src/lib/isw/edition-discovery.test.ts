@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  EDITION_UNITS_VERSION,
+  EDITION_UNITS_BASE_VERSION,
   GAP_CONFIRM_MIN_DAY_AGE_HOURS,
   MIN_REPORT_BYTES,
   SERIES_ISW_THEATER,
@@ -10,6 +10,7 @@ import {
   confirmGapEligible,
   discoverEditions,
   editionAnchorsFrom,
+  editionUnitsVersion,
   isCleanNotFound,
   normalizeUnitTextForHash,
   runSeriesDiscovery,
@@ -20,7 +21,9 @@ import {
 import { selectDailyFinal } from "../conflicts/editions";
 import type { ReportInstantExtraction } from "../conflicts/report-extract";
 import { extractTakeawaysWithText } from "../validation/isw-extract";
+import { IRAN_LEVANT_V1 } from "../validation/gazetteer/iran-levant-v1";
 import { RU_UA_V1 } from "../validation/gazetteer/ru-ua-v1";
+import { gazetteerFor } from "../validation/gazetteer";
 import { InMemoryReferenceReportRepository } from "../conflicts/reference-repo";
 import type { FetchResult } from "../fetch-cache";
 import type { QueryFn } from "./load";
@@ -143,7 +146,7 @@ describe("editionAnchorsFrom (extractor outcome -> stored anchor pair)", () => {
 
 describe("unitSignaturesFrom (ruling 1: signatures and hashes only)", () => {
   it("derives ordinal + sha256 + canonical keys + length from a REAL ROCA page", () => {
-    const units = unitSignaturesFrom(ROCA_HTML);
+    const units = unitSignaturesFrom(ROCA_HTML, RU_UA_V1);
     expect(units.length).toBeGreaterThan(3);
     expect(units.map((u) => u.ordinal)).toEqual(units.map((_, i) => i));
     for (const u of units) {
@@ -156,15 +159,17 @@ describe("unitSignaturesFrom (ruling 1: signatures and hashes only)", () => {
 
   it("hashes the whitespace-normalized text, so re-parsing the same page is stable", () => {
     expect(normalizeUnitTextForHash("  a \n\t b  ")).toBe("a b");
-    expect(unitSignaturesFrom(EVENING_HTML)).toEqual(unitSignaturesFrom(EVENING_HTML));
+    expect(unitSignaturesFrom(EVENING_HTML, IRAN_LEVANT_V1)).toEqual(
+      unitSignaturesFrom(EVENING_HTML, IRAN_LEVANT_V1),
+    );
   });
 
   it("a page with no Key Takeaways block yields zero units (not a throw)", () => {
-    expect(unitSignaturesFrom(OVERSIZE_HTML)).toEqual([]);
+    expect(unitSignaturesFrom(OVERSIZE_HTML, IRAN_LEVANT_V1)).toEqual([]);
   });
 
   it("carries NO prose: on a REAL Iran page every stored string is a hash or a canonical key", () => {
-    const units = unitSignaturesFrom(IRAN_SPECIAL_HTML);
+    const units = unitSignaturesFrom(IRAN_SPECIAL_HTML, IRAN_LEVANT_V1);
     expect(units.length).toBeGreaterThan(0);
     for (const u of units) {
       // the shape is closed — a future extra field would fail here AND in
@@ -173,11 +178,16 @@ describe("unitSignaturesFrom (ruling 1: signatures and hashes only)", () => {
       expect(u.sha256).toMatch(/^[0-9a-f]{64}$/);
       for (const token of [...u.toponyms, ...u.actions]) expect(token).toMatch(/^[a-z0-9]+(?:_[a-z0-9]+)*$/);
     }
-    // the signature tokens are drawn from the CLOSED gazetteer vocabulary — an
-    // arbitrary word from the page cannot appear there. (A key such as
-    // `casualties` may coincide with a word in the text; membership, not
-    // absence, is the guarantee that matters.)
-    const vocabulary = new Set([...Object.keys(RU_UA_V1.toponyms), ...Object.keys(RU_UA_V1.actions)]);
+    // the signature tokens are drawn from the CLOSED vocabulary of the
+    // gazetteer that ACTUALLY scored the page — an arbitrary word from the
+    // page cannot appear there. (A key such as `casualties` may coincide with
+    // a word in the text; membership, not absence, is the guarantee that
+    // matters.) Asserting against RU_UA_V1 here, as the shipped test did,
+    // passed for the wrong reason: the Iran signatures were EMPTY.
+    const vocabulary = new Set([
+      ...Object.keys(IRAN_LEVANT_V1.toponyms),
+      ...Object.keys(IRAN_LEVANT_V1.actions),
+    ]);
     for (const u of units) {
       for (const token of [...u.toponyms, ...u.actions]) expect(vocabulary.has(token)).toBe(true);
     }
@@ -260,7 +270,7 @@ describe("discoverEditions — every shape probed, no collapse (C4)", () => {
     const d = deps({ [U.evening]: EVENING_HTML });
     await discoverEditions(d, "iran_update", DAY);
     const stored = await d.repo.getEdition(`iran_update:${DAY}:evening`);
-    expect(stored!.derived.unitsVersion).toBe(EDITION_UNITS_VERSION);
+    expect(stored!.derived.unitsVersion).toBe(editionUnitsVersion(IRAN_LEVANT_V1));
     expect(stored!.derived.units).toHaveLength(3);
     expect(Object.keys(stored!.derived).sort()).toEqual(["units", "unitsVersion"]);
     // the fixture's distinctive bullet wording never reaches the record
@@ -719,5 +729,67 @@ describe("discoverEditions — a >10 KB non-report body is not an edition (WS3-F
     const out = await discoverEditions(d, "iran_update", DAY);
     expect(out.probeIndeterminateReasons).toEqual({ throttled: 1, unparseable_body: 1 });
     expect(out.dayStatusReason).toBe("throttled");
+  });
+});
+
+
+describe("unitSignaturesFrom — the SERIES' gazetteer scores the page (WS3-F05, D-c)", () => {
+  it("an Iran Update page yields Iran geography, not the empty RU/UA answer", () => {
+    const underRuUa = unitSignaturesFrom(IRAN_SPECIAL_HTML, RU_UA_V1);
+    const underIran = unitSignaturesFrom(IRAN_SPECIAL_HTML, IRAN_LEVANT_V1);
+    expect(underIran).toHaveLength(underRuUa.length);
+    // measured at a7ba98b: 0 toponyms under ru-ua-v1 across all five units
+    expect(underRuUa.reduce((n, u) => n + u.toponyms.length, 0)).toBe(0);
+    expect(underIran.reduce((n, u) => n + u.toponyms.length, 0)).toBeGreaterThan(0);
+    // the identity keys the C13 join uses are gazetteer-independent
+    expect(underIran.map((u) => u.sha256)).toEqual(underRuUa.map((u) => u.sha256));
+    expect(underIran.map((u) => u.ordinal)).toEqual(underRuUa.map((u) => u.ordinal));
+    expect(underIran.map((u) => u.chars)).toEqual(underRuUa.map((u) => u.chars));
+  });
+
+  it("a ROCA page is byte-identical to the shipped ru-ua-v1 derivation", () => {
+    // keywords.extractSignature IS extractSignatureWith(RU_UA_V1, ...), so the
+    // ROCA corpus does not move — only its version stamp does
+    const { takeaways } = extractTakeawaysWithText(ROCA_HTML);
+    const units = unitSignaturesFrom(ROCA_HTML, RU_UA_V1);
+    expect(units.map((u) => u.toponyms)).toEqual(takeaways.map((t) => t.toponyms));
+    expect(units.map((u) => u.actions)).toEqual(takeaways.map((t) => t.actions));
+  });
+
+  it("the stamp names the gazetteer and stays a legal derived version identifier", () => {
+    expect(editionUnitsVersion(RU_UA_V1)).toBe("isw-unit-sig-v2-ru-ua-v1");
+    expect(editionUnitsVersion(IRAN_LEVANT_V1)).toBe("isw-unit-sig-v2-iran-levant-v1");
+    for (const gaz of [RU_UA_V1, IRAN_LEVANT_V1]) {
+      expect(editionUnitsVersion(gaz)).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+      // an `isw-unit-sig-v1` row named no gazetteer at all — that is how the
+      // two derivations stay distinguishable
+      expect(editionUnitsVersion(gaz)).not.toBe("isw-unit-sig-v1");
+      expect(editionUnitsVersion(gaz).startsWith(`${EDITION_UNITS_BASE_VERSION}-`)).toBe(true);
+    }
+  });
+
+  it("discovery picks the gazetteer by SERIES", async () => {
+    expect(gazetteerFor("roca")).toBe(RU_UA_V1);
+    expect(gazetteerFor("iran_update")).toBe(IRAN_LEVANT_V1);
+
+    const d = deps({ [U.evening]: EVENING_HTML });
+    await discoverEditions(d, "iran_update", DAY);
+    const stored = await d.repo.getEdition(`iran_update:${DAY}:evening`);
+    expect(stored!.derived.unitsVersion).toBe("isw-unit-sig-v2-iran-levant-v1");
+  });
+
+  it("the STORED Iran edition carries the geography, end to end (was: 0 of 8)", async () => {
+    // the whole-path pin: pre-fix this stored derived.units with every
+    // toponym list empty, on the column the 3.6-prep names as part of the
+    // compound-calibration substrate
+    const july = "2026-07-24";
+    const special = `${IRAN}iran-update-special-report-july-24-2026/`;
+    const d = deps({ [special]: IRAN_SPECIAL_HTML });
+    await discoverEditions(d, "iran_update", july);
+    const stored = await d.repo.getEdition(`iran_update:${july}:special`);
+    const units = stored!.derived.units!;
+    expect(units).toHaveLength(5);
+    expect(units.reduce((n, u) => n + u.toponyms.length, 0)).toBe(8);
+    expect(units[1].toponyms).toEqual(["qatar", "al_udeid", "bahrain", "kuwait"]);
   });
 });

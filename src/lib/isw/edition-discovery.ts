@@ -69,6 +69,7 @@ import { politeFetch, type FetchResult } from "../fetch-cache";
 import { isIsoDay, type TimeAnchorTreatment } from "../conflicts/instants";
 import { extractReportInstants, type ReportInstantExtraction } from "../conflicts/report-extract";
 import { extractTakeawaysWithText } from "../validation/isw-extract";
+import { extractSignatureWith, gazetteerFor, type Gazetteer } from "../validation/gazetteer";
 // The URL builders are IMPORTED, never re-derived: production and discovery
 // must probe the same slugs or the two corpora diverge silently.
 // (run.ts:15 iswUrlForDate, :21 iranUpdateUrlForDate — subsumed by the
@@ -82,10 +83,27 @@ import type { QueryFn } from "./load";
  *  production would have skipped. */
 export const MIN_REPORT_BYTES = 10_000;
 
-/** The versioned unit-signature payload identity. Bump it when the hash input
- *  normalization or the signature source changes, so stored units from two
- *  derivations are never silently compared. */
-export const EDITION_UNITS_VERSION = "isw-unit-sig-v1" as const;
+/** The versioned unit-signature payload identity, WITHOUT its gazetteer. Bump
+ *  it when the hash input normalization or the signature algorithm changes.
+ *  Never stamped on its own — see editionUnitsVersion. */
+export const EDITION_UNITS_BASE_VERSION = "isw-unit-sig-v2" as const;
+
+/** The stamp that goes into `derived.unitsVersion`.
+ *
+ *  It NAMES THE GAZETTEER (WS3-F05 / D-c). `derived.units[].toponyms` are
+ *  canonical keys of one vocabulary, so two rows stamped with the same version
+ *  but derived under different gazetteers would be silently incomparable —
+ *  and every Iran Update edition written before this change carried an EMPTY
+ *  toponym list, because the signature came through the RU/UA-bound
+ *  `extractSignature`. `v1` rows are distinguishable by having no gazetteer
+ *  component at all.
+ *
+ *  Stays inside EDITION_DERIVED_VERSION_RE (`editions.ts`): lowercase
+ *  alphanumerics separated by single hyphens, which both gazetteer version ids
+ *  already satisfy. */
+export function editionUnitsVersion(gaz: Gazetteer): string {
+  return `${EDITION_UNITS_BASE_VERSION}-${gaz.version}`;
+}
 
 /** A day may be CONFIRMED a publication gap only once this much time has
  *  passed since 00:00Z of the report date — i.e. at least 24 h after the day
@@ -255,8 +273,21 @@ export function normalizeUnitTextForHash(text: string): string {
 
 /** Reduce a report page to the ONLY unit data that may be stored: ordinal,
  *  content hash, canonical signature keys, length bucket. The bullet texts stay
- *  in this function's stack frame. */
-export function unitSignaturesFrom(html: string): EditionUnitSignature[] {
+ *  in this function's stack frame.
+ *
+ *  The GAZETTEER IS A REQUIRED ARGUMENT (WS3-F05). It used to take the
+ *  signatures straight off `extractTakeaways`, which binds ru-ua-v1 through
+ *  `keywords.ts` — so every Iran Update edition stored `toponyms: []`, on the
+ *  column the 3.6-prep names as part of the compound-calibration substrate.
+ *  Measured on fixtures/isw/iran-update-2026-07-24.html: 0 toponyms under
+ *  ru-ua-v1, 8 under iran-levant-v1. There is deliberately no default: a
+ *  caller must say which vocabulary it means, and the answer is stamped into
+ *  the version.
+ *
+ *  `extractTakeawaysWithText` is left byte-identical and still computes its
+ *  own RU/UA signatures — it is the production `isw_reports` path and must not
+ *  move. Only `transientTexts` is used here, and only in this stack frame. */
+export function unitSignaturesFrom(html: string, gaz: Gazetteer): EditionUnitSignature[] {
   const { takeaways, transientTexts } = extractTakeawaysWithText(html);
   if (takeaways.length !== transientTexts.length) {
     // both halves walk the SAME DOM with the same algorithm, so a mismatch
@@ -267,13 +298,16 @@ export function unitSignaturesFrom(html: string): EditionUnitSignature[] {
       `takeaway/text arity mismatch: ${takeaways.length} vs ${transientTexts.length}`,
     );
   }
-  return takeaways.map((t, i) => ({
-    ordinal: t.index,
-    sha256: createHash("sha256").update(normalizeUnitTextForHash(transientTexts[i])).digest("hex"),
-    toponyms: [...t.toponyms],
-    actions: [...t.actions],
-    chars: t.chars,
-  }));
+  return takeaways.map((t, i) => {
+    const sig = extractSignatureWith(gaz, transientTexts[i]);
+    return {
+      ordinal: t.index,
+      sha256: createHash("sha256").update(normalizeUnitTextForHash(transientTexts[i])).digest("hex"),
+      toponyms: [...sig.toponyms],
+      actions: [...sig.actions],
+      chars: t.chars,
+    };
+  });
 }
 
 /** A probe that produced no report: was it a CLEAN 404 (the shape genuinely
@@ -377,6 +411,8 @@ export async function discoverEditions(
 ): Promise<EditionDiscoveryResult> {
   const fetchPage = deps.fetch ?? politeFetch;
   const now = deps.now ?? (() => new Date());
+  // fail-closed on an unknown series before any network call
+  const gazetteer = gazetteerFor(series);
   const candidates = seriesProbeUrls(series, reportDate); // refuses before any network
   const theater = SERIES_ISW_THEATER[series];
 
@@ -403,7 +439,7 @@ export async function discoverEditions(
     }
 
     const canonicalUrl = canonicalizeIswUrl(url);
-    const units = unitSignaturesFrom(page.html);
+    const units = unitSignaturesFrom(page.html, gazetteer);
     if (units.length === 0) {
       // D-b: a body over the threshold that declares no Key Takeaway is NOT an
       // edition. The host's own not-found page measured 9,661 bytes against
@@ -444,7 +480,7 @@ export async function discoverEditions(
       // discovery can no longer mint a `failed` edition
       parseStatus: "parsed",
       citationAnchorId: anchoredReportId,
-      derived: { units, unitsVersion: EDITION_UNITS_VERSION },
+      derived: { units, unitsVersion: editionUnitsVersion(gazetteer) },
     });
     const result = await deps.repo.upsertEdition(record);
 
