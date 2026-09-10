@@ -72,8 +72,12 @@ export function drainSecret(): string | null {
 function posInt(name: string, fallback: number): number {
   const raw = trimmed(name);
   if (raw === null) return fallback;
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+  // Floor BEFORE the > 0 test (WS2-F25): checking the un-floored value accepted
+  // anything in (0,1) — LOG_DRAIN_RETENTION_DAYS=0.5, a plausible "twelve hours",
+  // floored to 0 and was accepted, which contradicts .env.example and would make
+  // the sweep cutoff `now` (delete everything).
+  const n = Math.floor(Number(raw));
+  return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
 /** Retention window in days. Unlike a spend cap (ruling 4) this deliberately

@@ -450,6 +450,23 @@ describe("bounds and retention arithmetic", () => {
     }
   });
 
+  it("WS2-F25: a fractional value below 1 falls back rather than flooring to zero", () => {
+    // posInt tested n > 0 BEFORE flooring, so LOG_DRAIN_RETENTION_DAYS=0.5 — a
+    // plausible "twelve hours" — floored to 0 and was ACCEPTED, contradicting
+    // .env.example and making the sweep cutoff `now`.
+    for (const bad of ["0.5", "0.99", "0.0001"]) {
+      process.env.LOG_DRAIN_RETENTION_DAYS = bad;
+      expect(retentionDays()).toBe(DEFAULT_RETENTION_DAYS);
+      process.env.LOG_DRAIN_MAX_ROWS = bad;
+      expect(maxRows()).toBe(DEFAULT_MAX_ROWS);
+      process.env.LOG_DRAIN_SWEEP_LIMIT = bad;
+      expect(sweepLimit()).toBe(5000);
+    }
+    // a value at or above 1 still floors as before
+    process.env.LOG_DRAIN_RETENTION_DAYS = "7.9";
+    expect(retentionDays()).toBe(7);
+  });
+
   it("retentionCutoff subtracts whole days from the instant given", () => {
     const now = new Date("2026-09-20T12:00:00.000Z");
     expect(retentionCutoff(now, 14).toISOString()).toBe("2026-09-06T12:00:00.000Z");
