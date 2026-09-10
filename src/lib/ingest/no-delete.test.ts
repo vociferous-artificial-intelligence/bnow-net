@@ -20,7 +20,7 @@ import { describe, expect, it } from "vitest";
 //  1. `*.itest.ts` — integration tests run against DISPOSABLE Neon fork branches that are
 //     created and deleted per run (scripts/test-integration.sh), so their seed teardown never
 //     touches production data. The pattern is exempt, but the CURRENT set of itest deleters is
-//     also pinned by name below: a tenth deleter fails this test until someone adds it, so a
+//     also pinned by name below: a new deleter fails this test until someone adds it, so a
 //     new deletion cannot arrive unread.
 //  2. `scripts/cleanup-stub-data.ts` — the only non-test deleter in the repository. It is a
 //     truth-in-UI cleanup (standing ruling 3), STUB_LIKE-guarded and transactional: it removes
@@ -60,6 +60,7 @@ const isItest = (rel: string) => /\.itest\.ts$/.test(rel);
 const KNOWN_ITEST_DELETERS = [
   "integration/ask-events.itest.ts",
   "integration/authz-page-gate.itest.ts",
+  "integration/conflict-db-claim-sources.itest.ts",
   "integration/enrich-rescore.itest.ts",
   "integration/hardening.itest.ts",
   "integration/map-batch-error-classification.itest.ts",

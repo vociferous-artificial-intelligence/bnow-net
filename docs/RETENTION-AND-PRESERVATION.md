@@ -128,16 +128,16 @@ absence plus enforcement: no production code path deletes a source document, and
 `claim_sources` foreign key makes deleting a cited one an error rather than a policy breach.
 
 **The inventory, verified.** Across `src/` and `scripts/` at the base commit of this document
-there are exactly **ten** statements that delete from `raw_documents`, in **nine** files:
+there are exactly **eleven** statements that delete from `raw_documents`, in **ten** files:
 
 - `scripts/cleanup-stub-data.ts:60` — the only non-test deleter anywhere. It is a
   truth-in-UI (ruling 3) cleanup, not a retention decision: it runs inside a transaction and is
   guarded by `STUB_LIKE`, so it removes only fixture rows that must never render as fact. It is
   a manual operator script and is on no schedule.
-- **8** `*.itest.ts` files — `ask-events`, `authz-page-gate`, `enrich-rescore`, `hardening`,
-  `map-batch-error-classification` (×2), `map-budget-stop` (×2), `map-flood-bounds`,
-  `map-remap` — all seed teardown on **disposable Neon fork branches** that are created and
-  deleted per run. They never touch production data.
+- **9** `*.itest.ts` files — `ask-events`, `authz-page-gate`, `conflict-db-claim-sources`,
+  `enrich-rescore`, `hardening`, `map-batch-error-classification` (×2), `map-budget-stop` (×2),
+  `map-flood-bounds`, `map-remap` — all seed teardown on **disposable Neon fork branches** that
+  are created and deleted per run. They never touch production data.
 
 There is **no** `.delete(rawDocuments)` anywhere, no `TRUNCATE`, and no `DELETE` of any row in
 any migration under `drizzle/` (the only `DELETE` tokens there are `ON DELETE` foreign-key
