@@ -45,14 +45,37 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** The four code points a word-mode match folds before comparing: the two
+ *  curly single quotes onto ASCII `'`, and the two unicode hyphens onto ASCII
+ *  `-`. Nothing else — this is deliberately NOT a unicode normalizer.
+ *
+ *  WHY. ISW's CMS and most news wires emit U+2019 for an apostrophe, so
+ *  `Sana’a`, `Ma’rib`, `Ta’izz` and `al-Qa’im` never met the ASCII-apostrophe
+ *  variants the gazetteer declares (WS3-F06, 15 misses of 54 measured prose
+ *  probes). Applied to BOTH sides — the text and each variant literal — so the
+ *  direction of the mismatch does not matter.
+ *
+ *  WHERE IT IS NOT APPLIED: the "substring" branch of extractSignatureWith,
+ *  which is ru-ua-v1's, returns BEFORE this is reached. That branch is the
+ *  production keyword path and the snapshot proof is byte-level, so it must
+ *  not move for any reason. It also would not help there: Cyrillic variants
+ *  contain neither of these punctuation classes.
+ *
+ *  IT DOES NOT FOLD HYPHEN <-> SPACE. `tel-aviv` and `tel aviv` remain
+ *  different variants, which is why OPEN-TASKS #120 measured the hyphen form
+ *  as a real recall gain that only an appended variant can close. */
+export function foldMatchPunctuation(text: string): string {
+  return text.replace(/[\u2018\u2019]/g, "'").replace(/[\u2010\u2011]/g, "-");
+}
+
 /** One variant -> its anchored source. A TRAILING `*` means "prefix/stem
  *  match" and drops the right anchor; anchors are only added where the variant
  *  actually begins or ends with a word character, so a variant like `al-qaim`
  *  anchors on both sides while a hypothetical `-foo` would not gain a
  *  meaningless left anchor. */
-function variantSource(variant: string): string {
+export function variantSource(variant: string): string {
   const stem = variant.endsWith("*");
-  const literal = stem ? variant.slice(0, -1) : variant;
+  const literal = foldMatchPunctuation(stem ? variant.slice(0, -1) : variant);
   const left = /^\w/.test(literal) ? "\\b" : "";
   const right = !stem && /\w$/.test(literal) ? "\\b" : "";
   return `${left}${escapeRegExp(literal)}${right}`;
@@ -105,9 +128,13 @@ export function extractSignatureWith(gaz: Gazetteer, text: string): Signature {
       if (variants.some((v) => t.includes(v))) actions.add(canon);
     return { toponyms, actions };
   }
+  // WORD MODE ONLY, and deliberately placed BELOW the substring early return
+  // above: folding at the `text.toLowerCase()` line would change ru-ua-v1 with
+  // it, and that gazetteer's output is snapshot-pinned byte for byte.
+  const w = foldMatchPunctuation(t);
   const { toponyms: topoRes, actions: actRes } = compileFor(gaz);
-  for (const [canon, re] of topoRes) if (re.test(t)) toponyms.add(canon);
-  for (const [canon, re] of actRes) if (re.test(t)) actions.add(canon);
+  for (const [canon, re] of topoRes) if (re.test(w)) toponyms.add(canon);
+  for (const [canon, re] of actRes) if (re.test(w)) actions.add(canon);
   return { toponyms, actions };
 }
 

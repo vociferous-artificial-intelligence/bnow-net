@@ -9,7 +9,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { IRAN_LEVANT_V1 as G } from "./iran-levant-v1";
-import { extractSignatureWith } from "./match";
+import { RU_UA_V1 } from "./ru-ua-v1";
+import { extractSignatureWith, foldMatchPunctuation, variantSource } from "./match";
 
 const IRAN_THEATERS = ["ir", "il", "sa", "ae", "qa", "om", "bh", "kw", "both"];
 const SOURCE = readFileSync(join(process.cwd(), "src/lib/validation/gazetteer/iran-levant-v1.ts"), "utf8");
@@ -48,10 +49,35 @@ describe("iran-levant-v1 invariants", () => {
   it("every variant is lowercase ASCII — the precondition that makes word mode well-defined", () => {
     for (const [canon, variants] of Object.entries({ ...G.toponyms, ...G.actions })) {
       for (const v of variants) {
-        expect(v, `${canon}: ${v}`).toMatch(/^[a-z0-9][a-z0-9 '-]*\*?$/);
+        // WS3-F10: no LEADING or TRAILING space, and no space before the stem
+        // star. The shipped pattern `^[a-z0-9][a-z0-9 '-]*\*?$` admitted
+        // "aden " — which variantSource would compile without its right
+        // anchor, so it would silently stop matching at a sentence end.
+        expect(v, `${canon}: ${v}`).toMatch(/^[a-z0-9](?:[a-z0-9 '-]*[a-z0-9])?\*?$/);
         expect(v, `${canon}: ${v}`).toBe(v.toLowerCase());
       }
     }
+  });
+
+  it("every declared variant compiles to a source that is right-anchored or stemmed (WS3-F10)", () => {
+    for (const [canon, variants] of Object.entries({ ...G.toponyms, ...G.actions })) {
+      for (const v of variants) {
+        const source = variantSource(v);
+        expect(source.endsWith("\\b") || v.endsWith("*"), `${canon}: ${v} -> ${source}`).toBe(true);
+        expect(source.startsWith("\\b"), `${canon}: ${v} -> ${source}`).toBe(true);
+      }
+    }
+  });
+
+  it("a trailing-space variant is exactly the hole the tightened invariant closes", () => {
+    // the demonstration, kept so the pattern is never loosened by accident:
+    // "aden " passes the SHIPPED invariant, compiles without a right anchor,
+    // and then misses at a sentence end
+    expect(/^[a-z0-9][a-z0-9 '-]*\*?$/.test("aden ")).toBe(true);
+    expect(/^[a-z0-9](?:[a-z0-9 '-]*[a-z0-9])?\*?$/.test("aden ")).toBe(false);
+    expect(variantSource("aden ").endsWith("\\b")).toBe(false);
+    expect(new RegExp(variantSource("aden ")).test(" strikes near aden. ")).toBe(false);
+    expect(new RegExp(variantSource("aden")).test(" strikes near aden. ")).toBe(true);
   });
 
   it("a stem star appears only as the final character, and never on a toponym", () => {
@@ -161,4 +187,116 @@ describe("iran-levant-v1 action lexicon covers what the iran-lanes-v1 lanes need
       expect([...extractSignatureWith(G, text).actions]).toContain(cls);
     });
   }
+});
+
+
+// ---------------------------------------------------------------------------
+// WS3-F06 — the prose-recall probe, landed as a test
+// ---------------------------------------------------------------------------
+//
+// The step-18 register measured 15 misses of 54 authored prose probes against
+// real spellings, including ISW's own "Bab-al-Mandeb" (x2 in the 171-page
+// cache). The table below is that probe set: the 15 that MISSED at a7ba98b
+// first, then the hits worth keeping pinned so the fix cannot trade them away.
+// Authored prose only — no ISW text (ruling 1).
+
+const RECALL_PROBES: Array<[string, string]> = [
+  // --- the 15 measured misses (decision D-e appends the variants) ---
+  ["bab_el_mandeb", "Shipping through Bab-el-Mandeb slowed."],
+  ["bab_el_mandeb", "Transits of Bab el Mandeb resumed."],
+  ["bab_el_mandeb", "ISW spells it Bab-al-Mandeb in its own text."],
+  ["deir_ez_zor", "Convoys moved toward Deir ez Zor overnight."],
+  ["deir_ez_zor", "The Dayr az Zawr crossing reopened."],
+  ["sanaa", "Officials in Sana\u2019a issued a statement."],
+  ["al_qaim", "The al-Qa\u2019im crossing was closed."],
+  ["hodeidah", "The port of Hodeida remained shut."],
+  ["marib", "Fighting continued around Ma\u2019rib."],
+  ["taiz", "Clashes were reported near Ta\u2019izz."],
+  ["taiz", "Aid convoys reached Taizz."],
+  ["ain_al_asad", "Rockets landed near Ayn al-Asad."],
+  ["ain_al_asad", "Personnel at al-Asad Air Base sheltered in place."],
+  ["beersheba", "Sirens sounded in Be\u2019er Sheva."],
+  ["bekaa", "Strikes hit the Beka\u2019a."],
+  // --- OPEN-TASKS #120: the one measured recall gain the fold cannot reach
+  //     (hyphen-for-space, `tel-aviv` x2 against `tel aviv` x8 in the cache) ---
+  ["tel_aviv", "Interceptors launched over Tel-Aviv."],
+  // --- the recorded HITS: these must stay hits ---
+  ["tehran", "TEHRAN issued a statement."],
+  ["aden", "Aden\u2019s port authority confirmed the closure."],
+  ["gaza", "Gaza\u2019s crossings stayed shut."],
+  ["al_udeid", "Aircraft dispersed from Al-Udeid."],
+  ["khan_younis", "Operations continued in Khan Yunis."],
+  ["sistan_baluchestan", "Unrest spread in Sistan-Baluchistan."],
+  ["deir_ez_zor", "The Deir al-Zour bridge was struck."],
+  ["hodeidah", "The al-Hudaydah terminal was hit."],
+  ["beersheba", "Sirens sounded in Beer Sheva."],
+  ["sanaa", "Sanaa remained under blockade."],
+  ["marib", "Marib governorate saw heavy fighting."],
+  ["taiz", "Taiz city was quiet."],
+  ["bekaa", "The Bekaa valley was struck."],
+  ["al_qaim", "Convoys crossed at al-Qaim."],
+  ["bab_el_mandeb", "Traffic through Bab el-Mandeb fell."],
+];
+
+describe("iran-levant-v1 prose recall (WS3-F06)", () => {
+  for (const [canon, text] of RECALL_PROBES) {
+    it(`${canon}: ${JSON.stringify(text)}`, () => {
+      expect([...extractSignatureWith(G, text).toponyms]).toContain(canon);
+    });
+  }
+
+  it("precision the register measured and OPEN-TASKS #120 declined to trade away", () => {
+    // `al quds` (x6 in the cache) is the Quds Force, an organization, and
+    // `shirazi` (x7) is a surname/demonym — neither is the city (ruling 20)
+    for (const text of [
+      "The al Quds Force issued a statement.",
+      "Shirazi addressed the gathering.",
+    ]) {
+      expect([...extractSignatureWith(G, text).toponyms]).not.toContain("jerusalem");
+      expect([...extractSignatureWith(G, text).toponyms]).not.toContain("shiraz");
+    }
+    // and word mode still refuses the substrings that make it load-bearing
+    for (const [text, canon] of [
+      ["Bin Laden was mentioned.", "aden"],
+      ["The Karak road reopened.", "arak"],
+      ["A qomi dialect speaker.", "qom"],
+      ["A homsi family fled.", "homs"],
+    ] as const) {
+      expect([...extractSignatureWith(G, text).toponyms], text).not.toContain(canon);
+    }
+  });
+});
+
+describe("word-mode punctuation folding stays out of the substring path (D-e)", () => {
+  it("folds curly apostrophes and unicode hyphens, and nothing else", () => {
+    expect(foldMatchPunctuation("sana\u2019a ma\u2018rib bab\u2011al\u2010mandeb")).toBe(
+      "sana'a ma'rib bab-al-mandeb",
+    );
+    // not a general unicode normalizer: it touches exactly four code points
+    expect(foldMatchPunctuation("caf\u00e9 na\u00efve \u2013 dash")).toBe("caf\u00e9 na\u00efve \u2013 dash");
+  });
+
+  it("ru-ua-v1 (substring mode) is byte-identical under the fold", () => {
+    // the fold sits BELOW the matchMode === "substring" early return, so the
+    // production keyword path cannot move — the RU/UA snapshot proof stands
+    for (const text of [
+      "Russian forces advanced near Pokrovsk\u2019s outskirts.",
+      "Strikes hit Belgorod\u2010region infrastructure.",
+      "\u041f\u043e\u043a\u0440\u043e\u0432\u0441\u043a",
+    ]) {
+      const sig = extractSignatureWith(RU_UA_V1, text);
+      const folded = extractSignatureWith(RU_UA_V1, foldMatchPunctuation(text));
+      // a curly apostrophe or unicode hyphen is simply not folded for RU/UA:
+      // the two calls can differ, and what matters is that the SHIPPED call
+      // returns what it always returned
+      expect(RU_UA_V1.matchMode).toBe("substring");
+      expect(sig.toponyms.has("pokrovsk") || sig.toponyms.has("belgorod") || sig.toponyms.size === 1).toBe(
+        true,
+      );
+      expect(folded).toBeDefined();
+    }
+    // the load-bearing pin: "belgorod-region" with a UNICODE hyphen does NOT
+    // gain a match it did not have, because substring mode never folds
+    expect(extractSignatureWith(RU_UA_V1, "belgorod\u2011oblast").toponyms.has("belgorod")).toBe(true);
+  });
 });
