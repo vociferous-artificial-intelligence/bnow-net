@@ -1961,6 +1961,16 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     `ASK_PIPELINE` line in `.env.example`. Whichever is taken, #67's report's
     legacy bullet is amended to say the path is also unreserved and unmetered.
     Filed 2026-09-07 at CP4.
+    **CLOSED 2026-09-09 by step 23 (lane R), option (a).** `legacyAnswer` now builds
+    `askGuardFromEnv()`, `init()`s it and `tryReserve()`s BEFORE
+    `openaiLegacyChatCompletion`; a refusal returns the deterministic top-6 cited-claims
+    answer with provider `"budget"` and never dispatches; a success `record(1, pt + ct,
+    estimateCostUsd(model, pt, ct))`s before any interpretation of the body (ruling 8).
+    The request payload is byte-identical, so the rollback stays faithful (DL-6). Pinned in
+    `src/lib/ask/ask.test.ts` (dispatch order `init → tryReserve → create → record`, the
+    refusing-guard degradation, and the offline branch still short-circuiting before the
+    guard). `limits.ts:34-36` / `:705-707` are now true as written and needed no correction;
+    #67's report bullet is amended. Register: WS2-F06.
 
 111. **[Tier 1 — release ordering] Migrations 0028, 0029 and 0030 are on `main` but
     NOT applied to production.** Measured read-only 2026-09-07 during the C5-m probes

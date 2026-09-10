@@ -172,6 +172,21 @@ function evidenceBlock(r: RetrievalResult): string {
   return `CLAIMS:\n${claims || "(none)"}\n\nENTITIES:\n${ents || "(none)"}`;
 }
 
+/** The legacy path's deterministic answer: the top matching claims, verbatim and
+ *  cited. Shared by the offline branch (provider "stub") and the budget-refusal
+ *  branch (provider "budget") so the two cannot drift — the v2 path shares
+ *  deterministicAnswer() for the same reason. */
+function legacyDeterministic(r: RetrievalResult): { answer: string; citedClaimIds: number[] } {
+  const top = r.claims.slice(0, 6);
+  return {
+    answer:
+      top.length > 0
+        ? "Top matching evidence:\n" + top.map((c) => `• ${c.text} [c${c.claimId}]`).join("\n")
+        : "Matched entities: " + r.entities.map((e) => e.name).join(", "),
+    citedClaimIds: top.map((c) => c.claimId),
+  };
+}
+
 /** Today's /ask logic, unchanged (DL-6). Returns the legacy AskAnswer shape; ask()
  *  wraps it into AskAnswerV2. */
 async function legacyAnswer(question: string): Promise<AskAnswer> {
@@ -189,18 +204,26 @@ async function legacyAnswer(question: string): Promise<AskAnswer> {
   // /ask is a user surface and the deterministic path below still answers honestly
   // from real cited claims.
   if (answerOffline()) {
-    // deterministic fallback: surface the top matching claims verbatim, cited
-    const top = r.claims.slice(0, 6);
-    const answer =
-      top.length > 0
-        ? "Top matching evidence:\n" + top.map((c) => `• ${c.text} [c${c.claimId}]`).join("\n")
-        : "Matched entities: " + r.entities.map((e) => e.name).join(", ");
-    return {
-      answer, citedClaimIds: top.map((c) => c.claimId), evidenceCount, terms: r.terms, provider: "stub",
-    };
+    const det = legacyDeterministic(r);
+    return { ...det, evidenceCount, terms: r.terms, provider: "stub" };
   }
 
   const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+
+  // Ruling 4 (OPEN-TASKS #110): this rollback dispatch is a PAID call and had no
+  // SpendGuard at all — no reservation, no metering, no provider_usage row — so it
+  // did not fail closed when LLM_SPRINT_USD_CAP / ASK_USD_CAP_DAILY are unset. The
+  // reservation runs BEFORE the call; a refusal degrades to the same deterministic
+  // cited-claims answer the offline branch returns, tagged provider "budget" so a
+  // degraded answer is never re-served as a paid one (ruling 3). The request payload
+  // below is untouched — the rollback stays byte-faithful (DL-6).
+  const guard = askGuardFromEnv();
+  await guard.init();
+  if (!guard.tryReserve().ok) {
+    const det = legacyDeterministic(r);
+    return { ...det, evidenceCount, terms: r.terms, provider: "budget" };
+  }
+
   try {
     // Phase 5: SDK construction moved to the adapter (raw passthrough — the
     // legacy request payload is byte-identical; charter: nothing improved).
@@ -212,12 +235,21 @@ async function legacyAnswer(question: string): Promise<AskAnswer> {
       ],
       temperature: 0.1,
     });
+    // Ruling 8: meter the completed paid boundary BEFORE any interpretation of the
+    // body — a truncated or unusable response is billed in full and must be recorded
+    // before it can be discarded.
+    const promptTokens = completion.usage?.prompt_tokens ?? 0;
+    const completionTokens = completion.usage?.completion_tokens ?? 0;
+    await guard.record(
+      1,
+      promptTokens + completionTokens,
+      estimateCostUsd(model, promptTokens, completionTokens),
+    );
+
     const answer = completion.choices[0]?.message?.content ?? "(no answer)";
     const cited = [...answer.matchAll(/\[c(\d+)\]/g)].map((m) => parseInt(m[1], 10));
     // keep only citations that were actually in the evidence set (anti-fabrication)
     const validIds = new Set(r.claims.map((c) => c.claimId));
-    const promptTokens = completion.usage?.prompt_tokens ?? 0;
-    const completionTokens = completion.usage?.completion_tokens ?? 0;
     return {
       answer,
       citedClaimIds: [...new Set(cited)].filter((id) => validIds.has(id)),
