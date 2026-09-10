@@ -50,7 +50,7 @@ re-landed as #85.
 | 5.1 Stage 1 — CP4 merge queue | **DONE** | yes |
 | 5.2 Stage 2 — operator runs | **DONE 2026-09-08** — items 1–5 | yes |
 | 5.2a Stage 2a — D7/R4 measured remap | **DONE 2026-09-08** — executed, $0.046263 | yes |
-| 5.3 Stage 3 — build steps 18–34 | **IN PROGRESS** — 18, 19, 20, 21, 23r, 23c, 32, 33, 34 merged (CP5 + CP6 `3fe0d44`, 4,557/290); 24 launchable now (plan card 4.1); 25 after 24 | no |
+| 5.3 Stage 3 — build steps 18–34 | **IN PROGRESS** — all merged except 25 (CP6b `a0d7091`, 4,599/293); 25 launchable now (plan card 4.3); CP7 closes the stage | no |
 | 5.4 Stage 4 — review gates / four never-run checks | **NOT STARTED** (one hazard pre-filed, #112) | no |
 | 5.5 Stage 5 — freeze, final audit, deploy | **NOT STARTED** (pre-deploy facts pre-filed, #111) | no |
 | §6 detached sessions | **RESOLVED** | yes |
@@ -694,3 +694,4 @@ move to Stage 2a — and that move is itself a logged edit here, not an assumpti
 - 2026-09-10 — CP6 agent prompt reviewed (`2026-09-10-48h-CP6-merge-queue.md`): lsof self-match fixed, order 90 91 92 94 88 86 87 89 93 (clean first, two predicted STOPs last), #119 collision reading at STOP 1, recommended rulings + resume procedure, drizzle check = 32 .sql + empty diff (plan card 3.4 corrected). Model: Opus/high attended.
 - 2026-09-10 ≈04:30 ET — CP6 agent merged #90 f73fffe, #91 bcb523b, #92 387b7a0, #94 6a79553 (gate 4,411/282, build PASS, drizzle 32 .sql); stopped at #88: all five remaining PRs CONFLICTING on GitHub via PROGRESS.md (merge=union blind spot in card 3.2, recorded); #89 also OPEN-TASKS #119 collision + shared report; #93 route.ts one hunk. Rulings R-1..R-5 + resolver prompt `2026-09-10-48h-CP6-resolve-and-finish.md` (fresh session, Opus xhigh).
 - 2026-09-10 09:58 ET — CP6 closed: #88 950a1ef, #86 224cc34, #87 3f24045, #89 46cf12f, #93 3fe0d44 (resolver, rulings R-1…R-6; one declared test-double edit 229d0e6). Gate 4,557/290, build PASS. INDEX §10 line written. Next: plan card 4.1 (launch 24), then 25, CP7, freeze.
+- 2026-09-10 14:32 ET — CP6b: #95 6ad5e2f, #96 a0d7091 (4,599/293, build PASS); nine merged CP6 branches deleted on origin. Step 25 prompt addendum (11)–(15); CP7 agent prompt written. Next: card 4.3 (launch 25), CP7, then freeze (6.1) and step 26 (6.2).
