@@ -552,13 +552,14 @@ cherry-pickable if the operator prefers a different split.
 
 ### Built
 
-Twenty-one commits. Per finding:
+Twenty-two commits across the two branches (the plan block, eighteen work commits, two
+OPEN-TASKS status edits, this report). Per finding:
 
 | finding | sev | commit | what changed |
 |---|---|---|---|
-| **WS2-F06** | major | `a82123f` (PR #88) | `legacyAnswer` builds the ask guard, `init()`s, `tryReserve()`s **before** `openaiLegacyChatCompletion`; refusal ⇒ deterministic top-6 cited claims, provider `"budget"`, no dispatch; success ⇒ `record(1, pt+ct, estimateCostUsd(...))` **before any body interpretation** (ruling 8). Request payload byte-identical. `legacyDeterministic()` shared by both degraded branches. |
-| **WS2-F07** | major | `61c31ea` | `evidence_snapshot` queryMock installed in the `unscorecarded` refusal case and the pre-existing stub/budget case; the latter becomes a loop over `stub` and `budget`. Production code untouched. |
-| **WS2-F04** | major (docs) | `c1c9f24` | `LOG-DRAIN.md` §8 gains step **3b** and `LOG-DRAIN-2026-09-06.md` gains **2b**: backup branch → `npm run db:migrate` → `SELECT name FROM _migrations WHERE name LIKE '0029%'` + `SELECT to_regclass('runtime_logs')`, and "do not reach step 4 until both answer". Per **A2 (b)** the gate is on **registration**, not deploy. |
+| **WS2-F06** | major | `cfdf6de` (PR #88) | `legacyAnswer` builds the ask guard, `init()`s, `tryReserve()`s **before** `openaiLegacyChatCompletion`; refusal ⇒ deterministic top-6 cited claims, provider `"budget"`, no dispatch; success ⇒ `record(1, pt+ct, estimateCostUsd(...))` **before any body interpretation** (ruling 8). Request payload byte-identical. `legacyDeterministic()` shared by both degraded branches. |
+| **WS2-F07** | major | `ca29255` | `evidence_snapshot` queryMock installed in the `unscorecarded` refusal case and the pre-existing stub/budget case; the latter becomes a loop over `stub` and `budget`. Production code untouched. |
+| **WS2-F04** | major (docs) | `68631e5` | `LOG-DRAIN.md` §8 gains step **3b** and `LOG-DRAIN-2026-09-06.md` gains **2b**: backup branch → `npm run db:migrate` → `SELECT name FROM _migrations WHERE name LIKE '0029%'` + `SELECT to_regclass('runtime_logs')`, and "do not reach step 4 until both answer". Per **A2 (b)** the gate is on **registration**, not deploy. |
 | **WS2-F59** | note (docs) | `04395eb` | `RELEASE-CHECKLIST` step 5 gains the fail-closed-SECRET class (`LOG_DRAIN_SECRET` precedent); step 11 gains migration-before-enablement, citing #111 and WS2-F04. |
 | **WS2-F03** | minor | `1b39b06` | NUL stripped in `str()` (before the trim, so a NUL-only value reads absent) and from the message before redaction/hash; `status_code` clamped into int4 by a new `int4()`. |
 | **WS2-F24** | note | `46b485c` | two redaction rules for a keyword **ending** an identifier: separator form (any depth of `_`/`-` prefixes, case-insensitive) and camelCase form. |
@@ -568,11 +569,11 @@ Twenty-one commits. Per finding:
 | **WS2-F54** | note | `d92755e` | `verifyDrainSignature` accepts `string \| Buffer`; the route reads `req.arrayBuffer()` and passes bytes; `bytes = buf.byteLength`; parse decodes after verification. |
 | **WS2-F01** | minor | `9e76da2` | one-hex-char flip at index 0, 20, 39. |
 | **WS2-F23** | note | `c557b04` | drain module wrapped in call-through spies; four cases pin the three ordering properties. |
-| **G5 inversion** | — | `2b0d61b` | `runtime-logs.itest.ts` characterization block flipped; block comment rewritten; a fourth case added for WS2-F54 end to end. |
+| **G5 inversion** | — | `dc8f42f` | `runtime-logs.itest.ts` characterization block flipped; block comment rewritten; a fourth case added for WS2-F54 end to end. |
 | **WS2-F29** | note | `403e179` | `remapTargetId()` at both verbatim `opts.base` prints. |
 | **WS2-F05** | minor | `87e8db4` | subprocess pin that the real CLI refuses an unacknowledged non-loopback target. |
-| **WS2-F12** | minor | `f18f2a7` | `modeGenerate` exits 2 under `LLM_DISABLE=1` / `ANALYSIS_PROVIDER=stub`, before the sample file, the estimate and any client. |
-| **WS2-F14** | minor | `8e1ca11` | loop `[1, 3, 10, 77, 12_345]`. |
+| **WS2-F12** | minor | `68b2eba` | `modeGenerate` exits 2 under `LLM_DISABLE=1` / `ANALYSIS_PROVIDER=stub`, before the sample file, the estimate and any client. |
+| **WS2-F14** | minor | `406edd2` | loop `[1, 3, 10, 77, 12_345]`. |
 | **#112 (c)** | — | `49cae96` | `assertMigrationTarget` + `migrationEndpointId` in `migrations-lib.ts`, called as the first statement of `migrate.ts`'s `main()`. |
 
 Plus `docs/OPEN-TASKS.md` status edits (#110 closed, #112 (c) done) and **#119** filed.
