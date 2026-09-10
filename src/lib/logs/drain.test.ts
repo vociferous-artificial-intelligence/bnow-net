@@ -110,6 +110,18 @@ describe("drain signature (the route's ONLY authorization)", () => {
     expect(verifyDrainSignature(body, "a".repeat(41), SECRET)).toBe(false);
   });
 
+  it("WS2-F54: verifies the RAW BYTES, so a body with invalid UTF-8 still authenticates", () => {
+    // The route hands the request's bytes straight in. Decoding to a string first
+    // replaces an invalid sequence with U+FFFD, so re-encoding produces different
+    // bytes and a legitimately signed delivery would 403 — which Vercel does not
+    // retry, making the delivery a silent permanent loss.
+    const bytes = Buffer.concat([Buffer.from('{"id":"a","m":"'), Buffer.from([0xff, 0xfe]), Buffer.from('"}')]);
+    const signature = createHmac("sha1", SECRET).update(bytes).digest("hex");
+    expect(verifyDrainSignature(bytes, signature, SECRET)).toBe(true);
+    // and the lossy round-trip a string body would have signed does NOT match
+    expect(verifyDrainSignature(bytes.toString("utf8"), signature, SECRET)).toBe(false);
+  });
+
   it("tolerates surrounding whitespace in the header", () => {
     const body = '{"id":"a"}';
     expect(verifyDrainSignature(body, `  ${sign(body)}\n`, SECRET)).toBe(true);

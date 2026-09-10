@@ -58,21 +58,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "log drain not configured" }, { status: 503 });
   }
 
-  let raw: string;
+  // The RAW BYTES, not req.text(): Vercel signs the bytes it sent, and decoding
+  // to a string first replaces any invalid UTF-8 sequence with U+FFFD, so
+  // re-encoding it yields DIFFERENT bytes and a legitimately signed delivery
+  // verifies false -> 403, which Vercel does not retry (WS2-F54). Decoding to a
+  // string after verification is safe: from there the body is untrusted data we
+  // parse defensively anyway.
+  let buf: Buffer;
   try {
-    raw = await req.text();
+    buf = Buffer.from(await req.arrayBuffer());
   } catch {
     return NextResponse.json({ ok: true, received: 0, stored: 0, dropped: 0 }, { status: 200 });
   }
 
-  if (!verifyDrainSignature(raw, req.headers.get("x-vercel-signature"), secret)) {
+  if (!verifyDrainSignature(buf, req.headers.get("x-vercel-signature"), secret)) {
     return NextResponse.json({ error: "invalid signature" }, { status: 403 });
   }
 
   // Size cap AFTER the signature so an unauthenticated caller learns nothing
   // from the difference. The body was already bounded by the platform's own
   // request-size limit; this guards against that limit changing.
-  const bytes = Buffer.byteLength(raw, "utf8");
+  const bytes = buf.byteLength;
   if (bytes > maxBodyBytes()) {
     return NextResponse.json(
       { ok: true, received: 0, stored: 0, dropped: 0, reason: "body_over_cap", bytes },
@@ -80,7 +86,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { entries, malformed } = parseDrainBody(raw);
+  const { entries, malformed } = parseDrainBody(buf.toString("utf8"));
   const batch = normalizeBatch(entries, maxRows());
   const dropped =
     malformed + batch.invalid + batch.selfIngested + batch.overCap + batch.duplicates;

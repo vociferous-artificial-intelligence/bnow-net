@@ -116,7 +116,11 @@ export function sweepLimit(): number {
  *  Constant-time compare, with the length check done on the DECODED bytes so a
  *  wrong-length header cannot be distinguished by timing from a wrong value —
  *  and so timingSafeEqual is never handed mismatched buffers (it throws). */
-export function verifyDrainSignature(rawBody: string, header: string | null, secret: string): boolean {
+export function verifyDrainSignature(
+  rawBody: string | Buffer,
+  header: string | null,
+  secret: string,
+): boolean {
   if (typeof header !== "string" || header.length === 0) return false;
   const hex = header.trim();
   // Buffer.from(_, "hex") does not throw on non-hex input, it stops decoding, and
@@ -124,7 +128,11 @@ export function verifyDrainSignature(rawBody: string, header: string | null, sec
   // of the correct 40 hex characters plus one more decoded to the correct 20 bytes
   // and verified TRUE (WS2-F52). Pin the exact SHA-1 hex length instead of "is hex".
   if (!/^[0-9a-fA-F]{40}$/.test(hex)) return false;
-  const expected = createHmac("sha1", secret).update(Buffer.from(rawBody, "utf8")).digest();
+  // Over the RAW bytes. A string body would be the UTF-8 RE-ENCODING of a decoded
+  // request, so any invalid UTF-8 sequence (already replaced with U+FFFD) would
+  // change the signed bytes and fail a legitimately signed delivery (WS2-F54).
+  const body = typeof rawBody === "string" ? Buffer.from(rawBody, "utf8") : rawBody;
+  const expected = createHmac("sha1", secret).update(body).digest();
   const got = Buffer.from(hex, "hex");
   if (got.length !== expected.length) return false;
   return timingSafeEqual(got, expected);
