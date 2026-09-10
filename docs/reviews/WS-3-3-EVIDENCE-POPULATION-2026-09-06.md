@@ -281,6 +281,30 @@ Every line below was re-read on this tree; those that moved are given at their c
   on a manual production GET covers more than it did. (c) The first real `llm_conflict_match`
   ledger row is the WS-3.6 money-path proof; record it when it happens.
 
+### Merge note for the operator — ONE real conflict with lane C, and how to resolve it
+
+Checked after PR #93 was opened (`gh pr view <n> --json files`): lane C's four PRs are open and
+unmerged. Three of them touch nothing this step touches — **#91** is gazetteer-only, **#92** is
+`observation-store.ts` only (and its WS3-F04 identity check is exactly what this pipeline already
+satisfies: the id is resolved from `edition_key`, never caller-chosen), **#94** is docs.
+
+**#90 and #93 both edit `src/app/api/cron/conflict-validate/route.ts` and its test**, and git
+will report textual conflicts in about three hunks. **Every one is additive and independent —
+resolve by KEEPING BOTH SIDES:**
+
+| hunk | #90 adds | #93 adds |
+|---|---|---|
+| the counter declarations | `probeIndeterminate`, `throttledDays`, `unparseableBodyDays` | `observations`, `unitsScored`, `rungs`, `skips`, `matcherRefusals` |
+| the per-cell body | `dayStatusReason` (spread, omitted when null) | the `observeConflictDay` call and its five cell keys |
+| the `counts.*` block | `counts.probeIndeterminate`, `counts.dayStatusReasons` | `counts.observations`, `counts.unitsScored`, `counts.matcherRungs`, `counts.observationSkips`, `counts.matcherRefusals` |
+
+The test conflicts the same way: the `cells` `toContainEqual({...})` assertion gains
+`dayStatusReason` from one side and the five observation keys from the other; the merged object
+carries all of them. Nothing needs re-deciding, and neither side's semantics change.
+
+**Order does not matter**, but merging #90 first is marginally easier — then #93 rebases onto a
+route that already has the discovery counters, and this step's counters are appended to them.
+
 ### For step 23 lane C
 
 Nothing here edits `edition-discovery.ts` or `observation-store.ts`. When WS3-F05 lands and
