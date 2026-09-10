@@ -38,7 +38,11 @@ describe("embedding price table", () => {
 describe("estimateEmbedCostUsd", () => {
   it("is byte-identical to the pre-2026-09-06 EMBED_USD_PER_TOKEN arithmetic", () => {
     const oldPerToken = 0.02 / 1e6; // the constant this replaced
-    for (const n of [1, 77, 12_345]) {
+    // WS2-F14: the original loop [1, 77, 12_345] could not detect the regression
+    // this pin exists to prevent — for every n it tried, tokens * (price / 1e6)
+    // and (tokens * price) / 1e6 are bitwise EQUAL, so the mutant survived the
+    // whole suite. 3 and 10 are the small values where the two groupings differ.
+    for (const n of [1, 3, 10, 77, 12_345]) {
       expect(estimateEmbedCostUsd("text-embedding-3-small", n)).toBe(n * oldPerToken);
     }
   });
