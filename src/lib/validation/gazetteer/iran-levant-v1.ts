@@ -41,6 +41,21 @@
 // EDITING: append only, never re-sort — key order fixes Set insertion order
 // (./types.ts). A content change is a NEW VERSION, not an edit in place, once
 // anything downstream persists results scored under this one.
+//
+// APPENDED 2026-09-09 under decision D-e, while nothing has yet persisted a
+// result scored under this version: the spellings the step-18 register measured
+// as missing (WS3-F06 — ISW's own "Bab-al-Mandeb", "Deir ez Zor",
+// "Dayr az Zawr", "Hodeida", "Ayn al-Asad", "al-Asad Air Base", "Taizz",
+// "Be\'er Sheva", "al-Qa\'im", "Beka\'a"), plus "tel-aviv" (OPEN-TASKS #120,
+// measured x2 in the cached corpus against "tel aviv" x8). Every canonical KEY
+// and its declaration order are untouched, so Set insertion order does not
+// move. The curly-apostrophe forms (Sana\u2019a, Ma\u2019rib, Ta\u2019izz) are handled by
+// match.ts\'s word-mode punctuation fold, not by new variants.
+//
+// NOT appended, on measured precision grounds (#120): "al quds" — the Quds
+// Force, an organization, x6 in the cache against 0 for the shipped "al-quds"
+// city variant — and "shirazi", a surname/demonym, x7. Both are ruling-20
+// territory: an organization or a person is not a toponym.
 
 import type { Gazetteer, IranTheater } from "./types";
 
@@ -75,7 +90,13 @@ const TOPONYMS: Record<string, string[]> = {
   persian_gulf: ["persian gulf", "arabian gulf"],
   gulf_of_oman: ["gulf of oman"],
   gulf_of_aden: ["gulf of aden"],
-  bab_el_mandeb: ["bab el-mandeb", "bab al-mandab", "bab al-mandeb"],
+  // appended 2026-09-09 (WS3-F06): ISW hyphenates where these variants had a
+  // space, so its own "Bab-al-Mandeb" missed. The word-mode punctuation fold
+  // does NOT reach hyphen<->space, so each spelling is declared.
+  bab_el_mandeb: [
+    "bab el-mandeb", "bab al-mandab", "bab al-mandeb",
+    "bab-al-mandeb", "bab-el-mandeb", "bab el mandeb", "bab al mandab",
+  ],
   red_sea: ["red sea"],
 
   // --- Gulf states (the SCALE RULE exception) and their places ---
@@ -111,9 +132,9 @@ const TOPONYMS: Record<string, string[]> = {
   mosul: ["mosul"],
   basra: ["basra", "basrah"],
   anbar: ["anbar", "al-anbar"],
-  ain_al_asad: ["ain al-asad", "ain al asad", "al-asad airbase"],
+  ain_al_asad: ["ain al-asad", "ain al asad", "al-asad airbase", "ayn al-asad", "al-asad air base"],
   al_tanf: ["al-tanf", "al tanf"],
-  al_qaim: ["al-qaim", "al qaim"],
+  al_qaim: ["al-qaim", "al qaim", "al-qa'im"],
   bukamal: ["bukamal", "albu kamal", "abu kamal"],
 
   // --- Levant: Syria ('both') ---
@@ -124,7 +145,7 @@ const TOPONYMS: Record<string, string[]> = {
   idlib: ["idlib"],
   latakia: ["latakia"],
   tartus: ["tartus", "tartous"],
-  deir_ez_zor: ["deir ez-zor", "deir ezzor", "deir al-zour", "deir al-zor"],
+  deir_ez_zor: ["deir ez-zor", "deir ezzor", "deir al-zour", "deir al-zor", "deir ez zor", "dayr az zawr"],
   palmyra: ["palmyra", "tadmur"],
   quneitra: ["quneitra"],
   golan: ["golan heights", "golan"],
@@ -133,19 +154,19 @@ const TOPONYMS: Record<string, string[]> = {
   beirut: ["beirut"],
   dahiyeh: ["dahiyeh", "dahieh"],
   south_lebanon: ["south lebanon", "southern lebanon"],
-  bekaa: ["bekaa valley", "bekaa", "beqaa"],
+  bekaa: ["bekaa valley", "bekaa", "beqaa", "beka'a"],
   baalbek: ["baalbek", "baalbeck"],
   nabatieh: ["nabatieh", "nabatiyeh"],
   tyre: ["tyre"],
   sidon: ["sidon", "saida"],
 
   // --- Israel and the Palestinian territories ---
-  tel_aviv: ["tel aviv"],
+  tel_aviv: ["tel aviv", "tel-aviv"],
   jerusalem: ["jerusalem", "al-quds"],
   haifa: ["haifa"],
   ashkelon: ["ashkelon"],
   ashdod: ["ashdod"],
-  beersheba: ["beersheba", "beer sheva"],
+  beersheba: ["beersheba", "beer sheva", "be'er sheva"],
   eilat: ["eilat"],
   negev: ["negev"],
   dimona: ["dimona"],
@@ -159,11 +180,11 @@ const TOPONYMS: Record<string, string[]> = {
 
   // --- Yemen and the Red Sea littoral ('both') ---
   sanaa: ["sanaa", "sana'a"],
-  hodeidah: ["hodeidah", "hudaydah", "al-hudaydah"],
+  hodeidah: ["hodeidah", "hudaydah", "al-hudaydah", "hodeida"],
   saada: ["saada", "sadah"],
   aden: ["aden"],
   marib: ["marib", "ma'rib"],
-  taiz: ["taiz", "ta'izz"],
+  taiz: ["taiz", "ta'izz", "taizz"],
   ras_isa: ["ras isa"],
   socotra: ["socotra"],
 };

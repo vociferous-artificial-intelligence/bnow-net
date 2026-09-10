@@ -32,6 +32,7 @@ export {
   classifyTheaterWith,
   expandToponymsWith,
   extractSignatureWith,
+  foldMatchPunctuation,
   matchScore,
 } from "./match";
 
