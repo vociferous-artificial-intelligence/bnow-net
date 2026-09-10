@@ -295,7 +295,11 @@ log, do not relaunch, tell me.
 
 ## 3. CP6 — merge queue for steps 19, 23c, 23r
 
-Order: **each PR the moment its session exits — expected 23c, then 23r, then 19.** Never hold
+Order: **each PR the moment its session exits — expected 23c, then 23r, then 19.** When all
+three have delivered before the queue starts (the 2026-09-10 case), the agent prompt
+`docs/prompts/2026-09-10-48h-CP6-merge-queue.md` runs the nine PRs with the predicted-clean ones
+first and the two predicted conflicts (#89 docs, #93 code) last, so both come back to you in one
+sitting. Never hold
 23c (or 23r) for 19: step 19 checks `origin/main` before it opens its observation-pipeline PR and
 consumes lane C's fixed module if it is there (its prompt, item 8;
 `docs/reviews/REORDER-23C-19-ANALYSIS-2026-09-09.md`). If two are waiting at once, 23c before
@@ -368,13 +372,15 @@ Run this after every merge of the queue, not only the last.
 cd /Users/go/code/bnow-net
 npm run typecheck && npm run lint && npm test
 LLM_DISABLE=1 OPENAI_API_KEY= ANTHROPIC_API_KEY= DATABASE_URL=postgres://x:y@localhost/z npm run build
-ls drizzle | tail -4
+ls drizzle | grep -c '\.sql$'
+git diff --stat HEAD~1 HEAD -- drizzle src/db/schema.ts
 scripts/launch/status.sh
 ```
 
 **Expect:** typecheck clean, lint 0 errors, unit count ≥ 4,332 (record before → after), build
-PASS, and `ls drizzle | tail -4` = `0028_…`, `0029_runtime_logs…`, `0030_…`,
-`9999_claim_source_trigger.sql` (no step in this queue may add a migration). Then paste me the
+PASS, `32` `.sql` files under `drizzle/` (0000–0030 plus `9999_claim_source_trigger.sql`; `ls
+drizzle | tail -4` is NOT the check — its fourth line is the `meta` directory) and an empty
+diff for `drizzle/` and `src/db/schema.ts` (no step in this queue may add a migration). Then paste me the
 raw readings and I draft one docs commit: INDEX §10 CP6 line (merge SHAs, gate figures,
 incidents), tracker §2 row 5.3 and §7 line. You commit it from `/Users/go/code/bnow-net` and
 push.
