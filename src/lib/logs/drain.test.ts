@@ -284,6 +284,30 @@ describe("message handling: redact, then hash, then well-formed truncate", () =>
     expect(clean).toContain("[redacted]");
   });
 
+  it("WS2-F24: redacts a keyword that ENDS an identifier — the accidental env-dump shape", () => {
+    // The original rule anchored \b BEFORE the keyword, and there is no word
+    // boundary inside LOG_DRAIN_SECRET or client_secret, so the single most
+    // likely accidental leak shape survived redaction untouched.
+    const dirty = [
+      "LOG_DRAIN_SECRET=aGVsbG93b3JsZDEyMzQ1",
+      "client_secret=abcdefghijklmnop",
+      "OPENAI_API_KEY=sk-ABCDEFGHIJKLMNOP",
+      "TELEGRAM_SESSION=1BQANOTEuMTA4LjU2",
+      'clientSecret: "QRSTUVWXYZ012345"',
+      "X-API-Key: ZYXWVUTSRQPONMLK",
+    ].join("; ");
+    const clean = redactSecrets(dirty);
+    for (const leaked of [
+      "aGVsbG93b3JsZDEyMzQ1", "abcdefghijklmnop", "ABCDEFGHIJKLMNOP",
+      "1BQANOTEuMTA4LjU2", "QRSTUVWXYZ012345", "ZYXWVUTSRQPONMLK",
+    ]) {
+      expect(clean).not.toContain(leaked);
+    }
+    // the identifier itself is kept — the operator needs to know WHICH name leaked
+    expect(clean).toContain("LOG_DRAIN_SECRET=[redacted]");
+    expect(clean).toContain("client_secret=[redacted]");
+  });
+
   it("WS2-F03: strips U+0000 from every stored string, so one entry cannot poison the batch", () => {
     const NUL = String.fromCharCode(0); // never a literal in source
     const row = normalizeEntry(

@@ -127,6 +127,20 @@ const REDACTIONS: Array<[RegExp, string]> = [
     /\b(api[_-]?key|secret|token|password|passwd)("?\s*[:=]\s*"?)[^\s"',;)}\]]{8,}/gi,
     "$1$2[redacted]",
   ],
+  // The rule above anchors on \b BEFORE the keyword, so an identifier that merely
+  // ENDS with it is missed: there is no word boundary inside `LOG_DRAIN_SECRET` or
+  // `client_secret`, and an UPPER_SNAKE env name followed by `=` is exactly the
+  // shape an accidental environment dump takes (WS2-F24). These two add the
+  // separator form (any depth of `_`/`-` prefix segments, case-insensitive) and
+  // the camelCase form; the rule above keeps ownership of the bare keywords.
+  [
+    /\b([A-Za-z0-9]+(?:[_-][A-Za-z0-9]+)*[_-](?:SECRET|TOKEN|API[_-]?KEY|SESSION|PASSWORD|PASSWD))("?\s*[:=]\s*"?)[^\s"',;)}\]]{8,}/gi,
+    "$1$2[redacted]",
+  ],
+  [
+    /\b([a-z0-9]+(?:[A-Z][a-z0-9]*)*?(?:Secret|Token|ApiKey|Session|Password))("?\s*[:=]\s*"?)[^\s"',;)}\]]{8,}/g,
+    "$1$2[redacted]",
+  ],
 ];
 
 /** Safety net, not a licence to log secrets: our code does not log credentials,
