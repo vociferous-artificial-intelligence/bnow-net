@@ -2084,6 +2084,19 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     labelling change inside the module step 14 owns; (c) changes fetch volume against a
     third-party host and deserves its own decision.
     **Owner: step 23**, alongside the §4.1 dry-path finality fix in the same module.
+    **CLOSED for option (b) 2026-09-09 by step 23 lane C (register id WS3-F01, decision D-a).**
+    `classifyProbe` partitions every probe into `edition` / `clean_not_found` / `indeterminate`;
+    `probeIndeterminate` and a `dayStatusReason` (`throttled` | `unparseable_body`) are reported
+    beside the historical `probeFailures`, in the RETURN shape only — `benchmark_series_days`
+    keeps its two-value CHECK and no migration was added. Gap confirmation has an explicit
+    "not confirmable under throttling" branch, and the route reports
+    `counts.probeIndeterminate` + `counts.dayStatusReasons` so the WS-3.6 soak predeclares
+    against the split rather than a fetch artifact. `isCleanNotFound` stays 404-only and is
+    pinned in both directions, which kills the surviving M10 mutant.
+    **STILL OPEN: option (c), backoff.** It changes fetch volume against a third-party host and
+    is its own decision — D-a explicitly did not sign it. Until it lands, a window longer than
+    roughly twenty not-found requests still trips the host, and the labelling only makes that
+    VISIBLE rather than absent.
 
 ### New (from the 2026-09-05 worktree cleanup)
 
@@ -2128,6 +2141,19 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     the parser regex, with a fixture for 2025-06-18 (morning) and 2025-06-14 (evening); until
     then, do not run any discovery backfill over 2025-06-12 → 06-24. Owner: step 18's register
     (WS-3 audit) → step 23. Related: #114 (403 conflation). Filed 2026-09-08.
+    **PARSER HALF CLOSED 2026-09-09 by step 23 lane C (register id WS3-F08, decision D-f (b)).**
+    `normalizeIswEditionUrl` now resolves the suffix form onto the SHIPPED `morning` / `evening`
+    labels, so finality ranks and edition keys are unchanged, and the zero-network
+    `--backfill-from-isw-reports` mode (WS3-F07) registers the eleven historical rows instead of
+    refusing them. Near misses stay refused (unknown edition word, plural suffix, a URL carrying
+    both a prefix and a suffix label). Test cases use the real 2025-06-14 / 06-18 / 06-24 URLs;
+    no HTML fixture was added, because normalization takes a URL and fetching those pages is
+    exactly what this item forbids.
+    **STILL BINDING: do not run a NETWORK discovery backfill over 2025-06-12 → 06-24.** D-f (b)
+    deliberately left `iranUpdateUrlCandidatesForDate` at four shapes — `src/lib/validation/run.ts`
+    is byte-identical and a test pins the count — so a discovery pass over that window would
+    still probe only the prefix forms and record published days as `probe_failed`. The backfill
+    mode makes no request, so it is not covered by that instruction.
 
 117. **[Tier 3 — provenance] The digest carries no record of WHICH extractor versions
     produced the claims it cites, so the ICS 206-01 tool disclosure is digest-scoped and its
@@ -2174,6 +2200,32 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     persist path and a change there should ride its own review rather than a
     presentation-layer change (the 2026-09-07 A1 precedent). Pair it with a repo-wide check
     for other NUL-bearing sources.
+
+119. **[Tier 3 — audit debt] The step-17 / step-18 audit findings step 23 deliberately did
+    NOT fix, one row each.** Filed 2026-09-09 by step 23 as the single DEFER bundle both lanes
+    share. The shape is the operator's (step-23 prompt §1): the five majors and everything
+    touching a spend path, a gate, a migration or production-visible behaviour were FIXED; what
+    is left is test-strength, docs-adjacent, or already fail-closed. Every row carries its
+    register id, so the register is the detail and this is the index. Nothing here is a
+    blocker; step 26 re-checks the list rather than re-deriving it.
+
+    **From the WS-3 register (`docs/reviews/WS-3-AUDIT-FINDING-REGISTER-2026-09-06.md`),
+    filed by lane C:**
+
+    | id | sev | where | remediation | why deferred |
+    |---|---|---|---|---|
+    | WS3-F11 | minor | `gazetteer/match.ts:115-119` | `Object.hasOwn(gaz.expansions, t) ? … : []` in `expandToponymsWith`, plus a `["constructor", "gaza"]` case | Unreachable from any real input: toponyms reaching it come from `extractSignatureWith` or persisted `isw_reports.takeaways`, both gazetteer keys. It fails LOUD (`TypeError`), not open. The RU/UA snapshot and legacy-oracle differential make any edit there a byte-level risk for zero behaviour change. |
+    | WS3-N01 | note | `reference-repo-sql.ts:362-371` | none | The journal/merge disagreement guard is unreachable by any input, correctly so — both sides compute from the same canonical instants. Verified, as the step-13 report says. |
+    | WS3-N02 | note | `reference-repo-sql.ts:288-302` | type the `benchmark_report_editions_final_idx` violation with `rethrowTyped` | Only the URL index is typed. Discovery always writes `designatedFinal: null`, so the partial unique can only be hit by a fixture-mode or hand-written record. Type it when C4's designation WRITER lands (step 19 or WS-3.6) — typing an unreachable path now would pin a message no caller can produce. |
+    | WS3-N05 | note | `scripts/migrations-lib.ts`, `vitest.integration.config.ts:14` | `pg_advisory_xact_lock` around the marker check + apply | `fileParallelism: false` is load-bearing and three itests now apply 0028–0030 on a fresh fork in `beforeAll`; flipping the vitest option would race two `CREATE TABLE`s. Out of WS-3's scope and a change to the migration runner, which is ruling-5 territory. |
+    | WS3-N06 | note | `reference-repo-sql.ts:69` | none (checklist item) | `edition_write_contention` is bounded at 4 attempts, unit-pinned and fork-pinned, and reachable only with a SECOND writer. The realistic one is a manual `isw-refresh --series` during a scheduled `conflict-validate`. Belongs on the WS-3.6 enablement checklist, not in code. |
+    | WS3-N07 | note | `conflict-validate/route.ts:9`, `fetch-cache.ts:52-76` | none (schedule note) | `maxDuration = 300` can be exceeded by politeFetch's worst-case retry budget against a dead host. The consequence is a ruling-10 timeout row swept by #98, plus idempotent partial edition rows. Keep `lookback` at 2 at enablement. |
+    | WS3-N08 | note | `reference-repo.ts:160-163` | journal displaced unit `sha256`s the way `anchor_journal` journals instants | A non-empty incoming `derived` REPLACES a stored one with `repairedFields: ["derived"]` and no trail, so an ISW page edit moves the C13 join key under the same units version. Not wrong — a refresh should win — but the soak should know a hash can move. Do it when the substrate is actually consumed. |
+    | WS3-N09 | note | `migrations.test.ts` | add the 0027-style additive pin for 0029 | Lens 1 asks for pins on 0028 and 0030 and both exist; 0029 (`runtime_logs`, PR #64) has none. Confirmed 2026-09-09 as the prompt asks: `migrations.test.ts` mentions `runtime_logs` only inside the 0030 block's frozen-table list (`:273`), never as its own additive pin, and step 17's register carries no finding asking for one — its 0029 items are WS2-F27 (stale numbering prose) and WS2-F28 (the AGENTS.md `drizzle/` range). Belongs with #64's owner, and 0029 is already proven applied on a fork by three itests. |
+    | WS3-N10 | note | AGENTS.md decision C5-m | a one-line correcting decision-log entry | The C5-m decision's "READ-ONLY probe of production" cannot run as literally written: `--series … --dry` reads `benchmark_series_days` on every day and production is at 29 migrations with those tables absent (re-verified 2026-09-09 on a fork of production). The operators ran it on a migrated fork instead. The log is append-only, so this is the operator's line to write, not a code change. |
+
+    Related: the WS-2 rows lane R appends to this same entry. Register ids are the detail;
+    `docs/reviews/AUDIT-REMEDIATIONS-2026-09-07.md` records what step 23 DID fix.
 
 120. **[Tier 3 — extraction recall] `iran-levant-v1`'s append-only window closes at WS-3.6
     enablement, and the recall gap that gets locked in is in the NON-CITY features and the
