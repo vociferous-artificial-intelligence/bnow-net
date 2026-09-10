@@ -955,6 +955,41 @@ describe("non-loopback route targets need an explicit acknowledgement", () => {
     expect(remapBaseHost("http://127.0.0.1:3000")).toBe("127.0.0.1");
   });
 
+  it("WS2-F29: neither verbatim print of the base can leak URL userinfo", async () => {
+    // The runbook disclosed ONE verbatim opts.base print (the banner). There were
+    // two: the remap-capability handshake error printed it as well. Both now go
+    // through remapTargetId, which strips userinfo, query and fragment.
+    const lines: string[] = [];
+    const base = "https://operator:sup3rsecret@example.test:8443/x?token=abc#frag";
+    const opts: RemapDriveOpts = {
+      base,
+      secret: "cron-secret",
+      theater: "ir",
+      from: "2026-08-25",
+      to: "2026-08-25",
+      budgetUsd: 1,
+      execute: false,
+      store: memoryCheckpointStore(),
+      log: (l: string) => lines.push(l),
+      // a route that does NOT echo maxSelectedId ⇒ the capability handshake throws
+      call: async () => dry({ maxSelectedId: undefined }),
+      sleep: async () => {},
+    };
+    await expect(driveMapRemap(opts)).rejects.toThrow(/does not support remap mode/);
+
+    const thrown = await driveMapRemap(opts).catch((e: unknown) =>
+      e instanceof Error ? e.message : String(e),
+    );
+    const all = [...lines, thrown].join("\n");
+    for (const secretish of ["sup3rsecret", "operator:", "token=abc", "#frag"]) {
+      expect(all).not.toContain(secretish);
+    }
+    // ...and the banner still names the target, in the normalized form the
+    // checkpoint is bound to
+    expect(all).toContain("MAP_BACKFILL_BASE=https://example.test:8443/x");
+    expect(thrown).toContain("the route at https://example.test:8443/x");
+  });
+
   it("the CLI calls the guard BEFORE constructing the driver (source pin)", () => {
     // assertBaseAck is a pure function; what makes it a safety property is
     // WHERE the CLI calls it. A refactor that moves the call after
