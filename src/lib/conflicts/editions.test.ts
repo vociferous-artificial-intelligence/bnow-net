@@ -73,6 +73,49 @@ describe("normalizeIswEditionUrl (versioned normalization table)", () => {
     expect(n.editionKey).toBe("iran_update:2026-07-04:special");
   });
 
+  it("covers ISW's June-2025 SUFFIX edition slug (WS3-F08 / OPEN-TASKS #116)", () => {
+    // Eleven production isw_reports rows dated 2025-06-14 -> 06-24 carry this
+    // shape. The normalization table refused them with invalid_edition_url, so
+    // the N3 backfill could not register them and any discovery pass over that
+    // window manufactured phantom probe_failed days.
+    const base = "https://understandingwar.org/research/middle-east/";
+    for (const [url, date, label] of [
+      [`${base}iran-update-special-report-june-14-2025-evening-edition/`, "2025-06-14", "evening"],
+      [`${base}iran-update-special-report-june-18-2025-morning-edition/`, "2025-06-18", "morning"],
+      [`${base}iran-update-special-report-june-24-2025-evening-edition/`, "2025-06-24", "evening"],
+    ] as const) {
+      const n = normalizeIswEditionUrl(url);
+      expect(n).toMatchObject({
+        series: "iran_update",
+        reportDate: date,
+        label,
+        editionKey: `iran_update:${date}:${label}`,
+        normVersion: EDITION_NORMALIZATION_VERSION,
+      });
+      expect(NORMALIZED_EDITION_LABELS.iran_update).toContain(n.label);
+    }
+    // it reuses the SHIPPED labels, so finality ranking is unchanged: a
+    // suffix-form evening edition outranks a suffix-form morning one exactly
+    // as the prefix form does
+    expect(normalizeIswEditionUrl(`${base}iran-update-special-report-june-14-2025-evening-edition/`).label).toBe(
+      normalizeIswEditionUrl(`${base}iran-update-evening-special-report-june-14-2025/`).label,
+    );
+    // and the same edition in either spelling still needs its own row: the
+    // canonical URLs differ, which is what the eleven historical rows are
+    expect(normalizeIswEditionUrl(`${base}iran-update-special-report-june-14-2025-evening-edition/`).editionKey).toBe(
+      normalizeIswEditionUrl(`${base}iran-update-evening-special-report-june-14-2025/`).editionKey,
+    );
+  });
+
+  it("the suffix shape does NOT enter the production probe list (decision D-f (b))", () => {
+    // production discovery (validation/run.ts) stays byte-identical: adding a
+    // fifth probe would cost one more politeFetch per Iran validation day
+    // against a host that already throttles at ~20 not-found requests
+    const urls = iranUpdateUrlCandidatesForDate("2025-06-14");
+    expect(urls).toHaveLength(4);
+    expect(urls.some((u) => /-edition\/$/.test(u))).toBe(false);
+  });
+
   it("REFUSES unknown shapes — no silent acceptance, no invented label", () => {
     const cases: Array<[string, string]> = [
       ["https://example.com/research/middle-east/iran-update-july-4-2026/", "wrong host"],
@@ -90,6 +133,18 @@ describe("normalizeIswEditionUrl (versioned normalization table)", () => {
         "impossible calendar date",
       ],
       ["https://understandingwar.org/research/other/iran-update-july-4-2026/", "wrong path root"],
+      [
+        "https://understandingwar.org/research/middle-east/iran-update-special-report-june-14-2025-afternoon-edition/",
+        "suffix form with an unknown edition word",
+      ],
+      [
+        "https://understandingwar.org/research/middle-east/iran-update-special-report-june-14-2025-evening-editions/",
+        "suffix form with a near-miss suffix",
+      ],
+      [
+        "https://understandingwar.org/research/middle-east/iran-update-morning-special-report-june-14-2025-evening-edition/",
+        "both a prefix and a suffix label — ambiguous, never guessed",
+      ],
     ];
     for (const [url] of cases) {
       expect(code(() => normalizeIswEditionUrl(url))).toBe("invalid_edition_url");
