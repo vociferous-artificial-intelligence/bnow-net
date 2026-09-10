@@ -45,6 +45,9 @@ const found = (over: Record<string, unknown> = {}) => ({
   dayStatusAction: "editions_found",
   probes: [{}, {}, {}, {}],
   probeFailures: 0,
+  probeIndeterminate: 0,
+  probeIndeterminateReasons: { throttled: 0, unparseable_body: 0 },
+  dayStatusReason: null,
   anchored: 1,
   ...over,
 });
@@ -156,6 +159,46 @@ describe("conflict-validate counts summary (report-only)", () => {
       anchored: 0,
       probeFailures: 0,
     });
+  });
+
+  it("reports the #114 indeterminate split and stamps each throttled cell's reason", async () => {
+    discoverEditions
+      .mockResolvedValueOnce(found())
+      .mockResolvedValueOnce(
+        found({
+          editions: [],
+          dayStatus: "probe_failed",
+          dayStatusReason: "throttled",
+          probeFailures: 2,
+          probeIndeterminate: 2,
+          probeIndeterminateReasons: { throttled: 2, unparseable_body: 0 },
+          anchored: 0,
+        }),
+      )
+      .mockResolvedValueOnce(
+        found({
+          editions: [],
+          dayStatus: "probe_failed",
+          dayStatusReason: "unparseable_body",
+          probeFailures: 1,
+          probeIndeterminate: 1,
+          probeIndeterminateReasons: { throttled: 0, unparseable_body: 1 },
+          anchored: 0,
+        }),
+      )
+      .mockResolvedValueOnce(found({ editions: [], dayStatus: "probe_failed", anchored: 0 }));
+
+    await GET(req("?date=2026-08-26"));
+    const w = written();
+    expect(w.ok).toBe(true); // #87: an indeterminate day is still benign
+    expect(w.counts.probeIndeterminate).toBe(3);
+    expect(w.counts.dayStatusReasons).toEqual({ throttled: 1, unparseable_body: 1 });
+    // the reason travels on the cell that has one, and ONLY on that cell
+    const cells = w.counts.cells as Array<Record<string, unknown>>;
+    expect(cells.filter((c) => "dayStatusReason" in c).map((c) => c.dayStatusReason)).toEqual([
+      "throttled",
+      "unparseable_body",
+    ]);
   });
 
   it("a probe_failed day is BENIGN: the run stays ok=true (#87 discipline)", async () => {

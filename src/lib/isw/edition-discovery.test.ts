@@ -6,6 +6,7 @@ import {
   GAP_CONFIRM_MIN_DAY_AGE_HOURS,
   MIN_REPORT_BYTES,
   SERIES_ISW_THEATER,
+  classifyProbe,
   confirmGapEligible,
   discoverEditions,
   editionAnchorsFrom,
@@ -295,6 +296,72 @@ describe("discoverEditions — every shape probed, no collapse (C4)", () => {
     expect(out.editions).toEqual([]);
     expect(out.probeFailures).toBe(1);
     expect(out.dayStatus).toBe("probe_failed");
+  });
+});
+
+describe("classifyProbe (WS3-F01 / #114: a 403 is INDETERMINATE, never a clean not-found)", () => {
+  const probe = (status: number | null, bytes = 0) => ({ url: "https://x/", status, bytes });
+
+  it("partitions every probe outcome into exactly one of the three classes", () => {
+    expect(classifyProbe(probe(404))).toBe("clean_not_found");
+    expect(classifyProbe(probe(200, MIN_REPORT_BYTES + 1))).toBe("edition");
+    // the host's measured throttle response, plus every other outcome that
+    // leaves the shape's EXISTENCE unknown rather than disproved
+    for (const status of [403, 429, 500, 502, 503, null, 301, 302, 400, 418]) {
+      expect(classifyProbe(probe(status)), String(status)).toBe("indeterminate");
+    }
+    // an undersized 200: the URL resolved, but not to a report
+    expect(classifyProbe(probe(200, MIN_REPORT_BYTES))).toBe("indeterminate");
+  });
+
+  it("isCleanNotFound stays 404-ONLY — widening it to 403 is the M10 mutant", () => {
+    expect(isCleanNotFound(probe(404))).toBe(true);
+    for (const status of [403, 429, 500, null, 200]) {
+      expect(isCleanNotFound(probe(status)), String(status)).toBe(false);
+    }
+  });
+});
+
+describe("discoverEditions — throttling is reported as indeterminate (WS3-F01, D-a)", () => {
+  it("a 403 is counted as indeterminate and does not read as a clean not-found", async () => {
+    const d = deps({ [U.special]: 403, [U.evening]: 403 });
+    const out = await discoverEditions(d, "iran_update", DAY);
+    expect(out.probeIndeterminate).toBe(2);
+    expect(out.probeIndeterminateReasons).toEqual({ throttled: 2, unparseable_body: 0 });
+    expect(out.probes.filter(isCleanNotFound)).toHaveLength(2); // morning + plain
+    expect(out.dayStatus).toBe("probe_failed");
+    expect(out.dayStatusReason).toBe("throttled");
+  });
+
+  it("a throttled day is NOT confirmable, however many runs it sees (#114 consequence a)", async () => {
+    const repo = new InMemoryReferenceReportRepository();
+    const first = await discoverEditions(deps({}, { repo }), "iran_update", DAY);
+    expect(first.dayStatus).toBe("probe_failed");
+    expect(first.dayStatusReason).toBeNull(); // every shape answered cleanly
+
+    // the host trips: one shape now answers 403 instead of 404
+    for (let i = 0; i < 3; i++) {
+      const out = await discoverEditions(deps({ [U.evening]: 403 }, { repo }), "iran_update", DAY);
+      expect(out.dayStatus).toBe("probe_failed");
+      expect(out.dayStatusReason).toBe("throttled");
+      expect(out.probeIndeterminate).toBe(1);
+    }
+  });
+
+  it("an all-clean-404 day still confirms, and carries no reason", async () => {
+    const repo = new InMemoryReferenceReportRepository();
+    await discoverEditions(deps({}, { repo }), "iran_update", DAY);
+    const out = await discoverEditions(deps({}, { repo }), "iran_update", DAY);
+    expect(out.dayStatus).toBe("publication_gap");
+    expect(out.dayStatusReason).toBeNull();
+    expect(out.probeIndeterminate).toBe(0);
+  });
+
+  it("a published day carries no reason and no indeterminate probes", async () => {
+    const out = await discoverEditions(deps({ [U.evening]: EVENING_HTML }), "iran_update", DAY);
+    expect(out.dayStatus).toBe("published");
+    expect(out.dayStatusReason).toBeNull();
+    expect(out.probeIndeterminate).toBe(0);
   });
 });
 
