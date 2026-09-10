@@ -4,7 +4,11 @@ Paste this file, in full, at the top of every agent prompt. Operators read it on
 
 ## 1. Placeholders
 
-Every prompt and instruction sheet uses these; fill them before handing off.
+Every prompt and instruction sheet uses these. Their values live in one file per project,
+`<<OUT>>/PROJECT.md` (default `docs/rollout/PROJECT.md`, created from
+`templates/PROJECT.template.md`). **Agents: read that file first and substitute; do not ask
+the operator for values it contains.** If it is missing, stop and say so — that is the first
+thing to set up.
 
 | Placeholder | Meaning | BNOW.NET example |
 |---|---|---|

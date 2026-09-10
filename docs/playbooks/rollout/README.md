@@ -14,16 +14,26 @@ sequence and produce a gap register that becomes the scope of work.
 ## How to use it
 
 1. Copy this folder into the project as `docs/playbooks/rollout/`.
-2. Run **A0 — Project inventory & gap audit** (an agent step). It reads the project and fills
-   in `docs/rollout/GAP-REGISTER.md`: for every step in the sequence, *done / partial / missing*,
-   with evidence. That register is the scope.
-3. Work the sequence in order from the first gap. Every step in `PLAYBOOK.md` is labelled
+2. Create `docs/rollout/PROJECT.md` from `templates/PROJECT.template.md` and fill it in — the
+   product name, competitor set, target segments, strategy-doc paths, live URL, decision-log
+   path. This is the only project-specific setup; every prompt reads it.
+3. Run **A0 — Project inventory & gap audit** by giving an agent this kickoff, verbatim:
+
+   > Read `docs/playbooks/rollout/COMMON.md`, then `docs/rollout/PROJECT.md`, then
+   > `docs/playbooks/rollout/agents/A0-project-inventory-and-gap-audit.md`, and carry out A0.
+   > Create the `docs/rollout/` phase folders it names. Write `docs/rollout/GAP-REGISTER.md`
+   > from `docs/playbooks/rollout/templates/GAP-REGISTER.template.md`.
+
+   Every later agent step uses the same shape: COMMON → PROJECT → the step file → do it.
+   It reads the project and fills in the register: for every step in the sequence,
+   *done / partial / missing*, with evidence. That register is the scope.
+4. Work the sequence in order from the first gap. Every step in `PLAYBOOK.md` is labelled
    **AGENT** (hand the prompt file in `agents/` to an AI agent) or **OPERATOR** (a human does
    it, following the instruction file in `operators/`, and files the report in the exact form
    the file specifies). Some steps are **AGENT → OPERATOR** (an agent prepares, a human decides).
-4. Every step writes its output to the path named in its spec, with the standard header from
+5. Every step writes its output to the path named in its spec, with the standard header from
    `COMMON.md` so the next step can consume it without re-reading the conversation.
-5. Re-run A0 at the end of each phase; the register is the progress tracker.
+6. Re-run A0 at the end of each phase; the register is the progress tracker.
 
 ## Folder map
 
@@ -31,9 +41,9 @@ sequence and produce a gap register that becomes the scope of work.
 |---|---|
 | `PLAYBOOK.md` | The sequence: phases, steps, owners, inputs, outputs, done-criteria, dependencies. Start here. |
 | `COMMON.md` | Conventions every agent prompt and operator report follows (report header, sourcing tiers, raw-vs-synthesis rule, file naming, confidentiality). Paste into every agent prompt. |
-| `agents/A*.md` | One self-contained prompt per agent step. Hand the file (plus `COMMON.md`) to the agent verbatim; fill the `<<PROJECT>>` placeholders first. |
+| `agents/A*.md` | One self-contained prompt per agent step. Hand the file to the agent after `COMMON.md` and `docs/rollout/PROJECT.md`; placeholders resolve from PROJECT.md. |
 | `operators/O*.md` | One instruction sheet per human step: why, preparation, how to run it, and the **report template** the operator must fill in, which is the only thing downstream steps read. |
-| `templates/` | Blank files created by the steps (gap register, decision memo, interview report), for copying. |
+| `templates/` | Blank files: `PROJECT.template.md` (the one-time per-project setup), `GAP-REGISTER.template.md`, `DECISION-ENTRY.template.md`. |
 
 ## The sequence at a glance
 
@@ -41,12 +51,14 @@ sequence and produce a gap register that becomes the scope of work.
 Phase 0  Scope          A0 inventory & gap audit
 Phase 1  Discovery      O1 buyer interviews ─► A1 interview synthesis
 Phase 2  Research       A2 landscape & ownership   A3 pricing & deal sizes   A4 vendor deep-dives
-                        A5 IA & buyer journey      A6 trust signals          A7 visual branding    A8 screenshot manifest
-Phase 3  Positioning    A9 research synthesis ─► O2 positioning & packaging decisions ─► O3 message test
-Phase 4  Identity       A10 brand identity & design tokens ─► O4 identity sign-off
-Phase 5  Surface        A11 message hierarchy & site copy   A12 persona & pricing pages   O5 design-partner program   O6 usability sessions
-Phase 6  Launch         A13 funnel instrumentation spec   A14 launch plan   O7 readiness sign-off
-Phase 7  Measure        A15 monthly funnel & message review (recurring)
+                        A8 screenshots ─► A5 IA & buyer journey   A6 trust signals   A7 visual branding
+Phase 3  Positioning    A9 research synthesis ─► A10 brand strategy ─► A11 narrative strategy
+                        ─► O2 positioning & packaging decisions ─► O3 message test
+Phase 4  Identity       A12 brand identity & design tokens ─► O4 identity sign-off
+Phase 5  Surface        A13 IA evaluation   A14 design system   A15 site copy   A16 personas & pricing
+                        O5 design-partner program   O6 usability sessions
+Phase 6  Launch         A17 funnel instrumentation   A18 launch plan   O7 readiness sign-off
+Phase 7  Measure        A19 monthly funnel & message review (recurring)
 ```
 
 Phases 1 and 2 can run in parallel. Nothing in Phase 3 onward should start until Phase 1 has
