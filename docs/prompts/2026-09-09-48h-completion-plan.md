@@ -185,32 +185,27 @@ git log --oneline -1 origin/main
 add; the pre-push gate (typecheck + lint + test) green; `origin/main` at the new commit. Lane C
 reads the D-a…D-f entry from `origin/main`, so a failed push blocks §2.8.
 
-### 2.6 Launch step 19 — WS-3.3 evidence population
+### 2.6 Launch step 23c FIRST — remediate the WS-3 register (lane C)
 
 **Where:** run from `/Users/go/code/bnow-net`, branch `main`. Target worktree
-`/Users/go/code/bnow-net-worktrees/48h-ws3-conflict-20260905`, lane branch
-`48h/ws3-conflict-20260905` (the launcher resets it to `origin/main`). Unattended, Opus.
-**Requires:** §2.3–§2.5 done; `scripts/launch/status.sh` shows no CLAIM on row 19.
+`/Users/go/code/bnow-net-worktrees/48h-audit-ws3-20260905`, lane branch
+`48h/audit-ws3-20260905` (reset to `origin/main` by the launcher). Unattended, Opus.
+**Why first:** step 19 consumes this lane's fixed module for its second PR only if the lane is on `origin/main` by then (`docs/reviews/REORDER-23C-19-ANALYSIS-2026-09-09.md`), so lane C gets every minute of head start; the two other launches follow within minutes anyway.
+**Requires:** §2.1 and §2.2 done AND pushed to `origin/main` (§2.5) — the session halts with
+`AWAITING AUTHORIZATION: D-a…D-f` if the entry is not on `origin/main`; the worktree holds the
+trimmed four-key `.env.local` (§2.3); `status.sh` shows no CLAIM on row 23c. The session
+learns it is lane C from its own worktree path.
 
 ```
 cd /Users/go/code/bnow-net
 export CLAUDE_LAUNCH_OPTS='--dangerously-skip-permissions'
-scripts/launch/launch.sh 19
+scripts/launch/launch.sh 23c
+scripts/launch/launch.sh 23c --go
 ```
 
-**Expect** (the dry run): `worktree : /Users/go/code/bnow-net-worktrees/48h-ws3-conflict-20260905`,
-`.env.local: present (trimmed — no spend/deploy keys)`, `launch opts: --dangerously-skip-permissions`,
-the claim check passing, and the printed command containing `caffeinate -ims claude -p`. Then:
-
-```
-cd /Users/go/code/bnow-net
-export CLAUDE_LAUNCH_OPTS='--dangerously-skip-permissions'
-scripts/launch/launch.sh 19 --go
-```
-
-**Expect:** `LAUNCHED step 19 detached: pid …` and a log at
-`/Users/go/code/bnow-net-worktrees/logs/step19.log`. `FAIL: session exited immediately` means
-the claim was released and nothing runs — read the log lines it prints, do not relaunch.
+**Expect:** the dry run shows the `48h-audit-ws3-20260905` path, `.env.local: present (trimmed
+— no spend/deploy keys)`, `launch opts: --dangerously-skip-permissions`; the go prints
+`LAUNCHED step 23c detached: pid …`; log at `/Users/go/code/bnow-net-worktrees/logs/step23c.log`.
 
 ### 2.7 Launch step 23r — remediate the WS-2 register (lane R)
 
@@ -232,26 +227,32 @@ scripts/launch/launch.sh 23r --go
 (trimmed — no spend/deploy keys)`, `launch opts: --dangerously-skip-permissions`; the go prints
 `LAUNCHED step 23r detached: pid …`; log at `/Users/go/code/bnow-net-worktrees/logs/step23r.log`.
 
-### 2.8 Launch step 23c — remediate the WS-3 register (lane C)
+### 2.8 Launch step 19 LAST — WS-3.3 evidence population
 
 **Where:** run from `/Users/go/code/bnow-net`, branch `main`. Target worktree
-`/Users/go/code/bnow-net-worktrees/48h-audit-ws3-20260905`, lane branch
-`48h/audit-ws3-20260905` (reset to `origin/main` by the launcher). Unattended, Opus.
-**Requires:** §2.1 and §2.2 done AND pushed to `origin/main` (§2.5) — the session halts with
-`AWAITING AUTHORIZATION: D-a…D-f` if the entry is not on `origin/main`; the worktree holds the
-trimmed four-key `.env.local` (§2.3); `status.sh` shows no CLAIM on row 23c. The session
-learns it is lane C from its own worktree path.
+`/Users/go/code/bnow-net-worktrees/48h-ws3-conflict-20260905`, lane branch
+`48h/ws3-conflict-20260905` (the launcher resets it to `origin/main`). Unattended, Opus.
+**Requires:** §2.3–§2.5 done; 23c and 23r already launched (their claims show in `status.sh`); `scripts/launch/status.sh` shows no CLAIM on row 19. Its prompt builds the claim-sources PR first and, before its second PR, checks `origin/main` for lane C's commits — so every early merge of 23c (card 3.0) changes what 19 builds against.
 
 ```
 cd /Users/go/code/bnow-net
 export CLAUDE_LAUNCH_OPTS='--dangerously-skip-permissions'
-scripts/launch/launch.sh 23c
-scripts/launch/launch.sh 23c --go
+scripts/launch/launch.sh 19
 ```
 
-**Expect:** the dry run shows the `48h-audit-ws3-20260905` path, `.env.local: present (trimmed
-— no spend/deploy keys)`, `launch opts: --dangerously-skip-permissions`; the go prints
-`LAUNCHED step 23c detached: pid …`; log at `/Users/go/code/bnow-net-worktrees/logs/step23c.log`.
+**Expect** (the dry run): `worktree : /Users/go/code/bnow-net-worktrees/48h-ws3-conflict-20260905`,
+`.env.local: present (trimmed — no spend/deploy keys)`, `launch opts: --dangerously-skip-permissions`,
+the claim check passing, and the printed command containing `caffeinate -ims claude -p`. Then:
+
+```
+cd /Users/go/code/bnow-net
+export CLAUDE_LAUNCH_OPTS='--dangerously-skip-permissions'
+scripts/launch/launch.sh 19 --go
+```
+
+**Expect:** `LAUNCHED step 19 detached: pid …` and a log at
+`/Users/go/code/bnow-net-worktrees/logs/step19.log`. `FAIL: session exited immediately` means
+the claim was released and nothing runs — read the log lines it prints, do not relaunch.
 
 ### 2.9 Confirm all three are running
 
@@ -263,7 +264,7 @@ cd /Users/go/code/bnow-net
 scripts/launch/status.sh
 ```
 
-**Expect:** rows 19, 23r, 23c each with a CLAIM and `SESSION pid:… run`; the lsof section lists
+**Expect:** rows 23c, 23r, 19 each with a CLAIM and `SESSION pid:… run`; the lsof section lists
 three `claude` processes with cwds `48h-ws3-conflict-20260905`, `48h-ws2-routing-20260905`,
 `48h-audit-ws3-20260905`.
 
@@ -283,7 +284,9 @@ gh pr list --state open
 ```
 
 **Expect / act on:** a lane is DELIVERED when `status.sh` shows its REPORT `yes` and a PR
-number, and `gh pr list` shows the PR. A log line `AWAITING AUTHORIZATION: …` means an input
+number, and `gh pr list` shows the PR. **When 23c delivers, merge it at once** (cards 3.1 → 3.3
+for that one PR, then card 3.4's gate) — do not wait for 19 or 23r; every hour it sits unmerged is
+an hour in which step 19 may open its second PR against the unfixed module. A log line `AWAITING AUTHORIZATION: …` means an input
 above was missing — fix it, then tell me; a relaunch needs the claim directory removed by hand
 with a note in `/Users/go/code/bnow-net-worktrees/claims/launches.log`. Any other halt: read the
 log, do not relaunch, tell me.
@@ -292,11 +295,12 @@ log, do not relaunch, tell me.
 
 ## 3. CP6 — merge queue for steps 19, 23c, 23r
 
-Order: **whichever of 23c / 19 delivers first, then the other, then 23r.** Do not hold 23c for
-19 — merge it the moment its session has exited, because step 19 checks `origin/main` before it
-opens its observation-pipeline PR and consumes lane C's fixed module if it is there (its prompt,
-item 8; `docs/reviews/REORDER-23C-19-ANALYSIS-2026-09-09.md`). If both are waiting at once, 23c
-before 19. Lane C's `persistObservation` hunk is inside the function body and 19 only calls the
+Order: **each PR the moment its session exits — expected 23c, then 23r, then 19.** Never hold
+23c (or 23r) for 19: step 19 checks `origin/main` before it opens its observation-pipeline PR and
+consumes lane C's fixed module if it is there (its prompt, item 8;
+`docs/reviews/REORDER-23C-19-ANALYSIS-2026-09-09.md`). If two are waiting at once, 23c before
+19. Run card 3.4's gate after EVERY merge, not only the last — a green `main` is what the next
+lane rebases onto. Lane C's `persistObservation` hunk is inside the function body and 19 only calls the
 function, so neither order conflicts; 23r shares no file with either. Merge each PR only after
 its delivering session has exited. Repeat card 3.1 → 3.3 per PR, then 3.4 once.
 
@@ -354,11 +358,11 @@ git log --oneline -1
 
 **Expect:** a merge commit on `main`; record its SHA for the INDEX line.
 
-### 3.4 Gate and record — once, after the last merge of the queue
+### 3.4 Gate and record — after every merge
 
 **Where:** `/Users/go/code/bnow-net`, branch `main`.
-**Requires:** 19, 23c and 23r merged and pulled (run it also after an early 23c merge if 19 is
-still hours away — a green gate on `main` is what 19 rebases onto).
+**Requires:** the PR just merged is pulled (`git log --oneline -1` shows its merge commit).
+Run this after every merge of the queue, not only the last.
 
 ```
 cd /Users/go/code/bnow-net
