@@ -4896,3 +4896,30 @@ Worktree `48h-audit-ws3-20260905`, branch `48h/audit-ws3-20260905-remediate-ws3`
 9. WS3-F09 — gate-order route tests for `conflict-validate` and its sibling `validate`.
 10. DEFER WS3-F11, N01–N10 into one OPEN-TASKS entry (#119); closing report
     `docs/reviews/AUDIT-REMEDIATIONS-2026-09-07.md` `## Lane C`.
+
+Execution (same block):
+
+- All ten FIX findings done, nine DEFER rows filed. Four PRs, all based on `main` with
+  DISJOINT file sets (not a stack): **#90** discovery (F01, F02, F03, F05, F07, F08, F09),
+  **#91** gazetteer (F06, F10), **#92** observations (F04), **#94** docs.
+- Base `origin/main` `4b8e7e7`. Tests **4,332 / 282 → 4,411 / 282** combined
+  (#90 4,372 · #91 4,368 · #92 4,335). Typecheck clean; lint 0 errors, the same 3 pre-existing
+  warnings. Fork itests **54 / 54** (register baseline 52 / 52) on `br-jolly-silence-atwbs5dd`,
+  deleted and its absence verified by re-listing the project's branches against the Neon API.
+- Every fix carries a test that FAILS on the pre-fix code; the failing runs are pasted in the
+  closing report. R1 and R2 were promoted with their expectations INVERTED, as the prompt
+  requires. Mutants **M9** and **M10** are both dead, re-verified by re-running them.
+- **No migration**, no env change, no deploy, no production write, `$0`.
+  `git diff origin/main -- src/lib/validation/run.ts` and `-- vercel.json` are both EMPTY, and
+  `drizzle/` and `src/db/schema.ts` are untouched.
+- Production was verified at **29 migrations with 0028/0029/0030 unapplied** — the contingency
+  D-c depends on — but NOT through `.env.local`: the pooled `DATABASE_URL` there fails
+  `password authentication failed for user 'neondb_owner'`, so the reading was taken on a
+  copy-on-write fork of production created through the Neon control plane. Recorded for the
+  operator; it is the rotation follow-up the 2026-09-08 entry already owes, and #80 with it.
+- Two behaviour changes the findings implied and that are named rather than buried: the N3
+  backfill gained the optional `--from`/`--to` its sibling mode has (absent = whole corpus),
+  and WS3-F04 turned the nonexistent-edition case from an FK error into a typed refusal, so
+  the shipped itest assertion was rewritten rather than relaxed.
+- Ran UNATTENDED on the trimmed four-key `.env.local`; nothing in the session could spend,
+  deploy or email.
