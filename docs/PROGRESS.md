@@ -4945,3 +4945,27 @@ Execution (same block):
    boundary guard in `scripts/migrate.ts`.
 7. Record WS2-F16/F17 CLOSED-BY-#75/#81; file the DEFER bundle as OPEN-TASKS #119;
    closing report `docs/reviews/AUDIT-REMEDIATIONS-2026-09-07.md` `## Lane R`.
+## 2026-09-09 ~22:10Z — WS-3.3 evidence population + live observation pipeline (planned block)
+
+1. Read COMMON, the WS-3.0 memo (C2/C3/C4/C8/C12/C13), PLAN-WS-3 §3.3a/3.3b/3.4b, the three
+   upstream handoffs (WS-3.1 persistence, WS-3.1b observations, WS-3.2 edition discovery) and
+   the step-06 gazetteer handoff; record the base SHA and the lane-C branch decision.
+2. PR 1 `48h/ws3-conflict-20260905-db-claim-sources` — `src/lib/conflicts/db-claim-sources.ts`:
+   the real `CorpusRecallClaimSource` / `PublishedRetentionClaimSource` over `doc_claims` /
+   published digest claims, claim-id subquery bounded at `EVIDENCE_MAX_INTAKE + 1`, version
+   filter through `map-versions.ts` (ruling 13), stub adapters excluded at the query (ruling 3),
+   per-theater predicates (ruling 14), docs joined through `raw_documents` / `claim_sources`
+   with `doc_dedup` mirrors (ruling 2). Unit tests over an injected `QueryFn`; one fork itest.
+3. PR 2 `48h/ws3-conflict-20260905-insufficient-data` — thread the keyword rung's
+   `insufficientData` into `ConflictResultV1` (denominator-unchanged, cross-population
+   agreement check), regenerate the one affected golden, and — under decision E5 — regenerate
+   the two committed conflict offline-results files and the conflict scorecard.
+4. PR 3 `48h/ws3-conflict-20260905-live-observation` — `unit-flags.ts` (`unit-flags-v0`),
+   `unit-lanes.ts`, `unit-attribution.ts`, `live-observation.ts`, the exported reserved
+   single-vote dispatch (`dispatchMatchVote`) + `conflictMatchGuardFromEnv` +
+   `live-matcher.ts`, and the pipeline attached behind the unscheduled conflict-validate
+   route. Pins: unscheduled = nothing runs; `LLM_DISABLE=1` still observes on the keyword
+   rung; the paid rung refuses before `tryReserve` and before client construction when
+   `CONFLICT_MATCH_USD_CAP_DAILY` is unset; no ISW prose in the persisted object.
+5. Gates on every branch (typecheck + lint + `npm test`), fork itests for the DB-touching PRs,
+   closing report `docs/reviews/WS-3-3-EVIDENCE-POPULATION-2026-09-06.md`. $0.
