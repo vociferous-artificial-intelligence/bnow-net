@@ -194,13 +194,32 @@ const INSERT_COLUMNS = `conflict_id, reference_edition_id, series, report_date, 
    gazetteer_version, unit_flags_version, edition_norm_version, daily_final_policy,
    extractor_versions, registry_version, window_end_source, run_group_key, cron_run_id`;
 
-/** The ONE write statement. A plain INSERT: no ON CONFLICT clause exists, so a
- *  duplicate (conflict, edition, cron run) is REFUSED by the partial unique
- *  index rather than silently overwriting an earlier observation. Exported so
- *  the integration test proves the deployed statement, not a copy of it. */
+/** The ONE write statement. No ON CONFLICT clause exists, so a duplicate
+ *  (conflict, edition, cron run) is REFUSED by the partial unique index rather
+ *  than silently overwriting an earlier observation. Exported so the
+ *  integration test proves the deployed statement, not a copy of it.
+ *
+ *  IT IS AN `INSERT … SELECT`, NOT AN `INSERT … VALUES` (WS3-F04). Every
+ *  column except `reference_edition_id` is read off the RESULT; that ONE
+ *  caller-supplied value was checked only for positivity and by the foreign
+ *  key, i.e. only that SOME edition row exists. A caller could therefore
+ *  attach a result for `iran_update:D:evening` to the `morning` row's id, and
+ *  the row's FK identity and its denormalized `edition_key` / `series` /
+ *  `report_date` would disagree — which step 24's read model, keyed on
+ *  `reference_edition_id`, would render as the wrong result under the right
+ *  edition. The SELECT re-reads the named edition and inserts only where all
+ *  four identity columns agree; zero rows back is a typed refusal.
+ *
+ *  Every parameter carries an explicit cast because a parameter in a SELECT
+ *  list has no target column to take its type from, unlike a VALUES list. */
 export const OBSERVATION_INSERT_SQL = `INSERT INTO conflict_validation_observations (${INSERT_COLUMNS})
-   VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10,$11,$12,$13::jsonb,$14,$15,$16,$17,$18,
-           $19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
+   SELECT $1::text,$2::integer,$3::text,$4::date,$5::text,$6::text,$7::integer[],$8::jsonb,
+          $9::jsonb,$10::text,$11::text,$12::integer,$13::jsonb,$14::text,$15::text,$16::text,
+          $17::text,$18::text,$19::text,$20::text,$21::text,$22::text,$23::text,$24::text[],
+          $25::text,$26::text,$27::text,$28::integer
+     FROM benchmark_report_editions e
+    WHERE e.id = $2::integer AND e.edition_key = $5::text
+      AND e.series = $3::text AND e.report_date = $4::date
    RETURNING id`;
 
 /** Persist ONE scored conflict observation and return its id.
@@ -216,7 +235,12 @@ export const OBSERVATION_INSERT_SQL = `INSERT INTO conflict_validation_observati
  *   3. the app-layer twin of that kind refusal, and the `fixture-oracle` rung,
  *      which the live path can never mint;
  *   4. the ruling-1 prose audit over the whole result;
- *   5. the caller-supplied row values. */
+ *   5. the caller-supplied row values.
+ *
+ *  The ONE thing that cannot be refused before the statement is the edition
+ *  IDENTITY: proving that `referenceEditionId` names the edition the result
+ *  describes needs the database. The statement does it in the same round trip
+ *  (WS3-F04), so a disagreement still leaves no row. */
 export async function persistObservation(
   query: QueryFn,
   input: ConflictObservationInput,
@@ -324,7 +348,14 @@ export async function persistObservation(
   ]);
   const id = rows[0]?.id;
   if (typeof id !== "number" && typeof id !== "string") {
-    throw new ConflictDomainError("invalid_observation_row", "insert returned no observation id");
+    // The statement's own identity guard is the only way to reach zero rows:
+    // the named edition row does not exist, or it is not the edition this
+    // result describes. Either way nothing was written.
+    throw new ConflictDomainError(
+      "invalid_observation_row",
+      `referenceEditionId ${referenceEditionId} is not the ${JSON.stringify(result.report.editionKey)} ` +
+        `edition of ${result.report.series} ${result.report.reportDate} — no observation was written`,
+    );
   }
   return Number(id);
 }

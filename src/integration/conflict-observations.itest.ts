@@ -339,9 +339,56 @@ describe("conflict validation observations (migration 0030, real Postgres)", () 
     expect(Number(hit.n)).toBe(0);
   });
 
+  it("REFUSES a result attached to another edition's row, and writes nothing (WS3-F04)", async () => {
+    const before = await observationCount();
+    // editionB is DAY_B's row; this result describes DAY_A. The FK is satisfied
+    // (editionB exists) and every app-layer check passes — only the statement's
+    // own identity guard can catch it.
+    const err = await persistObservation(query, {
+      referenceEditionId: editionB,
+      result: resultFor(DAY_A),
+      ...STAMPS,
+    }).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(ConflictDomainError);
+    expect((err as { code?: string }).code).toBe("invalid_observation_row");
+    expect(await observationCount()).toBe(before);
+
+    // a nonexistent edition id is refused the same way — no row, no FK error
+    const missing = await persistObservation(query, {
+      referenceEditionId: 2_000_000_000,
+      result: resultFor(DAY_A),
+      ...STAMPS,
+    }).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(missing).toBeInstanceOf(ConflictDomainError);
+    expect(await observationCount()).toBe(before);
+
+    // and the MATCHING id still writes, so the guard is not simply refusing
+    const ok = await persistObservation(query, {
+      referenceEditionId: editionA,
+      result: resultFor(DAY_A),
+      ...STAMPS,
+    });
+    expect(ok).toBeGreaterThan(0);
+    expect(await observationCount()).toBe(before + 1);
+    const [row] = await query(
+      `SELECT reference_edition_id, series, report_date::text AS report_date, edition_key
+         FROM conflict_validation_observations WHERE id = $1`,
+      [ok],
+    );
+    expect(Number(row.reference_edition_id)).toBe(editionA);
+    expect(row.report_date).toBe(DAY_A);
+  });
+
   it("uses the DEPLOYED statements, and leaves the frozen tables untouched", async () => {
     expect(OBSERVATION_INSERT_SQL).toContain("INSERT INTO conflict_validation_observations");
     expect(OBSERVATION_INSERT_SQL).not.toMatch(/ON CONFLICT/i);
+    expect(OBSERVATION_INSERT_SQL).toMatch(/FROM benchmark_report_editions/);
     expect(LATEST_OBSERVATIONS_SQL).toMatch(/DISTINCT ON \(reference_edition_id\)/);
     // isw_reports / source_citations / validation_runs are never written by this
     // module; benchmark_report_editions is only ever REFERENCED
