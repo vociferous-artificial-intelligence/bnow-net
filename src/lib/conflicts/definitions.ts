@@ -128,6 +128,18 @@ export const CONFLICT_REGISTRY: Readonly<Record<ConflictId, ConflictDefinition>>
   },
 });
 
+/** The version of THIS registry — the conflict roster, its contributor
+ *  theaters/tracks and their comparability classes — stamped onto every
+ *  observation (`conflict_validation_observations.registry_version`).
+ *
+ *  It exists because the registry is CONFIGURATION that scoring depends on:
+ *  adding a contributor theater or a track changes which evidence a conflict
+ *  may draw on, so two observations produced under different rosters are not
+ *  comparable and must not be pooled in a soak sample. Bump it — never edit a
+ *  shipped value — whenever CONFLICT_REGISTRY's rosters change; a display-name
+ *  edit is not a bump. */
+export const CONFLICT_REGISTRY_VERSION = "conflict-registry-v1" as const;
+
 /** All definitions, in CONFLICT_IDS order. */
 export const CONFLICT_DEFINITIONS: readonly ConflictDefinition[] = deepFreeze(
   CONFLICT_IDS.map((id) => CONFLICT_REGISTRY[id]),

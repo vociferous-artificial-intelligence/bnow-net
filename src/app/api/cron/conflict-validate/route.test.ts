@@ -203,7 +203,17 @@ describe("conflict-validate counts summary (report-only)", () => {
       dayStatus: "publication_gap",
       anchored: 0,
       probeFailures: 0,
+      // the observation half of the same cell (WS-3.3): with no edition there
+      // is nothing to score, and every value here is a bounded token — no
+      // reference prose ever reaches cron_runs.counts (ruling 1)
+      editionKey: null,
+      observationId: null,
+      units: 0,
+      matcherRung: null,
+      skipped: "no_editions",
     });
+    expect(w.counts.observations).toBe(0);
+    expect(w.counts.observationSkips).toEqual({ no_editions: 4 });
   });
 
   it("reports the #114 indeterminate split and stamps each throttled cell's reason", async () => {
