@@ -180,9 +180,12 @@ cd /Users/go/code/bnow-net
 gh pr view <n> --json baseRefName,headRefName,mergeable,mergeStateStatus -q '[.baseRefName,.headRefName,.mergeable,.mergeStateStatus]'
 ```
 
-**Expect:** the push accepted; base `main`; `mergeable` reaching `MERGEABLE` / `CLEAN` within a
-few polls (first poll often `UNKNOWN` — wait 10 s and re-view, up to 6 times). Still
-`CONFLICTING` after the rebase: STOP with the output — do not rebase again.
+**Expect:** the push accepted; `mergeable` reaching `MERGEABLE` / `CLEAN` within a few polls
+(first poll often `UNKNOWN` — wait 10 s and re-view, up to 6 times). **If `baseRefName` is not
+`main`** — #89 and #93 were opened as stacks on #88's and #86's branches, and GitHub does not
+retarget while the merged head branch still exists — run `gh pr edit <n> --base main` once,
+re-view, and record it as an incident (this is the CP5 stack rule, plan §7). Still
+`CONFLICTING` after the rebase and the retarget: STOP with the output — do not rebase again.
 
 ### 3.d Merge and gate `main`
 
