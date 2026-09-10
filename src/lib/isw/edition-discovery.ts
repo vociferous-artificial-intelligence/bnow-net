@@ -113,6 +113,28 @@ export interface DiscoveredEdition {
   anchoredReportId: number | null;
 }
 
+/** What one probe established about the shape it asked for.
+ *
+ *  `clean_not_found` is the ONLY class that disproves a shape's existence; it
+ *  is what gap confirmation is allowed to reason from. `indeterminate` is the
+ *  #114 class: the shape's existence is UNKNOWN, whether because the host
+ *  refused us (403 / 429), because it failed (≥500, or no response at all
+ *  after politeFetch's own retries), or because the body it returned is not
+ *  usable as a report. */
+export type ProbeClass = "edition" | "clean_not_found" | "indeterminate";
+
+/** Why a day could not be resolved. RETURN SHAPE ONLY: `benchmark_series_days`
+ *  keeps its two-value CHECK and this window adds no migration (D-a).
+ *
+ *  - `throttled`   — a 403 / 429 / ≥500 / no-response / undersized-200 probe.
+ *  - `unparseable_body` — a body over MIN_REPORT_BYTES that declared no Key
+ *    Takeaway at all (D-b). Kept distinct so the new indeterminate class does
+ *    not re-conflate one level down: "the host would not talk to us" and
+ *    "the host served something that is not a report" are different problems. */
+export type DayStatusReason = "throttled" | "unparseable_body";
+
+export const DAY_STATUS_REASONS: readonly DayStatusReason[] = ["throttled", "unparseable_body"];
+
 export interface EditionDiscoveryResult {
   series: ReferenceSeriesId;
   reportDate: string;
@@ -120,10 +142,27 @@ export interface EditionDiscoveryResult {
   /** derived status AFTER this run */
   dayStatus: ReferenceDayStatus;
   dayStatusAction: DayStatusResult["action"] | "editions_found";
+  /** WHY the day is unresolved, when it is. Null on a published day and on a
+   *  day whose every probe answered cleanly — a `probe_failed` with no reason
+   *  is a real all-404 day awaiting its confirming run, which is exactly the
+   *  distinction #114 found missing. */
+  dayStatusReason: DayStatusReason | null;
   /** one entry per probed shape — url, status and byte count only, NEVER html */
   probes: readonly DiscoveryProbe[];
-  /** probes that were neither a report hit nor a clean 404 */
+  /** probes that were neither a REGISTERED edition nor a clean 404. The
+   *  historical counter under its shipped name and its shipped value, so the
+   *  WS-3.6 soak can keep predeclaring against it. */
   probeFailures: number;
+  /** probes whose class is `indeterminate` — the shape's existence is unknown
+   *  rather than disproved (#114 / D-a). Reported separately from
+   *  `probeFailures` because the two are different claims: `probeFailures` is
+   *  an operational key, this is the semantic statement the soak needs. Every
+   *  probe failure is indeterminate today; a future class of DEFINITE failure
+   *  would narrow this without moving `probeFailures`. */
+  probeIndeterminate: number;
+  /** the same count split by reason, so a throttled window is distinguishable
+   *  from a run of unusable bodies without re-reading the probe list */
+  probeIndeterminateReasons: Readonly<Record<DayStatusReason, number>>;
   anchored: number;
 }
 
@@ -222,9 +261,31 @@ export function unitSignaturesFrom(html: string): EditionUnitSignature[] {
 }
 
 /** A probe that produced no report: was it a CLEAN 404 (the shape genuinely
- *  does not exist) or a failure we cannot distinguish from a transient one? */
+ *  does not exist) or a failure we cannot distinguish from a transient one?
+ *
+ *  404-ONLY, deliberately. understandingwar.org answers 403 for a not-found
+ *  slug once a run has made roughly twenty not-found requests, and the same
+ *  403 state suppresses REAL pages (#114, measured 2026-09-08: three identical
+ *  ROCA passes over the same 23 days returned publishedDays 6 → 6 → 13 with
+ *  all 23 published). Accepting 403 here would let a throttled window
+ *  manufacture publication gaps — see classifyProbe for where a 403 goes
+ *  instead. */
 export function isCleanNotFound(probe: DiscoveryProbe): boolean {
   return probe.status === 404;
+}
+
+/** The three-way probe class (#114 / D-a). An edition is a 200 whose body
+ *  clears the production threshold; everything that is neither that nor a
+ *  clean 404 leaves the shape's existence UNKNOWN and is `indeterminate`.
+ *
+ *  Transport only: whether an `edition`-classed body actually declares a Key
+ *  Takeaway is D-b's question and is decided in discoverEditions, which
+ *  demotes a zero-unit body to `indeterminate` with the `unparseable_body`
+ *  reason. */
+export function classifyProbe(probe: DiscoveryProbe): ProbeClass {
+  if (isCleanNotFound(probe)) return "clean_not_found";
+  if (probe.status === 200 && probe.bytes > MIN_REPORT_BYTES) return "edition";
+  return "indeterminate";
 }
 
 /** May an all-404 day be CONFIRMED a publication gap on this run?
@@ -305,6 +366,7 @@ export async function discoverEditions(
 
   const probes: DiscoveryProbe[] = [];
   const editions: DiscoveredEdition[] = [];
+  const indeterminate: Record<DayStatusReason, number> = { throttled: 0, unparseable_body: 0 };
 
   for (const { url, normalized } of candidates) {
     const page = await fetchPage(url);
@@ -315,7 +377,14 @@ export async function discoverEditions(
     };
     probes.push(probe);
     // NO `break` — this is the whole point of the module (C4)
-    if (page === null || page.status !== 200 || page.html.length <= MIN_REPORT_BYTES) continue;
+    const probeClass = classifyProbe(probe);
+    if (probeClass !== "edition" || page === null) {
+      // `page === null` cannot survive classifyProbe as an edition (a null
+      // page has a null status); the check is here so the narrowing is the
+      // compiler's, not a comment's.
+      if (probeClass === "indeterminate") indeterminate.throttled += 1;
+      continue;
+    }
 
     const canonicalUrl = canonicalizeIswUrl(url);
     const units = unitSignaturesFrom(page.html);
@@ -356,7 +425,14 @@ export async function discoverEditions(
     });
   }
 
-  const probeFailures = probes.filter((p) => !isCleanNotFound(p)).length - editions.length;
+  const probeIndeterminate = indeterminate.throttled + indeterminate.unparseable_body;
+  // Identical to the shipped formula `probes.filter(p => !isCleanNotFound(p)).length
+  // - editions.length`, because a probe that is neither a clean 404 nor a
+  // REGISTERED edition is exactly an indeterminate one. Kept as its own name
+  // and its own field so the operational key and the semantic claim can drift
+  // apart later without a silent redefinition.
+  const probeFailures = probeIndeterminate;
+  const probeIndeterminateReasons = { ...indeterminate };
 
   if (editions.length > 0) {
     // an edition proves publication; upsertEdition already cleared any stored
@@ -367,16 +443,26 @@ export async function discoverEditions(
       editions,
       dayStatus: "published",
       dayStatusAction: "editions_found",
+      dayStatusReason: null,
       probes,
       probeFailures,
+      probeIndeterminate,
+      probeIndeterminateReasons,
       anchored: editions.filter((e) => e.anchoredReportId !== null).length,
     };
   }
 
   const priorStatus = await deps.repo.dayStatus(series, reportDate);
-  const everyProbeCleanNotFound = probes.length > 0 && probes.every(isCleanNotFound);
+  // D-a, made EXPLICIT rather than emergent: a gap may be confirmed only when
+  // every probe of the day answered cleanly. One indeterminate probe means the
+  // day is not confirmable under throttling, and the reason says which kind of
+  // silence we met. (This is the same predicate as the old
+  // `probes.every(isCleanNotFound)` in this branch — where no edition was
+  // registered, "not indeterminate" and "clean 404" are the same set — but it
+  // is now a named condition with a reportable reason instead of a filter.)
+  const confirmable = probes.length > 0 && probeIndeterminate === 0;
   const observed =
-    everyProbeCleanNotFound && confirmGapEligible(priorStatus, reportDate, now())
+    confirmable && confirmGapEligible(priorStatus, reportDate, now())
       ? "publication_gap"
       : "probe_failed";
   const recorded = await deps.repo.recordDayStatus(series, reportDate, observed);
@@ -386,10 +472,23 @@ export async function discoverEditions(
     editions,
     dayStatus: recorded.status,
     dayStatusAction: recorded.action,
+    dayStatusReason: dayStatusReasonFrom(indeterminate),
     probes,
     probeFailures,
+    probeIndeterminate,
+    probeIndeterminateReasons,
     anchored: 0,
   };
+}
+
+/** The single reason to report for a day, when it has one. `throttled`
+ *  dominates: if the host refused any probe we cannot claim to know what the
+ *  other shapes would have said, so an unparseable body alongside a 403 is
+ *  reported as throttling. */
+function dayStatusReasonFrom(counts: Record<DayStatusReason, number>): DayStatusReason | null {
+  if (counts.throttled > 0) return "throttled";
+  if (counts.unparseable_body > 0) return "unparseable_body";
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -451,6 +550,12 @@ export interface SeriesDiscoverySummary {
   publicationGapDays: number;
   probes: number;
   probeFailures: number;
+  /** #114: probes whose class is indeterminate, and the days that carried at
+   *  least one. A window with a non-zero `throttledDays` is a window whose
+   *  `probeFailedDays` is a fetch artifact, not a coverage measure. */
+  probeIndeterminate: number;
+  throttledDays: number;
+  unparseableBodyDays: number;
 }
 
 /** Drive discovery across a date window, one line per day. This is the
@@ -479,6 +584,9 @@ export async function runSeriesDiscovery(
     publicationGapDays: 0,
     probes: 0,
     probeFailures: 0,
+    probeIndeterminate: 0,
+    throttledDays: 0,
+    unparseableBodyDays: 0,
   };
 
   for (const day of days) {
@@ -487,6 +595,9 @@ export async function runSeriesDiscovery(
     summary.editions += out.editions.length;
     summary.probes += out.probes.length;
     summary.probeFailures += out.probeFailures;
+    summary.probeIndeterminate += out.probeIndeterminate;
+    if (out.dayStatusReason === "throttled") summary.throttledDays += 1;
+    if (out.dayStatusReason === "unparseable_body") summary.unparseableBodyDays += 1;
     if (out.editions.length > 1) summary.multiEditionDays += 1;
     if (out.dayStatus === "published") summary.publishedDays += 1;
     if (out.dayStatus === "probe_failed") summary.probeFailedDays += 1;
@@ -514,7 +625,8 @@ export async function runSeriesDiscovery(
     log(
       `${day}  ${plan.dry ? "DRY " : ""}${out.dayStatus} editions=${out.editions.length}` +
         `${out.editions.length > 0 ? ` [${out.editions.map((e) => `${e.label}:${e.action}:${e.parseStatus}:u${e.units}`).join(" ")}]` : ""}` +
-        `${anchorNote} probes=${out.probes.length} probeFailures=${out.probeFailures}`,
+        `${anchorNote} probes=${out.probes.length} probeFailures=${out.probeFailures}` +
+        `${out.dayStatusReason === null ? "" : ` reason=${out.dayStatusReason}`}`,
     );
   }
   return summary;

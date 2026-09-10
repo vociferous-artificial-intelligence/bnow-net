@@ -92,6 +92,9 @@ export async function GET(req: NextRequest) {
     let anchored = 0;
     let probes = 0;
     let probeFailures = 0;
+    let probeIndeterminate = 0;
+    let throttledDays = 0;
+    let unparseableBodyDays = 0;
     let published = 0;
     let probeFailedDays = 0;
     let publicationGapDays = 0;
@@ -107,6 +110,9 @@ export async function GET(req: NextRequest) {
           anchored += out.anchored;
           probes += out.probes.length;
           probeFailures += out.probeFailures;
+          probeIndeterminate += out.probeIndeterminate;
+          if (out.dayStatusReason === "throttled") throttledDays += 1;
+          if (out.dayStatusReason === "unparseable_body") unparseableBodyDays += 1;
           if (out.dayStatus === "published") published += 1;
           if (out.dayStatus === "probe_failed") probeFailedDays += 1;
           if (out.dayStatus === "publication_gap") publicationGapDays += 1;
@@ -118,6 +124,7 @@ export async function GET(req: NextRequest) {
             dayStatus: out.dayStatus,
             anchored: out.anchored,
             probeFailures: out.probeFailures,
+            ...(out.dayStatusReason === null ? {} : { dayStatusReason: out.dayStatusReason }),
           });
         } catch (e) {
           thrown += 1;
@@ -138,6 +145,11 @@ export async function GET(req: NextRequest) {
     counts.anchored = anchored;
     counts.probes = probes;
     counts.probeFailures = probeFailures;
+    // #114 / D-a: a probe_failed day whose reason is `throttled` says nothing
+    // about whether ISW published — the WS-3.6 soak predeclares against this
+    // split, not against probeFailedDays alone.
+    counts.probeIndeterminate = probeIndeterminate;
+    counts.dayStatusReasons = { throttled: throttledDays, unparseable_body: unparseableBodyDays };
     counts.dayStatuses = {
       published,
       probe_failed: probeFailedDays,
