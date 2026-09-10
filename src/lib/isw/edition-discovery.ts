@@ -742,6 +742,13 @@ export interface SeriesBackfillPlan {
   series: ReferenceSeriesId;
   /** compute and report, write nothing */
   dry: boolean;
+  /** OPTIONAL inclusive report_date bounds. Absent = the whole corpus, which
+   *  is N3's literal wording; present lets the operator run the registration
+   *  in bounded passes (the #116 window is one) instead of one sweep over
+   *  every historical row, and is what makes the mode provable on a fork
+   *  without walking the production corpus copy. */
+  from?: string | null;
+  to?: string | null;
 }
 
 /** A row the backfill would not register, and why. Bounded and prose-free:
@@ -757,6 +764,9 @@ export interface SeriesBackfillSummary {
   series: ReferenceSeriesId;
   theater: string;
   dry: boolean;
+  /** the bounds actually applied, so a summary says what it covered */
+  from: string | null;
+  to: string | null;
   rows: number;
   inserted: number;
   unchanged: number;
@@ -781,7 +791,24 @@ export function parseSeriesBackfillArgs(args: readonly string[]): SeriesBackfill
       `--backfill-from-isw-reports needs --series roca|iran_update, got ${JSON.stringify(value ?? null)}`,
     );
   }
-  return { series: value, dry: args.includes("--dry") };
+  const val = (name: string) => {
+    const i = args.indexOf(name);
+    return i >= 0 ? args[i + 1] : undefined;
+  };
+  // the window is OPTIONAL here (unlike --series discovery, where it is the
+  // whole plan), but a MALFORMED bound is still a refusal, never a silent
+  // whole-corpus sweep
+  const from = val("--from");
+  const to = val("--to");
+  for (const [name, bound] of [["--from", from], ["--to", to]] as const) {
+    if (bound !== undefined && !isIsoDay(bound)) {
+      throw new Error(`--backfill-from-isw-reports ${name} must be yyyy-mm-dd, got ${JSON.stringify(bound)}`);
+    }
+  }
+  if (from !== undefined && to !== undefined && from > to) {
+    throw new Error(`--from ${from} is after --to ${to}`);
+  }
+  return { series: value, dry: args.includes("--dry"), from: from ?? null, to: to ?? null };
 }
 
 /**
@@ -818,6 +845,8 @@ export async function backfillFromIswReports(
     series: plan.series,
     theater,
     dry: plan.dry,
+    from: plan.from ?? null,
+    to: plan.to ?? null,
     rows: 0,
     inserted: 0,
     unchanged: 0,
@@ -827,10 +856,20 @@ export async function backfillFromIswReports(
   };
   const refusals: BackfillRefusal[] = [];
 
+  const params: unknown[] = [theater];
+  let bounds = "";
+  if (plan.from) {
+    params.push(plan.from);
+    bounds += ` AND report_date >= $${params.length}::date`;
+  }
+  if (plan.to) {
+    params.push(plan.to);
+    bounds += ` AND report_date <= $${params.length}::date`;
+  }
   const rows = await deps.query(
     `SELECT id, url, report_date::text AS report_date FROM isw_reports
-      WHERE theater = $1 ORDER BY report_date, id`,
-    [theater],
+      WHERE theater = $1${bounds} ORDER BY report_date, id`,
+    params,
   );
 
   for (const row of rows) {

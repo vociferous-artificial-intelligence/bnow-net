@@ -825,6 +825,8 @@ describe("backfillFromIswReports (WS3-F07 — decision N3's zero-network operato
       series: "iran_update",
       theater: "ir",
       dry: false,
+      from: null,
+      to: null,
       rows: 2,
       inserted: 2,
       unchanged: 0,
@@ -854,6 +856,7 @@ describe("backfillFromIswReports (WS3-F07 — decision N3's zero-network operato
     expect(d.queries).toHaveLength(1);
     const [sql, params] = d.queries[0] as [string, unknown[]];
     expect(sql).toContain("SELECT id, url, report_date::text AS report_date FROM isw_reports");
+    expect(sql).toContain("WHERE theater = $1 ORDER BY"); // no bounds ⇒ the whole corpus
     expect(sql).not.toMatch(/INSERT|UPDATE|DELETE/i);
     expect(params).toEqual(["ir"]);
     const roca = backfillDeps([]);
@@ -938,6 +941,20 @@ describe("backfillFromIswReports (WS3-F07 — decision N3's zero-network operato
     expect(await d.repo.editionsForDay("iran_update", DAY)).toEqual([]);
   });
 
+  it("an OPTIONAL window narrows the SELECT and is reported back", async () => {
+    const d = backfillDeps([[11, `${JUNE}iran-update-special-report-august-12-2026/`, DAY]]);
+    const summary = await backfillFromIswReports(
+      d,
+      { series: "iran_update", dry: true, from: "2025-06-01", to: "2025-06-30" },
+      () => {},
+    );
+    const [sql, params] = d.queries[0] as [string, unknown[]];
+    expect(sql).toContain("AND report_date >= $2::date");
+    expect(sql).toContain("AND report_date <= $3::date");
+    expect(params).toEqual(["ir", "2025-06-01", "2025-06-30"]);
+    expect(summary).toMatchObject({ from: "2025-06-01", to: "2025-06-30" });
+  });
+
   it("caps the refusal SAMPLE without capping the count", async () => {
     const many: Array<[number, string, string]> = Array.from({ length: 25 }, (_, i) => [
       i + 1,
@@ -956,11 +973,33 @@ describe("parseSeriesBackfillArgs (one dispatch authority for the two --series m
     expect(parseSeriesBackfillArgs(["--series", "iran_update", "--backfill-from-isw-reports"])).toEqual({
       series: "iran_update",
       dry: false,
+      from: null,
+      to: null,
     });
     expect(parseSeriesBackfillArgs(["--series", "roca", "--backfill-from-isw-reports", "--dry"])).toEqual({
       series: "roca",
       dry: true,
+      from: null,
+      to: null,
     });
+    expect(
+      parseSeriesBackfillArgs([
+        "--series", "iran_update", "--backfill-from-isw-reports",
+        "--from", "2025-06-12", "--to", "2025-06-24",
+      ]),
+    ).toEqual({ series: "iran_update", dry: false, from: "2025-06-12", to: "2025-06-24" });
+    // a malformed bound is a refusal, never a silent whole-corpus sweep
+    for (const argv of [
+      ["--series", "roca", "--backfill-from-isw-reports", "--from", "06-12-2025"],
+      ["--series", "roca", "--backfill-from-isw-reports", "--to", "2025-02-30"],
+    ]) {
+      expect(() => parseSeriesBackfillArgs(argv)).toThrowError(/must be yyyy-mm-dd/);
+    }
+    expect(() =>
+      parseSeriesBackfillArgs([
+        "--series", "roca", "--backfill-from-isw-reports", "--from", "2025-06-24", "--to", "2025-06-12",
+      ]),
+    ).toThrowError(/is after --to/);
     expect(() => parseSeriesBackfillArgs(["--backfill-from-isw-reports"])).toThrowError(
       /needs --series roca\|iran_update/,
     );
@@ -972,7 +1011,12 @@ describe("parseSeriesBackfillArgs (one dispatch authority for the two --series m
   it("the window parser yields to it, so one argv can never run both modes", () => {
     const argv = ["--series", "iran_update", "--backfill-from-isw-reports", "--from", "2025-06-01", "--to", "2025-06-30"];
     expect(parseSeriesDiscoveryArgs(argv)).toBeNull();
-    expect(parseSeriesBackfillArgs(argv)).toEqual({ series: "iran_update", dry: false });
+    expect(parseSeriesBackfillArgs(argv)).toEqual({
+      series: "iran_update",
+      dry: false,
+      from: "2025-06-01",
+      to: "2025-06-30",
+    });
     // and without the flag the window parser still claims it
     expect(parseSeriesDiscoveryArgs(["--series", "iran_update", "--from", "2025-06-01", "--to", "2025-06-30"])).toEqual(
       { series: "iran_update", from: "2025-06-01", to: "2025-06-30", dry: false },
