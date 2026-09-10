@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_MAX_ROWS,
+  MAX_ROWS_CEILING,
   DEFAULT_RETENTION_DAYS,
   DRAIN_MESSAGE_CHARS,
   DRAIN_ROUTE_PATH,
@@ -465,6 +466,20 @@ describe("bounds and retention arithmetic", () => {
     // a value at or above 1 still floors as before
     process.env.LOG_DRAIN_RETENTION_DAYS = "7.9";
     expect(retentionDays()).toBe(7);
+  });
+
+  it("WS2-F26: clamps LOG_DRAIN_MAX_ROWS so one INSERT never exceeds the 65,535-parameter Bind cap", () => {
+    // insertRuntimeLogs binds 12 parameters per row in ONE statement; 5,462 rows
+    // is 65,544 parameters and every delivery that large failed outright
+    // (measured on real Postgres — 5,461 stores, 5,462 does not).
+    expect(MAX_ROWS_CEILING * 12).toBeLessThan(65_535);
+    for (const over of ["5462", "100000", "999999999"]) {
+      process.env.LOG_DRAIN_MAX_ROWS = over;
+      expect(maxRows()).toBe(MAX_ROWS_CEILING);
+    }
+    // below the ceiling the operator's value still wins
+    process.env.LOG_DRAIN_MAX_ROWS = "250";
+    expect(maxRows()).toBe(250);
   });
 
   it("retentionCutoff subtracts whole days from the instant given", () => {

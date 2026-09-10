@@ -86,8 +86,17 @@ function posInt(name: string, fallback: number): number {
 export function retentionDays(): number {
   return posInt("LOG_DRAIN_RETENTION_DAYS", DEFAULT_RETENTION_DAYS);
 }
+/** Hard ceiling on rows per INSERT. insertRuntimeLogs binds 12 parameters per row
+ *  in ONE statement and the PostgreSQL extended protocol caps a Bind message at
+ *  65,535 parameters, so 5,462 rows (65,544 parameters) fails outright — measured
+ *  on real Postgres, with 5,461 storing cleanly (WS2-F26). The cap is enforced
+ *  here rather than by chunking the INSERT: one statement keeps the delivery
+ *  atomic, and the overflow is already counted as `overCap` and dropped rather
+ *  than lost to a retry loop. 5,000 leaves 461 rows of margin. */
+export const MAX_ROWS_CEILING = 5000;
+
 export function maxRows(): number {
-  return posInt("LOG_DRAIN_MAX_ROWS", DEFAULT_MAX_ROWS);
+  return Math.min(posInt("LOG_DRAIN_MAX_ROWS", DEFAULT_MAX_ROWS), MAX_ROWS_CEILING);
 }
 export function maxBodyBytes(): number {
   return posInt("LOG_DRAIN_MAX_BODY_BYTES", DEFAULT_MAX_BODY_BYTES);
