@@ -2,7 +2,7 @@
   "workload": "validation",
   "configKey": "offline-fixtures",
   "datasetVersion": "conflict-iran-v1",
-  "datasetContentHash": "83c39aaf3c5fa6298c0bea429ce593bde110cf20b4125c8f10912ec46b20230f",
+  "datasetContentHash": "711598ebcd1589b69025916b36ec5441a21390841539f4ed2fb7309fd7bc28c8",
   "identity": {
     "provider": "stub",
     "model": "offline-fixtures",
@@ -21,7 +21,17 @@
     "mapContentChars": 1500,
     "reduceGroupsFed": 200
   },
-  "updatedAt": "2026-08-27T21:42:20.458Z",
+  "discardedRuns": [
+    {
+      "configKey": "conflict-iran-v1/offline-fixtures",
+      "runIds": [
+        "offline-conflict-iran-v1"
+      ],
+      "resultsDigest": "274b2c613109dfea2e920085d3157dcab7c5d54d7bcdd85703393d9ab5ece0e3",
+      "discardedResults": 6
+    }
+  ],
+  "updatedAt": "2026-09-10T02:20:42.698Z",
   "meter": {
     "attempts": 0,
     "reservations": 0,

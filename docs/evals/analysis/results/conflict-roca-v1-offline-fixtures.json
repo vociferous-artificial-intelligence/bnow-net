@@ -2,7 +2,7 @@
   "workload": "validation",
   "configKey": "offline-fixtures",
   "datasetVersion": "conflict-roca-v1",
-  "datasetContentHash": "bb53aa70f176901b158fad10f89c47061dad163bc85b3ea05e38ff0d98960079",
+  "datasetContentHash": "e7e18ad9e8652316a6cd6b3b27ad8a55c48cdcfeb901ea0fc3a843ab248b0bdc",
   "identity": {
     "provider": "stub",
     "model": "offline-fixtures",
@@ -21,7 +21,17 @@
     "mapContentChars": 1500,
     "reduceGroupsFed": 200
   },
-  "updatedAt": "2026-08-27T21:42:20.454Z",
+  "discardedRuns": [
+    {
+      "configKey": "conflict-roca-v1/offline-fixtures",
+      "runIds": [
+        "offline-conflict-roca-v1"
+      ],
+      "resultsDigest": "a31f9580b1ecf947b9b2cadaa4231cf8bd9102d6a95b9910c34bd3e0f6d85df6",
+      "discardedResults": 8
+    }
+  ],
+  "updatedAt": "2026-09-10T02:20:28.362Z",
   "meter": {
     "attempts": 0,
     "reservations": 0,
@@ -1936,6 +1946,9 @@
           },
           "matcherRung": "keyword",
           "keywordUnmatchable": 1,
+          "insufficientData": [
+            "u1"
+          ],
           "contribution": {
             "u0": {
               "theaters": [
@@ -2180,7 +2193,7 @@
       },
       "humanLabels": null,
       "graderJudgments": null,
-      "rawOutputDigest": "5195ce32820ef2ad040e6cbd989ed9a034ab5b89e0b0dc9a133696d3d6a660da",
+      "rawOutputDigest": "71e63c7c3dea78ae5e6a8eacedf1202e9298cc3b862911bd16145d65d7907ff9",
       "fixtureId": "cc-matcher-failclosed-013b#B-zero-valid-rounds"
     }
   }

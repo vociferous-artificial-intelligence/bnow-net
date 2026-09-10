@@ -329,3 +329,67 @@ chat transcript while identifying the branch — the `neondb_owner` password is 
 production, so rotate it in the Neon console after this stage and update `.env.local` and the
 Vercel `DATABASE_URL`/`DATABASE_URL_UNPOOLED` values (this also retires #80).
 
+
+## 2026-09-09 — 48h-ws3-conflict-20260905 — step 19 / WS-3.3 (decision E5)
+
+- **Session/author:** fresh assistant session in
+  `/Users/go/code/bnow-net-worktrees/48h-ws3-conflict-20260905`, run unattended with the
+  trimmed four-key `.env.local` (`DATABASE_URL`, `DATABASE_URL_UNPOOLED`,
+  `NEON_PROJECT_ID`, `NEON_API_KEY`) — no provider key exists in this worktree at all.
+- **Prompt:** `docs/prompts/2026-09-05-48h-19-ws3-3-evidence-population.md` plus COMMON.
+- **Branch/base:** `48h/ws3-conflict-20260905-insufficient-data` from `origin/main`
+  `4b8e7e7` (via the lane branch, which carries only a PROGRESS plan block).
+- **Written authorization:** AGENTS.md decision log,
+  **2026-09-06 (E5 — one authorized write under `docs/evals/analysis/`, scoped to step 19)**.
+  Its three conditions are met: the PR body shows the exact commands and the changed
+  golden; this entry records the write; no file under `docs/evals/analysis/` outside the
+  four named below was touched.
+- **Heldout IDs seen:** the two committed conflict offline-results files list every case id
+  of the FROZEN conflict fixture corpus with its split label, and regenerating them printed
+  those ids to the console — including the four `heldout` ones
+  (`roca-retention-gap-008b`, `roca-quiet-day-010b`,
+  `cc-matcher-failclosed-013b-b-zero-valid-rounds`, `iran-two-events-011`,
+  `cc-publication-gap-002`, `cc-vague-claim-019`). This is the conflict fixture corpus, NOT
+  the analysis-eval heldout split, and those ids were already in the committed files before
+  this session; no case CONTENT was opened, and `fixtures/conflicts/` was read only through
+  the golden regeneration. Recorded rather than omitted.
+- **Raw-capture flags:** none set. Every command ran with `OPENAI_API_KEY` and
+  `ANTHROPIC_API_KEY` explicitly blanked; the CLI's own closing line for both runs was
+  "no DB, no provider, no client construction". **Spend: $0. Zero provider contact.**
+
+### The write
+
+Cause: threading the keyword rung's `insufficient_data` class into `ConflictResultV1`
+changes exactly one golden entry, and the golden bytes feed `conflictDatasetContentHash`,
+so `hardening-cli.test.ts` fails until the committed offline artifacts are refreshed.
+
+Commands, in the step-06 handoff's mandated order:
+
+```
+UPDATE_CONFLICT_GOLDENS=1 npx vitest run src/lib/conflicts/goldens.test.ts
+npx tsx scripts/analysis-eval.ts --offline --profile conflict --fresh --fresh-ack conflict-roca-v1/offline-fixtures
+npx tsx scripts/analysis-eval.ts --offline --profile conflict --conflict iran_regional --fresh --fresh-ack conflict-iran-v1/offline-fixtures
+npx tsx scripts/analysis-eval.ts --profile conflict --report
+```
+
+Files written under `docs/evals/analysis/` — four, and no others:
+
+| file | change |
+|---|---|
+| `results/conflict-roca-v1-offline-fixtures.json` | `datasetContentHash` `bb53aa70f176` → `e7e18ad9e865`; one result gains `insufficientData: ["u1"]`; one `rawOutputDigest`; `updatedAt`; a `discardedRuns` provenance entry (8 discarded) |
+| `results/conflict-iran-v1-offline-fixtures.json` | `datasetContentHash` `83c39aaf3c5f` → `711598ebcd15`; `updatedAt`; a `discardedRuns` provenance entry (6 discarded) |
+| `CONFLICT-EVAL-SCORECARD.md` | timestamp, the two dataset hashes, plus two lines the generator emits today that the 2026-08-27 file predated ("Vote mode", "Discarded generations") |
+| `CONFLICT-EVAL-SCORECARD.json` | same content |
+
+Outside that directory: `fixtures/conflicts/goldens/golden-results-v1.json`, three added
+lines on `cc-matcher-failclosed-013b#B-zero-valid-rounds` only.
+
+**Verdicts unchanged:** both datasets `insufficient_data` by construction (no live
+baseline), 8/8 and 6/6 checks passed, machinery proof 8/8 and 6/6, completeness COMPLETE
+on both. No case moved from pass to fail or back.
+
+**Unresolved findings:** none. One thing recorded so it is not later read as drift:
+`--fresh` writes a permanent `discardedRuns` entry into each results file, so these two
+files now declare themselves "not first-try". That is the tool's own honest provenance of
+an authorized regeneration, not evidence of a retried measurement — the offline conflict
+profile is a machinery proof with no dispatch to retry.

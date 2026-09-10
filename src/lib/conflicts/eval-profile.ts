@@ -288,6 +288,22 @@ export interface ConflictScoredResultV1 extends ConflictResultCommonV1 {
   /** keyword rung only: declared units with no keyword signal, kept in the
    *  FULL denominator as automatic misses (register #8 M1) */
   keywordUnmatchable?: number;
+  /** keyword rung only: WHICH declared units carry no gazetteer or action
+   *  signal at all — the `insufficient_data` class
+   *  (CONFLICT-EVALUATOR-LANDING-2026-08-24.md:92-101, landed on the rung's
+   *  outcome by step 06 and threaded here by step 19).
+   *
+   *  DENOMINATOR-UNCHANGED, and that is the whole point: these units stay in
+   *  the full declared-unit denominator as automatic misses exactly as before,
+   *  and `keywordUnmatchable` is exactly this array's length. The class
+   *  distinguishes "the rung could not score this unit at all" from "the rung
+   *  scored it and found no match" — two statements that a bare miss count
+   *  conflates, and which the shadow soak's miss sample has to tell apart.
+   *
+   *  OMITTED when empty (identical information to `keywordUnmatchable: 0`,
+   *  which is still stamped), so only a result that genuinely has a
+   *  signal-less unit grows the field. Absent on every non-keyword rung. */
+  insufficientData?: readonly string[];
   /** multi-label, non-additive contribution over CORPUS-RECALL matched units
    *  (contract §7): bucket totals may exceed the headline numerator */
   contribution: Readonly<Record<string, ConflictContributionEntryV1>>;

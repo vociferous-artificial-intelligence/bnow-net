@@ -1,4 +1,4 @@
-# Analysis eval scorecard — 2026-08-27T21:42:21.147Z
+# Analysis eval scorecard — 2026-09-10T02:20:51.239Z
 
 > CONFLICT PROFILE (validation workload, register #3): offline-fixtures results score the FROZEN conflict fixture corpus through the real conflict pipeline and byte-compare against the committed goldens — a machinery/drift proof, NOT a model evaluation; no paid calls are involved. Verdicts use the inherited preset gates; with no live baseline they read insufficient_data by construction.
 
@@ -6,10 +6,12 @@
 
 Identity: provider=stub model=offline-fixtures effort=absent approval=baseline registry=analysis-reg-v1 promptHash=680af57d0cfb schema=89672017b52a
 Env knobs: reduceVotes=5 reduceMaxOutputTokens=6000 mapOutTokensPerDoc=200 mapContentChars=1500 reduceGroupsFed=200
+Vote mode: offline fixtures (no dispatch; expectMajority pins the fixture voteRounds)
+Discarded generations (--fresh provenance): 1 — this file's results are not first-try
 
 | metric | value |
 |---|---|
-| completeness | scope=full · 8/8 results present (0 missing, 0 heldout missing) · reps=1 · datasetHash=bb53aa70f176 · COMPLETE |
+| completeness | scope=full · 8/8 results present (0 missing, 0 heldout missing) · reps=1 · datasetHash=e7e18ad9e865 · COMPLETE |
 | cases (scored / schema-invalid / provider-error / skipped) | 8 / 0 / 0 / 0 of 8 |
 | checks passed | 8/8 |
 | machinery proof (result matches fixture expectation) | 8/8 |
@@ -44,10 +46,12 @@ VERDICT: **INSUFFICIENT_DATA**
 
 Identity: provider=stub model=offline-fixtures effort=absent approval=baseline registry=analysis-reg-v1 promptHash=26ef185ece61 schema=89672017b52a
 Env knobs: reduceVotes=5 reduceMaxOutputTokens=6000 mapOutTokensPerDoc=200 mapContentChars=1500 reduceGroupsFed=200
+Vote mode: offline fixtures (no dispatch; expectMajority pins the fixture voteRounds)
+Discarded generations (--fresh provenance): 1 — this file's results are not first-try
 
 | metric | value |
 |---|---|
-| completeness | scope=full · 6/6 results present (0 missing, 0 heldout missing) · reps=1 · datasetHash=83c39aaf3c5f · COMPLETE |
+| completeness | scope=full · 6/6 results present (0 missing, 0 heldout missing) · reps=1 · datasetHash=711598ebcd15 · COMPLETE |
 | cases (scored / schema-invalid / provider-error / skipped) | 6 / 0 / 0 / 0 of 6 |
 | checks passed | 6/6 |
 | machinery proof (result matches fixture expectation) | 6/6 |
