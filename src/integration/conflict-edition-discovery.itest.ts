@@ -23,9 +23,8 @@ const { runMigrations } = await import("../../scripts/migrations-lib");
 const { SqlReferenceReportRepository } = await import("@/lib/conflicts/reference-repo-sql");
 const { selectDailyFinal } = await import("@/lib/conflicts/editions");
 const { gazetteerFor } = await import("@/lib/validation/gazetteer");
-const { discoverEditions, runSeriesDiscovery, editionUnitsVersion } = await import(
-  "@/lib/isw/edition-discovery"
-);
+const { backfillFromIswReports, discoverEditions, runSeriesDiscovery, editionUnitsVersion } =
+  await import("@/lib/isw/edition-discovery");
 
 const fixture = (rel: string) => readFileSync(join(process.cwd(), "fixtures/isw", rel), "utf8");
 const MORNING_HTML = fixture("editions/iran-morning-2026-08-12.html");
@@ -226,5 +225,58 @@ describe("WS-3.2 edition discovery on the durable 0028 tables (real Postgres)", 
     expect(anchorBaseline.url).toBe(EVENING_URL);
     expect(anchorBaseline.report_date).toBe(DAY);
     expect(await anchorTuple()).toEqual(anchorBaseline);
+  });
+});
+
+describe("WS3-F07 — the N3 backfill against real Postgres (zero network)", () => {
+  // Runs LAST and cleans up after itself: it registers editions from the
+  // synthetic isw_reports anchor row this file already owns.
+  it("registers the anchor row as a PENDING edition, idempotently, and writes no registry row", async () => {
+    await clearSyntheticRows();
+    const repo = new SqlReferenceReportRepository(query);
+
+    const dry = await backfillFromIswReports({ repo, query }, { series: "iran_update", dry: true, from: DAY, to: DAY }, () => {});
+    expect(dry.theater).toBe("ir");
+    expect(dry.rows).toBe(1); // the one synthetic anchor row inside the window
+    const [{ n: afterDry }] = await query(
+      `SELECT count(*)::int AS n FROM benchmark_report_editions WHERE report_date >= DATE '2027-08-01'`,
+    );
+    expect(Number(afterDry)).toBe(0); // --dry wrote nothing
+
+    const live = await backfillFromIswReports({ repo, query }, { series: "iran_update", dry: false, from: DAY, to: DAY }, () => {});
+    expect(live.rows).toBe(dry.rows);
+    expect(live.inserted + live.unchanged + live.repaired + live.refused).toBe(live.rows);
+    expect(live.inserted).toBe(1);
+
+    const [row] = await query(
+      `SELECT edition_key, edition_label, parse_status, isw_report_id, derived
+         FROM benchmark_report_editions WHERE canonical_url = $1`,
+      [EVENING_URL],
+    );
+    expect(row.edition_key).toBe(`iran_update:${DAY}:evening`);
+    expect(row.edition_label).toBe("evening");
+    expect(row.parse_status).toBe("pending");
+    expect(Number(row.isw_report_id)).toBe(anchorId);
+    expect(row.derived).toEqual({});
+
+    // idempotent replay
+    const again = await backfillFromIswReports({ repo, query }, { series: "iran_update", dry: false, from: DAY, to: DAY }, () => {});
+    expect(again.inserted).toBe(0);
+    expect(again.unchanged + again.repaired).toBe(live.inserted + live.unchanged + live.repaired);
+
+    // and a later discovery run upgrades that row in place, no duplicate
+    const out = await discoverEditions(deps({ [EVENING_URL]: EVENING_HTML }), "iran_update", DAY);
+    expect(out.editions[0].action).toBe("repaired");
+    const [upgraded] = await query(
+      `SELECT parse_status, isw_report_id FROM benchmark_report_editions WHERE canonical_url = $1`,
+      [EVENING_URL],
+    );
+    expect(upgraded.parse_status).toBe("parsed");
+    expect(Number(upgraded.isw_report_id)).toBe(anchorId);
+
+    // the citation registry never moved
+    expect(await registryCounts()).toEqual(registryBaseline);
+    expect(await anchorTuple()).toEqual(anchorBaseline);
+    await clearSyntheticRows();
   });
 });

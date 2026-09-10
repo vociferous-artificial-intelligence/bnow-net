@@ -39,13 +39,15 @@ import { utcDayRange } from "../src/lib/time/day-boundary";
 //
 //   npx tsx scripts/isw-refresh.ts --series iran_update --from 2026-08-01 --to 2026-08-31 --dry
 //
-//   4. --series roca|iran_update --backfill-from-isw-reports [--dry]: decision
+//   4. --series roca|iran_update --backfill-from-isw-reports [--from A --to B] [--dry]: decision
 //      N3's operator step. Registers every EXISTING isw_reports row of the
 //      series' theater as an edition row by normalizing its stored URL. ZERO
 //      network — it fetches nothing — so it writes parse_status 'pending' with
 //      an empty derived payload, which a later discovery run upgrades in
 //      place. A row whose URL the versioned normalization table refuses is
-//      counted and skipped, never fatal.
+//      counted and skipped, never fatal. The window is OPTIONAL — absent means
+//      the whole corpus, which is what N3 authorizes; bounding it lets the
+//      registration run in passes.
 //
 //   npx tsx scripts/isw-refresh.ts --series iran_update --backfill-from-isw-reports --dry
 //
@@ -93,7 +95,8 @@ async function main() {
   const backfillPlan = parseSeriesBackfillArgs(args);
   if (backfillPlan) {
     console.log(
-      `isw-refresh series=${backfillPlan.series} backfill-from-isw-reports dry=${backfillPlan.dry}`,
+      `isw-refresh series=${backfillPlan.series} backfill-from-isw-reports ` +
+        `from=${backfillPlan.from ?? "*"} to=${backfillPlan.to ?? "*"} dry=${backfillPlan.dry}`,
     );
     const summary = await backfillFromIswReports(
       { repo: new SqlReferenceReportRepository(query), query },
