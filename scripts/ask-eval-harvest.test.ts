@@ -15,7 +15,7 @@ import { describe, expect, it } from "vitest";
 const TSX = join(process.cwd(), "node_modules", ".bin", "tsx");
 const CLI = join(process.cwd(), "scripts", "ask-eval-harvest.ts");
 
-function run(extraEnv: NodeJS.ProcessEnv) {
+function run(extraEnv: Record<string, string>) {
   // Names are SET, never unset: scripts/env.ts loads .env.local and dotenv refills
   // an ABSENT name, so unsetting is what invites the real value back (#112).
   const r = spawnSync(TSX, [CLI, "--generate"], {
