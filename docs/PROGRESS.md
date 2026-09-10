@@ -5078,3 +5078,71 @@ Execution (same block):
   landing `compound-v1` first), the sample-power sizing correction the measured `probe_failed`
   finding forces, and whether `first_observed_at` should be scheduled proactively (recommend hold).
 - Closing report: `docs/reviews/WS-3-5-SCOREBOARD-AND-SOAK-PREP-2026-09-07.md`.
+
+## 2026-09-10 ~19:25Z — Step 25: docs sync (48-hour program, Stage 3 close) (planned block)
+
+1. Apply the WS-2 register's 22-item and WS-3 register's 5-item stale-standing-text lists
+   to AGENTS.md (minus do-not-apply sub-clauses).
+2. Apply the "Proposed AGENTS.md changes" blocks of the eight assigned closing reports
+   (WS-2-4-EVAL-PARITY, RELIABILITY-PROOFS, WS-3-3-EVIDENCE-POPULATION,
+   WS-3-5-SCOREBOARD-AND-SOAK-PREP, WS-7-2/7-3/7-4, AUDIT-REMEDIATIONS both lanes):
+   standing-text corrections plus their proposed decision-log entries.
+3. Re-measure unit tests fresh on this worktree's `main` tip; correct AGENTS.md/
+   CURRENT-STATE.md test-count bullets from the measured number, not a copied one.
+4. Update `docs/OPEN-TASKS.md` status lines for the tasks the addendum names; confirm
+   which are already current (most are, since later steps updated their own items).
+5. Update `docs/CURRENT-STATE.md`'s routing/validation/reliability sections and add a new
+   bullet for the eval-provider/WS-7/reliability work that has no existing home.
+6. Add a dated addendum (not an edit) to `docs/reviews/EVAL-SUCCESSOR-PLAN-2026-09-04.md`.
+7. Keep AGENTS.md under the 150,000-character ceiling (D5), archiving inline decision-log
+   entries to `docs/DECISIONS.md` if the new entries push it over.
+8. Draft (do not append) the INDEX §10 Stage-3-close program-log line, and draft (UNSIGNED)
+   the window's closing decision-log entry for step 27 to sign.
+9. `git grep` verify no standing doc still contradicts a landed report; write the closing
+   report `docs/reviews/PROGRAM-48H-DOCS-SYNC-2026-09-07.md`.
+
+### Execution (same block)
+
+- Read all 7 background-research extractions (WS-2/WS-3 registers, two "Proposed AGENTS.md
+  changes" batches, OPEN-TASKS full read, CURRENT-STATE.md full read, program-log/PR-list
+  build) plus a supplementary pass for WS-2-register source reports the register only
+  pointed at rather than quoted (PLAN-WS-2, ANTHROPIC-SEAM-HARDENING, WS-2-2-PROVIDER-CORE,
+  WS-2-1-ASK-PARITY, the #67 report, LOG-DRAIN, MAP-REMAP-RUNBOOK).
+- Found most OPEN-TASKS items on the addendum's list (#33, #93, #102, #103, #110, #112,
+  #114, #116) already current — later steps (19, 21, 23) had updated their own status
+  lines in place as they landed; applied only #117 (mapreduceProviderTag sub-fix) and SHA
+  citations on #110/#112.
+- Applied AGENTS.md: Architecture (anthropic sentence, routing sentence), directory map
+  (src/lib/analysis/, src/lib/llm/, src/lib/citation/ new, src/lib/tradecraft/ new,
+  src/lib/validation/, src/lib/conflicts/, src/lib/cron/ correction, src/lib/logs/ new),
+  ruling 4 (provider allowlist, CONFLICT_MATCH_USD_CAP_DAILY, embed refusal, Ask Auto
+  gate), ruling 13 (provider scoping), Credentials table (Anthropic row, VERCEL_TOKEN
+  D8/D11 correction), Next steps item 2 (#33 fork-execution status), Live/repository
+  bullet (full rewrite: ~50 PRs #49-#96 summarized, none deployed), Quality/ops bullet
+  (4,599/293 measured fresh on `619986c`).
+  Appended 9 decision-log entries (2026-09-08 through 2026-09-10) recording the eight
+  reports' work, an eleventh archive-pass entry (moved the earliest 11 2026-09-05 entries
+  to DECISIONS.md to hold under the 150,000-char ceiling — 148,686 chars final), and a
+  closing UNSIGNED entry for step 27.
+- Applied `docs/CURRENT-STATE.md`: header date, Model routing bullet (provider dimension
+  note), Map remap operator bullet (fork-execution status), Validation vs ISW bullet
+  (conflict-validation-plane pointer), new 48-hour-program-deliverables bullet (eval
+  provider generalization, WS-7 tradecraft legibility, reliability/log-drain), Tests
+  bullet, Deploy bullet (VERCEL_TOKEN), Git bullet (PR count, `main` tip).
+- Added a dated addendum to `docs/reviews/EVAL-SUCCESSOR-PLAN-2026-09-04.md` pointing at
+  the injection-cases report, the exposure ledger, the val-typ-005 memo, and D3 (v3-vs-v4).
+- Verified with `scripts/check-decision-log-move.sh HEAD`: 0 lost/edited entries (moved
+  block byte-identical), no duplicates, ascending order in both files, ceiling held.
+- `git grep` swept for stale claims this pass should have caught (main-ahead-by-two-PRs,
+  VERCEL_TOKEN-expired, #33-never-executed, EVAL_DISPATCHABLE_PROVIDERS-openai-only,
+  stale test counts, the old 71-files conflicts-dir line) — none found outside files
+  explicitly out of this step's scope (CLAUDE.md, BLOCKERS.md, RELEASE-CHECKLIST.md,
+  docs/designs/LOG-DRAIN.md, dated prompt docs), which are flagged as debt in the closing
+  report rather than edited.
+- Left unapplied, recorded as debt: WS-2 register items 17-21 (corrections to OTHER
+  historical report files' own self-citations); WS-3 register item 22-equivalent env
+  re-verification (no Vercel access this session); step 06/13b/14's own decision-log
+  drafts, which appear never to have been appended to AGENTS.md at all.
+- `npm run typecheck && npm run lint && npm test`: clean / clean (3 pre-existing
+  warnings) / 4,599 passed (293 files) — re-run after all doc edits, unchanged from the
+  pre-edit baseline (docs-only diff).
