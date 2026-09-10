@@ -1961,7 +1961,8 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     `ASK_PIPELINE` line in `.env.example`. Whichever is taken, #67's report's
     legacy bullet is amended to say the path is also unreserved and unmetered.
     Filed 2026-09-07 at CP4.
-    **CLOSED 2026-09-09 by step 23 (lane R), option (a).** `legacyAnswer` now builds
+    **CLOSED 2026-09-09 by step 23 (lane R), option (a) — PR #88, merge `950a1ef`.**
+    `legacyAnswer` now builds
     `askGuardFromEnv()`, `init()`s it and `tryReserve()`s BEFORE
     `openaiLegacyChatCompletion`; a refusal returns the deterministic top-6 cited-claims
     answer with provider `"budget"` and never dispatches; a success `record(1, pt + ct,
@@ -2195,13 +2196,17 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     additive jsonb, **no migration**, the `evidenceRecency` precedent — then have
     `readClaimToolStamp` read them. Until then the disclosure is honest but incomplete, which
     costs nothing today only because operator decision T4 holds it dark on every surface.
-    **Related and separately load-bearing:** `mapreduceProviderTag()`
-    (`src/lib/analysis/synthesize.ts:443-449`) hard-codes the literal `openai:` prefix and is
-    provider-blind, so under D2 = B a digest synthesized by a non-OpenAI model would be stamped
-    `openai:…` in the exact field this disclosure reads. Decision T4-b makes that an ordering
-    item for step 20b — the tag must take its provider from the resolved dispatch BEFORE the
-    Anthropic path is enabled. `isStubToolStamp` compensates only partially, by also checking
-    the dispatch identity's own `provider` field. Filed 2026-09-08 by WS-7.2 (48h step 32).
+    **Related sub-issue CLOSED 2026-09-08 by step 20b (WS-2-4-EVAL-PARITY):**
+    `mapreduceProviderTag()` (`src/lib/analysis/synthesize.ts:475-490`) no longer hard-codes
+    `openai:` — it resolves the ACTUAL dispatched vendor for both map and reduce at call
+    time and was made provider-aware in the same PR that widened the `digest` workload's
+    provider allowlist, discharging decision T4-b's ordering gate before the Anthropic path
+    could ever be enabled. **The main provenance issue stays OPEN:** `extractor_version`
+    still lives only on `doc_claims`/`doc_map_state`, not on `claims`, so the citation
+    artifact's extraction stage still reads "not recorded for this digest" rather than a
+    real per-claim stamp — the PLAN-WS-7 §9.7 debt item 1 fix (collect contributing
+    `doc_claims.extractor_version` values into `digests.structured.stats` at reduce time)
+    is still undone. Filed 2026-09-08 by WS-7.2 (48h step 32).
 
 118. **[Tier 3 — tooling hazard] `src/lib/analysis/digest-persist.ts` contains a literal NUL
     byte, so `grep` classifies it as binary and SILENTLY skips it.** `entityCacheKey` builds
