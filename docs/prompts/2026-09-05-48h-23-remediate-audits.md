@@ -65,7 +65,7 @@ the launcher — cut the step branch from it.
 
 ## 1. The marks — operator-confirmed
 
-OPERATOR CONFIRMATION OF MARKS: PENDING
+OPERATOR CONFIRMATION OF MARKS: CONFIRMED 2026-09-10 by the operator, as tabled with the 2026-09-10 adjustments
 
 (If the line above still reads PENDING, print `AWAITING AUTHORIZATION: step-23 marks` and
 stop. The operator confirms by replacing PENDING with a dated CONFIRMED line before launch.)
