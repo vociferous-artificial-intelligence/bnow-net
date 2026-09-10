@@ -40,6 +40,39 @@ beforeEach(() => {
   validateDigest.mockReset();
 });
 
+describe("validate cron authorization (WS3-F09: the gate is FIRST)", () => {
+  it("401s an unauthenticated request whatever its parameters, touching nothing", async () => {
+    // the sibling of conflict-validate's M9 gap: the same house-wide convention
+    // gap, so the same pin. No run row, no digest read, no validation.
+    for (const q of ["", "?date=08-26-2026", "?country=zz", "?date=2026-02-30&country=zz"]) {
+      dbQuery.mockClear();
+      validateDigest.mockClear();
+      const res = await GET(new NextRequest(`http://localhost/api/cron/validate${q}`, { headers: {} }));
+      expect(res.status, q).toBe(401);
+      expect(await res.json(), q).toEqual({ error: "unauthorized" });
+      expect(dbQuery, q).not.toHaveBeenCalled();
+      expect(validateDigest, q).not.toHaveBeenCalled();
+    }
+  });
+
+  it("401s when CRON_SECRET is unset, even with a bearer header (fail-closed)", async () => {
+    const saved = process.env.CRON_SECRET;
+    delete process.env.CRON_SECRET;
+    try {
+      const res = await GET(
+        new NextRequest("http://localhost/api/cron/validate?date=2026-08-26", {
+          headers: { authorization: "Bearer " },
+        }),
+      );
+      expect(res.status).toBe(401);
+      expect(dbQuery).not.toHaveBeenCalled();
+      expect(validateDigest).not.toHaveBeenCalled();
+    } finally {
+      process.env.CRON_SECRET = saved;
+    }
+  });
+});
+
 describe("validate cron accounting (#87)", () => {
   it("all-validated run: ok=true, errors 0, unvalidated 0", async () => {
     validateDigest.mockResolvedValue({ coverage: 1 });

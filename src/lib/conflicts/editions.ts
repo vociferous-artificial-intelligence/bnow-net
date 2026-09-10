@@ -40,7 +40,10 @@ export const EDITION_NORMALIZATION_VERSION = "isw-edition-norm-v1" as const;
  *  observed Iran Update slug shapes (2026-08-15 audit, mirrored in the
  *  frozen probe list in src/lib/validation/run.ts): special-report (the
  *  current daily form), evening-/morning- special reports (two-a-day form),
- *  and the plain historical form. ROCA has one observed daily shape. */
+ *  and the plain historical form. ROCA has one observed daily shape.
+ *
+ *  The June-2025 SUFFIX spelling (`…-june-14-2025-evening-edition/`, #116)
+ *  adds no label: it maps onto `morning` / `evening` like its prefix twin. */
 export const NORMALIZED_EDITION_LABELS: Readonly<Record<ReferenceSeriesId, readonly string[]>> =
   deepFreeze({
     roca: ["daily"],
@@ -71,6 +74,20 @@ const ROCA_PATH_RE =
   /^\/research\/russia-ukraine\/russian-offensive-campaign-assessment-([a-z]+)-(\d{1,2})-(\d{4})\/?$/;
 const IRAN_SPECIAL_PATH_RE =
   /^\/research\/middle-east\/iran-update-(?:(morning|evening)-)?special-report-([a-z]+)-(\d{1,2})-(\d{4})\/?$/;
+/** ISW's June-2025 two-a-day spelling, where the edition word TRAILS the date:
+ *  `iran-update-special-report-june-14-2025-evening-edition/`. Eleven
+ *  production isw_reports rows dated 2025-06-14 -> 06-24 carry it
+ *  (OPEN-TASKS #116). It maps onto the SAME `morning` / `evening` labels as the
+ *  prefix form, so finality ranking, NORMALIZED_EDITION_LABELS and the edition
+ *  key are unchanged — this adds a spelling, not a label.
+ *
+ *  PARSER ONLY (decision D-f (b)): the shape is deliberately NOT added to
+ *  `iranUpdateUrlCandidatesForDate`, so production's frozen discovery path
+ *  keeps probing exactly four shapes per Iran day. Registering the historical
+ *  rows is the zero-network backfill's job; probing for a form ISW no longer
+ *  uses would cost one more request per day against a host that throttles. */
+const IRAN_SUFFIX_EDITION_PATH_RE =
+  /^\/research\/middle-east\/iran-update-special-report-([a-z]+)-(\d{1,2})-(\d{4})-(morning|evening)-edition\/?$/;
 const IRAN_PLAIN_PATH_RE = /^\/research\/middle-east\/iran-update-([a-z]+)-(\d{1,2})-(\d{4})\/?$/;
 
 function slugDate(monthName: string, day: string, year: string): string | null {
@@ -157,6 +174,8 @@ export function normalizeIswEditionUrl(rawUrl: string): NormalizedEditionUrl {
   if (roca) return finish("roca", "daily", roca[1], roca[2], roca[3]);
   const special = IRAN_SPECIAL_PATH_RE.exec(path);
   if (special) return finish("iran_update", special[1] ?? "special", special[2], special[3], special[4]);
+  const suffix = IRAN_SUFFIX_EDITION_PATH_RE.exec(path);
+  if (suffix) return finish("iran_update", suffix[4], suffix[1], suffix[2], suffix[3]);
   const plain = IRAN_PLAIN_PATH_RE.exec(path);
   if (plain) {
     // "iran-update-<month>-<d>-<y>": the first segment must be a real month

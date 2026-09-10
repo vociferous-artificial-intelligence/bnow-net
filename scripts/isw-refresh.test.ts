@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { parseSeriesDiscoveryArgs } from "../src/lib/isw/edition-discovery";
+import { parseSeriesBackfillArgs, parseSeriesDiscoveryArgs } from "../src/lib/isw/edition-discovery";
 
 // scripts/isw-refresh.ts calls main() at module load and builds a neon client
 // from DATABASE_URL at module scope, so it cannot be imported here. The
@@ -15,17 +15,23 @@ const MAIN = SRC.slice(SRC.indexOf("async function main() {"));
 const THEATER_PATH = MAIN.slice(MAIN.indexOf("console.log(`isw-refresh theater="));
 
 describe("--series is an additive branch: the --theater path is unreachable from it", () => {
-  it("the branch is the FIRST statement of main() and returns", () => {
+  it("BOTH --series branches precede the historical path, and each returns", () => {
     const body = MAIN.slice(MAIN.indexOf("{") + 1);
-    const firstStatement = body.indexOf("const seriesPlan = parseSeriesDiscoveryArgs(args);");
-    expect(firstStatement).toBeGreaterThan(-1);
-    // nothing executable precedes it: only comment lines and blanks
-    for (const line of body.slice(0, firstStatement).split("\n")) {
+    // the backfill branch (WS3-F07 / N3) is first: it is a --series mode with
+    // no --from/--to window, and parseSeriesDiscoveryArgs yields to it
+    const backfill = body.indexOf("const backfillPlan = parseSeriesBackfillArgs(args);");
+    const discovery = body.indexOf("const seriesPlan = parseSeriesDiscoveryArgs(args);");
+    expect(backfill).toBeGreaterThan(-1);
+    expect(discovery).toBeGreaterThan(backfill);
+    // nothing executable precedes the first: only comment lines and blanks
+    for (const line of body.slice(0, backfill).split("\n")) {
       expect(line.trim() === "" || line.trim().startsWith("//")).toBe(true);
     }
-    expect(MAIN.slice(firstStatement, firstStatement + 800)).toContain("return;");
-    // and the historical path starts only AFTER the branch closes
-    expect(MAIN.indexOf("console.log(`isw-refresh theater=")).toBeGreaterThan(firstStatement);
+    for (const at of [backfill, discovery]) {
+      expect(body.slice(at, at + 800)).toContain("return;");
+    }
+    // and the historical path starts only AFTER both branches close
+    expect(body.indexOf("console.log(`isw-refresh theater=")).toBeGreaterThan(discovery);
   });
 
   it("every statement of the historical --theater path survives verbatim", () => {
@@ -49,10 +55,12 @@ describe("--series is an additive branch: the --theater path is unreachable from
     }
   });
 
-  it("the new branch writes NO isw_reports row of its own", () => {
+  it("neither new branch writes an isw_reports row, and neither fetches", () => {
     const branch = MAIN.slice(0, MAIN.indexOf("console.log(`isw-refresh theater="));
     expect(branch).not.toContain("INSERT INTO");
     expect(branch).not.toContain("refreshOne");
+    // the N3 backfill is ZERO NETWORK: no fetch reaches it from the script
+    expect(branch).not.toContain("politeFetch");
   });
 });
 
@@ -67,6 +75,7 @@ describe("parseSeriesDiscoveryArgs (the mode gate)", () => {
       ["--theater", "ir", "--discover", "--from", "2026-07-04", "--to", "2026-08-15", "--dry"],
     ]) {
       expect(parseSeriesDiscoveryArgs(argv), argv.join(" ")).toBeNull();
+      expect(parseSeriesBackfillArgs(argv), argv.join(" ")).toBeNull();
     }
   });
 
