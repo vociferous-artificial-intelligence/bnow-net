@@ -158,6 +158,22 @@ async function modeSample(): Promise<void> {
 }
 
 async function modeGenerate(force: boolean): Promise<void> {
+  // The kill switch and the offline provider selector reach every other paid
+  // analysis site; this one imports the analysis client factory directly and so
+  // read neither (WS2-F12). LLM_DISABLE=1 means "refuse every LLM call site"
+  // (ruling 9) and ANALYSIS_PROVIDER=stub is the offline switch — a paid pass
+  // that ignores both is exactly the pass an operator believes is disabled.
+  // Refused first, before the sample file, the estimate or any client.
+  const { isLlmDisabled } = await import("../src/lib/usage/llm-guard");
+  if (isLlmDisabled()) {
+    console.error("LLM_DISABLE=1 — refusing the paid --generate pass (ruling 9)");
+    process.exit(2);
+  }
+  if (process.env.ANALYSIS_PROVIDER === "stub") {
+    console.error("ANALYSIS_PROVIDER=stub is the offline switch — refusing the paid --generate pass");
+    process.exit(2);
+  }
+
   if (!existsSync(SAMPLE_PATH)) {
     console.error(`missing ${SAMPLE_PATH} — run --sample first`);
     process.exit(2);
@@ -186,6 +202,8 @@ async function modeGenerate(force: boolean): Promise<void> {
     process.exit(2);
   }
 
+  // WS2-F12: LLM_DISABLE and ANALYSIS_PROVIDER=stub are checked at the top of this
+  // function, so neither can reach the client construction below.
   // OPEN-TASKS #82/#100: this paid generation pass used to construct the SDK
   // client directly, with the SDK's default maxRetries: 2, so one estimate-gated
   // batch could become up to three billed physical dispatches invisibly. It now
