@@ -260,19 +260,47 @@ describe("conflict validation observations (migration 0030, real Postgres)", () 
     expect(await observationCount()).toBe(before + 2);
   });
 
-  it("the FK refuses an observation for an edition that does not exist", async () => {
+  it("an observation for an edition that does not exist is refused, and the FK is still there", async () => {
     const [maxRow] = await query(`SELECT COALESCE(max(id), 0)::int AS n FROM benchmark_report_editions`);
     const unknown = Number(maxRow.n) + 100_000;
     const before = await observationCount();
-    // Postgres truncates identifiers at 63 bytes, so the STORED constraint name
-    // is shorter than the one drizzle-kit wrote into 0030 — assert the name the
-    // database actually reports
+
+    // WS3-F04 changed WHICH guard catches this. The identity SELECT now
+    // resolves zero rows first, so `persistObservation` refuses with a typed
+    // domain error instead of surfacing the driver's FK violation. Strictly
+    // better — a caller can branch on the code — and the row count is the
+    // property that actually matters either way.
     await expect(
       persistObservation(query, {
         referenceEditionId: unknown,
         result: resultFor(DAY_A),
         ...STAMPS,
       }),
+    ).rejects.toThrow(/is not the .* edition of/);
+    expect(await observationCount()).toBe(before);
+
+    // the FK itself is UNCHANGED and still the backstop for any writer that
+    // does not come through this module. Postgres truncates identifiers at 63
+    // bytes, so the STORED constraint name is shorter than the one drizzle-kit
+    // wrote into 0030 — assert the name the database actually reports.
+    const fks = await query(
+      `SELECT conname FROM pg_constraint
+        WHERE conrelid = 'conflict_validation_observations'::regclass AND contype = 'f'`,
+    );
+    expect(fks.map((r) => String(r.conname)).join(" ")).toMatch(
+      /conflict_validation_observations_reference_edition_id_benchmark/,
+    );
+    await expect(
+      query(
+        `INSERT INTO conflict_validation_observations
+           (conflict_id, reference_edition_id, series, report_date, edition_key, evaluation_kind,
+            result, matcher_rung, methodology_epoch, lane_taxonomy_version, evidence_policy_version,
+            lane_classifier_version, actor_roster_version, scope_version, gazetteer_version,
+            unit_flags_version, edition_norm_version, daily_final_policy, registry_version,
+            window_end_source, run_group_key)
+         VALUES ($1,$2,'roca',DATE '2027-07-10','k','retrospective','{}'::jsonb,'keyword','e','l','p','c','a','s','g','u','n','d','r','cutoff','rg')`,
+        [CONFLICT, unknown],
+      ),
     ).rejects.toThrow(/conflict_validation_observations_reference_edition_id_benchmark/);
     expect(await observationCount()).toBe(before);
   });
