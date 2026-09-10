@@ -4992,3 +4992,18 @@ Execution (same block):
 - The drain bundle was authored as one verified state, mutation-tested, then decomposed into
   eight commits and `cmp`-checked byte-identical against that state, so the per-finding
   commits are not a re-derivation that could have drifted from what was tested.
+- **Independent re-check (Opus, read-only) confirmed all seventeen findings CLOSED — and found
+  one real defect in the fix itself.** The first WS2-F24 redaction patch was QUADRATIC
+  (measured: 128 KB → 11,038 ms against 0 ms for the pre-existing rule) because it scanned a
+  variable-length identifier before the keyword; on a 4 MB body that is a function timeout →
+  non-2xx → Vercel retries the identical body, i.e. the exact permanent retry loop the bundle
+  was closing. Replaced by ONE linear rule (drop the `\b`, add `session`) which is simpler,
+  1 MB in 1 ms, and catches more (`MYSECRET=` with no separator). Linearity is now a test.
+- Three further re-check items applied: `guard.init()` moved inside `legacyAnswer`'s `try`
+  (it was 500ing a user surface on a `provider_usage` read failure, where v2 degrades — fixed
+  on the F06 branch so PR #88 is correct standalone); the inverted itest's WS2-F26 comment
+  corrected (it claimed a boundary that is now asserted arithmetically was "still measured");
+  `3b.`/`2b.` made valid list markers; `assertMigrationTarget` renamed in prose to endpoints.
+- Final gate after the re-check fixes: **4,364 / 284**, typecheck clean, lint 0 errors;
+  `runtime-logs.itest.ts` re-run **19/19** on a second fork `br-shiny-thunder-ateszphz`
+  (created and deleted in-session).

@@ -552,41 +552,43 @@ cherry-pickable if the operator prefers a different split.
 
 ### Built
 
-Twenty-two commits across the two branches (the plan block, eighteen work commits, two
-OPEN-TASKS status edits, this report). Per finding:
+Twenty-six commits across the two branches. Per finding (SHAs after the post-re-check
+rebase):
 
 | finding | sev | commit | what changed |
 |---|---|---|---|
-| **WS2-F06** | major | `cfdf6de` (PR #88) | `legacyAnswer` builds the ask guard, `init()`s, `tryReserve()`s **before** `openaiLegacyChatCompletion`; refusal ⇒ deterministic top-6 cited claims, provider `"budget"`, no dispatch; success ⇒ `record(1, pt+ct, estimateCostUsd(...))` **before any body interpretation** (ruling 8). Request payload byte-identical. `legacyDeterministic()` shared by both degraded branches. |
-| **WS2-F07** | major | `ca29255` | `evidence_snapshot` queryMock installed in the `unscorecarded` refusal case and the pre-existing stub/budget case; the latter becomes a loop over `stub` and `budget`. Production code untouched. |
-| **WS2-F04** | major (docs) | `68631e5` | `LOG-DRAIN.md` §8 gains step **3b** and `LOG-DRAIN-2026-09-06.md` gains **2b**: backup branch → `npm run db:migrate` → `SELECT name FROM _migrations WHERE name LIKE '0029%'` + `SELECT to_regclass('runtime_logs')`, and "do not reach step 4 until both answer". Per **A2 (b)** the gate is on **registration**, not deploy. |
-| **WS2-F59** | note (docs) | `04395eb` | `RELEASE-CHECKLIST` step 5 gains the fail-closed-SECRET class (`LOG_DRAIN_SECRET` precedent); step 11 gains migration-before-enablement, citing #111 and WS2-F04. |
-| **WS2-F03** | minor | `1b39b06` | NUL stripped in `str()` (before the trim, so a NUL-only value reads absent) and from the message before redaction/hash; `status_code` clamped into int4 by a new `int4()`. |
-| **WS2-F24** | note | `46b485c` | two redaction rules for a keyword **ending** an identifier: separator form (any depth of `_`/`-` prefixes, case-insensitive) and camelCase form. |
-| **WS2-F25** | note | `fdf73aa` | `posInt` floors before the `> 0` test. |
-| **WS2-F26** | note | `46fb731` | `MAX_ROWS_CEILING = 5000`; `maxRows()` clamps. |
-| **WS2-F52** | note | `e0aa865` | header regex `/^[0-9a-fA-F]{40}$/`. |
-| **WS2-F54** | note | `d92755e` | `verifyDrainSignature` accepts `string \| Buffer`; the route reads `req.arrayBuffer()` and passes bytes; `bytes = buf.byteLength`; parse decodes after verification. |
-| **WS2-F01** | minor | `9e76da2` | one-hex-char flip at index 0, 20, 39. |
-| **WS2-F23** | note | `c557b04` | drain module wrapped in call-through spies; four cases pin the three ordering properties. |
-| **G5 inversion** | — | `dc8f42f` | `runtime-logs.itest.ts` characterization block flipped; block comment rewritten; a fourth case added for WS2-F54 end to end. |
-| **WS2-F29** | note | `403e179` | `remapTargetId()` at both verbatim `opts.base` prints. |
-| **WS2-F05** | minor | `87e8db4` | subprocess pin that the real CLI refuses an unacknowledged non-loopback target. |
-| **WS2-F12** | minor | `68b2eba` | `modeGenerate` exits 2 under `LLM_DISABLE=1` / `ANALYSIS_PROVIDER=stub`, before the sample file, the estimate and any client. |
-| **WS2-F14** | minor | `406edd2` | loop `[1, 3, 10, 77, 12_345]`. |
-| **#112 (c)** | — | `49cae96` | `assertMigrationTarget` + `migrationEndpointId` in `migrations-lib.ts`, called as the first statement of `migrate.ts`'s `main()`. |
+| **WS2-F06** | major | `cfdf6de` + `5f724ab` (PR #88) | `legacyAnswer` builds the ask guard, `init()`s, `tryReserve()`s **before** `openaiLegacyChatCompletion`; refusal ⇒ deterministic top-6 cited claims, provider `"budget"`, no dispatch; success ⇒ `record(1, pt+ct, estimateCostUsd(...))` **before any body interpretation** (ruling 8). Request payload byte-identical. `legacyDeterministic()` shared by both degraded branches. `5f724ab` moves `init()` inside the `try` (re-check). |
+| **WS2-F07** | major | `e38c068` | `evidence_snapshot` queryMock installed in the `unscorecarded` refusal case and the pre-existing stub/budget case; the latter becomes a loop over `stub` and `budget`. Production code untouched. |
+| **WS2-F04** | major (docs) | `b12512c` | `LOG-DRAIN.md` §8 gains step **3b** and `LOG-DRAIN-2026-09-06.md` gains **2b**: backup branch → `npm run db:migrate` → `SELECT name FROM _migrations WHERE name LIKE '0029%'` + `SELECT to_regclass('runtime_logs')`, and "do not reach step 4 until both answer". Per **A2 (b)** the gate is on **registration**, not deploy. |
+| **WS2-F59** | note (docs) | `5ee7fb6` | `RELEASE-CHECKLIST` step 5 gains the fail-closed-SECRET class (`LOG_DRAIN_SECRET` precedent); step 11 gains migration-before-enablement, citing #111 and WS2-F04. |
+| **WS2-F03** | minor | `fd740de` | NUL stripped in `str()` (before the trim, so a NUL-only value reads absent) and from the message before redaction/hash; `status_code` clamped into int4 by a new `int4()`. |
+| **WS2-F24** | note | `9425ff0` + `b9d682e` | the `\b` before the keyword — the whole defect — is dropped and `session` added, so every identifier-terminal shape redacts in ONE linear rule. `9425ff0` was quadratic and `b9d682e` replaced it (re-check). |
+| **WS2-F25** | note | `51bbd64` | `posInt` floors before the `> 0` test. |
+| **WS2-F26** | note | `11068d9` | `MAX_ROWS_CEILING = 5000`; `maxRows()` clamps. |
+| **WS2-F52** | note | `9aa1cd8` | header regex `/^[0-9a-fA-F]{40}$/`. |
+| **WS2-F54** | note | `a305951` | `verifyDrainSignature` accepts `string \| Buffer`; the route reads `req.arrayBuffer()` and passes bytes; `bytes = buf.byteLength`; parse decodes after verification. |
+| **WS2-F01** | minor | `01531eb` | one-hex-char flip at index 0, 20, 39. |
+| **WS2-F23** | note | `ca76cb7` | drain module wrapped in call-through spies; four cases pin the three ordering properties. |
+| **G5 inversion** | — | `94493b8` | `runtime-logs.itest.ts` characterization block flipped; block comment rewritten; a fourth case added for WS2-F54 end to end. |
+| **WS2-F29** | note | `daa1870` | `remapTargetId()` at both verbatim `opts.base` prints. |
+| **WS2-F05** | minor | `2dcf65e` | subprocess pin that the real CLI refuses an unacknowledged non-loopback target. |
+| **WS2-F12** | minor | `25b475d` | `modeGenerate` exits 2 under `LLM_DISABLE=1` / `ANALYSIS_PROVIDER=stub`, before the sample file, the estimate and any client. |
+| **WS2-F14** | minor | `b4b78e3` | loop `[1, 3, 10, 77, 12_345]`. |
+| **#112 (c)** | — | `bc7a28d` | `assertMigrationTarget` + `migrationEndpointId` in `migrations-lib.ts`, called as the first statement of `migrate.ts`'s `main()`. |
 
 Plus `docs/OPEN-TASKS.md` status edits (#110 closed, #112 (c) done) and **#119** filed.
 
 ### Tests
 
-**Unit: 4,332 / 282 files → 4,361 / 284 files.** Typecheck clean. Lint **0 errors**, 3
+**Unit: 4,332 / 282 files → 4,364 / 284 files.** Typecheck clean. Lint **0 errors**, 3
 warnings, all pre-existing and none in a touched file.
 
-**Integration:** `src/integration/runtime-logs.itest.ts` on disposable Neon branch
-**`br-mute-bread-atetixpc`**, created and deleted by `scripts/test-integration.sh` in the
-same session: migrations 0028/0029/0030 applied to the fork, **19 tests / 1 file, 5.47 s,
-all green.** `$0` — the itest blanks every provider key by construction.
+**Integration:** `src/integration/runtime-logs.itest.ts` run twice on disposable Neon
+branches, each created and deleted by `scripts/test-integration.sh` in this session:
+**`br-mute-bread-atetixpc`** (first pass) and **`br-shiny-thunder-ateszphz`** (re-run after
+the re-check fixes). Migrations 0028/0029/0030 applied to the fork both times;
+**19 tests / 1 file, all green** on both. `$0` — the itest blanks every provider key by
+construction.
 
 #### Failing-first evidence
 
@@ -729,6 +731,67 @@ files. The split was then checked with `cmp` against that verified state: all fo
 **byte-identical**. So the per-finding commits are not a hand re-derivation that might have
 drifted from what was tested.
 
+### Independent re-check (required by the prompt's §2)
+
+A fresh **Opus**, read-only session re-verified every fixed finding against the diff, the
+register rows and the production code, with no ability to edit. **All seventeen confirmed
+CLOSED.** Its own summary of the two strongest: WS2-F23's ordering pins are "the strongest
+new pins in the diff… ordering assertions on the real receiver, not on stubs", and WS2-F07 is
+"CLOSED, and genuinely non-vacuous" — the sibling "accepts" case with identical setup proves
+`cacheStore` fires when the provider is `openai*`, so the provider predicate is the only
+remaining discriminator. It independently re-derived the WS2-F14 arithmetic (the two
+groupings are bitwise equal for 1/77/12,345 and differ for 3 and 10) and independently
+confirmed the dotenv `override:false` semantics the #112 guard and the three subprocess tests
+depend on.
+
+**It also found one real defect in my own fix, which is now repaired.** The first WS2-F24
+patch put a variable-length identifier scan *before* the keyword, making the rule quadratic.
+Reproduced here on a dense separator run:
+
+```
+ 2 KB: new rule 3 ms      pre-existing rule 0 ms
+16 KB: new rule 136 ms    pre-existing rule 0 ms
+64 KB: new rule 2433 ms   pre-existing rule 0 ms
+128 KB: new rule 11038 ms pre-existing rule 0 ms
+```
+
+`redactSecrets` runs on the **full untruncated message** and the body cap is 4 MB, so that is
+a function timeout → non-2xx → Vercel retries the identical body — precisely the permanent
+retry loop WS2-F03 and WS2-F26 exist to prevent. I had introduced the exact failure class the
+bundle was closing.
+
+The repair is *simpler* than what it replaces, not more complex: the root cause was only ever
+the word boundary before the keyword, so dropping it and adding `session` to the keyword list
+collapses three rules into **one**, stays linear (1 MB in 1 ms; 5,000 real secrets in a 236 KB
+message under 1 ms), and catches **more** — including `MYSECRET=` with no separator, which the
+quadratic version also missed. A test pins the behaviour *and* the linearity.
+
+Four further re-check items were applied (commit `9657028`), none changing a verdict:
+
+- **`guard.init()` was outside `legacyAnswer`'s `try`**, so a `provider_usage` read failure
+  escaped to the `/ask` route — which has no catch around `ask()` — and 500'd a user surface,
+  where the v2 path degrades. That asymmetry came from the guard fix itself, not the finding.
+  Moved inside, pinned by a new test, and committed **on the F06 branch** so PR #88 is correct
+  standalone.
+- The inverted itest's WS2-F26 comment claimed the 5,462-row boundary "is still measured
+  here". It is not — a clamped `maxRows` cannot produce such a batch, which is the point — so
+  the comment now says the measurement of record is step 21's run. That is the same
+  claim-to-source species this register was auditing, in my own text.
+- `3b.` / `2b.` are not valid CommonMark ordered-list markers and rendered as continuation
+  text of the preceding step — the one place in those documents that must not be skimmable.
+- `assertMigrationTarget` compares Neon **endpoints**, not databases; name, message, docstring
+  and a new test now say so.
+
+Three same-class residuals it found that **no register finding names** went to #119 rather
+than being fixed under a finding that does not cover them: an unbounded `timestamp` that can
+produce an expanded-year ISO string for a `timestamptz` (WS2-F03's shape, outside its scope),
+`scripts/map-backfill.ts:209`'s verbatim base print (WS2-F29's class, different script), and
+the endpoint-vs-database bound above.
+
+**Two limits of this re-check, on the record:** it could not run the fork integration test
+(the prompt gave it no fork), so the 19/19 rests on my runs; and it noted the branch advanced
+by two docs-only commits while it worked.
+
 ### Rulings touched and how each is satisfied
 
 - **Ruling 1 (legal)** — untouched. Nothing here reads, stores or renders source text.
@@ -847,10 +910,13 @@ accepted). No new decision is proposed.
    unset in every Vercel environment and migration 0029 is unapplied (#111), so the receiver
    is inert. Everything proven here is proven on a fork. The first real delivery remains
    future-observable.
-3. **WS2-F24's redaction rules are a safety net, not a licence.** They now catch the
-   UPPER_SNAKE and camelCase shapes; they still will not catch a bare high-entropy string
-   with no adjacent keyword. The design's position — our code does not log credentials —
-   is what actually protects the table.
+3. **WS2-F24's redaction rule is a safety net, not a licence.** It now catches every
+   identifier-terminal shape (`LOG_DRAIN_SECRET=`, `client_secret=`, `clientSecret:`,
+   `MYSECRET=`); it still will not catch a bare high-entropy string with no adjacent keyword.
+   The design's position — our code does not log credentials — is what actually protects the
+   table. **And the first version of this fix was quadratic** (see the re-check section): any
+   future change here must keep the keyword literal ahead of any variable-length scan, which
+   is why the linearity is now a test and not a comment.
 4. **The `MAX_ROWS_CEILING` clamp is silent.** An operator who sets
    `LOG_DRAIN_MAX_ROWS=20000` gets 5,000 with no warning, because the receiver is log-silent
    on every path by design (§7). The overflow is still counted as `overCap` in the response
@@ -935,3 +1001,7 @@ accepted). No new decision is proposed.
 - `verifyDrainSignature` accepts `string | Buffer` on purpose; the route must pass bytes.
 - The `map-remap` textual source pin is kept *alongside* the subprocess pin; it still pins
   that no `--base` flag exists.
+- The redaction rule has **no `\b` before the keyword** on purpose — that anchor *was* the
+  WS2-F24 defect. Do not "tighten" it back, and do not put a variable-length identifier scan
+  in front of the keyword: that is what made the first attempt quadratic.
+- `guard.init()` belongs **inside** `legacyAnswer`'s `try`; `ask()` has no catch above it.
