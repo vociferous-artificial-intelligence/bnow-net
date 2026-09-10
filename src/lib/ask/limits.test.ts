@@ -896,15 +896,31 @@ describe("askWithLimits — Phase 4 exact cache (ASK_EXACT_CACHE)", () => {
     expect(h.cacheStoreMock).not.toHaveBeenCalled();
   });
 
-  it("degraded providers (stub/budget) are NEVER cached (truth-in-UI)", async () => {
-    vi.stubEnv("ASK_EXACT_CACHE", "1");
-    h.corpusVersionMock.mockResolvedValue("100:50");
-    h.cacheKeyMock.mockReturnValue("key-abc");
-    h.cacheLookupMock.mockResolvedValue(null);
-    h.askMock.mockResolvedValue(v2Full({ provider: "stub" }));
-    await askWithLimits("q", "u@x.com");
-    expect(h.cacheStoreMock).not.toHaveBeenCalled();
-  });
+  // WS2-F07: this pin (and the "unscorecarded" sibling below, which copied it) used
+  // to install NO evidence_snapshot queryMock, so beforeEach answered that SELECT with
+  // the allowance row, `snapshot` came back undefined, and limits.ts skipped cacheStore
+  // at the `if (snapshot)` guard BEFORE the provider predicate could have any effect —
+  // `not.toHaveBeenCalled()` passed for an unrelated reason. Widening the provider
+  // predicate to admit the degraded providers left the whole suite green. The snapshot
+  // mock is what makes the provider predicate the only thing left to decide the outcome.
+  const cacheableQueryMock = async (sql: string) => {
+    if (String(sql).includes("INSERT INTO ask_usage")) return { rows: [] };
+    if (String(sql).includes("evidence_snapshot")) return { rows: [{ evidence_snapshot: SNAPSHOT }] };
+    return { rows: [{ user_count: 0, global_cost: 0 }] };
+  };
+
+  for (const provider of ["stub", "budget"] as const) {
+    it(`degraded provider "${provider}" is NEVER cached (truth-in-UI), even with a storable snapshot`, async () => {
+      vi.stubEnv("ASK_EXACT_CACHE", "1");
+      h.corpusVersionMock.mockResolvedValue("100:50");
+      h.cacheKeyMock.mockReturnValue("key-abc");
+      h.cacheLookupMock.mockResolvedValue(null);
+      h.askMock.mockResolvedValue(v2Full({ provider }));
+      h.queryMock.mockImplementation(cacheableQueryMock);
+      await askWithLimits("q", "u@x.com");
+      expect(h.cacheStoreMock).not.toHaveBeenCalled();
+    });
+  }
 
   it("release hardening: a HIT whose snapshot persist fails is demoted to a MISS (the pipeline runs; no lying evidence panel)", async () => {
     h.corpusVersionMock.mockResolvedValue("100:50");
@@ -1110,6 +1126,17 @@ describe("ask_usage row shape — gated (unscorecarded answer model)", () => {
     h.cacheKeyMock.mockReturnValue("key-abc");
     h.cacheLookupMock.mockResolvedValue(null);
     h.askMock.mockResolvedValue(GATED());
+    // WS2-F07: without this the SELECT returns the allowance row, `snapshot` is
+    // undefined and limits.ts never reaches the provider predicate — the refusal
+    // this case exists to pin would pass with the predicate deleted. The sibling
+    // "accepts" case above already installs it; this one did not.
+    h.queryMock.mockImplementation(async (sql: string) => {
+      if (String(sql).includes("INSERT INTO ask_usage")) return { rows: [] };
+      if (String(sql).includes("evidence_snapshot")) {
+        return { rows: [{ evidence_snapshot: { version: 1, candidates: [], selectedClaimIds: [] } }] };
+      }
+      return { rows: [{ user_count: 0, global_cost: 0 }] };
+    });
 
     await askWithLimits("q", "u@x.com");
     expect(h.cacheStoreMock).not.toHaveBeenCalled();
