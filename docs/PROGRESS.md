@@ -4868,3 +4868,31 @@ Execution (same block):
   belongs to #76's branch. #81 is cut from `origin/main`, so the baseline is 4,082. Commit
   amended, #82/#83 rebased (post-rebase diff empty), force-pushed with `--force-with-lease`,
   PR body edited.
+
+## 2026-09-09 ~22:00Z — Step 23 lane C: remediate the WS-3 audit register (planned block)
+
+Worktree `48h-audit-ws3-20260905`, branch `48h/audit-ws3-20260905-remediate-ws3`, base
+`origin/main` `4b8e7e7`. Marks confirmed 2026-09-10; decisions D-a…D-f signed 2026-09-09.
+
+1. WS3-F01 (major, D-a=(b)) — `classifyProbe` three-way probe class; `probeIndeterminate`
+   split out of `probeFailures`; explicit "not confirmable under throttling" branch with a
+   `dayStatusReason` in the RETURN shape only (no migration); route counts carry the split.
+2. WS3-F02 (major) — return the canonical record on `DiscoveredEdition`; `finalKey` over
+   `stored ∪ discovered`; promote R1 with inverted expectations plus `morning + plain` and a
+   partially-populated store.
+3. WS3-F03 (D-b=(a)) — an edition needs `units.length > 0`; a >10 KB zero-unit body counts
+   indeterminate with reason `unparseable_body` and the day stays `probe_failed`. Promote R2
+   inverted.
+4. WS3-F05 (D-c=(a)) — `unitSignaturesFrom(html, gazetteerFor(series))`; the gazetteer is
+   stamped into the units version; the vocabulary test asserts the gazetteer actually used.
+5. WS3-F08 parser half (D-f=(b)) — the June-2025 suffix slug shape in the normalization
+   table only; `src/lib/validation/run.ts` byte-identical.
+6. WS3-F07 (D-d = lane C) — `--backfill-from-isw-reports`, zero-network, per-row typed
+   refusals counted and never aborting; the eleven June-2025 rows IN scope.
+7. WS3-F06 + WS3-F10 (D-e) — append the R3 variants plus `tel-aviv`; word-mode-only
+   apostrophe/hyphen fold placed AFTER the substring early return; tighten the variant
+   invariant; land the 54-probe script as a test.
+8. WS3-F04 — `INSERT … SELECT` identity check in `persistObservation`; unit + fork cases.
+9. WS3-F09 — gate-order route tests for `conflict-validate` and its sibling `validate`.
+10. DEFER WS3-F11, N01–N10 into one OPEN-TASKS entry (#119); closing report
+    `docs/reviews/AUDIT-REMEDIATIONS-2026-09-07.md` `## Lane C`.
