@@ -4969,3 +4969,26 @@ Execution (same block):
    `CONFLICT_MATCH_USD_CAP_DAILY` is unset; no ISW prose in the persisted object.
 5. Gates on every branch (typecheck + lint + `npm test`), fork itests for the DB-touching PRs,
    closing report `docs/reviews/WS-3-3-EVIDENCE-POPULATION-2026-09-06.md`. $0.
+
+Execution (same block):
+
+- All seven items done. **Two PRs**, a stack: **#88** (WS2-F06 alone, base `main`, as A1 and
+  the register require) and **#89** (everything else, base #88's branch). Twenty-one commits,
+  one per finding, titled `<area>: <finding id> — <imperative>`.
+- Base `origin/main` `4b8e7e7`; `main` did not move during the session.
+- Tests: 4,332/282 → **4,361/284**; typecheck clean; lint 0 errors (3 pre-existing warnings,
+  none in a touched file). `runtime-logs.itest.ts` **19/19** on disposable Neon branch
+  `br-mute-bread-atetixpc` (created and deleted in-session).
+- Every code fix has a run that FAILS on the pre-fix code; every test-strength finding has a
+  measured mutant kill. Both are pasted verbatim in the closing report.
+- $0, no paid call, no env change, no migration, no deploy, `vercel.json` byte-identical;
+  `AGENTS.md`, `docs/evals/analysis/` and `drizzle/` untouched. Ran ATTENDED. The worktree
+  carries the trimmed four-key `.env.local`, so no provider key existed in this session.
+- **One register remediation was wrong and was not followed:** WS2-F03's "clamp `int()`"
+  would have clamped the millisecond `timestamp` into int4 and moved every `logged_at` to
+  1970-01-25. The existing projection test caught it; the clamp is scoped to `status_code`.
+- WS2-F16 and WS2-F17 confirmed CLOSED-BY-#75/#81 — F17's refusal is already pinned at
+  `model-config.test.ts:654-662`, so no pin was added.
+- The drain bundle was authored as one verified state, mutation-tested, then decomposed into
+  eight commits and `cmp`-checked byte-identical against that state, so the per-finding
+  commits are not a re-derivation that could have drifted from what was tested.
