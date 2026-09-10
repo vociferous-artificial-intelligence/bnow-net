@@ -346,7 +346,12 @@ mb=$(git merge-base origin/main origin/<branch>); git merge-tree $mb origin/main
 **Expect:** `0` → merge as-is (3.3). Greater than 0 → rebase in the PR's OWN worktree (the one
 named in §1 for that step) from the top of its stack with `--update-refs`, resolving only
 PROGRESS / BLOCKERS / OPEN-TASKS / decision-log tails; any conflict in code, `drizzle/` or
-`src/db/schema.ts` STOPS the queue — paste it to me.
+`src/db/schema.ts` STOPS the queue — paste it to me. **Known blind spot (CP6, 2026-09-10):** this
+local pre-check applies `.gitattributes`' `merge=union` driver to `docs/PROGRESS.md` /
+`docs/BLOCKERS.md` and reports `0` where GitHub reports CONFLICTING — every PR that appended a
+plan block after another lane merged shows this. Card 3.1's `mergeable` is the authoritative
+reading; a `CONFLICTING` there with a `0` here means "rebase in the PR's own worktree — the union
+driver resolves PROGRESS.md hand-free" (`docs/prompts/2026-09-10-48h-CP6-resolve-and-finish.md`).
 
 ### 3.3 Merge — per PR
 
