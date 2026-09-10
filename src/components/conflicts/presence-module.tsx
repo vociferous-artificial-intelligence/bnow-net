@@ -14,7 +14,7 @@ import {
   PIPELINE_QUESTIONS_NOTE,
   PUBLISHED_POPULATION_NOTE,
 } from "@/lib/conflicts/product-copy";
-import { partialCountsOf } from "@/lib/conflicts/product-view";
+import { partialCountsOf } from "@/lib/conflicts/result-summary";
 import { Ratio, RungBadge } from "./model";
 
 /** Zero-eligible qualifier (Gate-7 product MINOR-2): "compared and missed"

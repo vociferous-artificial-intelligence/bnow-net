@@ -29,39 +29,22 @@ import {
   type ConflictResultV1,
   type ConflictScoredResultV1,
 } from "./eval-profile";
-import type { CandidateDoc, HedgingValue } from "./evidence-records";
+import type { PublishedEvidenceRow } from "./evidence-row";
 import { GOLDEN_RESULTS_FILE } from "./goldens";
-import type { ConflictLaneId } from "./lanes";
-import type { MatchCoverage } from "./match-contract";
 import {
   loadConflictFixtureScenarios,
   type ConflictFixtureScenario,
 } from "./fixture-corpus";
-import type { Track } from "../analysis/tracks";
 import { isConflictId, type ConflictId } from "./vocabulary";
 
 // ---------------------------------------------------------------------------
 // Route identity: stable public slugs ⇄ conflict ids
 // ---------------------------------------------------------------------------
 
-/** Stable public URL slugs (IA decision, P6 report §1). Never re-keyed. */
-export const CONFLICT_SLUGS: Readonly<Record<string, ConflictId>> = {
-  "russia-ukraine": "russia_ukraine",
-  "iran-regional": "iran_regional",
-};
-
-export function conflictIdForSlug(slug: string): ConflictId | null {
-  const id = CONFLICT_SLUGS[slug];
-  return id === undefined ? null : id;
-}
-
-export function slugForConflictId(id: ConflictId): string {
-  for (const [slug, cid] of Object.entries(CONFLICT_SLUGS)) {
-    if (cid === id) return slug;
-  }
-  // unreachable while CONFLICT_SLUGS covers CONFLICT_IDS; fail closed anyway
-  throw new ConflictDomainError("unknown_conflict", `no slug for conflict ${id}`);
-}
+/** The slug table moved to `product-slugs.ts` so a route can resolve a slug
+ *  without importing this fixture loader; re-exported here for the fixture
+ *  surfaces and this module's own test. */
+export { CONFLICT_SLUGS, conflictIdForSlug, slugForConflictId } from "./product-slugs";
 
 /** Benchmark URL key = golden result key with the ladder-variant `#`
  *  replaced by the URL-safe `~` (IA decision: fixture-backed benchmark
@@ -247,62 +230,21 @@ export function loadBenchmarkDetail(
 // Per-population partial counts (Gate-4 binding obligation (a))
 // ---------------------------------------------------------------------------
 
-export interface PartialCounts {
-  corpusRecall: number;
-  publishedRetention: number;
-  /** the headline diagnostic: the UNION of distinct partial units across both
-   *  populations — never presented as a per-population number */
-  union: number;
-}
-
-/** Distinct claims in the PUBLISHED-RETENTION union of one scored result —
- *  matched claims plus in-scope BNOW-only items. Zero means the gated
- *  evidence view for that record would be empty, so the surfaces re-label
- *  their evidence links instead of spending a sign-in wall on nothing
- *  (Gate-7 product NOTE-3). Extracted from the overview's inline expression
- *  so both surfaces compute it identically. */
-export function publishedUnionCountOf(result: ConflictScoredResultV1): number {
-  return new Set([
-    ...(result.agreements?.publishedRetention ?? []).flatMap((a) =>
-      a.claims.map((c) => c.claimId),
-    ),
-    ...(result.bnowOnly?.publishedRetention.items ?? []).map((i) => i.claimId),
-  ]).size;
-}
-
-export function partialCountsOf(result: ConflictScoredResultV1): PartialCounts {
-  const count = (verdicts: Readonly<Record<string, string>>): number =>
-    Object.values(verdicts).filter((v) => v === "partial").length;
-  return {
-    corpusRecall: count(result.corpusRecall),
-    publishedRetention: count(result.publishedRetention),
-    union: result.headline.partialDiagnostic ?? 0,
-  };
-}
+/** Both helpers are PURE functions of a scored result and now live in
+ *  `result-summary.ts`, so the shared presentation components can use them
+ *  without dragging this fixture loader into the DB-backed pages' module graph
+ *  (the same reason `PublishedEvidenceRow` moved). Re-exported because this
+ *  module's own test and the fixture surfaces still address them here. */
+export { partialCountsOf, publishedUnionCountOf, type PartialCounts } from "./result-summary";
 
 // ---------------------------------------------------------------------------
 // The gated evidence feed (published-retention population ONLY)
 // ---------------------------------------------------------------------------
 
-export interface PublishedEvidenceRow {
-  claimId: number;
-  /** published digest claim text — renders ONLY on the gated surface */
-  text: string;
-  theater: string;
-  track: Track;
-  hedge: HedgingValue;
-  legacy: boolean;
-  claimDate: string;
-  /** matcher-recorded confidence when this claim matched a takeaway */
-  confidence: number | null;
-  earliestIngestAt: string | null;
-  /** takeaways this claim matched — ids/lanes only, never takeaway text */
-  matchedUnits: readonly { unitId: string; lane: ConflictLaneId; coverage: MatchCoverage }[];
-  /** lane label when this claim is an in-scope BNOW-only item */
-  bnowOnlyLane: ConflictLaneId | null;
-  /** full source trail from the originating documents */
-  docs: readonly CandidateDoc[];
-}
+/** Re-exported from `evidence-row.ts`, where the type now lives so the
+ *  DB-backed provider can share it WITHOUT importing this fixture module
+ *  (ruling 3 by module graph — see evidence-row.ts's header). */
+export type { PublishedEvidenceRow };
 
 function publishedClaimOrThrow(
   scenario: ConflictFixtureScenario,

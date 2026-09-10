@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { rawSql } from "@/db";
+import { conflictsUiEnabled } from "@/lib/conflicts/feature";
 import { getLocale } from "@/i18n/server";
 import { makeT } from "@/i18n/dictionaries";
 import {
@@ -72,6 +73,22 @@ export default async function ScoreboardPage() {
       >
         {t("scoreboard.caveat")}
       </p>
+      {/* Contract §11(d), memo C10: the reciprocal link between the two
+          aggregations of one reference report. FLAG-GUARDED — while
+          CONFLICTS_UI is absent every /conflicts route 404s, and a public page
+          must not advertise a link that dead-ends. `conflictsUiEnabled()` is a
+          pure env read: it authorizes nothing and touches no data. */}
+      {conflictsUiEnabled() && (
+        <p data-testid="conflict-view-link" className="mb-6 max-w-2xl text-sm">
+          <Link href="/conflicts" className="underline">
+            Conflict-level view
+          </Link>{" "}
+          <span className="text-gray-600 dark:text-gray-400">
+            — the same reference reports scored once per conflict instead of once per country
+            lens. Different aggregations of one report; neither contradicts the other.
+          </span>
+        </p>
+      )}
 
       <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">

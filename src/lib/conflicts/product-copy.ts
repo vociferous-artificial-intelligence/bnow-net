@@ -143,3 +143,55 @@ export const SYNTHETIC_CORPUS_HEADING = "Synthetic review corpus";
  *  already-published claims, not a new product output. */
 export const EVIDENCE_VIEW_NOTE =
   "This is a read-only union of claims that already appeared in the designated published digests, shown with their originating theater/track and source trail. Hedges, confidence, and timestamps are the claims' own — matching never strengthens them. It is not a new conflict digest.";
+
+// ---------------------------------------------------------------------------
+// Real-observation surfaces (WS-3.5). The fixture-corpus vocabulary above stays
+// for the frozen review build; everything below describes REAL rows.
+// ---------------------------------------------------------------------------
+
+/** Memo C13, binding: `unit-flags-v0` leaves compound takeaways UNDETERMINED —
+ *  `compound: false`, which is the OVER-CREDIT direction — so no number
+ *  produced under it may reach a customer, the public scoreboard, or a report
+ *  figure. It replaces the fixture build's synthetic-corpus banner as the
+ *  heading every conflict surface must carry while that is true, for the same
+ *  reason: a page rendering numbers has to say what is wrong with them, at the
+ *  top, not in a footnote. */
+export const COMPOUND_UNDETERMINED_HEADING =
+  "Compound handling undetermined — not soak-eligible";
+
+export const COMPOUND_UNDETERMINED_NOTE =
+  "These figures were produced under a unit-flags version that does not yet detect compound takeaways (several propositions in one bullet). Compound units are therefore scored as if single, which can only OVER-credit coverage. The numbers are an internal instrument until a human-calibrated compound version replaces it: they must not be quoted to a customer, published on the validation scoreboard, or used as a report figure.";
+
+/** C8 companion count: legacy-engine contributors stay MEMBERS of published
+ *  retention (the shipped contract), so the honest disclosure is how much of
+ *  the numerator rests on theaters with no mapped corpus — not an exclusion. */
+export const LEGACY_ONLY_MATCHED_NOTE =
+  "Matched with legacy-only evidence counts takeaways whose matching claims all came from legacy-engine digests. Those theaters contribute published output but no mapped corpus, so they can support published retention and never corpus recall; the count is shown beside the headline rather than removed from it.";
+
+/** C4: the day carried several editions and the observation shown is the
+ *  designated daily final. Rendered wherever a multi-edition day appears, so a
+ *  reader is never left to assume the day had one report. */
+export const DAILY_FINAL_SELECTION_NOTE =
+  "This reference series published more than one edition on this day. The evaluation scores the day's designated final edition; the other editions are listed for provenance and are not scored separately into the day's headline.";
+
+/** Empty state. The window is named, because "no records" over 30 days and
+ *  "no records ever" are different statements. */
+export function noObservationsNote(windowDays: number): string {
+  return `No conflict evaluation has been recorded in the last ${windowDays} report days. This is an absence of observations, not a coverage result — it is never a 0%.`;
+}
+
+/** The pending-day reasons, in the reader's language. Each says what is NOT
+ *  being done: no other edition's observation is promoted into the day. */
+export const PENDING_DAY_NOTES = {
+  final_edition_unobserved:
+    "The day's designated final edition has not been evaluated yet. Observations exist for other editions of the same day and are deliberately NOT shown as the day's result — a morning edition's score is not the day's score.",
+  daily_final_undetermined:
+    "The day's editions do not determine a single final edition, so no observation is the day's result. Nothing is selected arbitrarily.",
+  editions_unavailable:
+    "The reference editions for this day could not be read, so the day's final edition is unknown and no observation is shown as its result.",
+} as const;
+
+/** Evidence view: a union claim that no longer renders. Never fabricated back
+ *  into a row, and never silently dropped from the count. */
+export const WITHHELD_CLAIM_NOTE =
+  "Some claims in this evaluation's published union are no longer renderable — the digest was regenerated, the claim lost its source links, or a fixture-adapter document appeared on it. They are counted here and omitted from the list rather than reconstructed.";

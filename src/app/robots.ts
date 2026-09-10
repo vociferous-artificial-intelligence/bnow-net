@@ -25,6 +25,11 @@ export default function robots(): MetadataRoute.Robots {
         "/ask", // gated
         "/search", // gated
         "/entities/", // gated
+        // gated conflict evidence tier (requireAcceptedUser + CONFLICTS_UI).
+        // The /conflicts teaser pages are public when the flag is on and stay
+        // crawlable; only the claim-text surface beneath them is blocked.
+        // Harmless while the flag is absent and every route 404s.
+        "/conflicts/*/benchmark/*/evidence",
         "/registry", // admin-only (requireAdminOr404)
         "/middle-east", // admin-only
         "/health", // status page, not content
