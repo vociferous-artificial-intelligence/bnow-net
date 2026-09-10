@@ -5007,3 +5007,31 @@ Execution (same block):
 - Final gate after the re-check fixes: **4,364 / 284**, typecheck clean, lint 0 errors;
   `runtime-logs.itest.ts` re-run **19/19** on a second fork `br-shiny-thunder-ateszphz`
   (created and deleted in-session).
+- **Execution (same block).** Three PRs, not two: #86 `…-db-claim-sources` (§3.3a, base `main`),
+  #87 `…-insufficient-data` (the scorer diagnostic + the E5 eval-artifact regeneration, base
+  `main`, independent), #93 `…-live-observation` (§3.3b + §3.4b, **stacked on #86** — the
+  operator must `gh pr edit 93 --base main` after #86 merges). The split exists so E5's one
+  authorized write under `docs/evals/analysis/` is auditable in its own diff.
+- Base `origin/main` `4b8e7e7`. **Item (8) decided: branch B** — lane C's WS3-F01…F05 fixes were
+  not on `origin/main` (`classifyProbe`/`probeIndeterminate` absent), so the pipeline routes
+  around the broken semantics: Iran toponyms arrive empty, the join is `sha256` then `ordinal`,
+  the edition row id is resolved from `edition_key`, and `probe_failed` is read as
+  "could not tell".
+- Tests: `main` 4,332/282 → #86 4,357/283 → #93 4,441/288; #87 is 4,332 → 4,337/282 off `main`.
+  Typecheck and lint clean on every branch (3 pre-existing warnings, none in touched files).
+  Fork itests **15/15** on `br-wispy-brook-atkhgugi` (+ `br-wandering-rice-atdn4n25` and
+  `br-young-bread-ath111iu` earlier), all deleted by the runner.
+- $0: no paid call, no env change, no migration, no deploy, no production write. `vercel.json`,
+  `drizzle/`, `src/db/schema.ts` and `src/lib/validation/run.ts` byte-unchanged. Ran UNATTENDED
+  on the trimmed four-key `.env.local`; no provider key exists in this worktree.
+- The pre-push gate caught a real omission twice: `no-delete.test.ts` refused both new itests
+  until they joined the pinned `raw_documents`-deleter inventory and the policy document's
+  count sentence moved with them.
+- One deliberate deviation from a signed handoff, recorded not buried: step 06 also asked for
+  `gazetteerVersion` inside the result's `versions` block. NOT added — the WS-3.1b design makes
+  the observation row a projection of the result and takes that stamp from the caller precisely
+  because the result does not know it, and the store-side cross-check that would make a second
+  copy safe is lane C's file this window.
+- New, not in any plan document: `unattributed` as an attribution value, distinct from `both`.
+  On branch B every Iran unit's toponyms are empty, and `both` would record "spans every
+  contributor" for "nothing was recognised".
