@@ -34,6 +34,7 @@ export {
   extractSignatureWith,
   foldMatchPunctuation,
   matchScore,
+  variantSource,
 } from "./match";
 
 export const GAZETTEERS: Readonly<Record<GazetteerVersion, Gazetteer>> = {

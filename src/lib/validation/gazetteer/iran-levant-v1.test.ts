@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { IRAN_LEVANT_V1 as G } from "./iran-levant-v1";
 import { RU_UA_V1 } from "./ru-ua-v1";
-import { extractSignatureWith, foldMatchPunctuation } from "./match";
+import { extractSignatureWith, foldMatchPunctuation, variantSource } from "./match";
 
 const IRAN_THEATERS = ["ir", "il", "sa", "ae", "qa", "om", "bh", "kw", "both"];
 const SOURCE = readFileSync(join(process.cwd(), "src/lib/validation/gazetteer/iran-levant-v1.ts"), "utf8");
@@ -49,10 +49,35 @@ describe("iran-levant-v1 invariants", () => {
   it("every variant is lowercase ASCII — the precondition that makes word mode well-defined", () => {
     for (const [canon, variants] of Object.entries({ ...G.toponyms, ...G.actions })) {
       for (const v of variants) {
-        expect(v, `${canon}: ${v}`).toMatch(/^[a-z0-9][a-z0-9 '-]*\*?$/);
+        // WS3-F10: no LEADING or TRAILING space, and no space before the stem
+        // star. The shipped pattern `^[a-z0-9][a-z0-9 '-]*\*?$` admitted
+        // "aden " — which variantSource would compile without its right
+        // anchor, so it would silently stop matching at a sentence end.
+        expect(v, `${canon}: ${v}`).toMatch(/^[a-z0-9](?:[a-z0-9 '-]*[a-z0-9])?\*?$/);
         expect(v, `${canon}: ${v}`).toBe(v.toLowerCase());
       }
     }
+  });
+
+  it("every declared variant compiles to a source that is right-anchored or stemmed (WS3-F10)", () => {
+    for (const [canon, variants] of Object.entries({ ...G.toponyms, ...G.actions })) {
+      for (const v of variants) {
+        const source = variantSource(v);
+        expect(source.endsWith("\\b") || v.endsWith("*"), `${canon}: ${v} -> ${source}`).toBe(true);
+        expect(source.startsWith("\\b"), `${canon}: ${v} -> ${source}`).toBe(true);
+      }
+    }
+  });
+
+  it("a trailing-space variant is exactly the hole the tightened invariant closes", () => {
+    // the demonstration, kept so the pattern is never loosened by accident:
+    // "aden " passes the SHIPPED invariant, compiles without a right anchor,
+    // and then misses at a sentence end
+    expect(/^[a-z0-9][a-z0-9 '-]*\*?$/.test("aden ")).toBe(true);
+    expect(/^[a-z0-9](?:[a-z0-9 '-]*[a-z0-9])?\*?$/.test("aden ")).toBe(false);
+    expect(variantSource("aden ").endsWith("\\b")).toBe(false);
+    expect(new RegExp(variantSource("aden ")).test(" strikes near aden. ")).toBe(false);
+    expect(new RegExp(variantSource("aden")).test(" strikes near aden. ")).toBe(true);
   });
 
   it("a stem star appears only as the final character, and never on a toponym", () => {
