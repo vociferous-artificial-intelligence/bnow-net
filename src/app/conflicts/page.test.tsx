@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
@@ -20,17 +20,43 @@ const featureMock = vi.hoisted(() =>
 );
 vi.mock("@/lib/conflicts/feature", () => ({ requireConflictsUi: featureMock }));
 
-// The real fixture-backed provider, wrapped in spies so call ORDER against the
-// guard is assertable. No DB anywhere on this path.
-vi.mock("@/lib/conflicts/product-view", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/conflicts/product-view")>();
-  return {
-    ...actual,
-    loadConflictProductView: vi.fn(actual.loadConflictProductView),
-  };
-});
+// The DB client is the only thing faked: the page runs the REAL read model —
+// latestObservationsFor's fail-closed parse, the SQL edition repository's row
+// mapping, and selectDailyFinal — against seeded rows.
+const dbMock = vi.hoisted(() => ({ query: vi.fn() }));
+vi.mock("@/db", () => ({ rawSql: dbMock }));
 
 import ConflictsIndexPage from "./page";
+import {
+  IRAN_LEGACY_GOLDEN,
+  KEYWORD_GOLDEN,
+  editionRow,
+  fakeConflictQuery,
+  observationRow,
+  resultForEdition,
+} from "@/lib/conflicts/db-view.testkit";
+
+const RU_DAY = new Date().toISOString().slice(0, 10);
+
+function seed(opts: { observations?: boolean } = {}) {
+  const ru = resultForEdition(KEYWORD_GOLDEN, "roca", RU_DAY, "daily");
+  const ir = resultForEdition(IRAN_LEGACY_GOLDEN, "iran_update", RU_DAY, "plain");
+  const fake = fakeConflictQuery(
+    opts.observations === false
+      ? {}
+      : {
+          observations: [observationRow(ru, { id: 1 }), observationRow(ir, { id: 2 })],
+          editions: [
+            editionRow("roca", RU_DAY, "daily"),
+            editionRow("iran_update", RU_DAY, "plain"),
+          ],
+        },
+  );
+  dbMock.query.mockImplementation(fake.query);
+  return fake;
+}
+
+beforeEach(() => seed());
 
 afterEach(() => {
   cleanup();
@@ -40,24 +66,20 @@ afterEach(() => {
   });
 });
 
-async function providerSpy(): Promise<Mock> {
-  const pv = await import("@/lib/conflicts/product-view");
-  return pv.loadConflictProductView as unknown as Mock;
-}
-
 describe("feature-off guard (first statement)", () => {
   it("blocks the page before ANY conflict data access", async () => {
     await expect(ConflictsIndexPage()).rejects.toThrow("FEATURE_OFF_TEST");
     expect(featureMock).toHaveBeenCalled();
-    expect(await providerSpy()).not.toHaveBeenCalled();
+    expect(dbMock.query).not.toHaveBeenCalled();
   });
 
-  it("runs before the provider when the flag is on", async () => {
+  it("runs before the first query when the flag is on", async () => {
     featureMock.mockImplementation(() => {});
     render(await ConflictsIndexPage());
-    const spy = await providerSpy();
-    expect(spy).toHaveBeenCalled();
-    expect(featureMock.mock.invocationCallOrder[0]).toBeLessThan(spy.mock.invocationCallOrder[0]);
+    expect(dbMock.query).toHaveBeenCalled();
+    expect(featureMock.mock.invocationCallOrder[0]).toBeLessThan(
+      dbMock.query.mock.invocationCallOrder[0],
+    );
   });
 });
 
@@ -68,7 +90,7 @@ describe("index card numeric hygiene (Gate-7 product MINOR-3)", () => {
     // the card's % is the FIRST coverage number a visitor sees and sits
     // outside any benchmark module — both ideas must travel with it
     const caveat = screen.getAllByTestId("index-card-caveat");
-    expect(caveat.length).toBeGreaterThan(0);
+    expect(caveat.length).toBe(2);
     expect(caveat[0].textContent).toContain("agreement is not independent confirmation");
     expect(caveat[0].textContent).toContain("read the n, not just the percentage");
   });
@@ -83,9 +105,6 @@ describe("index rendering (flag on)", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Conflicts" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Russia–Ukraine War" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Iran and Regional Conflict" })).toBeTruthy();
-    // synthetic-corpus banner (truth-in-UI, ruling 3)
-    expect(screen.getByTestId("synthetic-banner").textContent).toContain("SYNTHETIC TEST FIXTURE");
-    // terminology explainer present at first use
     expect(screen.getByTestId("terminology-explainer")).toBeTruthy();
     // teaser tier: NO claim text, NO reference-takeaway text
     expect(document.body.textContent).not.toContain("reportedly repelled");
@@ -95,7 +114,36 @@ describe("index rendering (flag on)", () => {
   it("shows n/d beside every coverage percentage", async () => {
     featureMock.mockImplementation(() => {});
     render(await ConflictsIndexPage());
-    // RU featured (2026-08-13): 1 of 1 (100%); the ratio always carries n/d
-    expect(document.body.textContent).toMatch(/1 of 1 declared Key Takeaways \(100%\)/);
+    expect(document.body.textContent).toMatch(/\d+ of \d+ declared Key Takeaways \(\d+%\)/);
+  });
+
+  it("carries the memo-C13 compound-undetermined banner over real rows", async () => {
+    featureMock.mockImplementation(() => {});
+    render(await ConflictsIndexPage());
+    const banner = screen.getByTestId("compound-undetermined-banner");
+    expect(banner.textContent).toContain("Compound handling undetermined — not soak-eligible");
+    expect(banner.textContent).toContain("must not be quoted to a customer");
+    // and the fixture build's synthetic-corpus banner is GONE — these are real
+    // observations, and labelling them synthetic would be the opposite lie
+    expect(screen.queryByTestId("synthetic-banner")).toBeNull();
+    expect(document.body.textContent).not.toContain("SYNTHETIC TEST FIXTURE");
+  });
+
+  it("renders an ABSENCE of observations as an absence, never a 0%", async () => {
+    featureMock.mockImplementation(() => {});
+    seed({ observations: false });
+    render(await ConflictsIndexPage());
+    expect(document.body.textContent).toContain("No conflict evaluation has been recorded");
+    expect(document.body.textContent).toContain("never a 0%");
+    // nothing to label when nothing rendered
+    expect(screen.queryByTestId("compound-undetermined-banner")).toBeNull();
+  });
+
+  it("reads only the featured day per conflict (one edition query each)", async () => {
+    featureMock.mockImplementation(() => {});
+    const fake = seed();
+    render(await ConflictsIndexPage());
+    const editionReads = fake.calls.filter((c) => c.sql.includes("benchmark_report_editions"));
+    expect(editionReads).toHaveLength(2);
   });
 });

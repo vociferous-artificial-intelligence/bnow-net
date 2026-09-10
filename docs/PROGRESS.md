@@ -5035,3 +5035,25 @@ Execution (same block):
 - New, not in any plan document: `unattributed` as an attribution value, distinct from `both`.
   On branch B every Iran unit's toponyms are empty, and `both` would record "spans every
   contributor" for "nothing was recognised".
+
+## 2026-09-10 ~15:30Z — WS-3.5 conflict observations view + WS-3.6 soak-prep (step 24, planned block)
+
+1. Read COMMON, the step-19 report Handoff, PLAN-WS-3 §3.5a/§3.6-prep, memo C10/C11, the C5-m
+   R.17 handoff; verify lane C's WS3-F01…F07 state on `origin/main` (item 6 of the prompt).
+2. PR 1 `…-conflict-observations-view`: `benchmark-key.ts` (bijective edition-key ⇄ URL-key),
+   `db-product-view.ts` (0029 read model: latest-per-edition → C4 daily-final winner per day),
+   `evidence-row.ts` (the row type, moved out of the fixture provider so the DB view imports no
+   fixture module), a live claims/`claim_sources`/`raw_documents` evidence join, the four
+   `/conflicts/**` pages swapped off fixtures, the C13 `unit-flags-v0` banner replacing the
+   synthetic banner, the C8 legacy-only companion count, `robots.ts`, the C10 scoreboard
+   evidence-lens relabel in all seven catalogs, the flag-guarded reciprocal link.
+3. Tests: unit (selection rules, key round-trip, no-fixture-import hygiene, the four page tests,
+   the ruling-21 "page-level authorization gate" case), then extend
+   `conflict-feature-off.itest.ts` with a flag-ON phase over a SEEDED observation — the recorded
+   discharge of the ROUTES-row obligation.
+4. PR 2 `…-soak-prep`: `docs/reviews/CONFLICT-SHADOW-SOAK-ENABLEMENT-2026-09-07.md` — five
+   blocker dispositions, enablement items, C12/N1 spend pins, the `vercel.json` diff NOT applied,
+   the log-drain query, the soak window + PASS criteria, C15's detection procedure, and the
+   WS3-F01/403-throttling correction to any threshold predeclared against `probe_failed`.
+5. Gates green, closing report `docs/reviews/WS-3-5-SCOREBOARD-AND-SOAK-PREP-2026-09-07.md`.
+   No flag on, no env named as set, `git diff vercel.json` empty, $0.

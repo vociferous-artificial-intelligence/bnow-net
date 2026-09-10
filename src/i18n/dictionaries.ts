@@ -315,7 +315,10 @@ const en: Dict = {
   // scoreboard
   "scoreboard.title": "Validation Scoreboard",
   "scoreboard.empty": "No validation runs yet.",
-  "scoreboard.col.theater": "theater",
+  // memo C10: the country rows score one country digest against a
+  // whole-conflict report, so the column is a LENS on shared evidence, not a
+  // partition of it — the label says so and the numbers are untouched.
+  "scoreboard.col.theater": "evidence lens (country)",
   "scoreboard.col.coverage": "coverage",
   "scoreboard.col.lead": "lead (h)",
   "scoreboard.avg_coverage": "avg event coverage vs ISW",
@@ -342,7 +345,7 @@ const en: Dict = {
   // Must stay visible without expanding methodology: every coverage/divergence figure
   // on this page is directional because the baselines are not like-for-like.
   "scoreboard.caveat":
-    "ISW's Russia assessment covers the wider Russia–Ukraine theater, while BNOW scores separate country digests. Coverage and divergence are therefore directional comparisons, not like-for-like measures of report completeness.",
+    "ISW's Russia assessment covers the wider Russia–Ukraine theater, while BNOW scores separate country digests. Coverage and divergence are therefore directional comparisons, not like-for-like measures of report completeness. Each row scores one country digest against the whole-conflict report, so the RU and UA rows read the same ROCA report through different lenses, their denominators overlap, and the rows are not additive.",
   "scoreboard.explainer":
     "We score our own output. Every day we compare this system's digest against expert human analysis — ISW's Russian Offensive Campaign Assessment and other baselines — measuring whether we surfaced the same events, how early, and how much of what we published rests on more than one source. We publish the results, including the misses, because analysts should know exactly how much to trust an automated feed. Unlike a finished prose report, every claim here links back to its source document, is searchable, and can land hours earlier — this page shows what that speed costs in coverage.",
   "scoreboard.how_to_read.summary": "How to read these numbers",
@@ -765,7 +768,7 @@ const uk: Dict = {
   "registry.detail.weighting_qualitative": "Надійність зважує підтверджені повідомлення вище, ніж оцінені, заявлені чи неперевірені",
   "scoreboard.title": "Таблиця валідації",
   "scoreboard.empty": "Ще немає прогонів валідації.",
-  "scoreboard.col.theater": "театр",
+  "scoreboard.col.theater": "доказова призма (країна)", // uk: needs native review
   "scoreboard.col.coverage": "охоплення",
   "scoreboard.col.lead": "випередження (год)",
   "scoreboard.avg_coverage": "середнє охоплення подій проти ISW",
@@ -780,7 +783,7 @@ const uk: Dict = {
   "scoreboard.opening":
     "Ми порівнюємо кожен фінальний дайджест країни BNOW з ключовими висновками ISW за той самий день, показуючи, що збіглося, що ми пропустили, наскільки рано з'явилися докази та наскільки надійно підкріплені твердження BNOW.", // uk: needs native review
   "scoreboard.caveat":
-    "Оцінка ISW щодо Росії охоплює ширший театр Росія–Україна, тоді як BNOW оцінює окремі дайджести країн. Тому покриття та розбіжності є орієнтовними порівняннями, а не рівнозначними вимірами повноти звіту.", // uk: needs native review
+    "Оцінка ISW щодо Росії охоплює ширший театр Росія–Україна, тоді як BNOW оцінює окремі дайджести країн. Тому покриття та розбіжності є орієнтовними порівняннями, а не рівнозначними вимірами повноти звіту. Кожен рядок оцінює дайджест однієї країни за звітом про весь конфлікт, тож рядки RU та UA читають той самий звіт ROCA через різні призми, їхні знаменники перетинаються, і рядки не додаються.", // uk: needs native review
   "scoreboard.explainer":
     "Ми оцінюємо власний результат. Щодня ми порівнюємо дайджест цієї системи з експертним аналізом людей — Russian Offensive Campaign Assessment від ISW та іншими базовими джерелами — і перевіряємо, чи ми зафіксували ті самі події, наскільки рано, і яка частка опублікованого спирається більш ніж на одне джерело. Ми публікуємо результати, включно з промахами, бо аналітики повинні точно знати, наскільки довіряти автоматизованій стрічці. На відміну від готового текстового звіту, кожне твердження тут посилається на вихідний документ, доступне для пошуку і може з'явитися на години раніше — ця сторінка показує, чого коштує ця швидкість у покритті.", // uk: needs native review
   "scoreboard.how_to_read.summary": "Як читати ці цифри", // uk: needs native review
@@ -1050,7 +1053,7 @@ const de: Dict = {
   "registry.status.decayed": "verfallen",
   "scoreboard.title": "Validierungstabelle",
   "scoreboard.empty": "Noch keine Validierungsläufe.",
-  "scoreboard.col.theater": "Schauplatz",
+  "scoreboard.col.theater": "Evidenzlinse (Land)", // de: needs native review
   "scoreboard.col.coverage": "Abdeckung",
   "scoreboard.col.lead": "Vorsprung (Std.)",
   "scoreboard.avg_coverage": "durchschn. Ereignisabdeckung ggü. ISW",
@@ -1178,7 +1181,7 @@ const ar: Dict = {
   "registry.status.decayed": "متلاشٍ",
   "scoreboard.title": "لوحة التحقق",
   "scoreboard.empty": "لا توجد عمليات تحقق بعد.",
-  "scoreboard.col.theater": "المسرح",
+  "scoreboard.col.theater": "عدسة الأدلة (البلد)", // ar: needs native review
   "scoreboard.col.coverage": "التغطية",
   "scoreboard.col.lead": "الأسبقية (ساعات)",
   "scoreboard.avg_coverage": "متوسط تغطية الأحداث مقابل ISW",
@@ -1306,7 +1309,7 @@ const ja: Dict = {
   "registry.status.decayed": "減衰",
   "scoreboard.title": "検証スコアボード",
   "scoreboard.empty": "検証実行はまだありません。",
-  "scoreboard.col.theater": "戦域",
+  "scoreboard.col.theater": "証拠レンズ（国）", // ja: needs native review
   "scoreboard.col.coverage": "カバレッジ",
   "scoreboard.col.lead": "先行（時間）",
   "scoreboard.avg_coverage": "ISW比の平均イベントカバレッジ",
@@ -1434,7 +1437,7 @@ const pl: Dict = {
   "registry.status.decayed": "wygasłe",
   "scoreboard.title": "Tabela walidacji",
   "scoreboard.empty": "Brak przebiegów walidacji.",
-  "scoreboard.col.theater": "teatr",
+  "scoreboard.col.theater": "soczewka dowodowa (kraj)", // pl: needs native review
   "scoreboard.col.coverage": "pokrycie",
   "scoreboard.col.lead": "przewaga (godz.)",
   "scoreboard.avg_coverage": "śr. pokrycie zdarzeń vs ISW",
@@ -1562,7 +1565,7 @@ const fr: Dict = {
   "registry.status.decayed": "obsolète",
   "scoreboard.title": "Tableau de validation",
   "scoreboard.empty": "Aucun cycle de validation pour l'instant.",
-  "scoreboard.col.theater": "théâtre",
+  "scoreboard.col.theater": "prisme de preuve (pays)", // fr: needs native review
   "scoreboard.col.coverage": "couverture",
   "scoreboard.col.lead": "avance (h)",
   "scoreboard.avg_coverage": "couverture moyenne des événements vs ISW",

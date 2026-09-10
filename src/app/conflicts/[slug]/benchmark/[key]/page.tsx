@@ -1,16 +1,28 @@
-// /conflicts/[slug]/benchmark/[key] — one fixture benchmark record in full
-// (Phase 6). Sections follow the same contract §11 seven-question order as
-// the overview, scoped to this single reference report. PUBLIC-when-enabled
-// teaser tier: counts, lanes, scores, labels, methodology only; the claim
-// text + source-trail view is the gated /evidence route beneath this one.
+// /conflicts/[slug]/benchmark/[key] — one scored report day in full (WS-3.5:
+// REAL observations). Sections follow the same contract §11 seven-question
+// order as the overview, scoped to this single reference edition.
+// PUBLIC-when-enabled teaser tier: counts, lanes, scores, labels, methodology
+// only; the claim text + source-trail view is the gated /evidence route
+// beneath this one.
 //
 // GUARD ORDER (binding): feature-off guard FIRST, before params and any
-// conflict data access; provider dynamically imported after it.
+// conflict data access; provider and DB client dynamically imported after it.
+//
+// The `[key]` segment is an EDITION key in URL form (benchmark-key.ts), and it
+// resolves only to a DAILY-FINAL observation inside the view window. A key that
+// names a non-final edition, a day with no observation, or a day older than the
+// window is a notFound() — the surface never renders a non-final edition's
+// score as the day's.
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireConflictsUi } from "@/lib/conflicts/feature";
-import { ACTOR_CONTRIBUTION_NOTE, REFERENCE_SERIES_LABELS } from "@/lib/conflicts/product-copy";
+import {
+  ACTOR_CONTRIBUTION_NOTE,
+  DAILY_FINAL_SELECTION_NOTE,
+  LEGACY_ONLY_MATCHED_NOTE,
+  REFERENCE_SERIES_LABELS,
+} from "@/lib/conflicts/product-copy";
 import { BenchmarkHeadline } from "@/components/conflicts/benchmark-headline";
 import { ContributionTable } from "@/components/conflicts/contribution-table";
 import { DiagnosticsModule } from "@/components/conflicts/diagnostics-module";
@@ -21,7 +33,7 @@ import {
 import { LaneTable } from "@/components/conflicts/lane-table";
 import { PresenceModule } from "@/components/conflicts/presence-module";
 import { QuestionSection } from "@/components/conflicts/section";
-import { SyntheticBanner } from "@/components/conflicts/synthetic-banner";
+import { SoakEligibilityBanner } from "@/components/conflicts/soak-eligibility-banner";
 
 export const dynamic = "force-dynamic";
 
@@ -32,17 +44,21 @@ export default async function BenchmarkDetailPage({
 }) {
   requireConflictsUi();
   const { slug, key } = await params;
-  const { conflictIdForSlug, loadBenchmarkDetail, publishedUnionCountOf } = await import(
-    "@/lib/conflicts/product-view"
-  );
+  const [{ conflictIdForSlug }, { loadDbBenchmarkDay }, { CONFLICT_REGISTRY }, { rawSql }] =
+    await Promise.all([
+      import("@/lib/conflicts/product-slugs"),
+      import("@/lib/conflicts/db-product-view"),
+      import("@/lib/conflicts/definitions"),
+      import("@/db"),
+    ]);
   const conflictId = conflictIdForSlug(slug);
   if (conflictId === null) notFound();
-  const detail = loadBenchmarkDetail(conflictId, key);
-  if (detail === null) notFound();
-  const { entry, definition, markers } = detail;
-  const result = entry.result;
-  const scored = result.state === "scored" ? result : null;
-  const publishedUnionCount = scored === null ? null : publishedUnionCountOf(scored);
+  const query = (sql: string, p?: unknown[]) =>
+    rawSql.query(sql, p) as Promise<Array<Record<string, unknown>>>;
+  const day = await loadDbBenchmarkDay(query, conflictId, key);
+  if (day === null) notFound();
+  const definition = CONFLICT_REGISTRY[conflictId];
+  const result = day.result;
 
   return (
     <main id="main" className="mx-auto max-w-4xl p-6">
@@ -60,79 +76,73 @@ export default async function BenchmarkDetailPage({
         {definition.displayName} — benchmark record
       </h1>
       <p className="mb-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
-        Fixture demonstration: {entry.scenarioTitle}
-        {entry.variantId !== null && ` · variant ${entry.variantId}`}
+        Report day <span className="tabular-nums">{day.reportDate}</span> · edition{" "}
+        <span className="font-mono text-xs">{day.editionKey}</span>
       </p>
-      <SyntheticBanner markers={markers} />
+      <SoakEligibilityBanner
+        compoundUndetermined={day.compoundUndetermined}
+        unitFlagsVersion={day.observation.unitFlagsVersion}
+      />
 
       <QuestionSection qid="q1" heading="What conflict and which report">
         <p className="max-w-2xl text-sm text-gray-700 dark:text-gray-300">
           {definition.displayName}, scored against{" "}
-          {REFERENCE_SERIES_LABELS[definition.referenceSeries]}.{" "}
-          {scored !== null ? (
-            <>
-              This record evaluates report{" "}
-              <span className="font-mono text-xs">{scored.report.editionKey}</span> (report day{" "}
-              <span className="tabular-nums">{scored.report.reportDate}</span>).
-            </>
-          ) : result.state === "unavailable" && result.unavailableReason === "publication_gap" ? (
-            <>
-              The reference series published no report for{" "}
-              <span className="tabular-nums">{result.gapDate}</span>.
-            </>
-          ) : (
-            <>
-              This record names report{" "}
-              <span className="font-mono text-xs">{result.report.editionKey}</span> but carries no
-              score.
-            </>
-          )}
+          {REFERENCE_SERIES_LABELS[definition.referenceSeries]}. This record evaluates edition{" "}
+          <span className="font-mono text-xs">{day.editionKey}</span> (report day{" "}
+          <span className="tabular-nums">{day.reportDate}</span>).
         </p>
-      </QuestionSection>
-
-      <QuestionSection qid="q2" heading="What changed, and which lanes are active">
-        {scored === null ? (
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Not applicable — this record carries no evaluation (see the benchmark module below).
-          </p>
-        ) : (
+        {day.multiEdition && (
           <>
-            <LaneTable lanes={scored.lanes ?? []} taxonomyVersion={scored.laneTaxonomyVersion} />
-            {/* Gate-7 product NOTE-3: an empty union is a sign-in wall in
-                front of an empty view — say so rather than link */}
-            {publishedUnionCount === 0 ? (
-              <p
-                data-testid="empty-evidence-note"
-                className="mt-2 text-sm text-gray-600 dark:text-gray-400"
-              >
-                No published digest claims entered this record&apos;s published-output union, so
-                there is no evidence view to open for it.
-              </p>
-            ) : (
-              <p className="mt-2 text-sm">
-                <Link
-                  href={`/conflicts/${slug}/benchmark/${entry.benchmarkKey}/evidence`}
-                  className="underline"
-                >
-                  Read the published claims behind this record
-                </Link>{" "}
-                <span className="text-xs text-gray-600 dark:text-gray-400">
-                  (subscriber sign-in required)
-                </span>
-              </p>
-            )}
+            <p
+              data-testid="daily-final-note"
+              className="mt-2 max-w-2xl text-xs text-gray-600 dark:text-gray-400"
+            >
+              {DAILY_FINAL_SELECTION_NOTE}
+            </p>
+            <ul
+              data-testid="editions-considered"
+              className="mt-1 space-y-0.5 font-mono text-xs text-gray-600 dark:text-gray-400"
+            >
+              {day.orderedEditionKeys.map((editionKey) => (
+                <li key={editionKey}>
+                  {editionKey}
+                  {editionKey === day.editionKey && " — scored (daily final)"}
+                </li>
+              ))}
+            </ul>
           </>
         )}
       </QuestionSection>
 
-      <QuestionSection qid="q3" heading="Which countries, actors, and sources contributed">
-        {scored === null ? (
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Not applicable — no evaluation exists for this record.
+      <QuestionSection qid="q2" heading="What changed, and which lanes are active">
+        <LaneTable lanes={result.lanes ?? []} taxonomyVersion={result.laneTaxonomyVersion} />
+        {/* Gate-7 product NOTE-3: an empty union is a sign-in wall in
+            front of an empty view — say so rather than link */}
+        {day.publishedUnionCount === 0 ? (
+          <p
+            data-testid="empty-evidence-note"
+            className="mt-2 text-sm text-gray-600 dark:text-gray-400"
+          >
+            No published digest claims entered this record&apos;s published-output union, so
+            there is no evidence view to open for it.
           </p>
         ) : (
-          <ContributionTable totals={scored.contributionTotals} />
+          <p className="mt-2 text-sm">
+            <Link
+              href={`/conflicts/${slug}/benchmark/${day.benchmarkKey}/evidence`}
+              className="underline"
+            >
+              Read the published claims behind this record
+            </Link>{" "}
+            <span className="text-xs text-gray-600 dark:text-gray-400">
+              (subscriber sign-in required)
+            </span>
+          </p>
         )}
+      </QuestionSection>
+
+      <QuestionSection qid="q3" heading="Which countries, actors, and sources contributed">
+        <ContributionTable totals={result.contributionTotals} />
         {/* pre-gate MINOR-1: the contractual heading names ACTORS — answer
             that clause honestly beside the table instead of over-promising */}
         <p
@@ -148,30 +158,24 @@ export default async function BenchmarkDetailPage({
 
       <QuestionSection qid="q4" heading="What the external benchmark covered">
         <BenchmarkHeadline result={result} />
+        <p
+          data-testid="legacy-only-companion"
+          className="mt-2 max-w-2xl text-xs text-gray-600 dark:text-gray-400"
+        >
+          <span className="tabular-nums font-medium">{day.legacyOnlyMatched}</span> matched with
+          legacy-only evidence. {LEGACY_ONLY_MATCHED_NOTE}
+        </p>
         <div className="mt-3">
           <ScoreboardCoexistenceNote series={definition.referenceSeries} />
         </div>
       </QuestionSection>
 
       <QuestionSection qid="q5" heading="Was evidence present, and was it retained in print">
-        {scored === null ? (
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Not applicable — an unavailable record has no populations to compare.
-          </p>
-        ) : (
-          <PresenceModule result={scored} />
-        )}
+        <PresenceModule result={result} />
       </QuestionSection>
 
       <QuestionSection qid="q6" heading="Unavailable, thinly sourced, and reference-only">
-        {scored === null ? (
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            The whole record is unavailable — see the provenance statement in the benchmark module
-            above; unavailability is never rendered as 0%.
-          </p>
-        ) : (
-          <DiagnosticsModule result={scored} />
-        )}
+        <DiagnosticsModule result={result} />
       </QuestionSection>
 
       <QuestionSection qid="q7" heading="Drill back into the evidence">
@@ -201,10 +205,10 @@ export default async function BenchmarkDetailPage({
           </li>
           {/* Same suppression as q2 (Gate-9 DEFECT-1): offering the gated view
               on a zero-union record walls an empty page behind a sign-in. */}
-          {scored !== null && publishedUnionCount !== 0 && (
+          {day.publishedUnionCount !== 0 && (
             <li>
               <Link
-                href={`/conflicts/${slug}/benchmark/${entry.benchmarkKey}/evidence`}
+                href={`/conflicts/${slug}/benchmark/${day.benchmarkKey}/evidence`}
                 className="underline"
               >
                 Gated evidence view

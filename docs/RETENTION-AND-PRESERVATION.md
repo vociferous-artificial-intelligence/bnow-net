@@ -134,8 +134,8 @@ there are exactly **twelve** statements that delete from `raw_documents`, in **e
   truth-in-UI (ruling 3) cleanup, not a retention decision: it runs inside a transaction and is
   guarded by `STUB_LIKE`, so it removes only fixture rows that must never render as fact. It is
   a manual operator script and is on no schedule.
-- **10** `*.itest.ts` files — `ask-events`, `authz-page-gate`, `conflict-db-claim-sources`,
-  `conflict-live-observation`, `enrich-rescore`, `hardening`,
+- **11** `*.itest.ts` files — `ask-events`, `authz-page-gate`, `conflict-db-claim-sources`,
+  `conflict-feature-off`, `conflict-live-observation`, `enrich-rescore`, `hardening`,
   `map-batch-error-classification` (×2), `map-budget-stop` (×2), `map-flood-bounds`,
   `map-remap` — all seed teardown on **disposable Neon fork branches** that are created and
   deleted per run. They never touch production data.

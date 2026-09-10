@@ -1,19 +1,26 @@
-// /conflicts — the conflict/region index (Phase 6, feature-off).
+// /conflicts — the conflict/region index (WS-3.5: REAL observations).
 //
 // GUARD ORDER (binding): this is a PUBLIC-when-enabled teaser surface, so the
-// feature-off guard is the FIRST statement, before ANY conflict data access
-// (prompt §14). The provider is imported dynamically AFTER the guard so the
-// off path performs zero fixture IO. No DB module is imported anywhere on
-// this route. Rendered content is teaser-tier only: counts, lanes, scores,
-// labels, methodology — never claim text, never source trails.
+// feature-off guard is the FIRST statement, before ANY conflict data access.
+// The provider and the DB client are imported dynamically AFTER the guard, so
+// the off path opens no connection. Rendered content is teaser-tier only:
+// counts, ratios, labels, edition keys, methodology — never claim text, never
+// reference-takeaway text, never a source trail.
+//
+// RULING 3: the data source is `db-product-view.ts`, which cannot reach the
+// fixture corpus (see its header and db-product-view.test.ts). There is no
+// synthetic fallback — a conflict with no observations renders as an ABSENCE,
+// which is why the synthetic-corpus banner is gone and the memo-C13 compound
+// banner stands in its place.
 
 import Link from "next/link";
 import { requireConflictsUi } from "@/lib/conflicts/feature";
 import {
   NON_INDEPENDENCE_CAVEAT,
   REFERENCE_SERIES_LABELS,
+  noObservationsNote,
 } from "@/lib/conflicts/product-copy";
-import { SyntheticBanner } from "@/components/conflicts/synthetic-banner";
+import { SoakEligibilityBanner } from "@/components/conflicts/soak-eligibility-banner";
 import { TerminologyExplainer } from "@/components/conflicts/explainers";
 import { Ratio } from "@/components/conflicts/model";
 
@@ -21,15 +28,23 @@ export const dynamic = "force-dynamic";
 
 export default async function ConflictsIndexPage() {
   requireConflictsUi();
-  const { CONFLICT_SLUGS, loadConflictProductView } = await import(
-    "@/lib/conflicts/product-view"
-  );
+  const [{ CONFLICT_SLUGS }, { loadDbConflictProductView }, { rawSql }] = await Promise.all([
+    import("@/lib/conflicts/product-slugs"),
+    import("@/lib/conflicts/db-product-view"),
+    import("@/db"),
+  ]);
+  const query = (sql: string, params?: unknown[]) =>
+    rawSql.query(sql, params) as Promise<Array<Record<string, unknown>>>;
 
-  const views = Object.entries(CONFLICT_SLUGS).map(([slug, conflictId]) => ({
-    slug,
-    view: loadConflictProductView(conflictId),
-  }));
-  const markers = views[0]?.view.markers;
+  const views = await Promise.all(
+    Object.entries(CONFLICT_SLUGS).map(async ([slug, conflictId]) => ({
+      slug,
+      // the index needs only the featured day, and each resolved day costs one
+      // edition read — so it stops there rather than walking the window twice
+      view: await loadDbConflictProductView(query, conflictId, { stopAfterResolvedDays: 1 }),
+    })),
+  );
+  const compoundUndetermined = views.some(({ view }) => view.compoundUndetermined);
 
   return (
     <main id="main" className="mx-auto max-w-4xl p-6">
@@ -39,7 +54,7 @@ export default async function ConflictsIndexPage() {
         score each external reference report once at conflict level. Country pages are unchanged
         and remain the evidence drill-down surface.
       </p>
-      {markers !== undefined && <SyntheticBanner markers={markers} />}
+      <SoakEligibilityBanner compoundUndetermined={compoundUndetermined} />
       <div className="mb-6">
         <TerminologyExplainer />
       </div>
@@ -60,10 +75,10 @@ export default async function ConflictsIndexPage() {
                 .map((t) => `${t.theater.toUpperCase()}${t.comparability === "legacy_only" ? " (legacy)" : ""}`)
                 .join(", ")}
             </p>
-            {view.featured !== null && view.featured.result.state === "scored" ? (
+            {view.featured !== null ? (
               <>
                 <p className="mt-2 text-sm">
-                  Latest scored fixture benchmark ({view.featured.result.report.reportDate}):{" "}
+                  Latest scored day ({view.featured.reportDate}):{" "}
                   <Ratio count={view.featured.result.headline.publishedRetention} /> in the
                   published output
                 </p>
@@ -83,13 +98,9 @@ export default async function ConflictsIndexPage() {
               </>
             ) : (
               <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                No scored fixture benchmark — unavailable, not 0%.
+                {noObservationsNote(view.windowDays)}
               </p>
             )}
-            <p className="mt-1 text-xs text-gray-600 dark:text-gray-400 tabular-nums">
-              {view.entries.length} fixture benchmark record
-              {view.entries.length === 1 ? "" : "s"}
-            </p>
           </li>
         ))}
       </ul>

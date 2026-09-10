@@ -6,7 +6,7 @@
 // this component may be mounted only behind requireAcceptedUser + the
 // feature guard). Takeaway text never renders (ids/lanes only).
 
-import type { PublishedEvidenceRow } from "@/lib/conflicts/product-view";
+import type { PublishedEvidenceRow } from "@/lib/conflicts/evidence-row";
 import { laneById, type LaneTaxonomyVersion } from "@/lib/conflicts/lanes";
 import { EVIDENCE_VIEW_NOTE } from "@/lib/conflicts/product-copy";
 import { Instant, hedgeLabel, trackLabel } from "./model";

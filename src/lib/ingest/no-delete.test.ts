@@ -61,6 +61,7 @@ const KNOWN_ITEST_DELETERS = [
   "integration/ask-events.itest.ts",
   "integration/authz-page-gate.itest.ts",
   "integration/conflict-db-claim-sources.itest.ts",
+  "integration/conflict-feature-off.itest.ts",
   "integration/conflict-live-observation.itest.ts",
   "integration/enrich-rescore.itest.ts",
   "integration/hardening.itest.ts",

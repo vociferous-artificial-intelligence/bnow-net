@@ -159,3 +159,63 @@ describe("at-publish dual coverage (W4)", () => {
     expect(container.textContent).not.toContain("evidence available at ISW publish:");
   });
 });
+
+describe("memo C10: country rows are labelled as evidence lenses, numbers untouched", () => {
+  it("names the column an evidence lens and explains why the rows are not additive", async () => {
+    queryMock.mockResolvedValueOnce([ROW]);
+    const { container } = render(await ScoreboardPage());
+    expect(screen.getByRole("columnheader", { name: "evidence lens (country)" })).toBeTruthy();
+    const caveat = screen.getByTestId("scoreboard-caveat");
+    expect(caveat.textContent).toContain("the same ROCA report through different lenses");
+    expect(caveat.textContent).toContain("the rows are not additive");
+    // the relabel is COPY ONLY — the row's figures are byte-identical
+    expect(container.textContent).toContain("57%");
+    expect(screen.getByText("ru")).toBeTruthy();
+  });
+
+  it("re-pins the query: relabelling changed no column, filter, order or limit", async () => {
+    queryMock.mockResolvedValueOnce([ROW]);
+    render(await ScoreboardPage());
+    const [sql] = queryMock.mock.calls[0] as [string, unknown[]];
+    expect(sql).toContain("FROM validation_runs vr");
+    expect(sql).toContain("vr.coverage_pct");
+    expect(sql).toContain("ORDER BY d.digest_date DESC, c.iso2");
+    expect(sql).toContain("LIMIT 60");
+    expect(sql).not.toMatch(/conflict/i);
+  });
+});
+
+describe("the reciprocal conflict-view link (contract §11(d))", () => {
+  afterEach(() => {
+    delete process.env.CONFLICTS_UI;
+  });
+
+  it("is ABSENT while the conflict flag is absent — a public page never links to a 404", async () => {
+    delete process.env.CONFLICTS_UI;
+    queryMock.mockResolvedValueOnce([ROW]);
+    render(await ScoreboardPage());
+    expect(screen.queryByTestId("conflict-view-link")).toBeNull();
+  });
+
+  it("appears only when CONFLICTS_UI=1, and points at /conflicts", async () => {
+    process.env.CONFLICTS_UI = "1";
+    queryMock.mockResolvedValueOnce([ROW]);
+    render(await ScoreboardPage());
+    const link = screen.getByTestId("conflict-view-link");
+    expect(link.textContent).toContain("scored once per conflict instead of once per country");
+    expect(screen.getByRole("link", { name: "Conflict-level view" }).getAttribute("href")).toBe(
+      "/conflicts",
+    );
+  });
+
+  it("stays absent for any other flag spelling (fail closed)", async () => {
+    for (const value of ["", "0", "true", "yes"]) {
+      process.env.CONFLICTS_UI = value;
+      queryMock.mockReset();
+      queryMock.mockResolvedValueOnce([ROW]);
+      cleanup();
+      render(await ScoreboardPage());
+      expect(screen.queryByTestId("conflict-view-link"), value).toBeNull();
+    }
+  });
+});

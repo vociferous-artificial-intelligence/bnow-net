@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
@@ -24,17 +24,56 @@ const featureMock = vi.hoisted(() =>
 );
 vi.mock("@/lib/conflicts/feature", () => ({ requireConflictsUi: featureMock }));
 
-vi.mock("@/lib/conflicts/product-view", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/conflicts/product-view")>();
-  return {
-    ...actual,
-    loadConflictProductView: vi.fn(actual.loadConflictProductView),
-  };
-});
+const dbMock = vi.hoisted(() => ({ query: vi.fn() }));
+vi.mock("@/db", () => ({ rawSql: dbMock }));
 
 import ConflictOverviewPage from "./page";
+import {
+  IRAN_LEGACY_GOLDEN,
+  KEYWORD_GOLDEN,
+  editionRow,
+  fakeConflictQuery,
+  observationRow,
+  resultForEdition,
+} from "@/lib/conflicts/db-view.testkit";
+
+const today = new Date();
+const dayAgo = (n: number) =>
+  new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - n))
+    .toISOString()
+    .slice(0, 10);
+
+const D0 = dayAgo(0);
+const D1 = dayAgo(1);
 
 const pageFor = (slug: string) => ConflictOverviewPage({ params: Promise.resolve({ slug }) });
+
+/** Two ROCA days plus an Iran day carrying a legacy-only match; the Iran day is
+ *  MULTI-EDITION with only the morning edition observed, which is the C4 case
+ *  the surface must show as pending rather than as the day's result. */
+function seed(overrides: Parameters<typeof fakeConflictQuery>[0] = {}) {
+  const ruNew = resultForEdition(KEYWORD_GOLDEN, "roca", D0, "daily");
+  const ruOld = resultForEdition(KEYWORD_GOLDEN, "roca", D1, "daily");
+  const irMorning = resultForEdition(IRAN_LEGACY_GOLDEN, "iran_update", D0, "morning");
+  const fake = fakeConflictQuery({
+    observations: [
+      observationRow(ruNew, { id: 3 }),
+      observationRow(ruOld, { id: 2 }),
+      observationRow(irMorning, { id: 1 }),
+    ],
+    editions: [
+      editionRow("roca", D0, "daily"),
+      editionRow("roca", D1, "daily"),
+      editionRow("iran_update", D0, "morning"),
+      editionRow("iran_update", D0, "evening"),
+    ],
+    ...overrides,
+  });
+  dbMock.query.mockImplementation(fake.query);
+  return fake;
+}
+
+beforeEach(() => seed());
 
 afterEach(() => {
   cleanup();
@@ -44,29 +83,25 @@ afterEach(() => {
   });
 });
 
-async function providerSpy(): Promise<Mock> {
-  const pv = await import("@/lib/conflicts/product-view");
-  return pv.loadConflictProductView as unknown as Mock;
-}
-
 describe("feature-off guard (first statement)", () => {
   it("blocks before params resolution and any data access", async () => {
     await expect(pageFor("russia-ukraine")).rejects.toThrow("FEATURE_OFF_TEST");
-    expect(await providerSpy()).not.toHaveBeenCalled();
+    expect(dbMock.query).not.toHaveBeenCalled();
   });
 
-  it("guard precedes the provider when the flag is on", async () => {
+  it("guard precedes the first query when the flag is on", async () => {
     featureMock.mockImplementation(() => {});
     render(await pageFor("russia-ukraine"));
-    const spy = await providerSpy();
-    expect(featureMock.mock.invocationCallOrder[0]).toBeLessThan(spy.mock.invocationCallOrder[0]);
+    expect(featureMock.mock.invocationCallOrder[0]).toBeLessThan(
+      dbMock.query.mock.invocationCallOrder[0],
+    );
   });
 
   it("unknown slug 404s AFTER the guard, without loading conflict data", async () => {
     featureMock.mockImplementation(() => {});
     await expect(pageFor("not-a-conflict")).rejects.toThrow("TEST_NOT_FOUND");
     expect(notFoundMock).toHaveBeenCalled();
-    expect(await providerSpy()).not.toHaveBeenCalled();
+    expect(dbMock.query).not.toHaveBeenCalled();
   });
 });
 
@@ -97,7 +132,7 @@ describe("the seven analyst questions, in contract order", () => {
     expect(within(headline).getByTestId("non-independence-caveat").textContent).toContain(
       "not independent confirmation",
     );
-    expect(headline.textContent).toMatch(/1 of 1 declared Key Takeaways \(100%\)/);
+    expect(headline.textContent).toMatch(/\d+ of \d+ declared Key Takeaways \(\d+%\)/);
     expect(headline.textContent).toContain("Key Takeaway benchmark coverage");
     // never accuracy language
     expect(document.body.textContent!.toLowerCase()).not.toContain("accuracy");
@@ -113,60 +148,60 @@ describe("the seven analyst questions, in contract order", () => {
     expect(within(note).getByRole("link").getAttribute("href")).toBe("/scoreboard");
   });
 
-  it("renders the ruling-3 synthetic-corpus banner (truth-in-UI disclosure)", async () => {
+  it("carries the memo-C13 banner and NOT the retired synthetic-corpus one", async () => {
     featureMock.mockImplementation(() => {});
     render(await pageFor("russia-ukraine"));
-    expect(screen.getByTestId("synthetic-banner").textContent).toContain("SYNTHETIC TEST FIXTURE");
+    const banner = screen.getByTestId("compound-undetermined-banner");
+    expect(banner.textContent).toContain("Compound handling undetermined");
+    expect(banner.textContent).toContain("unit-flags-v0");
+    expect(screen.queryByTestId("synthetic-banner")).toBeNull();
   });
 
-  it("labels the featured record as a fixture DEMONSTRATION, like the detail page", async () => {
+  it("names the real reference EDITION, never a fixture demonstration", async () => {
     featureMock.mockImplementation(() => {});
     render(await pageFor("russia-ukraine"));
-    // Gate-7 product MINOR-7: the RU–UA overview features a malformed-cutoff
-    // sentinel (n=1, 100%) and previously printed only the report key
-    expect(screen.getByTestId("featured-demonstration").textContent).toContain(
-      "Fixture demonstration:",
+    expect(screen.getByTestId("q4").textContent).toContain(`roca:${D0}:daily`);
+    expect(document.body.textContent).not.toContain("Fixture demonstration");
+    expect(screen.queryByTestId("featured-demonstration")).toBeNull();
+  });
+
+  it("carries the memo-C8 legacy-only companion count beside the headline", async () => {
+    featureMock.mockImplementation(() => {});
+    render(await pageFor("russia-ukraine"));
+    const companion = screen.getByTestId("legacy-only-companion");
+    expect(companion.textContent).toContain("matched with legacy-only evidence");
+    expect(companion.textContent).toContain("shown beside the headline rather than removed");
+  });
+
+  it("renders no coverage TARGET or bar for conflict rows (memo C11)", async () => {
+    featureMock.mockImplementation(() => {});
+    const { container } = render(await pageFor("russia-ukraine"));
+    expect(document.body.textContent).not.toMatch(/target/i);
+    // the scoreboard's target-coloured bars have no counterpart here
+    expect(container.querySelector(".bg-green-600")).toBeNull();
+    expect(container.querySelector(".bg-red-500")).toBeNull();
+  });
+
+  it("lists the scored days newest-first and links each to its benchmark detail", async () => {
+    featureMock.mockImplementation(() => {});
+    render(await pageFor("russia-ukraine"));
+    const list = screen.getByTestId("observation-day-list");
+    const links = within(list).getAllByRole("link");
+    expect(links.map((l) => l.textContent)).toEqual([D0, D1]);
+    expect(links[0].getAttribute("href")).toBe(
+      `/conflicts/russia-ukraine/benchmark/roca-${D0}-daily`,
     );
-  });
-
-  it("run-list detail links have UNIQUE accessible names (WCAG 2.4.4)", async () => {
-    featureMock.mockImplementation(() => {});
-    render(await pageFor("russia-ukraine"));
-    // the two ladder-variant rows previously produced byte-identical link
-    // names pointing at different records (Gate-7 product MINOR-5)
-    const names = screen
-      .getAllByRole("link")
-      .map((el) => (el.textContent ?? "").trim())
-      .filter((name) => name.startsWith("detail for"));
-    expect(names.length).toBeGreaterThan(1);
-    // the WCAG property itself: no two run-list links share a name
-    expect(new Set(names).size).toBe(names.length);
-    // and the two ladder-variant rows are the pair that previously collided
-    const variantNames = names.filter((n) => n.includes("Malformed matcher votes"));
-    expect(variantNames).toHaveLength(2);
-    expect(variantNames[0]).not.toBe(variantNames[1]);
-    expect(variantNames.every((n) => n.includes("variant"))).toBe(true);
-  });
-
-  it("the ROCA overview renders the per-series coexistence note (RU/UA rows example)", async () => {
-    featureMock.mockImplementation(() => {});
-    render(await pageFor("russia-ukraine"));
-    const note = screen.getByTestId("scoreboard-coexistence-note");
-    expect(note.textContent).toContain("separate RU and UA rows");
-    expect(note.textContent).not.toContain("single IR row");
+    // unique accessible names (WCAG 2.4.4): the report day is the name
+    expect(new Set(links.map((l) => l.textContent)).size).toBe(links.length);
   });
 
   it("q3 answers the contractual ACTOR clause and names the contribution population", async () => {
     featureMock.mockImplementation(() => {});
     render(await pageFor("russia-ukraine"));
     const q3 = screen.getByTestId("q3");
-    // pre-gate MINOR-1: the heading is contractual ("…actors…"); the copy
-    // answers the actor clause honestly (rosters govern lanes upstream; the
-    // by-actor table is a recorded future dimension)
     const actorNote = within(q3).getByTestId("actor-contribution-note");
     expect(actorNote.textContent).toContain("versioned actor rosters");
     expect(actorNote.textContent).toContain("not yet computed");
-    // pre-gate MINOR-2: the population is disclosed beside the table
     const popNote = within(q3).getByTestId("contribution-population-note");
     expect(popNote.textContent).toContain("corpus-recall matched takeaways");
     expect(popNote.textContent).toContain("independent of multi-labeling");
@@ -177,7 +212,6 @@ describe("the seven analyst questions, in contract order", () => {
     render(await pageFor("russia-ukraine"));
     expect(document.body.textContent).not.toContain("reportedly repelled");
     expect(document.body.textContent).not.toContain("Oskil riverbank");
-    // the gated link is present instead
     const q2 = screen.getByTestId("q2");
     expect(
       within(q2).getByRole("link", { name: /Read the published claims/ }).getAttribute("href"),
@@ -185,21 +219,25 @@ describe("the seven analyst questions, in contract order", () => {
   });
 });
 
-describe("unavailable rendering (iran overview)", () => {
-  it("renders the publication gap as words, never 0%", async () => {
+describe("memo C4 on the Iran overview: a multi-edition day whose final is unobserved", () => {
+  it("shows the day as pending and refuses to promote the morning edition's score", async () => {
     featureMock.mockImplementation(() => {});
     render(await pageFor("iran-regional"));
-    expect(document.body.textContent).toContain("unavailable — no report published");
+
+    const pending = screen.getByTestId("pending-days");
+    expect(pending.textContent).toContain(D0);
+    expect(pending.textContent).toContain("designated final edition has not been evaluated yet");
+    expect(pending.textContent).toContain("a morning edition's score is not the day's score");
+    // the morning observation exists, and no headline was built from it
+    expect(screen.queryByTestId("observation-day-list")).toBeNull();
+    expect(document.body.textContent).toContain("No conflict evaluation has been recorded");
   });
 
-  it("renders the incomparable gulf lane label in the run list detail path", async () => {
+  it("renders the per-series coexistence note (single IR row, not the RU/UA example)", async () => {
     featureMock.mockImplementation(() => {});
     render(await pageFor("iran-regional"));
-    // the featured iran day (2026-08-09) does not carry the gulf lane, but the
-    // run list must link to the gulf record for drill-in
-    const links = screen.getAllByRole("link", { name: /detail/ });
-    expect(
-      links.some((l) => l.getAttribute("href")!.includes("iran-gulf-unavailable-010b")),
-    ).toBe(true);
+    const note = screen.getByTestId("scoreboard-coexistence-note");
+    expect(note.textContent).toContain("single IR row");
+    expect(note.textContent).not.toContain("separate RU and UA rows");
   });
 });

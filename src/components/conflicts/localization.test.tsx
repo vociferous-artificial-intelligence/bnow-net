@@ -12,7 +12,7 @@
 //     rest of the package's logical properties (ps-/ms-/border-s-) do.
 
 import { cleanup, render, screen } from "@testing-library/react";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { LaneTable } from "./lane-table";
@@ -52,13 +52,16 @@ describe("bidi isolation on numeric runs", () => {
   });
 });
 
-describe("logical (not physical) alignment in the package's tables", () => {
-  it("neither table source uses text-left/text-right", () => {
-    for (const file of ["lane-table.tsx", "benchmark-run-list.tsx"]) {
-      const src = readFileSync(
-        join(process.cwd(), "src", "components", "conflicts", file),
-        "utf8",
-      );
+describe("logical (not physical) alignment across the package", () => {
+  // scans the whole component directory rather than a hand-listed pair, so a
+  // component added later (or one deleted, as benchmark-run-list.tsx was when
+  // the surfaces moved to real observations) cannot silently leave the pin
+  it("no component source uses text-left/text-right", () => {
+    const dir = join(process.cwd(), "src", "components", "conflicts");
+    const files = readdirSync(dir).filter((f) => f.endsWith(".tsx") && !f.includes(".test."));
+    expect(files.length).toBeGreaterThan(5);
+    for (const file of files) {
+      const src = readFileSync(join(dir, file), "utf8");
       expect(src, `${file} must use logical text-start/text-end`).not.toMatch(
         /className="[^"]*text-(left|right)\b/,
       );

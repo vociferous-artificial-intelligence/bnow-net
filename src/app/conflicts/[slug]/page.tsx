@@ -1,5 +1,6 @@
-// /conflicts/[slug] — the conflict overview (Phase 6). Answers the seven
-// analyst questions IN the contract §11 order (q1..q7 sections, test-pinned):
+// /conflicts/[slug] — the conflict overview (WS-3.5: REAL observations).
+// Answers the seven analyst questions IN the contract §11 order (q1..q7
+// sections, test-pinned):
 //   1 what conflict/region is covered
 //   2 what changed and which lanes are active
 //   3 which countries, actors, and evidence sources contributed
@@ -10,16 +11,26 @@
 //
 // GUARD ORDER (binding): public-when-enabled teaser — the feature-off guard
 // is the FIRST statement, before params and before ANY conflict data access;
-// the provider is imported dynamically after it. Teaser tier: counts, lanes,
-// scores, labels, methodology only. Claim text and source trails live ONLY on
-// the gated evidence view linked from q2/q7.
+// the provider and DB client are imported dynamically after it. Teaser tier:
+// counts, lanes, scores, labels, methodology only. Claim text and source trails
+// live ONLY on the gated evidence view linked from q2/q7.
+//
+// The featured record is the newest report day whose DAILY-FINAL edition has an
+// observation (memo C4, resolved in db-product-view.ts). A day whose final
+// edition is unevaluated appears under "days with no result yet" and is never
+// filled in from another edition of the same day.
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireConflictsUi } from "@/lib/conflicts/feature";
-import { ACTOR_CONTRIBUTION_NOTE, REFERENCE_SERIES_LABELS } from "@/lib/conflicts/product-copy";
+import {
+  ACTOR_CONTRIBUTION_NOTE,
+  DAILY_FINAL_SELECTION_NOTE,
+  LEGACY_ONLY_MATCHED_NOTE,
+  REFERENCE_SERIES_LABELS,
+  noObservationsNote,
+} from "@/lib/conflicts/product-copy";
 import { BenchmarkHeadline } from "@/components/conflicts/benchmark-headline";
-import { BenchmarkRunList } from "@/components/conflicts/benchmark-run-list";
 import { ContributionTable } from "@/components/conflicts/contribution-table";
 import { DiagnosticsModule } from "@/components/conflicts/diagnostics-module";
 import {
@@ -29,9 +40,10 @@ import {
 } from "@/components/conflicts/explainers";
 import { LaneTable } from "@/components/conflicts/lane-table";
 import { trackLabel } from "@/components/conflicts/model";
+import { ObservationDayList } from "@/components/conflicts/observation-day-list";
 import { PresenceModule } from "@/components/conflicts/presence-module";
 import { QuestionSection } from "@/components/conflicts/section";
-import { SyntheticBanner } from "@/components/conflicts/synthetic-banner";
+import { SoakEligibilityBanner } from "@/components/conflicts/soak-eligibility-banner";
 
 export const dynamic = "force-dynamic";
 
@@ -42,17 +54,17 @@ export default async function ConflictOverviewPage({
 }) {
   requireConflictsUi();
   const { slug } = await params;
-  const { conflictIdForSlug, loadConflictProductView, publishedUnionCountOf } = await import(
-    "@/lib/conflicts/product-view"
-  );
+  const [{ conflictIdForSlug }, { loadDbConflictProductView }, { rawSql }] = await Promise.all([
+    import("@/lib/conflicts/product-slugs"),
+    import("@/lib/conflicts/db-product-view"),
+    import("@/db"),
+  ]);
   const conflictId = conflictIdForSlug(slug);
   if (conflictId === null) notFound();
-  const view = loadConflictProductView(conflictId);
+  const query = (sql: string, p?: unknown[]) =>
+    rawSql.query(sql, p) as Promise<Array<Record<string, unknown>>>;
+  const view = await loadDbConflictProductView(query, conflictId);
   const featured = view.featured;
-  const featuredScored =
-    featured !== null && featured.result.state === "scored" ? featured.result : null;
-  const publishedUnionCount =
-    featuredScored === null ? null : publishedUnionCountOf(featuredScored);
 
   return (
     <main id="main" className="mx-auto max-w-4xl p-6">
@@ -63,7 +75,10 @@ export default async function ConflictOverviewPage({
         / <span>{view.definition.displayName}</span>
       </nav>
       <h1 className="mb-2 text-2xl font-bold">{view.definition.displayName}</h1>
-      <SyntheticBanner markers={view.markers} />
+      <SoakEligibilityBanner
+        compoundUndetermined={view.compoundUndetermined}
+        unitFlagsVersion={featured?.observation.unitFlagsVersion}
+      />
 
       <QuestionSection qid="q1" heading="What conflict is covered">
         <p className="max-w-2xl text-sm text-gray-700 dark:text-gray-300">
@@ -89,28 +104,36 @@ export default async function ConflictOverviewPage({
       </QuestionSection>
 
       <QuestionSection qid="q2" heading="What changed, and which lanes are active">
-        {featuredScored === null || featured === null ? (
+        {featured === null ? (
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            No scored fixture benchmark exists for this conflict — unavailable, not 0%.
+            {noObservationsNote(view.windowDays)}
           </p>
         ) : (
           <>
             <p className="max-w-2xl text-sm text-gray-700 dark:text-gray-300">
-              Latest scored fixture benchmark day{" "}
-              <span className="tabular-nums">{featuredScored.report.reportDate}</span>:{" "}
-              <span className="tabular-nums">{publishedUnionCount}</span> published digest claim
-              {publishedUnionCount === 1 ? "" : "s"} entered the published-output union for this
-              report window.
+              Latest scored day{" "}
+              <span className="tabular-nums">{featured.reportDate}</span>:{" "}
+              <span className="tabular-nums">{featured.publishedUnionCount}</span> published digest
+              claim{featured.publishedUnionCount === 1 ? "" : "s"} entered the published-output
+              union for this report window.
             </p>
+            {featured.multiEdition && (
+              <p
+                data-testid="daily-final-note"
+                className="mt-1 max-w-2xl text-xs text-gray-600 dark:text-gray-400"
+              >
+                {DAILY_FINAL_SELECTION_NOTE}
+              </p>
+            )}
             <div className="mt-3">
               <LaneTable
-                lanes={featuredScored.lanes ?? []}
-                taxonomyVersion={featuredScored.laneTaxonomyVersion}
+                lanes={featured.result.lanes ?? []}
+                taxonomyVersion={featured.result.laneTaxonomyVersion}
               />
             </div>
             {/* an empty union costs a click plus a sign-in wall to reach
                 nothing — say so instead of linking (Gate-7 product NOTE-3) */}
-            {publishedUnionCount === 0 ? (
+            {featured.publishedUnionCount === 0 ? (
               <p
                 data-testid="empty-evidence-note"
                 className="mt-2 text-sm text-gray-600 dark:text-gray-400"
@@ -136,12 +159,12 @@ export default async function ConflictOverviewPage({
       </QuestionSection>
 
       <QuestionSection qid="q3" heading="Which countries, actors, and sources contributed">
-        {featuredScored === null ? (
+        {featured === null ? (
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            No scored fixture benchmark — contribution is unavailable, not empty.
+            No scored day in the window — contribution is unavailable, not empty.
           </p>
         ) : (
-          <ContributionTable totals={featuredScored.contributionTotals} />
+          <ContributionTable totals={featured.result.contributionTotals} />
         )}
         {/* pre-gate MINOR-1: the contractual heading names ACTORS — answer
             that clause honestly beside the table instead of over-promising */}
@@ -159,59 +182,58 @@ export default async function ConflictOverviewPage({
       <QuestionSection qid="q4" heading="What the external benchmark covered">
         {featured === null ? (
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            No fixture benchmark records for this conflict.
+            {noObservationsNote(view.windowDays)}
           </p>
         ) : (
           <>
-            {/* the featured record is a synthetic EDGE-CASE demonstration as
-                often as not (the RU–UA overview features a malformed-cutoff
-                sentinel, n=1); the detail page always says so and the
-                overview did not (Gate-7 product MINOR-7) */}
-            <p
-              data-testid="featured-demonstration"
-              className="mb-1 max-w-2xl text-sm text-gray-600 dark:text-gray-400"
-            >
-              Fixture demonstration: {featured.scenarioTitle}
-              {featured.variantId !== null && ` · variant ${featured.variantId}`}
-            </p>
             <p className="mb-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
-              {featured.result.state === "scored" ? (
-                <>
-                  Reference report{" "}
-                  <span className="font-mono text-xs">{featured.result.report.editionKey}</span> —
-                  one report produces ONE conflict-level evaluation.
-                </>
-              ) : (
-                "Latest record"
-              )}
+              Reference edition{" "}
+              <span className="font-mono text-xs">{featured.editionKey}</span> — one report
+              produces ONE conflict-level evaluation.
             </p>
             <BenchmarkHeadline result={featured.result} />
+            {/* memo C8: legacy contributors stay MEMBERS of the numerator, so
+                the honest disclosure is a companion count, not an exclusion */}
+            <p
+              data-testid="legacy-only-companion"
+              className="mt-2 max-w-2xl text-xs text-gray-600 dark:text-gray-400"
+            >
+              <span className="tabular-nums font-medium">{featured.legacyOnlyMatched}</span> matched
+              with legacy-only evidence. {LEGACY_ONLY_MATCHED_NOTE}
+            </p>
           </>
         )}
         <div className="mt-3">
           <ScoreboardCoexistenceNote series={view.definition.referenceSeries} />
         </div>
-        <h3 className="mt-6 mb-2 text-sm font-semibold">All fixture benchmark records</h3>
-        <BenchmarkRunList slug={slug} entries={view.entries} />
+        <h3 className="mt-6 mb-2 text-sm font-semibold">
+          Scored days (last {view.windowDays} report days)
+        </h3>
+        <ObservationDayList
+          slug={slug}
+          days={view.days}
+          pending={view.pending}
+          windowDays={view.windowDays}
+        />
       </QuestionSection>
 
       <QuestionSection qid="q5" heading="Was evidence present, and was it retained in print">
-        {featuredScored === null ? (
+        {featured === null ? (
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            No scored fixture benchmark — the pipeline comparison is unavailable, not zero.
+            No scored day in the window — the pipeline comparison is unavailable, not zero.
           </p>
         ) : (
-          <PresenceModule result={featuredScored} />
+          <PresenceModule result={featured.result} />
         )}
       </QuestionSection>
 
       <QuestionSection qid="q6" heading="Unavailable, thinly sourced, and reference-only">
-        {featuredScored === null ? (
+        {featured === null ? (
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            No scored fixture benchmark — diagnostics are unavailable.
+            No scored day in the window — diagnostics are unavailable.
           </p>
         ) : (
-          <DiagnosticsModule result={featuredScored} />
+          <DiagnosticsModule result={featured.result} />
         )}
       </QuestionSection>
 
