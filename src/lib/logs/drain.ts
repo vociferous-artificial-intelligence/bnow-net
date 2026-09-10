@@ -145,22 +145,25 @@ const REDACTIONS: Array<[RegExp, string]> = [
   [/\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi, "Bearer [redacted]"],
   [/\bsk-[A-Za-z0-9_-]{8,}/g, "sk-[redacted]"],
   [/\bsk_[A-Za-z0-9_-]{8,}/g, "sk_[redacted]"],
+  // NO \b before the keyword (WS2-F24). A word boundary there was the whole defect:
+  // there is none inside `LOG_DRAIN_SECRET`, `client_secret` or `clientSecret`, so
+  // the single most likely accidental leak shape — an identifier ENDING in the
+  // keyword, followed by `=` or `:` — passed through untouched. Dropping the anchor
+  // fixes every one of those forms, and `MYSECRET=` (no separator at all) with them.
+  //
+  // It also stays LINEAR, which matters more than it looks: redaction runs on the
+  // FULL untruncated message, the body cap is 4 MB, and a slow regex here would
+  // time the function out -> non-2xx -> Vercel retries the identical body, which is
+  // the permanent retry loop this whole module is built to avoid. The first attempt
+  // at this fix put a variable-length identifier scan BEFORE the keyword and was
+  // quadratic: 128 KB of a dense separator run took 11 s (measured). Matching the
+  // keyword literal first keeps it at ~1 ms per MB.
+  //
+  // Over-matching is bounded by what FOLLOWS: an 8+ character non-delimiter value
+  // after `=` or `:`. "broken=..." does not end in a keyword; "token count 12345"
+  // has no assignment.
   [
-    /\b(api[_-]?key|secret|token|password|passwd)("?\s*[:=]\s*"?)[^\s"',;)}\]]{8,}/gi,
-    "$1$2[redacted]",
-  ],
-  // The rule above anchors on \b BEFORE the keyword, so an identifier that merely
-  // ENDS with it is missed: there is no word boundary inside `LOG_DRAIN_SECRET` or
-  // `client_secret`, and an UPPER_SNAKE env name followed by `=` is exactly the
-  // shape an accidental environment dump takes (WS2-F24). These two add the
-  // separator form (any depth of `_`/`-` prefix segments, case-insensitive) and
-  // the camelCase form; the rule above keeps ownership of the bare keywords.
-  [
-    /\b([A-Za-z0-9]+(?:[_-][A-Za-z0-9]+)*[_-](?:SECRET|TOKEN|API[_-]?KEY|SESSION|PASSWORD|PASSWD))("?\s*[:=]\s*"?)[^\s"',;)}\]]{8,}/gi,
-    "$1$2[redacted]",
-  ],
-  [
-    /\b([a-z0-9]+(?:[A-Z][a-z0-9]*)*?(?:Secret|Token|ApiKey|Session|Password))("?\s*[:=]\s*"?)[^\s"',;)}\]]{8,}/g,
+    /(api[_-]?key|secret|token|session|password|passwd)("?\s*[:=]\s*"?)[^\s"',;)}\]]{8,}/gi,
     "$1$2[redacted]",
   ],
 ];

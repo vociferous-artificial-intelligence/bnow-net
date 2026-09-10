@@ -325,7 +325,8 @@ describe("message handling: redact, then hash, then well-formed truncate", () =>
   it("WS2-F24: redacts a keyword that ENDS an identifier — the accidental env-dump shape", () => {
     // The original rule anchored \b BEFORE the keyword, and there is no word
     // boundary inside LOG_DRAIN_SECRET or client_secret, so the single most
-    // likely accidental leak shape survived redaction untouched.
+    // likely accidental leak shape survived redaction untouched. MYSECRET has no
+    // separator either, which the first attempt at this fix also missed.
     const dirty = [
       "LOG_DRAIN_SECRET=aGVsbG93b3JsZDEyMzQ1",
       "client_secret=abcdefghijklmnop",
@@ -333,17 +334,37 @@ describe("message handling: redact, then hash, then well-formed truncate", () =>
       "TELEGRAM_SESSION=1BQANOTEuMTA4LjU2",
       'clientSecret: "QRSTUVWXYZ012345"',
       "X-API-Key: ZYXWVUTSRQPONMLK",
+      "MYSECRET=NOSEPARATORHERE1",
     ].join("; ");
     const clean = redactSecrets(dirty);
     for (const leaked of [
       "aGVsbG93b3JsZDEyMzQ1", "abcdefghijklmnop", "ABCDEFGHIJKLMNOP",
-      "1BQANOTEuMTA4LjU2", "QRSTUVWXYZ012345", "ZYXWVUTSRQPONMLK",
+      "1BQANOTEuMTA4LjU2", "QRSTUVWXYZ012345", "ZYXWVUTSRQPONMLK", "NOSEPARATORHERE1",
     ]) {
       expect(clean).not.toContain(leaked);
     }
     // the identifier itself is kept — the operator needs to know WHICH name leaked
     expect(clean).toContain("LOG_DRAIN_SECRET=[redacted]");
     expect(clean).toContain("client_secret=[redacted]");
+  });
+
+  it("WS2-F24: redaction is LINEAR — a slow regex here would time the function out", () => {
+    // redactSecrets runs on the FULL untruncated message and the body cap is 4 MB.
+    // The first attempt at this fix scanned a variable-length identifier BEFORE the
+    // keyword and was quadratic: 128 KB of "a-" took 11 s, which on a real delivery
+    // means a function timeout -> non-2xx -> Vercel retries the identical body, i.e.
+    // the exact permanent retry loop WS2-F03 and WS2-F26 exist to prevent.
+    const pathological = "a-".repeat(512 * 1024); // 1 MB of dense separators
+    const t0 = Date.now();
+    expect(redactSecrets(pathological)).toBe(pathological);
+    expect(Date.now() - t0).toBeLessThan(1000);
+
+    // and a large message that is DENSE in real secrets still redacts every one
+    const many = Array.from({ length: 5_000 }, (_, i) => `SOME_LONG_ENV_NAME_${i}_SECRET=abcdefghijklmnop`).join(" ");
+    const t1 = Date.now();
+    const cleaned = redactSecrets(many);
+    expect(cleaned).not.toContain("abcdefghijklmnop");
+    expect(Date.now() - t1).toBeLessThan(1000);
   });
 
   it("WS2-F03: strips U+0000 from every stored string, so one entry cannot poison the batch", () => {
