@@ -14,6 +14,30 @@ const dbQuery = vi.fn(async (text: string, params?: unknown[]) => {
 });
 vi.mock("@/db", () => ({ rawSql: { query: dbQuery } }));
 
+// WS2-F23: the route's three documented ORDERING properties were prose only.
+// @/lib/logs/drain is wrapped in call-through spies (real behaviour preserved,
+// so every case below still exercises the real receiver) and each entry point
+// appends to `order`, which turns "verified before any parse" from a comment
+// into an assertion.
+const order: string[] = [];
+vi.mock("@/lib/logs/drain", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/logs/drain")>();
+  const trace =
+    <A extends unknown[], R>(name: string, fn: (...a: A) => R) =>
+    (...a: A): R => {
+      order.push(name);
+      return fn(...a);
+    };
+  return {
+    ...actual,
+    verifyDrainSignature: trace("verify", actual.verifyDrainSignature),
+    parseDrainBody: trace("parse", actual.parseDrainBody),
+    maxBodyBytes: trace("sizeCap", actual.maxBodyBytes),
+    normalizeBatch: trace("normalize", actual.normalizeBatch),
+    insertRuntimeLogs: trace("insert", actual.insertRuntimeLogs),
+  };
+});
+
 const { POST } = await import("./route");
 const { resetDrainSweepThrottle, DRAIN_ROUTE_PATH } = await import("@/lib/logs/drain");
 
@@ -51,6 +75,7 @@ beforeEach(() => {
     delete process.env[k];
   }
   process.env.LOG_DRAIN_SECRET = SECRET;
+  order.length = 0;
   dbQuery.mockClear();
   dbQuery.mockImplementation(async (text: string) =>
     /INSERT INTO runtime_logs/.test(text) ? [{ id: "stored" }] : [],
@@ -189,5 +214,56 @@ describe("drain receiver bounds and behaviour", () => {
     const mod = (await import("./route")) as Record<string, unknown>;
     expect(mod.GET).toBeUndefined();
     expect(typeof mod.POST).toBe("function");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// WS2-F23: the three ordering properties the design and the report present as
+// SECURITY properties. Each was prose only; a refactor that read the body before
+// the secret check, parsed before verifying, or capped size before verifying
+// would have passed the whole suite.
+describe("drain receiver ordering properties (WS2-F23)", () => {
+  it("(i) secret unset: the request body is NEVER read", async () => {
+    delete process.env.LOG_DRAIN_SECRET;
+    const req = signed(line());
+    const text = vi.spyOn(req, "text");
+    const arrayBuffer = vi.spyOn(req, "arrayBuffer");
+
+    expect((await POST(req)).status).toBe(503);
+    expect(text).not.toHaveBeenCalled();
+    expect(arrayBuffer).not.toHaveBeenCalled();
+    expect(order).toEqual([]); // not even the size cap was consulted
+    expect(dbQuery).not.toHaveBeenCalled();
+  });
+
+  it("(ii) the signature is verified BEFORE any parse or normalization", async () => {
+    const res = await POST(post(line(), { "x-vercel-signature": "0".repeat(40) }));
+    expect(res.status).toBe(403);
+    expect(order).toEqual(["verify"]); // nothing past the verification ran
+    expect(dbQuery).not.toHaveBeenCalled();
+  });
+
+  it("(ii) on the accepted path, verify still precedes parse and normalize", async () => {
+    await POST(signed(line()));
+    expect(order.indexOf("verify")).toBeGreaterThan(-1);
+    expect(order.indexOf("verify")).toBeLessThan(order.indexOf("parse"));
+    expect(order.indexOf("parse")).toBeLessThan(order.indexOf("normalize"));
+    expect(order.indexOf("normalize")).toBeLessThan(order.indexOf("insert"));
+  });
+
+  it("(iii) the size cap is applied AFTER verification, so an unauthenticated caller learns nothing from it", async () => {
+    process.env.LOG_DRAIN_MAX_BODY_BYTES = "10";
+    // oversized AND badly signed -> the signature decides, not the size
+    const res = await POST(post(line(), { "x-vercel-signature": "0".repeat(40) }));
+    expect(res.status).toBe(403);
+    expect(await res.text()).toBe(JSON.stringify({ error: "invalid signature" }));
+    expect(order).toEqual(["verify"]); // the cap was never even read
+
+    // oversized and correctly signed -> 200 body_over_cap, and still no parse
+    order.length = 0;
+    const ok = await POST(signed(line()));
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toMatchObject({ reason: "body_over_cap" });
+    expect(order).toEqual(["verify", "sizeCap"]);
   });
 });
