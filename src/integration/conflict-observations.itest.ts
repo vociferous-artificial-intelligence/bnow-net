@@ -260,19 +260,47 @@ describe("conflict validation observations (migration 0030, real Postgres)", () 
     expect(await observationCount()).toBe(before + 2);
   });
 
-  it("the FK refuses an observation for an edition that does not exist", async () => {
+  it("an observation for an edition that does not exist is refused, and the FK is still there", async () => {
     const [maxRow] = await query(`SELECT COALESCE(max(id), 0)::int AS n FROM benchmark_report_editions`);
     const unknown = Number(maxRow.n) + 100_000;
     const before = await observationCount();
-    // Postgres truncates identifiers at 63 bytes, so the STORED constraint name
-    // is shorter than the one drizzle-kit wrote into 0030 — assert the name the
-    // database actually reports
+
+    // WS3-F04 changed WHICH guard catches this. The identity SELECT now
+    // resolves zero rows first, so `persistObservation` refuses with a typed
+    // domain error instead of surfacing the driver's FK violation. Strictly
+    // better — a caller can branch on the code — and the row count is the
+    // property that actually matters either way.
     await expect(
       persistObservation(query, {
         referenceEditionId: unknown,
         result: resultFor(DAY_A),
         ...STAMPS,
       }),
+    ).rejects.toThrow(/is not the .* edition of/);
+    expect(await observationCount()).toBe(before);
+
+    // the FK itself is UNCHANGED and still the backstop for any writer that
+    // does not come through this module. Postgres truncates identifiers at 63
+    // bytes, so the STORED constraint name is shorter than the one drizzle-kit
+    // wrote into 0030 — assert the name the database actually reports.
+    const fks = await query(
+      `SELECT conname FROM pg_constraint
+        WHERE conrelid = 'conflict_validation_observations'::regclass AND contype = 'f'`,
+    );
+    expect(fks.map((r) => String(r.conname)).join(" ")).toMatch(
+      /conflict_validation_observations_reference_edition_id_benchmark/,
+    );
+    await expect(
+      query(
+        `INSERT INTO conflict_validation_observations
+           (conflict_id, reference_edition_id, series, report_date, edition_key, evaluation_kind,
+            result, matcher_rung, methodology_epoch, lane_taxonomy_version, evidence_policy_version,
+            lane_classifier_version, actor_roster_version, scope_version, gazetteer_version,
+            unit_flags_version, edition_norm_version, daily_final_policy, registry_version,
+            window_end_source, run_group_key)
+         VALUES ($1,$2,'roca',DATE '2027-07-10','k','retrospective','{}'::jsonb,'keyword','e','l','p','c','a','s','g','u','n','d','r','cutoff','rg')`,
+        [CONFLICT, unknown],
+      ),
     ).rejects.toThrow(/conflict_validation_observations_reference_edition_id_benchmark/);
     expect(await observationCount()).toBe(before);
   });
@@ -339,9 +367,56 @@ describe("conflict validation observations (migration 0030, real Postgres)", () 
     expect(Number(hit.n)).toBe(0);
   });
 
+  it("REFUSES a result attached to another edition's row, and writes nothing (WS3-F04)", async () => {
+    const before = await observationCount();
+    // editionB is DAY_B's row; this result describes DAY_A. The FK is satisfied
+    // (editionB exists) and every app-layer check passes — only the statement's
+    // own identity guard can catch it.
+    const err = await persistObservation(query, {
+      referenceEditionId: editionB,
+      result: resultFor(DAY_A),
+      ...STAMPS,
+    }).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(ConflictDomainError);
+    expect((err as { code?: string }).code).toBe("invalid_observation_row");
+    expect(await observationCount()).toBe(before);
+
+    // a nonexistent edition id is refused the same way — no row, no FK error
+    const missing = await persistObservation(query, {
+      referenceEditionId: 2_000_000_000,
+      result: resultFor(DAY_A),
+      ...STAMPS,
+    }).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(missing).toBeInstanceOf(ConflictDomainError);
+    expect(await observationCount()).toBe(before);
+
+    // and the MATCHING id still writes, so the guard is not simply refusing
+    const ok = await persistObservation(query, {
+      referenceEditionId: editionA,
+      result: resultFor(DAY_A),
+      ...STAMPS,
+    });
+    expect(ok).toBeGreaterThan(0);
+    expect(await observationCount()).toBe(before + 1);
+    const [row] = await query(
+      `SELECT reference_edition_id, series, report_date::text AS report_date, edition_key
+         FROM conflict_validation_observations WHERE id = $1`,
+      [ok],
+    );
+    expect(Number(row.reference_edition_id)).toBe(editionA);
+    expect(row.report_date).toBe(DAY_A);
+  });
+
   it("uses the DEPLOYED statements, and leaves the frozen tables untouched", async () => {
     expect(OBSERVATION_INSERT_SQL).toContain("INSERT INTO conflict_validation_observations");
     expect(OBSERVATION_INSERT_SQL).not.toMatch(/ON CONFLICT/i);
+    expect(OBSERVATION_INSERT_SQL).toMatch(/FROM benchmark_report_editions/);
     expect(LATEST_OBSERVATIONS_SQL).toMatch(/DISTINCT ON \(reference_edition_id\)/);
     // isw_reports / source_citations / validation_runs are never written by this
     // module; benchmark_report_editions is only ever REFERENCED

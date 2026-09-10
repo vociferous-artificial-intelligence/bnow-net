@@ -99,6 +99,53 @@ describe("append-only by construction (C6 = (b))", () => {
   });
 });
 
+describe("the observation is bound to the edition its result NAMES (WS3-F04)", () => {
+  it("the one statement re-reads benchmark_report_editions and matches all four identity columns", () => {
+    // $2 reference_edition_id, $3 series, $4 report_date, $5 edition_key — the
+    // caller supplies the id, the RESULT supplies the other three, and the
+    // INSERT only happens where they describe the same row
+    expect(OBSERVATION_INSERT_SQL).toMatch(/FROM benchmark_report_editions/);
+    for (const predicate of [
+      /\bid = \$2\b/,
+      /\bedition_key = \$5\b/,
+      /\bseries = \$3\b/,
+      /\breport_date = \$4\b/,
+    ]) {
+      expect(OBSERVATION_INSERT_SQL, String(predicate)).toMatch(predicate);
+    }
+    // still exactly one statement, still no conflict clause, still one write
+    expect(OBSERVATION_INSERT_SQL.split(";").filter((p) => p.trim().length > 0)).toHaveLength(1);
+  });
+
+  it("a zero-row insert is refused as invalid_observation_row, naming the disagreement", async () => {
+    // the guard matched nothing: the caller attached this result to another
+    // day's or another edition's row
+    const { calls, query } = recorder([]);
+    const result = LLM_RESULT();
+    const err = await persistObservation(query, input({ result, referenceEditionId: 4242 })).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(ConflictDomainError);
+    expect((err as ConflictDomainError).code).toBe("invalid_observation_row");
+    expect((err as ConflictDomainError).message).toContain("4242");
+    expect((err as ConflictDomainError).message).toContain(result.report.editionKey);
+    // one statement was attempted and it wrote nothing — the guard IS the write
+    expect(calls).toHaveLength(1);
+  });
+
+  it("binds the identity params the guard reads, off the RESULT not the caller", async () => {
+    const { calls, query } = recorder();
+    const result = LLM_RESULT();
+    await persistObservation(query, input({ result, referenceEditionId: 7 }));
+    const p = calls[0].params;
+    expect(p[1]).toBe(7);
+    expect(p[2]).toBe(result.report.series);
+    expect(p[3]).toBe(result.report.reportDate);
+    expect(p[4]).toBe(result.report.editionKey);
+  });
+});
+
 describe("persistObservation — the row is a projection of the result", () => {
   it("issues exactly ONE insert, storing the exact serialized result", async () => {
     const { calls, query } = recorder();
