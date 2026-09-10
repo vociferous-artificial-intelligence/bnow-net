@@ -4923,3 +4923,25 @@ Execution (same block):
   the shipped itest assertion was rewritten rather than relaxed.
 - Ran UNATTENDED on the trimmed four-key `.env.local`; nothing in the session could spend,
   deploy or email.
+## 2026-09-09 ~22:10Z — step 23 lane R: remediate the WS-2 audit findings (planned block)
+
+1. WS2-F06 (major, own PR per A1/#110): reserve + meter the `ASK_PIPELINE=legacy`
+   dispatch inside `legacyAnswer` — guard before the call, deterministic cited-claims
+   fallback with provider `"budget"` on refusal, `record()` after the call and before any
+   body interpretation (ruling 8), request payload byte-identical. Pin in `ask.test.ts`.
+2. WS2-F07 (major): install the `evidence_snapshot` queryMock in the two vacuous
+   exact-cache pins in `limits.test.ts` (the `unscorecarded` REFUSES case and the
+   pre-existing stub/budget case), add a `budget` sibling, prove the M12 mutant now dies.
+3. WS2-F04 + F59 (docs): the drain enablement order gains the manual `npm run db:migrate`
+   line before registration (A2 (b)); `docs/RELEASE-CHECKLIST.md` steps 5 and 11 gain the
+   fail-closed-SECRET and migration-before-registration lines.
+4. Drain hardening bundle (F03, F24, F25, F26, F52, F54) + ordering/signature pins
+   (F01, F23), and INVERT the G5 characterization describe in
+   `src/integration/runtime-logs.itest.ts` in the same PR.
+5. Remap guard bundle (F05, F29): subprocess pin that the base-ack guard runs before the
+   driver; `remapTargetId()` at both verbatim base prints.
+6. WS2-F12 (`ask-eval-harvest` refuses under the kill switch / stub), WS2-F14
+   (`pricing.test.ts` loop that kills the grouping mutant), and the OPEN-TASKS #112
+   boundary guard in `scripts/migrate.ts`.
+7. Record WS2-F16/F17 CLOSED-BY-#75/#81; file the DEFER bundle as OPEN-TASKS #119;
+   closing report `docs/reviews/AUDIT-REMEDIATIONS-2026-09-07.md` `## Lane R`.
