@@ -81,8 +81,11 @@ const CLAIM_TOKEN = "conflict-itest sentinel claim about a river crossing";
 // Reference-unit material seeded into the edition row's `derived.units`. It is
 // the only unit-derived value that exists anywhere on this fork, so it is the
 // honest leak probe now that no fixture takeaway text is loaded: it must appear
-// in NO response body under ANY flag/auth state.
-const UNIT_TOKEN = "CONFLICTITESTTOPONYM";
+// in NO response body under ANY flag/auth state. It is a lowercase gazetteer
+// key because `EDITION_SIGNATURE_TOKEN_RE` (editions.ts:275) structurally
+// refuses anything else — the column cannot hold prose, which is ruling 1
+// enforced by shape and the reason this probe is a canonical key, not a phrase.
+const UNIT_TOKEN = "conflict_itest_toponym";
 // Teaser-tier tokens: prove the flag-on teaser actually rendered.
 const TEASER_TOKEN = "Key Takeaway benchmark coverage";
 // The memo-C13 banner that REPLACED the fixture build's synthetic-corpus
@@ -105,7 +108,12 @@ const CONFLICT_TOKENS = [
 // Report day inside the view's 30-day window, computed from the wall clock so
 // the suite cannot rot into an empty window.
 const REPORT_DATE = new Date(Date.now() - 24 * 3600 * 1000).toISOString().slice(0, 10);
-const CLAIM_DAY = REPORT_DATE;
+// FAR-FUTURE digest/claim day (the conflict-observations.itest.ts isolation
+// device): the fork is a copy of PRODUCTION, which already holds a ru/military
+// digest for every recent day, and `digests_country_date_track_idx` is unique
+// on (country, date, track). Nothing joins the claim to the report day — the
+// evidence view addresses claims by id — so the two dates are free to differ.
+const CLAIM_DAY = "2027-07-10";
 const RU_EDITION_KEY = `roca:${REPORT_DATE}:daily`;
 const RU_BENCHMARK_KEY = `roca-${REPORT_DATE}-daily`;
 const IR_FINAL_KEY = `iran_update:${REPORT_DATE}:evening`;
@@ -517,9 +525,17 @@ describe("feature ON (CONFLICTS_UI=1 injected ephemerally into the server proces
     for (const route of TEASER_ROUTES) {
       const { body } = await get(route);
       expect(body, route).toContain(COMPOUND_BANNER_TOKEN);
-      expect(body, route).toContain(UNIT_FLAGS_VERSION);
       // ...and never the retired synthetic-corpus banner: these rows are real
       expect(body, route).not.toContain(RETIRED_SYNTHETIC_TOKEN);
+    }
+    // the flags VERSION is named wherever a single observation is in view; the
+    // index aggregates two conflicts and deliberately names no single version
+    for (const route of [
+      `/conflicts/russia-ukraine/benchmark/${RU_BENCHMARK_KEY}`,
+      `/conflicts/iran-regional/benchmark/${IR_BENCHMARK_KEY}`,
+    ]) {
+      const { body } = await get(route);
+      expect(body, route).toContain(UNIT_FLAGS_VERSION);
     }
   });
 
