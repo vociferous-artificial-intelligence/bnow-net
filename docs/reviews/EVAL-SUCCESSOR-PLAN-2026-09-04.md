@@ -65,3 +65,46 @@ baseline run (gpt-4o-mini; `--dev --repetitions 3`; `EVAL_CAPTURE_DIR` set,
 `LLM_SPRINT_USD_CAP` ceiling the operator names, plus the human labelling/adjudication
 work above. Explicitly NOT part of that authorization: any heldout run, any scorer/gate/
 label change (step 2 decides those afterwards), any candidate model, any deploy.
+
+## Addendum — 2026-09-10 (step 25, 48-hour program docs sync; dated addition, not an edit)
+
+Step 1 (above) executed under decision D6 on 2026-09-05/08, and the 48-hour execution
+program's WS-1 lane carried several of this plan's open items further before the window
+closed. Nothing here changes a scorer, gate, label, dataset population, or version
+identity named above — those all still require the "decide and freeze" step this plan's
+§2 describes, which has NOT run. This addendum only points at where the pieces now live:
+
+- **Step 1 execution record:** `docs/reviews/EVAL-EXPOSURE-LEDGER.md` (2026-09-08 entry,
+  `16:02Z`) — 18 requests / $0.0039 actual against the run card's $0.0112 estimate, cell
+  `map-depth-full`, capture `live-1788883325599` (38 development lines, sha256 recorded),
+  heldout raw off, zero heldout ids seen. The ledger's every subsequent dated section
+  records this plan's forbid-list boundary being held (or, twice, an accidental brush
+  against it, disclosed rather than hidden) across the rest of the window.
+- **The six development-split injection cases** this plan's step 1 packet calls for:
+  authored and landed as their own dataset, `map-inj-dev-v1.json`, per decision E1 (not
+  unioned into `map-v3.json`, which does not exist yet — this plan's §2 dataset-population
+  step is still ahead). Design, authorship provenance (decision D9 — operator-authored via
+  Astra/OpenAI Codex, so no program session read the live heldout `failures` strings), and
+  the offline machinery proof: `docs/reviews/INJECTION-CASES-DEV-2026-09-05.md`.
+- **val-typ-005**, one of this plan's labelling questions, was adjudicated separately from
+  the "decide and freeze" step (decision E4, 2026-09-06): `claimId: null` on semantic
+  grounds. Record: `docs/reviews/EVAL-VAL-TYP-005-ADJUDICATION-2026-09-05.md`. The
+  existing v1/v2 datasets and historical results stay frozen, exactly as this plan's own
+  header requires; the adjudication is recorded for whenever a v3 dataset admits the case.
+- **The v3-vs-v4 versioning question this plan implicitly raises** (a conflict-keyed
+  validation dataset would otherwise compete for the "v3" identity with the per-country
+  eval program's own next version) was decided 2026-09-06 as **D3: the conflict-keyed
+  dataset is v4, created only AFTER the per-country v3 freezes** — keeping this plan's
+  step-2 identities stable and the conflict-evaluation program (WS-3) off this plan's
+  label timeline entirely. Neither v3 nor v4 has been created; this is a naming decision,
+  not an execution one.
+- **Unchanged and still ahead of this plan, as of 2026-09-10:** step 2 ("decide and
+  freeze" — scorer rules, required-evidence semantics, labels, dataset populations,
+  version identities) has not run; no heldout case has been admitted beyond the fixture-
+  corpus ids already visible in the frozen conflict offline results (recorded, not newly
+  exposed, in the 2026-09-06 WS-3.3 exposure-ledger entry); step 3 (heldout admission)
+  and step 4 (frozen-version baseline/candidate evaluation) remain fully unauthorized. The
+  program's own eval-plane code changes this window (provider dimension, entity-audit
+  prompt extraction, registry-version decoupling — see
+  `docs/reviews/PROGRAM-48H-DOCS-SYNC-2026-09-07.md`) are infrastructure this plan's later
+  steps will run ON, not a substitute for running them.
