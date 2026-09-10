@@ -2039,6 +2039,20 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     named, on the `--base-ack` pattern (decision R4) — a migration runner that can silently
     retarget production from an unset variable is the hazard, and the guard belongs at the
     boundary, not in the runbook prose.
+    **(c) DONE 2026-09-09 by step 23 (lane R).** `assertMigrationTarget(DATABASE_URL,
+    DATABASE_URL_UNPOOLED)` runs as the first statement of `scripts/migrate.ts`'s `main()`
+    — after `import "./env"`, which is the point: by then dotenv has already refilled any
+    name the caller unset, so the guard sees exactly what the runner would have used. It
+    refuses when the two DSNs name different databases, BEFORE any connection, and its
+    message gives the correct form (set BOTH names) and says plainly not to use `env -u`.
+    `migrationEndpointId` folds Neon's trailing `-pooler` label, so production's pooled and
+    direct DSNs still compare EQUAL and the ordinary release path is unaffected; an
+    unparseable DSN returns its trimmed self, which can never equal a real host, so garbage
+    fails closed. Pinned in `scripts/migrate-target.test.ts`, including a spawned-process
+    case asserting the refusal happens before the runner opens anything (measured pre-fix:
+    the same invocation reached `password authentication failed`, i.e. a real connection
+    attempt). **(a) and (b) remain OPEN** — the two runbook lines that teach the `env -u`
+    idiom are unedited, and neither is step 23's to touch.
 
 113. **[Tier 3 — data] 26 `ru` ISW reports are `parse_status='failed'` and `--retry-failed`
     recovers none of them.** Separated out of **#79** so the residue is not mistaken for
