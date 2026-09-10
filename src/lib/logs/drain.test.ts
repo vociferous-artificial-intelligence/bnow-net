@@ -100,6 +100,16 @@ describe("drain signature (the route's ONLY authorization)", () => {
     expect(verifyDrainSignature(body, sign(body) + "ab", SECRET)).toBe(false);
   });
 
+  it("WS2-F52: rejects an odd-length header, including a valid signature plus one hex char", () => {
+    // Buffer.from(hex, "hex") silently DROPS a dangling nibble, so `<valid>f`
+    // decoded to the correct 20 bytes and verified TRUE under a length-agnostic
+    // hex test. The regex now pins exactly 40 characters.
+    const body = '{"id":"a"}';
+    expect(verifyDrainSignature(body, sign(body) + "f", SECRET)).toBe(false);
+    expect(verifyDrainSignature(body, sign(body).slice(0, 39), SECRET)).toBe(false);
+    expect(verifyDrainSignature(body, "a".repeat(41), SECRET)).toBe(false);
+  });
+
   it("tolerates surrounding whitespace in the header", () => {
     const body = '{"id":"a"}';
     expect(verifyDrainSignature(body, `  ${sign(body)}\n`, SECRET)).toBe(true);

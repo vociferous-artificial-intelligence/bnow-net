@@ -119,10 +119,11 @@ export function sweepLimit(): number {
 export function verifyDrainSignature(rawBody: string, header: string | null, secret: string): boolean {
   if (typeof header !== "string" || header.length === 0) return false;
   const hex = header.trim();
-  // Buffer.from(_, "hex") does not throw on non-hex input, it stops decoding —
-  // which the length check below would catch anyway, but rejecting explicitly
-  // keeps "malformed header" and "wrong secret" the same, cheap outcome.
-  if (!/^[0-9a-fA-F]+$/.test(hex)) return false;
+  // Buffer.from(_, "hex") does not throw on non-hex input, it stops decoding, and
+  // it also silently DROPS a dangling nibble — so an odd-length header consisting
+  // of the correct 40 hex characters plus one more decoded to the correct 20 bytes
+  // and verified TRUE (WS2-F52). Pin the exact SHA-1 hex length instead of "is hex".
+  if (!/^[0-9a-fA-F]{40}$/.test(hex)) return false;
   const expected = createHmac("sha1", secret).update(Buffer.from(rawBody, "utf8")).digest();
   const got = Buffer.from(hex, "hex");
   if (got.length !== expected.length) return false;
