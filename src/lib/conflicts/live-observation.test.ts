@@ -121,13 +121,13 @@ function harness(editions: readonly ReferenceEditionRecord[], editionRowIds: Rec
   let nextObservationId = 500;
   const query = async (sql: string, params: unknown[] = []) => {
     calls.push({ sql, params });
-    if (/FROM benchmark_report_editions/.test(sql)) {
-      const id = editionRowIds[String(params[0])];
-      return id === undefined ? [] : [{ id }];
-    }
     if (/INSERT INTO conflict_validation_observations/.test(sql)) {
       nextObservationId += 1;
       return [{ id: nextObservationId }];
+    }
+    if (/FROM benchmark_report_editions/.test(sql)) {
+      const id = editionRowIds[String(params[0])];
+      return id === undefined ? [] : [{ id }];
     }
     return [];
   };
