@@ -1478,6 +1478,56 @@ mid-log, was retired by the eighth archive pass on 2026-09-07; OPEN-TASKS #92.)
   inside a Stage 3 session would have cost more than moving four extra days early. $0, docs
   only, no code, no standing text changed except the archive header line.
 
+- **2026-09-09 (D-a … D-f — WS-3 audit register decisions signed)**
+  The six decisions the step-18 register (`docs/reviews/WS-3-AUDIT-FINDING-REGISTER-2026-09-06.md`
+  §Decisions needed, PR #78 `c32213a`) asked for, answered as recommended except D-d.
+  **D-a = (b)**: a 403 (and 429 / ≥500 / null / undersized 200) is an *indeterminate* probe
+  class distinct from a clean 404 — `probeIndeterminate` is counted separately, gap confirmation
+  gets an explicit "not confirmable under throttling" branch, and `probe_failed` stops
+  conflating "no such page" with "throttled" (R.15 item 1 of `C5M-PROBES-2026-09-07.md`,
+  OPEN-TASKS #114). The class carries a `dayStatusReason` **discriminator, not a single value**:
+  `throttled` for the transport cases and `unparseable_body` for D-b's zero-unit 200, so the new
+  class does not re-conflate one level down. No migration: the reason travels in the return shape
+  only. Backoff (R.15 option (c)) is deferred to its own decision because it changes fetch volume
+  against a third-party host. **D-b = (a)**: a >10 KB `200` body with zero units is not an
+  edition — it counts as indeterminate with reason `unparseable_body` and the day stays
+  `probe_failed`, so a host error page can never outrank a real edition (WS3-F03). The accepted
+  cost is that a real-but-unparseable report is no longer stored for a later re-parse; the reason
+  code is what records that a body was seen at all. PLAN-WS-3 §3.2a's sentence is corrected by
+  step 23 and step 25 records it. **D-c = (a)**: `derived.units` for Iran editions are computed
+  under `gazetteerFor(series)` now, in step 23, and the gazetteer is stamped into
+  `EDITION_UNITS_VERSION` (WS3-F05). This is free **contingent on production still standing at 29
+  migrations (0028–0030 unapplied) when lane C starts** — on that condition zero production rows
+  exist and there is nothing to backfill; if it has changed at launch, lane C says so in its
+  report and the switch becomes a versioned migration instead of a one-line change.
+  **D-d = step 23 lane C, not step 19** (the register recommended step 19): on 2026-09-09 step
+  23's WS-3 lane was moved to the `audit-ws3` worktree so it runs alongside step 19 and merges
+  first when it delivers first (step 19 builds its claim-sources PR before it opens the module's
+  consumer, and takes the fixed module if lane C is on `origin/main` by then —
+  `docs/reviews/REORDER-23C-19-ANALYSIS-2026-09-09.md`); lane C owns
+  `edition-discovery.ts` for this window and the June-2025 parser shape (WS3-F08) lands there, so
+  the N3 `--backfill-from-isw-reports` mode is built next to it. **The eleven June-2025 rows are
+  IN scope, not excluded.** #116's hazard is a *network discovery* backfill over 2025-06-12 →
+  06-24 — that still must not be run, and step 19's prompt keeps the instruction — but the N3
+  mode is zero-network (it reads `isw_reports`, normalizes, upserts), and D-f (b)'s parser shape
+  lands in the same lane and makes exactly those eleven suffix-form URLs normalizable, so they
+  register rather than refuse. Per-row typed refusals are still counted and never abort, as the
+  safety net for any row the table does not yet cover. The backfill has no HTML, so it is
+  **exempt by construction from D-b's unit criterion** and writes `parseStatus: "pending"`, never
+  `failed` — recorded here so step 26 does not read the asymmetry with discovery as a finding.
+  Step 19 consumes the module and does not edit it. **D-e = yes**: step 23 may append the R3
+  variants to `iran-levant-v1` (no result has persisted under the version) and may add the
+  apostrophe/hyphen fold in `match.ts` — **in the word path ONLY, placed after the
+  `matchMode === "substring"` early return**, not at the `:97` lowercase line the register cites,
+  which sits above that branch and would change `ru-ua-v1` (substring mode) with it. The fold
+  applies to the **variants as well as the text**, so an ASCII-apostrophe variant meets a U+2019
+  source spelling. Substring mode stays byte-identical, so the RU/UA proof stands.
+  **D-f = (b)**: only the parser shape for the suffix slug form is added; no fifth production
+  probe enters `src/lib/validation/run.ts` this window, so the frozen production discovery path
+  stays byte-identical and no fetch volume is added against a host that already throttles.
+  $0, docs only; no code changed by this entry. Signed by the operator; step 23's prompt cites
+  this entry by title.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).
