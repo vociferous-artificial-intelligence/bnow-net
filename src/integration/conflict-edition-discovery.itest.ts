@@ -22,7 +22,8 @@ process.env.DATABASE_URL = URL_ENV;
 const { runMigrations } = await import("../../scripts/migrations-lib");
 const { SqlReferenceReportRepository } = await import("@/lib/conflicts/reference-repo-sql");
 const { selectDailyFinal } = await import("@/lib/conflicts/editions");
-const { discoverEditions, runSeriesDiscovery, EDITION_UNITS_VERSION } = await import(
+const { gazetteerFor } = await import("@/lib/validation/gazetteer");
+const { discoverEditions, runSeriesDiscovery, editionUnitsVersion } = await import(
   "@/lib/isw/edition-discovery"
 );
 
@@ -153,7 +154,7 @@ describe("WS-3.2 edition discovery on the durable 0028 tables (real Postgres)", 
 
     // derived round-trips through jsonb as signatures + hashes only
     const derived = evening.derived as { units: Array<Record<string, unknown>>; unitsVersion: string };
-    expect(derived.unitsVersion).toBe(EDITION_UNITS_VERSION);
+    expect(derived.unitsVersion).toBe(editionUnitsVersion(gazetteerFor("iran_update")));
     expect(derived.units).toHaveLength(3);
     for (const u of derived.units) {
       expect(Object.keys(u).sort()).toEqual(["actions", "chars", "ordinal", "sha256", "toponyms"]);
