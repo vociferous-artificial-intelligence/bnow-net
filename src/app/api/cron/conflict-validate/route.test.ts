@@ -69,6 +69,51 @@ describe("conflict-validate auth and parameter refusals (before any run row)", (
     expect(discoverEditions).not.toHaveBeenCalled();
   });
 
+  it("401s BEFORE parameter validation: an unauthenticated malformed request never gets a 400", async () => {
+    // WS3-F09 / mutant M9. The gate IS first in the shipped code, but nothing
+    // pinned the ORDER: every 401 case used VALID parameters and every 400 case
+    // carried the secret, so moving the auth block below the checks passed
+    // 11 / 11. An anonymous caller must learn nothing about parameter
+    // validation, and a future reordering that slipped a query above the gate
+    // must fail here (ruling 21's spirit, for a cron route).
+    for (const q of [
+      "?date=08-26-2026",
+      "?date=2026-02-30",
+      "?lookback=0",
+      `?lookback=${MAX_LOOKBACK + 1}`,
+      "?lookback=all",
+      "?conflict=syria",
+      "?date=08-26-2026&lookback=99&conflict=syria",
+    ]) {
+      dbQuery.mockClear();
+      discoverEditions.mockClear();
+      const res = await GET(
+        new NextRequest(`http://localhost/api/cron/conflict-validate${q}`, { headers: {} }),
+      );
+      expect(res.status, q).toBe(401);
+      expect(await res.json(), q).toEqual({ error: "unauthorized" });
+      expect(dbQuery, q).not.toHaveBeenCalled();
+      expect(discoverEditions, q).not.toHaveBeenCalled();
+    }
+  });
+
+  it("401s when CRON_SECRET is unset, even with a bearer header (fail-closed)", async () => {
+    const saved = process.env.CRON_SECRET;
+    delete process.env.CRON_SECRET;
+    try {
+      const res = await GET(
+        new NextRequest("http://localhost/api/cron/conflict-validate?date=08-26-2026", {
+          headers: { authorization: "Bearer " },
+        }),
+      );
+      expect(res.status).toBe(401);
+      expect(dbQuery).not.toHaveBeenCalled();
+      expect(discoverEditions).not.toHaveBeenCalled();
+    } finally {
+      process.env.CRON_SECRET = saved;
+    }
+  });
+
   it("400s on a malformed date, an out-of-range lookback, and an unknown conflict", async () => {
     for (const q of [
       "?date=08-26-2026",
