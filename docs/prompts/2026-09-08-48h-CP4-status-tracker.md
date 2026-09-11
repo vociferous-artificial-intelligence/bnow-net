@@ -51,8 +51,8 @@ re-landed as #85.
 | 5.2 Stage 2 — operator runs | **DONE 2026-09-08** — items 1–5 | yes |
 | 5.2a Stage 2a — D7/R4 measured remap | **DONE 2026-09-08** — executed, $0.046263 | yes |
 | 5.3 Stage 3 — build steps 18–34 | **DONE 2026-09-11** — CP7 `ad99101`; all eleven steps merged; 4,599/293, build PASS | yes |
-| 5.4 Stage 4 — review gates / four never-run checks | **CURRENT** — G5 done (step 21); G4 at the freeze (plan 6.1); G12 = step 26 first task; G3 = step 27 | no |
-| 5.5 Stage 5 — freeze, final audit, deploy | **NOT STARTED** (pre-deploy facts pre-filed, #111) | no |
+| 5.4 Stage 4 — review gates / four never-run checks | **G4, G5, G12 DONE** (freeze `2c66e94`; step 21; step 26 two-way); **G3 = step 27** with the fifteen-name list | no |
+| 5.5 Stage 5 — freeze, final audit, deploy | **IN PROGRESS** — frozen `2c66e94`; step 26 landed `180de8b` (deployable, 0 blockers); pre-deploy fixer + step 27 remain | no |
 | §6 detached sessions | **RESOLVED** | yes |
 
 ### 5.0 Stage 0 — DONE
@@ -697,3 +697,4 @@ move to Stage 2a — and that move is itself a logged edit here, not an assumpti
 - 2026-09-10 14:32 ET — CP6b: #95 6ad5e2f, #96 a0d7091 (4,599/293, build PASS); nine merged CP6 branches deleted on origin. Step 25 prompt addendum (11)–(15); CP7 agent prompt written. Next: card 4.3 (launch 25), CP7, then freeze (6.1) and step 26 (6.2).
 - 2026-09-11 00:14 ET — CP7: #97 ad99101; Stage 3 CLOSED. AGENTS.md 148,686 b (1,314 headroom — step 27 needs a D5 cut before its entry). Next: plan card 6.1 (freeze), 6.2 (step 26, Opus, attended), 6.3 (step 27).
 - 2026-09-11 01:08 ET — step 26 delivered PR #98: deployable, 0 blockers, 5 majors (AUD-02 roster on a local branch; AUD-03 smoke-test revert; AUD-04 ten vs fifteen routing envs; AUD-05 soak checklist lacks the 0028/0030 migration gate; AUD-06 #79 still instructs an executed write), G12 proven for all 49 merges. Pre-deploy fixer prompt written (`2026-09-11-48h-pre-deploy-fixes.md`, includes the twelfth archive pass for headroom). Next: merge #98, operator deletes the local roster branch, run the fixer, merge, then step 27.
+- 2026-09-11 07:15 ET — #98 merged 180de8b (docs only; gate 4,599/293). INDEX §10 step-26 line written. Next: operator deletes local roster branch (AUD-02), runs the pre-deploy fixer in gov, merges it, then step 27 per the audit §6 order (fork rehearsal of 0000–0030 first).
