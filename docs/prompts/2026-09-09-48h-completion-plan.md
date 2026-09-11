@@ -542,13 +542,13 @@ session; gate green (record the unit count); build PASS; `git worktree list` sho
 ```
 cd /Users/go/code/bnow-net
 sed -i '' 's/FROZEN-SHA-TBD/<sha>/' docs/prompts/2026-09-05-48h-26-final-audit.md
-grep -n 'Freeze SHA' docs/prompts/2026-09-05-48h-26-final-audit.md
+grep -n 'FROZEN-SHA-TBD\|^SHA:\*\*' docs/prompts/2026-09-05-48h-26-final-audit.md
 git add docs/prompts/2026-09-05-48h-26-final-audit.md
 git commit -m 'docs: 48h freeze; step 26 prompt bound to the frozen SHA'
 git push origin main
 ```
 
-**Expect:** the `grep` line shows your SHA where `FROZEN-SHA-TBD` was; push green.
+**Expect:** the `grep` prints one line, the `SHA:**` line carrying your SHA, and no `FROZEN-SHA-TBD` match (the phrase "Freeze SHA" wraps across two lines in that file, so grep for the token or the `SHA:**` line, never for the phrase); push green.
 
 ### 6.2 Launch step 26 — final audit (attended)
 
