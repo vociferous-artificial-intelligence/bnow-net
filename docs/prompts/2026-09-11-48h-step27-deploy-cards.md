@@ -53,6 +53,22 @@ npm run typecheck && npm run lint && npm test
 curl -s https://bnow.net/health
 ```
 
+Then — added 2026-09-11 after 27.1 was first read against the wrong branch — prove which Neon
+branch each `.env.local` DSN addresses BEFORE reading anything through it:
+
+```
+cd /Users/go/code/bnow-net-rel-20260823
+npx tsx -e 'import "./scripts/env"; fetch(`https://console.neon.tech/api/v2/projects/${process.env.NEON_PROJECT_ID}/endpoints`,{headers:{Authorization:`Bearer ${process.env.NEON_API_KEY}`}}).then(r=>r.json()).then(j=>{for(const e of j.endpoints)console.log(e.branch_id,e.host,e.type)})'
+grep -E '^DATABASE_URL(_UNPOOLED)?=' .env.local | sed -E 's#^([A-Z_]+=).*@([^/?]+)/.*#\1@\2#'
+npx tsx scripts/sqlq.ts "SELECT max(started_at) AS newest_cron FROM cron_runs"
+```
+
+**Expect:** the host in both DSNs (pooler and direct) belongs to **`br-lively-haze-atvkarvn`**
+(production, `ep-jolly-glitter-at0968cv` as of 2026-09-11), and `newest_cron` within the last
+fifteen minutes. A host on any other branch, or a `newest_cron` hours old, means the DSN points
+at a snapshot — fix `.env.local` before continuing (the 2026-09-11 first read hit the eval
+branch `ep-misty-bonus-atfbt0iq`, frozen at 2026-09-03T20:59Z).
+
 **Expect:** both trees clean; both at `1204ef9` (or a later docs-only commit); `lsof` and
 `gh pr list` silent; gate green at 4,599 / 293 in the release clone; `/health` HTTP 200 with a
 commit stamp (`8a19ade`), a `data-dpl-id`, and `DB OK`. **Write down that deployment id — it is
@@ -74,7 +90,11 @@ npx tsx scripts/sqlq.ts "SELECT to_regclass('benchmark_report_editions'), to_reg
 ```
 
 **Expect:** the last dozen cron rows `ok = true` with no nested `counts.errors` /
-`counts.batchErrors` you cannot classify (sweep the `counts` text — #87); today's
+`counts.batchErrors` you cannot classify (sweep the `counts` text — #87) — **except the
+2026-09-11 password-rotation window**: the `neondb_owner` password on production was reset
+≈21:35–22:00Z before Vercel's `DATABASE_URL` was updated, so crons in that window failed or
+left no row; classify them as that incident in the release record (checklist step 2 says
+classify, never wave through) and confirm the first run after 22:00Z is `ok = true`; today's
 `openai_ask` usage row against `ASK_USD_CAP_DAILY` written verbatim into the release record
 (this is the line that closes #84); `_migrations` = **29**; all three `to_regclass` NULL.
 Those last two readings are the "before".
