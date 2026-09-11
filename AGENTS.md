@@ -383,19 +383,37 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
 - **Analysis model routing (PR #5 — LIVE in production since 2026-08-20,
   `dpl_GH6UWFojKPEgPrhBiT7utPBPnQBJ` / `7336b9c`, 24h formal soak CLOSED PASS
   2026-08-21; carried forward by the 2026-08-22 QF-B release):** the workload-scoped
-  routing seam is deployed: `src/lib/llm/model-config.ts` resolves (model, effort)
-  per workload at call time (`<WORKLOAD>_MODEL` → `OPENAI_MODEL` → gpt-4o-mini) and FAILS
-  CLOSED — before any SpendGuard reservation or provider-client construction — on an
-  invalid effort, an unpriced model, or a (workload, model, effort) with no
+  routing seam is deployed: `src/lib/llm/model-config.ts` resolves (provider, model, effort)
+  per workload at call time (`<WORKLOAD>_PROVIDER` → openai; then `<WORKLOAD>_MODEL` →
+  `OPENAI_MODEL` → gpt-4o-mini, the last two for provider `openai` ONLY) and FAILS
+  CLOSED — before any SpendGuard reservation or provider-client construction — on a
+  provider outside the workload's `providers.ts` allowlist, a non-openai provider with no
+  explicit `<WORKLOAD>_MODEL`, an invalid effort, a model unpriced FOR THAT PROVIDER, or a
+  (workload, provider, model, effort) with no
   `analysis-reg-v1` approval; `src/lib/llm/analysis-registry.ts` holds baseline-only
   approvals (gpt-4o-mini, effort absent, status `baseline`) with ZERO
   `evaluated_candidate` entries; map carries a HARD activation lock with no env override.
-  All ten routing envs (`MAP/REDUCE/DIGEST/VALIDATION/ENTITY_AUDIT_MODEL` +
-  `*_REASONING_EFFORT`) and `OPENAI_MODEL` are ABSENT in Production, Preview and
-  Development (verified read-only 2026-08-20), so every workload resolves to the historical
-  baseline and `mapExtractorVersion()` stays byte-identical to the deployed corpus's — all
-  six live production (theater, track) pairs re-verified against `doc_claims` on
-  2026-08-20. **Deployed, but nothing is activated:** the seam only makes the gate
+  **FIFTEEN routing envs, not ten** (corrected 2026-09-11, AUD-04 — the provider dimension
+  landed on `main` 2026-09-08 and this list was never widened): each of the five workloads
+  `MAP` `REDUCE` `DIGEST` `VALIDATION` `ENTITY_AUDIT` carries `_MODEL`, `_REASONING_EFFORT`
+  AND `_PROVIDER`, all fifteen declared together in `WORKLOAD_ENV`
+  (`src/lib/llm/model-config.ts:74-84`), plus `OPENAI_MODEL` as the openai-only global model
+  default. `ANALYSIS_PROVIDER` is a SIXTEENTH name that
+  `model-config.ts` deliberately does NOT read — it keeps its own stub/anthropic meaning in
+  `src/lib/analysis/provider.ts` — and belongs in the same read-back for that reason. The
+  ten `_MODEL`/`_REASONING_EFFORT` names and `OPENAI_MODEL` were verified ABSENT in
+  Production, Preview and Development read-only on 2026-08-20, so every workload resolves to
+  the historical baseline and `mapExtractorVersion()` stays byte-identical to the deployed
+  corpus's — all six live production (theater, track) pairs re-verified against `doc_claims`
+  on 2026-08-20. **The five `_PROVIDER` names have never been verified absent in any Vercel
+  environment** — they did not exist in code on 2026-08-20, and although a full three-environment
+  `vercel env ls` WAS taken on 2026-09-08 (46 / 28 / 20 rows, each with a positive control), its
+  recorded readout covers only the NEON/DATABASE names and `MAP_CONTENT_CHARS`, not these
+  (`docs/reviews/MAP-REMAP-RUNBOOK-2026-09-06.md` §4.1, §19). `DIGEST_PROVIDER` is the
+  single variable that can select a second vendor. That read-back is register gap G3 and is
+  step 27's hard gate; until it runs, "no routing variable exists in any Vercel
+  environment" below is a 2026-08-20 fact about ten names, not a current fact about fifteen.
+  **Deployed, but nothing is activated:** the seam only makes the gate
   enforceable — no candidate model is approved (`analysis-reg-v1` holds baseline-only
   entries, zero `evaluated_candidate`), no routing variable exists in any Vercel
   environment, and activating any candidate still requires its own paid representative
@@ -606,10 +624,12 @@ Operational rulings:
 
 ## Decision log (append-only, dated)
 
-Entries dated before **2026-09-05** are archived **verbatim** in `docs/DECISIONS.md`, plus
-the eleven earliest 2026-09-05 entries (eval successor-plan step 1 authorization, D1, D2,
-D5, D6, D8, D9, E1, E3, D11, D12), moved there by the eleventh archive pass — see that
-dated entry below; distilled still-binding decisions live in Standing rulings above.
+Entries dated before **2026-09-07** are archived **verbatim** in `docs/DECISIONS.md` — the
+twelfth pass (2026-09-11) moved the whole 2026-09-06 run, on top of the eleventh pass's
+eleven earliest 2026-09-05 entries. Three 2026-09-05 entries stay inline and are the log's
+earliest: the program-authorization entry, the worktree-cleanup entry and the
+2026-08-17-branches-landed entry. See the dated pass entries below; distilled still-binding
+decisions live in Standing rulings above.
 Append new entries at the
 END OF THIS SECTION in date order — NOT at the end of the file. (The former end-of-file
 convention, which left Conventions / Credentials / Next steps / Operating protocol wedged
@@ -744,267 +764,6 @@ mid-log, was retired by the eighth archive pass on 2026-09-07; OPEN-TASKS #92.)
   `gpt-5` in every Vercel env, and the router's `hasScorecard` gate means nothing in these
   offline artifacts can promote a local model. No source, scorer, fixture, dataset, prompt,
   cap, env, migration, deploy, or paid-provider change accompanies this landing.
-
-- **2026-09-06 (D3 — the conflict-keyed evaluation dataset is validation-v4, not v3)** The
-  conflict-keyed validation dataset is created as **v4, after** WS-1.3 freezes the per-country
-  v3, so the eval successor plan's step-2 identities stay stable and WS-3 stays off the label
-  timeline. Consequence recorded by the step-05 memo (C14): nothing in the 48-hour window
-  touches `docs/evals/analysis/` on WS-3's account; `conflict-roca-v1` / `conflict-iran-v1`
-  stay OFFLINE under the `validation` workload (`eval-profile.ts:71-78`;
-  `conflict-validation-profile.ts:42-46` "NO live path"). Coordination with WS-1.3 is naming
-  only (contract version, results basenames) — no shared file.
-
-- **2026-09-06 (D4 — conflict-validation unit decisions C1–C14 signed as recommended; N1
-  supersedes the soak design's provider row)** The operator signs every recommendation in
-  `docs/reviews/CONFLICT-VALIDATION-DECISION-MEMO-2026-09-05.md` ("yes sign all 14"), binding
-  for steps 13, 14, 19 and 24 and superseding the CTO handoff wherever the two differ. What is
-  now settled:
-  **C1** reference editions use design Option 3 — new `benchmark_report_editions` +
-  `benchmark_series_days` keyed by the domain `editionKey`, nullable `isw_report_id` FK,
-  **`isw_reports` untouched** (no `series`/`edition` columns, no relaxed unique key, no
-  `ru→roca` backfill in DDL); `source_citations`, `sources`, `source_theater_stats` and
-  `validation_runs` are unchanged.
-  **C2** the `CONFLICT_REGISTRY` becomes production truth through a NEW, UNSCHEDULED
-  `src/app/api/cron/conflict-validate` route; the existing per-country `validate` job,
-  `validation_runs` and `/scoreboard` numbers stay byte-identical through the window.
-  **C3** the denominator is every declared Key Takeaway of the selected edition under the
-  frozen `CONFLICT_HEADLINE_LABEL`; `classifyTakeawayTheater` becomes an ATTRIBUTION stored in
-  `unit_attribution`, never a filter — which is what removes the RU/UA double count.
-  **C4** `designated-final-v1`: discovery records EVERY edition, the cron scores ONE
-  observation per (conflict, daily-final winner, day), and the day's headline is derived at
-  read time, never by mutating an older row.
-  **C5** an edition links `isw_report_id` only when an existing `isw_reports` row's URL
-  normalizes to the same `editionKey`; otherwise `citation_anchor = none` and the
-  non-independence diagnostic honestly reports `unavailable`. Changing production's probe order
-  is deferred to WS-3.7 on step 14's measured evidence.
-  **C6** observations are **append-only** — `id serial`, `cron_run_id` FK, partial unique
-  `(conflict_id, reference_edition_id, cron_run_id)`, no unique key on (conflict, edition), no
-  overwrite path — because the shadow soak grades verdict variance across repeated runs of the
-  same days and an overwrite would destroy that instrument (ruling 17 points the same way).
-  `withCronRun` gains an optional `runId` callback argument (additive).
-  **C7** the Iran/Levant gazetteer stays its own versioned module consumed via
-  `gazetteerFor(series)`; `lane-classifier.ts`'s `IRAN_GEO` stays a separate versioned regex
-  set, coupled only by a TEST asserting every classifier toponym exists in the gazetteer;
-  observations stamp `gazetteer_version`.
-  **C8** `legacy_only` gulf theaters keep the SHIPPED contract — excluded from corpus recall,
-  labeled MEMBERS of published retention — and the view adds a derived "matched with
-  legacy-only evidence" companion count. The handoff's "excluded from the numerator" is NOT
-  adopted: it would be a methodology change (new epoch, golden regeneration).
-  **C9** ROCA stays `contributorTracks = ["military"]` for the soak; `+elite_politics`
-  (`ru-ua-ev-v2`) is a post-soak candidate decided on the soak's §5.1 miss sample.
-  **C10** `/scoreboard` STAYS PUBLIC; the country rows are relabeled as evidence lenses by copy
-  only (all seven locales), numbers untouched, and the conflict view reuses the existing
-  flag-gated `/conflicts/**` routes with a DB-backed provider. The ROUTES-row obligation is met
-  by extending `conflict-feature-off.itest.ts`, not by an `authz-page-gate` row.
-  **C11** conflict rows carry NO coverage target in this window — numerator/denominator, n,
-  label and rung only; the target is set after the soak, by its own entry.
-  **C12** the shadow matcher gets its OWN ledger row `llm_conflict_match` with
-  `CONFLICT_MATCH_USD_CAP_DAILY` (fail-closed when unset), `CONFLICT_MATCH_DAILY_REQUEST_CAP`
-  300, `CONFLICT_MATCH_RUN_REQUEST_CAP` 200 and the `LLM_SPRINT_USD_CAP` backstop — never the
-  production `llm_match` row (a shadow budget stop must not starve production validation) and
-  never `openai_eval` (a cron route importing `src/lib/evals/*` breaks the eval-library
-  isolation contract).
-  **C13** a versioned `deriveUnitFlags` seam ships at `unit-flags-v0` with `negative` as a
-  deflationary heuristic and `compound` UNDETERMINED (`false`); every observation stamps
-  `unit_flags_version` and the view labels such rows "compound handling undetermined — not
-  soak-eligible". **Binding condition of this signature:** because `compound: false` is the
-  over-credit direction, no number produced under `unit-flags-v0` may leave the internal view —
-  not to a customer, not onto `/scoreboard`, not into a report figure. A human-calibrated
-  `compound-v1` remains a WS-3.6 prerequisite.
-  **C14** is D3 above (v4).
-  **N1** — the shadow-soak design's §7 provider row (`openai_eval` + `EVAL_USD_CAP_DAILY`) is
-  SUPERSEDED by `llm_conflict_match` + `CONFLICT_MATCH_USD_CAP_DAILY` with **every predeclared
-  threshold unchanged** (daily $2, 300/day, 200/run, ≤$25 envelope, `LLM_SPRINT_USD_CAP`
-  backstop), so the soak stays predeclared rather than retuned.
-  **Ruling-4 ordering, binding at WS-3.6, not now:** deploying the guard with its cap unset
-  stops nothing (the path is inert and the ladder falls back to the keyword rung), but
-  `CONFLICT_MATCH_USD_CAP_DAILY` must exist in ALL THREE Vercel environments BEFORE the cron
-  line is added to `vercel.json`.
-  This entry authorizes no deploy, no environment change, no production write, no flag-on and
-  no soak; every PR it unblocks lands inert behind step 26's go/no-go.
-
-- **2026-09-06 (N2 — production invocation of `/api/cron/conflict-validate` is forbidden until
-  WS-3.6)** Once the route deploys, a `GET` with `CRON_SECRET` WRITES
-  `benchmark_report_editions` / `benchmark_series_days` (and, after PR 3.3b, observations) in
-  production. Such an invocation is forbidden until the WS-3.6 scheduling entry, with ONE
-  exception: a bounded operator smoke over a single date and a single conflict, signed in this
-  log before it runs and reported with its counts afterwards. The post-deploy smoke in the
-  plan's §6 deliberately calls the route WITHOUT the secret and expects 401.
-
-- **2026-09-06 (N3 — edition backfill authorized after PR 3.2a deploys)** The idempotent, $0,
-  LLM-free operator script registering every existing ROCA/Iran `isw_reports` URL as an edition
-  row (with `isw_report_id` linked) is authorized to run AFTER PR 3.2a is merged and deployed,
-  preceded by a Neon backup branch (Iran-recovery precedent) and followed by a decision-log
-  entry with counts. It writes ONLY to the two new tables; `isw_reports` and `source_citations`
-  are not touched. It also supplies the ≥1-month real sample the compound-rate measurement
-  (register #12.2) needs.
-
-- **2026-09-06 (E4 — val-typ-005 semantic adjudication, #105)** For development case
-  `val-typ-005-majority`, takeaway 1's semantic label is **`claimId: null`**: "Air defense units
-  were active over Belgorod region" does not establish the INCREASE that defines the takeaway's
-  development, and shared activity plus shared location identify a topic, not an event
-  (`src/lib/validation/llm-match.ts:75-82` requires the same underlying development and contains
-  no "same event, weaker strength" rule). This judgment is independent of the authored 2-2-1
-  vote arithmetic. Both `expectMajority` entries stay unchanged (`[{takeawayIndex: 0, final:
-  1071}, {takeawayIndex: 1, final: null}]`) — the pin tests fixture arithmetic while live output
-  is scored against `reference.labels`, and `validation-parity.test.ts:311-340` deliberately
-  makes the two disagree while both pass. WS-1.3 records this reason in the validation-v3
-  admission; any changed reference needs a new case ID or `datasetVersion`; existing v1/v2
-  datasets and historical results stay frozen. This ruling grants no heldout inspection, rerun,
-  scorer change, spend or deployment. Source:
-  `docs/reviews/EVAL-VAL-TYP-005-ADJUDICATION-2026-09-05.md`.
-
-- **2026-09-06 (E5 — one authorized write under `docs/evals/analysis/`, scoped to step 19)**
-  When step 19 lands the scorer-level per-unit `insufficient_data` diagnostic, the golden
-  `cc-matcher-failclosed-013b#B-zero-valid-rounds` changes, its bytes feed
-  `conflictDatasetContentHash`, and `hardening-cli.test.ts:193` fails until
-  `docs/evals/analysis/results/conflict-roca-v1-offline-fixtures.json`,
-  `…/conflict-iran-v1-offline-fixtures.json` and `CONFLICT-EVAL-SCORECARD` are regenerated with
-  `--offline --profile conflict --fresh --fresh-ack`. That regeneration is **authorized for step
-  19 only**: it is deterministic, costs $0 and contacts no provider, but it is a write under
-  `docs/evals/analysis/`, which this program otherwise freezes. Conditions: the PR body shows
-  the exact command and the changed golden; an `EVAL-EXPOSURE-LEDGER.md` entry records it; no
-  other file under `docs/evals/analysis/` is touched; step 06's PR stays rung-level only so it
-  needs no regeneration.
-
-- **2026-09-06 (R1 — Ask per-model attribution shape)** Ask per-model attribution ships as a
-  **read-only report over `ask_usage`** (PR-2.1-1): no migration, no environment change, no cap
-  split. The `provider_usage.model` column is explicitly NOT taken — `provider_usage` is UNIQUE
-  (provider, day), so a model column there would stamp only the last model of each day and
-  attribute nothing; per-model provider rows are rejected outright because they would split
-  `ASK_USD_CAP_DAILY` and change ruling-4 env ordering. **Consequence: planned migration 0031 is
-  not created**, and the window's migration order reduces to 0028/0029 (step 13) then 0030 (step
-  16). Revisit after step 4 of the eval program.
-
-- **2026-09-06 (R2 — offline eval identity decoupled from the live registry constant; no version
-  bump this window)** `ANALYSIS_ROUTING_REGISTRY_VERSION` is stamped into every offline eval
-  results header and compared on resume, and `hardening-cli.test.ts:192-206` pins the committed
-  files, so bumping the constant to `analysis-reg-v2` would rewrite files under
-  `docs/evals/analysis/` for no benefit. Step 12 decouples the offline identity from the live
-  constant (PR-2.2-2) and the bump is deferred until the first non-OpenAI approval actually
-  lands, when it carries its own inventory pass.
-
-- **2026-09-06 (R3 — `hasScorecard()` gates the Ask Auto money path)** The Auto money path
-  checks `hasScorecard()` and DEGRADES (provider `"unscorecarded"`) rather than throwing, behind
-  a test that pins baseline behaviour byte-identical when no environment override exists — so an
-  environment with no override behaves exactly as it does today.
-
-- **2026-09-06 (O1 — Vercel log drain into our own Neon-backed receiver; 14-day retention)**
-  OPEN-TASKS #93 is closed by option (a): a receiver route `/api/logs/drain` on our own
-  deployment inserting into our own `runtime_logs` table, retention **14 days** swept inside the
-  drain route, and the operator registers the drain through the Vercel dashboard AFTER the
-  receiver deploys with `LOG_DRAIN_SECRET` already set in Production (ruling-4-style ordering,
-  even though the secret is not a spend cap). **Clarification of record:** the operator's H0 note
-  that "Neon does not support drains on the Launch plan" concerns a Neon-side log-export feature
-  this design never uses — the receiver needs nothing from Neon beyond ordinary table writes, and
-  the only platform capability required is the Vercel drain, which the operator confirmed the
-  plan supports. The contrary sentence in the H0 draft
-  (`docs/reviews/DECISION-ENTRIES-DRAFT-2026-09-05.md`, section (c), O1) was therefore never
-  signed; this entry is the whole of O1.
-
-- **2026-09-06 (O2 — #79 RU ROCA citation drain authorized, with a backup branch)** The operator
-  is authorized to run `scripts/isw-refresh.ts --theater ru` (and `--retry-failed` if the dry run
-  shows fetch failures) followed by `scripts/registry-materialize.ts` against PRODUCTION, per
-  `docs/reviews/RUNBOOK-79-RU-CITATION-DRAIN-2026-09-05.md`, preceded by a Neon backup branch
-  kept until the closing entry is written and then deleted. Cost is **$0** — neither script
-  imports any LLM module; egress is to understandingwar.org only, disk-cached, ≥2 s/host. Scope:
-  the ~36 `parse_status='pending'` `ru` reports 2026-07-04 → 2026-08-14, the same historical
-  staleness the 2026-08-15 Iran recovery fixed for `ir`.
-  **Recorded consequence, so it is not discovered later as a surprise:** `registry-materialize`
-  is a full DELETE + rebuild of `source_theater_stats` in one transaction and also updates the
-  global reliability columns on `sources`, and the digest gather orders documents by
-  `s.reliability_score` (`src/lib/analysis/digest.ts:89,100`). Draining RU citations therefore
-  changes WHICH documents enter subsequent ru digests — the intended repair, but a live behaviour
-  change, not a passive backfill. Run it away from the 02:00Z finalize; the closing entry records
-  the counts and the first post-drain ru digest and scoreboard row.
-
-- **2026-09-06 (D10 — migration order for the window)** The INDEX §4 assignment is accepted, less
-  the migration R1 removed: **0028** `benchmark_report_editions` + `benchmark_series_days` and
-  **0029** `conflict_validation_observations` (both step 13, merged in that order), then **0030**
-  `runtime_logs` (step 16). No 0031 (R1 = read-only report). `9999_claim_source_trigger.sql`
-  stays last; each migration PR rebases onto `main` and regenerates before merge; no applied
-  migration is renumbered (ruling 5).
-
-- **2026-09-06 (T1 — ICS 206-01 descriptors and ICD 203 estimative language become the product
-  vocabulary)** ICS 206-01 source descriptors and ICD 203 estimative language are the user-facing
-  vocabulary; NATO AJP-2.1 / Admiralty two-axis codes are derived EXPORT fields only, never the
-  primary presentation (`docs/prompts/2026-09-06-ws7-tradecraft-legibility-addendum.md` §5 item
-  9).
-
-- **2026-09-06 (T2 — access date in citation mode)** The citation mode shows `fetched_at` labeled
-  **"Accessed (BNOW ingest)"**, and only in citation mode. This deliberately reverses the
-  2026-07-16 decision to hide the ingest timestamp, for the narrow case of a citation a reader
-  must be able to reconstruct.
-
-- **2026-09-06 (T3 — WS-7 mapping approach agreed, tables NOT yet signed)** The operator agrees
-  to the approach of two versioned mapping tables (ICD 203 band × confidence; 1–6 credibility)
-  with a per-cell rationale and the constraint that no cell may exceed "likely" / "moderate" from
-  a single uncorroborated document. **The tables themselves are NOT yet signed** — step 29 drafts
-  them as data and the operator signs before step 34's first PR. No WS-7 PR may ship a mapping
-  cell until that signature exists.
-
-- **2026-09-06 (R6 — caps for the Anthropic metering row: reuse the existing envelope)** The new
-  provider row `anthropic_digest` reuses **`LLM_SPRINT_USD_CAP`** (all-time backstop) and
-  **`LLM_DIGEST_USD_CAP`** (daily). **No new environment variable is created.** This is the
-  entity-audit precedent, it is what D2's "Same Budget" means in practice, and it avoids the
-  ruling-4 ordering obligation (a cap env present in all three Vercel environments before the
-  guard deploys) for a path that is dormant in this window anyway. The rejected alternative,
-  `ANTHROPIC_DIGEST_USD_CAP`, is strictly more operational work for identical protection.
-  Unblocks PR-2.2-B1 (step 20b).
-
-- **2026-09-06/07 (R7 — Anthropic pricing is per-model rows, each operator-verified; Haiku 4.5
-  entered, Sonnet 5 held)** `PRICES_PER_MTOK` in `src/lib/llm/pricing.ts` is a TABLE — one row
-  per model, keyed by the exact API identifier — so pricing a model is NOT a choice of one model
-  for the whole provider. Every model the router may select gets its own row, and per-workload
-  model selection is unaffected by this decision. What is binding is the gate: a model with no
-  row is REFUSED by `workloadDispatchConfig` before any reservation, and **that refusal is the
-  intended fail-closed state, not a defect** — a later session must not "fix" it by guessing a
-  price. Each row is added by a code PR carrying the operator-verified list price in its body
-  (the embedding-table precedent), and Anthropic rows must set `ModelPrice.provider` explicitly,
-  so a same-named model on two vendors can never share one price by accident.
-  **Verified 2026-09-07 against the vendor's published pricing page and entered:**
-  `claude-haiku-4-5-20251001` at **$1.00 in / $5.00 out** per 1M tokens — the operator's list and
-  the vendor page agree exactly, and it is the appropriate first model for the digest workload.
-  **NOT entered, held pending resolution:** Claude Sonnet 5, where the operator's list gives
-  **$3.00 / $15.00** (introductory $2/$10 stated as expired 2026-08-31) while the vendor's
-  pricing page still showed **$2.00 / $10.00** when checked on 2026-09-07. One of the two is
-  stale. This is precisely the 2026-08-20 gpt-5-mini situation, in which a wrong number
-  under-metered spend 2×, so Sonnet is entered only after the figure is confirmed against actual
-  console billing — ground truth in a way a documentation page is not. Opus 5 ($5/$25) and Fable
-  5.1 ($10/$50) agree across both sources and may be added when a workload needs them; the
-  parked-branch note under R5 (local model ids stay out of `PRICES_PER_MTOK`) is unaffected.
-  Unblocks PR-2.2-B2 (step 20b) for Haiku only.
-
-- **2026-09-06 (D6 addendum — effect of the campaign-local `LLM_SPRINT_USD_CAP`; value set at
-  $2.00)** The authorized value is the **all-time total cap for ONE provider row**, compared
-  against that row's cumulative lifetime total before each dispatch
-  (`src/lib/usage/spend-guard.ts:122`) — not a per-run budget and not a daily cap. For the WS-1.1
-  capture run the row is `openai_eval` on the kept disposable Neon branch, whose ledger **already
-  holds ≈$0.15** from the 2026-09-03 campaign; that prior spend counts against whatever value is
-  chosen, so $2.00 leaves ≈$1.85 of headroom against a run that costs ≈$0.01 (≈18 map calls).
-  Because the check is a threshold test taken BEFORE dispatch, terminal spend can exceed the
-  ceiling by at most one response's cost. It never acts alone: `EVAL_USD_CAP_DAILY` must also be
-  set (=2 per the successor plan) or the guard refuses everywhere — `eval-guard.ts` deliberately
-  has no out-of-production default. And it is **campaign-local**: a shell variable for a local CLI
-  run bound to a disposable branch, never written to any Vercel environment, so production's
-  shared $10 backstop and every production ledger row are untouched.
-  **Value set: $2.00**, the top of the authorized range, chosen so a retry or a second capture
-  pass cannot force a mid-run cap edit. Because it is a shell variable, the figure is adjustable
-  at any time by re-exporting it and does not require a further decision entry unless the ceiling
-  itself is raised above $2.00. The executing session records the exact value, the branch id, and
-  the before/after `openai_eval` ledger reading in `docs/reviews/EVAL-EXPOSURE-LEDGER.md`.
-
-- **2026-09-06 (R5 — the "#108" locator names a parked branch)** The identifier "#108", which
-  appears in the CTO roadmap handoff but is not an OPEN-TASKS item, refers to the parked branch
-  **`claude/local-model-ask-eval-20260817`**. Verified at signing: the branch exists both locally
-  and on `origin` (tip `8a0ca89`, "ask-eval: offline fidelity harness + local-model scorecard
-  (official vs modified Gemma)") and is NOT merged into `main`. Its disposition is unchanged by
-  this entry — it stays OUT per `docs/reviews/PENDING-MERGE-ADJUDICATION-2026-08-25.md` §5.5
-  (its Ask-specific CLI collides conceptually with the repository-owned eval control plane;
-  reconcile separately), and its binding notes stand: local model ids stay out of
-  `PRICES_PER_MTOK`, `ASK_ANSWER_MODEL` remains `gpt-5` in every Vercel environment, and no local
-  model promotes without its own paid scorecard. Related debt stays tracked as OPEN-TASKS #100
-  (the untracked `ask-eval-harvest.ts` isolation exemption).
 
 - **2026-09-07 (R7 addendum — Claude Sonnet 5 priced at $2.00 / $10.00; the $3/$15 increase was
   cancelled)** The 2026-09-06/07 R7 entry held Sonnet 5 out of `PRICES_PER_MTOK` because the
@@ -1704,6 +1463,71 @@ mid-log, was retired by the eighth archive pass on 2026-09-07; OPEN-TASKS #92.)
   session's own new entries, not a lost or edited one — see the closing report for the
   full readout). $0, docs only; no code, schema, env, cap, or deploy change. Full accounting, every git grep
   run, and the drafted INDEX §10 program-log line: `docs/reviews/PROGRAM-48H-DOCS-SYNC-2026-09-07.md`.
+
+- **2026-09-11 (twelfth archive pass — a one-off cut to 2026-09-07 under D5's ceiling; the
+  window is not amended)** Operator-ruled, on the tenth pass's precedent (2026-09-08). Before
+  this pass `AGENTS.md` stood at **149,979 characters** — 21 under the 150,000 ceiling — after
+  the AUD-04 standing-text correction, and step 27 must both sign the step-25 closing entry that
+  is still marked unsigned and append a deploy entry of 2–4k. D5's 7-day inline window had
+  nothing eligible until 2026-09-13, so the window and the ceiling conflicted again, and again
+  the ceiling is the harder rule (the window exists to serve it). Moved **verbatim** to
+  `docs/DECISIONS.md`: the whole **2026-09-06** run, nineteen entries (D3, D4, N2, N3, E4, E5,
+  R1, R2, R3, O1, O2, D10, T1, T2, T3, R6, R7, the D6 addendum, R5 — R7 is the entry headed
+  `2026-09-06/07`, which sorts as 2026-09-06 and moves with its run). **Proven PASS** by `bash
+  scripts/check-decision-log-move.sh HEAD` run on the pure move, before this entry was appended:
+  216 entries before and after, every body byte-identical and accounted for, none duplicated,
+  none invented, ascending date order in both files. The move itself conserved bytes exactly —
+  399,392 across the two files before and after, measured before the two pointer paragraphs were
+  corrected. `AGENTS.md` **149,979 → 129,154** characters (the move plus those two pointers),
+  ~21k of headroom before this entry. Re-run WITH this entry present, the same check reports
+  `0 lost or edited, 1 new` — that one is this entry, which is the eleventh pass's documented
+  readout, not a lost or edited body. The log's earliest inline entries are still the three
+  2026-09-05 ones the eleventh pass left; the inline window now begins at **2026-09-07**.
+  **D5's 7-day window is NOT amended** — the next pass reverts to it; the archive header and the
+  pointer paragraph above record the split point as 2026-09-07 with a pointer here. $0, docs
+  only, no code, and no standing text changed except those two pointer paragraphs.
+
+- **2026-09-11 (T3-c — named-person allegations are routed to the estimative band's `withheld`
+  path; AUD-01, option 1)** The 2026-09-11 final audit
+  (`docs/reviews/PROGRAM-48H-FINAL-AUDIT-2026-09-07.md` §4.1) found that `ESTIMATIVE_MAP_V1`
+  labels a disputed reputational allegation about a named person **`likely (55–80%)` ·
+  corroboration-derived confidence `moderate`** at exactly the two-document count that makes it
+  publishable at all (`ALLEGATION_MIN_DOCS = 2`, `src/lib/analysis/publication-guard.ts:57`).
+  The cause is structural, not a defect against a signed decision: none of T3's six invariants
+  mentions person-allegations or ruling 19, the operator's only harm-shaped constraint
+  ("nothing above likely/moderate from a single uncorroborated document") is keyed on **document
+  count, not content class**, and the estimative module is by design unable to see
+  `isPersonAllegation` — `estimative.test.ts:361-366` FORBIDS importing `publication-guard`.
+  Ruling 19 is inherited rather than circumvented (`synthesize.ts:409-420` recomputes the ladder
+  on native pre-promotion hedging, so such a claim enters on the `claimed` row and costs two
+  band steps), and all four render sites are accepted-user gated, which is why this is not
+  deploy-gating. **Decision:** such claims take the existing, tested `withheld` path
+  (`likelihood: null`, rendered "not assessable"; `src/lib/tradecraft/estimative.ts:307`), with
+  the allegation flag supplied from OUTSIDE the module — a server-passed boolean or a leaf
+  module on the `src/lib/analysis/attribution-labels.ts` precedent — so the import-hygiene
+  invariant stands unchanged. **AUD-49 is folded into the same implementation:**
+  `corroborationTier` ignores the `doc_dedup` mirrors that `reduce-io.ts:118-126` loads and
+  `independentSourceCount` (`reduce.ts:286,367`) consults, so two mirrored documents count as
+  two channels and lift the band by up to one step on ALL hedging rows. Presentation only —
+  nothing stored changes, no backfill, and a changed cell is a new version, never an edit to V1
+  (T3). Implementation is **OPEN-TASKS #121**, owned by the next program's first wave; it is not
+  deploy-gating, because every render site is accepted-user gated and the AJP-2.1 credibility
+  code is computed and never rendered (T1, `ics206.ts:103-105`).
+
+- **2026-09-11 (C13-b / C10-b — `compound-v1` lands before `CONFLICTS_UI` is turned on)** Step
+  24's report (`docs/reviews/CONFLICT-SHADOW-SOAK-ENABLEMENT-2026-09-07.md` §3, "Decisions
+  needed 1") found that **C13** — no number produced under `unit-flags-v0` may reach a customer,
+  because `compound: false` is the over-credit direction — and **C10** — the `/conflicts` teaser
+  tier is PUBLIC at flag-on — collide the moment the flag flips. They do not collide today only
+  because `CONFLICTS_UI` is absent everywhere and every conflict route 404s. **Decision: option
+  (a)** — build the `compound-v1` derivation and replace the heuristic **before any environment
+  sets `CONFLICTS_UI`**. The C10 access-tier split is unchanged, and the shipped
+  soak-eligibility banner stays as interim disclosure on gated surfaces only; option (c)
+  (banner-as-sufficient-disclosure on a public surface) is a reading of C13 the words do not
+  support and is explicitly not taken by silence. This is already the soak's blocker 1, so it
+  adds nothing to the critical path — but it now gates the FLAG, not only the soak's report.
+  The WS-3.6 enablement checklist carries it as its first gate (§2.0 gate 1, added in the same
+  PR as this entry), and §3's question is recorded there as answered rather than open.
 
 ## Conventions
 

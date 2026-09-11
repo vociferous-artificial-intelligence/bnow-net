@@ -14,6 +14,12 @@ N1, N2, N3 and C15 in `AGENTS.md`, the step-18 audit register
 resolutions, the C5-m measurement (`docs/reviews/C5M-PROBES-2026-09-07.md`), and the step-19
 handoff (`docs/reviews/WS-3-3-EVIDENCE-POPULATION-2026-09-06.md`).
 
+**Amended 2026-09-11** (pre-deploy fixes, PR on `48h/gov-20260905-pre-deploy-fixes`): §2.0 adds
+the two gates that come before every other enablement item — `compound-v1` before `CONFLICTS_UI`
+(decision **C13-b / C10-b**, which also answers §3) and migrations **0028**/**0030** applied and
+verified before the cron line (finding **AUD-05**). Nothing else in this document changed, and
+it still enables nothing.
+
 The soak's own thresholds are NOT restated as new numbers here. Where §6 quotes them it quotes
 the design verbatim, so there is exactly one authority and this document cannot silently retune
 it.
@@ -41,7 +47,9 @@ deliberate placeholder *with a binding condition*: `false` is the OVER-CREDIT di
 number produced under it may leave the internal view — not to a customer, not onto
 `/scoreboard`, not into a report figure. Every observation this window can write stamps
 `unit-flags-v0` (step-19 handoff), so **every conflict number that exists today is
-not-soak-eligible**.
+not-soak-eligible**. **Since 2026-09-11 this blocker also gates the FLAG**, not only the soak:
+decision C13-b/C10-b makes `compound-v1` a precondition of any environment setting
+`CONFLICTS_UI` (§2.0 gate 1, §3's resolution).
 
 **What step 24 built against it.** The conflict surfaces carry the condition as a BANNER, in the
 slot and at the prominence the retired synthetic-corpus banner held
@@ -111,7 +119,49 @@ the design assumes, for a measured reason.
 
 ## 2. Enablement items — the checklist proper
 
-Each item is a precondition. None is performed here.
+Each item is a precondition. None is performed here. **§2.0 comes before every other item in
+this section**; the rest are unordered among themselves except where §2.1 states its own
+ordering rule.
+
+### 2.0 The two gates that come first (added 2026-09-11)
+
+Both were missing when this checklist was written. The first is decision C13-b/C10-b, signed
+2026-09-11; the second is finding **AUD-05** of `docs/reviews/PROGRAM-48H-FINAL-AUDIT-2026-09-07.md`.
+
+**Gate 1 — `compound-v1` ships before `CONFLICTS_UI` is set anywhere.** The operator answered
+§3's question on 2026-09-11 with option **(a)**: build the `compound-v1` derivation and replace
+`unit-flags-v0` before any environment sets `CONFLICTS_UI`. The C10 access-tier split is
+unchanged and the shipped banner stays as interim disclosure on gated surfaces only. This is
+already blocker 1 (§1.1), so it adds nothing to the critical path — but it is now a gate on the
+FLAG, not only on the soak's report, and §3 is answered rather than open.
+
+**Gate 2 — migrations 0028 and 0030 are applied in production before the cron line is added.**
+The route writes `benchmark_report_editions` and `benchmark_series_days` (migration **0028**,
+`drizzle/0028_lumpy_dragon_lord.sql`) and `conflict_validation_observations` (migration **0030**,
+`drizzle/0030_conflict_observations.sql`). Production stood at **0027** through the 48-hour
+window; all three of 0028/0029/0030 exist only on `main`. §8's `_migrations` gate covers **0029 /
+`runtime_logs` only** — a different feature — and does not cover these two.
+
+Before the `vercel.json` line of §5 is added, both must answer:
+
+```sql
+SELECT name FROM _migrations WHERE name LIKE '0028%' OR name LIKE '0030%';  -- expect two rows
+SELECT to_regclass('benchmark_report_editions')  AS editions,
+       to_regclass('benchmark_series_days')      AS series_days,
+       to_regclass('conflict_validation_observations') AS observations;     -- expect three non-NULL
+```
+
+**Why this is a gate and not a note.** `discoverEditions` **fetches first and writes second**,
+and `SqlReferenceReportRepository` (`src/lib/conflicts/reference-repo-sql.ts`) has **no
+`to_regclass` preflight** — the only `to_regclass` calls in the tree are in the itests. So
+against an unmigrated database the first scheduled run spends its full politeFetch probe budget
+(≥2.1 s/host, ~10 probes/run) against a host already measured to throttle, then throws `42P01`
+on the write; the route catches per cell and reaches
+`markDegraded(counts, "nested_errors", …)` (`src/app/api/cron/conflict-validate/route.ts:228`).
+It does **not** 500 and does **not** halt. The observable result is a soak that looks alive,
+burns third-party budget, and records zero observations — indefinitely. This is decision A2's
+failure shape reproduced in the sibling workstream, which is why the remedy is A2's: gate the
+scheduling, not the deploy.
 
 ### 2.1 Environment, in ruling-4 order
 
@@ -195,7 +245,13 @@ checklist requires any `EVAL_*` variable.**
 
 ---
 
-## 3. One question this checklist cannot answer, and it is a gate
+## 3. One question this checklist could not answer — ANSWERED 2026-09-11, option (a)
+
+> **Resolved.** The operator signed **C13-b / C10-b** on 2026-09-11: option **(a)** — land
+> `compound-v1` and replace the heuristic **before any environment sets `CONFLICTS_UI`**. The
+> C10 access-tier split is unchanged; the shipped banner stays as interim disclosure on gated
+> surfaces only. The gate now sits at §2.0 as gate 1. The section below is retained unedited as
+> the reasoning that was put to the operator.
 
 **May a `unit-flags-v0` number be shown on a PUBLIC surface when `CONFLICTS_UI` is turned on?**
 
@@ -217,6 +273,7 @@ Three ways out, for the operator to choose at the enablement decision, not befor
 
 **Recommendation: (a).** It costs nothing that is not already on the critical path — blocker 1
 blocks the soak anyway — and it is the only option that needs no new decision entry.
+**(Taken, 2026-09-11 — see the resolution note at the head of this section.)**
 
 ---
 
@@ -425,6 +482,8 @@ dashboard, `SELECT name FROM _migrations WHERE name LIKE '0029%'` returns exactl
 Everything. Specifically: no flag, no environment variable, no cron line, no migration, no
 deploy, no provider call, no `--execute-live`, no `CONFLICTS_UI`, no
 `CONFLICT_MATCH_USD_CAP_DAILY`, and no production invocation of
-`/api/cron/conflict-validate` (N2 stands). The soak may not start until §1's three open blockers
-close, §2.3's code preconditions are met, §3's question is answered, and a decision-log entry
-names this document's — that is, the design's — thresholds as binding.
+`/api/cron/conflict-validate` (N2 stands). The soak may not start until **§2.0's two gates pass**
+(`compound-v1` shipped; 0028 and 0030 applied and verified in production), §1's three open
+blockers close, §2.3's code preconditions are met, and a decision-log entry names this
+document's — that is, the design's — thresholds as binding. §3's question is no longer open: it
+was answered on 2026-09-11 as option (a), which is §2.0's gate 1.

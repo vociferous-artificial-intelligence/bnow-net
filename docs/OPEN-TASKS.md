@@ -843,11 +843,27 @@ docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md)
     byte-identical to the deploy). **STATUS 2026-09-06: checklist codified**
     (`docs/RELEASE-CHECKLIST.md` step 4/8: deploy from the plain clone only, clean-tree
     check included) — the underlying CLI limitation itself is unfixed.
-79. **[Tier 2] RU ROCA citation registry has the same historical staleness Iran had.**
-    36 ru reports (2026-07-04→08-14) are `pending` with zero citations; newest parsed ru
-    report is 2026-07-03. The 2026-08-15 validation hook refreshes citations for every
+79. **[CLOSED 2026-09-07 — EXECUTED under the signed O2; do NOT re-run]** RU ROCA citation
+    registry had the same historical staleness Iran had.
+    ✅ **CLOSED 2026-09-07 by execution.** The one authorized run named below HAS been made,
+    under the O2 authorization of 2026-09-06, behind Neon backup branch
+    `br-wispy-silence-atgxus3y` (deleted 2026-09-07T21:28:43Z): `ru` pending **36 → 0**,
+    parsed 1,562 → 1,598, **5,421 citations inserted**, 98 new sources; the follow-on
+    `registry-materialize` moved `source_theater_stats` for `ru` from 7,068 rows / avg
+    reliability 0.571 to **7,174 / 0.572** and left **0** cited-but-zero-count sources. $0,
+    no migration, no env change. Record: the AGENTS.md decision-log entry of the same date
+    ("OPEN-TASKS #79 — RU ROCA citation registry drain — EXECUTED").
+    ⚠️ **Re-running it is not a no-op.** `registry-materialize` is a full `DELETE` and
+    rebuild of `source_theater_stats` in one transaction and also rewrites
+    `sources.reliability_score`, which `src/lib/analysis/digest.ts:89,100` orders the digest
+    gather by — so a redundant run changes WHICH documents enter subsequent `ru` digests.
+    The residue is tracked separately as **#113** (26 `ru` reports `parse_status='failed'`,
+    2022-04-27 → 2024-03-30, which `--retry-failed` does not recover); #79 closed complete
+    without them. The original text follows as history.
+    36 ru reports (2026-07-04→08-14) were `pending` with zero citations; newest parsed ru
+    report was 2026-07-03. The 2026-08-15 validation hook refreshes citations for every
     report validation fetches GOING FORWARD (theater-agnostic), but the historical rows
-    need one authorized run: `npx tsx scripts/isw-refresh.ts --theater ru` + a full
+    needed one authorized run: `npx tsx scripts/isw-refresh.ts --theater ru` + a full
     `registry-materialize` (minutes, $0). Deliberately not run during the Iran recovery —
     outside that task's production-write authorization.
 80. **[maintenance] `.env.local`'s `DATABASE_URL_UNPOOLED` credentials are stale** (auth
@@ -2349,3 +2365,48 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     file. Same posture as the step-18 register's disclosure 3.
     **Owner:** step 23 lane C for (1); the WS-3.6 enablement checklist (step 24) for (2) and
     (3). Related: WS3-F06, decision D-e (2026-09-09). Filed 2026-09-09.
+
+121. **[Tier 2 — presentation safety] The estimative band publishes `likely (55–80%)` on the
+    one content class ruling 19 governs, and `corroborationTier` counts `doc_dedup` mirrors as
+    independent channels.** Two findings, one implementation, decided as **T3-c** (2026-09-11,
+    AGENTS.md decision log).
+    **AUD-01.** A `claimed`-hedged, two-document, named-person allegation passes
+    `guardPublishedEvents`, is published as "Sources claim: …", summarizes to tier **C3**, and
+    renders **`Likelihood: likely (55–80%) · Corroboration-derived confidence: moderate`**.
+    Reproduced by execution by two independent refuters. The cause is structural: T3's six
+    signed invariants say nothing about person-allegations, the operator's harm-shaped
+    constraint is keyed on **document count, not content class**, and `ALLEGATION_MIN_DOCS = 2`
+    (`src/lib/analysis/publication-guard.ts:57`) is exactly the count at which the `claimed` row
+    reaches its ceiling — there is no interval between "barely publishable as a
+    defamation-grade allegation" and "likely". Ruling 19 is inherited, not circumvented:
+    `src/lib/analysis/synthesize.ts:409-420` recomputes the ladder on native pre-promotion
+    hedging, so the claim can never enter on the `confirmed` row.
+    **AUD-49.** `corroborationTier` (`src/lib/tradecraft/estimative.ts:255`) ignores the
+    `doc_dedup` mirror map that the pipeline's own independence test consults:
+    `src/lib/analysis/reduce-io.ts:118-126` loads `mirrorOf` and
+    `independentSourceCount` (`src/lib/analysis/reduce.ts:286`, threshold at `:367`) uses it,
+    but `finalizeEvents` unions all group `docIds`, so both mirror documents become
+    `claim_sources` rows and `summarizeClaimEvidence` counts two channels. Measured over the
+    same two documents: `independentSourceCount` = **1**, `corroborationTier` = **C3**. Up to
+    one band step of over-credit, on ALL hedging rows.
+    **The fix (T3-c).** Route a disputed named-person allegation to the module's existing,
+    tested `withheld` path (`estimative.ts:307`, `likelihood: null`, rendered "not assessable"),
+    with the allegation flag supplied from OUTSIDE `src/lib/tradecraft/` — a server-passed
+    boolean or a leaf module on the `src/lib/analysis/attribution-labels.ts` precedent. The
+    module must NOT import `publication-guard`: `src/lib/tradecraft/estimative.test.ts:361-366`
+    forbids it in both directions and that invariant stands. Fold `doc_dedup` mirrors out of
+    `corroborationTier` in the same change.
+    **Acceptance test.** (1) The audit's fixture — a `claimed`-hedged two-document named-person
+    allegation — renders **no band** on every render site and in the citation artifact.
+    (2) `independentSourceCount` and `corroborationTier` **agree** on the mirror pair. (3) The
+    import-hygiene scan still passes unchanged.
+    **Scope and cost.** Presentation only: nothing persisted changes and there is no backfill,
+    because the band is derived at render time. Any changed cell is a **new version**, never an
+    edit to `ESTIMATIVE_MAP_V1` (decision T3).
+    **Why it is not deploy-gating.** All four render sites are accepted-user gated
+    (`digests/[country]/[date]/page.tsx:273`, `search/page.tsx:108`, `ask/page.tsx:41`, and
+    `/signals` inside `if (accepted)`), and the AJP-2.1 credibility code is computed and never
+    rendered (decision T1; `src/lib/citation/ics206.ts:103-105`).
+    **Owner:** the next program's first wave. Related: AUD-50 (the derivation's aria-label was
+    never wired — `claim-estimative.tsx:59-77` sets `title` only, so the derivation is invisible
+    on touch and absent from print). Filed 2026-09-11 from the step-26 final audit §4.1.
