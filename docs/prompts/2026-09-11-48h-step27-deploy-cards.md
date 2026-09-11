@@ -221,17 +221,21 @@ registration in 27.10.
 
 ```
 cd /Users/go/code/bnow-net-rel-20260823
-openssl rand -hex 32 > /tmp/log-drain-secret
-chmod 600 /tmp/log-drain-secret
-npx vercel env add LOG_DRAIN_SECRET production < /tmp/log-drain-secret
-npx vercel env add LOG_DRAIN_SECRET preview < /tmp/log-drain-secret
-npx vercel env add LOG_DRAIN_SECRET development < /tmp/log-drain-secret
-for e in production preview development; do echo "== $e"; npx vercel env ls $e | grep -c LOG_DRAIN_SECRET; done
+read -s S
+printf '%s' "$S" | npx vercel env add LOG_DRAIN_SECRET production
+printf '%s' "$S" | npx vercel env add LOG_DRAIN_SECRET preview
+unset S
+for e in production preview; do echo "== $e"; npx vercel env ls $e | grep -c LOG_DRAIN_SECRET; done
 ```
 
-**Expect:** each `env add` accepted; each count `1`. Copy the value out of
-`/tmp/log-drain-secret` into your password manager now, then `rm -f /tmp/log-drain-secret`.
-(`LOG_DRAIN_RETENTION_DAYS` stays unset — the default is 14.)
+`read -s` prompts silently: paste a fresh `openssl rand -hex 32` value, or — simpler, as done
+on 2026-09-11 — the "Signature Verification Secret" Vercel generates when you open the
+drain form, so the two sides are the same string by construction. **Never `< file`**: the
+file's trailing newline becomes part of the value and every delivery then fails with 403.
+This project has no Development environment. **Expect:** both counts `1`.
+(`LOG_DRAIN_RETENTION_DAYS` stays unset — the default is 14.) Vercel functions read env at
+deploy time: if the secret is added AFTER the deploy in 27.8, redeploy once more before
+registering the drain (2026-09-11 needed that extra deployment).
 
 ## 27.8 Deploy from the plain release clone (checklist step 8)
 
@@ -285,8 +289,12 @@ by the fixer; if a step still fails, paste it — it is a docs defect, not a dep
 **Requires:** 27.6 (table exists) and 27.8 (receiver deployed) — **both**; registering without
 the table makes every delivery 500 and retry.
 
-Dashboard: endpoint `https://bnow.net/api/logs/drain`, format as the design specifies
-(`docs/designs/LOG-DRAIN.md` §8 step 4), secret = the 27.7 value, sources per §8. Then:
+Dashboard: endpoint `https://bnow.net/api/logs/drain`, format NDJSON, environments
+**production only** (Preview holds the secret for parity but sends nothing), sampling rule 1
+`/api/logs/drain` at 0% then rule 2 blank at 100%, secret = the 27.7 value exactly, per
+`docs/designs/LOG-DRAIN.md` §8 step 4. Vercel's create-time Test is a real signed POST: a 403
+means the drain's secret and `LOG_DRAIN_SECRET` differ (or the env value carries a newline);
+a 503 means the running deployment has no secret. Then:
 
 ```
 cd /Users/go/code/bnow-net-rel-20260823
