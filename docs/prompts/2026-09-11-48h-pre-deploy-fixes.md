@@ -46,9 +46,9 @@ Cut `48h/gov-20260905-pre-deploy-fixes` from the lane branch. One commit per ite
 | **AUD-05** | The WS-3.6 soak checklist has no migration gate for 0028/0030: followed as written, the first scheduled run writes before the tables exist, throws `42P01` per cell, marks degraded rather than failing. | `docs/reviews/CONFLICT-SHADOW-SOAK-ENABLEMENT-2026-09-07.md` (+ mirror in `docs/RELEASE-CHECKLIST.md` only if the register says so) | docs |
 | **AUD-06** | OPEN-TASKS #79 still instructs a production write that already ran (2026-09-07, `AGENTS.md` entry "OPEN-TASKS #79 — RU ROCA citation registry drain — EXECUTED"); repeating it rebuilds `source_theater_stats` and changes which documents enter `ru` digests. | `docs/OPEN-TASKS.md` #79 status line | docs |
 
-Not in scope, list them in the report instead: every minor and note in the register; the T3
-question the audit surfaced (`ALLEGATION_MIN_DOCS = 2` — an operator decision); anything under
-`src/`, `scripts/`, `drizzle/`.
+Not in scope, list them in the report instead: every minor and note in the register (the
+AUD-01 implementation is filed as #121 in §3a, not done here); anything under `src/`,
+`scripts/`, `drizzle/`.
 
 ## 2. AUD-02 — the operator's act, before you start
 
@@ -89,10 +89,50 @@ grep -c UNSIGNED AGENTS.md
 ```
 
 **Expect:** PASS with lost-or-edited 0, duplicates 0, order ok in both files; `AGENTS.md` at or
-below **≈135,000** (record the number); `UNSIGNED` still **1** — you do not sign anything. The
-AUD-04 correction (§1) is a standing-text edit in the same file; do it in its own commit, then
-the archive pass in its own commit, so the archive check's diff is clean. Do the archive commit
-LAST.
+below **≈135,000** (record the number); `UNSIGNED` still **1** — you do not sign the closing
+entry. The AUD-04 correction (§1) is a standing-text edit in the same file; do it in its own
+commit, then the archive pass in its own commit, so the archive check's diff is clean. Then
+**§3a** in its own commit, after the archive pass.
+
+## 3a. Two operator decisions, taken 2026-09-11 — append, then file the implementation
+
+The operator answered both open questions the audit and step 24 raised. Append the two entries
+below, verbatim, at the end of `## Decision log` (after your archive-pass record entry, before
+`## Conventions`), dated 2026-09-11, each as one bullet in the log's house style. They are
+signed by the operator's instruction to write them; do not mark them UNSIGNED.
+
+- **T3-c — named-person allegations are routed to the estimative band's `withheld` path
+  (AUD-01, option 1).** The 2026-09-11 final audit found that `ESTIMATIVE_MAP_V1` labels a
+  disputed reputational allegation about a named person `likely (55–80%)` at exactly the
+  two-document count that makes it publishable at all (`ALLEGATION_MIN_DOCS = 2`), because
+  T3's constraints are keyed on document count, not content class, and the estimative module is
+  by design unable to see `isPersonAllegation`. Decision: such claims take the existing,
+  tested `withheld` path (`likelihood: null`, rendered "not assessable"), with the allegation
+  flag supplied from outside the module — a server-passed boolean or a leaf module on the
+  `attribution-labels.ts` precedent — so the import-hygiene invariant stands. Presentation only;
+  nothing stored changes; no backfill. AUD-49 (corroboration counts `doc_dedup` mirrors as
+  independent channels) is folded into the same implementation. Implementation is
+  OPEN-TASKS #121, owned by the next program's first wave; not deploy-gating (all four render
+  sites are accepted-user gated and the AJP-2.1 code is never rendered).
+- **C13-b / C10-b — `compound-v1` lands before `CONFLICTS_UI` is turned on.** Step 24's report
+  (Decisions needed 1) found that C13 ("no number produced under `unit-flags-v0` may reach a
+  customer") and C10 (the `/conflicts` teaser tier is public at flag-on) collide the moment the
+  flag flips. Decision: option (a) — build the `compound-v1` derivation and replace the
+  heuristic before any environment sets `CONFLICTS_UI`; the C10 access split is unchanged and
+  the shipped banner stays as interim disclosure on gated surfaces only. This is already the
+  soak's blocker 1, so it adds nothing to the critical path. The WS-3.6 enablement checklist
+  gains this as its first gate (do it in the AUD-05 edit, same PR).
+
+Then file **OPEN-TASKS #121** (next free number; verify with `grep -n '^12[0-9]\. '
+docs/OPEN-TASKS.md`): Tier 2, "route named-person allegations to the estimative `withheld` path
+and fold `doc_dedup` mirrors out of `corroborationTier`" — cite AUD-01/AUD-49, T3-c, the file
+lines the register names (`synthesize.ts:409-420`, `estimative.ts` withheld path, `reduce-io.ts:118-126`),
+and the acceptance test: the claimed-hedged two-document person-allegation fixture from the
+audit renders no band, and `independentSourceCount` and `corroborationTier` agree on the mirror
+pair. Also add the compound-v1-first gate to the soak checklist as part of AUD-05.
+
+Re-run after §3a: `wc -c AGENTS.md` (still comfortably under 150,000 — the two entries are
+≈2.5 k) and `grep -c UNSIGNED AGENTS.md` = 1.
 
 ## 4. Gate, PR, report
 
@@ -107,8 +147,8 @@ gh pr create --base main --title "docs: pre-deploy fixes from the final audit (A
 STOP); the `--stat` line empty; PR base `main` (never stacked). Closing report
 `docs/reviews/PRE-DEPLOY-FIXES-2026-09-11.md`, COMMON §5 sections, short: Scope · Built (the
 five items with the register id, file, before → after) · Tests · Rulings touched (1, 5) ·
-Decisions needed (the `ALLEGATION_MIN_DOCS` question and the `unit-flags-v0` public-surface
-question from step 24, both listed, neither decided) · Debt (the minors and notes you did not
+Decisions needed (none — T3-c and C13-b/C10-b were taken by the operator on 2026-09-11 and
+appended in §3a; say so) · Debt (the minors and notes you did not
 touch, by id) · Handoff for step 27 (the corrected smoke test, the fifteen env names for the
 read-back, the soak checklist's new migration gate). Commit the report on the branch. Stop.
 

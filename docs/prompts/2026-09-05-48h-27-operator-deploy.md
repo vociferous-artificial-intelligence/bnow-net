@@ -19,6 +19,21 @@ No agent runs this step.
   `/Users/go/code/bnow-net-rel-20260823/.env.local` (and the main checkout) from the Neon
   console BEFORE any production script, and prove it read-only:
   `npx tsx scripts/sqlq.ts "SELECT 1"`. #80 closes only when this is done.
+- **DSN facts, settled 2026-09-11.** The `neondb_owner` password contains none of `#`, `?`, `/`
+  (AUD-10's hazard is the password segment only; the `?sslmode=require&channel_binding=require`
+  query string is parsed as a query and is fine; single quotes around the value in `.env.local`
+  are fine). **`DATABASE_URL_UNPOOLED` must be set and must carry the same password:**
+  `scripts/migrate.ts` reads `DATABASE_URL_UNPOOLED ?? DATABASE_URL`, so unset means migrating
+  through the pooler, and password-less means an authentication failure. It is the pooled
+  string with `-pooler` removed from the host (Neon console: "Connection pooling" unticked).
+  The guard accepts the pair because it compares hosts after stripping `-pooler`. Set both in
+  the release clone's `.env.local` and the main checkout's; prove with
+  `npx tsx scripts/sqlq.ts "SELECT 1"` before anything else.
+- **Neon branches before you start:** expect the production branch plus the kept evaluation
+  branch `br-weathered-forest-atmfaetu` (A6 — keep). Anything else is an orphan to identify
+  first (list via the API one-liner in the tracker §6 item 4.1); the backup branch and the
+  rehearsal fork you create here are transient — delete the rehearsal fork when done, keep
+  the backup branch until the observation window closes.
 - **The one hard ordering (A2 (b), signed; WS2-F04 corrected by step 23):** Neon backup branch →
   `npm run db:migrate` from the release clone (0028, 0029, 0030 — one recorded line each, then
   `SELECT name FROM _migrations WHERE name LIKE '00%' ORDER BY 1` shows 32 rows) → deploy the
