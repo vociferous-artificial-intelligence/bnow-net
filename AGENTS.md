@@ -28,13 +28,17 @@ scaffolded; China deferred. Authoritative spec: `docs/PRODUCT-BRIEF.md` (install
 Stack: Next.js 16 App Router (TS strict) on Vercel · Neon Postgres + pgvector · Drizzle ORM ·
 Tailwind v4 · Auth.js (magic link, `session.strategy='database'`) · Vitest (node; jsdom +
 @testing-library per-file for component tests). LLM behind `AnalysisProvider`: `openai` live
-(gpt-4o-mini), `anthropic` implemented in the seam (no key in any env yet — auto-selected if
-an Anthropic key exists and no OpenAI key does), `stub` deterministic fallback.
+(gpt-4o-mini), `anthropic` wired through `model-config.ts` for the `digest` workload only
+(metered on its own `anthropic_digest` ledger row), selected solely by
+`DIGEST_PROVIDER=anthropic` + an approved `DIGEST_MODEL` — no registry approval exists, so
+it is dormant; key presence never selects a provider — `stub` deterministic fallback.
 Which model each ANALYSIS workload dispatches — map, reduce, digest, validation,
 entity_audit — is resolved at CALL time by `src/lib/llm/model-config.ts`, the one routing
-authority (call sites never read `OPENAI_MODEL`/`*_MODEL` themselves); Ask keeps its own
-scorecard-gated models and is deliberately not routed there. Every analysis workload
-resolves to gpt-4o-mini with no reasoning effort today.
+authority, per (provider, model, effort); providers are allowlisted per workload in
+`src/lib/llm/providers.ts` — `{openai}` everywhere except `digest`, which is
+`{openai, anthropic}` (call sites never read `OPENAI_MODEL`/`*_MODEL`/`*_PROVIDER`
+themselves); Ask keeps its own scorecard-gated models and is deliberately not routed there.
+Every analysis workload resolves to gpt-4o-mini with no reasoning effort today.
 **No shadcn/ui and no Radix.** UI deps are clsx + tailwind-merge + lucide-react; interactive
 primitives (e.g. `src/components/nav-dropdown.tsx`) are hand-rolled to WAI-ARIA patterns.
 
@@ -77,21 +81,45 @@ src/lib/adapters/   SourceAdapter impls: rss, gdelt, telegram-web, telegram-mtpr
                     (live), procurement; stubs.ts = fixture stubs (ACLED/x) — never wired
                     into prod ingest
 src/lib/analysis/   AnalysisProvider (openai/anthropic/stub), digest, tracks, source-mix,
-                    map stage (map-worker, map-prompts, map-dedup, minhash)
+                    map stage (map-worker, map-prompts, map-dedup, minhash),
+                    anthropic-dispatch.ts (pure Messages request/parse, shared by the
+                    provider and the eval seam), entity-audit-prompts.ts (the entity-audit
+                    prompt + request, pure)
 src/lib/llm/        analysis-model routing + money authorities: model-config.ts (the ONE
                     per-workload model/effort resolver + fail-closed dispatch gate),
+                    providers.ts (provider vocabulary + per-workload allowlist — {openai}
+                    everywhere except digest, which is {openai, anthropic}),
                     analysis-registry.ts (analysis-reg-v1 quality approvals — baseline
-                    only), pricing.ts (the single analysis metering price table)
+                    only, per workload×provider×model), pricing.ts (the single analysis
+                    metering price table: chat models + EMBED_PRICES_PER_MTOK)
 src/lib/isw/        crawler, endnote parser, hedging classifier, registry materializer,
                     edition-discovery (series/edition-aware reference discovery writing
                     only the 0028 benchmark tables — dormant, unscheduled)
 src/lib/text/       well-formed UTF-16 truncation primitives (the #86 repair — the
                     shared destination for #97-family sites; map+reduce+digest adopted)
-src/lib/validation/ ISW scoreboard: keyword gazetteer + majority-vote LLM matcher
+src/lib/citation/   ICS 206-01 citation artifact (ics206.ts, pure + client-safe) and the
+                    T4 AI-tool-disclosure policy (disclosure-policy.ts, server-side, the
+                    one place the gate is decided — withheld on every surface today)
+src/lib/tradecraft/ IC-standards presentation layer (pure — no DB/provider/env/clock):
+                    crosswalk.ts (the ONE ICD/ICS conformance crosswalk both /methodology
+                    and docs/METHODOLOGY-TRADECRAFT.md read), descriptor.ts +
+                    source-summary.ts (templated source descriptors, per-digest source
+                    summary), estimative.ts (ESTIMATIVE_MAP_V1 — the signed ICD 203 band +
+                    corroboration-derived confidence mapping, zero runtime imports)
+src/lib/validation/ ISW scoreboard: versioned gazetteers (gazetteer/: ru-ua-v1 = the
+                    production keyword path via the keywords.ts shim; iran-levant-v1 =
+                    conflict-plane only, unwired) + majority-vote LLM matcher
 src/lib/usage/      SpendGuard, llm-guard (caps + kill-switch), cron-run bookkeeping
-src/lib/conflicts/  conflict/region validation domain library (71 files, pure — no DB/
-                    provider/env; CONFLICT_REGISTRY, lanes, scorer, match-contract);
-                    imported by nothing in production (design docs in docs/designs/)
+src/lib/conflicts/  conflict/region validation domain library (pure except three named
+                    files: reference-repo-sql.ts + observation-store.ts +
+                    db-claim-sources.ts are Postgres backends, and live-matcher.ts is the
+                    ONE module that may reach a provider — matcher-import-hygiene.test.ts
+                    pins that in both directions; CONFLICT_REGISTRY, lanes, scorer,
+                    match-contract). Imported in production by the dormant, unscheduled
+                    conflict-validate route, src/lib/isw/edition-discovery.ts, and the
+                    flag-gated /conflicts/** pages (through db-product-view.ts, which
+                    imports no fixture module — db-product-view.test.ts scans the tree in
+                    both directions) (design docs in docs/designs/)
 src/lib/evals/      analysis-eval control plane: eval-guard (fail-closed caps), capture,
                     corpus admission, live-runner/CLI support (docs/evals/analysis/)
 src/lib/embeddings/ embeddings client (validation/search vector retrieval)
@@ -99,7 +127,10 @@ src/lib/scoreboard/ validation scoreboard read models feeding /scoreboard
 src/lib/registry/   source-registry read/view-policy helpers behind /registry
 src/lib/analyst/    analyst-facing presentation helpers (signals, digests trust surface)
 src/lib/analytics/  PostHog client + consent-gated event allowlist
-src/lib/cron/       shared cron-route plumbing (withCronRun bookkeeping, ruling 10)
+src/lib/cron/       cron scheduling helpers (next-fire.ts); withCronRun (ruling 10
+                    bookkeeping) lives in src/lib/usage/cron-run.ts
+src/lib/logs/       Vercel log-drain receiver: HMAC signature verification, projection
+                    into runtime_logs, retention sweep (built, unregistered — OPEN-TASKS #93)
 src/lib/…           ask (incl. intent.ts: one-shot home→/ask handoff contract), entities,
                     enrich, datadark, trade (incl. partners.ts M49 names),
                     materials, profiles, email, access (beta-request validation),
@@ -133,15 +164,34 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
 - **Live/repository:** https://bnow.net · Vercel `bnow-net` / team `vociferous`; production
   is **`dpl_6RN34UVHefQsvTfC2HM8Si5QnNmT`, built from commit `8a19ade`** — the 2026-09-03
   configuration-only release (X cap raise + #94 override removal; same code lineage,
-  now including the 2026-09-01 docs-only commits atop `a4ed5cb`). **`main` has since
-  moved to `883e5e3`** (2026-09-04: PR #45 `9854626` — eval opt-in capture +
-  interrupted-attempt accounting — then PR #46 merge `883e5e3` — validation live
-  evaluation five-vote parity; both touch only `src/lib/evals/`, the eval CLI, and
-  `src/lib/validation/llm-match.ts`'s pure extraction, none of it reachable from any
-  scheduled route), so **`main` is code-ahead of production by these two eval-plane-only
-  PRs** — no redeploy has happened or is scheduled for them. PRs #47 (lands two preserved
-  2026-08-17 branches, docs-only) and #48 (operator notes + cleanup record) are open on
-  top of `883e5e3`, pending the D1 roster decision (§ Decision log below). The prior release
+  now including the 2026-09-01 docs-only commits atop `a4ed5cb`). **`main` has since moved
+  far past `883e5e3` (corrected 2026-09-10 — see the 48-hour-program docs-sync entry at the
+  end of this log for the full accounting).** PR #45 (`9854626`) and PR #46 (merge
+  `883e5e3`, 2026-09-04) were eval-plane-only (five-vote validation parity + capture
+  accounting, touching only `src/lib/evals/`, the eval CLI, and
+  `src/lib/validation/llm-match.ts`'s pure extraction). PRs #47/#48 then landed
+  2026-09-08 as squashed re-lands (`8cff524`/`81acadd`, `ac91519`/`d0c981e`) implementing
+  the D1 outreach-roster removal. From 2026-09-05 the 48-hour execution program
+  (`docs/prompts/2026-09-05-48h-00-INDEX.md`) merged **48 further PRs, #49–#96**
+  (`git log --first-parent --merges 883e5e3..main`), delivering: the WS-2 analysis-model
+  routing matrix generalized to a (workload, provider, model, effort) dimension with a
+  dormant Anthropic `digest` seam (`anthropic_digest` ledger row; Haiku 4.5 + Sonnet 5
+  priced; zero registry approval, so every Anthropic dispatch still refuses); WS-3
+  validation-by-conflict infrastructure (migrations 0028–0030, an Iran/Levant gazetteer,
+  a live conflict-observation pipeline behind the unscheduled `conflict-validate` route,
+  a DB-backed `/conflicts/**` read model); WS-4 reliability proofs (#102/#103 downgraded
+  from synthetic to fork-proven) and a built-but-unregistered log-drain receiver (#93);
+  WS-7 tradecraft legibility (ICS 206-01 citation mode with its AI-tool disclosure built
+  and dark per T4, ICD 203 estimative confidence, templated source descriptors); and two
+  adversarial-audit remediation passes (steps 17/18 registers, remediated by step 23).
+  **None of it is deployed or scheduled to deploy** — production is still `8a19ade` /
+  `dpl_6RN34UVHefQsvTfC2HM8Si5QnNmT` (2026-09-03), migrations 0028–0030 exist only on
+  `main` (production stays at 0027 applied), `CONFLICTS_UI` and every new cap env are
+  absent from every Vercel environment, and step 26/27 (final audit, then operator
+  deploy) gate whatever ships next. Full accounting:
+  `docs/reviews/PROGRAM-48H-DOCS-SYNC-2026-09-07.md`. So **`main` is code-ahead of
+  production by this entire 48-hour program**, not merely two eval-plane PRs — no
+  redeploy has happened or is scheduled for any of it. The prior release
   in this lineage was the 2026-08-31
   four-PR stack deployed as three serialized releases during the map-flood OOM
   incident response: PR #38 (`52ea272`, #102 map flood bounds), PR #39 (`c0aa788`,
@@ -312,10 +362,12 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   genuinely-dead historical rows — including a REAL prior-day telegram hang — with zero
   false sweeps; `finished_at` is never fabricated (ruling 10 intact); no email channel
   by explicit scope decision (visibility = cron_runs + audit-cron + the soak-check's
-  timed_out taxonomy). **#97 umbrella remains OPEN, re-scoped:** the reduce and digest
-  provider-bound sites are FIXED AND DEPLOYED; remaining sites = the Ask family
-  (user-controlled, highest exposure — next code PR), `embeddings/client.ts`,
-  `validation/llm-match.ts`, and the inert anthropic site (#83).
+  timed_out taxonomy). **#97 umbrella remains OPEN, narrowly (corrected 2026-09-10):** the
+  reduce, digest, Ask-family, `embeddings/client.ts` and `validation/llm-match.ts`
+  provider-bound sites are all FIXED AND DEPLOYED (2026-08-28/29). The formerly-inert
+  anthropic site's dormant doc-line clip was repaired 2026-09-06 (step 09 of the 48-hour
+  program, on `main` only, not deployed) alongside the seam's key-alone activation bypass.
+  Remaining: the `ASK_SESSIONS`-gated residuals only.
   Validation uses k=5 LLM matching
   with keyword fallback and exposes coverage/divergence/timeliness/thin-source metrics.
   **2026-07-29→08-15 map outage (recovered; residual backlog drained to ~7K docs by 2026-08-24, #86 track):**
@@ -371,12 +423,19 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   Postmark `BNOW.NET <no-reply@bnow.net>` is live; magic-link guidance is single-use/24h and
   copy-before-opening. PostHog is production-only, explicit opt-in, allowlist-sanitized, UUID
   identity, no Ask/Search/source text; GeoIP is retained per disclosed operator ruling.
-- **Quality/ops:** **3,590 unit tests / 246 files** green (measured 2026-09-04 on the
-  eval-capture branch atop `774906f`, typecheck + lint clean; 3,508/241 on the
-  2026-08-31 PR #37 head) + **160 real-Postgres integration tests / 25 files**
-  (disposable Neon forks; last full run 2026-09-03 on corpus-v2). Historical gates: 3,329/231 + 151/21 on
-  the 2026-08-24 release train `e359c61`. Production DB migrated through 0027
-  (2026-07-21, verified + idempotent); no strand in the 2026-08-24 release train adds a migration.
+- **Quality/ops:** **4,599 unit tests / 293 files** green (measured 2026-09-10 on
+  `619986c` — `main`'s tip at the close of the 48-hour program's Stage 3, before this
+  docs-sync step's own commits; typecheck + lint clean, 0 errors / 3 pre-existing
+  unused-var warnings). Historical gates: 3,590/246 on 2026-09-04 (`774906f`); 3,508/241
+  on the 2026-08-31 PR #37 head; 3,329/231 on the 2026-08-24 release train `e359c61`.
+  Integration tests run per-PR on disposable Neon forks throughout the 48-hour program (no
+  single aggregate count is current across ~50 merged PRs — each step report in
+  `docs/reviews/` states its own fork name and pass count); the last tracked aggregate was
+  **160 tests / 25 files** on 2026-09-03 (corpus-v2). **Production DB migrated through
+  0027** (2026-07-21, verified + idempotent) and has NOT moved since; migrations **0028**
+  (`benchmark_report_editions` + `benchmark_series_days`), **0029** (`runtime_logs`),
+  **0030** (`conflict_validation_observations`) exist only on `main`, unapplied to
+  production (OPEN-TASKS #111).
   Enforced pre-push gate = typecheck+lint+test. Crons: fast */15; telegram :01; X :02;
   MTProto :03 (clustered since the 2026-08-17 Candidate B release; :10/:20/:35 before);
   map :40; digest 4×/day; validate/enrich/datadark daily; trade/materials monthly.
@@ -411,16 +470,30 @@ Invariants — absolute, each owned here:
    elevate it via `MAP_USD_CAP_DAILY_OVERRIDE_USD` + `_UNTIL`, which auto-expires at an
    explicit-timezone instant and can never enable an unset base), `ASK_USD_CAP_DAILY` +
    `EMBED_USD_CAP_DAILY` (daily, ask v2 + embeddings), `X_SPRINT_USD_CAP` +
-   `X_DAILY_USD_CAP`, `OPENSANCTIONS_CALL_CAP`. Set a new cap env in ALL Vercel envs
-   BEFORE deploying the guard that reads it, or you stop that pipeline.
+   `X_DAILY_USD_CAP`, `OPENSANCTIONS_CALL_CAP`, `CONFLICT_MATCH_USD_CAP_DAILY` (daily,
+   the dormant conflict shadow matcher's own `llm_conflict_match` ledger row — NO
+   default, so unset means the paid rung refuses before any reservation and the keyword
+   rung scores instead; must exist in all three Vercel environments BEFORE the
+   unscheduled `conflict-validate` cron line is ever added to `vercel.json`). Set a new
+   cap env in ALL Vercel envs BEFORE deploying the guard that reads it, or you stop that
+   pipeline. An unpriced embedding model is refused before `tryReserve()` the same way
+   (2026-09-06, `EMBED_PRICES_PER_MTOK`); Ask then degrades to lexical-only retrieval with
+   zero reservations (ruling 9).
    **Analysis dispatch additionally fails closed on CONFIGURATION** (2026-08-17 routing
-   seam): `workloadDispatchConfig()` refuses — before `tryReserve()` and before any
-   provider client is built — an invalid `*_REASONING_EFFORT`, an effort set for a
-   non-reasoning model, a model with no entry in `src/lib/llm/pricing.ts`, or a
-   (workload, model, effort) with no `analysis-reg-v1` approval. `pricing.ts` is the
-   SINGLE price authority for analysis metering (the Ask registry parity-pins it), and
-   pricing is necessary but NOT sufficient: an entry there means a model can be metered,
-   an entry in `analysis-registry.ts` means it is approved to serve production.
+   seam, generalized 2026-09-08 to a provider dimension): `workloadDispatchConfig()`
+   refuses — before `tryReserve()` and before any provider client is built — a provider
+   outside the workload's allowlist (`src/lib/llm/providers.ts`; `{openai}` everywhere
+   except `digest`, which is `{openai, anthropic}`), an invalid `*_REASONING_EFFORT`, an
+   effort set for a non-reasoning model, a model not priced FOR THAT PROVIDER in
+   `src/lib/llm/pricing.ts`, or a (workload, provider, model, effort) with no
+   `analysis-reg-v1` registry approval. `pricing.ts` is the SINGLE price authority for
+   analysis metering (the Ask registry parity-pins it), and pricing is necessary but NOT
+   sufficient: an entry there means a model CAN be metered for that provider, an entry
+   in `analysis-registry.ts` means it is approved to serve production. **The Ask Auto
+   money path is a separate gate, not routed through `model-config.ts`:** it additionally
+   checks `hasScorecard()` and degrades (provider `"unscorecarded"`) rather than
+   dispatching an unscorecarded answer model (2026-09-06), unchanged when no environment
+   override exists.
 5. **Migrations:** never edit or delete an applied migration; evolve forward with a new
    one. `9999_claim_source_trigger.sql` re-asserts without DROP, always applies last —
    never renumber it or let drizzle-kit regeneration drop it.
@@ -460,7 +533,14 @@ Operational rulings:
     map is HARD-LOCKED to the baseline (gpt-4o-mini, effort absent): any other map
     model/effort is refused with `MAP ACTIVATION BLOCKED`. There is NO env override, and
     pricing or registry approval alone does not unlock it — #33's version-aware remap path
-    plus explicit operator activation authorization are required first.
+    plus explicit operator activation authorization are required first. **Provider
+    dimension (2026-09-08):** a map PROVIDER other than `openai` is refused by the
+    `providers.ts` allowlist before the lock is even reached; a provider change would
+    also change the extractor-version basis, so the same lock covers it structurally.
+    Read-side consumers that NAME a vendor (`mapreduceProviderTag()`, `AnthropicProvider
+    .name`) scope it by the resolved dispatch's `providerAllowed` exactly as the model is
+    scoped — a refused vendor keeps the OpenAI-shaped tag, so a Claude-synthesized digest
+    can never be stamped `openai:…` once the digest allowlist admits Anthropic.
 14. Digest corpora are strictly per-theater (`rd.country_iso2`), reliability-ordered,
     with the ~40% source-mix cap on gather window and LLM batch.
 15. Nav promotes only ru/ua/ir in the Coverage dropdown (promoting the shallow 6–9-digest
@@ -526,88 +606,14 @@ Operational rulings:
 
 ## Decision log (append-only, dated)
 
-Entries dated before **2026-08-31** are archived **verbatim** in `docs/DECISIONS.md`;
-distilled still-binding decisions live in Standing rulings above. Append new entries at the
+Entries dated before **2026-09-05** are archived **verbatim** in `docs/DECISIONS.md`, plus
+the eleven earliest 2026-09-05 entries (eval successor-plan step 1 authorization, D1, D2,
+D5, D6, D8, D9, E1, E3, D11, D12), moved there by the eleventh archive pass — see that
+dated entry below; distilled still-binding decisions live in Standing rulings above.
+Append new entries at the
 END OF THIS SECTION in date order — NOT at the end of the file. (The former end-of-file
 convention, which left Conventions / Credentials / Next steps / Operating protocol wedged
 mid-log, was retired by the eighth archive pass on 2026-09-07; OPEN-TASKS #92.)
-
-- **2026-09-05 (eval successor-plan step 1 authorization + step-1A execution — as reported
-  by the operator)** No prior entry in this log records authorizing the eval successor plan's
-  "step 1" bounded run before it ran; the successor plan only PROPOSES it
-  (`docs/reviews/EVAL-SUCCESSOR-PLAN-2026-09-04.md:59-67`): a development-split,
-  capture-enabled, production-equivalent baseline run (gpt-4o-mini; `--dev --repetitions 3`;
-  `EVAL_CAPTURE_DIR` set, `EVAL_CAPTURE_RAW=1`, heldout raw NOT enabled) on the existing
-  disposable Neon branch, within `EVAL_USD_CAP_DAILY=2` and a campaign-local
-  `LLM_SPRINT_USD_CAP` the operator names, plus the human labelling/adjudication work.
-  Explicitly NOT authorized by that proposal: any heldout run, any scorer/gate/label change,
-  any candidate model, any deploy. The 48-hour program's decision sheet answers it at **D6**
-  ("Yes Authorize $0.50 to $2.00"; `docs/prompts/2026-09-05-48h-00-INDEX.md` §2), read as the
-  operator naming the campaign-local ceiling the plan left blank; the value chosen is $2.00
-  (see the D6 addendum entry below). The CTO roadmap handoff §1 states, as fact, that "Step 1A
-  (development-split, capture-enabled gpt-4o-mini baseline ×3 + blinded human-labeling packet)
-  executed 2026-09-05; artifacts live outside the repo in
-  `/Users/go/code/bnow-net-eval-successor-1a-20260904-artifacts/` (SHA manifests verified)."
-  This entry does NOT independently verify that execution — the reconciling session did not
-  open the artifacts folder (COMMON §3 forbids it) and ran nothing. It records the handoff's
-  claim as **reported by the operator's planning process**. If any detail differs from what
-  actually ran, a correcting entry is appended rather than this one edited.
-
-- **2026-09-05 (D1 — PR #48 outreach roster)** `docs/OUTREACH-ROSTER-2026-08-23.md` is
-  **removed from git**. The GO-NO-GO register is kept.
-
-- **2026-09-05 (D2 — provider ambition for WS-2)** Option **B is authorized now**: OpenAI plus
-  Anthropic, with `ANTHROPIC_API_KEY` added to `.env.local`, proceeding under the **same budget
-  envelope** as the OpenAI-only option A. Option C (local OpenAI-compatible models) is a
-  provisional yes but **deferred out of this development round** — not needed for at least two
-  weeks, on the condition it stays easy to add later. The routing seams therefore ship
-  B-complete and C-ready.
-
-- **2026-09-05 (D5 — AGENTS.md compaction approved, with a 150k-character ceiling)** The
-  AGENTS.md split is approved: inline window 7 days, strict date order restored when
-  reunifying, and — added by the operator as a binding additional constraint — **AGENTS.md
-  stays below 150,000 characters**, to avoid the "over the 150.0k-char limit" warning. Note
-  for step 15: AGENTS.md was 157,962 characters when this was first drafted (2026-09-05) and
-  is over 190,000 characters once these entries land — already past the ceiling, which step
-  15's compaction must clear.
-
-- **2026-09-05 (D6 — WS-1.1 capture-run spend authorization)** A campaign-local
-  `LLM_SPRINT_USD_CAP` in the range **$0.50 to $2.00** is authorized for the ≈18-map-call,
-  ≈$0.01 capture run, on condition that the summary report explains the cap's effect. See the
-  D6 addendum entry below for that explanation and the value set.
-
-- **2026-09-05 (D8 — credential confirmations)** `NEON_API_KEY`, `ANTHROPIC_API_KEY` and
-  `OPENAI_API_KEY` are confirmed working. **`VERCEL_TOKEN` is valid and correctly scoped to
-  the bnow-net project** — this supersedes `docs/BLOCKERS.md`'s stale "expired" framing and
-  narrows AGENTS.md's credentials-table reading of "expired but CLI-live". A later pass folds
-  the operator's exact wording (valid, restricted to the bnow-net project) into that table.
-
-- **2026-09-05 (D9 — injection-case authorship; already executed by the operator)** The six
-  development-split injection cases were authored by the operator directly, outside any agent
-  session, using the OpenAI model **Astra** run through OpenAI Codex. This satisfies the
-  requirement behind the original decision — the author must not have read the live heldout
-  `failures` strings — because no program session authored them. Step 07 therefore records the
-  cases as operator-authored and does not re-author them. The earlier ambiguity in the phrase
-  "Astra via openai key" is resolved: Astra is an OpenAI model, run in OpenAI Codex.
-
-- **2026-09-05 (E1 — injection-case dataset vehicle)** The injection cases land in a **new
-  dataset file `map-inj-dev-v1.json`**, not by pre-creating `map-v3.json`.
-
-- **2026-09-05 (E3 — exposure-ledger home)** The eval exposure ledger lives at
-  **`docs/reviews/EVAL-EXPOSURE-LEDGER.md`**, append-only, in dated sections.
-
-- **2026-09-05 (D11 — AGENTS.md standing-text correction authority)** The reconcile session
-  (step 01) **may correct AGENTS.md standing text** before step 15's compaction lands, and did
-  so under this authorization. One correction the operator named — replacing the VERCEL_TOKEN
-  wording in the credentials table with "working, restricted to the bnow-net project" — was
-  **not applied in that session** (out of its assigned scope) and is carried forward for step
-  15 or a later pass.
-
-- **2026-09-05 (D12 — model names in program documents)** Model names and model
-  recommendations are **allowed** in `docs/prompts/*`, `docs/reviews/*`, and this decision log,
-  following existing precedent. CLAUDE.md's commit-hygiene rule — no vendor branding in
-  commits, PRs, code, or code comments — is unaffected and remains binding. This decision only
-  confirms the existing docs-only precedent.
 
 - **2026-09-05 (48-hour execution program authorized and kicked off)** The operator committed
   to a 48-hour, twelve-worktree agent execution program sequencing the CTO roadmap handoff
@@ -1478,6 +1484,76 @@ mid-log, was retired by the eighth archive pass on 2026-09-07; OPEN-TASKS #92.)
   inside a Stage 3 session would have cost more than moving four extra days early. $0, docs
   only, no code, no standing text changed except the archive header line.
 
+- **2026-09-08 (step 20/20b — eval-plane provider parity; Anthropic digest wiring; five PRs,
+  all dormant)** The eval control plane gains a `--provider` dimension (provider-qualified
+  dispatch identity, provider-scoped pricing); the entity-audit prompt moves into a pure
+  module with a byte-identical request; the Anthropic `digest` seam is wired through
+  `model-config.ts`, metered on its own `anthropic_digest` row under the existing
+  `LLM_SPRINT_USD_CAP`/`LLM_DIGEST_USD_CAP` envelope (R6, no new env), selected only by
+  `DIGEST_PROVIDER`. Price rows land for `claude-haiku-4-5-20251001` ($1/$5) and
+  `claude-sonnet-5` ($2/$10) per R7/R7-b. `mapreduceProviderTag()` is made provider-aware
+  in the SAME PR, before the digest allowlist admits a second vendor (discharges the T4-b
+  ordering gate). **Nothing is activated:** no Anthropic registry approval exists, so every
+  Anthropic resolution is `dispatchBlocked`. $0, no Vercel change, no migration,
+  `docs/evals/analysis/` byte-untouched. Record: `docs/reviews/WS-2-4-EVAL-PARITY-2026-09-06.md`.
+
+- **2026-09-08 (step 21 — #102/#103 FORK-PROVEN under O3; register gap G5 measured)**
+  Real-Postgres integration proofs on disposable fork `br-long-hat-at1048v9` (deleted), $0.
+  **#102:** the real `MAP_REF_ROW_CAP=75,000` terminals — adaptive shedding, the hard-cap
+  refusal, shed-exhaustion refusal — all exercised with no test-only seam; both refusals
+  mark nothing and dispatch nothing. **#103:** `runMapWatchCheck` end-to-end on real
+  Postgres — detection → slot throttle → cooldown dedup → one RECOVERED notice, with the
+  2026-09-01 first-evaluation hotfix re-verified. **Neither path has fired naturally in
+  production**, so both OPEN-TASKS headers are DOWNGRADED to fork-proven, not closed (O3:
+  the preview-deployment drill stays follow-up). Register gap G5 (drain NUL/int4/bind-cap
+  failure modes) confirmed by measurement, with a refinement: the int4-overflow case is a
+  wire-protocol parameter-count wrap, never a silent mis-bind. `scripts/audit-cron.ts`
+  gains a runtime-log coverage section, additive. No deploy, env, migration or
+  candidate-model change. Record: `docs/reviews/RELIABILITY-PROOFS-2026-09-06.md`.
+
+- **2026-09-08 (WS-7.2 — ICS 206-01 citation mode shipped; the AI-tool disclosure is BUILT
+  and DARK)** A fifth `ClaimCopyMode` (`citation`) ships on the digest surface under
+  T2/T4/T4-b. Citation mode renders, carrying T2's "Accessed (BNOW ingest)" date; the
+  AI-tool disclosure does not, on any surface — a policy function keyed on tier
+  (`src/lib/citation/disclosure-policy.ts`, the `view-policy.ts` pattern) with an empty
+  entitled set today, resolved server-side before the client payload is built, so a
+  withheld model name never crosses the boundary. The withheld artifact carries a literal
+  `tool disclosure withheld` marker (PLAN-WS-7 §7 option (c)). The disclosure is per-stage:
+  synthesis from the digest dispatch identity, extraction always "not recorded for this
+  digest", never back-filled (now OPEN-TASKS #117). Ruling 19's labels moved to a leaf
+  module after `madge` showed a client-boundary risk; `client-boundary.test.ts` now scans
+  for it. The 2026-07-16 provider-hiding decision stands unreversed. $0, no migration, no
+  deploy. Record: `docs/reviews/WS-7-2-CITATION-MODE-2026-09-07.md`.
+
+- **2026-09-08 (WS-7.3 — source descriptors and the per-digest source summary ship as
+  presentation)** ICD 206 mechanisms 2 and 3 (`descriptor-v1`, `summary-v1`) are generated
+  deterministically from registry/citation data, labelled "not an analyst judgment",
+  persisted nowhere; neither reads `claims.confidence` or `sources.reliability_score`, so
+  #14/#56 are untouched. Customer-visible on the digest page's new "Sources for this
+  digest" section, not just the admin-only `/registry/[id]`. The source-mix cap fact is
+  read only from a digest's own persisted `structured.stats.sourceMix`, else reported "not
+  recorded for this digest" — never re-derived. **Correction to PLAN-WS-7 §4 on evidence:**
+  the platform-root fallback would have suppressed nearly the whole registry
+  (`canonicalSource()` keys every non-social source by bare host); the shipped rule fails
+  closed only on a KNOWN multi-tenant host, an account-less telegram/x identity, or an
+  unparseable identity — an unlisted multi-tenant root is recorded on #56, closable only by
+  its segmentation. $0, no migration, no deploy. Record:
+  `docs/reviews/WS-7-3-DESCRIPTORS-2026-09-07.md`.
+
+- **2026-09-08 (WS-7.4 — `ESTIMATIVE_MAP_V1` ships as a PRESENTATION layer)** Under signed
+  T3/T3-a/T3-b, `src/lib/tradecraft/estimative.ts` maps (hedging, evidence-independence
+  counts) → {ICD 203 likelihood band, published percentage range, corroboration-derived
+  confidence}, with the AJP-2.1 1–6 code derived FROM the band. Pure, zero runtime imports
+  — cannot reach `claims.confidence` or any reliability score (T3-a holds structurally, not
+  by review; OPEN-TASKS #14 stays untouched and blocked by #56). Sub-even bands and AJP-2.1
+  levels 4/5 are never machine-assigned (T3-b); `high` confidence occurs in exactly one
+  cell. Rendered beside the hedging label on digest/search/signals/ask claim rows and in
+  the citation artifact (T4's dark-stamp policy untouched). Any cell change is a NEW
+  VERSION, never an edit to V1. Corrects three now-false standing texts in the same commit:
+  `/methodology` §7, the digest page's #14 comment, and the crosswalk's ICD 203 uncertainty
+  row (`GAP`→`PARTIAL`). $0, no migration, no deploy. Record:
+  `docs/reviews/WS-7-4-ESTIMATIVE-2026-09-07.md`.
+
 - **2026-09-09 (D-a … D-f — WS-3 audit register decisions signed)**
   The six decisions the step-18 register (`docs/reviews/WS-3-AUDIT-FINDING-REGISTER-2026-09-06.md`
   §Decisions needed, PR #78 `c32213a`) asked for, answered as recommended except D-d.
@@ -1528,6 +1604,107 @@ mid-log, was retired by the eighth archive pass on 2026-09-07; OPEN-TASKS #92.)
   $0, docs only; no code changed by this entry. Signed by the operator; step 23's prompt cites
   this entry by title.
 
+- **2026-09-09 (WS-3.3 — DB-backed evidence populations + the live observation pipeline;
+  branch/PR only)** `db-claim-sources.ts` (PR #86) implements corpus recall over
+  `doc_claims` (current-version predicate ANDed per theater, per rulings 13/14) and
+  published retention over designated digests (legacy-engine claims MEMBERS, memo C8),
+  both bounding a distinct-claim subquery before joining documents unbounded; stub
+  adapters excluded at the query (ruling 3). `live-observation.ts` (PR #93) attaches the
+  pipeline behind the still-unscheduled `conflict-validate` job: editions → daily-final
+  winner (C4) → declared units → lane/flags (`unit-flags-v0`, C13) → attribution (C3,
+  never a filter) → `scoreConflictReport` → one appended observation. The shadow matcher's
+  spend path is real but unreachable: `createLiveMatcher` refuses on an absent
+  `CONFLICT_MATCH_USD_CAP_DAILY` before any client is built, meters on its own
+  `llm_conflict_match` row (never production's `llm_match`). Built on lane C's PRE-fix
+  code, so Iran unit attribution is the honest `unattributed`, not a conflating `both`.
+  PR #87 threads the keyword rung's `insufficient_data` class into `ConflictResultV1`
+  under decision E5 (recorded in `docs/reviews/EVAL-EXPOSURE-LEDGER.md`). Unit
+  4,332→4,441/288 files; fork itests 15/15 on three disposable branches, all deleted. No
+  migration, no env/cap change, no deploy, **$0**. Record:
+  `docs/reviews/WS-3-3-EVIDENCE-POPULATION-2026-09-06.md`.
+
+- **2026-09-09 (step 23 lane R — the WS-2 audit register remediated; the
+  `ASK_PIPELINE=legacy` spend hole CLOSED)** Under A1(a), `legacyAnswer` now reserves
+  through `askGuardFromEnv()` before dispatch and meters after (ruling 8); a refusal
+  returns the deterministic cited-claims answer with provider `budget`. Ruling 4 now
+  holds on every Ask path for the first time since `cea8cac` (2026-07-11) — OPEN-TASKS
+  #110 CLOSED. Sixteen further WS-2 findings fixed (two PRs, #88 then #89); the rest
+  bundled into OPEN-TASKS #119 with a reason each. Under A2(b) the log-drain enablement
+  order now gates **registration** on `npm run db:migrate` plus two confirming queries
+  (`RELEASE-CHECKLIST.md` steps 5/11 updated); `scripts/migrate.ts` now refuses at the
+  boundary when `DATABASE_URL`/`DATABASE_URL_UNPOOLED` name different databases (#112(c))
+  — the `env -u` idiom does not protect it, and only a stale password prevented an
+  accidental production migration on 2026-09-07. Step 21's G5 characterization tests
+  inverted into passing proofs on a real fork. Unit gate 4,332/282 → 4,364/284; **$0**, no
+  env/migration/deploy change, `vercel.json` byte-identical. Record:
+  `docs/reviews/AUDIT-REMEDIATIONS-2026-09-07.md` (lane R).
+
+- **2026-09-10 (WS-3.5 — the conflict surfaces read real observations; WS-3.6 enablement
+  checklist; branch/PR only)** `db-product-view.ts` (PR #95) reads
+  `conflict_validation_observations` at read time via memo C4 (`selectDailyFinal` picks
+  the day's winner edition; an unevaluated final renders PENDING, never promoted from a
+  sibling edition — exactly the substitution C5-m measured production's probe order
+  making on 1 of 8 multi-edition days). Ruling 3 now enforced by module graph, not review:
+  the DB view and every conflict page import no fixture module, scanned in both
+  directions; two fixture-only components deleted. Every observation stamps
+  `unit-flags-v0` (C13), so surfaces carry a "compound handling undetermined — not
+  soak-eligible" banner in place of the old synthetic banner. `/scoreboard` country rows
+  relabeled "evidence lenses" in all seven locales (memo C10), numbers/columns/order
+  unchanged and re-pinned. Ruling-21 ROUTES obligation discharged by
+  `conflict-feature-off.itest.ts` under a flag-ON server that now seeds real data (25/25
+  on a disposable fork). PR #96 adds the WS-3.6 enablement checklist. **One decision
+  raised, not taken:** whether a `unit-flags-v0` number may reach a PUBLIC surface at
+  `CONFLICTS_UI` flag-on (recommended: land `compound-v1` first). Unit 4,557/290 →
+  4,599/293; **$0**, no env change, no migration, no deploy, no flag turned on. Record:
+  `docs/reviews/WS-3-5-SCOREBOARD-AND-SOAK-PREP-2026-09-07.md`.
+
+- **2026-09-10 (eleventh archive pass — the earliest eleven 2026-09-05 entries moved,
+  under D5's ceiling)** Step 25's own additions (nine decision-log entries recording the
+  Stage-3 work its assigned reports document) pushed `AGENTS.md` to 152,697 characters,
+  over the 150,000 ceiling. Proven by `scripts/check-decision-log-move.sh HEAD` before
+  commit: the eleven earliest 2026-09-05 entries (eval successor-plan step 1 authorization,
+  D1, D2, D5, D6, D8, D9, E1, E3, D11, D12 — 5,255 characters) moved verbatim to the end of
+  `docs/DECISIONS.md`, byte-identical, none duplicated or invented, ascending order
+  preserved in both files. `AGENTS.md` → 147,972 characters before this entry and the
+  closing entry below were added. Per the tenth pass's precedent, this is a partial-day cut
+  (the remaining 2026-09-05 entries — the program-authorization entry, the worktree-cleanup
+  entry, and the 2026-08-17-branches-landed entry — stay inline, all now the earliest
+  entries in the log), not a full-day one: the ceiling is the harder rule and a partial cut
+  is the smaller intervention that clears it. $0, docs only, no code, no standing text
+  changed beyond the archive-pointer sentence above and `docs/DECISIONS.md`'s split header.
+
+- **UNSIGNED — 2026-09-10 (step 25 — 48-hour execution program, Stage 3 docs sync;
+  drafted for step 27 to sign)** Applies the WS-2 register's 22-item and WS-3 register's
+  5-item stale-standing-text lists (minus their do-not-apply sub-clauses: PLAN-WS-2's
+  Architecture/ruling-13 bullets stay superseded per WS2-F08) and the "Proposed AGENTS.md
+  changes" blocks of eight closing reports (WS-2-4-EVAL-PARITY, RELIABILITY-PROOFS,
+  WS-3-3-EVIDENCE-POPULATION, WS-3-5-SCOREBOARD-AND-SOAK-PREP, WS-7-2-CITATION-MODE,
+  WS-7-3-DESCRIPTORS, WS-7-4-ESTIMATIVE, AUDIT-REMEDIATIONS both lanes) to AGENTS.md's
+  Architecture, directory map, rulings 4 and 13, Credentials table, Next steps, Quality/ops
+  and Live/repository standing text, plus the eight preceding decision-log entries above
+  (2026-09-08/09/10) recording work those reports document. Updates
+  `docs/OPEN-TASKS.md` status lines and `docs/CURRENT-STATE.md`'s stale sections, and adds
+  a dated addendum to `docs/reviews/EVAL-SUCCESSOR-PLAN-2026-09-04.md`. **State of `main` at
+  this step's start:** `619986c`, Stage 3 fully merged (steps 04–24 plus both governance
+  PRs) except this step; 4,599 unit tests / 293 files, typecheck/lint clean, re-measured
+  fresh (not copied from any lane report). **Not applied, recorded as debt rather than
+  silently dropped:** items 17–21 of the WS-2 register (corrections to OTHER historical
+  report files' own self-citations, not to any live standing doc) and the WS-3 register's
+  item 22 (env-posture re-verification, which needs Vercel access this session does not
+  have); the decision-log drafts step 06/13b/14 left in their own closing reports appear
+  never to have been appended to this log at all — WS3-F04 and WS3-F02 caveats are owed on
+  the step-13b and step-14 drafts respectively whenever that happens. **One live
+  discrepancy surfaced, not resolved here:** the step-18 WS-3 audit register ran on Fable
+  5.1, the model INDEX §3 reserves for step 26's independent go/no-go audit, per that
+  register's own disclosure 1 — step 26 should read its findings as same-model, not
+  independent-model, confirmation. **An eleventh archive pass was required** to keep this
+  file under the 150,000-character ceiling (D5) after these additions — see that dated
+  entry immediately above, whose move was verified byte-identical, unduplicated and
+  order-preserving by `scripts/check-decision-log-move.sh` (its "N new" line reflects this
+  session's own new entries, not a lost or edited one — see the closing report for the
+  full readout). $0, docs only; no code, schema, env, cap, or deploy change. Full accounting, every git grep
+  run, and the drafted INDEX §10 program-log line: `docs/reviews/PROGRAM-48H-DOCS-SYNC-2026-09-07.md`.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).
@@ -1556,10 +1733,10 @@ mid-log, was retired by the eighth archive pass on 2026-09-07; OPEN-TASKS #92.)
 |---|---|---|---|
 | Neon **control plane** (branch admin) | `NEON_API_KEY` + `NEON_PROJECT_ID` | **live, LOCAL-ONLY BY DESIGN — absent from all three Vercel environments (re-verified 2026-09-08); creates/deletes disposable branches via `scripts/neon-branch.ts` only; project-wide admin, so the deployed app is never given it** | console.neon.tech |
 | Neon **data plane** (SQL) | `DATABASE_URL` (pooled) · `DATABASE_URL_UNPOOLED` (direct) | **live.** `DATABASE_URL` is the app's only DB credential (`src/db/index.ts:5`) and the only DB variable in Vercel — present in Production + Preview, absent from Development (2026-09-08). `DATABASE_URL_UNPOOLED` is local-only: its consumers are migrations (`drizzle.config.ts:10`, `scripts/migrate.ts:7`), never the deployed app. Full plane comparison: `docs/reviews/MAP-REMAP-RUNBOOK-2026-09-06.md` §4.1. | console.neon.tech |
-| Vercel deploy | CLI session (`VERCEL_TOKEN` expired) | **live (CLI)** | vercel.com/account/tokens |
+| Vercel deploy | CLI session (`VERCEL_TOKEN` working, restricted to the bnow-net project — D8/D11, 2026-09-05; corrects the earlier "expired" reading) | **live (CLI)** | vercel.com/account/tokens |
 | OpenAI (analysis + ask v2 + embeddings) | `OPENAI_API_KEY` + caps (ruling 4) | **live, spend-guarded** (openai_ask / openai_embed meter separately) | platform.openai.com |
 | LLM kill-switch | `LLM_DISABLE=1` | refuses every LLM call site (ruling 9) | (env only) |
-| Anthropic | `ANTHROPIC_API_KEY` | provider implemented; key absent | console.anthropic.com |
+| Anthropic | `ANTHROPIC_API_KEY` | **wired for the `digest` workload only** (`model-config.ts`, metered on its own `anthropic_digest` row), **dormant** — no `analysis-reg-v1` approval exists, so every Anthropic dispatch is refused before any reservation; priced rows exist (`claude-haiku-4-5-20251001` $1/$5, `claude-sonnet-5` $2/$10 per 1M tokens). Key present only in the operator's local `.env.local` (D2 = B); absent from all three Vercel environments. | console.anthropic.com |
 | Postmark (auth email) | `POSTMARK_SERVER_TOKEN` + `POSTMARK_MESSAGE_STREAM` + `EMAIL_FROM` | **live on bnow.net** (`BNOW.NET <no-reply@bnow.net>`; DKIM/SPF/DMARC/custom Return-Path + callback live-verified 2026-07-15) | postmarkapp.com |
 | Sign-in policy | `SIGNIN_MODE` | **Production invite-only since 2026-07-15** (existing user OR admin allowlist OR approved access request) | Vercel environment |
 | Cron auth | `CRON_SECRET` | **live** | (already set) |
@@ -1594,9 +1771,13 @@ mid-log, was retired by the eighth archive pass on 2026-09-07; OPEN-TASKS #92.)
    rode it — the QF-C close-before-paid list is fully closed; paid evaluation now
    waits only on the operator §5 decisions, see
    `docs/reviews/PAID-EVAL-OPERATOR-PACKET-2026-09-03.md`). Then: gulf
-   theaters onto the map worker, the #33 remap path (the operator
-   now EXISTS in the tree — see the map-lease release — but has never been RUN; its
-   production deployment is recorded in the closeout decision-log entry, not here),
+   theaters onto the map worker, the #33 remap path (corrected 2026-09-10: the operator
+   EXISTS in the tree — see the map-lease release — and was EXECUTED on a disposable Neon
+   fork for the first time 2026-09-08, under signed D7/R4, for one (theater, track, day):
+   701 doc-track pairs, 382 claims, $0.046263 actual against $0.0765 modelled — measured
+   $0.0660 per 1k pairs, the estimator conservative by 1.65×; the other five live pairs and
+   the full epoch range remain modelled only, and it has never touched production — see the
+   2026-09-08 decision-log entry and `docs/reviews/MAP-REMAP-RUNBOOK-2026-09-06.md` §19),
    per-country mix policy.
 3. Debt & risks: `docs/OPEN-TASKS.md` (prioritized); key-blocked items: `docs/BLOCKERS.md`;
    Russia depth build order: `docs/RUSSIA-DATA-ROADMAP.md` §5.
