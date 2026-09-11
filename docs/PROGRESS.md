@@ -5146,3 +5146,65 @@ Execution (same block):
 - `npm run typecheck && npm run lint && npm test`: clean / clean (3 pre-existing
   warnings) / 4,599 passed (293 files) — re-run after all doc edits, unchanged from the
   pre-edit baseline (docs-only diff).
+
+## 2026-09-11 ~05:00Z — Step 26: final adversarial audit of the 48-hour window (planned block)
+
+1. Prove the worktree and record the frozen SHA (`2c66e94`) and base (`883e5e3`); enumerate
+   every merge in the window and every direct-to-`main` operator commit.
+2. **First task, before any finder (register gap G12): merge fidelity.** Recompute every
+   merge tree from its two parents and compare; independently cross-check each PR's GitHub
+   `headRefOid` against the merge commit's second parent.
+3. Run the gaps handed over as prompt text: G13 (silent doc-revert sweep), G14
+   (`model-routing-inspect.ts`), G16 (per-PR/coverage test counts), plus the binding-block
+   items: the full-secret `npm test` (CP5 carry), the Anthropic-dormancy probes, and the
+   `git worktree list` `/sessions/` check.
+4. Re-run the never-run tree-wide gate at the frozen tree independently: typecheck, lint,
+   unit suite, `npm run build` (G4).
+5. Bounded fan-out: ten parallel finders (rulings 1-5; operational rulings 8/9/13/14/19/21;
+   eval-plane isolation; migrations as a deploy hazard; tests-as-evidence mutation; docs
+   truth; secrets/PII/commit hygiene; register re-check of #74 and #78 against step 23;
+   named gaps G7/G10/G11; per-PR deploy surface inventory), then refuters on every major.
+6. Write `docs/reviews/PROGRAM-48H-FINAL-AUDIT-2026-09-07.md`: finding register, the
+   per-PR deploy verdict table (migration + env names + rollback + observation window per
+   `go`), and the placement of every register gap G2-G16.
+7. Write `docs/prompts/2026-09-07-next-48h-handoff.md`: verified state, what is code-ahead
+   of production, the step-27 deploy sequence, open decisions, label-gated readiness, the
+   WS-3.6 soak state, the WS-1.5 sizing note, a Wave-1 draft, and the "what the operator
+   can see working" commands.
+8. Read-only throughout: no code change, no deploy, no environment change, no production
+   write, no paid provider call. $0.
+
+- **Execution (same block).** Read-only audit of frozen `main` `2c66e94` vs base `883e5e3`;
+  attended; **$0**; no code, schema, env, cap, migration, flag, deploy or production write.
+- **Merge fidelity (G12) PROVEN, two independent ways, 49/49:** every merge tree recomputed from
+  its two parents with `git merge-tree --write-tree` is byte-identical to the merge commit; and
+  every PR's GitHub `headRefOid` equals the merge's second parent (including #51 and #52, which
+  GitHub shows CLOSED because they were merged locally and pushed). Correction recorded: the
+  prompt's `range-diff`-against-a-report-named-head is largely unexecutable, because closing
+  reports name their BASE SHA, not their own tip.
+- **Gate re-measured independently at the frozen tree:** typecheck clean · `eslint .` 0 errors /
+  3 pre-existing warnings · unit **4,599 / 293** · `npm run build` **PASS** (closes G4). The unit
+  suite was also run once on the **full-secret main checkout**, discharging the CP5 carry — the
+  `--provider anthropic` "key not set" refusal is genuinely reachable there (`BLANKED_ENV` sets
+  the name present-and-empty, which dotenv's no-override load leaves alone).
+- **Gaps handed over as prompt text, all discharged:** G13 found a real regression (AUD-03, a
+  silent revert of PR #50's port-hygiene fix — `date -u -d yesterday` fails on macOS, proven by
+  execution); G14 ran the routing inspector; G16 re-measured six historical merge SHAs plus a
+  coverage-shrink scan (0 test files deleted, +861 declared blocks); G7/G10/G11 answered; the
+  Anthropic dormancy probes and the `/sessions/` worktree check both pass.
+- **G2–G16 placed:** twelve closed here, G3 (Vercel env read-back) and G6 (the drain's vendor
+  contract) correctly remain step 27's.
+- Ten parallel finders, then refuters on every major. **Two majors refuted outright** (the
+  `MAP_PROVIDER` version-basis claim — 64 provider settings, 0 mismatches, the flagged strings
+  come from `MAP_MODEL` alone; and three sub-claims of the ruling-3 guard finding, one of them by
+  migration 0030's own CHECK constraint) and **two narrowed** (the estimative/ruling-19 finding
+  major → minor + a decision; the client-boundary finding major → minor, after a build proved the
+  originally-proposed mutation was tree-shaken).
+- **Register: 51 findings — 0 blockers, 5 majors, 15 minors, 31 notes.** No PR is `no-go`;
+  **nothing that gates the deploy is a code change** (three docs edits and one `git branch -D`).
+- Wrote `docs/reviews/PROGRAM-48H-FINAL-AUDIT-2026-09-07.md` (register, per-PR deploy verdict
+  table with migration/env/rollback/observation per row, refuted-findings record, the audit's own
+  limits) and `docs/prompts/2026-09-07-next-48h-handoff.md`.
+- Scratch worktrees used for mutation testing and count measurement were created under
+  `/Users/go/code/bnow-net-worktrees/`, verified clean, and **removed**; `git worktree list` shows
+  15 worktrees, no `/sessions/` path, nothing prunable.
