@@ -1484,6 +1484,48 @@ mid-log, was retired by the eighth archive pass on 2026-09-07; OPEN-TASKS #92.)
   pointer paragraph above record the split point as 2026-09-07 with a pointer here. $0, docs
   only, no code, and no standing text changed except those two pointer paragraphs.
 
+- **2026-09-11 (T3-c — named-person allegations are routed to the estimative band's `withheld`
+  path; AUD-01, option 1)** The 2026-09-11 final audit
+  (`docs/reviews/PROGRAM-48H-FINAL-AUDIT-2026-09-07.md` §4.1) found that `ESTIMATIVE_MAP_V1`
+  labels a disputed reputational allegation about a named person **`likely (55–80%)` ·
+  corroboration-derived confidence `moderate`** at exactly the two-document count that makes it
+  publishable at all (`ALLEGATION_MIN_DOCS = 2`, `src/lib/analysis/publication-guard.ts:57`).
+  The cause is structural, not a defect against a signed decision: none of T3's six invariants
+  mentions person-allegations or ruling 19, the operator's only harm-shaped constraint
+  ("nothing above likely/moderate from a single uncorroborated document") is keyed on **document
+  count, not content class**, and the estimative module is by design unable to see
+  `isPersonAllegation` — `estimative.test.ts:361-366` FORBIDS importing `publication-guard`.
+  Ruling 19 is inherited rather than circumvented (`synthesize.ts:409-420` recomputes the ladder
+  on native pre-promotion hedging, so such a claim enters on the `claimed` row and costs two
+  band steps), and all four render sites are accepted-user gated, which is why this is not
+  deploy-gating. **Decision:** such claims take the existing, tested `withheld` path
+  (`likelihood: null`, rendered "not assessable"; `src/lib/tradecraft/estimative.ts:307`), with
+  the allegation flag supplied from OUTSIDE the module — a server-passed boolean or a leaf
+  module on the `src/lib/analysis/attribution-labels.ts` precedent — so the import-hygiene
+  invariant stands unchanged. **AUD-49 is folded into the same implementation:**
+  `corroborationTier` ignores the `doc_dedup` mirrors that `reduce-io.ts:118-126` loads and
+  `independentSourceCount` (`reduce.ts:286,367`) consults, so two mirrored documents count as
+  two channels and lift the band by up to one step on ALL hedging rows. Presentation only —
+  nothing stored changes, no backfill, and a changed cell is a new version, never an edit to V1
+  (T3). Implementation is **OPEN-TASKS #121**, owned by the next program's first wave; it is not
+  deploy-gating, because every render site is accepted-user gated and the AJP-2.1 credibility
+  code is computed and never rendered (T1, `ics206.ts:103-105`).
+
+- **2026-09-11 (C13-b / C10-b — `compound-v1` lands before `CONFLICTS_UI` is turned on)** Step
+  24's report (`docs/reviews/CONFLICT-SHADOW-SOAK-ENABLEMENT-2026-09-07.md` §3, "Decisions
+  needed 1") found that **C13** — no number produced under `unit-flags-v0` may reach a customer,
+  because `compound: false` is the over-credit direction — and **C10** — the `/conflicts` teaser
+  tier is PUBLIC at flag-on — collide the moment the flag flips. They do not collide today only
+  because `CONFLICTS_UI` is absent everywhere and every conflict route 404s. **Decision: option
+  (a)** — build the `compound-v1` derivation and replace the heuristic **before any environment
+  sets `CONFLICTS_UI`**. The C10 access-tier split is unchanged, and the shipped
+  soak-eligibility banner stays as interim disclosure on gated surfaces only; option (c)
+  (banner-as-sufficient-disclosure on a public surface) is a reading of C13 the words do not
+  support and is explicitly not taken by silence. This is already the soak's blocker 1, so it
+  adds nothing to the critical path — but it now gates the FLAG, not only the soak's report.
+  The WS-3.6 enablement checklist carries it as its first gate (§2.0 gate 1, added in the same
+  PR as this entry), and §3's question is recorded there as answered rather than open.
+
 ## Conventions
 
 - Commits: `area: imperative summary` (e.g. `isw: parse endnotes from new page layout`).

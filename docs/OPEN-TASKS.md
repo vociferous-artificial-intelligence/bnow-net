@@ -2365,3 +2365,48 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     file. Same posture as the step-18 register's disclosure 3.
     **Owner:** step 23 lane C for (1); the WS-3.6 enablement checklist (step 24) for (2) and
     (3). Related: WS3-F06, decision D-e (2026-09-09). Filed 2026-09-09.
+
+121. **[Tier 2 — presentation safety] The estimative band publishes `likely (55–80%)` on the
+    one content class ruling 19 governs, and `corroborationTier` counts `doc_dedup` mirrors as
+    independent channels.** Two findings, one implementation, decided as **T3-c** (2026-09-11,
+    AGENTS.md decision log).
+    **AUD-01.** A `claimed`-hedged, two-document, named-person allegation passes
+    `guardPublishedEvents`, is published as "Sources claim: …", summarizes to tier **C3**, and
+    renders **`Likelihood: likely (55–80%) · Corroboration-derived confidence: moderate`**.
+    Reproduced by execution by two independent refuters. The cause is structural: T3's six
+    signed invariants say nothing about person-allegations, the operator's harm-shaped
+    constraint is keyed on **document count, not content class**, and `ALLEGATION_MIN_DOCS = 2`
+    (`src/lib/analysis/publication-guard.ts:57`) is exactly the count at which the `claimed` row
+    reaches its ceiling — there is no interval between "barely publishable as a
+    defamation-grade allegation" and "likely". Ruling 19 is inherited, not circumvented:
+    `src/lib/analysis/synthesize.ts:409-420` recomputes the ladder on native pre-promotion
+    hedging, so the claim can never enter on the `confirmed` row.
+    **AUD-49.** `corroborationTier` (`src/lib/tradecraft/estimative.ts:255`) ignores the
+    `doc_dedup` mirror map that the pipeline's own independence test consults:
+    `src/lib/analysis/reduce-io.ts:118-126` loads `mirrorOf` and
+    `independentSourceCount` (`src/lib/analysis/reduce.ts:286`, threshold at `:367`) uses it,
+    but `finalizeEvents` unions all group `docIds`, so both mirror documents become
+    `claim_sources` rows and `summarizeClaimEvidence` counts two channels. Measured over the
+    same two documents: `independentSourceCount` = **1**, `corroborationTier` = **C3**. Up to
+    one band step of over-credit, on ALL hedging rows.
+    **The fix (T3-c).** Route a disputed named-person allegation to the module's existing,
+    tested `withheld` path (`estimative.ts:307`, `likelihood: null`, rendered "not assessable"),
+    with the allegation flag supplied from OUTSIDE `src/lib/tradecraft/` — a server-passed
+    boolean or a leaf module on the `src/lib/analysis/attribution-labels.ts` precedent. The
+    module must NOT import `publication-guard`: `src/lib/tradecraft/estimative.test.ts:361-366`
+    forbids it in both directions and that invariant stands. Fold `doc_dedup` mirrors out of
+    `corroborationTier` in the same change.
+    **Acceptance test.** (1) The audit's fixture — a `claimed`-hedged two-document named-person
+    allegation — renders **no band** on every render site and in the citation artifact.
+    (2) `independentSourceCount` and `corroborationTier` **agree** on the mirror pair. (3) The
+    import-hygiene scan still passes unchanged.
+    **Scope and cost.** Presentation only: nothing persisted changes and there is no backfill,
+    because the band is derived at render time. Any changed cell is a **new version**, never an
+    edit to `ESTIMATIVE_MAP_V1` (decision T3).
+    **Why it is not deploy-gating.** All four render sites are accepted-user gated
+    (`digests/[country]/[date]/page.tsx:273`, `search/page.tsx:108`, `ask/page.tsx:41`, and
+    `/signals` inside `if (accepted)`), and the AJP-2.1 credibility code is computed and never
+    rendered (decision T1; `src/lib/citation/ics206.ts:103-105`).
+    **Owner:** the next program's first wave. Related: AUD-50 (the derivation's aria-label was
+    never wired — `claim-estimative.tsx:59-77` sets `title` only, so the derivation is invisible
+    on touch and absent from print). Filed 2026-09-11 from the step-26 final audit §4.1.
