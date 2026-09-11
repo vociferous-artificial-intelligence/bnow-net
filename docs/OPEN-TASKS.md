@@ -843,11 +843,27 @@ docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md)
     byte-identical to the deploy). **STATUS 2026-09-06: checklist codified**
     (`docs/RELEASE-CHECKLIST.md` step 4/8: deploy from the plain clone only, clean-tree
     check included) — the underlying CLI limitation itself is unfixed.
-79. **[Tier 2] RU ROCA citation registry has the same historical staleness Iran had.**
-    36 ru reports (2026-07-04→08-14) are `pending` with zero citations; newest parsed ru
-    report is 2026-07-03. The 2026-08-15 validation hook refreshes citations for every
+79. **[CLOSED 2026-09-07 — EXECUTED under the signed O2; do NOT re-run]** RU ROCA citation
+    registry had the same historical staleness Iran had.
+    ✅ **CLOSED 2026-09-07 by execution.** The one authorized run named below HAS been made,
+    under the O2 authorization of 2026-09-06, behind Neon backup branch
+    `br-wispy-silence-atgxus3y` (deleted 2026-09-07T21:28:43Z): `ru` pending **36 → 0**,
+    parsed 1,562 → 1,598, **5,421 citations inserted**, 98 new sources; the follow-on
+    `registry-materialize` moved `source_theater_stats` for `ru` from 7,068 rows / avg
+    reliability 0.571 to **7,174 / 0.572** and left **0** cited-but-zero-count sources. $0,
+    no migration, no env change. Record: the AGENTS.md decision-log entry of the same date
+    ("OPEN-TASKS #79 — RU ROCA citation registry drain — EXECUTED").
+    ⚠️ **Re-running it is not a no-op.** `registry-materialize` is a full `DELETE` and
+    rebuild of `source_theater_stats` in one transaction and also rewrites
+    `sources.reliability_score`, which `src/lib/analysis/digest.ts:89,100` orders the digest
+    gather by — so a redundant run changes WHICH documents enter subsequent `ru` digests.
+    The residue is tracked separately as **#113** (26 `ru` reports `parse_status='failed'`,
+    2022-04-27 → 2024-03-30, which `--retry-failed` does not recover); #79 closed complete
+    without them. The original text follows as history.
+    36 ru reports (2026-07-04→08-14) were `pending` with zero citations; newest parsed ru
+    report was 2026-07-03. The 2026-08-15 validation hook refreshes citations for every
     report validation fetches GOING FORWARD (theater-agnostic), but the historical rows
-    need one authorized run: `npx tsx scripts/isw-refresh.ts --theater ru` + a full
+    needed one authorized run: `npx tsx scripts/isw-refresh.ts --theater ru` + a full
     `registry-materialize` (minutes, $0). Deliberately not run during the Iran recovery —
     outside that task's production-write authorization.
 80. **[maintenance] `.env.local`'s `DATABASE_URL_UNPOOLED` credentials are stale** (auth
