@@ -5233,3 +5233,38 @@ Execution (same block):
 8. AUD-02 is the operator's act in the main checkout; verify the after-state read-only.
 9. Docs only: nothing under `src/`, `scripts/`, `drizzle/`; no lockfile, no migration, no
    launch, no provider call, no Vercel. $0. Gate must stay at 4,599 / 293.
+
+**Execution (same block).**
+
+- Branch `48h/gov-20260905-pre-deploy-fixes` cut from `48h/gov-20260905` = `origin/main` =
+  `e489ff9` (0 ahead / 0 behind at session start). Attended. **$0**, docs only.
+- **AUD-03** (`e2dc289`): `docs/SETUP-NEXT-WEEK.md` smoke test restored to PR #50's text at
+  `:176,194,195` — byte-identical to `74c7903` for those hunks, #52's newer Anthropic paragraph
+  left alone. Proven on the Mac: `date -u -d yesterday` → `illegal option -- d`;
+  `date -u -v-1d +%F` → `2026-09-10`.
+- **AUD-06** (`7cd7e85`): OPEN-TASKS #79 headline marked CLOSED/EXECUTED with the measured
+  counts and an explicit do-not-re-run warning naming `sources.reliability_score` and
+  `digest.ts:89,100`; original text retained as history.
+- **AUD-05** (`5d18309`): new §2.0 in the WS-3.6 soak checklist, ahead of every other enablement
+  item — gate 2 is the 0028/0030 migration precondition with its two `SELECT`s and the failure
+  mechanism (no `to_regclass` preflight → per-cell `42P01` → `markDegraded` at
+  `conflict-validate/route.ts:228`); gate 1 is C13-b/C10-b, which also closes §3's open question.
+- **AUD-04** (`165f96f`, tightened by `b1860ee`): `AGENTS.md`'s routing bullet now says FIFTEEN
+  routing envs and carries the provider dimension in the fail-closed list. Tightened after
+  reading `MAP-REMAP-RUNBOOK-2026-09-06.md:165-176`: a full three-environment `vercel env ls`
+  WAS taken 2026-09-08, so the honest claim is the five `_PROVIDER` names were never *verified
+  absent*, not that no listing exists.
+- **Twelfth archive pass** (`28228e3`): the whole 2026-09-06 run — 19 entries — moved verbatim.
+  `check-decision-log-move.sh HEAD` on the pure move: **PASS**, 216 entries before and after,
+  0 lost or edited, 0 duplicated, order ok in both files, bytes conserved at 399,392.
+  `AGENTS.md` 149,979 → 135,176 after everything; **14,824 of headroom**; `UNSIGNED` still 1.
+- **§3a** (`945b1b7`): decision entries **T3-c** and **C13-b / C10-b** appended, signed; the
+  T3-c implementation filed as **OPEN-TASKS #121** with the register's file lines and the
+  acceptance test.
+- **AUD-02** verified read-only: the local branch is gone, `origin` has no such ref, the roster
+  is in no reachable ref, and the file itself is preserved outside git at
+  `/Users/go/code/bnow-operator-notes/` — not the `~/operator-notes/` path the prompt named. Not
+  opened.
+- Gate: typecheck clean · lint 0 errors / 3 pre-existing warnings · **4,599 / 293 unchanged** ·
+  `src scripts drizzle` diff empty · secret and PII scans clean.
+- Report: `docs/reviews/PRE-DEPLOY-FIXES-2026-09-11.md`.
