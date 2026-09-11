@@ -383,19 +383,34 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
 - **Analysis model routing (PR #5 — LIVE in production since 2026-08-20,
   `dpl_GH6UWFojKPEgPrhBiT7utPBPnQBJ` / `7336b9c`, 24h formal soak CLOSED PASS
   2026-08-21; carried forward by the 2026-08-22 QF-B release):** the workload-scoped
-  routing seam is deployed: `src/lib/llm/model-config.ts` resolves (model, effort)
-  per workload at call time (`<WORKLOAD>_MODEL` → `OPENAI_MODEL` → gpt-4o-mini) and FAILS
-  CLOSED — before any SpendGuard reservation or provider-client construction — on an
-  invalid effort, an unpriced model, or a (workload, model, effort) with no
+  routing seam is deployed: `src/lib/llm/model-config.ts` resolves (provider, model, effort)
+  per workload at call time (`<WORKLOAD>_PROVIDER` → openai; then `<WORKLOAD>_MODEL` →
+  `OPENAI_MODEL` → gpt-4o-mini, the last two for provider `openai` ONLY) and FAILS
+  CLOSED — before any SpendGuard reservation or provider-client construction — on a
+  provider outside the workload's `providers.ts` allowlist, a non-openai provider with no
+  explicit `<WORKLOAD>_MODEL`, an invalid effort, a model unpriced FOR THAT PROVIDER, or a
+  (workload, provider, model, effort) with no
   `analysis-reg-v1` approval; `src/lib/llm/analysis-registry.ts` holds baseline-only
   approvals (gpt-4o-mini, effort absent, status `baseline`) with ZERO
   `evaluated_candidate` entries; map carries a HARD activation lock with no env override.
-  All ten routing envs (`MAP/REDUCE/DIGEST/VALIDATION/ENTITY_AUDIT_MODEL` +
-  `*_REASONING_EFFORT`) and `OPENAI_MODEL` are ABSENT in Production, Preview and
-  Development (verified read-only 2026-08-20), so every workload resolves to the historical
-  baseline and `mapExtractorVersion()` stays byte-identical to the deployed corpus's — all
-  six live production (theater, track) pairs re-verified against `doc_claims` on
-  2026-08-20. **Deployed, but nothing is activated:** the seam only makes the gate
+  **FIFTEEN routing envs, not ten** (corrected 2026-09-11, AUD-04 — the provider dimension
+  landed on `main` 2026-09-08 and this list was never widened): each of the five workloads
+  `MAP` `REDUCE` `DIGEST` `VALIDATION` `ENTITY_AUDIT` carries `_MODEL`, `_REASONING_EFFORT`
+  AND `_PROVIDER`, all fifteen declared together in `WORKLOAD_ENV`
+  (`src/lib/llm/model-config.ts:74-84`), plus `OPENAI_MODEL` as the openai-only global model
+  default. `ANALYSIS_PROVIDER` is a SIXTEENTH name that
+  `model-config.ts` deliberately does NOT read — it keeps its own stub/anthropic meaning in
+  `src/lib/analysis/provider.ts` — and belongs in the same read-back for that reason. The
+  ten `_MODEL`/`_REASONING_EFFORT` names and `OPENAI_MODEL` were verified ABSENT in
+  Production, Preview and Development read-only on 2026-08-20, so every workload resolves to
+  the historical baseline and `mapExtractorVersion()` stays byte-identical to the deployed
+  corpus's — all six live production (theater, track) pairs re-verified against `doc_claims`
+  on 2026-08-20. **The five `_PROVIDER` names have NEVER been read back in any Vercel
+  environment** — they did not exist in code on 2026-08-20 — and `DIGEST_PROVIDER` is the
+  single variable that can select a second vendor. That read-back is register gap G3 and is
+  step 27's hard gate; until it runs, "no routing variable exists in any Vercel
+  environment" below is a 2026-08-20 fact about ten names, not a current fact about fifteen.
+  **Deployed, but nothing is activated:** the seam only makes the gate
   enforceable — no candidate model is approved (`analysis-reg-v1` holds baseline-only
   entries, zero `evaluated_candidate`), no routing variable exists in any Vercel
   environment, and activating any candidate still requires its own paid representative
