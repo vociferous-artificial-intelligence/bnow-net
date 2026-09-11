@@ -5208,3 +5208,28 @@ Execution (same block):
 - Scratch worktrees used for mutation testing and count measurement were created under
   `/Users/go/code/bnow-net-worktrees/`, verified clean, and **removed**; `git worktree list` shows
   15 worktrees, no `/sessions/` path, nothing prunable.
+
+## 2026-09-11 ~18:00Z — Pre-deploy fixes: the four go-after-fix items + AGENTS.md headroom (planned block)
+
+1. Prove the worktree and branch (`48h-gov-20260905`, `48h/gov-20260905-pre-deploy-fixes` cut
+   from `origin/main` = `e489ff9`); read COMMON §1/§3/§4.7/§5 and the final audit's five majors
+   in full — the register's remediation text is the authority.
+2. **AUD-03** — restore PR #50's port-hygiene fix that PR #52 silently reverted in
+   `docs/SETUP-NEXT-WEEK.md:176,194,195`: the Mac path and BSD `date -u -v-1d`, with the GNU
+   annotation. Step 27 runs that smoke test after adding `LOG_DRAIN_SECRET`.
+3. **AUD-06** — give `docs/OPEN-TASKS.md` #79 a CLOSED/EXECUTED status line so nobody re-runs a
+   production write that already happened and would change which documents enter `ru` digests.
+4. **AUD-05** — add the missing 0028/0030 migration precondition to the WS-3.6 shadow-soak
+   enablement checklist, plus (per the 2026-09-11 C13-b/C10-b ruling) the `compound-v1`-first
+   gate.
+5. **AUD-04** — correct `AGENTS.md`'s routing bullet in place: fifteen routing envs, not ten,
+   and the provider dimension in the fail-closed list. Its own commit.
+6. **Twelfth archive pass** (ruled 2026-09-11, tenth-pass precedent): move the 2026-09-06 run of
+   decision-log entries verbatim to `docs/DECISIONS.md`, append the record entry, prove with
+   `scripts/check-decision-log-move.sh`. Its own commit, after AUD-04.
+7. Append the two operator decisions taken 2026-09-11 — **T3-c** (named-person allegations take
+   the estimative `withheld` path; AUD-01 + AUD-49) and **C13-b/C10-b** (`compound-v1` before
+   `CONFLICTS_UI`) — and file the T3-c implementation as OPEN-TASKS #121. Its own commit.
+8. AUD-02 is the operator's act in the main checkout; verify the after-state read-only.
+9. Docs only: nothing under `src/`, `scripts/`, `drizzle/`; no lockfile, no migration, no
+   launch, no provider call, no Vercel. $0. Gate must stay at 4,599 / 293.
