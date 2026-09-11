@@ -405,8 +405,11 @@ debt: `docs/OPEN-TASKS.md`; decision history: `docs/DECISIONS.md`.
   Production, Preview and Development read-only on 2026-08-20, so every workload resolves to
   the historical baseline and `mapExtractorVersion()` stays byte-identical to the deployed
   corpus's — all six live production (theater, track) pairs re-verified against `doc_claims`
-  on 2026-08-20. **The five `_PROVIDER` names have NEVER been read back in any Vercel
-  environment** — they did not exist in code on 2026-08-20 — and `DIGEST_PROVIDER` is the
+  on 2026-08-20. **The five `_PROVIDER` names have never been verified absent in any Vercel
+  environment** — they did not exist in code on 2026-08-20, and although a full three-environment
+  `vercel env ls` WAS taken on 2026-09-08 (46 / 28 / 20 rows, each with a positive control), its
+  recorded readout covers only the NEON/DATABASE names and `MAP_CONTENT_CHARS`, not these
+  (`docs/reviews/MAP-REMAP-RUNBOOK-2026-09-06.md` §4.1, §19). `DIGEST_PROVIDER` is the
   single variable that can select a second vendor. That read-back is register gap G3 and is
   step 27's hard gate; until it runs, "no routing variable exists in any Vercel
   environment" below is a 2026-08-20 fact about ten names, not a current fact about fifteen.
