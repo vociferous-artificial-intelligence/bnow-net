@@ -181,8 +181,9 @@ curl -s -o /dev/null -w "landing %{http_code}\n"    $BASE/
 curl -s -o /dev/null -w "scoreboard %{http_code}\n" $BASE/scoreboard
 curl -s -o /dev/null -w "trade %{http_code}\n"      $BASE/trade
 
-# 2. crons authorized + healthy (also proves CRON_SECRET)
-curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/probe" | head -c 300; echo
+# 2. cron auth + egress (400 "url param required" = auth OK; 200 = egress OK too)
+curl -s -H "Authorization: Bearer $CRON_SECRET" \
+  "$BASE/api/cron/probe?url=https://example.com" | head -c 300; echo
 
 # 3. ingestion flowing (docs in the last 2h)
 npx tsx scripts/sqlq.ts "SELECT adapter, count(*) FROM raw_documents WHERE fetched_at > now() - interval '2 hours' GROUP BY 1"
@@ -190,7 +191,10 @@ npx tsx scripts/sqlq.ts "SELECT adapter, count(*) FROM raw_documents WHERE fetch
 # 4. digest + validation freshness (yesterday should be present per active theater)
 npx tsx scripts/sqlq.ts "SELECT c.iso2, d.track, d.digest_date, d.provider FROM digests d JOIN countries c ON c.id=d.country_id WHERE d.digest_date >= (now() - interval '1 day')::date ORDER BY 3 DESC, 1"
 
-# 5. after an LLM key change: force one digest+validation and eyeball it
+# 5. ONLY after an LLM key change, and ONLY ONCE: force one digest+validation and eyeball it.
+#    This SPENDS (one paid digest) and REWRITES yesterday's published digest row IN PLACE —
+#    the same digest id, possibly with different claims (observed 2026-09-11: 10 -> 9 claims,
+#    OPEN-TASKS #123). It is not part of an ordinary smoke test; skip it on every other pass.
 # (BSD date, e.g. macOS; GNU date users: swap "-v-1d" for "-d yesterday")
 curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/digest?country=ua&date=$(date -u -v-1d +%F)" | head -c 400; echo
 curl -s -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/cron/validate?date=$(date -u -v-1d +%F)&country=ua" | head -c 400; echo

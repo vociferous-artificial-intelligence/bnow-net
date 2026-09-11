@@ -255,10 +255,18 @@ curl -s -o /dev/null -w '%{http_code}\n' https://bnow.net/api/logs/drain
 curl -s -o /dev/null -w '%{http_code}\n' https://bnow.net/conflicts
 ```
 
-**Expect:** `/health` stamp **`1204ef9`** exactly, `DB OK`; `/methodology` **200** (the new
-public page, #69); `/api/logs/drain` **405** or **403** — never 503 (the secret exists) and
-never 500; `/conflicts` **404** (flag absent). Then the ruling-21 smoke from checklist step 9:
-anonymous bare GET and `RSC: 1` GET bodies of the gated routes carry no privileged tokens.
+**Expect:** `/health` stamp = the deployed SHA exactly, `DB OK`; `/methodology` **200** (the
+new public page, #69); `/api/logs/drain` **405** or **403** — never 503 (the secret exists) and
+never 500; `/conflicts` **404** (flag absent). Then the ruling-21 smoke from checklist step 9 —
+count occurrences after following redirects (`grep -c` counts lines and Next ships one line):
+
+```
+for p in /signals /search /ask; do code=$(curl -s -o /dev/null -w '%{http_code}' -L "https://bnow.net$p"); n=$(curl -sL "https://bnow.net$p" | grep -oiE 'claim|digest|signal' | wc -l | tr -d ' '); echo "$p $code matches=$n"; done
+```
+
+**Expect:** `/search` and `/ask` land on the login shell (307 before `-L`) with a low match
+count you can classify (nav labels, "disclaimer"); `/signals` 200 by its documented carve-out.
+`/digests` has no index route (404 is correct; digests live at `/digests/<iso2>/<date>`).
 **Rollback at this point** = promote the previous deployment (27.0's id) in the Vercel
 dashboard; the new tables sit unused and harm nothing.
 

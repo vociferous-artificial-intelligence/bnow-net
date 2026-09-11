@@ -2410,3 +2410,40 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     **Owner:** the next program's first wave. Related: AUD-50 (the derivation's aria-label was
     never wired — `claim-estimative.tsx:59-77` sets `title` only, so the derivation is invisible
     on touch and absent from print). Filed 2026-09-11 from the step-26 final audit §4.1.
+
+122. **[Tier 1 — spend safety / observability] OpenSanctions enrichment has been failing on
+    every call since ≈2026-08-06 while consuming its full daily request cap, and the failure
+    is invisible.** Found 2026-09-11 during the step-27 smoke test: `enrich` reports
+    `scanned 120 · checked 0 · matched 0 · failed 80`, `provider_usage` shows `opensanctions`
+    at 120 requests / $13.20 (estimate) per day for weeks, and the freshest `os checked`
+    stamp on any entity is 2026-08-06. **Mechanism** (`src/lib/enrich/run.ts:320-323`): the
+    result of `matchEntity()` is metered (`guard.record(1, 1, OS_EST_USD_PER_MATCH)`) BEFORE
+    it is examined, so a failed call costs the ledger the same as a match; `matchEntity`'s only
+    failure path is a bare `catch { return null; }` (`src/lib/enrich/opensanctions.ts:154-156`)
+    — no message, no status, nothing logged; there is no consecutive-failure breaker, so the loop
+    grinds to the daily cap; and `cron_runs` records the job as `ok` because nothing threw.
+    **Probable cause:** an expired or revoked `OPENSANCTIONS_API_KEY` on Vercel (a 401 on every
+    call produces exactly this shape, and the cliff-edge date fits a key dying rather than a
+    degradation) — verify in the OpenSanctions dashboard (key status, whether failed requests
+    are billed) and on Vercel, not in `.env.local`. **Fix, one PR, next program's first
+    wave:** log the caught error class and HTTP status (never the key), meter only non-null
+    results, stop the run after N consecutive failures (N = 5) with a distinct `counts.reason`,
+    and make `cron_runs.ok` false when `failed === scanned`. **Operator action now:** check the
+    key; if it is dead, replace it on Vercel (an env change, not a deploy) or the cap keeps
+    being spent for nothing. Related: AUD-28 (ruling 4 wrongly describes
+    `OPENSANCTIONS_CALL_CAP` as fail-closed; `envNum(…, 300)` is a silent default). Filed
+    2026-09-11.
+
+123. **[Tier 2 — auditability] A forced digest re-run rewrites the published digest row IN
+    PLACE with possibly different claims.** Observed 2026-09-11: the smoke test's step 5
+    (`/api/cron/digest?country=ua&date=…`) run twice against the same 426 documents produced
+    `digestId 3059` both times, first with 10 claims, then with 9 (`droppedClaims 1`) — a reader
+    between the two calls saw a different published digest than one after, under the same
+    URL and id. For a product whose pitch is auditable claims, a digest that changes under a
+    citation is a sharper problem than the count. **Decide** whether a forced regeneration
+    should (a) write a new digest version and keep the old row addressable, or (b) be refused
+    when a digest for that (country, track, date) already exists unless `force=1` carries a
+    recorded reason. Until decided, `docs/SETUP-NEXT-WEEK.md` step 5 is marked ONLY-ONCE and
+    ONLY after a key change (edited 2026-09-11). The `ua 2026-09-10` validation reading of
+    `coverage 0` taken at 23:08Z ran against the rewritten 9-claim digest and must be re-read
+    once the row stops moving before anything is inferred from it. Filed 2026-09-11.
