@@ -214,3 +214,70 @@ npm test && npx tsc --noEmit && npm run lint
 Expected: all 200s; ingest rows present; yesterday's digests exist for ru/ua/ir (+ gulf);
 enrich reports matched/sanctioned counts consistent with which keys exist; audit script
 shows every cron with recent evidence and **zero stub docs / zero claims citing them**.
+
+---
+
+## Reading the drain (runtime logs) — 5 min, $0, read-only
+
+Since 2026-09-11 a Vercel log drain delivers every production function's log lines to the
+`runtime_logs` table (receiver `/api/logs/drain`, design `docs/designs/LOG-DRAIN.md`,
+OPEN-TASKS #93). It is the only in-window narrative that is not a cron's self-report. Four
+ways to read it, and there is no fifth: no UI, no dashboard, no digest. **Rows are deleted
+after 14 days** — anything a release record or a soak closeout needs must be copied into that
+record while it exists.
+
+**1. `audit-cron` — the only automated analysis.** Its `-- runtime logs (#93 drain): coverage
+for the last 24h --` block prints lines, invocations, deployments, error_lines,
+`CRASHED(statusCode=-1)` and the window bounds; then, for each failed or killed cron run in
+the last 24 h, that run's line count, error count and a 160-character sample. Purely additive
+— it never changes a verdict above it, because an empty table is a fact about enablement, not
+a cron failure.
+
+```
+cd /Users/go/code/bnow-net-rel-20260823
+npx tsx scripts/audit-cron.ts
+```
+
+**2. The three SQL shapes (LOG-DRAIN §9), through `scripts/sqlq.ts`.** Edit the window bounds
+or the `cron_runs` id before running; every one is a SELECT.
+
+(a) Window coverage — does the window have runtime-log evidence at all? `crashed_invocations`
+is the OOM/kill signature that was invisible before this table existed.
+
+```
+cd /Users/go/code/bnow-net-rel-20260823
+npx tsx scripts/sqlq.ts "SELECT count(*) AS lines, count(DISTINCT request_id) AS invocations, count(DISTINCT deployment_id) AS deployments, count(*) FILTER (WHERE level IN ('error','fatal')) AS error_lines, count(*) FILTER (WHERE status_code = -1) AS crashed_invocations, min(logged_at) AS first, max(logged_at) AS last FROM runtime_logs WHERE logged_at >= now() - interval '24 hours'"
+```
+
+(b) Error signatures — grouped by `message_sha256` with occurrences and a sample, so a
+residual error count can be classified instead of quoted.
+
+```
+cd /Users/go/code/bnow-net-rel-20260823
+npx tsx scripts/sqlq.ts "SELECT message_sha256, count(*) AS occurrences, min(logged_at) AS first_seen, max(logged_at) AS last_seen, min(left(message,200)) AS sample FROM runtime_logs WHERE logged_at >= now() - interval '24 hours' AND level IN ('error','fatal') GROUP BY 1 ORDER BY 2 DESC LIMIT 50"
+```
+
+(c) One cron run's every line — the join from a `cron_runs` row to what that invocation
+emitted, bounded by the job family's `maxDuration` plus sweep grace (`JOB_MAX_DURATION_SEC` in
+`src/lib/usage/cron-run.ts`: 800 s for map/digest, 300 s for the rest — the `920` below is
+map's). Replace `<id>` with the `cron_runs.id` being graded and the path with that job's route.
+
+```
+cd /Users/go/code/bnow-net-rel-20260823
+npx tsx scripts/sqlq.ts "SELECT r.job, r.started_at, r.finished_at, r.ok, l.logged_at, l.level, l.status_code, left(l.message,300) AS message FROM cron_runs r JOIN runtime_logs l ON l.request_path = '/api/cron/map' AND l.logged_at >= r.started_at AND l.logged_at < COALESCE(r.finished_at, r.started_at + interval '920 seconds') WHERE r.id = <id> ORDER BY l.logged_at"
+```
+
+**3. The Vercel Drains dashboard** (Team Settings → Drains) — delivery health only: errored
+deliveries and the Test button. The receiver-is-live check from outside is a GET, which must
+answer `405`:
+
+```
+curl -s -o /dev/null -w 'drain %{http_code}\n' https://bnow.net/api/logs/drain
+```
+
+`503` means `LOG_DRAIN_SECRET` is unset in the running deployment (set it, then redeploy —
+functions read env at deploy time); a Test delivery answering `403` means the secret on Vercel
+and the drain's signature secret differ.
+
+**4. Nothing else.** A soak closeout reports (a) for the whole window as its coverage claim,
+(b) for classification, and (c) for any run that went `ok=false`, degraded or was killed.
