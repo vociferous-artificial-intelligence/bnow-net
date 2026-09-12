@@ -1,4 +1,4 @@
-# Step 27 — observation window read at 02:00Z (agent prompt, 2026-09-12)
+# Step 27 — observation window read at 02:00Z (agent prompt, 2026-09-12; re-run nights 2–3 on 2026-09-13 and 2026-09-14 — the report header says which night)
 
 **You are the observation reader.** Step 27 deployed `45fa81f` to production on 2026-09-11
 (migrations 0028/0029/0030 applied 22:35Z, deployed ≈22:38Z, log drain registered ≈23:30Z).
@@ -50,6 +50,8 @@ npx tsx scripts/sqlq.ts "SELECT count(*) AS embeds_since_deploy FROM claim_embed
 npx tsx scripts/sqlq.ts "SELECT c.iso2, d.track, d.digest_date::text, d.provider, d.updated_at FROM digests d JOIN countries c ON c.id = d.country_id WHERE d.updated_at > now() - interval '5 hours' ORDER BY d.updated_at DESC"
 npx tsx scripts/sqlq.ts "SELECT count(*) AS rows, min(logged_at) AS first, max(logged_at) AS last, count(DISTINCT deployment_id) AS deployments FROM runtime_logs"
 npx tsx scripts/sqlq.ts "SELECT source, count(*) FROM runtime_logs WHERE logged_at > now() - interval '1 hour' GROUP BY 1 ORDER BY 2 DESC"
+npx tsx scripts/sqlq.ts "SELECT level, count(*) AS n FROM runtime_logs GROUP BY 1 ORDER BY 2 DESC"
+npx tsx scripts/sqlq.ts "SELECT source, status_code, left(request_path,40) AS path, left(message,90) AS msg, count(*) AS n FROM runtime_logs WHERE level IN ('error','fatal') GROUP BY 1,2,3,4 ORDER BY 5 DESC LIMIT 20"
 npx tsx scripts/audit-cron.ts
 curl -s -o /dev/null -w 'methodology %{http_code}\n' https://bnow.net/methodology
 curl -s -o /dev/null -w 'conflicts %{http_code}\n' https://bnow.net/conflicts
@@ -70,6 +72,7 @@ If `claim_embeddings` has no `created_at` column (the first query errors), use
 | every other `cron_runs` row since 21:00Z | `ok = true`; the only gap is the 21:45 and 22:00 `ingest:fast` rows lost in the password-rotation window | no regression from the deploy or the migration |
 | `runtime_logs` | rows > 0, `last` within the hour, `deployments` ≥ 1, several `source` values in the last hour | the drain is delivering (registered ≈23:30Z) |
 | `audit-cron` | prints a runtime-log coverage **number** and changes no verdict | the G5 coverage report the LOG-DRAIN work promised |
+| error-level `runtime_logs` grouped by message | the top groups named with their path and status code; **paste the grouped rows verbatim** — the first window counted 240 of 531 rows at error level without reading them | classifies the open read from window 1: a `statusCode -1` group is the OOM signature (STOP-grade), a 4xx group on a cron path is a credential or routing fault, a repeated stderr line from one path is a code bug to file — an expected-and-harmless group (e.g. the drain's own 403 tests, auth redirects) is noted and dismissed |
 | `opensanctions` row for 2026-09-12 | present with 120 requests if the enrich cron still runs with a dead key (OPEN-TASKS #122); absent or 0 if the operator blanked the key | known condition — record which, do not treat as new |
 | `/methodology` 200 · `/conflicts` 404 · `/api/logs/drain` 405 | as listed | the public page is up; the flag is still off; the receiver is live and rejecting unsigned GETs |
 
@@ -80,7 +83,7 @@ it, do not re-run a cron, do not touch the dashboard.
 ## 4. Report shape (paste this, nothing else)
 
 ```
-Step 27 observation — first window — read at <date -u>
+Step 27 observation — window <1|2|3> — read at <date -u>
 Deployment: /health build <sha>, DB OK — DSN host <host>
 digest:finalize 02:00Z: <started/finished/ok/errors>
 openai_embed 2026-09-12: <requests / usd>  · claim_embeddings since deploy: <n>   → #59 refusal fired? NO | YES
@@ -88,6 +91,7 @@ digests written since 02:00Z: <n rows: iso2/track/provider list>
 cron_runs since 21:00Z: <n rows, all ok | exceptions listed>
 runtime_logs: <rows, first, last, deployments, sources last hour>
 audit-cron coverage: <the number line, verbatim>
+error-level runtime_logs: <total by level; top groups source/status/path/msg/n verbatim>
 opensanctions 2026-09-12: <row or absent> (#122)
 routes: methodology <code> conflicts <code> drain <code>
 UNCLASSIFIED: <none | the raw rows>

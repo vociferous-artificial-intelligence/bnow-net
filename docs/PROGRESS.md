@@ -5268,3 +5268,36 @@ Execution (same block):
 - Gate: typecheck clean · lint 0 errors / 3 pre-existing warnings · **4,599 / 293 unchanged** ·
   `src scripts drizzle` diff empty · secret and PII scans clean.
 - Report: `docs/reviews/PRE-DEPLOY-FIXES-2026-09-11.md`.
+
+## 2026-09-11 22:29Z–23:56Z — Step 27: production deploy of the 48-hour program (executed)
+
+1. Operator-run from the plain release clone `/Users/go/code/bnow-net-rel-20260823` at
+   `45fa81f` (= `1204ef9`, merge of #99, plus docs), cards 27.0–27.12 of
+   `docs/prompts/2026-09-11-48h-step27-deploy-cards.md`. Verdict basis: the step-26 final audit
+   (#98, deployable, 0 blockers) with its four go-after-fix items landed in #99.
+2. Baseline read on production (after correcting a DSN that first pointed at the frozen eval
+   snapshot): `8a19ade`, 29 migration rows, three new tables absent, crons `ok`. Env read-back
+   (G3): none of the fifteen routing envs, `DIGEST_PROVIDER`, `ANTHROPIC_API_KEY`, `EVAL_*` or
+   `CONFLICTS_UI` in any Vercel environment; no Development environment; Node 24.x.
+3. Backup branch `backup-pre-48h-deploy-2026-09-11` = `br-shy-wave-ata4r6y0` at 22:29:07Z;
+   rehearsal on disposable fork `br-purple-firefly-atb7yprb` (29 → 32, second run a no-op,
+   deleted); production `npm run db:migrate` at 22:35:37Z — 0028 (7 statements), 0029 (4),
+   0030 (6); `_migrations` 29 → 32.
+4. `npx vercel@latest deploy --prod --yes` at 22:38Z → `H5HgnBKk2HhMQrEAtvHETT7gj3P5`;
+   `/health` `45fa81f · DB OK`; `/methodology` 200; `/api/logs/drain` 405 to GET;
+   `/conflicts` 404 (flag absent); ruling-21 smoke passed.
+5. `LOG_DRAIN_SECRET` set in Production and Preview (no trailing newline), one further
+   production deploy so functions read it, drain registered production-only; first delivery
+   23:56:37Z. The first registration attempt's 403 was the receiver failing closed as designed.
+6. Incidents: the eval-branch first read (endpoint-ownership read added to card 27.0); the
+   `neondb_owner` password reset ≈21:41Z left Vercel's `DATABASE_URL` stale until ≈22:00Z — two
+   `ingest:fast` cycles without a row, every job `ok` from 22:01Z.
+7. Found by the smoke test, filed, not deploy-related: #122 (OpenSanctions failing silently
+   since ≈08-06; `OPENSANCTIONS_API_KEY` blanked in Production ≈01:30Z 09-12), #123 (forced
+   digest re-run rewrites the row in place), #124 (Preview shares the production database).
+8. First observation window 02:23Z 09-12: green — `digest:finalize` ok, `openai_embed` 11 /
+   93 embeddings (#59 refusal did not fire), 11 digests, 44 cron rows ok, drain 531 rows / 3
+   deployments. Nights 2–3 (09-13, 09-14) and the 240 error-level `runtime_logs` lines owed.
+9. Records: AGENTS.md step-27 entry appended and the step-25 closing entry signed (`d499c42`);
+   INDEX §10 close line; tracker 5.5 DEPLOYED; OPEN-TASKS #111/#93/#84/#80/#78 statused. The
+   48-hour program's window is closed on `45fa81f`.

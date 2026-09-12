@@ -5,14 +5,47 @@ this file is **not append-only**: correct it in place whenever live product, ope
 deployment, test, credential, or repository state changes. Historical narrative belongs in
 `PROGRESS.md`, review notes, and `DECISIONS.md`.
 
-## Current state — snapshot (verified through 2026-09-03 for production, 2026-09-10 for
-`main`; correct in place when it changes)
+## Current state — snapshot (verified through 2026-09-12 for production and `main`;
+correct in place when it changes)
 
 Live at **https://bnow.net** (Vercel project `bnow-net`, team `vociferous`;
 deployment URLs are SSO-walled — always use the project domain). History/narrative:
 `docs/PROGRESS.md` + `docs/reviews/`; debt: `docs/OPEN-TASKS.md`.
 
-- **2026-09-03 configuration-only release (the CURRENT production release):**
+- **2026-09-11 48-hour program release (the CURRENT production release):** production is
+  **`45fa81f`** (= `1204ef9`, the merge of #99, plus docs), deployed 22:38Z 2026-09-11 from the
+  plain release clone `/Users/go/code/bnow-net-rel-20260823` (`npx vercel@latest deploy --prod
+  --yes`); first deployment `H5HgnBKk2HhMQrEAtvHETT7gj3P5`, then a second deployment of the
+  same source after `LOG_DRAIN_SECRET` was set — that later one is live, `H5Hgn…` is the
+  rollback target above the ladder floor (the 2026-09-01 hotfix). `/health` stamps
+  `45fa81f · DB OK`. **Migrations 0028/0029/0030 applied to production 22:35:37Z** from the
+  release clone: `_migrations` 29 → 32; `benchmark_report_editions`, `benchmark_series_days`,
+  `runtime_logs`, `conflict_validation_observations` exist; backup branch
+  `backup-pre-48h-deploy-2026-09-11` = `br-shy-wave-ata4r6y0` kept; the rehearsal fork deleted.
+  **Env changes in this release:** `LOG_DRAIN_SECRET` added to Production and Preview; a Vercel
+  log drain registered production-only to `/api/logs/drain` (NDJSON, self-path sampled 0%,
+  first delivery 23:56:37Z; 531 rows across 3 deployments by 02:23Z 09-12);
+  `OPENSANCTIONS_API_KEY` **blanked in Production by the operator ≈01:30Z 2026-09-12** (#122 —
+  trial access lapsed; functions read env at deploy time, so the blank takes effect at the
+  next production deploy). `DATABASE_URL` in Production and Preview carries the rotated
+  `neondb_owner` password (rotated ≈21:41Z 09-11; two `ingest:fast` cycles lost until Vercel
+  was updated ≈22:00Z); Preview still points at the production database (#124). **Still absent
+  from every Vercel environment:** `CONFLICTS_UI`, all fifteen routing envs, `DIGEST_PROVIDER`,
+  `ANTHROPIC_API_KEY`, every `EVAL_*`, every new cap env — every subsystem the program built is
+  deployed dark; the only live changes are the four tables, `/methodology` (200, public) and
+  the drain receiver. Vercel Node setting 24.x. **Neon branches (5):** production
+  `br-lively-haze-atvkarvn` (`ep-jolly-glitter-at0968cv`); eval snapshot
+  `br-weathered-forest-atmfaetu` (`ep-misty-bonus-atfbt0iq`, frozen 2026-09-03, pre-rotation
+  password); backups `br-polished-block-atu0r968`, `br-small-poetry-atf9x253` (pre-rotation
+  password) and `br-shy-wave-ata4r6y0`; retention of the older three is undecided. **First
+  observation window (02:23Z 09-12) green:** `digest:finalize` ok, `openai_embed` 11 requests /
+  93 embeddings (the #59 unpriced-model refusal did not fire), 11 digests, 44 cron rows ok.
+  **Open reads:** observation nights 2–3 on 09-13 and 09-14
+  (`docs/prompts/2026-09-12-48h-step27-observation.md`) and the classification of the 240
+  error-level `runtime_logs` lines by message. Full record: the AGENTS.md 2026-09-11 step-27
+  entry; cards `docs/prompts/2026-09-11-48h-step27-deploy-cards.md`.
+
+- **2026-09-03 configuration-only release (previous release, carried forward):**
   production is **`dpl_6RN34UVHefQsvTfC2HM8Si5QnNmT`** built from `main` tip
   **`8a19ade`** (created 2026-09-03T11:12:43Z, aliased bnow.net; `/health` stamps
   `8a19ade`) — the operator's X-cap raise + #94 override-removal redeploy. Env
@@ -43,10 +76,9 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   (#93); ICS 206-01/ICD 203 "tradecraft legibility" — citation mode with its
   AI-tool disclosure built and dark (T4), templated source descriptors, and a
   corroboration-derived confidence presentation layer; and two adversarial-audit
-  remediation passes. **None of it is deployed or scheduled to deploy** —
-  production is still `8a19ade` (this bullet), migrations 0028–0030 exist only
-  on `main` (production stays at 0027 applied), `CONFLICTS_UI` and every new cap
-  env are absent from every Vercel environment. Full accounting:
+  remediation passes. **All of it deployed 2026-09-11 as `45fa81f` (the bullet
+  above; corrected 2026-09-12)** — migrations 0028–0030 applied, `CONFLICTS_UI` and
+  every new cap env still absent from every Vercel environment. Full accounting:
   `docs/reviews/PROGRAM-48H-DOCS-SYNC-2026-09-07.md` and the AGENTS.md decision
   log's 2026-09-05 through 2026-09-10 entries.
 
@@ -149,8 +181,8 @@ deployment URLs are SSO-walled — always use the project domain). History/narra
   ~2.5 months of runway; `docs/reviews/OPERATOR-DECISION-PACKET-2026-08-28.md` §1
   option (a), daily raise beyond it by explicit operator choice).
 
-- **48-hour execution program deliverables — on `main` only, NOT deployed (2026-09-05
-  through 2026-09-10; new section, added by this docs-sync step).** Three subsystems that
+- **48-hour execution program deliverables (2026-09-05 through 2026-09-10; DEPLOYED
+  2026-09-11 in `45fa81f`, dark — corrected 2026-09-12; section added by the docs-sync step).** Three subsystems that
   previously had no dedicated bullet in this file:
   **(1) Eval control plane, generalized to a provider dimension (steps 12/20).** The
   offline/live eval CLI (`scripts/analysis-eval.ts`) gained a `--provider` flag;

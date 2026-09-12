@@ -2440,6 +2440,14 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     being spent for nothing. Related: AUD-28 (ruling 4 wrongly describes
     `OPENSANCTIONS_CALL_CAP` as fail-closed; `envNum(…, 300)` is a silent default). Filed
     2026-09-11.
+    **STATUS 2026-09-12 — OPERATOR ACTION TAKEN; code fix still open.** Trial access confirmed
+    lapsed (operator reapplying, no commercial account yet). `OPENSANCTIONS_API_KEY` blanked in
+    Vercel Production ≈01:30Z 2026-09-12. Functions read env at deploy time, so the running
+    `45fa81f` functions still hold the old value until the next production deploy — until then
+    every `enrich` cron cycle keeps metering the estimate; after it, the route's own
+    missing-key path applies. The ledger's $13.20/day since ≈08-06 is the code's estimate, not
+    an invoice. Standing row in `AGENTS.md` corrected to DARK the same day. The one-PR fix above
+    stays first in the next program's Wave 1 (handoff §9).
 
 123. **[Tier 2 — auditability] A forced digest re-run rewrites the published digest row IN
     PLACE with possibly different claims.** Observed 2026-09-11: the smoke test's step 5

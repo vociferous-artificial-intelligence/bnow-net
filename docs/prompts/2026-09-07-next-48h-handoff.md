@@ -320,3 +320,48 @@ Ordered by what blocks what, not by size. Each is one session in its own worktre
    committed on the branch it describes. Any future "compare the reviewed head to the merged
    head" check must get the tip from GitHub (`gh pr view --json headRefOid`) or from the merge
    commit's second parent — not from the report.
+
+## 9. Post-deploy addendum (written 2026-09-12, after step 27)
+
+Everything above was written at the freeze. What changed:
+
+- **Production is `45fa81f`** (deployed 22:38Z 2026-09-11; migrations 0028–0030 applied
+  22:35:37Z; log drain live production-only). `docs/CURRENT-STATE.md`'s first bullet and the
+  AGENTS.md 2026-09-11 step-27 entry are the record; the observation windows in §3 are
+  half-done — the first (02:23Z 09-12) was green and **proved the #59 refusal does not fire**
+  (`openai_embed` 11 requests / 93 embeddings); nights 2 and 3 (09-13, 09-14) re-run
+  `docs/prompts/2026-09-12-48h-step27-observation.md`. Nothing in §8 may start before those
+  close.
+- **Four tasks filed during the deploy join Wave 1**, in this order: **#122** (OpenSanctions
+  enrichment has failed silently on every call since ≈2026-08-06, each refusal metered and
+  swallowed — the operator blanked `OPENSANCTIONS_API_KEY` in Production ≈01:30Z 09-12 while
+  reapplying for access; the code fix is one PR: log the error class, meter only non-null
+  results, stop after 5 consecutive failures, `ok=false` when `failed === scanned`); **#121**
+  (T3-c: named-person allegations take the estimative `withheld` path, plus AUD-49);
+  **#123** (a forced digest regeneration rewrites the published row in place — decide
+  versioning before any operator re-runs the smoke test's step 5 again); **#124** (Preview
+  shares the production database — a Neon branch for Preview and a separate `DATABASE_URL`).
+  AUD-28 rides with #122.
+- **Three lessons that are now standing rules for any operator card that reads a database:**
+  (1) read endpoint ownership (`scripts/neon-branch.ts` or the API) before the first SELECT —
+  card 27.1's first read hit the frozen eval snapshot because `.env.local` had been copied with
+  the wrong branch selected; (2) Vercel functions read env at deploy time, so an env change
+  after a deploy needs a redeploy before it is live (the drain's first 403, and the blank
+  OpenSanctions key today); (3) a password rotation on the production role is a production
+  outage until every consumer's DSN is updated — do it before the deploy window, never inside
+  it (two `ingest:fast` cycles were lost 21:45–22:00Z).
+- **Posture change to decide before the next unattended launch:** the main checkout's
+  `.env.local` now carries the **production** DSNs (it carried the eval snapshot's before step
+  27). `scripts/launch/env-posture.sh` copies those four keys into every fork lane, so a
+  future lane would start with production as its `DATABASE_URL`. Either point the main
+  checkout back at an eval branch (a fresh one — the 09-03 snapshot is stale and holds the
+  pre-rotation password) before running `env-posture.sh` again, or change the script to source
+  the trimmed copy from a dedicated eval file. Not decided; nothing has launched since.
+- **Two housekeeping decisions owed:** Neon branch retention (five branches: production, the
+  09-03 eval snapshot, backups `br-polished-block`, `br-small-poetry`, `br-shy-wave`; the
+  older three still hold the pre-rotation password) and program cleanup (16 worktrees under
+  `bnow-net-worktrees/` and 66 local `48h/*` branches, all merged — remove, or keep as the next
+  program's lanes).
+- **One open read:** 240 of the first 531 `runtime_logs` rows are error-level; the observation
+  prompt's §2 now groups them by message so night 2 classifies them before anyone treats the
+  count as signal.
