@@ -843,6 +843,8 @@ docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md)
     byte-identical to the deploy). **STATUS 2026-09-06: checklist codified**
     (`docs/RELEASE-CHECKLIST.md` step 4/8: deploy from the plain clone only, clean-tree
     check included) — the underlying CLI limitation itself is unfixed.
+    **STATUS 2026-09-11 — the rule held.** Step 27 deployed from the plain release clone; `/health` stamped `45fa81f` on the first read. No change to the item itself.
+
 79. **[CLOSED 2026-09-07 — EXECUTED under the signed O2; do NOT re-run]** RU ROCA citation
     registry had the same historical staleness Iran had.
     ✅ **CLOSED 2026-09-07 by execution.** The one authorized run named below HAS been made,
@@ -887,6 +889,7 @@ docs/reviews/IRAN-VALIDATION-RECOVERY-2026-08-15.md)
     PRODUCTION. On 2026-09-07 the stale credential is the only reason that did not apply
     three unreviewed migrations to production; re-pulling the credential without fixing
     the callers would remove that accidental protection.
+    **STATUS 2026-09-11 — CLOSED.** Both DSNs refreshed in the main checkout and the release clone after the `neondb_owner` password reset on production; `DATABASE_URL` on the `-pooler` host, `DATABASE_URL_UNPOOLED` on the direct host, both verified against production by endpoint ownership (card 27.0). The evaluation branch and the two older backups keep the pre-rotation password.
 
 ### New (from the cloud-model routing seams reconciliation — 2026-08-20, PR #5,
 docs/reviews/CLOUD-MODEL-ROUTING-SEAMS-2026-08-17.md §12.11)
@@ -994,6 +997,7 @@ docs/reviews/CLOUD-MODEL-ROUTING-SEAMS-2026-08-17.md §12.11)
     so the missed record cost nothing — but that does not retire the acceptance, which
     stands for the next deploy: record the headroom check against the day's real usage at
     release time. Not moot; the cap posture is unchanged.
+    **STATUS 2026-09-11 — CLOSED by a release record that contains the line.** Step 27 release record: `openai_ask` had no usage row on 2026-09-11 (headroom = the full `ASK_USD_CAP_DAILY`); the read was taken from production (`ep-jolly-glitter-at0968cv`) at card 27.1, verbatim, before the deploy.
 
 ### New (from the QF Worktree B map-lease/remap release — 2026-08-21, PR #7,
 docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md)
@@ -1311,6 +1315,8 @@ docs/reviews/QF-B-MAP-LEASE-REMAP-RELEASE-2026-08-21.md §9)
     writes nothing, and no drain exists in the Vercel project, so merging and deploying it
     changes no behaviour. Enabling it = set the secret in Production, deploy from the release
     clone, then register the drain (runbook: design §8).
+    **STATUS 2026-09-11 — REGISTERED.** `LOG_DRAIN_SECRET` set in Production and Preview; drain registered production-only (endpoint `/api/logs/drain`, NDJSON, self-path sampled at 0%); first delivery 23:56:37Z; 531 rows across 3 deployments by 02:23Z on 2026-09-12; `audit-cron` reports coverage as a number. Open read: 240 of the first 531 lines are error-level — classify by message before treating as signal.
+
 94. **[CLOSED 2026-09-03] The expired `MAP_USD_CAP_DAILY_OVERRIDE_USD` / `_UNTIL` pair
     was removed from Production in the operator's 2026-09-03 configuration-only release**
     (with the X cap raise; see that decision-log entry). It had expired
@@ -2014,6 +2020,7 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     tables still absent. Nothing applied 0028 in the intervening day. The measurement was
     again taken against a migrated disposable fork (`br-cold-fog-atmcvp28`, deleted
     14:50:43Z); production was never written. Step 27's obligation is unchanged.
+    **STATUS 2026-09-11 — CLOSED.** 0028, 0029, 0030 applied to production at 22:35:37Z from the release clone (`_migrations` 29 → 32; all four tables present by `to_regclass`), after a rehearsal on disposable fork `br-purple-firefly-atb7yprb` (deleted) and behind backup branch `backup-pre-48h-deploy-2026-09-11` / `br-shy-wave-ata4r6y0`. Deploy `45fa81f` followed at 22:38Z; drain registered after the table existed (A2 (b) order held).
 
 112. **[Tier 1 — operational hazard] `env -u <VAR>` does NOT protect a script that imports
     `scripts/env.ts`; it hands the variable back from `.env.local`.** Found by executing
@@ -2447,3 +2454,16 @@ docs/reviews/EVAL-CAPTURE-ACCOUNTING-2026-09-04.md)
     ONLY after a key change (edited 2026-09-11). The `ua 2026-09-10` validation reading of
     `coverage 0` taken at 23:08Z ran against the rewritten 9-claim digest and must be re-read
     once the row stops moving before anything is inferred from it. Filed 2026-09-11.
+
+124. **[Tier 2 — environment hygiene] Vercel Preview reads and writes the PRODUCTION database.**
+    Found 2026-09-11 at step 27: Preview's `DATABASE_URL` was set 69 days ago with the same
+    value as Production's, and on 2026-09-11 it was reset to the rotated production string so
+    preview builds keep working. Any preview deployment can therefore perform the same
+    authenticated writes production allows (crons never fire on preview; every cron route is
+    secret-gated, so the exposure is user-action writes, not scheduled ones). **Fix, next
+    program, its own reviewed step:** a `preview` Neon branch reset from `main` on a schedule
+    (or per deploy), Preview's `DATABASE_URL` pointed at it, and migrations applied to it as
+    part of the PR flow before a preview build expects the new tables — the reason it was NOT
+    changed at step 27 (a preview of a post-migration commit against a pre-migration branch
+    would throw on the new tables, and the deploy's audit did not assess a moved Preview).
+    Filed 2026-09-11.

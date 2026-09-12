@@ -52,7 +52,7 @@ re-landed as #85.
 | 5.2a Stage 2a — D7/R4 measured remap | **DONE 2026-09-08** — executed, $0.046263 | yes |
 | 5.3 Stage 3 — build steps 18–34 | **DONE 2026-09-11** — CP7 `ad99101`; all eleven steps merged; 4,599/293, build PASS | yes |
 | 5.4 Stage 4 — review gates / four never-run checks | **G4, G5, G12 DONE** (freeze `2c66e94`; step 21; step 26 two-way); **G3 = step 27** with the fifteen-name list | no |
-| 5.5 Stage 5 — freeze, final audit, deploy | **IN PROGRESS** — frozen `2c66e94`; step 26 landed `180de8b` (deployable, 0 blockers); pre-deploy fixer + step 27 remain | no |
+| 5.5 Stage 5 — freeze, final audit, deploy | **DEPLOYED 2026-09-11** — `45fa81f` live, 0028–0030 applied 22:35:37Z, drain live; first window green 02:23Z; nights 2–3 + signatures owed | first window: yes |
 | §6 detached sessions | **RESOLVED** | yes |
 
 ### 5.0 Stage 0 — DONE
@@ -702,3 +702,4 @@ move to Stage 2a — and that move is itself a logged edit here, not an assumpti
 - 2026-09-11 17:30–18:05 ET — 27.1 first read hit the EVAL branch (ep-misty-bonus = br-weathered-forest; `.env.local` copied with the wrong branch selected); production endpoint is ep-jolly-glitter-at0968cv (br-lively-haze). Operator reset the production `neondb_owner` password → Vercel DATABASE_URL stale → production DB unreachable until Vercel updated (≈21:35–22:00Z); /health DB OK after. Cards 27.0/27.1 amended (endpoint-ownership read; outage classified). No migration, no deploy.
 - 2026-09-11 18:40 ET — DEPLOYED: migrations 0028/0029/0030 applied to production 22:35:37Z (29→32, backup br-shy-wave-ata4r6y0, rehearsed on br-purple-firefly deleted); `45fa81f` deployed 22:38Z (dpl H5HgnBKk2HhMQrEAtvHETT7gj3P5), /health DB OK, /methodology 200, drain 405, /conflicts 404. Smoke test surfaced OpenSanctions enrichment failing since ~08-06 (#122) and digest regen rewrite-in-place (#123); SETUP-NEXT-WEEK steps 2/5 corrected. Next: 27.10 register drain, key check, observation window, 27.12 records.
 - 2026-09-11 ≈19:30 ET — 27.10 done: LOG_DRAIN_SECRET set in Production + Preview (no newline), one extra production deploy so functions read it, drain registered production-only, Test 200, deliveries arriving. First registration attempt 403 (secret not on Vercel yet — the sheet had assumed 27.7 preceded 27.8). Remaining: 27.11 observation (first 02:00Z finalize), 27.12 records.
+- 2026-09-12 02:23Z — first observation window GREEN (#59 refusal did not fire: openai_embed 11, embeddings 93; finalize ok; 11 digests; 44 cron rows ok; drain 531 rows / 3 deployments). OPEN-TASKS #111/#93/#84/#80 statused, #124 filed. Deploy entry drafted (`2026-09-12-48h-step27-deploy-entry.md`) for the operator to append + sign the step-25 closing entry.
